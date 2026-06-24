@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lawpoc.n8n</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/fluke/.nvm/versions/node/v22.23.0/bin/node</string>
+        <string>/Users/fluke/Desktop/Work/Contents/infra/scripts/start-n8n.js</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/fluke/Desktop/Work/Contents/infra</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/fluke</string>
+        <key>PATH</key>
+        <string>/Users/fluke/.nvm/versions/node/v22.23.0/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/fluke/Desktop/Work/Contents/infra/logs/n8n.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/fluke/Desktop/Work/Contents/infra/logs/n8n.err.log</string>
+</dict>
+</plist>

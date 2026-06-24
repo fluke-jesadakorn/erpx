@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lawpoc.minio</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/minio</string>
+        <string>server</string>
+        <string>/Users/fluke/Desktop/Work/Contents/infra/minio-data</string>
+        <string>--console-address</string>
+        <string>:9001</string>
+        <string>--address</string>
+        <string>:9000</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/fluke/Desktop/Work/Contents/infra</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>MINIO_ROOT_USER</key>
+        <string>minioadmin</string>
+        <key>MINIO_ROOT_PASSWORD</key>
+        <string>minioadmin</string>
+        <key>HOME</key>
+        <string>/Users/fluke</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/fluke/Desktop/Work/Contents/infra/logs/minio.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/fluke/Desktop/Work/Contents/infra/logs/minio.err.log</string>
+</dict>
+</plist>

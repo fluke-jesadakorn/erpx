@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.lawpoc.ocr</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/fluke/.nvm/versions/node/v22.23.0/bin/node</string>
+        <string>/Users/fluke/Desktop/Work/Contents/infra/scripts/ocr-service.js</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/fluke/Desktop/Work/Contents/infra</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/fluke</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>OCR_SERVICE_HOST</key>
+        <string>127.0.0.1</string>
+        <key>OCR_SERVICE_PORT</key>
+        <string>8765</string>
+        <key>OLLAMA_URL</key>
+        <string>http://127.0.0.1:11434</string>
+        <key>OLLAMA_VISION_MODEL</key>
+        <string>qwen3-vl:4b</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/fluke/Desktop/Work/Contents/infra/logs/ocr.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/fluke/Desktop/Work/Contents/infra/logs/ocr.err.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
