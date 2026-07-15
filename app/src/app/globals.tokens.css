@@ -1,0 +1,164 @@
+/* ============================================================================
+ * Design Tokens — folio standard (single source of truth)
+ *
+ * Implements Appendix C of the RBAC standard:
+ *   - 7 status tones (frozen)
+ *   - 10-level authority palette mapped to tones
+ *   - 5 P-bucket groupings (P1–P5)
+ *   - Surface, ink, motion, radius tokens
+ *
+ * Tailwind 4 @theme: tokens become utility classes
+ *   --color-tone-emerald-bg  →  bg-tone-emerald-bg
+ *   --color-ink-1            →  text-ink-1
+ *   --radius-md               →  rounded-md
+ *   --ease-base               →  ease-base
+ * ========================================================================== */
+
+@theme {
+  /* ── Surface ───────────────────────────────────────────────────────────── */
+  --color-bg:               #0b0f19;
+  --color-surface-1:        rgba(15, 23, 42, 0.45);    /* glass-panel       */
+  --color-surface-2:        rgba(10, 15, 30, 0.85);    /* glass-panel-heavy */
+  --color-border:           rgba(255, 255, 255, 0.05);
+  --color-border-strong:    rgba(99, 102, 241, 0.15);
+
+  /* ── Ink (text on dark surface) ───────────────────────────────────────── */
+  --color-ink-1:            #f8fafc;   /* slate-50  — primary text    */
+  --color-ink-2:            #e2e8f0;   /* slate-200 — secondary text  */
+  --color-ink-3:            #94a3b8;   /* slate-400 — muted text      */
+  --color-ink-4:            #64748b;   /* slate-500 — disabled text   */
+
+  /* ── 7 Status tones (frozen — see plan §5.3) ──────────────────────────── */
+  /* emerald = success / active / approved / open
+     amber   = pending / warning / waiting
+     rose    = error / locked / rejected / danger
+     indigo  = primary action / info / active selection
+     cyan    = secondary info / link / preview
+     purple  = special / highlight / new feature
+     slate   = neutral / disabled / placeholder                       */
+  --color-tone-emerald-bg:     rgba(16, 185, 129, 0.15);
+  --color-tone-emerald-fg:     #6ee7b7;
+  --color-tone-emerald-border: rgba(16, 185, 129, 0.4);
+
+  --color-tone-amber-bg:       rgba(245, 158, 11, 0.15);
+  --color-tone-amber-fg:       #fcd34d;
+  --color-tone-amber-border:   rgba(245, 158, 11, 0.4);
+
+  --color-tone-rose-bg:        rgba(244, 63, 94, 0.15);
+  --color-tone-rose-fg:        #fda4af;
+  --color-tone-rose-border:    rgba(244, 63, 94, 0.4);
+
+  --color-tone-indigo-bg:      rgba(99, 102, 241, 0.15);
+  --color-tone-indigo-fg:      #a5b4fc;
+  --color-tone-indigo-border:  rgba(99, 102, 241, 0.4);
+
+  --color-tone-cyan-bg:        rgba(6, 182, 212, 0.15);
+  --color-tone-cyan-fg:        #67e8f9;
+  --color-tone-cyan-border:    rgba(6, 182, 212, 0.4);
+
+  --color-tone-purple-bg:      rgba(168, 85, 247, 0.15);
+  --color-tone-purple-fg:      #d8b4fe;
+  --color-tone-purple-border:  rgba(168, 85, 247, 0.4);
+
+  --color-tone-slate-bg:       rgba(100, 116, 139, 0.15);
+  --color-tone-slate-fg:       #cbd5e1;
+  --color-tone-slate-border:   rgba(100, 116, 139, 0.4);
+
+  /* ── Authority Level palette (10 levels → 7 tones) ────────────────────── */
+  /* level N = authority threshold; lower N = more authority               */
+  --color-level-1-bg:          var(--color-tone-rose-bg);
+  --color-level-1-fg:          var(--color-tone-rose-fg);
+  --color-level-1-border:      var(--color-tone-rose-border);
+
+  --color-level-2-bg:          var(--color-tone-rose-bg);
+  --color-level-2-fg:          var(--color-tone-rose-fg);
+  --color-level-2-border:      var(--color-tone-rose-border);
+
+  --color-level-3-bg:          var(--color-tone-amber-bg);
+  --color-level-3-fg:          var(--color-tone-amber-fg);
+  --color-level-3-border:      var(--color-tone-amber-border);
+
+  --color-level-4-bg:          var(--color-tone-cyan-bg);
+  --color-level-4-fg:          var(--color-tone-cyan-fg);
+  --color-level-4-border:      var(--color-tone-cyan-border);
+
+  --color-level-5-bg:          var(--color-tone-cyan-bg);
+  --color-level-5-fg:          var(--color-tone-cyan-fg);
+  --color-level-5-border:      var(--color-tone-cyan-border);
+
+  --color-level-6-bg:          var(--color-tone-emerald-bg);
+  --color-level-6-fg:          var(--color-tone-emerald-fg);
+  --color-level-6-border:      var(--color-tone-emerald-border);
+
+  --color-level-7-bg:          var(--color-tone-indigo-bg);
+  --color-level-7-fg:          var(--color-tone-indigo-fg);
+  --color-level-7-border:      var(--color-tone-indigo-border);
+
+  --color-level-8-bg:          var(--color-tone-slate-bg);
+  --color-level-8-fg:          var(--color-tone-slate-fg);
+  --color-level-8-border:      var(--color-tone-slate-border);
+
+  --color-level-9-bg:          var(--color-tone-slate-bg);
+  --color-level-9-fg:          var(--color-tone-slate-fg);
+  --color-level-9-border:      var(--color-tone-slate-border);
+
+  --color-level-10-bg:         var(--color-tone-slate-bg);
+  --color-level-10-fg:         var(--color-tone-slate-fg);
+  --color-level-10-border:     var(--color-tone-slate-border);
+
+  /* ── P1–P5 staff buckets (UI grouping of levels) ──────────────────────── */
+  --color-bucket-P1-bg:        var(--color-tone-rose-bg);
+  --color-bucket-P1-fg:        var(--color-tone-rose-fg);
+  --color-bucket-P1-border:    var(--color-tone-rose-border);
+
+  --color-bucket-P2-bg:        var(--color-tone-amber-bg);
+  --color-bucket-P2-fg:        var(--color-tone-amber-fg);
+  --color-bucket-P2-border:    var(--color-tone-amber-border);
+
+  --color-bucket-P3-bg:        var(--color-tone-cyan-bg);
+  --color-bucket-P3-fg:        var(--color-tone-cyan-fg);
+  --color-bucket-P3-border:    var(--color-tone-cyan-border);
+
+  --color-bucket-P4-bg:        var(--color-tone-emerald-bg);
+  --color-bucket-P4-fg:        var(--color-tone-emerald-fg);
+  --color-bucket-P4-border:    var(--color-tone-emerald-border);
+
+  --color-bucket-P5-bg:        var(--color-tone-indigo-bg);
+  --color-bucket-P5-fg:        var(--color-tone-indigo-fg);
+  --color-bucket-P5-border:    var(--color-tone-indigo-border);
+
+  /* ── Radii ────────────────────────────────────────────────────────────── */
+  --radius-xs:                 0.25rem;
+  --radius-sm:                 0.375rem;
+  --radius-md:                 0.5rem;
+  --radius-lg:                 0.75rem;
+  --radius-xl:                 1rem;
+
+  /* ── Shadows ──────────────────────────────────────────────────────────── */
+  --shadow-sm:                 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md:                 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg:                 0 12px 32px rgba(0, 0, 0, 0.45);
+  --shadow-glow-indigo:        0 0 24px rgba(99, 102, 241, 0.25);
+
+  /* ── Motion ───────────────────────────────────────────────────────────── */
+  --ease-base:                 cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:                   cubic-bezier(0.4, 0, 1, 1);
+  --ease-out:                  cubic-bezier(0, 0, 0.2, 1);
+
+  --animate-fast:              120ms;
+  --animate-base:              200ms;
+  --animate-slow:              320ms;
+}
+
+/* ── Tone icons (modal/dialog glyphs — see plan §5.4) ───────────────────── */
+@layer base {
+  :root {
+    --tone-icon-emerald:  "✓";
+    --tone-icon-amber:    "⚠";
+    --tone-icon-rose:     "⚡";
+    --tone-icon-indigo:   "🪟";
+    --tone-icon-cyan:     "🧊";
+    --tone-icon-purple:   "✨";
+    --tone-icon-slate:    "•";
+  }
+}

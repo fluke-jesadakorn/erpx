@@ -1,0 +1,932 @@
+/* ==========================================================================
+   Executive AI Pitch Slide Deck CSS System
+   Supports: dark (default) + light themes via [data-theme="light"] on <html>
+   Phone mockup is a "device frame" — always dark regardless of page theme
+   ========================================================================== */
+
+:root {
+  /* ---------- Background Tokens ---------- */
+  --bg-presentation: #080c14;        /* page background outside slide */
+  --bg-slide: #0e1422;                /* slide deck surface */
+  --bg-card: rgba(21, 30, 52, 0.6);    /* glass card surface */
+  --bg-status: rgba(0, 0, 0, 0.3);    /* status widget backdrop */
+  --bg-controls: rgba(8, 12, 20, 0.4); /* navigation bar backdrop */
+  --bg-subtle: rgba(255, 255, 255, 0.05); /* subtle fill (badges, step nums) */
+  --bg-mark: #fef08a;                  /* yellow highlight bg (works in both) */
+  --color-mark-text: #713f12;          /* yellow highlight text */
+
+  /* ---------- Text Tokens ---------- */
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+
+  /* ---------- Border Tokens ---------- */
+  --border-color: rgba(36, 47, 73, 0.5);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+
+  /* ---------- Accent Tokens (work in both themes) ---------- */
+  --color-primary: #14b8a6;            /* Vibrant Teal */
+  --color-primary-light: #2dd4bf;      /* Glowing Cyan */
+  --color-primary-glow: rgba(20, 184, 166, 0.15);
+  --color-primary-glow-strong: rgba(20, 184, 166, 0.3);
+  --color-primary-glow-soft: rgba(20, 184, 166, 0.08);
+  --color-accent: #3b82f6;             /* Neon Blue */
+  --color-accent-glow: rgba(59, 130, 246, 0.3);
+  --color-accent-bg: rgba(59, 130, 246, 0.05);
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+
+  /* ---------- Shadow Tokens ---------- */
+  --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-deep: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+
+  /* ---------- Phone Frame (always dark, theme-independent) ---------- */
+  --phone-body: #171d2c;
+  --phone-frame: #2d3852;
+  --phone-header: #111624;
+  --phone-msg-bot: rgba(255, 255, 255, 0.05);
+  --phone-status: #10b981;
+
+  /* ---------- Font Families ---------- */
+  --font-family: 'Outfit', 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* ---------- Slide Transitions ---------- */
+  --transition-speed: 0.5s;
+  --transition-timing: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* ==========================================================================
+   LIGHT THEME OVERRIDES
+   Apply by adding data-theme="light" to <html> element
+   ========================================================================== */
+
+[data-theme="light"] {
+  --bg-presentation: #eef2f7;
+  --bg-slide: #ffffff;
+  --bg-card: #ffffff;
+  --bg-status: rgba(15, 23, 42, 0.04);
+  --bg-controls: rgba(241, 245, 249, 0.85);
+  --bg-subtle: rgba(15, 23, 42, 0.05);
+
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+
+  --border-color: rgba(15, 23, 42, 0.1);
+  --border-subtle: rgba(15, 23, 42, 0.05);
+
+  --color-primary: #0d9488;            /* slightly darker teal for AA contrast on white */
+  --color-primary-light: #0d9488;
+  --color-primary-glow: rgba(13, 148, 136, 0.12);
+  --color-primary-glow-strong: rgba(13, 148, 136, 0.3);
+  --color-primary-glow-soft: rgba(13, 148, 136, 0.06);
+  --color-accent: #2563eb;
+  --color-accent-glow: rgba(37, 99, 235, 0.3);
+  --color-accent-bg: rgba(37, 99, 235, 0.06);
+
+  --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);
+  --shadow-deep: 0 10px 30px -8px rgba(15, 23, 42, 0.18), 0 25px 50px -12px rgba(15, 23, 42, 0.12);
+}
+
+/* ==========================================================================
+   Reset & Base Styles
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-presentation);
+  color: var(--text-main);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Slide Deck Container */
+.presentation-container {
+  width: 95vw;
+  height: 90vh;
+  max-width: 1600px;
+  max-height: 900px;
+  background-color: var(--bg-slide);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  box-shadow: var(--shadow-deep);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* ==========================================================================
+   Slide Transitions Engine
+   ========================================================================== */
+
+.slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 88px;
+  padding: 3rem 4rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(100px);
+  transition: opacity var(--transition-speed) var(--transition-timing),
+              transform var(--transition-speed) var(--transition-timing);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.slide.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+  z-index: 2;
+}
+
+.slide.prev {
+  transform: translateX(-100px);
+}
+
+.slide-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* ==========================================================================
+   Typography & Helper Classes
+   ========================================================================== */
+
+h1, h2, h3, h4 {
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-main);
+}
+
+.slide-title {
+  font-size: 2.2rem;
+  margin-bottom: 0.75rem;
+  letter-spacing: -0.5px;
+  color: var(--text-main);
+}
+
+.slide-desc {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  margin-bottom: 2rem;
+}
+
+.text-center { text-align: center; }
+.highlight-teal { color: var(--color-primary-light); }
+
+/* Decorative tags */
+.section-tag {
+  background-color: var(--color-primary-glow);
+  color: var(--color-primary-light);
+  border: 1px solid var(--color-primary-glow-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: inline-block;
+  margin-bottom: 1rem;
+}
+
+.center-tag-container {
+  display: flex;
+  justify-content: center;
+}
+
+/* ==========================================================================
+   Layout Mechanics
+   ========================================================================== */
+
+/* Split Screen 50/50 Layout */
+.split-layout {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 3rem;
+  height: 100%;
+  align-items: center;
+}
+
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.right-panel {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.center-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ==========================================================================
+   SLIDE 1: Cover Design
+   ========================================================================== */
+
+.cover-layout {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 1.5rem;
+}
+
+.cover-tag {
+  color: var(--color-accent);
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 3px;
+  border: 1px solid var(--color-accent-glow);
+  padding: 8px 18px;
+  border-radius: 8px;
+  background-color: var(--color-accent-bg);
+}
+
+.cover-title {
+  font-size: 3.5rem;
+  font-weight: 800;
+  letter-spacing: -1.5px;
+  color: var(--text-main);
+}
+
+.cover-subtitle {
+  font-size: 1.35rem;
+  color: var(--text-muted);
+  max-width: 800px;
+}
+
+.cover-footer {
+  margin-top: 3rem;
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.slide-badge {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* ==========================================================================
+   SLIDE 2: Pain Points List
+   ========================================================================== */
+
+.pain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.pain-item {
+  display: flex;
+  gap: 1.25rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.25rem;
+  align-items: flex-start;
+  transition: border-color 0.2s, box-shadow 0.2s, background-color 0.3s ease;
+  box-shadow: var(--shadow-card);
+}
+
+.pain-item:hover {
+  border-color: var(--color-primary-glow-strong);
+}
+
+.pain-num {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--color-accent);
+  line-height: 1;
+}
+
+.pain-item h4 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-main);
+}
+
+.pain-item p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Glassmorphic Metrics Card */
+.glass-metric-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 2.25rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: var(--shadow-card);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.metric-card.glow {
+  border-color: var(--color-primary-glow-strong);
+  box-shadow: 0 0 25px var(--color-primary-glow), var(--shadow-card);
+}
+
+.metric-val {
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: var(--color-primary-light);
+  line-height: 1;
+}
+
+.metric-txt {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   SLIDE 3: RAG Steps
+   ========================================================================== */
+
+.rag-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.step-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 2rem;
+  position: relative;
+  box-shadow: var(--shadow-card);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.step-card.highlight {
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 25px var(--color-primary-glow), var(--shadow-card);
+}
+
+.step-badge {
+  position: absolute;
+  top: -15px;
+  left: 25px;
+  width: 32px;
+  height: 32px;
+  background-color: var(--color-accent);
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+}
+
+.step-card.highlight .step-badge {
+  background-color: var(--color-primary-light);
+  color: #ffffff;
+}
+
+.step-card h3 {
+  font-size: 1.25rem;
+  margin-top: 0.5rem;
+  margin-bottom: 10px;
+  color: var(--text-main);
+}
+
+.step-card p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   SLIDE 4: Interactive Live Demo (Phone Mockup & Triggers)
+   ========================================================================== */
+
+.demo-triggers {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 2rem;
+}
+
+.btn-demo-query {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  text-align: left;
+  padding: 14px 18px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-card);
+}
+
+.btn-demo-query:hover {
+  border-color: var(--color-primary-light);
+  background-color: var(--color-primary-glow);
+  transform: translateX(4px);
+}
+
+.btn-demo-query.active {
+  border-color: var(--color-primary-light);
+  background-color: var(--color-primary-glow);
+  box-shadow: 0 0 12px var(--color-primary-glow-soft);
+}
+
+/* Back-end Status Widget */
+.vector-search-status {
+  background-color: var(--bg-status);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.25rem;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.vector-search-status h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.vector-search-bar {
+  height: 6px;
+  background-color: var(--border-color);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.vector-search-bar .fill {
+  height: 100%;
+  background-color: var(--color-accent);
+  border-radius: 3px;
+  transition: width 0.8s ease-out;
+}
+
+.status-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.status-meta .score {
+  font-weight: 700;
+  color: var(--color-primary-light);
+}
+
+/* Phone Mockup Layout (device frame — always dark) */
+.phone-mockup {
+  width: 320px;
+  height: 520px;
+  background-color: var(--phone-body);
+  border: 8px solid var(--phone-frame);
+  border-radius: 36px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+.phone-header {
+  background-color: var(--phone-header);
+  padding: 16px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.back-btn {
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--color-accent);
+}
+
+.contact-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.contact-info .avatar {
+  width: 32px;
+  height: 32px;
+  background-color: var(--color-primary-glow);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+.name-status {
+  display: flex;
+  flex-direction: column;
+}
+
+.name-status .name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.name-status .status {
+  font-size: 0.65rem;
+  color: var(--phone-status);
+}
+
+.phone-body {
+  flex: 1;
+  padding: 14px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.chat-date {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.msg {
+  max-width: 80%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  animation: messageSlideIn 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@keyframes messageSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.bot-msg {
+  background-color: var(--phone-msg-bot);
+  color: var(--text-main);
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+}
+
+.user-msg {
+  background-color: var(--color-accent);
+  color: #ffffff;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+
+/* Chat Search Highlight inside Mockup (works in both themes) */
+.msg mark.highlight {
+  background-color: var(--bg-mark);
+  color: var(--color-mark-text);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+/* Spinner indicator */
+.typing-spinner {
+  display: flex;
+  gap: 4px;
+  padding: 4px 6px;
+  align-items: center;
+}
+
+.typing-spinner span {
+  width: 6px;
+  height: 6px;
+  background-color: var(--text-muted);
+  border-radius: 50%;
+  animation: typingBounce 1.4s infinite ease-in-out both;
+}
+
+.typing-spinner span:nth-child(1) { animation-delay: -0.32s; }
+.typing-spinner span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes typingBounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* ==========================================================================
+   SLIDE 5: Strategic Business Benefits & ROI
+   ========================================================================== */
+
+.benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.benefit-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  transition: transform 0.2s, border-color 0.2s, background-color 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: var(--shadow-card);
+}
+
+.benefit-card:hover {
+  transform: translateY(-5px);
+  border-color: var(--color-accent-glow);
+}
+
+.benefit-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.benefit-card h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: var(--text-main);
+}
+
+.benefit-card p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   SLIDE 6: Roadmap List & Pitch conclusion
+   ========================================================================== */
+
+.roadmap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.roadmap-step {
+  display: flex;
+  gap: 1.25rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.25rem;
+  align-items: center;
+  opacity: 0.65;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-card);
+}
+
+.roadmap-step.active {
+  opacity: 1;
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 15px var(--color-primary-glow-soft), var(--shadow-card);
+}
+
+.step-num {
+  font-size: 1.2rem;
+  font-weight: 800;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-main);
+  flex-shrink: 0;
+}
+
+.roadmap-step.active .step-num {
+  background-color: var(--color-primary-glow);
+  border-color: var(--color-primary-light);
+  color: var(--color-primary-light);
+}
+
+.roadmap-step h4 {
+  font-size: 1rem;
+  margin-bottom: 2px;
+  color: var(--text-main);
+}
+
+.roadmap-step p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Presentation Conclusion Call To Action */
+.pitch-conclusion-box {
+  background: var(--bg-card);
+  border: 1px solid var(--color-primary-glow-strong);
+  border-radius: 20px;
+  padding: 2.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  box-shadow: var(--shadow-card);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.pitch-conclusion-box h3 {
+  font-size: 1.35rem;
+  color: var(--color-primary-light);
+}
+
+.pitch-conclusion-box p {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.pitch-conclusion-box .btn {
+  align-self: center;
+  height: 44px;
+}
+
+/* ==========================================================================
+   Navigation Controls & Slide Indicators
+   ========================================================================== */
+
+.presentation-controls {
+  margin-top: auto;
+  padding: 1.5rem 4rem;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--bg-controls);
+  position: relative;
+  z-index: 10;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+  gap: 1rem;
+}
+
+.nav-btn {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 0 18px;
+  height: 38px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.nav-btn:hover:not(:disabled) {
+  border-color: var(--color-primary-light);
+  color: var(--color-primary-light);
+  background-color: var(--color-primary-glow);
+}
+
+.nav-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.indicators-container {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  justify-content: center;
+}
+
+.indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.indicator-dot.active {
+  background-color: var(--color-primary-light);
+  transform: scale(1.3);
+  box-shadow: 0 0 8px var(--color-primary-light);
+}
+
+/* Progress Bar at bottom of screen */
+.progress-bar-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background-color: var(--bg-subtle);
+  z-index: 11;
+  transition: background-color 0.3s ease;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--color-accent) 0%, var(--color-primary-light) 100%);
+  transition: width 0.3s ease;
+}
+
+/* General Button style */
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #ffffff;
+  border: 0;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  height: 48px;
+  transition: all 0.2s;
+  box-shadow: 0 4px 14px var(--color-primary-glow-strong);
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-light);
+  box-shadow: 0 0 15px var(--color-primary-glow-strong), 0 4px 14px var(--color-primary-glow-strong);
+  transform: translateY(-1px);
+}
+
+/* ==========================================================================
+   Theme Toggle Button (sun/moon)
+   ========================================================================== */
+
+.theme-toggle {
+  width: 38px;
+  padding: 0;
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+
+.theme-toggle .theme-icon {
+  display: inline-block;
+  line-height: 1;
+  transition: transform 0.3s ease;
+}
+
+.theme-toggle:hover .theme-icon {
+  transform: rotate(20deg);
+}

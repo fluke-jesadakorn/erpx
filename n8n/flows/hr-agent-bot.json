@@ -1,0 +1,347 @@
+{
+  "name": "HR Line Agent Bot (State Machine + NLP)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hr-line-agent",
+        "responseMode": "responseNode",
+        "options": {},
+        "query": ""
+      },
+      "id": "wh-line-bot",
+      "name": "LINE Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -250,
+        150
+      ],
+      "webhookId": "hr-line-agent-webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        },
+        "query": ""
+      },
+      "id": "resp-200",
+      "name": "Respond 200 OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -50,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = items[0].json.body;\nif (!body || !body.events || body.events.length === 0) {\n  return [];\n}\n\nconst event = body.events[0];\nconst userId = event.source.userId;\nconst eventType = event.type;\nconst replyToken = event.replyToken;\n\nlet messageText = '';\nlet postbackData = '';\nlet postbackParams = {};\n\nif (eventType === 'message' && event.message.type === 'text') {\n  messageText = event.message.text.trim();\n} else if (eventType === 'postback') {\n  postbackData = event.postback.data;\n  postbackParams = event.postback.params || {};\n}\n\nreturn [{\n  json: {\n    userId,\n    eventType,\n    replyToken,\n    messageText,\n    postbackData,\n    postbackParams\n  }\n}];",
+        "query": ""
+      },
+      "id": "code-parse",
+      "name": "Parse LINE Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        150,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  e.id as employee_id, \n  e.employee_code, \n  e.name, \n  e.position, \n  e.department, \n  e.role, \n  e.job_description,\n  e.total_sick_leave, e.used_sick_leave,\n  e.total_annual_leave, e.used_annual_leave,\n  e.total_personal_leave, e.used_personal_leave,\n  s.current_state,\n  s.temp_data\nFROM (SELECT $1::text as line_id) input\nLEFT JOIN hr.employees e ON e.line_user_id = input.line_id\nLEFT JOIN hr.user_sessions s ON s.line_user_id = input.line_id;",
+        "options": {
+          "queryReplacement": "={{ [$('Parse LINE Event').first().json.userId] }}"
+        }
+      },
+      "id": "pg-get-session",
+      "name": "PG: Get Employee & Session",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        350,
+        150
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "folio-postgres-credential-id",
+          "name": "Postgres Folio DB - folio_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('PG: Get Employee & Session').first().json;\nconst parsedEvent = $('Parse LINE Event').first().json;\nconst userId = parsedEvent.userId;\nconst replyToken = parsedEvent.replyToken;\nconst messageText = parsedEvent.messageText ? parsedEvent.messageText.trim() : '';\nconst cleanText = messageText.toLowerCase();\n\n// Get Ollama NLP output\nconst ollamaRes = $('Ollama: Parse Intent').first().json.response;\nlet nlp = { intent: 'general_chat', leave_type: null, start_date: null, end_date: null, days: null, reason: null, employee_code: null, check_date: null };\ntry {\n  let cleanRes = ollamaRes.trim();\n  const jsonMatch = cleanRes.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    nlp = JSON.parse(jsonMatch[0]);\n  } else {\n    nlp = JSON.parse(cleanRes);\n  }\n} catch (e) {\n  console.error('Failed to parse Ollama JSON:', e);\n}\n\nlet responseType = 'direct_reply';\nlet replyMessages = [];\nlet sql = '';\nlet params = [];\n\n// Helper functions for date parsing and days calculation\nfunction parseDate(text, baseDate = null) {\n  if (!text) return null;\n  const clean = text.trim().toLowerCase().replace(/\\s+/g, ' ');\n  const today = new Date(new Date().getTime() + (7 * 60 * 60 * 1000));\n  const currentYear = today.getFullYear();\n\n  // 1. Relative words\n  if (clean === 'วันนี้') {\n    return today.toISOString().split('T')[0];\n  }\n  if (clean === 'พรุ่งนี้') {\n    const d = new Date(today.getTime() + (24 * 60 * 60 * 1000));\n    return d.toISOString().split('T')[0];\n  }\n  if (clean === 'เมื่อวาน' || clean === 'เมื่อวานนี้') {\n    const d = new Date(today.getTime() - (24 * 60 * 60 * 1000));\n    return d.toISOString().split('T')[0];\n  }\n  if (clean === 'วานซืน' || clean === 'เมื่อวานซืน') {\n    const d = new Date(today.getTime() - (2 * 24 * 60 * 60 * 1000));\n    return d.toISOString().split('T')[0];\n  }\n  if (clean === 'มะรืน' || clean === 'มะรืนนี้') {\n    const d = new Date(today.getTime() + (2 * 24 * 60 * 60 * 1000));\n    return d.toISOString().split('T')[0];\n  }\n\n  // 2. Duration match: e.g., \"3 วัน\", \"5 วัน\", \"3 days\"\n  if (baseDate) {\n    const durMatch = clean.match(/^(\\d+)\\s*(วัน|day|days)$/);\n    if (durMatch) {\n      const numDays = parseInt(durMatch[1]);\n      if (numDays > 0) {\n        const start = new Date(baseDate);\n        const end = new Date(start.getTime() + ((numDays - 1) * 24 * 60 * 60 * 1000));\n        return end.toISOString().split('T')[0];\n      }\n    }\n  }\n\n  // 3. Parse Thai months\n  const thaiMonthsShort = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];\n  const thaiMonthsFull = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];\n\n  let parsedText = clean;\n  let monthIndex = -1;\n  for (let i = 0; i < 12; i++) {\n    if (clean.includes(thaiMonthsFull[i])) {\n      monthIndex = i + 1;\n      parsedText = clean.replace(thaiMonthsFull[i], ' ' + monthIndex + ' ');\n      break;\n    }\n  }\n  if (monthIndex === -1) {\n    for (let i = 0; i < 12; i++) {\n      const term = thaiMonthsShort[i].replace('.', '\\\\.?');\n      const regex = new RegExp(term, 'g');\n      if (regex.test(clean)) {\n        monthIndex = i + 1;\n        parsedText = clean.replace(regex, ' ' + monthIndex + ' ');\n        break;\n      }\n    }\n  }\n\n  // Match formats:\n  // - \"YYYY-MM-DD\"\n  const dateRegexYMD = /^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})$/;\n  const matchYMD = parsedText.match(dateRegexYMD);\n  if (matchYMD) {\n    let y = parseInt(matchYMD[1]);\n    let m = parseInt(matchYMD[2]) - 1;\n    let d = parseInt(matchYMD[3]);\n    if (y >= 2400) y -= 543;\n    const dateObj = new Date(y, m, d);\n    if (!isNaN(dateObj.getTime())) {\n      return formatDate(dateObj);\n    }\n  }\n\n  // - \"DD/MM/YYYY\"\n  const dateRegexDMY = /^(\\d{1,2})[-/ ](\\d{1,2})[-/ ](\\d{4})$/;\n  const matchDMY = parsedText.match(dateRegexDMY);\n  if (matchDMY) {\n    let d = parseInt(matchDMY[1]);\n    let m = parseInt(matchDMY[2]) - 1;\n    let y = parseInt(matchDMY[3]);\n    if (y >= 2400) y -= 543;\n    const dateObj = new Date(y, m, d);\n    if (!isNaN(dateObj.getTime())) {\n      return formatDate(dateObj);\n    }\n  }\n\n  // - \"DD/MM\" (e.g. 20/02 or 20 08)\n  const dateRegexDM = /^(\\d{1,2})[-/ ](\\d{1,2})$/;\n  const matchDM = parsedText.match(dateRegexDM);\n  if (matchDM) {\n    let d = parseInt(matchDM[1]);\n    let m = parseInt(matchDM[2]) - 1;\n    let y = currentYear;\n    const dateObj = new Date(y, m, d);\n    if (!isNaN(dateObj.getTime())) {\n      return formatDate(dateObj);\n    }\n  }\n\n  // Digits fallback extraction (e.g. \"วันที่ 20 เดือน 8\")\n  const digits = parsedText.match(/\\d+/g);\n  if (digits) {\n    if (digits.length === 3) {\n      let d = parseInt(digits[0]);\n      let m = parseInt(digits[1]) - 1;\n      let y = parseInt(digits[2]);\n      if (y < 100) y += 2000;\n      if (y >= 2400) y -= 543;\n      const dateObj = new Date(y, m, d);\n      if (!isNaN(dateObj.getTime())) return formatDate(dateObj);\n    } else if (digits.length === 2) {\n      let d = parseInt(digits[0]);\n      let m = parseInt(digits[1]) - 1;\n      let y = currentYear;\n      if (monthIndex !== -1) {\n        m = monthIndex - 1;\n      }\n      const dateObj = new Date(y, m, d);\n      if (!isNaN(dateObj.getTime())) return formatDate(dateObj);\n    } else if (digits.length === 1 && baseDate) {\n      let d = parseInt(digits[0]);\n      const base = new Date(baseDate);\n      const dateObj = new Date(base.getFullYear(), base.getMonth(), d);\n      if (dateObj < base) {\n        dateObj.setMonth(dateObj.getMonth() + 1);\n      }\n      if (!isNaN(dateObj.getTime())) return formatDate(dateObj);\n    }\n  }\n\n  const parsed = Date.parse(clean);\n  if (!isNaN(parsed)) {\n    return formatDate(new Date(parsed));\n  }\n\n  return null;\n}\n\nfunction formatDate(date) {\n  const y = date.getFullYear();\n  const m = String(date.getMonth() + 1).padStart(2, '0');\n  const d = String(date.getDate()).padStart(2, '0');\n  return `${y}-${m}-${d}`;\n}\n\nfunction calculateDays(start, end) {\n  const s = new Date(start);\n  const e = new Date(end);\n  const diffTime = e.getTime() - s.getTime();\n  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;\n  return diffDays > 0 ? diffDays : 1;\n}\n\nfunction getLeaveTypeThai(type) {\n  if (type === 'sick') return '🤒 ลาป่วย';\n  if (type === 'annual') return '✈️ ลาพักร้อน';\n  if (type === 'personal') return 'ลากิจ';\n  return type;\n}\n\nfunction getRemainingDays(type) {\n  if (type === 'sick') return input.total_sick_leave - input.used_sick_leave;\n  if (type === 'annual') return input.total_annual_leave - input.used_annual_leave;\n  if (type === 'personal') return input.total_personal_leave - input.used_personal_leave;\n  return 0;\n}\n\n// 1. Handlers for unregistered users\nif (!input.employee_id && !messageText.startsWith('/switch ')) {\n  responseType = 'direct_reply';\n  replyMessages = [{\n    \"type\": \"text\",\n    \"text\": \"⚠️ คุณยังไม่ได้ลงทะเบียนในระบบบอท HR\\nโปรดพิมพ์คำสั่งสลับบัญชีเพื่อทดสอบ เช่น:\\n/switch EMP001 (เพื่อสวมบทบาท สมชาย)\"\n  }];\n}\n// 2. Handler for /switch <employee_code>\nelse if (cleanText.startsWith('/switch ') || messageText.startsWith('/switch ') || (nlp.intent === 'switch_user' && nlp.employee_code)) {\n  const code = (nlp.intent === 'switch_user' && nlp.employee_code) ? nlp.employee_code : messageText.replace('/switch ', '').trim().toUpperCase();\n  responseType = 'execute_sql';\n  \n  sql = `\n    WITH unbind AS (\n      UPDATE hr.employees SET line_user_id = NULL WHERE line_user_id = $1\n    ), bind AS (\n      UPDATE hr.employees SET line_user_id = $1 WHERE employee_code = $2 RETURNING name, position\n    )\n    INSERT INTO hr.user_sessions (line_user_id, current_state, temp_data)\n    VALUES ($1, 'idle', '{}'::jsonb)\n    ON CONFLICT (line_user_id) DO UPDATE SET current_state = 'idle', temp_data = '{}'::jsonb\n    RETURNING (SELECT name FROM bind) AS employee_name, (SELECT position FROM bind) AS employee_position;\n  `;\n  params = [userId, code];\n  \n  replyMessages = [{\n    \"type\": \"text\",\n    \"text\": `🔄 กำลังสลับบัญชี...`\n  }];\n}\n// 3. User is registered - State Machine for Leave Request (Multi-turn Slot Filling)\nelse if (input.current_state && input.current_state !== 'idle') {\n  const state = input.current_state;\n  let tempData = input.temp_data || {};\n  \n  if (cleanText === 'ยกเลิก' || nlp.intent === 'general_chat' && cleanText === 'cancel') {\n    responseType = 'execute_sql';\n    sql = `UPDATE hr.user_sessions SET current_state = 'idle', temp_data = '{}'::jsonb WHERE line_user_id = $1;`;\n    params = [userId];\n    replyMessages = [{\n      \"type\": \"text\",\n      \"text\": \"❌ ยกเลิกการทำรายการเรียบร้อยแล้ว กลับสู่สถานะปกติ\"\n    }];\n  }\n  else if (state === 'awaiting_leave_type') {\n    let leaveType = '';\n    let leaveTypeThai = '';\n    if (cleanText.includes('ป่วย') || cleanText === 'sick') {\n      leaveType = 'sick';\n      leaveTypeThai = '🤒 ลาป่วย';\n    } else if (cleanText.includes('พักร้อน') || cleanText === 'annual') {\n      leaveType = 'annual';\n      leaveTypeThai = '✈️ ลาพักร้อน';\n    } else if (cleanText.includes('กิจ') || cleanText === 'personal') {\n      leaveType = 'personal';\n      leaveTypeThai = 'ลากิจ';\n    }\n    \n    if (!leaveType) {\n      responseType = 'direct_reply';\n      replyMessages = [{\n        \"type\": \"text\",\n        \"text\": \"⚠️ ประเภทการลาไม่ถูกต้อง โปรดเลือกประเภทการลา:\\n- พิมพ์ \\\"ลาป่วย\\\"\\n- พิมพ์ \\\"ลาพักร้อน\\\"\\n- พิมพ์ \\\"ลากิจ\\\"\\n(หรือพิมพ์ \\\"ยกเลิก\\\" เพื่อออกจากการทำรายการ)\"\n      }];\n    } else {\n      const rem = getRemainingDays(leaveType);\n      if (rem <= 0) {\n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = 'idle', temp_data = '{}'::jsonb WHERE line_user_id = $1;`;\n        params = [userId];\n        replyMessages = [{\n          \"type\": \"text\",\n          \"text\": `⚠️ ไม่สามารถยื่นคำขอลาได้เนื่องจากสิทธิ์วันลาหมดแล้ว\\n\\n- ประเภทการลา: ${leaveTypeThai}\\n- คงเหลือ: 0 วัน`\n        }];\n      } else {\n        tempData.leave_type = leaveType;\n        tempData.leave_type_thai = leaveTypeThai;\n      \n      // Check next missing slot\n      if (!tempData.start_date) {\n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_start_date', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n        params = [userId, JSON.stringify(tempData)];\n        replyMessages = [{\n          \"type\": \"text\",\n          \"text\": `📋 ประเภทการลา: ${leaveTypeThai}\\n\\nโปรดระบุ \"วันที่เริ่มลาหยุด\" (เช่น 2026-06-25 หรือพิมพ์ วันนี้ / พรุ่งนี้)`\n        }];\n      } else if (!tempData.end_date) {\n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_end_date', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n        params = [userId, JSON.stringify(tempData)];\n        replyMessages = [{\n          \"type\": \"text\",\n          \"text\": `📋 ประเภทการลา: ${leaveTypeThai}\\n📅 วันที่เริ่มลา: ${tempData.start_date}\\n\\nโปรดระบุ \"วันที่สิ้นสุด\" (เช่น 2026-06-26)`\n        }];\n      } else if (!tempData.reason) {\n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_reason', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n        params = [userId, JSON.stringify(tempData)];\n        replyMessages = [{\n          \"type\": \"text\",\n          \"text\": `📋 ประเภทการลา: ${leaveTypeThai}\\n📅 ระยะเวลาลา: ${tempData.start_date} ถึง ${tempData.end_date} (${tempData.days} วัน)\\n\\nโปรดระบุ \"เหตุผลการลา\" (เช่น พักผ่อน / มีธุระ)`\n        }];\n      } else {\n        if (!tempData.days && tempData.start_date && tempData.end_date) {\n          tempData.days = calculateDays(tempData.start_date, tempData.end_date);\n        }\n        const rem = getRemainingDays(tempData.leave_type);\n        if (tempData.days > rem) {\n          responseType = 'execute_sql';\n          sql = `UPDATE hr.user_sessions SET current_state = 'idle', temp_data = '{}'::jsonb WHERE line_user_id = $1;`;\n          params = [userId];\n          replyMessages = [{\n            \"type\": \"text\",\n            \"text\": `⚠️ ไม่สามารถยื่นคำขอลาได้เนื่องจากวันหยุดคงเหลือไม่พอ\\n\\n- ประเภทการลา: ${tempData.leave_type_thai}\\n- จำนวนที่ขอ: ${tempData.days} วัน\\n- คงเหลือ: ${rem} วัน\\n\\nระบบยกเลิกรายการโดยอัตโนมัติ`\n          }];\n        } else {\n          if (tempData.leave_type === 'sick' && tempData.days > 2) {\n            responseType = 'execute_sql';\n            sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_medical_cert', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n            params = [userId, JSON.stringify(tempData)];\n            replyMessages = [{\n              \"type\": \"text\",\n              \"text\": `📋 เนื่องจากคุณขอลาป่วยมากกว่า 2 วัน (${tempData.days} วัน)\\nกรุณาแจ้งรายละเอียดใบรับรองแพทย์:\\n\\n- พิมพ์ชื่อโรงพยาบาล/คลินิก และวันที่ออกใบรับรอง\\n- หรือพิมพ์ \"ยังไม่มี\" หากยังไม่ได้รับใบรับรองแพทย์`\n            }];\n          } else {\n            responseType = 'execute_sql';\n            sql = `\n              WITH new_leave AS (\n                INSERT INTO hr.leave_requests (employee_id, leave_type, start_date, end_date, days, reason, status)\n                VALUES ($2::uuid, $3::text, $4::date, $5::date, $6::numeric, $7::text, 'pending')\n                RETURNING id\n              )\n              UPDATE hr.user_sessions \n              SET current_state = 'idle', temp_data = '{}'::jsonb \n              WHERE line_user_id = $1;\n            `;\n            params = [\n              userId,\n              input.employee_id,\n              tempData.leave_type,\n              tempData.start_date,\n              tempData.end_date,\n              tempData.days,\n              tempData.reason\n            ];\n            replyMessages = [{\n              \"type\": \"text\",\n              \"text\": `✅ ส่งคำขอลาหยุดเรียบร้อยแล้ว!\\n\\n📋 รายละเอียดคำขอ:\\n- ประเภท: ${tempData.leave_type_thai}\\n- ระยะเวลา: ${tempData.start_date} ถึง ${tempData.end_date} (${tempData.days} วัน)\\n- เหตุผล: ${tempData.reason}\\n\\nคำขอของคุณได้รับการบันทึกเข้าระบบแล้ว และกำลังรอการพิจารณาอนุมัติจากฝ่ายบุคคล (HR)`\n            }];\n          }\n        }\n      }\n    }\n    }\n  }\n  else if (state === 'awaiting_start_date') {\n    const startDate = parseDate(messageText);\n    if (!startDate) {\n      responseType = 'direct_reply';\n      replyMessages = [{\n        \"type\": \"text\",\n        \"text\": \"⚠️ วันที่เริ่มไม่ถูกต้อง โปรดระบุฟอร์แมต YYYY-MM-DD (เช่น 2026-06-25) หรือพิมพ์ \\\"วันนี้\\\" / \\\"พรุ่งนี้\\\"\"\n      }];\n    } else {\n      tempData.start_date = startDate;\n      \n      // Check next missing slot\n      if (!tempData.end_date) {\n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_end_date', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n        params = [userId, JSON.stringify(tempData)];\n        replyMessages = [{\n          \"type\": \"text\",\n          \"text\": `📅 วันที่เริ่มลา: ${startDate}\\n\\nโปรดระบุ \"วันที่สิ้นสุด\" (เช่น 2026-06-26 หรือพิมพ์จำนวนวัน เช่น 2 วัน)`\n        }];\n      } else {\n        const days = calculateDays(startDate, tempData.end_date);\n        const rem = getRemainingDays(tempData.leave_type);\n        if (days > rem) {\n          responseType = 'execute_sql';\n          sql = `UPDATE hr.user_sessions SET current_state = 'idle', temp_data = '{}'::jsonb WHERE line_user_id = $1;`;\n          params = [userId];\n          replyMessages = [{\n            \"type\": \"text\",\n            \"text\": `⚠️ ไม่สามารถยื่นคำขอลาได้เนื่องจากวันหยุดคงเหลือไม่พอ\\n\\n- ประเภทการลา: ${tempData.leave_type_thai}\\n- จำนวนที่ขอ: ${days} วัน\\n- คงเหลือ: ${rem} วัน\\n\\nระบบยกเลิกรายการโดยอัตโนมัติ`\n          }];\n        } else {\n          tempData.days = days;\n          if (!tempData.reason) {\n            responseType = 'execute_sql';\n            sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_reason', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n            params = [userId, JSON.stringify(tempData)];\n            replyMessages = [{\n              \"type\": \"text\",\n              \"text\": `📅 ระยะเวลาลา: ${startDate} ถึง ${tempData.end_date} (${tempData.days} วัน)\\n\\nโปรดระบุ \"เหตุผลการลา\"`\n            }];\n          } else {\n            if (tempData.leave_type === 'sick' && tempData.days > 2) {\n              responseType = 'execute_sql';\n              sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_medical_cert', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n              params = [userId, JSON.stringify(tempData)];\n              replyMessages = [{\n                \"type\": \"text\",\n                \"text\": `📋 เนื่องจากคุณขอลาป่วยมากกว่า 2 วัน (${tempData.days} วัน)\\nกรุณาแจ้งรายละเอียดใบรับรองแพทย์:\\n\\n- พิมพ์ชื่อโรงพยาบาล/คลินิก และวันที่ออกใบรับรอง\\n- หรือพิมพ์ \"ยังไม่มี\" หากยังไม่ได้รับใบรับรองแพทย์`\n              }];\n            } else {\n              responseType = 'execute_sql';\n              sql = `\n                WITH new_leave AS (\n                  INSERT INTO hr.leave_requests (employee_id, leave_type, start_date, end_date, days, reason, status)\n                  VALUES ($2::uuid, $3::text, $4::date, $5::date, $6::numeric, $7::text, 'pending')\n                  RETURNING id\n                )\n                UPDATE hr.user_sessions \n                SET current_state = 'idle', temp_data = '{}'::jsonb \n                WHERE line_user_id = $1;\n              `;\n              params = [\n                userId,\n                input.employee_id,\n                tempData.leave_type,\n                tempData.start_date,\n                tempData.end_date,\n                tempData.days,\n                tempData.reason\n              ];\n              replyMessages = [{\n                \"type\": \"text\",\n                \"text\": `✅ ส่งคำขอลาหยุดเรียบร้อยแล้ว!\\n\\n📋 รายละเอียดคำขอ:\\n- ประเภท: ${tempData.leave_type_thai}\\n- ระยะเวลา: ${tempData.start_date} ถึง ${tempData.end_date} (${tempData.days} วัน)\\n- เหตุผล: ${tempData.reason}\\n\\nคำขอของคุณได้รับการบันทึกเข้าระบบแล้ว และกำลังรอการพิจารณาอนุมัติจากฝ่ายบุคคล (HR)`\n              }];\n            }\n          }\n        }\n      }\n    }\n  }\n  else if (state === 'awaiting_end_date') {\n    const endDate = parseDate(messageText, tempData.start_date);\n    if (!endDate || endDate < tempData.start_date) {\n      responseType = 'direct_reply';\n      replyMessages = [{\n        \"type\": \"text\",\n        \"text\": \"⚠️ วันที่สิ้นสุดไม่ถูกต้อง (ต้องไม่น้อยกว่าวันที่เริ่ม) โปรดระบุแบบ YYYY-MM-DD หรือพิมพ์จำนวนวัน เช่น 1 วัน\"\n      }];\n    } else {\n      const days = calculateDays(tempData.start_date, endDate);\n      const rem = getRemainingDays(tempData.leave_type);\n      if (days > rem) {\n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = 'idle', temp_data = '{}'::jsonb WHERE line_user_id = $1;`;\n        params = [userId];\n        replyMessages = [{\n          \"type\": \"text\",\n          \"text\": `⚠️ ไม่สามารถยื่นคำขอลาได้เนื่องจากวันหยุดคงเหลือไม่พอ\\n\\n- ประเภทการลา: ${tempData.leave_type_thai}\\n- จำนวนที่ขอ: ${days} วัน\\n- คงเหลือ: ${rem} วัน\\n\\nระบบยกเลิกรายการโดยอัตโนมัติ`\n        }];\n      } else {\n        tempData.end_date = endDate;\n        tempData.days = days;\n        \n        if (!tempData.reason) {\n          responseType = 'execute_sql';\n          sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_reason', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n          params = [userId, JSON.stringify(tempData)];\n          replyMessages = [{\n            \"type\": \"text\",\n            \"text\": `📅 ระยะเวลาลา: ${tempData.start_date} ถึง ${endDate} (${days} วัน)\\n\\nโปรดระบุ \"เหตุผลการลา\"`\n          }];\n        } else {\n          if (tempData.leave_type === 'sick' && tempData.days > 2) {\n            responseType = 'execute_sql';\n            sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_medical_cert', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n            params = [userId, JSON.stringify(tempData)];\n            replyMessages = [{\n              \"type\": \"text\",\n              \"text\": `📋 เนื่องจากคุณขอลาป่วยมากกว่า 2 วัน (${tempData.days} วัน)\\nกรุณาแจ้งรายละเอียดใบรับรองแพทย์:\\n\\n- พิมพ์ชื่อโรงพยาบาล/คลินิก และวันที่ออกใบรับรอง\\n- หรือพิมพ์ \"ยังไม่มี\" หากยังไม่ได้รับใบรับรองแพทย์`\n            }];\n          } else {\n            responseType = 'execute_sql';\n            sql = `\n              WITH new_leave AS (\n                INSERT INTO hr.leave_requests (employee_id, leave_type, start_date, end_date, days, reason, status)\n                VALUES ($2::uuid, $3::text, $4::date, $5::date, $6::numeric, $7::text, 'pending')\n                RETURNING id\n              )\n              UPDATE hr.user_sessions \n              SET current_state = 'idle', temp_data = '{}'::jsonb \n              WHERE line_user_id = $1;\n            `;\n            params = [\n              userId,\n              input.employee_id,\n              tempData.leave_type,\n              tempData.start_date,\n              tempData.end_date,\n              tempData.days,\n              tempData.reason\n            ];\n            replyMessages = [{\n              \"type\": \"text\",\n              \"text\": `✅ ส่งคำขอลาหยุดเรียบร้อยแล้ว!\\n\\n📋 รายละเอียดคำขอ:\\n- ประเภท: ${tempData.leave_type_thai}\\n- ระยะเวลา: ${tempData.start_date} ถึง ${tempData.end_date} (${tempData.days} วัน)\\n- เหตุผล: ${tempData.reason}\\n\\nคำขอของคุณได้รับการบันทึกเข้าระบบแล้ว และกำลังรอการพิจารณาอนุมัติจากฝ่ายบุคคล (HR)`\n            }];\n          }\n        }\n      }\n    }\n  }\n  else if (state === 'awaiting_reason') {\n    const reason = messageText;\n    tempData.reason = reason;\n    \n    const rem = getRemainingDays(tempData.leave_type);\n    if (tempData.days > rem) {\n      responseType = 'execute_sql';\n      sql = `UPDATE hr.user_sessions SET current_state = 'idle', temp_data = '{}'::jsonb WHERE line_user_id = $1;`;\n      params = [userId];\n      replyMessages = [{\n        \"type\": \"text\",\n        \"text\": `⚠️ ไม่สามารถยื่นคำขอลาได้เนื่องจากวันหยุดคงเหลือไม่พอ\\n\\n- ประเภทการลา: ${tempData.leave_type_thai}\\n- จำนวนที่ขอ: ${tempData.days} วัน\\n- คงเหลือ: ${rem} วัน\\n\\nระบบยกเลิกรายการโดยอัตโนมัติ`\n      }];\n    } else if (tempData.leave_type === 'sick' && tempData.days > 2) {\n      // Feature 2: Sick leave > 2 days — ask for medical certificate\n      tempData.reason = reason;\n      responseType = 'execute_sql';\n      sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_medical_cert', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n      params = [userId, JSON.stringify(tempData)];\n      replyMessages = [{\n        \"type\": \"text\",\n        \"text\": `📋 เนื่องจากคุณขอลาป่วยมากกว่า 2 วัน (${tempData.days} วัน)\\nกรุณาแจ้งรายละเอียดใบรับรองแพทย์:\\n\\n- พิมพ์ชื่อโรงพยาบาล/คลินิก และวันที่ออกใบรับรอง\\n- หรือพิมพ์ \"ยังไม่มี\" หากยังไม่ได้รับใบรับรองแพทย์`\n      }];\n    } else {\n      responseType = 'execute_sql';\n      \n      // Save to hr.leave_requests and reset user session in a single transaction\n      sql = `\n        WITH new_leave AS (\n          INSERT INTO hr.leave_requests (employee_id, leave_type, start_date, end_date, days, reason, status)\n          VALUES ($2::uuid, $3::text, $4::date, $5::date, $6::numeric, $7::text, 'pending')\n          RETURNING id\n        )\n        UPDATE hr.user_sessions \n        SET current_state = 'idle', temp_data = '{}'::jsonb \n        WHERE line_user_id = $1;\n      `;\n      params = [\n        userId,\n        input.employee_id,\n        tempData.leave_type,\n        tempData.start_date,\n        tempData.end_date,\n        tempData.days,\n        reason\n      ];\n      \n      replyMessages = [{\n        \"type\": \"text\",\n        \"text\": `✅ ส่งคำขอลาหยุดเรียบร้อยแล้ว!\\n\\n📋 รายละเอียดคำขอ:\\n- ประเภท: ${tempData.leave_type_thai}\\n- ระยะเวลา: ${tempData.start_date} ถึง ${tempData.end_date} (${tempData.days} วัน)\\n- เหตุผล: ${reason}\\n\\nคำขอของคุณได้รับการบันทึกเข้าระบบแล้ว และกำลังรอการพิจารณาอนุมัติจากฝ่ายบุคคล (HR)`\n      }];\n    }\n  }\n  else if (state === 'awaiting_medical_cert') {\n    // Feature 2: Handle medical certificate note submission\n    const certNote = messageText;\n    const tdMC = input.temp_data || {};\n    responseType = 'execute_sql';\n    sql = `\n      WITH new_leave AS (\n        INSERT INTO hr.leave_requests (employee_id, leave_type, start_date, end_date, days, reason, status)\n        VALUES ($2::uuid, $3::text, $4::date, $5::date, $6::numeric, $7::text, 'pending')\n        RETURNING id\n      )\n      UPDATE hr.user_sessions \n      SET current_state = 'idle', temp_data = '{}'::jsonb \n      WHERE line_user_id = $1;\n    `;\n    const certReason = tdMC.reason + ' [ใบรับรองแพทย์: ' + certNote + ']';\n    params = [\n      userId,\n      input.employee_id,\n      tdMC.leave_type,\n      tdMC.start_date,\n      tdMC.end_date,\n      tdMC.days,\n      certReason\n    ];\n    replyMessages = [{\n      \"type\": \"text\",\n      \"text\": `✅ ส่งคำขอลาหยุดเรียบร้อยแล้ว!\\n\\n📋 รายละเอียดคำขอ:\\n- ประเภท: ${tdMC.leave_type_thai}\\n- ระยะเวลา: ${tdMC.start_date} ถึง ${tdMC.end_date} (${tdMC.days} วัน)\\n- เหตุผล: ${tdMC.reason}\\n- 🏥 ใบรับรองแพทย์: ${certNote}\\n\\nคำขอของคุณได้รับการบันทึกเข้าระบบแล้ว และกำลังรอการพิจารณาอนุมัติจากฝ่ายบุคคล (HR)`\n    }];\n  }\n  else if (state === 'display_team_schedule') {\n    // Feature 1: Display stored team schedule from temp_data (populated previous turn)\n    responseType = 'execute_sql';\n    sql = `UPDATE hr.user_sessions SET current_state = 'idle', temp_data = '{}'::jsonb WHERE line_user_id = $1;`;\n    params = [userId];\n    \n    const schedData = input.temp_data || {};\n    const schedule = Array.isArray(schedData.schedule) ? schedData.schedule : [];\n    const displayDate = schedData.check_date || '?';\n    const dept = schedData.department || input.department;\n    \n    function ltThai(t) {\n      if (t === 'sick') return '🤒 ลาป่วย';\n      if (t === 'annual') return '✈️ ลาพักร้อน';\n      if (t === 'personal') return '💼 ลากิจ';\n      return t;\n    }\n    \n    if (schedule.length === 0) {\n      replyMessages = [{ type: 'text', text: `🗓️ คิวทีม ${dept}\\n📅 วันที่ ${displayDate}\\n\\n✅ ไม่มีสมาชิกทีมลาหยุดในวันดังกล่าว` }];\n    } else {\n      const lines = schedule.map(s => `• ${s.name} — ${ltThai(s.leave_type)}`).join('\\n');\n      replyMessages = [{ type: 'text', text: `🗓️ คิวทีม ${dept}\\n📅 วันที่ ${displayDate}\\n\\nสมาชิกที่ลาหยุด (${schedule.length} คน):\\n${lines}` }];\n    }\n  }\n}\n// 4. NLP Smart Processing (When user is in 'idle' state)\nelse {\n  if (nlp.intent === 'request_leave') {\n    // LLM extracted a leave request! Let's check what variables are already present.\n    let tempData = {\n      leave_type: nlp.leave_type || null,\n      leave_type_thai: nlp.leave_type ? getLeaveTypeThai(nlp.leave_type) : null,\n      start_date: nlp.start_date || null,\n      end_date: nlp.end_date || null,\n      days: nlp.days || null,\n      reason: nlp.reason || null\n    };\n    \n    // If end_date is present but start_date is not, default start_date to today\n    const today = new Date(new Date().getTime() + (7 * 60 * 60 * 1000)).toISOString().split('T')[0];\n    if (tempData.end_date && !tempData.start_date) {\n      tempData.start_date = today;\n    }\n    \n    // If start_date is present but end_date is not:\n    if (tempData.start_date && !tempData.end_date) {\n      if (tempData.days) {\n        // Calculate end_date = start_date + days - 1\n        const start = new Date(tempData.start_date);\n        const end = new Date(start.getTime() + ((tempData.days - 1) * 24 * 60 * 60 * 1000));\n        tempData.end_date = end.toISOString().split('T')[0];\n      } else {\n        // Default end_date to start_date (1 day)\n        tempData.end_date = tempData.start_date;\n        tempData.days = 1;\n      }\n    }\n    \n    // Recalculate days if start and end are present\n    if (tempData.start_date && tempData.end_date && !tempData.days) {\n      tempData.days = calculateDays(tempData.start_date, tempData.end_date);\n    }\n    \n    // Check if we have EVERYTHING to submit immediately\n    if (tempData.leave_type && tempData.start_date && tempData.end_date && tempData.reason) {\n      const rem = getRemainingDays(tempData.leave_type);\n      if (tempData.days > rem) {\n        responseType = 'direct_reply';\n        replyMessages = [{\n          \"type\": \"text\",\n          \"text\": `⚠️ ไม่สามารถยื่นคำขอลาได้เนื่องจากวันหยุดคงเหลือไม่พอ\\n\\n- ประเภทการลา: ${tempData.leave_type_thai}\\n- จำนวนที่ขอ: ${tempData.days} วัน\\n- คงเหลือ: ${rem} วัน`\n        }];\n      } else if (tempData.leave_type === 'sick' && tempData.days > 2) {\n        // Feature 2: NLP direct path — sick leave > 2 days, ask for medical cert\n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = 'awaiting_medical_cert', temp_data = $2::jsonb WHERE line_user_id = $1;`;\n        params = [userId, JSON.stringify(tempData)];\n        replyMessages = [{\n          \"type\": \"text\",\n          \"text\": `📋 เนื่องจากคุณขอลาป่วยมากกว่า 2 วัน (${tempData.days} วัน)\\nกรุณาแจ้งรายละเอียดใบรับรองแพทย์:\\n\\n- พิมพ์ชื่อโรงพยาบาล/คลินิก และวันที่ออกใบรับรอง\\n- หรือพิมพ์ \"ยังไม่มี\" หากยังไม่ได้รับใบรับรองแพทย์`\n        }];\n      } else {\n        // Submit immediately!\n        responseType = 'execute_sql';\n        sql = `\n          INSERT INTO hr.leave_requests (employee_id, leave_type, start_date, end_date, days, reason, status)\n          VALUES ($2::uuid, $3::text, $4::date, $5::date, $6::numeric, $7::text, 'pending');\n        `;\n        params = [\n          userId,\n          input.employee_id,\n          tempData.leave_type,\n          tempData.start_date,\n          tempData.end_date,\n          tempData.days,\n          tempData.reason\n        ];\n        \n        replyMessages = [{\n          \"type\": \"text\",\n          \"text\": `✅ ส่งคำขอลาหยุดผ่านระบบ AI สำเร็จเรียบร้อยแล้ว!\\n\\n📋 รายละเอียดใบลา:\\n- ประเภท: ${tempData.leave_type_thai}\\n- ระยะเวลา: ${tempData.start_date} ถึง ${tempData.end_date} (${tempData.days} วัน)\\n- เหตุผล: ${tempData.reason}\\n\\nคำขอได้รับการบันทึกเข้าระบบแล้ว และกำลังรอฝ่ายบุคคล (HR) พิจารณาอนุมัติครับ`\n        }];\n      }\n    } else {\n      // Check if we have leave_type but days are depleted\n      if (tempData.leave_type) {\n        const rem = getRemainingDays(tempData.leave_type);\n        if (rem <= 0) {\n          responseType = 'direct_reply';\n          replyMessages = [{\n            \"type\": \"text\",\n            \"text\": `⚠️ ไม่สามารถยื่นคำขอลาได้เนื่องจากสิทธิ์วันลาหมดแล้ว\\n\\n- ประเภทการลา: ${tempData.leave_type_thai}\\n- คงเหลือ: 0 วัน`\n          }];\n          \n          // Automatically append \"- bot\" to all text responses, and a footer to all Flex bubbles\n          if (replyMessages && Array.isArray(replyMessages)) {\n            replyMessages.forEach(msg => {\n              if (msg.type === 'text') {\n                msg.text = msg.text + '\\n\\n- bot';\n              }\n            });\n          }\n          \n          return [{\n            json: {\n              userId,\n              replyToken,\n              responseType,\n              replyMessages,\n              sql: '',\n              params: []\n            }\n          }];\n        }\n      }\n\n      // Something is missing. Determine the next state to transition to\n      let nextState = 'awaiting_leave_type';\n      let promptText = 'กรุณาเลือกประเภทการลาที่ต้องการยื่นหยุดงาน:';\n      \n      if (!tempData.leave_type) {\n        nextState = 'awaiting_leave_type';\n        // Show buttons\n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = $2, temp_data = $3::jsonb WHERE line_user_id = $1;`;\n        params = [userId, nextState, JSON.stringify(tempData)];\n        \n        replyMessages = [{\n          \"type\": \"flex\",\n          \"altText\": \"เลือกประเภทการลาหยุด\",\n          \"contents\": {\n            \"type\": \"bubble\",\n            \"body\": {\n              \"type\": \"box\",\n              \"layout\": \"vertical\",\n          \"backgroundColor\": \"#0f172a\",\n              \"contents\": [\n                { \"type\": \"text\", \"text\": \"📝 ยื่นใบลาหยุดงาน\", \"weight\": \"bold\", \"size\": \"lg\", \"color\": \"#4f46e5\" },\n                { \"type\": \"text\", \"text\": \"กรุณาเลือกประเภทการลาเพื่อดำเนินการต่อ:\", \"size\": \"sm\", \"color\": \"#94a3b8\", \"margin\": \"md\", \"wrap\": true },\n                { \"type\": \"separator\", \"margin\": \"md\" },\n                {\n                  \"type\": \"box\",\n                  \"layout\": \"vertical\",\n                  \"margin\": \"md\",\n                  \"spacing\": \"sm\",\n                  \"contents\": [\n                    { \"type\": \"button\", \"action\": { \"type\": \"message\", \"label\": \"🤒 ลาป่วย (Sick Leave)\", \"text\": \"ลาป่วย\" }, \"style\": \"primary\", \"color\": \"#ef4444\" },\n                    { \"type\": \"button\", \"action\": { \"type\": \"message\", \"label\": \"✈️ ลาพักร้อน (Annual Leave)\", \"text\": \"ลาพักร้อน\" }, \"style\": \"primary\", \"color\": \"#4f46e5\" },\n                    { \"type\": \"button\", \"action\": { \"type\": \"message\", \"label\": \"💼 ลากิจ (Personal Leave)\", \"text\": \"ลากิจ\" }, \"style\": \"primary\", \"color\": \"#f59e0b\" },\n                    { \"type\": \"button\", \"action\": { \"type\": \"message\", \"label\": \"❌ ยกเลิกรายการ\", \"text\": \"ยกเลิก\" }, \"style\": \"link\", \"color\": \"#ef4444\" }\n                  ]\n                }\n              ]\n            }\n          }\n        }];\n      } else if (!tempData.start_date) {\n        nextState = 'awaiting_start_date';\n        promptText = `📋 ประเภทการลา: ${tempData.leave_type_thai}\\n\\nโปรดระบุ \"วันที่เริ่มลาหยุด\" (เช่น 2026-06-25 หรือพิมพ์ วันนี้ / พรุ่งนี้)`;\n        \n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = $2, temp_data = $3::jsonb WHERE line_user_id = $1;`;\n        params = [userId, nextState, JSON.stringify(tempData)];\n        replyMessages = [{ \"type\": \"text\", \"text\": promptText }];\n      } else if (!tempData.end_date) {\n        nextState = 'awaiting_end_date';\n        promptText = `📋 ประเภทการลา: ${tempData.leave_type_thai}\\n📅 วันเริ่มลา: ${tempData.start_date}\\n\\nโปรดระบุ \"วันที่สิ้นสุด\" (เช่น 2026-06-26 หรือพิมพ์จำนวนวัน เช่น 3 วัน)`;\n        \n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = $2, temp_data = $3::jsonb WHERE line_user_id = $1;`;\n        params = [userId, nextState, JSON.stringify(tempData)];\n        replyMessages = [{ \"type\": \"text\", \"text\": promptText }];\n      } else if (!tempData.reason) {\n        nextState = 'awaiting_reason';\n        promptText = `📋 ประเภทการลา: ${tempData.leave_type_thai}\\n📅 ระยะเวลาลา: ${tempData.start_date} ถึง ${tempData.end_date} (${tempData.days} วัน)\\n\\nโปรดระบุ \"เหตุผลการลา\" (เช่น พักผ่อนส่วนตัว / เป็นไข้หวัด)`;\n        \n        responseType = 'execute_sql';\n        sql = `UPDATE hr.user_sessions SET current_state = $2, temp_data = $3::jsonb WHERE line_user_id = $1;`;\n        params = [userId, nextState, JSON.stringify(tempData)];\n        replyMessages = [{ \"type\": \"text\", \"text\": promptText }];\n      }\n    }\n  }\n  else if (nlp.intent === 'check_leave') {\n    // Trigger case 6: Check Remaining Leave\n    responseType = 'direct_reply';\n    const sickRem = input.total_sick_leave - input.used_sick_leave;\n    const annualRem = input.total_annual_leave - input.used_annual_leave;\n    const personalRem = input.total_personal_leave - input.used_personal_leave;\n    \n    replyMessages = [{\n      \"type\": \"flex\",\n      \"altText\": \"วันลาคงเหลือของคุณ\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"backgroundColor\": \"#0f172a\",\n          \"contents\": [\n            { \"type\": \"text\", \"text\": \"📊 วันลาคงเหลือของคุณ\", \"weight\": \"bold\", \"size\": \"lg\", \"color\": \"#10b981\" },\n            { \"type\": \"text\", \"text\": `คุณ ${input.name}`, \"size\": \"xs\", \"color\": \"#94a3b8\", \"margin\": \"xs\" },\n            { \"type\": \"separator\", \"margin\": \"sm\" },\n            { \n              \"type\": \"box\", \"layout\": \"vertical\", \"margin\": \"md\", \"contents\": [\n                { \"type\": \"text\", \"text\": `🤒 ลาป่วย: คงเหลือ ${sickRem} จาก ${input.total_sick_leave} วัน`, \"size\": \"sm\", \"weight\": \"bold\" },\n                { \"type\": \"box\", \"layout\": \"vertical\", \"backgroundColor\": \"#1e293b\", \"height\": \"6px\", \"cornerRadius\": \"3px\", \"margin\": \"xs\", \"contents\": [\n                  { \"type\": \"box\", \"layout\": \"vertical\", \"backgroundColor\": \"#10b981\", \"height\": \"6px\", \"width\": `${(sickRem/input.total_sick_leave)*100}%`, \"cornerRadius\": \"3px\", \"contents\": [] }\n                ]}\n              ] \n            },\n            { \n              \"type\": \"box\", \"layout\": \"vertical\", \"margin\": \"md\", \"contents\": [\n                { \"type\": \"text\", \"text\": `✈️ ลาพักร้อน: คงเหลือ ${annualRem} จาก ${input.total_annual_leave} วัน`, \"size\": \"sm\", \"weight\": \"bold\" },\n                { \"type\": \"box\", \"layout\": \"vertical\", \"backgroundColor\": \"#1e293b\", \"height\": \"6px\", \"cornerRadius\": \"3px\", \"margin\": \"xs\", \"contents\": [\n                  { \"type\": \"box\", \"layout\": \"vertical\", \"backgroundColor\": \"#6366f1\", \"height\": \"6px\", \"width\": `${(annualRem/input.total_annual_leave)*100}%`, \"cornerRadius\": \"3px\", \"contents\": [] }\n                ]}\n              ] \n            },\n            { \n              \"type\": \"box\", \"layout\": \"vertical\", \"margin\": \"md\", \"contents\": [\n                { \"type\": \"text\", \"text\": `💼 ลากิจ: คงเหลือ ${personalRem} จาก ${input.total_personal_leave} วัน`, \"size\": \"sm\", \"weight\": \"bold\" },\n                { \"type\": \"box\", \"layout\": \"vertical\", \"backgroundColor\": \"#1e293b\", \"height\": \"6px\", \"cornerRadius\": \"3px\", \"margin\": \"xs\", \"contents\": [\n                  { \"type\": \"box\", \"layout\": \"vertical\", \"backgroundColor\": \"#f59e0b\", \"height\": \"6px\", \"width\": `${(personalRem/input.total_personal_leave)*100}%`, \"cornerRadius\": \"3px\", \"contents\": [] }\n                ]}\n              ] \n            }\n          ]\n        }\n      }\n    }];\n  }\n  else if (nlp.intent === 'check_team_schedule') {\n    const todayStr = new Date(new Date().getTime() + (7 * 60 * 60 * 1000)).toISOString().split('T')[0];\n    const checkDate = nlp.check_date || todayStr;\n    responseType = 'execute_sql';\n    sql = `\n      SELECT e.name, lr.leave_type, lr.start_date::text, lr.end_date::text\n      FROM hr.leave_requests lr\n      JOIN hr.employees e ON lr.employee_id = e.id\n      WHERE lr.status = 'approved'\n        AND e.department = $1\n        AND $2::date BETWEEN lr.start_date AND lr.end_date\n      ORDER BY e.name;\n    `;\n    params = [input.department, checkDate];\n    replyMessages = [{ type: 'text', text: `🔍 กำลังค้นหาข้อมูลคิวทีม...` }];\n  }\n  else if (nlp.intent === 'check_jd') {\n    // Trigger case 5: Job Description check\n    responseType = 'direct_reply';\n    replyMessages = [{\n      \"type\": \"flex\",\n      \"altText\": \"ขอบข่ายงาน (Job Description)\",\n      \"contents\": {\n        \"type\": \"bubble\",\n        \"body\": {\n          \"type\": \"box\",\n          \"layout\": \"vertical\",\n          \"backgroundColor\": \"#0f172a\",\n          \"contents\": [\n            { \"type\": \"text\", \"text\": \"📋 ขอบข่ายงานของคุณ\", \"weight\": \"bold\", \"size\": \"lg\", \"color\": \"#6366f1\" },\n            { \"type\": \"text\", \"text\": input.name, \"weight\": \"bold\", \"size\": \"md\", \"margin\": \"md\" },\n            { \"type\": \"text\", \"text\": `${input.position} • แผนก ${input.department}`, \"size\": \"xs\", \"color\": \"#94a3b8\" },\n            { \"type\": \"separator\", \"margin\": \"md\" },\n            { \"type\": \"text\", \"text\": input.job_description, \"size\": \"sm\", \"wrap\": true, \"margin\": \"md\", \"color\": \"#cbd5e1\" }\n          ]\n        }\n      }\n    }];\n  }\n  else {\n    // Default Help menu\n    responseType = 'direct_reply';\n    replyMessages = [{\n      \"type\": \"text\",\n      \"text\": `สวัสดีครับคุณ ${input.name} ตำแหน่ง ${input.position}\\nโปรดระบุงานที่ต้องการจากตัวเลือกด้านล่าง:\\n\\n- พิมพ์ \"ลา\" เพื่อยื่นใบลาหยุดงาน\\n- พิมพ์ \"วันลา\" เพื่อเช็คสิทธิ์วันลาคงเหลือ\\n- พิมพ์ \"job description\" เพื่อขอดูขอบข่ายงาน\\n- พิมพ์ \"คิวทีม\" เพื่อเช็คตารางลาของทีม\\n- พิมพ์ \"/switch <รหัสพนักงาน>\" เพื่อสลับตัวตน` \n    }];\n  }\n}\n// Automatically append \"- bot\" to all text responses, and a footer to all Flex bubbles\nif (replyMessages && Array.isArray(replyMessages)) {\n  replyMessages.forEach(msg => {\n    if (msg.type === 'text') {\n      msg.text = msg.text + '\\n\\n- bot';\n    } else if (msg.type === 'flex') {\n      try {\n        const bubble = msg.contents;\n        if (bubble && bubble.type === 'bubble') {\n          if (!bubble.footer) {\n            bubble.footer = {\n              \"type\": \"box\",\n              \"layout\": \"vertical\",\n              \"contents\": [\n                {\n                  \"type\": \"text\",\n                  \"text\": \"- bot\",\n                  \"size\": \"xs\",\n                  \"color\": \"#94a3b8\",\n                  \"align\": \"end\"\n                }\n              ]\n            };\n          } else if (bubble.footer.contents) {\n            bubble.footer.contents.push({\n              \"type\": \"text\",\n              \"text\": \"- bot\",\n              \"size\": \"xs\",\n              \"color\": \"#94a3b8\",\n              \"align\": \"end\"\n            });\n          }\n        }\n      } catch (e) {\n        console.error('Failed to append bot footer to flex:', e);\n      }\n    }\n  });\n}\n\n// Feature 3: Manager notification flag\nconst isLeaveSubmission = sql.includes('INSERT INTO hr.leave_requests');\n\nreturn [{\n  json: {\n    userId,\n    replyToken,\n    responseType,\n    replyMessages,\n    sql,\n    params,\n    isLeaveSubmission,\n    employeeId: input.employee_id || null,\n    employeeName: input.name || null,\n    department: input.department || null,\n    sqlType: (cleanText.startsWith('/switch ') || messageText.startsWith('/switch ') || (nlp.intent === 'switch_user' && nlp.employee_code) ? 'switch' : ((input.current_state && input.current_state !== 'idle') ? 'other' : (nlp.intent === 'check_team_schedule' ? 'check_team_schedule' : 'other'))),\n    sqlMeta: {\n      checkDate: (nlp.intent === 'check_team_schedule' ? (nlp.check_date || new Date(new Date().getTime() + (7 * 60 * 60 * 1000)).toISOString().split('T')[0]) : null),\n      department: input.department || null,\n      employeeCode: (cleanText.startsWith('/switch ') || messageText.startsWith('/switch ') || (nlp.intent === 'switch_user' && nlp.employee_code) ? (nlp.employee_code || cleanText.replace('/switch ', '').trim().toUpperCase()) : null)\n    }\n  }\n}];\n",
+        "query": ""
+      },
+      "id": "code-controller",
+      "name": "Core Controller",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.responseType }}",
+              "operation": "equal",
+              "value2": "execute_sql"
+            }
+          ]
+        },
+        "query": ""
+      },
+      "id": "switch-response",
+      "name": "Switch Response Mode",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        880,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{$json.sql}}",
+        "options": {
+          "queryReplacement": "={{ $('Core Controller').first().json.params }}"
+        }
+      },
+      "id": "pg-execute-actions",
+      "name": "PG: Execute SQL Action",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        50
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "folio-postgres-credential-id",
+          "name": "Postgres Folio DB - folio_db"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.line.me/v2/bot/message/reply",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.HR_LINE_CHANNEL_ACCESS_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"replyToken\": \"{{ $('Format SQL Result').first().json.replyToken }}\",\n  \"messages\": {{ JSON.stringify($('Format SQL Result').first().json.replyMessages) }}\n}",
+        "options": {},
+        "query": ""
+      },
+      "id": "http-line-reply",
+      "name": "LINE: Reply Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:11434/api/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"qwen2.5:7b\",\n  \"prompt\": \"You are an HR Assistant Bot. Parse the user's Thai message and extract structured fields in JSON format.\\nCurrent date today is: {{ new Date(new Date().getTime() + 7 * 3600 * 1000).toISOString().split('T')[0] }} (Bangkok Time).\\n\\nAnalyze the input text and output a JSON object with these EXACT keys:\\n{\\n  \\\"intent\\\": \\\"request_leave\\\" | \\\"check_leave\\\" | \\\"check_jd\\\" | \\\"switch_user\\\" | \\\"check_team_schedule\\\" | \\\"general_chat\\\",\\n  \\\"leave_type\\\": \\\"sick\\\" | \\\"annual\\\" | \\\"personal\\\" | null,\\n  \\\"start_date\\\": \\\"YYYY-MM-DD\\\" | null,\\n  \\\"end_date\\\": \\\"YYYY-MM-DD\\\" | null,\\n  \\\"days\\\": number | null,\\n  \\\"reason\\\": \\\"Thai string\\\" | null,\\n  \\\"employee_code\\\": \\\"EMPxxx\\\" | null,\\n  \\\"check_date\\\": \\\"YYYY-MM-DD\\\" | null\\n}\\n\\nGuidelines:\\n1. Intent:\\n   - \\\"request_leave\\\": User wants to request leave (e.g., \\\"ขอลา\\\", \\\"ป่วย\\\", \\\"ลากิจ\\\", \\\"พักร้อน\\\").\\n   - \\\"check_leave\\\": User wants to check remaining leave days (e.g., \\\"วันลาคงเหลือ\\\", \\\"สิทธิ์วันหยุด\\\").\\n   - \\\"check_jd\\\": User wants to check job description (e.g., \\\"งานของฉัน\\\", \\\"job description\\\").\\n   - \\\"switch_user\\\": User wants to switch account (e.g., \\\"/switch EMP001\\\", \\\"สลับผู้ใช้เป็น EMP002\\\").\\n   - \\\"check_team_schedule\\\": User wants to check who is on leave in their department/team (e.g. \\\"ใครลาบ้าง\\\", \\\"พรุ่งนี้มีใครหยุดไหม\\\", \\\"เช็คตารางลาทีม\\\"). Extract the date to check as YYYY-MM-DD in check_date. Default to today if no date is specified.\\n   - \\\"general_chat\\\": Any other text.\\n2. Relative and Absolute Dates parsing (relative to today):\\n   - \\\"วันนี้\\\" -> today's date\\n   - \\\"พรุ่งนี้\\\" -> today's date + 1 day\\n   - \\\"เมื่อวาน\\\" / \\\"เมื่อวานนี้\\\" -> today's date - 1 day\\n   - \\\"วานซืน\\\" / \\\"เมื่อวานซืน\\\" -> today's date - 2 days\\n   - \\\"มะรืน\\\" / \\\"มะรืนนี้\\\" -> today's date + 2 days\\n   - \\\"วันจันทร์อาทิตย์หน้า\\\" -> next Monday\\n   - \\\"วันอาทิตย์เดือนหน้า\\\" -> first Sunday of next month\\n   - \\\"20 สิงหา\\\" / \\\"20 สิงหาคม\\\" / \\\"20 สิงหาคม ปีนี้\\\" -> YYYY-08-20 (using current year)\\n   - \\\"20 02\\\" / \\\"20/02\\\" -> YYYY-02-20 (using current year)\\n   - \\\"อีก 3 วันถัดไป\\\" starting tomorrow -> start_date: tomorrow, end_date: 2 days after tomorrow, days: 3\\n   - If Buddhist Era (พ.ศ. / B.E. e.g. 2569) is mentioned, convert to Gregorian (e.g. 2026) by subtracting 543.\\n3. Output ONLY raw JSON. No markdown, no formatting, no extra text.\\n\\nUser text: \\\"{{ ($('Parse LINE Event').first().json.messageText || '').replace(/\\\\/g, '\\\\\\\\').replace(/\\\"/g, '\\\\\\\"') }}\\\"\\nJSON Output:\",\n  \"stream\": false,\n  \"options\": {\n    \"temperature\": 0.1\n  }\n}",
+        "options": {},
+        "query": ""
+      },
+      "id": "ollama-parse-intent",
+      "name": "Ollama: Parse Intent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst data = $('Core Controller').first().json;\nif (!data.isLeaveSubmission) return [];\n\n// Send LINE push to manager via notify-manager API\nconst LINE_TOKEN = 'Irn1vjQBmg/DV0/8s7bSFAyqZETfWKV1lGNBAAMgq7xL78hlbs3fMK0QG+Rqh3MW9/G0fQuV/a2nYIyZoeelGM9p8pYfgZpb7I91nTT3g05e3Oqa3cP0xkw6clx5mI55v64cCiYPdU1xDpB7bQgBsQdB04t89/1O/w1cDnyilFU=';\n\ntry {\n  const res = await fetch('http://localhost:3003/api/notify-manager', {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({\n      employeeId: data.employeeId,\n      employeeName: data.employeeName,\n      department: data.department,\n      lineToken: LINE_TOKEN\n    })\n  });\n  const result = await res.json();\n  return [{ json: { notified: true, result } }];\n} catch(e) {\n  console.error('Manager notify failed:', e.message);\n  return [{ json: { notified: false, error: e.message } }];\n}\n        ",
+        "query": ""
+      },
+      "id": "code-notify-manager",
+      "name": "Notify Manager",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nlet replyToken = '';\nlet replyMessages = [];\nlet userId = '';\nlet isLeaveSubmission = false;\nlet employeeId = null;\nlet employeeName = null;\nlet department = null;\n\ntry {\n  const core = $('Core Controller').first().json;\n  replyToken = core.replyToken;\n  replyMessages = core.replyMessages || [];\n  userId = core.userId;\n  isLeaveSubmission = core.isLeaveSubmission || false;\n  employeeId = core.employeeId || null;\n  employeeName = core.employeeName || null;\n  department = core.department || null;\n\n  if (core.responseType === 'execute_sql') {\n    let pgRows = [];\n    try {\n      pgRows = $input.all().map(item => item.json);\n    } catch (e) {\n      pgRows = $('PG: Execute SQL Action').all().map(item => item.json);\n    }\n    \n    if (core.sqlType === 'check_team_schedule') {\n      const checkDate = core.sqlMeta.checkDate;\n      const dept = core.sqlMeta.department || 'ไม่ระบุ';\n      \n      const schedule = pgRows || [];\n      \n      function ltThai(t) {\n        if (t === 'sick') return '🤒 ลาป่วย';\n        if (t === 'annual') return '✈️ ลาพักร้อน';\n        if (t === 'personal') return '💼 ลากิจ';\n        return t;\n      }\n      \n      if (schedule.length === 0 || (schedule.length === 1 && schedule[0].name === null)) {\n        replyMessages = [{ type: 'text', text: `🗓️ คิวทีม ${dept}\\n📅 วันที่ ${checkDate}\\n\\n✅ ไม่มีสมาชิกทีมลาหยุดในวันดังกล่าว\\n\\n- bot` }];\n      } else {\n        const lines = schedule.map(s => `• ${s.name} — ${ltThai(s.leave_type)}`).join('\\n');\n        replyMessages = [{ type: 'text', text: `🗓️ คิวทีม ${dept}\\n📅 วันที่ ${checkDate}\\n\\nสมาชิกที่ลาหยุด (${schedule.length} คน):\\n${lines}\\n\\n- bot` }];\n      }\n    }\n    else if (core.sqlType === 'switch') {\n      const row = pgRows[0] || {};\n      const newName = row.employee_name;\n      const newPos = row.employee_position;\n      \n      if (!newName) {\n        replyMessages = [{\n          type: 'text',\n          text: `❌ ไม่พบรหัสพนักงาน ${core.sqlMeta.employeeCode} ในระบบ โปรดตรวจสอบความถูกต้อง\\n\\n- bot`\n        }];\n      } else {\n        replyMessages = [{\n          type: 'text',\n          text: `✅ สลับบัญชีสำเร็จ!\\n\\nสวัสดีครับคุณ ${newName} ตำแหน่ง ${newPos}\\nโปรดระบุงานที่ต้องการจากตัวเลือกด้านล่าง:\\n\\n- พิมพ์ \"ลา\" เพื่อยื่นใบลาหยุดงาน\\n- พิมพ์ \"วันลา\" เพื่อเช็คสิทธิ์วันลาคงเหลือ\\n- พิมพ์ \"job description\" เพื่อขอดูขอบข่ายงาน\\n- พิมพ์ \"คิวทีม\" เพื่อเช็คตารางลาของทีม\\n- พิมพ์ \"/switch <รหัสพนักงาน>\" เพื่อสลับตัวตน\\n\\n- bot`\n        }];\n      }\n    }\n  }\n} catch (err) {\n  console.error('Format SQL Result failed:', err);\n}\n\nreturn [{\n  json: {\n    userId,\n    replyToken,\n    replyMessages,\n    isLeaveSubmission,\n    employeeId,\n    employeeName,\n    department\n  }\n}];\n        ",
+        "query": ""
+      },
+      "id": "code-format-sql",
+      "name": "Format SQL Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1150,
+        150
+      ]
+    }
+  ],
+  "connections": {
+    "LINE Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond 200 OK",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Parse LINE Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LINE Event": {
+      "main": [
+        [
+          {
+            "node": "PG: Get Employee & Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PG: Get Employee & Session": {
+      "main": [
+        [
+          {
+            "node": "Ollama: Parse Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Core Controller": {
+      "main": [
+        [
+          {
+            "node": "Switch Response Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Response Mode": {
+      "main": [
+        [
+          {
+            "node": "PG: Execute SQL Action",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format SQL Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PG: Execute SQL Action": {
+      "main": [
+        [
+          {
+            "node": "Format SQL Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama: Parse Intent": {
+      "main": [
+        [
+          {
+            "node": "Core Controller",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LINE: Reply Message": {
+      "main": [
+        [
+          {
+            "node": "Notify Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format SQL Result": {
+      "main": [
+        [
+          {
+            "node": "LINE: Reply Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {}
+}

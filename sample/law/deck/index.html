@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI & RAG Executive Presentation - Phuket Law PoC</title>
+
+  <!-- No-flash theme bootstrap: read localStorage / system pref, set data-theme synchronously before CSS loads -->
+  <script>
+    (function() {
+      try {
+        var saved = localStorage.getItem('folio-theme');
+        var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Slide Deck CSS -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Slide Deck Container -->
+  <div class="presentation-container">
+    
+    <!-- ==========================================
+         SLIDE 1: Cover Page (The Opportunity)
+         ========================================== -->
+    <section class="slide active" id="slide-1">
+      <div class="slide-content cover-layout">
+        <div class="cover-tag">ENTERPRISE AI SOLUTION</div>
+        <h1 class="cover-title">ก้าวสู่องค์กรอัจฉริยะด้วย<br><span class="highlight-teal">AI RAG Legal Assistant</span></h1>
+        <p class="cover-subtitle">ระบบค้นหาและวิเคราะห์เอกสารสัญญาอัจฉริยะ ปลอดภัยในองค์กร 100%</p>
+        <div class="cover-footer">
+          <span>นำเสนอโดย: ทีมพัฒนาเทคโนโลยี AI</span>
+          <span class="slide-badge">Proof of Concept</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 2: Pain Points (The Problem)
+         ========================================== -->
+    <section class="slide" id="slide-2">
+      <div class="slide-content split-layout">
+        <div class="left-panel">
+          <span class="section-tag">THE PROBLEM</span>
+          <h2 class="slide-title">คอขวดของการจัดการสัญญาในปัจจุบัน</h2>
+          <p class="slide-desc">งานตรวจสอบเอกสารและสัญญาใช้เวลาสูงและมีความเสี่ยงแฝงตลอดอายุสัญญา</p>
+          
+          <div class="pain-list">
+            <div class="pain-item">
+              <span class="pain-num">01</span>
+              <div>
+                <h4>เวลาการสืบค้นข้อมูลที่สูงเกินจำเป็น</h4>
+                <p>พนักงานใช้เวลาเฉลี่ย 1-2 ชม. ต่อสัญญา เพื่อค้นหาข้อตกลงหรือเงื่อนไขเดิมในเอกสารสแกน PDF</p>
+              </div>
+            </div>
+            <div class="pain-item">
+              <span class="pain-num">02</span>
+              <div>
+                <h4>ความเสี่ยงจากข้อยกเว้นและค่าปรับ</h4>
+                <p>การหลุดรอดเงื่อนไขการต่อสัญญาอัตโนมัติ (Auto-Renewal) หรือข้อตกลงการรับประกันความเสียหาย</p>
+              </div>
+            </div>
+            <div class="pain-item">
+              <span class="pain-num">03</span>
+              <div>
+                <h4>ภาระงานฝ่ายกฎหมายล้นมือ</h4>
+                <p>แผนกจัดซื้อ การเงิน และขาย ต้องรอฝ่ายกฎหมายตอบคำถามพื้นฐานของเอกสารสัญญาย้อนหลัง</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="right-panel center-content">
+          <div class="glass-metric-box">
+            <div class="metric-card">
+              <span class="metric-val">-80%</span>
+              <span class="metric-txt">ลดเวลาตรวจสอบเอกสาร</span>
+            </div>
+            <div class="metric-card glow">
+              <span class="metric-val">100%</span>
+              <span class="metric-txt">ค้นหาเชิงลึกจากความหมายเจอ</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 3: The Tech Solution (RAG Architecture)
+         ========================================== -->
+    <section class="slide" id="slide-3">
+      <div class="slide-content">
+        <div class="center-tag-container">
+          <span class="section-tag">HOW IT WORKS</span>
+        </div>
+        <h2 class="slide-title text-center">RAG (Retrieval-Augmented Generation) คืออะไร?</h2>
+        <p class="slide-desc text-center">กลไกสมองกล AI ที่ตอบคำถามจากความรู้ความลับในองค์กรอย่างถูกต้อง แม่นยำ และไม่รั่วไหล</p>
+        
+        <div class="rag-steps-grid">
+          <div class="step-card">
+            <div class="step-badge">1</div>
+            <h3>นำเข้าข้อมูลสัญญา</h3>
+            <p>อัปโหลด PDF เข้าสู่ระบบ ข้อมูลจะถูกแปลงเป็นเวกเตอร์ภาษา (Embeddings) เก็บลงฐานข้อมูล Postgres</p>
+          </div>
+          <div class="step-card highlight">
+            <div class="step-badge">2</div>
+            <h3>ค้นหาด้วยความหมาย</h3>
+            <p>เมื่อเราพิมพ์ถาม AI จะทำหน้าที่ค้นหาเชิงลึก (Vector Search) เพื่อดึงหน้าสัญญาที่เกี่ยวข้องที่สุดขึ้นมา</p>
+          </div>
+          <div class="step-card">
+            <div class="step-badge">3</div>
+            <h3>สังเคราะห์คำตอบ</h3>
+            <p>AI Local LLM จะสรุปประเด็นกฎหมายจากเนื้อหาสัญญานั้นๆ และส่งคำตอบที่กระชับ อ้างอิงได้จริง</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 4: Interactive Live Demo (The WOW Factor)
+         ========================================== -->
+    <section class="slide" id="slide-4">
+      <div class="slide-content split-layout">
+        <div class="left-panel">
+          <span class="section-tag">LIVE SIMULATION</span>
+          <h2 class="slide-title">สาธิตการทำงานจริงของระบบ AI</h2>
+          <p class="slide-desc">คลิกเลือกคำถามด้านล่างเพื่อจำลองการถามตอบแบบเรียลไทม์ผ่าน LINE Bot และตรวจดูการค้นหาของเวกเตอร์หลังบ้าน</p>
+          
+          <div class="demo-triggers">
+            <button class="btn btn-demo-query" data-query="1">
+              🔍 "เช็คขอบเขตความลับในสัญญา NDA"
+            </button>
+            <button class="btn btn-demo-query" data-query="2">
+              🔍 "เช็คระยะเวลาแจ้งยกเลิกสัญญาเช่าร้าน"
+            </button>
+            <button class="btn btn-demo-query" data-query="3">
+              🔍 "ตรวจดูเงื่อนไขส่งของล่าช้าและค่าปรับ"
+            </button>
+          </div>
+          
+          <div class="vector-search-status">
+            <h4>สถานะเวกเตอร์หลังบ้าน (PostgreSQL Vector Search)</h4>
+            <div id="vector-loading-bar" class="vector-search-bar">
+              <div class="fill" style="width: 0%"></div>
+            </div>
+            <div class="status-meta">
+              <span id="vector-status-text">พร้อมประมวลผล...</span>
+              <span id="vector-similarity-score" class="score">—</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="right-panel">
+          <div class="phone-mockup">
+            <div class="phone-header">
+              <div class="back-btn">‹</div>
+              <div class="contact-info">
+                <span class="avatar">📑</span>
+                <div class="name-status">
+                  <span class="name">Legal AI Bot</span>
+                  <span class="status">LINE Official Account</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="phone-body" id="chat-container">
+              <div class="chat-date">วันนี้</div>
+              <div class="msg bot-msg text-msg">
+                สวัสดีครับ ผมคือ Legal AI Assistant ของคุณ คุณสามารถส่งไฟล์ PDF สัญญาใหม่เข้ามา หรือสอบถามเงื่อนไขสัญญากฎหมายที่จัดเก็บไว้ได้เลยครับ
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 5: Strategic Business Benefits & ROI
+         ========================================== -->
+    <section class="slide" id="slide-5">
+      <div class="slide-content">
+        <div class="center-tag-container">
+          <span class="section-tag">BUSINESS IMPACT</span>
+        </div>
+        <h2 class="slide-title text-center">ประโยชน์เชิงกลยุทธ์และการเงิน (ROI)</h2>
+        <p class="slide-desc text-center">ความคุ้มค่าที่ช่วยประหยัดเวลา ลดความเสี่ยง และยกระดับความปลอดภัยสูงสุด</p>
+        
+        <div class="benefits-grid">
+          <div class="benefit-card">
+            <div class="benefit-icon">🛡️</div>
+            <h3>ความปลอดภัยข้อมูล 100%</h3>
+            <p>รันระบบ Local LLM บนคอมพิวเตอร์บริษัท ข้อมูลเอกสารสัญญาทั้งหมดจะไม่รั่วไหลออกสู่อินเทอร์เน็ตสาธารณะ</p>
+          </div>
+          <div class="benefit-card">
+            <div class="benefit-icon">⏱️</div>
+            <h3>ประหยัดเวลาบุคลากร</h3>
+            <p>ลดภาระงานรูทีนของฝ่ายกฎหมาย ให้พนักงานโฟกัสกับงานเชิงยุทธศาสตร์ที่สร้างมูลค่าสูงขึ้น</p>
+          </div>
+          <div class="benefit-card">
+            <div class="benefit-icon">📊</div>
+            <h3>การลงทุนต่ำและคืนทุนเร็ว</h3>
+            <p>พัฒนาบน Open Source Stack (n8n, PostgreSQL, Ollama) ไร้ค่าใช้จ่ายสัญญารายเดือนราคาแพง</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         SLIDE 6: Roadmap & Next Steps
+         ========================================== -->
+    <section class="slide" id="slide-6">
+      <div class="slide-content split-layout">
+        <div class="left-panel">
+          <span class="section-tag">ROADMAP</span>
+          <h2 class="slide-title">แผนงานการนำไปใช้งานจริง (Production Rollout)</h2>
+          <p class="slide-desc">แนวทางในการนำระบบจากขั้น PoC ไปสู่การใช้จริงทั่วองค์กร</p>
+          
+          <div class="roadmap-list">
+            <div class="roadmap-step active">
+              <span class="step-num">Q1</span>
+              <div>
+                <h4>การทำระบบต้นแบบ (PoC Completion)</h4>
+                <p>พัฒนาส่วนติดต่อ LINE Bot, แผงแอดมินหลังบ้าน และทดสอบการแปลงเวกเตอร์เอกสารเบื้องต้น (เรียบร้อยแล้ว)</p>
+              </div>
+            </div>
+            <div class="roadmap-step">
+              <span class="step-num">Q2</span>
+              <div>
+                <h4>ความปลอดภัยและการแยกสิทธิ์ (Security Hardening)</h4>
+                <p>ตั้งค่าสิทธิ์การเข้าถึงข้อมูลสัญญาตามบทบาทพนักงาน (Role-Based Access Control) และเปิดใช้ Cloudflare Web Application Firewall</p>
+              </div>
+            </div>
+            <div class="roadmap-step">
+              <span class="step-num">Q3</span>
+              <div>
+                <h4>ขยายผลสู่องค์กร (Scale & Integrate)</h4>
+                <p>ย้ายขยายเวกเตอร์ DB ขึ้นระบบ Server หลัก เชื่อมโยงเข้ากับระบบ ERP/SharePoint ของบริษัท และเริ่มทดลองใช้จริงในบางแผนก</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="right-panel center-content">
+          <div class="pitch-conclusion-box">
+            <h3>พร้อมเริ่มต้นขับเคลื่อนองค์กรด้วย AI แล้ววันนี้</h3>
+            <p>ระบบ PoC นี้พิสูจน์แล้วว่า AI สามารถเข้าใจ ตอบคำถาม และช่วยบริหารความเสี่ยงทางกฎหมายได้อย่างมีประสิทธิภาพและปลอดภัย</p>
+            <button class="btn btn-primary" onclick="goToSlide(0)">กลับสู่หน้าแรก</button>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- ==========================================
+         Navigation Controls & Indicators
+         ========================================== -->
+    <div class="presentation-controls">
+      <button class="nav-btn prev-btn" id="btn-prev" disabled>‹ ก่อนหน้า</button>
+      <div class="indicators-container" id="slide-indicators">
+        <!-- Dots injected by JavaScript -->
+      </div>
+      <button class="nav-btn next-btn" id="btn-next">ถัดไป ›</button>
+      <button class="nav-btn theme-toggle" id="btn-theme" aria-label="สลับโหมดมืด/สว่าง" title="สลับโหมดมืด/สว่าง">
+        <span class="theme-icon" id="theme-icon">🌙</span>
+      </button>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar-container">
+      <div class="progress-bar-fill" id="progress-bar"></div>
+    </div>
+  </div>
+
+  <!-- JavaScript Presenter Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

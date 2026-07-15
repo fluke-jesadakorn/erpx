@@ -1,0 +1,10 @@
+uploads/
+web-admin/.env.local
+.env
+.env.local
+server/*/node_modules/
+server/*/.env
+server/*/dist/
+
+lib/native/vision-ocr/build/
+lib/native/vision-ocr/node_modules/

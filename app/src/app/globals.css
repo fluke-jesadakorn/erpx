@@ -1,0 +1,672 @@
+@import "tailwindcss";
+
+@layer base {
+  :root[data-theme="dark"] {
+    --paper:           #0E1626;
+    --paper-2:         #152035;
+    --paper-3:         #1B2A44;
+    --ink:             #F0F4FA;
+    --ink-2:           #C8D0DE;
+    --mute:            #C2CADC;
+    --rule:            #3F4D70;
+    --rule-strong:     #5A6E96;
+
+    --accent:          #84B393;
+    --accent-strong:   #A8C8B2;
+    --accent-soft:     #1A2620;
+    --accent-ink:      #B5D3C0;
+
+    --positive:        #84B393;
+    --positive-strong: #A8C8B2;
+    --positive-soft:   #142018;
+    --caution:         #D49A55;
+    --caution-strong:  #E0B074;
+    --caution-soft:    #2A2118;
+    --critical:        #E59A9B;
+    --critical-strong: #F0B7B8;
+    --critical-soft:   #2A1A1A;
+    --info:            #8AA9C2;
+    --info-strong:     #A8C2D6;
+    --info-soft:       #162028;
+    --neutral:         #A8B2C7;
+    --neutral-strong:  #C2CADE;
+    --neutral-soft:    #181F2C;
+
+    --shadow-popover:  0 1px 0 rgba(0,0,0,0.35), 0 12px 32px rgba(0,0,0,0.55);
+    --shadow-modal:    0 1px 0 rgba(0,0,0,0.4), 0 24px 64px rgba(0,0,0,0.6);
+
+    --surface-glass:        rgba(255, 255, 255, 0.018);
+    --surface-glass-strong: rgba(255, 255, 255, 0.040);
+    --surface-glass-heavy:  rgba(14, 22, 38, 0.42);
+    --glass-border:         rgba(255, 255, 255, 0.14);
+    --glass-border-strong:  rgba(255, 255, 255, 0.28);
+    --glass-highlight:      rgba(255, 255, 255, 0.32);
+    --glass-lowlight:       rgba(0, 0, 0, 0.22);
+
+    --text-soft:            rgba(212, 218, 230, 0.92);
+    --text-faint:           rgba(195, 202, 215, 0.78);
+    --text-ghost:           rgba(180, 188, 202, 0.50);
+
+    --ambient-1: rgba(95, 145, 185, 0.62);
+    --ambient-2: rgba(85, 145, 120, 0.58);
+    --ambient-3: rgba(135, 95, 165, 0.52);
+    --ambient-4: rgba(185, 125, 105, 0.46);
+    --ambient-5: rgba(75, 165, 195, 0.42);
+
+    color-scheme: dark;
+  }
+
+  :root[data-theme="light"] {
+    --paper:           #FBFBF8;
+    --paper-2:         #F2F3EE;
+    --paper-3:         #E8EAE3;
+    --ink:             #0A0F1A;
+    --ink-2:           #2D364A;
+    --mute:            #4A5366;
+    --rule:            #D6DBC9;
+    --rule-strong:     #B6BDA9;
+
+    --accent:          #1F4F3A;
+    --accent-strong:   #143126;
+    --accent-soft:     #E4ECDF;
+    --accent-ink:      #143126;
+
+    --positive:        #1F4F3A;
+    --positive-strong: #2A6B4F;
+    --positive-soft:   #E4ECDF;
+    --caution:         #8B5418;
+    --caution-strong:  #C2812A;
+    --caution-soft:    #F2E4CD;
+    --critical:        #8E2B22;
+    --critical-strong: #B0382D;
+    --critical-soft:   #F0DDD9;
+    --info:            #2B4A66;
+    --info-strong:     #3D6889;
+    --info-soft:       #DEE6EE;
+    --neutral:         #7A8398;
+    --neutral-strong:  #5C6478;
+    --neutral-soft:    #ECE7DA;
+
+    --shadow-popover:  0 1px 2px rgba(15,23,42,0.06), 0 8px 24px rgba(15,23,42,0.08);
+    --shadow-modal:    0 1px 2px rgba(15,23,42,0.08), 0 16px 48px rgba(15,23,42,0.12);
+
+    --surface-glass:        rgba(255, 255, 255, 0.55);
+    --surface-glass-strong: rgba(255, 255, 255, 0.65);
+    --surface-glass-heavy:  rgba(255, 255, 255, 0.78);
+    --glass-border:         rgba(15, 23, 42, 0.10);
+    --glass-border-strong:  rgba(15, 23, 42, 0.18);
+    --glass-highlight:      rgba(255, 255, 255, 0.85);
+    --glass-lowlight:       rgba(15, 23, 42, 0.06);
+
+    --text-soft:            rgba(20, 26, 42, 0.88);
+    --text-faint:           rgba(45, 54, 74, 0.72);
+    --text-ghost:           rgba(74, 83, 102, 0.52);
+
+    --ambient-1: rgba(140, 175, 200, 0.45);
+    --ambient-2: rgba(165, 195, 170, 0.40);
+    --ambient-3: rgba(195, 175, 205, 0.35);
+    --ambient-4: rgba(225, 195, 165, 0.30);
+
+    color-scheme: light;
+  }
+
+  :root:not([data-theme]) {
+    --paper:           #0E1626;
+    --paper-2:         #152035;
+    --paper-3:         #1B2A44;
+    --ink:             #F0F4FA;
+    --ink-2:           #C8D0DE;
+    --mute:            #C2CADC;
+    --rule:            #3F4D70;
+    --rule-strong:     #5A6E96;
+    --accent:          #84B393;
+    --accent-strong:   #A8C8B2;
+    --accent-soft:     #1A2620;
+    --accent-ink:      #B5D3C0;
+    --positive:        #84B393;
+    --positive-soft:   #142018;
+    --caution:         #D49A55;
+    --caution-soft:    #2A2118;
+    --critical:        #D88485;
+    --critical-soft:   #2A1A1A;
+    --info:            #8AA9C2;
+    --info-soft:       #162028;
+    --neutral:         #95A0B8;
+    --neutral-soft:    #181F2C;
+    --shadow-popover:  0 1px 0 rgba(0,0,0,0.35), 0 12px 32px rgba(0,0,0,0.55);
+    --shadow-modal:    0 1px 0 rgba(0,0,0,0.4), 0 24px 64px rgba(0,0,0,0.6);
+    --surface-glass:        rgba(255, 255, 255, 0.018);
+    --surface-glass-strong: rgba(255, 255, 255, 0.040);
+    --surface-glass-heavy:  rgba(14, 22, 38, 0.42);
+    --glass-border:         rgba(255, 255, 255, 0.14);
+    --glass-border-strong:  rgba(255, 255, 255, 0.28);
+    --glass-highlight:      rgba(255, 255, 255, 0.32);
+    --glass-lowlight:       rgba(0, 0, 0, 0.22);
+    --text-soft:            rgba(212, 218, 230, 0.92);
+    --text-faint:           rgba(195, 202, 215, 0.78);
+    --text-ghost:           rgba(180, 188, 202, 0.50);
+    --ambient-1: rgba(95, 145, 185, 0.62);
+    --ambient-2: rgba(85, 145, 120, 0.58);
+    --ambient-3: rgba(135, 95, 165, 0.52);
+    --ambient-4: rgba(185, 125, 105, 0.46);
+    --ambient-5: rgba(75, 165, 195, 0.42);
+    color-scheme: dark;
+  }
+
+  html { font-family: var(--font-sans); }
+  body {
+    background:
+      radial-gradient(ellipse 80% 65% at 12% 8%,   var(--ambient-1) 0%, transparent 58%),
+      radial-gradient(ellipse 70% 60% at 88% 18%,  var(--ambient-2) 0%, transparent 58%),
+      radial-gradient(ellipse 85% 70% at 50% 102%, var(--ambient-3) 0%, transparent 62%),
+      radial-gradient(ellipse 60% 50% at 78% 78%,  var(--ambient-4) 0%, transparent 58%),
+      radial-gradient(ellipse 55% 45% at 30% 60%,  var(--ambient-5) 0%, transparent 62%),
+      var(--paper);
+    background-attachment: fixed;
+    color: var(--ink);
+    font-size: 16px;
+    line-height: 1.5;
+    letter-spacing: 0.005em;
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    position: relative;
+    min-height: 100vh;
+  }
+  /* Crystal-grain texture overlay — barely visible noise to give the
+     ambient mesh a touch of physical texture. ~3% alpha so it's
+     felt, not seen. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.92' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.7 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    background-size: 160px 160px;
+    mix-blend-mode: overlay;
+  }
+  p { line-height: 1.55; }
+  small, .text-xs { letter-spacing: 0.01em; }
+}
+
+@theme {
+  --color-paper:           var(--paper);
+  --color-paper-2:         var(--paper-2);
+  --color-paper-3:         var(--paper-3);
+  --color-ink:             var(--ink);
+  --color-ink-2:           var(--ink-2);
+  --color-mute:            var(--mute);
+  --color-rule:            var(--rule);
+  --color-rule-strong:     var(--rule-strong);
+
+  /* ───── Slate palette hijack ─────
+     Every bg-slate-*, text-slate-*, border-slate-* in the codebase
+     now resolves to our glass design tokens. Five-step text scale
+     gives proper hierarchy: brightest headlines down to ghost hints. */
+  --color-slate-50:        var(--paper-3);
+  --color-slate-100:       var(--ink);
+  --color-slate-200:       var(--ink);
+  --color-slate-300:       var(--ink-2);
+  --color-slate-400:       var(--ink-2);
+  --color-slate-500:       var(--mute);
+  --color-slate-600:       var(--text-soft);
+  --color-slate-700:       var(--text-faint);
+  --color-slate-800:       var(--paper-2);
+  --color-slate-900:       var(--paper);
+  --color-slate-950:       var(--paper);
+  --color-slate:           var(--paper);
+
+  /* ───── Nuanced text utilities ───── */
+  --color-text-soft:       var(--text-soft);
+  --color-text-faint:      var(--text-faint);
+  --color-text-ghost:      var(--text-ghost);
+  --color-accent:          var(--accent);
+  --color-accent-strong:   var(--accent-strong);
+  --color-accent-soft:     var(--accent-soft);
+  --color-accent-ink:      var(--accent-ink);
+  --color-positive:        var(--positive);
+  --color-positive-strong: var(--positive-strong);
+  --color-positive-soft:   var(--positive-soft);
+  --color-caution:         var(--caution);
+  --color-caution-strong:  var(--caution-strong);
+  --color-caution-soft:    var(--caution-soft);
+  --color-critical:        var(--critical);
+  --color-critical-strong: var(--critical-strong);
+  --color-critical-soft:   var(--critical-soft);
+  --color-info:            var(--info);
+  --color-info-strong:     var(--info-strong);
+  --color-info-soft:       var(--info-soft);
+  --color-neutral:         var(--neutral);
+  --color-neutral-strong:  var(--neutral-strong);
+  --color-neutral-soft:    var(--neutral-soft);
+  --color-surface-glass:        var(--surface-glass);
+  --color-surface-glass-strong: var(--surface-glass-strong);
+  --color-surface-glass-heavy:  var(--surface-glass-heavy);
+  --color-glass-border:         var(--glass-border);
+  --color-glass-border-strong:  var(--glass-border-strong);
+
+  --font-display:          var(--font-display-family);
+  --font-sans:             var(--font-sans-family);
+  --font-mono:             var(--font-mono-family);
+
+  --radius-xs:             0.375rem;
+  --radius-sm:             0.625rem;
+  --radius-md:             0.875rem;
+  --radius-lg:             1.25rem;
+  --radius-xl:             1.75rem;
+  --radius-2xl:            2.25rem;
+  --radius-3xl:            2.75rem;
+
+  --text-xs--line-height: 1.45;
+  --text-xs:              0.875rem;
+  --text-sm--line-height: 1.5;
+  --text-sm:              0.9375rem;
+  --text-base--line-height: 1.55;
+  --text-base:            1.0625rem;
+  --text-lg--line-height: 1.5;
+  --text-lg:              1.1875rem;
+  --text-xl--line-height: 1.4;
+  --text-xl:              1.3125rem;
+  --text-2xl--line-height: 1.3;
+  --text-2xl:             1.5rem;
+  --text-3xl--line-height: 1.2;
+  --text-3xl:             1.875rem;
+  --text-4xl--line-height: 1.15;
+  --text-4xl:             2.25rem;
+  --text-5xl--line-height: 1.1;
+  --text-5xl:             3.125rem;
+}
+
+@layer base {
+  *, *::before, *::after { border-color: var(--rule); }
+  ::selection { background: var(--accent-soft); color: var(--accent-ink); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--rule-strong); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--mute); }
+  input, textarea, select, button { font-family: inherit; color: inherit; background: transparent; }
+  a { color: inherit; }
+  hr { border-color: var(--rule); margin: 0; }
+  table { border-collapse: collapse; }
+
+  /* Universal focus ring — replaces outline-none in 37 places so
+     keyboard navigation is always visible. 3px ring @ 28% accent
+     alpha + 1px solid accent inside for double-strength visibility
+     on both light and dark glass surfaces. */
+  :focus { outline: none; }
+  :focus-visible {
+    outline: 3px solid color-mix(in oklab, var(--accent) 65%, transparent);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+  button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  /* Form fields — extra glow halo for visibility on glass inputs */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 30%, transparent);
+    outline: none;
+  }
+
+  /* ───── Sizing compensation for new font scale ─────
+     text-xs went from 12px → 14px, text-sm 14px → 15px, text-base 16px → 17px.
+     Many buttons/chips were sized for the OLD smaller fonts and now look
+     cramped. These rules lift common chrome + form heights so the layout
+     proportions stay correct. They respect explicit overrides (h-9, h-10). */
+  button:not([class*="h-"]):not([class*="size="]),
+  a[role="button"]:not([class*="h-"]),
+  [role="button"]:not([class*="h-"]) {
+    min-height: 2.25rem;
+  }
+  /* Form controls default to a comfortable h-10 if no explicit height */
+  input:not([type="checkbox"]):not([type="radio"]):not([class*="h-"]),
+  select:not([class*="h-"]),
+  textarea:not([class*="h-"]) {
+    min-height: 2.5rem;
+  }
+  /* Glass-input utility gets a guaranteed minimum tap target */
+  .glass-input { min-height: 2.5rem; }
+  /* Search bars (h-9 in chrome) get a slight bump to h-10 */
+  [class*="h-9"][class*="px-3"], [class*="h-9"][class*="px-4"] {
+    min-height: 2.5rem;
+  }
+  /* Small chips/pills (h-7/h-8 with text-xs) need more room */
+  [class*="h-7"][class*="text-xs"], [class*="h-7"][class*="text-sm"] {
+    min-height: 2rem;
+  }
+  [class*="h-8"][class*="text-xs"], [class*="h-8"][class*="text-sm"] {
+    min-height: 2.25rem;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    /* Crystal-glass: 88% transparent so the body mesh bleeds through.
+       The slight paper tint (12%) preserves contrast for text. */
+    background:
+      linear-gradient(180deg, color-mix(in oklab, white 10%, transparent) 0%, transparent 30%),
+      color-mix(in oklab, var(--paper) 88%, transparent);
+    border: 1px solid var(--glass-border-strong);
+    border-radius: 1.25rem;
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    box-shadow:
+      inset 0 2px 0 0 var(--glass-highlight),
+      inset 0 -1px 0 0 var(--glass-lowlight),
+      0 0 0 1px var(--glass-border),
+      0 1px 1px rgba(0, 0, 0, 0.06),
+      0 4px 12px rgba(0, 0, 0, 0.10),
+      0 16px 40px rgba(0, 0, 0, 0.18),
+      0 32px 80px rgba(0, 0, 0, 0.28),
+      0 60px 140px rgba(0, 0, 0, 0.18);
+  }
+  .glass-panel-heavy {
+    background:
+      linear-gradient(180deg, color-mix(in oklab, white 14%, transparent) 0%, transparent 32%),
+      color-mix(in oklab, var(--paper) 75%, transparent);
+    border: 1px solid var(--glass-border-strong);
+    border-radius: 1.25rem;
+    backdrop-filter: blur(56px) saturate(200%);
+    -webkit-backdrop-filter: blur(56px) saturate(200%);
+    box-shadow:
+      inset 0 2px 0 0 rgba(255, 255, 255, 0.28),
+      inset 0 -1px 0 0 rgba(0, 0, 0, 0.22),
+      0 0 0 1px var(--glass-border),
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 8px 20px rgba(0, 0, 0, 0.16),
+      0 24px 60px rgba(0, 0, 0, 0.28),
+      0 48px 120px rgba(0, 0, 0, 0.30),
+      0 80px 180px rgba(0, 0, 0, 0.22);
+  }
+  .glass-tint-accent {
+    background:
+      linear-gradient(180deg, color-mix(in oklab, white 12%, transparent) 0%, transparent 28%),
+      color-mix(in oklab, var(--accent-soft) 30%, transparent);
+    border-color: color-mix(in oklab, var(--accent) 50%, transparent);
+    border-radius: 1rem;
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    box-shadow:
+      inset 0 2px 0 0 var(--glass-highlight),
+      inset 0 -1px 0 0 var(--glass-lowlight),
+      0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent),
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 8px 24px rgba(0, 0, 0, 0.16),
+      0 24px 60px rgba(0, 0, 0, 0.28);
+  }
+  .glass-tint-positive {
+    background:
+      linear-gradient(180deg, color-mix(in oklab, white 12%, transparent) 0%, transparent 28%),
+      color-mix(in oklab, var(--positive-soft) 30%, transparent);
+    border-color: color-mix(in oklab, var(--positive) 50%, transparent);
+    border-radius: 1rem;
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    box-shadow:
+      inset 0 2px 0 0 var(--glass-highlight),
+      inset 0 -1px 0 0 var(--glass-lowlight),
+      0 0 0 1px color-mix(in oklab, var(--positive) 35%, transparent),
+      0 1px 2px rgba(0, 0, 0, 0.10),
+      0 8px 24px rgba(0, 0, 0, 0.18),
+      0 24px 56px rgba(0, 0, 0, 0.28);
+  }
+  .glass-tint-caution {
+    background:
+      linear-gradient(180deg, color-mix(in oklab, white 12%, transparent) 0%, transparent 28%),
+      color-mix(in oklab, var(--caution-soft) 30%, transparent);
+    border-color: color-mix(in oklab, var(--caution) 50%, transparent);
+    border-radius: 1rem;
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    box-shadow:
+      inset 0 2px 0 0 var(--glass-highlight),
+      inset 0 -1px 0 0 var(--glass-lowlight),
+      0 0 0 1px color-mix(in oklab, var(--caution) 35%, transparent),
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 8px 24px rgba(0, 0, 0, 0.16),
+      0 24px 60px rgba(0, 0, 0, 0.28);
+  }
+  .glass-tint-critical {
+    background:
+      linear-gradient(180deg, color-mix(in oklab, white 12%, transparent) 0%, transparent 28%),
+      color-mix(in oklab, var(--critical-soft) 30%, transparent);
+    border-color: color-mix(in oklab, var(--critical) 50%, transparent);
+    border-radius: 1rem;
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    box-shadow:
+      inset 0 2px 0 0 var(--glass-highlight),
+      inset 0 -1px 0 0 var(--glass-lowlight),
+      0 0 0 1px color-mix(in oklab, var(--critical) 35%, transparent),
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 8px 24px rgba(0, 0, 0, 0.16),
+      0 24px 60px rgba(0, 0, 0, 0.28);
+  }
+  .glass-tint-info {
+    background:
+      linear-gradient(180deg, color-mix(in oklab, white 12%, transparent) 0%, transparent 28%),
+      color-mix(in oklab, var(--info-soft) 30%, transparent);
+    border-color: color-mix(in oklab, var(--info) 50%, transparent);
+    border-radius: 1rem;
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    box-shadow:
+      inset 0 2px 0 0 var(--glass-highlight),
+      inset 0 -1px 0 0 var(--glass-lowlight),
+      0 0 0 1px color-mix(in oklab, var(--info) 35%, transparent),
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 8px 24px rgba(0, 0, 0, 0.16),
+      0 24px 60px rgba(0, 0, 0, 0.28);
+  }
+  .glass-tint-neutral {
+    background:
+      linear-gradient(180deg, color-mix(in oklab, white 12%, transparent) 0%, transparent 28%),
+      color-mix(in oklab, var(--neutral-soft) 30%, transparent);
+    border-color: color-mix(in oklab, var(--neutral) 50%, transparent);
+    border-radius: 1rem;
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+    box-shadow:
+      inset 0 2px 0 0 var(--glass-highlight),
+      inset 0 -1px 0 0 var(--glass-lowlight),
+      0 0 0 1px color-mix(in oklab, var(--neutral) 35%, transparent),
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 8px 24px rgba(0, 0, 0, 0.16),
+      0 24px 60px rgba(0, 0, 0, 0.28);
+  }
+  .glass-input {
+    background: color-mix(in oklab, var(--paper) 90%, transparent);
+    border: 1px solid var(--glass-border-strong);
+    border-radius: 0.875rem;
+    backdrop-filter: blur(24px) saturate(170%);
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .glass-input:focus,
+  .glass-input:focus-within {
+    border-color: var(--accent);
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 28%, transparent);
+  }
+  .glass-rounded-none { border-radius: 0 !important; }
+  .glass-rounded-sm   { border-radius: 0.5rem !important; }
+  .glass-rounded-md   { border-radius: 0.875rem !important; }
+  .glass-rounded-lg   { border-radius: 1.25rem !important; }
+  .glass-rounded-xl   { border-radius: 1.75rem !important; }
+  .glass-rounded-2xl  { border-radius: 2.25rem !important; }
+  .glass-rounded-3xl  { border-radius: 2.75rem !important; }
+  .glass-rounded-full { border-radius: 9999px !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   LEGACY AUTO-UPGRADE
+   Catches every bg-slate-* + border-slate-* surface that the
+   previous flat-dark theme left behind and forces it into the
+   VisionOS glass aesthetic. Works without touching any .tsx.
+   ───────────────────────────────────────────────────────────── */
+
+/* (3) Force rounded corners on every slate-* surface.
+        Background-only classes get 1rem. Surfaces with a border
+        get 1.25rem. Inline markers like code/kbd stay sharp. */
+.bg-slate-900,
+.bg-slate-800,
+.bg-slate-950,
+.bg-slate-700 {
+  border-radius: 1rem;
+}
+[class*="bg-slate-900"][class*="border-"],
+[class*="bg-slate-800"][class*="border-"],
+[class*="bg-slate-950"][class*="border-"] {
+  border-radius: 1.25rem;
+}
+/* But rounded-full chips/pills keep their pill shape */
+.rounded-full { border-radius: 9999px !important; }
+
+/* (2) Auto-apply glass backdrop to every slate card/panel.
+        Scoped to elements with BOTH a slate background AND a
+        slate border so we don't blur chips, badges, code blocks. */
+[class*="bg-slate-900"][class*="border-slate-"],
+[class*="bg-slate-800"][class*="border-slate-"],
+[class*="bg-slate-950"][class*="border-slate-"] {
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow:
+    inset 0 1px 0 0 var(--glass-highlight),
+    inset 0 -1px 0 0 var(--glass-lowlight),
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    0 8px 24px rgba(0, 0, 0, 0.28);
+}
+/* Heavier blur for things that already have border-strong or are large containers */
+[class*="bg-slate-900"][class*="border-slate-800/80"],
+[class*="bg-slate-800"][class*="border-slate-800/80"],
+[class*="bg-slate-950"][class*="border-slate-800/80"] {
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+}
+
+/* (4) Kill all bg-gradient-to-* utility classes (62 occurrences
+        across the codebase) and replace with frosted glass. The
+        rare text gradient (bg-clip-text + text-transparent) is
+        excluded via the :not selector. */
+[class*="bg-gradient-to-"]:not([class*="bg-clip-text"]) {
+  background-image: none !important;
+  background-color: transparent !important;
+  background: color-mix(in oklab, var(--paper) 82%, var(--surface-glass-strong)) !important;
+  backdrop-filter: blur(24px) saturate(170%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(170%) !important;
+  border: 1px solid var(--glass-border);
+  border-radius: 1.25rem !important;
+  box-shadow:
+    inset 0 1.5px 0 0 var(--glass-highlight),
+    inset 0 -1px 0 0 var(--glass-lowlight),
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 8px 24px rgba(0, 0, 0, 0.20),
+    0 24px 56px rgba(0, 0, 0, 0.30);
+}
+
+/* (4b) Replace any legacy shadow-2xl / shadow-black with the
+        glass-style 3-layer shadow so it doesn't punch a hard
+        rectangle into the page. */
+[class*="shadow-2xl"][class*="shadow-black"] {
+  box-shadow:
+    inset 0 1.5px 0 0 var(--glass-highlight),
+    inset 0 -1px 0 0 var(--glass-lowlight),
+    0 1px 3px rgba(0, 0, 0, 0.18),
+    0 12px 32px rgba(0, 0, 0, 0.25),
+    0 32px 80px rgba(0, 0, 0, 0.40) !important;
+}
+
+/* (5) Text gradients — replace with beautiful solid text.
+        Brand wordmark "Folio / Folio" used bg-clip-text + text-transparent
+        with a rainbow gradient. Replaced with the display-font + accent
+        ink + subtle tracking for a refined editorial look. */
+[class*="bg-gradient-to-"][class*="bg-clip-text"] {
+  background-image: none !important;
+  background-clip: border-box !important;
+  -webkit-background-clip: border-box !important;
+  color: var(--ink) !important;
+  font-feature-settings: "ss01", "cv11";
+  letter-spacing: -0.015em;
+}
+/* If the wordmark has font-black + tracking-tight, keep it bright accent */
+h1[class*="bg-gradient-to-"][class*="bg-clip-text"],
+.font-black[class*="bg-gradient-to-"][class*="bg-clip-text"] {
+  background: linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+}
+/* Soft inline gradient names (in tables/inline pills) get an accent tone */
+span[class*="bg-gradient-to-"][class*="bg-clip-text"] {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+}
+
+/* (6) Text hierarchy upgrade — improve commonly-used muted text.
+        text-xs captions / labels / mono tags get the refined
+        text-soft or text-faint so they sit on a clear hierarchy. */
+small, .text-xs { color: var(--text-soft); }
+.text-slate-600 { color: var(--text-soft) !important; }
+.text-slate-700 { color: var(--text-faint) !important; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes float-slow {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(20px, -16px, 0) scale(1.06); }
+}
+@keyframes float-slower {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(-24px, 18px, 0) scale(1.08); }
+}
+@keyframes hero-scan {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+.animate-float-slow { animation: float-slow 18s ease-in-out infinite; }
+.animate-float-slower { animation: float-slower 26s ease-in-out infinite; }
+.animate-hero-scan { animation: hero-scan 8s linear infinite; }
+
+@keyframes fadeScale {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-fade-scale { animation: fadeScale 180ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slide-in-left { animation: slideInLeft 250ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@keyframes shine-sweep {
+  0%   { transform: translateX(-120%) skewX(-12deg); }
+  100% { transform: translateX(220%) skewX(-12deg); }
+}
+
+.shadow-popover { box-shadow: var(--shadow-popover); }
+.shadow-modal   { box-shadow: var(--shadow-modal); }
+
+.num-tabular { font-variant-numeric: tabular-nums lining-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in, .animate-fade-scale, .animate-slide-in-left,
+  .animate-float-slow, .animate-float-slower, .animate-hero-scan {
+    animation: none !important;
+  }
+  *, *::before, *::after { transition-duration: 0ms !important; animation-duration: 0ms !important; }
+}

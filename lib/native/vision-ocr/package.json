@@ -1,0 +1,15 @@
+{
+  "name": "@folio/vision-ocr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "macOS Vision OCR via N-API addon. Falls back to no-op if Swift build fails.",
+  "main": "index.js",
+  "gypfile": true,
+  "scripts": {
+    "install": "node-gyp rebuild || node ./scripts/postinstall-warn.js"
+  },
+  "dependencies": {
+    "node-addon-api": "^8.2.2",
+    "node-gyp": "^11.2.0"
+  }
+}

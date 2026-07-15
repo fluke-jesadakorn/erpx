@@ -1,0 +1,794 @@
+{
+  "name": "04 - Docs Admin (CRUD UI)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "docs-admin-ui",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-admin-ui",
+      "name": "Admin UI Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        0
+      ],
+      "webhookId": "admin-ui-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return HTML page for Docs Admin\nconst html = `<!doctype html>\n<html lang=\"th\">\n<head>\n<meta charset=\"utf-8\">\n<title>Docs Admin | Phuket Law</title>\n<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<script>\n  // No-flash theme bootstrap: set data-theme BEFORE <style> parses so first\n  // paint uses the right colors. Order: localStorage > OS preference > dark.\n  (function(){\n    try{\n      var saved = localStorage.getItem('lawpoc-admin-theme');\n      var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');\n      document.documentElement.setAttribute('data-theme', theme);\n    }catch(e){ document.documentElement.setAttribute('data-theme', 'dark'); }\n  })();\n</script>\n<style>\n:root{\n  /* Core tokens (light defaults) */\n  --bg:#f6f7f9;--card:#fff;--ink:#0f172a;--muted:#64748b;--muted-2:#94a3b8;\n  --bd:#e2e8f0;--bd-soft:#f1f5f9;\n  --pri:#0f766e;--pri-2:#0d9488;--warn:#b45309;--err:#b91c1c;--ok:#15803d;\n\n  /* Component tokens (light) */\n  --header-bg:#0f172a;--header-fg:#fff;--crumb-fg:#94a3b8;\n  --hover-bg:#f1f5f9;--th-bg:#f8fafc;\n  --row-divider:#f1f5f9;--row-hover-bg:#fafbfc;\n  --mono-fg:#475569;--chunk-text:#334155;\n  --modal-overlay:rgba(15,23,42,.5);--modal-card:#fff;--modal-ft-bg:#f8fafc;\n  --file-preview-bg:#f8fafc;--input-bg:#fff;\n  --toast-bg:#0f172a;--toast-fg:#fff;\n  --spinner-border:#fff;\n  --sticky-act-shadow:rgba(15,23,42,.15);\n\n  /* Status badges (light = pastel solid; dark = semi-transparent tinted) */\n  --badge-ready-bg:#dcfce7;     --badge-ready-fg:#15803d;\n  --badge-pending-bg:#fef3c7;   --badge-pending-fg:#b45309;\n  --badge-failed-bg:#fee2e2;    --badge-failed-fg:#b91c1c;\n  --badge-processing-bg:#dbeafe;--badge-processing-fg:#1d4ed8;\n\n  /* Shadow tokens */\n  --shadow-sm:0 1px 2px rgba(15,23,42,.06);\n  --shadow-md:0 4px 12px rgba(15,23,42,.08);\n}\n[data-theme=\"dark\"]{\n  --bg:#0e1422;--card:#161e35;--ink:#f1f5f9;--muted:#94a3b8;--muted-2:#64748b;\n  --bd:rgba(148,163,184,.15);--bd-soft:rgba(148,163,184,.08);\n  --pri:#2dd4bf;--pri-2:#14b8a6;--warn:#fbbf24;--err:#f87171;--ok:#4ade80;\n\n  --header-bg:#050a17;--header-fg:#f1f5f9;--crumb-fg:#64748b;\n  --hover-bg:rgba(148,163,184,.08);--th-bg:rgba(148,163,184,.05);\n  --row-divider:rgba(148,163,184,.08);--row-hover-bg:rgba(20,184,166,.05);\n  --mono-fg:#cbd5e1;--chunk-text:#cbd5e1;\n  --modal-overlay:rgba(0,0,0,.7);--modal-card:#161e35;--modal-ft-bg:#0e1422;\n  --file-preview-bg:#0e1422;--input-bg:#0e1422;\n  --toast-bg:#f1f5f9;--toast-fg:#0f172a;\n  --spinner-border:#0e1422;\n  --sticky-act-shadow:rgba(0,0,0,.5);\n\n  --badge-ready-bg:rgba(34,197,94,.18);     --badge-ready-fg:#4ade80;\n  --badge-pending-bg:rgba(245,158,11,.18);   --badge-pending-fg:#fbbf24;\n  --badge-failed-bg:rgba(239,68,68,.18);    --badge-failed-fg:#f87171;\n  --badge-processing-bg:rgba(59,130,246,.18);--badge-processing-fg:#60a5fa;\n\n  --shadow-sm:0 1px 2px rgba(0,0,0,.4);\n  --shadow-md:0 4px 12px rgba(0,0,0,.4);\n}\n*{box-sizing:border-box}\nbody{font:14px/1.5 -apple-system,\"SF Pro Text\",\"Inter\",system-ui,sans-serif;margin:0;background:var(--bg);color:var(--ink);transition:background-color .2s ease,color .2s ease}\nheader{background:var(--header-bg);color:var(--header-fg);padding:14px 24px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 0 rgba(0,0,0,.2);transition:background-color .2s ease}\nheader h1{font-size:16px;font-weight:600;margin:0;letter-spacing:.2px}\nheader .crumb{color:var(--crumb-fg);font-size:12px;margin-left:auto}\nheader .theme-toggle{margin-left:8px;background:transparent;color:var(--header-fg);border:1px solid rgba(255,255,255,.18);border-radius:8px;height:32px;width:32px;padding:0;cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center;transition:all .15s}\nheader .theme-toggle:hover{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.35)}\n.wrap{max-width:1280px;margin:0 auto;padding:24px}\n.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap}\n.toolbar input,.toolbar select{height:36px;padding:0 12px;border:1px solid var(--bd);border-radius:8px;background:var(--input-bg);font:inherit;color:var(--ink);outline:none;transition:border-color .15s,box-shadow .15s}\n.toolbar input:focus,.toolbar select:focus{border-color:var(--pri-2);box-shadow:0 0 0 3px rgba(13,148,136,.2)}\n.toolbar input.search{flex:1;min-width:200px}\n\n.similarity-bar{display:inline-block;height:6px;border-radius:3px;background:var(--bd);width:60px;vertical-align:middle;margin-right:6px;position:relative;overflow:hidden}\n.similarity-bar>span{position:absolute;left:0;top:0;bottom:0;background:var(--pri)}\n.chunk-preview{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n.btn{height:36px;padding:0 14px;border:0;border-radius:8px;background:var(--pri);color:#fff;font:inherit;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background-color .15s,box-shadow .15s,transform .05s}\n.btn:hover{background:var(--pri-2)}\n.btn:active{transform:translateY(1px)}\n.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--bd)}\n.btn.ghost:hover{background:var(--hover-bg)}\n.btn.warn{background:var(--warn)}\n.btn.danger{background:var(--err)}\n.btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:6px}\n.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}\n.stat{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:14px;box-shadow:var(--shadow-sm);transition:background-color .2s ease,border-color .2s ease}\n.stat .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}\n.stat .num{font-size:24px;font-weight:600;margin-top:4px}\n.stat .num.warn{color:var(--warn)} .stat .num.ok{color:var(--ok)} .stat .num.err{color:var(--err)}\n.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;overflow-x:auto;box-shadow:var(--shadow-sm);transition:background-color .2s ease,border-color .2s ease}\ntable{width:100%;border-collapse:collapse;font-size:13px}\nth{text-align:left;padding:12px 14px;background:var(--th-bg);font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--bd)}\ntd{padding:12px 14px;border-bottom:1px solid var(--row-divider);vertical-align:middle}\ntr:hover td{background:var(--row-hover-bg)}\ntr:last-child td{border-bottom:0}\ntd.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--mono-fg)}\ntd .name{font-weight:500;color:var(--ink)}\ntd .name small{display:block;color:var(--muted);font-weight:400;font-size:11px;margin-top:2px}\n.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500}\n.badge.ready{background:var(--badge-ready-bg);color:var(--badge-ready-fg)}\n.badge.pending{background:var(--badge-pending-bg);color:var(--badge-pending-fg)}\n.badge.failed{background:var(--badge-failed-bg);color:var(--badge-failed-fg)}\n.badge.processing{background:var(--badge-processing-bg);color:var(--badge-processing-fg)}\n.empty{padding:60px 20px;text-align:center;color:var(--muted)}\n.empty h3{margin:0 0 6px;font-weight:500;color:var(--ink)}\n.row-actions{display:flex;gap:6px;justify-content:flex-end;position:sticky;right:0;background:var(--card);padding-left:12px;box-shadow:-8px 0 12px -6px var(--sticky-act-shadow)}\n.row-actions::before{content:'';position:absolute;left:-12px;top:0;bottom:0;width:12px;background:linear-gradient(to right,transparent,var(--card) 70%);pointer-events:none}\nth.sticky-act{position:sticky;right:0;background:var(--th-bg);z-index:2;box-shadow:-8px 0 12px -6px var(--sticky-act-shadow)}\n.modal{position:fixed;inset:0;background:var(--modal-overlay);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}\n.modal.on{display:flex}\n.modal .box{background:var(--modal-card);border-radius:12px;width:100%;max-width:760px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow-md)}\n#m-view .box{max-width:1180px}\n.preview-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:16px}\n.preview-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}\n.file-preview{height:min(66vh,720px);min-height:420px;border:1px solid var(--bd);border-radius:8px;overflow:hidden;background:var(--file-preview-bg)}\n.file-preview iframe{width:100%;height:100%;border:0;background:var(--input-bg)}\n.meta-grid{grid-template-columns:1fr 1fr}\n@media(max-width:900px){.preview-grid{grid-template-columns:1fr}.file-preview{height:60vh;min-height:320px}.grid2,.meta-grid{grid-template-columns:1fr}}\n.modal .hd{padding:16px 20px;border-bottom:1px solid var(--bd);display:flex;align-items:center;gap:12px}\n.modal .hd h2{margin:0;font-size:16px;font-weight:600;flex:1}\n.modal .bd{padding:20px;overflow-y:auto;flex:1}\n.modal .ft{padding:14px 20px;border-top:1px solid var(--bd);display:flex;justify-content:flex-end;gap:8px;background:var(--modal-ft-bg)}\n.field{margin-bottom:14px}\n.field label{display:block;font-size:12px;font-weight:500;color:var(--muted);margin-bottom:4px}\n.field input,.field select,.field textarea{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:6px;font:inherit;background:var(--input-bg);color:var(--ink);transition:border-color .15s,box-shadow .15s}\n.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--pri-2);box-shadow:0 0 0 3px rgba(13,148,136,.2)}\n.field .hint{font-size:11px;color:var(--muted);margin-top:3px}\n.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}\n.chunk-list{margin-top:8px;max-height:340px;overflow-y:auto;border:1px solid var(--bd);border-radius:6px;background:var(--input-bg)}\n.chunk{padding:10px 12px;border-bottom:1px solid var(--bd-soft);font-size:12px}\n.chunk:last-child{border-bottom:0}\n.chunk .ci{color:var(--muted);font-family:ui-monospace,monospace;font-size:11px}\n.chunk .cp{color:var(--chunk-text);margin-top:4px;line-height:1.4}\n.toast{position:fixed;bottom:20px;right:20px;background:var(--toast-bg);color:var(--toast-fg);padding:12px 18px;border-radius:8px;font-size:13px;opacity:0;transform:translateY(10px);transition:all .2s;z-index:100;max-width:360px;box-shadow:var(--shadow-md)}\n.toast.on{opacity:1;transform:translateY(0)}\n.toast.err{background:var(--err);color:#fff}\n.toast.ok{background:var(--ok);color:#fff}\nmark.match{background:#fef08a;color:#713f12;padding:0 3px;border-radius:3px;font-weight:500}\n.match-cell{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--mono-fg)}\n.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--spinner-border);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite}\n@keyframes spin{to{transform:rotate(360deg)}}\n.loading{padding:40px;text-align:center;color:var(--muted)}\n</style>\n</head>\n<body>\n<header>\n  <h1>📑 Docs Admin</h1>\n  <button class=\"theme-toggle\" id=\"btn-theme\" aria-label=\"สลับโหมดมืด/สว่าง\" title=\"สลับโหมดมืด/สว่าง\">\n    <span id=\"theme-icon\">🌙</span>\n  </button>\n  <span class=\"crumb\" id=\"crumb\">Phuket Law Firm • LINE-fed document store</span>\n</header>\n<div class=\"wrap\">\n  <div class=\"stats\" id=\"stats\">\n    <div class=\"stat\"><div class=\"label\">Total</div><div class=\"num\" id=\"stat-total\">—</div></div>\n    <div class=\"stat\"><div class=\"label\">Ready</div><div class=\"num ok\" id=\"stat-ready\">—</div></div>\n    <div class=\"stat\"><div class=\"label\">Pending</div><div class=\"num warn\" id=\"stat-pending\">—</div></div>\n    <div class=\"stat\"><div class=\"label\">Failed</div><div class=\"num err\" id=\"stat-failed\">—</div></div>\n  </div>\n  <div class=\"toolbar\">\n    <input class=\"search\" id=\"q\" placeholder=\"🔍 ค้นหาในเนื้อหา (semantic)\">\n    <select id=\"f-status\">\n      <option value=\"\">สถานะทั้งหมด</option>\n      <option value=\"ready\">ready</option>\n      <option value=\"pending\">pending</option>\n      <option value=\"failed\">failed</option>\n      <option value=\"processing\">processing</option>\n    </select>\n    <button class=\"btn ghost\" id=\"btn-refresh\">↻ รีเฟรช</button>\n  </div>\n  <div class=\"card\">\n    <table>\n      <thead><tr>\n        <th style=\"width:130px\">Doc No</th>\n        <th>ชื่อไฟล์</th>\n        <th style=\"width:110px\">ความเหมือน</th>\n        <th style=\"width:240px\">Match</th>\n        <th style=\"width:110px\">Category</th>\n        <th style=\"width:90px\">Status</th>\n        <th style=\"width:60px;text-align:right\">Chunks</th>\n        <th style=\"width:130px\">อัปโหลด</th>\n        <th class=\"sticky-act\" style=\"width:200px\"></th>\n      </tr></thead>\n      <tbody id=\"tbody\">\n        <tr><td colspan=\"9\" class=\"loading\">กำลังโหลด…</td></tr>\n      </tbody>\n    </table>\n  </div>\n</div>\n\n<!-- View Modal -->\n<div class=\"modal\" id=\"m-view\">\n  <div class=\"box\">\n    <div class=\"hd\"><h2 id=\"v-title\">รายละเอียดเอกสาร</h2><button class=\"btn ghost sm\" onclick=\"closeModal('m-view')\">✕</button></div>\n    <div class=\"bd\" id=\"v-body\"></div>\n    <div class=\"ft\"><button class=\"btn ghost\" onclick=\"closeModal('m-view')\">ปิด</button><button class=\"btn ghost\" id=\"v-open-btn\">เปิดไฟล์</button><button class=\"btn\" id=\"v-edit-btn\">แก้ไข</button></div>\n  </div>\n</div>\n\n<!-- Edit Modal -->\n<div class=\"modal\" id=\"m-edit\">\n  <div class=\"box\">\n    <div class=\"hd\"><h2>แก้ไขเอกสาร</h2><button class=\"btn ghost sm\" onclick=\"closeModal('m-edit')\">✕</button></div>\n    <div class=\"bd\">\n      <input type=\"hidden\" id=\"e-id\">\n      <div class=\"grid2\">\n        <div class=\"field\"><label>Doc No</label><input id=\"e-doc_no\" disabled><div class=\"hint\">ไม่สามารถแก้ไขได้</div></div>\n        <div class=\"field\"><label>Status</label>\n          <select id=\"e-status\"><option value=\"ready\">ready</option><option value=\"pending\">pending</option><option value=\"failed\">failed</option><option value=\"processing\">processing</option></select>\n        </div>\n      </div>\n      <div class=\"field\"><label>ชื่อไฟล์</label><input id=\"e-file_name\"></div>\n      <div class=\"grid2\">\n        <div class=\"field\"><label>Category</label><input id=\"e-category\" placeholder=\"เช่น สัญญาเช่า, หนังสือมอบอำนาจ\"></div>\n        <div class=\"field\"><label>Source</label><input id=\"e-source\" placeholder=\"เช่น LINE OA, web upload\"></div>\n      </div>\n    </div>\n    <div class=\"ft\">\n      <button class=\"btn ghost\" onclick=\"closeModal('m-edit')\">ยกเลิก</button>\n      <button class=\"btn\" id=\"e-save\">บันทึก</button>\n    </div>\n  </div>\n</div>\n\n<div class=\"toast\" id=\"toast\"></div>\n\n<script>\nconst BASE = location.origin;\nlet allRows = [];\nlet statsCache = null;\nlet currentQuery = '';\n\n// =========================================================================\n// Theme switcher (toggle dark/light, persist in localStorage, respect OS pref)\n// =========================================================================\nconst themeBtn = document.getElementById('btn-theme');\nconst themeIcon = document.getElementById('theme-icon');\nconst THEME_KEY = 'lawpoc-admin-theme';\nconst themeMedia = window.matchMedia('(prefers-color-scheme: light)');\n\nfunction currentTheme(){ return document.documentElement.getAttribute('data-theme') || 'light'; }\n\nfunction syncThemeIcon(theme){\n  // Show the icon of the CURRENT theme so the button reflects page state\n  themeIcon.textContent = theme === 'dark' ? '🌙' : '☀️';\n  themeBtn.setAttribute('aria-label', theme === 'dark' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด');\n  themeBtn.setAttribute('title', theme === 'dark' ? 'เปลี่ยนเป็นโหมดสว่าง' : 'เปลี่ยนเป็นโหมดมืด');\n}\n\nfunction applyTheme(theme, persist){\n  document.documentElement.setAttribute('data-theme', theme);\n  syncThemeIcon(theme);\n  if(persist){ try{ localStorage.setItem(THEME_KEY, theme); }catch(e){} }\n}\n\nthemeBtn.addEventListener('click', ()=>{\n  applyTheme(currentTheme() === 'dark' ? 'light' : 'dark', true);\n});\n\n// Sync icon to whatever the head bootstrap set\nsyncThemeIcon(currentTheme());\n\n// If user hasn't explicitly chosen, follow OS theme changes live\nthemeMedia.addEventListener('change', e=>{\n  let saved = null;\n  try{ saved = localStorage.getItem(THEME_KEY); }catch(err){}\n  if(!saved) applyTheme(e.matches ? 'light' : 'dark', false);\n});\n// =========================================================================\n\nfunction toast(msg, kind=''){\n  const t = document.getElementById('toast');\n  t.textContent = msg;\n  t.className = 'toast on ' + kind;\n  setTimeout(()=>t.className='toast '+kind, 2200);\n}\n\nasync function api(path, opts){\n  const r = await fetch(BASE + path, opts);\n  if (!r.ok) throw new Error('HTTP '+r.status);\n  return r.json();\n}\n\nfunction fmtDate(s){\n  if(!s) return '—';\n  const d = new Date(s);\n  return d.toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'});\n}\n\nfunction esc(s){return String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]))}\n\nasync function loadStats(){\n  try{\n    const s = await api('/webhook/admin-stats');\n    const v = (s && s.data) || s;\n    if (typeof v === 'string') { try { v = JSON.parse(v); } catch {} }\n    document.getElementById('stat-total').textContent = v.total??0;\n    document.getElementById('stat-ready').textContent = v.ready??0;\n    document.getElementById('stat-pending').textContent = v.pending??0;\n    document.getElementById('stat-failed').textContent = v.failed??0;\n  }catch(e){console.warn('stats',e)}\n}\n\nasync function loadList(){\n  const q = document.getElementById('q').value.trim();\n  const st = document.getElementById('f-status').value;\n  const params = new URLSearchParams();\n  if(st) params.set('status', st);\n  params.set('limit', '200');\n  // Empty q → admin-list (full listing, no embedding). Non-empty q → admin-semantic-search.\n  const endpoint = q ? '/webhook/admin-semantic-search' : '/webhook/admin-list';\n  if (q) params.set('q', q);\n  currentQuery = q;\n  try{\n    const data = await api(endpoint+'?'+params.toString());\n    allRows = Array.isArray(data)?data:((data&&data.data)||[]);\n    render(q ? 'semantic' : 'list');\n  }catch(e){\n    document.getElementById('tbody').innerHTML = \\`<tr><td colspan=\"9\" class=\"empty\"><h3>โหลดไม่สำเร็จ</h3>\\${esc(e.message)}</td></tr>\\`;\n  }\n}\n\nfunction render(mode){\n  const tb = document.getElementById('tbody');\n  if(!allRows.length){\n    const msg = (mode === 'semantic') ? 'ไม่พบเอกสารที่คล้ายกัน' : 'ไม่มีเอกสาร';\n    const hint = (mode === 'semantic') ? 'ลองค้นหาด้วยคำอื่น' : 'อัปโหลดผ่าน LINE OA เพื่อเริ่มต้น';\n    tb.innerHTML = \\`<tr><td colspan=\"9\" class=\"empty\"><h3>\\${esc(msg)}</h3>\\${esc(hint)}</td></tr>\\`;\n    return;\n  }\n  // Build match snippet: find query in top_chunk_content, show ~20\n  // chars context on each side with <mark> wrapping the match.\n  function buildMatch(r){\n    if(mode !== 'semantic') return '<td style=\"color:var(--muted)\">—</td>';\n    const q = (currentQuery||'').trim();\n    const txt = r.top_chunk_content || '';\n    if(!txt) return '<td style=\"color:var(--muted)\">—</td>';\n    if(q){\n      const safe = q.replace(/[.*+?^\\${}()|[\\]\\\\]/g, '\\\\$&');\n      const re = new RegExp(safe, 'i');\n      const m = re.exec(txt);\n      if(m){\n        const start = Math.max(0, m.index - 20);\n        const end = Math.min(txt.length, m.index + q.length + 20);\n        const before = (start > 0 ? '…' : '') + txt.slice(start, m.index);\n        const matchTxt = txt.slice(m.index, m.index + q.length);\n        const after = txt.slice(m.index + q.length, end) + (end < txt.length ? '…' : '');\n        return \\`<td><div class=\"match-cell\" title=\"\\${esc(txt.slice(0,200))}\">\\${esc(before)}<mark class=\"match\">\\${esc(matchTxt)}</mark>\\${esc(after)}</div></td>\\`;\n      }\n    }\n    if(r.keyword_sim && parseFloat(r.keyword_sim) > 0){\n      return \\`<td style=\"color:var(--muted);font-size:12px\">semantic match · kw \\${(parseFloat(r.keyword_sim)).toFixed(1)}</td>\\`;\n    }\n    return '<td style=\"color:var(--muted)\">—</td>';\n  }\n  // Similarity: use vector_sim (cosine 0-1). RRF score is meaningless\n  // for human display (always ~3% for top-ranked results).\n  function buildSim(r){\n    if(mode !== 'semantic') return '<td style=\"color:var(--muted)\">—</td>';\n    const v = parseFloat(r.vector_sim != null ? r.vector_sim : (r.similarity || 0));\n    const pct = Math.max(0, Math.min(100, Math.round(v * 100)));\n    return \\`<td><div style=\"display:flex;align-items:center\"><div class=\"similarity-bar\"><span style=\"width:\\${pct}%\"></span></div><span style=\"font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted)\">\\${pct}%</span></div></td>\\`;\n  }\n  tb.innerHTML = allRows.map(r=>{\n    return \\`\n    <tr>\n      <td class=\"mono\">\\${esc(r.doc_no||'—')}</td>\n      <td><div class=\"name\">\\${esc(r.file_name||'')}<small>\\${esc(r.file_type||'')}\\${r.size_bytes?' • '+Math.round(r.size_bytes/1024)+' KB':''}</small></div></td>\n      \\${buildSim(r)}\n      \\${buildMatch(r)}\n      <td>\\${esc(r.category||'—')}</td>\n      <td><span class=\"badge \\${esc(r.status||'pending')}\">\\${esc(r.status||'pending')}</span></td>\n      <td style=\"text-align:right;font-variant-numeric:tabular-nums\">\\${r.chunk_count??0}</td>\n      <td class=\"mono\">\\${fmtDate(r.uploaded_at)}</td>\n      <td><div class=\"row-actions\">\n        <button class=\"btn ghost sm\" onclick=\"view('\\${esc(r.id)}')\">ดู</button>\n        <button class=\"btn sm\" onclick=\"edit('\\${esc(r.id)}')\">แก้ไข</button>\n        <button class=\"btn danger sm\" onclick=\"del('\\${esc(r.id)}','\\${esc(r.file_name||'')}')\">ลบ</button>\n      </div></td>\n    </tr>\n  \\`}).join('');\n}\n\nasync function view(id){\n  try{\n    const data = await api('/webhook/admin-get?id='+encodeURIComponent(id));\n    const r = (Array.isArray(data)?data[0]:((data&&data.data)||data));\n    if(!r||!r.id){toast('ไม่พบเอกสาร','err');return}\n    const chunks = r.chunks||[];\n    const fileUrl = '/webhook/admin-file?id='+encodeURIComponent(id);\n    document.getElementById('v-title').textContent = r.file_name||'(ไม่มีชื่อ)';\n    document.getElementById('v-body').innerHTML = \\`\n      <div class=\"preview-grid\">\n        <section>\n          <div class=\"preview-bar\">\n            <div><div class=\"hint\">ไฟล์จาก Postgres</div><strong>\\${esc(r.file_name||'document')}</strong></div>\n            <a href=\"\\${esc(fileUrl)}\" target=\"_blank\" class=\"btn ghost sm\" style=\"text-decoration:none\">เปิดแท็บใหม่</a>\n          </div>\n          <div class=\"file-preview\"><iframe src=\"\\${esc(fileUrl) + '#toolbar=0&navpanes=0&scrollbar=0&view=FitH'}\" title=\"\\${esc(r.file_name||'document')}\"></iframe></div>\n        </section>\n        <section>\n          <div class=\"grid2 meta-grid\">\n            <div><div class=\"hint\">Doc No</div><div class=\"mono\" style=\"font-weight:500\">\\${esc(r.doc_no||'—')}</div></div>\n            <div><div class=\"hint\">Status</div><span class=\"badge \\${esc(r.status)}\">\\${esc(r.status)}</span></div>\n            <div><div class=\"hint\">Category</div>\\${esc(r.category||'—')}</div>\n            <div><div class=\"hint\">Source</div>\\${esc(r.source||'—')}</div>\n            <div><div class=\"hint\">File Type</div>\\${esc(r.file_type||'—')}</div>\n            <div><div class=\"hint\">Size</div>\\${r.size_bytes?(Math.round(r.size_bytes/1024)+' KB'):'—'}</div>\n            <div><div class=\"hint\">Line User</div><div class=\"mono\" style=\"font-size:11px\">\\${esc(r.line_user_id||'—')}</div></div>\n            <div><div class=\"hint\">Line Group</div><div class=\"mono\" style=\"font-size:11px\">\\${esc(r.line_group_id||'—')}</div></div>\n            <div><div class=\"hint\">อัปโหลด</div>\\${fmtDate(r.uploaded_at)}</div>\n            <div><div class=\"hint\">อัปเดต</div>\\${fmtDate(r.updated_at)}</div>\n          </div>\n          <div style=\"margin-top:18px\">\n            <div class=\"hint\" style=\"margin-bottom:6px\">Chunks (\\${chunks.length})</div>\n            <div class=\"chunk-list\">\\${chunks.length?chunks.map(c=>\\`<div class=\"chunk\"><div class=\"ci\">#\\${c.chunk_index} • \\${c.token_count||0} tokens</div><div class=\"cp\">\\${esc(c.preview||'')}</div></div>\\`).join(''):'<div class=\"chunk\" style=\"color:var(--muted-2)\">ยังไม่มี chunks</div>'}</div>\n          </div>\n        </section>\n      </div>\n    \\`;\n    document.getElementById('v-edit-btn').onclick = ()=>{closeModal('m-view');edit(id)};\n    document.getElementById('v-open-btn').onclick = ()=>window.open(fileUrl, '_blank');\n    document.getElementById('m-view').classList.add('on');\n  }catch(e){toast('โหลดรายละเอียดไม่สำเร็จ: '+e.message,'err')}\n}\n\nfunction edit(id){\n  const r = allRows.find(x=>x.id===id);\n  if(!r){toast('ไม่พบเอกสาร','err');return}\n  document.getElementById('e-id').value = id;\n  document.getElementById('e-doc_no').value = r.doc_no||'';\n  document.getElementById('e-file_name').value = r.file_name||'';\n  document.getElementById('e-category').value = r.category||'';\n  document.getElementById('e-source').value = r.source||'';\n  document.getElementById('e-status').value = r.status||'pending';\n  document.getElementById('m-edit').classList.add('on');\n}\n\nasync function saveEdit(){\n  const id = document.getElementById('e-id').value;\n  const body = {\n    id,\n    file_name: document.getElementById('e-file_name').value.trim(),\n    category: document.getElementById('e-category').value.trim(),\n    source: document.getElementById('e-source').value.trim(),\n    status: document.getElementById('e-status').value\n  };\n  if(!body.file_name){toast('กรุณากรอกชื่อไฟล์','err');return}\n  try{\n    await api('/webhook/admin-update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});\n    toast('บันทึกเรียบร้อย','ok');\n    closeModal('m-edit');\n    loadList();loadStats();\n  }catch(e){toast('บันทึกไม่สำเร็จ: '+e.message,'err')}\n}\n\nasync function del(id, name){\n  if(!confirm('ลบ \"'+name+'\"?\\\\n\\\\n⚠️ chunks ทั้งหมดจะถูกลบด้วย (CASCADE)')) return;\n  try{\n    await api('/webhook/admin-delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});\n    toast('ลบเรียบร้อย','ok');\n    loadList();loadStats();\n  }catch(e){toast('ลบไม่สำเร็จ: '+e.message,'err')}\n}\n\nfunction closeModal(id){document.getElementById(id).classList.remove('on')}\n\ndocument.getElementById('btn-refresh').onclick = ()=>{loadList();loadStats()};\ndocument.getElementById('q').oninput = debounce(loadList, 300);\ndocument.getElementById('f-status').onchange = loadList;\ndocument.getElementById('e-save').onclick = saveEdit;\n\nfunction debounce(fn, ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms)}}\n\n// Read URL query params (?q=, ?status=) and pre-fill inputs\nconst urlParams = new URLSearchParams(window.location.search);\nconst urlQ = urlParams.get('q');\nconst urlStatus = urlParams.get('status');\nif (urlQ) document.getElementById('q').value = urlQ;\nif (urlStatus) document.getElementById('f-status').value = urlStatus;\n\nloadList();\nloadStats();\nsetInterval(()=>{loadStats()}, 60000);\n</script>\n</body>\n</html>`;\nreturn [{json: {html: html}}];\n"
+      },
+      "id": "code-build-html",
+      "name": "Build HTML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $('Build HTML').first().json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "resp-ui",
+      "name": "Respond UI",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "path": "admin-list",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wh-admin-list",
+      "name": "Admin List",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        224
+      ],
+      "webhookId": "admin-list-wh"
+    },
+    {
+      "parameters": {
+        "path": "admin-get",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wh-admin-get",
+      "name": "Admin Get",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        448
+      ],
+      "webhookId": "admin-get-wh"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin-update",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wh-admin-update",
+      "name": "Admin Update",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        896
+      ],
+      "webhookId": "admin-update-wh"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin-delete",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wh-admin-delete",
+      "name": "Admin Delete",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        1120
+      ],
+      "webhookId": "admin-delete-wh"
+    },
+    {
+      "parameters": {
+        "path": "admin-stats",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "wh-admin-stats",
+      "name": "Admin Stats",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        1344
+      ],
+      "webhookId": "admin-stats-wh"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM (\n  SELECT id, doc_no, file_name, file_type, category, status, source, size_bytes, chunk_count, line_user_id, uploaded_at, updated_at, error_message\n  FROM law.contracts c\n  WHERE (($1::text IS NULL OR $1 = '')\n      OR LOWER(COALESCE(file_name,'')) LIKE '%' || LOWER($1) || '%'\n      OR LOWER(COALESCE(category,'')) LIKE '%' || LOWER($1) || '%'\n      OR LOWER(COALESCE(source,'')) LIKE '%' || LOWER($1) || '%'\n      OR LOWER(COALESCE(doc_no,'')) LIKE '%' || LOWER($1) || '%')\n    AND ($2::text IS NULL OR $2 = '' OR status = $2)\n  ORDER BY uploaded_at DESC\n  LIMIT $3::int OFFSET $4::int\n) real\nUNION ALL\nSELECT NULL::uuid, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL\nWHERE NOT EXISTS (SELECT 1 FROM law.contracts)\nORDER BY 1 NULLS LAST",
+        "options": {
+          "queryReplacement": "={{ [($json.query && $json.query.q) || null, ($json.query && $json.query.status) || null, parseInt(($json.query && $json.query.limit) || 200, 10), parseInt(($json.query && $json.query.offset) || 0, 10)] }}"
+        }
+      },
+      "id": "pg-admin-list",
+      "name": "PG: Admin List",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        176,
+        224
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "a70ff3bd-3863-49c2-b2d4-e74d97d77c01",
+          "name": "PG Folio - localhost:5432"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT c.id, c.doc_no, c.file_name, c.file_type, c.category, c.status, c.source, c.size_bytes, c.chunk_count, c.line_user_id, c.line_group_id, c.line_message_id, c.uploaded_at, c.updated_at, (SELECT json_agg(json_build_object('id', ch.id, 'chunk_index', ch.chunk_index, 'preview', LEFT(ch.content, 200), 'token_count', ch.token_count) ORDER BY ch.chunk_index) FROM law.contract_chunks ch WHERE ch.contract_id = c.id) AS chunks FROM law.contracts c WHERE c.id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ [$json.query.id] }}"
+        }
+      },
+      "id": "pg-admin-get",
+      "name": "PG: Admin Get",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        176,
+        448
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "a70ff3bd-3863-49c2-b2d4-e74d97d77c01",
+          "name": "PG Folio - localhost:5432"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE law.contracts SET file_name = COALESCE(NULLIF($2, ''), file_name), category = NULLIF($3, ''), source = NULLIF($4, ''), status = COALESCE(NULLIF($5, ''), status), updated_at = now() WHERE id = $1::uuid RETURNING id, doc_no, file_name, file_type, category, status, source, size_bytes, chunk_count, line_user_id, uploaded_at, updated_at",
+        "options": {
+          "queryReplacement": "={{ [$json.body.id, $json.body.file_name, $json.body.category, $json.body.source, $json.body.status] }}"
+        }
+      },
+      "id": "pg-admin-update",
+      "name": "PG: Admin Update",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        176,
+        896
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "a70ff3bd-3863-49c2-b2d4-e74d97d77c01",
+          "name": "PG Folio - localhost:5432"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "DELETE FROM law.contracts\nWHERE id = $1::uuid\nRETURNING id, file_name, storage_bucket, storage_path,\n  CASE \n    WHEN storage_path LIKE 'http%' AND storage_path LIKE '%/' || storage_bucket || '/%'\n    THEN split_part(storage_path, '/' || storage_bucket || '/', 2)\n    ELSE NULL\n  END AS minio_key;",
+        "options": {
+          "queryReplacement": "={{ [$json.body.id] }}"
+        }
+      },
+      "id": "pg-admin-delete",
+      "name": "PG: Admin Delete",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        176,
+        1120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "a70ff3bd-3863-49c2-b2d4-e74d97d77c01",
+          "name": "PG Folio - localhost:5432"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT (SELECT COUNT(*) FROM law.contracts) AS total, (SELECT COUNT(*) FROM law.contracts WHERE status='ready') AS ready, (SELECT COUNT(*) FROM law.contracts WHERE status='pending') AS pending, (SELECT COUNT(*) FROM law.contracts WHERE status='failed') AS failed",
+        "options": {}
+      },
+      "id": "pg-admin-stats",
+      "name": "PG: Admin Stats",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        176,
+        1344
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "a70ff3bd-3863-49c2-b2d4-e74d97d77c01",
+          "name": "PG Folio - localhost:5432"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wrap list results - always output 1 item even if empty\nlet items = $input.all().map(i => i.json);\n// Filter out dummy rows (where id IS NULL)\nitems = items.filter(it => it && it.id != null);\nreturn [{json: {ok: true, action: 'list', count: items.length, data: items}}];"
+      },
+      "id": "wrap-list",
+      "name": "Wrap List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wrap get result - returns null if no row found\nconst items = $input.all().map(i => i.json).filter(it => it && it.id != null);\nreturn [{json: {ok: items.length > 0, action: 'get', data: items[0] || null}}];"
+      },
+      "id": "wrap-get",
+      "name": "Wrap Get",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wrap update result\nconst items = $input.all().map(i => i.json);\nreturn [{json: {ok: true, action: 'update', data: items[0] || null}}];"
+      },
+      "id": "wrap-update",
+      "name": "Wrap Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        896
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wrap delete result\nconst items = $input.all().map(i => i.json);\nreturn [{json: {ok: true, action: 'delete', data: items[0] || null}}];"
+      },
+      "id": "wrap-delete",
+      "name": "Wrap Delete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        1120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wrap stats result - always output 1 item\nconst items = $input.all().map(i => i.json);\nreturn [{json: {ok: true, action: 'stats', data: items[0] || {total: 0, ready: 0, pending: 0, failed: 0}}}];"
+      },
+      "id": "wrap-stats",
+      "name": "Wrap Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        1344
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// minio_key is computed in SQL (short string, ~26 chars, not ref-compressed).\n// Just copy it to _minio_key for MinIO Delete.\nconst data = $input.first().json;\nconst minioKey = data.minio_key && data.minio_key.startsWith('law/contracts/') ? data.minio_key : null;\nreturn [{\n  json: {\n    ...data,\n    _minio_bucket: data.storage_bucket,\n    _minio_key: minioKey,\n    _skip_minio_delete: !minioKey\n  }\n}];"
+      },
+      "id": "extract-minio-key-001",
+      "name": "Extract MinIO Key",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        1120
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "bucketName": "folio-storage",
+        "fileKey": "={{ $json._minio_key }}",
+        "options": {}
+      },
+      "id": "minio-delete-001",
+      "name": "MinIO Delete",
+      "type": "n8n-nodes-base.s3",
+      "typeVersion": 1,
+      "position": [
+        624,
+        1120
+      ],
+      "credentials": {
+        "s3": {
+          "id": "minio-creds-folio",
+          "name": "MinIO Folio"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "admin-file",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "wh-admin-file",
+      "name": "Admin File",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -48,
+        672
+      ],
+      "webhookId": "admin-file-webhook"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, file_name, file_type,\n  COALESCE(\n    file_mime,\n    CASE\n      WHEN lower(COALESCE(file_type, '')) = 'pdf' THEN 'application/pdf'\n      WHEN lower(COALESCE(file_type, '')) = 'png' THEN 'image/png'\n      WHEN lower(COALESCE(file_type, '')) IN ('jpg', 'jpeg') THEN 'image/jpeg'\n      WHEN lower(COALESCE(file_type, '')) = 'txt' THEN 'text/plain; charset=utf-8'\n      ELSE 'application/octet-stream'\n    END\n  ) AS file_mime,\n  encode(file_data, 'base64') AS file_data_b64,\n  octet_length(file_data) AS file_size\nFROM law.contracts\nWHERE id = $1::uuid",
+        "options": {
+          "queryReplacement": "={{ [$json.query.id] }}"
+        }
+      },
+      "id": "pg-admin-file",
+      "name": "PG: Admin File",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [
+        176,
+        672
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "a70ff3bd-3863-49c2-b2d4-e74d97d77c01",
+          "name": "PG Folio - localhost:5432"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build binary file response from law.contracts.file_data (Postgres bytea).\nconst item = $input.first();\nconst json = item?.json || {};\nlet mime = json.file_mime || (json.file_type === 'pdf' ? 'application/pdf' : 'application/octet-stream');\nlet fileName = json.file_name || 'document';\nlet fileDataB64 = json.file_data_b64 || '';\n\nif (!fileDataB64) {\n  const message = 'No file_data stored in Postgres for this document. Re-upload or backfill law.contracts.file_data.';\n  fileDataB64 = Buffer.from(message, 'utf8').toString('base64');\n  mime = 'text/plain; charset=utf-8';\n  fileName = 'missing-file.txt';\n}\n\nconst fileSize = Buffer.from(fileDataB64, 'base64').length;\nreturn [{\n  json: { file_name: fileName, file_mime: mime, file_size: fileSize },\n  binary: {\n    data: {\n      data: fileDataB64,\n      mimeType: mime,\n      fileName,\n      fileSize,\n    }\n  }\n}];\n"
+      },
+      "id": "wrap-file",
+      "name": "Wrap File",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Disposition",
+                "value": "={{ 'inline; filename=\"' + (($json.file_name || 'document').replace(/\"/g, '')) + '\"' }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "={{ $json.file_mime || 'application/octet-stream' }}"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-cache"
+              }
+            ]
+          }
+        }
+      },
+      "id": "resp-file",
+      "name": "Respond File",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        624,
+        672
+      ]
+    },
+    {
+      "id": "wh-admin-semantic",
+      "name": "Admin Semantic Search",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        440,
+        880
+      ],
+      "typeVersion": 1,
+      "parameters": {
+        "path": "admin-semantic-search",
+        "httpMethod": "GET",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "b55eade8-a4fa-4f89-b72c-199525e05146"
+    },
+    {
+      "id": "parse-semantic",
+      "name": "Parse Semantic",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        660,
+        880
+      ],
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const wrapped = $input.first().json;\nconst q = wrapped._query || wrapped.query || {};\nconst body = wrapped._body || wrapped.body || wrapped || {};\nconst query = (q.q || body.q || \"\").toString().trim();\nconst limit = parseInt(q.limit || body.limit || 20, 10) || 20;\nreturn [{json: {query, _query: query, _limit: limit}}];"
+      }
+    },
+    {
+      "id": "embed-semantic",
+      "name": "Embed Semantic",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        880,
+        880
+      ],
+      "typeVersion": 4.2,
+      "parameters": {
+        "url": "={{ ($env.OLLAMA_URL || \"http://127.0.0.1:11434\") }}/api/embed",
+        "method": "POST",
+        "options": {
+          "timeout": 30000
+        },
+        "jsonBody": "={\n  \"model\": \"{{ $env.OLLAMA_EMBED_MODEL || 'bge-m3' }}\",\n  \"input\": {{ JSON.stringify($json.query) }} }",
+        "sendBody": true,
+        "sendHeaders": true,
+        "specifyBody": "json",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pg-admin-semantic",
+      "name": "PG: Admin Semantic",
+      "type": "n8n-nodes-base.postgres",
+      "position": [
+        1100,
+        880
+      ],
+      "typeVersion": 2.4,
+      "credentials": {
+        "postgres": {
+          "id": "a70ff3bd-3863-49c2-b2d4-e74d97d77c01",
+          "name": "PG Folio - localhost:5432"
+        }
+      },
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH q AS (SELECT $1::vector AS qvec, $3::text AS qtxt),\nv AS (\n  SELECT ch.contract_id, ch.chunk_index, ch.content,\n         1 - (ch.embedding <=> q.qvec) AS v_sim,\n         ROW_NUMBER() OVER (ORDER BY ch.embedding <=> q.qvec) AS v_rank\n  FROM law.contract_chunks ch, q\n  WHERE ch.embedding IS NOT NULL\n  ORDER BY ch.embedding <=> q.qvec\n  LIMIT $2::int * 4\n),\nt AS (\n  SELECT ch.contract_id, ch.chunk_index, ch.content,\n         (CASE WHEN ch.content ILIKE '%' || q.qtxt || '%' THEN 1.0 ELSE 0 END)::float\n         + (length(ch.content) - length(replace(lower(ch.content), lower(q.qtxt), '')))::float\n           / greatest(length(q.qtxt), 1)::float * 0.1 AS t_sim,\n         ROW_NUMBER() OVER (ORDER BY\n           (CASE WHEN ch.content ILIKE '%' || q.qtxt || '%' THEN 0 ELSE 1 END),\n           (length(ch.content) - length(replace(lower(ch.content), lower(q.qtxt), '')))::float DESC,\n           ch.chunk_index ASC) AS t_rank\n  FROM law.contract_chunks ch, q\n  WHERE length(q.qtxt) > 0\n  ORDER BY (CASE WHEN ch.content ILIKE '%' || q.qtxt || '%' THEN 0 ELSE 1 END),\n           (length(ch.content) - length(replace(lower(ch.content), lower(q.qtxt), '')))::float DESC\n  LIMIT $2::int * 4\n),\nfused AS (\n  SELECT COALESCE(v.contract_id, t.contract_id) AS contract_id,\n         COALESCE(v.chunk_index, t.chunk_index) AS chunk_index,\n         COALESCE(v.content, t.content) AS content,\n         COALESCE(1.0/(60+v.v_rank), 0) + COALESCE(1.0/(60+t.t_rank), 0) AS rrf_score,\n         COALESCE(v.v_sim, 0) AS v_sim,\n         COALESCE(t.t_sim, 0) AS t_sim\n  FROM v FULL OUTER JOIN t ON v.contract_id = t.contract_id AND v.chunk_index = t.chunk_index\n  WHERE COALESCE(v.contract_id, t.contract_id) IS NOT NULL\n),\ncontract_ranked AS (\n  SELECT *, ROW_NUMBER() OVER (PARTITION BY contract_id ORDER BY rrf_score DESC) AS in_contract_rank\n  FROM fused\n),\nbest_per_contract AS (\n  SELECT contract_id, chunk_index, content, rrf_score, v_sim, t_sim\n  FROM contract_ranked\n  WHERE in_contract_rank = 1\n  ORDER BY rrf_score DESC\n  LIMIT $2::int\n),\njoined AS (\n  SELECT c.id, c.doc_no, c.file_name, c.file_type, c.category, c.status, c.source,\n         c.size_bytes, c.chunk_count, c.line_user_id, c.uploaded_at, c.updated_at, c.error_message,\n         b.chunk_index AS top_chunk_index, b.content AS top_chunk_content,\n         b.rrf_score AS similarity, b.v_sim AS vector_sim, b.t_sim AS keyword_sim\n  FROM best_per_contract b\n  JOIN law.contracts c ON c.id = b.contract_id\n)\nSELECT COALESCE(\n  (SELECT json_build_object(\n    'ok', true,\n    'mode', 'semantic',\n    'query', $3::text,\n    'count', (SELECT COUNT(*)::int FROM joined),\n    'data', COALESCE((SELECT json_agg(row_to_json(j) ORDER BY similarity DESC) FROM joined j), '[]'::json)\n  )::text),\n  json_build_object('ok', true, 'mode', 'semantic', 'query', $3::text, 'count', 0, 'data', '[]'::json)::text\n) AS result_json",
+        "options": {
+          "queryReplacement": "={{ [($json.embeddings && $json.embeddings[0]) ? \"[\" + $json.embeddings[0].map(Number).join(\",\") + \"]\" : \"[]\", parseInt($(\"Parse Semantic\").first().json._limit || 20, 10), $(\"Parse Semantic\").first().json._query || \"\"] }}"
+        }
+      }
+    },
+    {
+      "id": "wrap-semantic",
+      "name": "Wrap Semantic",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1320,
+        880
+      ],
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "const row = $input.first().json;\nlet result;\ntry {\n  result = JSON.parse(row.result_json || '{\"ok\":true,\"count\":0,\"data\":[]}');\n} catch(e) {\n  return [{json: {ok: false, error: \"parse_failed\", message: e.message, data: []}}];\n}\nreturn [{json: result}];"
+      }
+    },
+    {
+      "id": "resp-semantic",
+      "name": "Respond Semantic",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1540,
+        880
+      ],
+      "typeVersion": 1,
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      }
+    }
+  ],
+  "connections": {
+    "Admin Get": {
+      "main": [
+        [
+          {
+            "node": "PG: Admin Get",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admin List": {
+      "main": [
+        [
+          {
+            "node": "PG: Admin List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML": {
+      "main": [
+        [
+          {
+            "node": "Respond UI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admin Stats": {
+      "main": [
+        [
+          {
+            "node": "PG: Admin Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admin Delete": {
+      "main": [
+        [
+          {
+            "node": "PG: Admin Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admin Update": {
+      "main": [
+        [
+          {
+            "node": "PG: Admin Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PG: Admin Get": {
+      "main": [
+        [
+          {
+            "node": "Wrap Get",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PG: Admin List": {
+      "main": [
+        [
+          {
+            "node": "Wrap List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PG: Admin Stats": {
+      "main": [
+        [
+          {
+            "node": "Wrap Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admin UI Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PG: Admin Delete": {
+      "main": [
+        [
+          {
+            "node": "Extract MinIO Key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PG: Admin Update": {
+      "main": [
+        [
+          {
+            "node": "Wrap Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract MinIO Key": {
+      "main": [
+        [
+          {
+            "node": "MinIO Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MinIO Delete": {
+      "main": [
+        [
+          {
+            "node": "Wrap Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admin File": {
+      "main": [
+        [
+          {
+            "node": "PG: Admin File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PG: Admin File": {
+      "main": [
+        [
+          {
+            "node": "Wrap File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wrap File": {
+      "main": [
+        [
+          {
+            "node": "Respond File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Admin Semantic Search": {
+      "main": [
+        [
+          {
+            "node": "Parse Semantic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Semantic": {
+      "main": [
+        [
+          {
+            "node": "Embed Semantic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed Semantic": {
+      "main": [
+        [
+          {
+            "node": "PG: Admin Semantic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PG: Admin Semantic": {
+      "main": [
+        [
+          {
+            "node": "Wrap Semantic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wrap Semantic": {
+      "main": [
+        [
+          {
+            "node": "Respond Semantic",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
