@@ -1,4 +1,4 @@
-import { loadActor } from '@/server/guard';
+import { loadActor } from '@folio-lib/server/guard';
 import { NoPermissionView } from '@/components/NoPermissionView';
 
 export const dynamic = 'force-dynamic';

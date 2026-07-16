@@ -24,6 +24,9 @@
     ],
     "baseUrl": ".",
     "paths": {
+      "@folio-lib/*": [
+        "./lib/*"
+      ],
       "@/components/*": [
         "./components/*"
       ],

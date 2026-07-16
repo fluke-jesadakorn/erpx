@@ -21,3 +21,16 @@ export const SECONDARY_BCP47: Record<SecondaryLocale, string> = {
   th: 'th-TH',
   de: 'de-DE',
 };
+
+export interface LocaleMeta {
+  flag: string;
+  code: string;
+  native: string;
+  english: string;
+  bcp47: string;
+}
+
+export const LOCALE_META: Record<SecondaryLocale, LocaleMeta> = {
+  th: { flag: '🇹🇭', code: 'TH', native: 'ไทย',    english: 'Thai',    bcp47: 'th-TH' },
+  de: { flag: '🇩🇪', code: 'DE', native: 'Deutsch', english: 'German',  bcp47: 'de-DE' },
+};

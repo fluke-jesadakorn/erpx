@@ -1,24 +1,27 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { LangPicker, setLang, STORAGE_KEY } from './LangPicker';
+import { LangPicker, setLang, LANG_STORAGE_KEY } from './LangPicker';
 
 export function LangGate() {
   const [open, setOpen] = useState(false);
   useEffect(() => {
-    const stored = (typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null) as 'de' | 'th' | null;
-    if (!stored) {
-      setOpen(true);
-    }
+    const stored = (typeof window !== 'undefined' ? localStorage.getItem(LANG_STORAGE_KEY) : null) as string | null;
+    if (!stored) setOpen(true);
   }, []);
   if (!open) return null;
   return (
-    <LangPicker
-      open={open}
-      onPick={(lang) => {
-        setLang(lang);
-        setOpen(false);
-      }}
-    />
+    <>
+      <div className="fixed inset-0 z-[399] bg-ink/55 backdrop-blur-sm animate-fade-in" aria-hidden />
+      <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 animate-fade-in">
+        <LangPicker
+          open={open}
+          onPick={(lang) => {
+            setLang(lang);
+            setOpen(false);
+          }}
+        />
+      </div>
+    </>
   );
 }

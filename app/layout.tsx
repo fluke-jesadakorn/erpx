@@ -3,6 +3,7 @@ import "./globals.css";
 import { GlobalLoading } from "@/components/ui/GlobalLoading";
 import { LangGate } from "@/components/lang/LangGate";
 import { IntlProvider } from "@/components/i18n/IntlProvider";
+import { SecondaryLocaleProvider } from "@/components/i18n/SecondaryLocaleProvider";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,13 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased bg-slate-950 text-slate-50 min-h-screen font-sans">
-        <IntlProvider>
-          {children}
-          <GlobalLoading />
-          <LangGate />
-        </IntlProvider>
+        <SecondaryLocaleProvider>
+          <IntlProvider>
+            {children}
+            <GlobalLoading />
+            <LangGate />
+          </IntlProvider>
+        </SecondaryLocaleProvider>
       </body>
     </html>
   );

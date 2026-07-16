@@ -6,6 +6,11 @@ import { TileTooltip } from '../TileTooltip';
 import { RequestAccessModal } from '../RequestAccessModal';
 import type { TileState } from '../tileAccess';
 import { T } from '@/components/i18n/T';
+import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
+import thDict from '../../messages/th.json';
+import deDict from '../../messages/de.json';
+import enDict from '../../messages/en.json';
+import type { SecondaryLocale } from '@/i18n/config';
 
 const accentMap: Record<string, { bg: string; bar: string; text: string; glow: string; ring: string }> = {
   emerald: { bg: 'from-emerald-500/25 via-emerald-700/15 to-emerald-900/40', bar: 'bg-emerald-400', text: 'text-emerald-300', glow: 'shadow-emerald-500/40', ring: 'ring-emerald-400/40' },
@@ -14,8 +19,27 @@ const accentMap: Record<string, { bg: string; bar: string; text: string; glow: s
   purple:  { bg: 'from-purple-500/25 via-purple-700/15 to-purple-900/40',   bar: 'bg-purple-400',  text: 'text-purple-300',  glow: 'shadow-purple-500/40', ring: 'ring-purple-400/40' },
   rose:    { bg: 'from-rose-500/25 via-rose-700/15 to-rose-900/40',         bar: 'bg-rose-400',    text: 'text-rose-300',    glow: 'shadow-rose-500/40', ring: 'ring-rose-400/40' },
   cyan:    { bg: 'from-cyan-500/25 via-cyan-700/15 to-cyan-900/40',         bar: 'bg-cyan-400',    text: 'text-cyan-300',    glow: 'shadow-cyan-500/40', ring: 'ring-cyan-400/40' },
-  slate:   { bg: 'from-slate-500/25 via-slate-700/15 to-slate-900/40',     bar: 'bg-slate-400',   text: 'text-slate-300',   glow: 'shadow-slate-500/40', ring: 'ring-slate-400/40' },
+  slate:   { bg: 'from-slate-500/25 via-slate-700/15 to-slate-900/40',      bar: 'bg-slate-400',   text: 'text-slate-300',   glow: 'shadow-slate-500/40', ring: 'ring-slate-400/40' },
 };
+
+const SEC: Record<SecondaryLocale, Record<string, unknown>> = {
+  th: thDict as Record<string, unknown>,
+  de: deDict as Record<string, unknown>,
+};
+const EN_DICT: Record<string, unknown> = enDict as Record<string, unknown>;
+
+function lookup(dict: Record<string, unknown>, path: string): string | undefined {
+  const parts = path.split('.');
+  let cur: unknown = dict;
+  for (const p of parts) {
+    if (cur && typeof cur === 'object' && p in (cur as Record<string, unknown>)) {
+      cur = (cur as Record<string, unknown>)[p];
+    } else {
+      return undefined;
+    }
+  }
+  return typeof cur === 'string' ? cur : undefined;
+}
 
 export interface TileProps {
   tile: any;
@@ -28,6 +52,72 @@ export interface TileProps {
   onRequestAccess?: () => void;
   actorId?: number;
   targetLabel?: string;
+}
+
+function TileText({
+  tileId,
+  fallbackEn,
+  fallbackSub,
+  nameClass,
+  subClass,
+  stack = false,
+}: {
+  tileId: string;
+  fallbackEn: string;
+  fallbackSub?: string;
+  nameClass: string;
+  subClass?: string;
+  stack?: boolean;
+}) {
+  const loc = useSecondaryLocale();
+  const nameEn = lookup(EN_DICT, `tiles.tile.${tileId}.name`) ?? fallbackEn;
+  const nameSec = lookup(SEC[loc], `tiles.tile.${tileId}.name`);
+  const subEn = fallbackSub != null ? lookup(EN_DICT, `tiles.tile.${tileId}.subtitle`) ?? fallbackSub : undefined;
+  const subSec = fallbackSub != null ? lookup(SEC[loc], `tiles.tile.${tileId}.subtitle`) : undefined;
+
+  const showSec = (sec?: string, baseEn?: string) => !!sec && sec !== baseEn;
+  const secName = showSec(nameSec, nameEn) ? nameSec : undefined;
+  const secSub  = subSec !== undefined && showSec(subSec, subEn) ? subSec : undefined;
+
+  if (!stack) {
+    return (
+      <>
+        <span className={nameClass}>
+          {nameEn}
+          {secName ? (
+            <span className="ml-1 text-xs font-normal text-slate-400">· {secName}</span>
+          ) : null}
+        </span>
+        {subEn ? (
+          <p className={subClass}>
+            {subEn}
+            {secSub ? (
+              <span className="ml-1 text-xs font-normal text-slate-500">· {secSub}</span>
+            ) : null}
+          </p>
+        ) : null}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <span className={nameClass}>
+        <span className="block">{nameEn}</span>
+        {secName ? (
+          <span className="block mt-0.5 text-xs font-normal text-slate-400">{secName}</span>
+        ) : null}
+      </span>
+      {subEn ? (
+        <p className={subClass}>
+          <span className="line-clamp-1">{subEn}</span>
+          {secSub ? (
+            <span className="block mt-0.5 text-xs font-normal text-slate-500 line-clamp-1">{secSub}</span>
+          ) : null}
+        </p>
+      ) : null}
+    </>
+  );
 }
 
 export const Tile: React.FC<TileProps> = ({
@@ -99,13 +189,15 @@ export const Tile: React.FC<TileProps> = ({
 
         <div className="mt-auto pt-2">
           <h3 className={`font-black leading-tight text-[14px] ${locked ? 'text-slate-400' : 'text-white'}`}>
-            {tile.display_name}
+            <TileText
+              tileId={tile.id}
+              fallbackEn={tile.display_name}
+              fallbackSub={tile.subtitle}
+              nameClass=""
+              subClass="mt-0.5 font-sans leading-snug text-sm text-slate-400 line-clamp-1"
+              stack
+            />
           </h3>
-          {tile.subtitle && (
-            <p className={`mt-0.5 font-sans leading-snug text-sm line-clamp-1 ${locked ? 'text-slate-600' : 'text-slate-400'}`}>
-              {tile.subtitle}
-            </p>
-          )}
           {hasMeta && viewPermId && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1">
               <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs font-mono uppercase tracking-wider ${locked ? 'bg-slate-900/70 text-slate-500 border-slate-800' : 'bg-slate-900/70 text-slate-300 border-slate-700/70'}`}>
@@ -134,7 +226,13 @@ export const Tile: React.FC<TileProps> = ({
 
   const tooltipBody = (
     <div className="space-y-1.5">
-      <div className="text-sm font-mono text-slate-100">{reason || tile.display_name}</div>
+      <div className="text-sm font-mono text-slate-100">
+        <TileText
+          tileId={tile.id}
+          fallbackEn={reason || tile.display_name}
+          nameClass="font-mono text-slate-100"
+        />
+      </div>
       {viewPermId && (
         <div className="text-xs font-mono text-slate-400">
           <span className="text-slate-500"><T id="tilesUi.permLabel" hideSecondary />:</span> {viewPermId}

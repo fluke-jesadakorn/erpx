@@ -26,6 +26,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["lib/native/vision-ocr"],
   turbopack: {
     resolveAlias: {
+      '@folio-lib': path.resolve(__dirname, "lib"),
       '@/components': path.resolve(__dirname, "components"),
       '@/app': path.resolve(__dirname, "app"),
       '@/i18n': path.resolve(__dirname, "src/i18n"),
