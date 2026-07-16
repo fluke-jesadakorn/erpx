@@ -33,7 +33,6 @@ export interface SlipUploadProps {
   bookBankFields?: BookBankFields;
   onBookBankFieldsChange?: (f: BookBankFields) => void;
   hideSubmitButton?: boolean;
-  autoExtract?: boolean;
   onSubmitStateChange?: (state: SubmitState) => void;
   draftWaybillId?: string | null;
   onDraftStarted?: (info: { waybillId: string; expenseId: number }) => void;

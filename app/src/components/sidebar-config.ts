@@ -29,13 +29,20 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
     ],
   },
   {
+    key: 'ai',
+    label: 'AI',
+    items: [
+      { key: 'chat', label: 'AI Chat', icon: 'zap', href: '/chat' },
+    ],
+  },
+  {
     key: 'approvals',
     label: 'Approvals',
     items: [
-      { key: 'inbox', label: 'Inbox',    icon: 'inbox',     href: '/inbox' },
-      { key: 'queue', label: 'My queue', icon: 'clock',     href: '/inbox?scope=waiting' },
-      { key: 'mine',  label: 'Mine',     icon: 'file-text', href: '/inbox?scope=watching' },
-      { key: 'all',   label: 'All',      icon: 'layers',    href: '/inbox?scope=all' },
+      { key: 'inbox', label: 'Inbox',    icon: 'inbox',     href: '/my-waybills?scope=active' },
+      { key: 'queue', label: 'My queue', icon: 'clock',     href: '/my-waybills?scope=queue' },
+      { key: 'mine',  label: 'Mine',     icon: 'file-text', href: '/my-waybills?scope=mine' },
+      { key: 'all',   label: 'All',      icon: 'layers',    href: '/my-waybills?scope=all' },
     ],
   },
   {
@@ -81,8 +88,13 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
   },
 ];
 
-export function matchSidebar(pathname: string, link: SidebarLink): boolean {
+export function matchSidebar(pathname: string, link: SidebarLink, search = ''): boolean {
   if (link.match) return link.match(pathname);
   if (link.href === '/') return pathname === '/' || pathname === '';
-  return pathname === link.href || pathname.startsWith(link.href + '/') || pathname === link.href.split('?')[0];
+  const [basePath, ...rest] = link.href.split('?');
+  const linkSearch = rest.length ? '?' + rest.join('?') : '';
+  if (linkSearch) {
+    return pathname === basePath && search === linkSearch;
+  }
+  return pathname === link.href || pathname.startsWith(link.href + '/') || pathname === basePath;
 }

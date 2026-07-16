@@ -5,13 +5,15 @@ import { GlVisibilityGate } from './GlVisibilityGate';
 import { Bilingual } from '@/components/i18n/Bilingual';
 import {
   confirmGlRecordedAction,
-  confirmProcurementGlAction,
   finalApproveWaybillAction,
+  recomputeExpenseDraftGlAction,
+} from '@/app/actions/waybill';
+import {
+  confirmProcurementGlAction,
   postProcurementAccrualAction,
   postProcurementSettlementAction,
-  recomputeExpenseDraftGlAction,
   saveProcurementAccrualAction,
-} from '@/app/actions';
+} from '@/app/actions/procurement';
 import type { ExpenseJournalView, ProcurementJournalStepView } from '@folio-lib/waybill/queries';
 import { LinesTable, summarizeLines } from './GlLinesTable';
 

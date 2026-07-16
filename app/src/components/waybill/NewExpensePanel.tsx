@@ -2,16 +2,36 @@
 
 import { useState } from 'react';
 import {
+  Upload,
+  Rocket,
+  Banknote,
+  CreditCard,
+  Check,
+  CircleDot,
+  Circle,
+  ArrowRight,
+  ArrowUpRight,
+  Loader2,
+  Lock,
+  CircleCheck,
+  Wallet,
+  Building2,
+  Landmark,
+  Receipt,
+  ArrowRightCircle,
+} from 'lucide-react';
+import {
   SlipUpload,
   type BookBankFields,
   type SubmitState,
 } from '@/components/SlipUpload';
 import type { VisionModel } from '@folio-lib/ai/loadVisionModels';
-import { submitExpenseFromSlip } from '@/app/actions';
+import { submitExpenseFromSlip } from '@/app/actions/expense';
 import { StepCard, StepBadge } from '@/components/StepCard';
 import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 import { Bilingual } from '@/components/i18n/Bilingual';
 import { NewWaybillPanel } from './NewWaybillPanel';
+import { StaffSubmitHelper } from './StaffSubmitHelper';
 
 interface Props {
   currentUserId: number;
@@ -52,24 +72,47 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
     {
       key: 'upload' as const,
       n: 1,
-      icon: '📤',
-      title: 'Upload receipt & book bank',
-      titleTh: 'อัพโหลดใบเสร็จและสมุดบัญชี',
+      Icon: Upload,
+      title: 'Upload receipt',
+      titleTh: 'อัพโหลดใบเสร็จ',
       done: receiptReady && (needsBookBank ? bookBankReady : true),
       active: !receiptReady || (needsBookBank && !bookBankReady),
     },
     {
       key: 'review' as const,
       n: 2,
-      icon: '🚀',
-      title: 'Review & submit',
-      titleTh: 'ตรวจสอบและส่ง',
+      Icon: Rocket,
+      title: 'Review',
+      titleTh: 'ตรวจสอบ',
       done: canSubmitAll,
       active: canSubmitAll,
     },
   ];
 
   const completedCount = steps.filter((s) => s.done).length;
+  const receiptTotal = parsed?.totalAmount ?? 0;
+  const blocker = !receiptHasFile
+    ? { Icon: Upload, en: 'Drop a receipt', th: 'อัพโหลดใบเสร็จ' }
+    : !receiptReady
+    ? { Icon: Loader2, en: 'Wait for OCR', th: 'รอ OCR' }
+    : needsBookBank && !bookBankReady
+    ? { Icon: Building2, en: 'Add book bank slip', th: 'เพิ่มสลิปสมุดบัญชี' }
+    : null;
+
+  const PAYMENT_LABEL: Record<typeof payment, { en: string; th: string; Icon: typeof Wallet }> = {
+    cash: { en: 'Cash', th: 'เงินสด', Icon: Wallet },
+    credit_card: { en: 'Card', th: 'บัตรเครดิต', Icon: CreditCard },
+    transfer: { en: 'Transfer', th: 'โอนเงิน', Icon: Building2 },
+  };
+  const payMeta = PAYMENT_LABEL[payment];
+
+  function scrollToStep(n: number) {
+    if (typeof document === 'undefined') return;
+    document.getElementById(`step-${n}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  }
 
   async function handleSubmitAll() {
     if (!receiptSlipId) return;
@@ -89,18 +132,27 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
   }
 
   const hint = (
-    <Bilingual
-      en="Upload a receipt → AI reads the slip → pick a payment method → submit for approval. About 1–2 minutes."
-      th="อัพโหลดใบเสร็จ → AI อ่านสลิป → เลือกวิธีชำระ → ส่งเพื่ออนุมัติ ใช้เวลาประมาณ 1–2 นาที"
-      locale={locale}
-    />
+    <span title="Upload → AI reads → submit · อัพโหลด → AI อ่าน → ส่ง">
+      <Bilingual showSecondary={false} en="Upload → AI reads → submit" th="อัพโหลด → AI อ่าน → ส่ง" locale={locale} />
+    </span>
   );
 
-  const submitLabel = submitting
-    ? <Bilingual en="⏳ Saving…" th="⏳ กำลังบันทึก…" locale={locale} />
-    : canSubmitAll
-      ? <Bilingual en="✓ Submit expense for approval" th="✓ ส่งค่าใช้จ่ายเพื่ออนุมัติ" locale={locale} />
-      : <Bilingual en="🔒 Submit (disabled)" th="🔒 ส่ง (ปิดอยู่)" locale={locale} />;
+  const submitLabel = submitting ? (
+    <span className="inline-flex items-center gap-2">
+      <Loader2 className="size-4 animate-spin" aria-hidden />
+      <Bilingual showSecondary={false} en="Saving…" th="กำลังบันทึก…" locale={locale} />
+    </span>
+  ) : canSubmitAll ? (
+    <span className="inline-flex items-center gap-2">
+      <ArrowRight className="size-4" aria-hidden />
+      <Bilingual showSecondary={false} en="Submit" th="ส่ง" locale={locale} />
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-2">
+      <Lock className="size-4" aria-hidden />
+      <Bilingual showSecondary={false} en="Submit" th="ส่ง" locale={locale} />
+    </span>
+  );
 
   return (
     <NewWaybillPanel
@@ -117,73 +169,261 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
       onDiscard={() => {}}
       hint={hint}
       draftWaybillId={null}
-    >
-      <ol
-        className="grid grid-cols-1 sm:grid-cols-3 gap-2"
-        aria-label="Progress steps"
-      >
-        {steps.map((s) => (
-          <li
-            key={s.key}
-            className={[
-              'flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors',
-              s.done
-                ? 'glass-tint-positive border-positive/40'
-                : s.active
-                ? 'glass-tint-info border-info/40'
-                : 'glass-panel border-rule',
-            ].join(' ')}
-          >
-            <StepBadge n={s.n} done={s.done} active={s.active} />
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span aria-hidden className="text-sm">{s.icon}</span>
-                <p className="text-xs font-bold text-white truncate">{s.title}</p>
-              </div>
-              <p className="text-sm font-mono text-mute truncate">{s.titleTh}</p>
+      headerExtra={
+        <span
+          aria-live="polite"
+          title={
+            receiptTotal > 0
+              ? `${receiptTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`
+              : '—'
+          }
+          className={[
+            'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-sm font-mono font-semibold tabular-nums',
+            canSubmitAll
+              ? 'border-positive/40 bg-positive-soft text-positive'
+              : receiptTotal > 0
+              ? 'border-info/40 bg-info-soft text-info'
+              : 'border-rule bg-paper-3 text-mute',
+          ].join(' ')}
+          data-testid="expense-header-total"
+        >
+          <Banknote className="size-3.5" aria-hidden strokeWidth={2} />
+          {receiptTotal > 0
+            ? `${receiptTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`
+            : '— THB'}
+        </span>
+      }
+      stickyActionBar={
+        <div
+          className="sticky bottom-2 z-10 -mx-5 sm:-mx-7 px-5 sm:px-7 py-4 glass-panel-heavy rounded-2xl border border-rule"
+          data-testid="expense-sticky-bar"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:gap-5">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              {blocker ? (
+                <span
+                  title={`${blocker.en} · ${blocker.th}`}
+                  aria-label={blocker.en}
+                  className="inline-flex shrink-0 w-9 h-9 items-center justify-center rounded-full bg-caution-soft text-caution border border-caution/40"
+                >
+                  <blocker.Icon className="size-4" strokeWidth={2} aria-hidden />
+                </span>
+              ) : (
+                <>
+                  <span
+                    aria-label="Ready"
+                    title="Ready · พร้อม"
+                    className="inline-flex shrink-0 w-9 h-9 items-center justify-center rounded-full bg-positive-soft text-positive border border-positive/40"
+                  >
+                    <CircleCheck className="size-4" strokeWidth={2.5} aria-hidden />
+                  </span>
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <span
+                      title={`${payMeta.en} · ${payMeta.th}`}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-rule bg-paper-3 text-xs font-mono tabular-nums text-ink-2"
+                    >
+                      <payMeta.Icon className="size-3" aria-hidden strokeWidth={2} />
+                      {payMeta.en}
+                    </span>
+                    {parsed?.vendorName && (
+                      <span
+                        title={`Vendor · ผู้ขาย`}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-rule bg-paper-3 text-xs font-mono text-ink-2 max-w-[180px] truncate"
+                      >
+                        <Building2 className="size-3" aria-hidden strokeWidth={2} />
+                        {parsed.vendorName}
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
-          </li>
-        ))}
-      </ol>
-
-      <div className="mt-3 flex items-center gap-3">
-        <div className="glass-panel flex-1 h-1.5 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-accent transition-[width] duration-500 ease-out"
-            style={{ width: `${(completedCount / steps.length) * 100}%` }}
-            aria-hidden
-          />
+            <div className="hidden sm:block w-px h-12 bg-rule" aria-hidden />
+            <div className="flex items-center gap-4 justify-self-stretch sm:justify-self-end">
+              <div
+                aria-live="polite"
+                title={
+                  receiptTotal > 0
+                    ? `${receiptTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB · รวม`
+                    : '—'
+                }
+                className={[
+                  'font-display text-2xl font-semibold tabular-nums leading-none',
+                  canSubmitAll ? 'text-positive' : 'text-ink',
+                ].join(' ')}
+                data-testid="expense-sticky-total"
+              >
+                {receiptTotal > 0
+                  ? receiptTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })
+                  : '—'}
+                <span className="ml-1 text-sm font-mono font-normal text-mute">THB</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSubmitAll}
+                disabled={!canSubmitAll}
+                title={
+                  canSubmitAll
+                    ? 'Submit for approval · ส่งเพื่ออนุมัติ'
+                    : 'Disabled · ปิดอยู่'
+                }
+                data-testid="expense-sticky-submit"
+                className={[
+                  'shrink-0 inline-flex items-center justify-center gap-2 rounded-xl border w-12 h-12 transition-all duration-200',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                  submitting
+                    ? 'bg-rule-strong text-ink-2 border-rule-strong'
+                    : canSubmitAll
+                    ? 'bg-accent hover:bg-accent-strong text-paper-2 border-accent shadow-[0_8px_24px_-8px_color-mix(in_oklab,var(--accent)_55%,transparent)]'
+                    : 'bg-paper-3 text-mute border-rule-strong',
+                ].join(' ')}
+              >
+                {submitting ? (
+                  <Loader2 className="size-5 animate-spin" aria-hidden />
+                ) : canSubmitAll ? (
+                  <ArrowUpRight className="size-5" aria-hidden strokeWidth={2.5} />
+                ) : (
+                  <Lock className="size-5" aria-hidden strokeWidth={2} />
+                )}
+                <span className="sr-only">
+                  {canSubmitAll ? 'Submit' : 'Submit (locked)'}
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
-        <span className="text-sm font-mono text-ink-2 tabular-nums">
+      }
+    >
+      <div className="flex items-center justify-end" aria-label="Progress">
+        <span className="text-xs font-mono tabular-nums text-mute">
           {completedCount}/{steps.length}
         </span>
       </div>
+      <ol className="relative grid grid-cols-2 gap-y-3">
+        {steps.map((s, i) => {
+          const Icon = s.Icon;
+          return (
+            <li key={s.key} className="relative flex justify-center">
+              {i < steps.length - 1 && (
+                <span
+                  aria-hidden
+                  className="hidden sm:block absolute top-[18px] left-[calc(50%+22px)] right-[calc(-50%+22px)] h-px bg-rule overflow-hidden"
+                >
+                  <span
+                    className="block h-full bg-positive transition-[width] duration-500 ease-out"
+                    style={{ width: completedCount > i ? '100%' : '0%' }}
+                  />
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => scrollToStep(s.n)}
+                aria-current={s.active ? 'step' : undefined}
+                aria-label={`Jump to step ${s.n}: ${s.title}`}
+                title={`${s.title} · ${s.titleTh}`}
+                className="group flex flex-col items-center gap-1.5 w-full sm:w-auto px-2 py-2 transition-colors"
+              >
+                <StepBadge n={s.n} done={s.done} active={s.active} tone="accent" />
+                <Icon
+                  aria-hidden
+                  className={[
+                    'size-4 mt-0.5',
+                    s.done
+                      ? 'text-positive'
+                      : s.active
+                      ? 'text-accent'
+                      : 'text-mute',
+                  ].join(' ')}
+                  strokeWidth={2}
+                />
+                <p
+                  className={[
+                    'text-xs truncate max-w-full text-center',
+                    s.done || s.active ? 'text-ink font-semibold' : 'text-ink-2',
+                  ].join(' ')}
+                >
+                  {s.title}
+                </p>
+                <span aria-hidden className="text-mute">
+                  {s.done ? (
+                    <Check className="size-3 text-positive" strokeWidth={3} />
+                  ) : s.active ? (
+                    <CircleDot className="size-3 text-accent" strokeWidth={3} />
+                  ) : (
+                    <Circle className="size-3 text-mute" strokeWidth={2} />
+                  )}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
 
       <StepCard
         n={1}
-        icon="📸"
-        title="Upload receipt & book bank"
-        titleTh="อัพโหลดใบเสร็จและสมุดบัญชี"
-        hint="Drop a photo, scan, or PDF of the receipt. For transfer payments, also drop a book bank slip."
+        icon={<Upload className="size-4" strokeWidth={2} aria-hidden />}
+        title={
+          <Bilingual
+            showSecondary={false}
+            en="Upload receipt"
+            th="อัพโหลดใบเสร็จ"
+            locale={locale}
+          />
+        }
+        hint={
+          <span title="Drop a photo, scan, or PDF · ลาก/วางไฟล์รูป สแกน หรือ PDF">
+            <Bilingual showSecondary={false} en="Photo, scan or PDF" th="รูป สแกน หรือ PDF" locale={locale} />
+          </span>
+        }
+        cardId="step-1"
         done={receiptReady && (needsBookBank ? bookBankReady : true)}
         active={!receiptReady || (needsBookBank && !bookBankReady)}
-        tone="indigo"
+        tone="accent"
+        bodyTint
+        flat
         badge={
           receiptHasFile ? (
-            <span className="glass-tint-info text-sm font-mono px-2 py-0.5 rounded-full text-info">
-              {receiptReady
-                ? '✓ OCR done · ✓ OCR เสร็จ'
-                : 'OCR in progress… · OCR กำลังทำงาน…'}
+            <span className="text-xs font-mono px-2 py-0.5 rounded-full border border-info/40 bg-info-soft text-info inline-flex items-center gap-1">
+              {receiptReady ? (
+                <>
+                  <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
+                  <span title="OCR done · OCR เสร็จ">OCR</span>
+                </>
+              ) : (
+                <>
+                  <Loader2 className="size-3 animate-spin" aria-hidden />
+                  <span title="OCR in progress · OCR กำลังทำงาน">OCR</span>
+                </>
+              )}
             </span>
           ) : null
         }
       >
-        <div className="space-y-6">
-          <div>
-            <h4 className="mb-2 flex items-center gap-2 text-xs font-bold text-ink-2 font-mono">
-              <span>📄</span>
-              Receipt · ใบเสร็จ
-            </h4>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-rule bg-paper-3/40 p-4 space-y-3">
+            <header className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-ink-2 uppercase tracking-widest">
+                <Receipt className="size-3.5" aria-hidden strokeWidth={2} />
+                <Bilingual showSecondary={false} en="Receipt" th="ใบเสร็จ" locale={locale} />
+              </span>
+              {receiptHasFile ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-info/40 bg-info-soft px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-info">
+                  {receiptReady ? (
+                    <CircleCheck className="size-2.5" aria-hidden strokeWidth={2.5} />
+                  ) : (
+                    <Loader2 className="size-2.5 animate-spin" aria-hidden />
+                  )}
+                  {receiptReady
+                    ? <Bilingual showSecondary={false} en="ocr ok" th="ocr ผ่าน" locale={locale} />
+                    : <Bilingual showSecondary={false} en="ocr…" th="กำลังอ่าน" locale={locale} />}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-rule bg-paper-3 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-mute">
+                  <CircleDot className="size-2.5" aria-hidden strokeWidth={2} />
+                  <Bilingual showSecondary={false} en="empty" th="ว่าง" locale={locale} />
+                </span>
+              )}
+            </header>
             <SlipUpload
               kind="receipt"
               currentUserId={currentUserId}
@@ -200,17 +440,33 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
               }}
             />
           </div>
-          {needsBookBank && (
-            <div>
-              <h4 className="mb-2 flex items-center gap-2 text-xs font-bold text-ink-2 font-mono">
-                <span>🏦</span>
-                Book bank · สมุดบัญชี
-                {bookBankSlipId != null && (
-                  <span className="glass-tint-positive px-2 py-0.5 rounded-full text-positive text-sm font-mono">
-                    {`SLIP-${bookBankSlipId} attached`}
-                  </span>
-                )}
-              </h4>
+
+          <div
+            className={
+              'rounded-2xl border p-4 space-y-3 ' +
+              (needsBookBank
+                ? 'border-rule bg-paper-3/40'
+                : 'border-rule bg-paper-3/20 opacity-70')
+            }
+          >
+            <header className="flex items-center justify-between gap-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-ink-2 uppercase tracking-widest">
+                <Landmark className="size-3.5" aria-hidden strokeWidth={2} />
+                <Bilingual showSecondary={false} en="Book bank" th="สมุดบัญชี" locale={locale} />
+              </span>
+              {bookBankSlipId != null ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-positive/40 bg-positive-soft px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-positive-strong">
+                  <CircleCheck className="size-2.5" aria-hidden strokeWidth={2.5} />
+                  SLIP-{bookBankSlipId}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-rule bg-paper-3 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-mute">
+                  <CircleDot className="size-2.5" aria-hidden strokeWidth={2} />
+                  <Bilingual showSecondary={false} en="empty" th="ว่าง" locale={locale} />
+                </span>
+              )}
+            </header>
+            {needsBookBank ? (
               <SlipUpload
                 kind="book_bank"
                 currentUserId={currentUserId}
@@ -227,10 +483,37 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 onBookBankFieldsChange={setBookBankFields}
                 hideSubmitButton
               />
-            </div>
-          )}
+            ) : (
+              <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-rule bg-paper-2/40 px-4 py-5">
+                <p className="text-xs text-ink-2 leading-relaxed">
+                  <Bilingual
+                    showSecondary={false}
+                    en="Bank info is only required for Transfer payments. Pick Transfer below to attach a book bank slip."
+                    th="ต้องระบุข้อมูลบัญชีเฉพาะการชำระแบบโอนเงิน เลือกโอนเงินด้านล่างเพื่อแนบสลิปสมุดบัญชี"
+                    locale={locale}
+                  />
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPayment('transfer')}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent-soft px-2.5 py-1.5 text-xs font-mono text-accent hover:bg-accent/15 transition-colors"
+                  title={locale === 'th' ? 'เลือกโอนเงิน' : 'Pick transfer'}
+                >
+                  <ArrowRightCircle className="size-3.5" aria-hidden strokeWidth={2} />
+                  <Bilingual
+                    showSecondary={false}
+                    en="Pick Transfer"
+                    th="เลือกโอนเงิน"
+                    locale={locale}
+                  />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </StepCard>
+
+      <StaffSubmitHelper currentUserId={currentUserId} lang={locale === 'th' ? 'th' : 'en'} />
     </NewWaybillPanel>
   );
 }

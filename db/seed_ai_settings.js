@@ -210,7 +210,6 @@ async function seed() {
     ))[0];
     if (mmModel) {
       const mmAssignments = [
-        { section: 'staff:ocr',          task: 'vision', provider: mm.id, model: mmModel.id },
         { section: 'staff:submit',       task: 'chat',   provider: mm.id, model: mmModel.id },
         { section: 'acct:queue',         task: 'chat',   provider: mm.id, model: mmModel.id },
         { section: 'hod:approve',        task: 'chat',   provider: mm.id, model: mmModel.id },

@@ -37,16 +37,16 @@ const BUCKET_KEY: Record<string, string> = {
   '90+': 'customers.ar.bucket.90_plus',
 };
 const BUCKET_TONE: Record<string, string> = {
-  '0-30': 'bg-emerald-500',
-  '31-60': 'bg-cyan-500',
-  '61-90': 'bg-amber-500',
-  '90+': 'bg-rose-500',
+  '0-30': 'bg-positive',
+  '31-60': 'bg-info',
+  '61-90': 'bg-caution',
+  '90+': 'bg-critical',
 };
 const BUCKET_TONE_BG: Record<string, string> = {
-  '0-30': 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200',
-  '31-60': 'bg-cyan-500/15 border-cyan-500/30 text-cyan-200',
-  '61-90': 'bg-amber-500/15 border-amber-500/30 text-amber-200',
-  '90+': 'bg-rose-500/15 border-rose-500/30 text-rose-200',
+  '0-30': 'bg-positive-soft border-positive/40 text-positive-strong',
+  '31-60': 'bg-info-soft border-info/40 text-info-strong',
+  '61-90': 'bg-caution-soft border-caution/40 text-caution-strong',
+  '90+': 'bg-critical-soft border-critical/40 text-critical-strong',
 };
 const ALL_BUCKETS = ['0-30', '31-60', '61-90', '90+'];
 
@@ -68,10 +68,10 @@ export function CustomerArHistory({
     creditLimit > 0 ? Math.min(100, Math.round((outstanding / creditLimit) * 100)) : 0;
   const utilizationTone =
     utilizationPct >= 100
-      ? 'text-rose-300'
+      ? 'text-critical'
       : utilizationPct >= 80
-      ? 'text-amber-300'
-      : 'text-emerald-300';
+      ? 'text-caution'
+      : 'text-positive';
 
   const titleText = pickText('customers.ar.title');
   const headingText = pickText('customers.ar.heading');
@@ -83,25 +83,25 @@ export function CustomerArHistory({
   return (
     <section
       aria-label={titleText.en}
-      className="rounded-2xl border border-slate-700/70 bg-slate-950/45 p-4 shadow-inner"
+      className="rounded-2xl border border-rule bg-paper-3/60 p-4"
     >
       <header className="mb-3 flex items-center justify-between gap-2">
-        <div className="text-xs font-mono uppercase tracking-widest text-slate-400">
+        <div className="text-xs font-mono uppercase tracking-widest text-ink-2">
           <Bilingual en={headingText.en} th={headingText.th} de={headingText.de} locale={locale} />
           {customerName && (
-            <span className="ml-2 text-slate-300">· {customerName}</span>
+            <span className="ml-2 text-ink">· {customerName}</span>
           )}
         </div>
-        <div className="flex items-center gap-2 text-xs font-mono text-slate-500">
+        <div className="flex items-center gap-2 text-xs font-mono text-ink-2">
           <span>
             <Bilingual en={invoicedText.en} th={invoicedText.th} de={invoicedText.de} locale={locale} />
           </span>
-          <span className="text-slate-200 tabular-nums">{formatTHB(totalInvoiced, locale)}</span>
-          <span className="text-slate-700">·</span>
+          <span className="text-ink tabular-nums">{formatTHB(totalInvoiced, locale)}</span>
+          <span className="text-mute">·</span>
           <span>
             <Bilingual en={paidText.en} th={paidText.th} de={paidText.de} locale={locale} />
           </span>
-          <span className="text-emerald-300 tabular-nums">{formatTHB(totalPaid, locale)}</span>
+          <span className="text-positive tabular-nums">{formatTHB(totalPaid, locale)}</span>
         </div>
       </header>
 
@@ -128,8 +128,8 @@ export function CustomerArHistory({
               className={[
                 'flex items-center gap-3 rounded-xl border px-3 py-2',
                 b
-                  ? BUCKET_TONE_BG[key] ?? 'border-slate-700 bg-slate-900/40 text-slate-300'
-                  : 'border-slate-800 bg-slate-900/30 text-slate-500',
+                  ? BUCKET_TONE_BG[key] ?? 'border-rule bg-paper-3 text-ink-2'
+                  : 'border-rule bg-paper-2 text-mute',
               ].join(' ')}
             >
               <div className="w-20 text-xs font-mono uppercase tracking-wider shrink-0">
@@ -139,20 +139,20 @@ export function CustomerArHistory({
                   `${b?.days_from ?? 0}-${b?.days_to === 9999 ? '+' : (b?.days_to ?? 0)}`
                 )}
               </div>
-              <div className="relative flex-1 h-2 overflow-hidden rounded-full bg-slate-900/60">
+              <div className="relative flex-1 h-2 overflow-hidden rounded-full bg-paper">
                 {b && (
                   <div
-                    className={['h-full rounded-full transition-[width] duration-500', BUCKET_TONE[key] ?? 'bg-slate-500'].join(' ')}
+                    className={['h-full rounded-full transition-[width] duration-500', BUCKET_TONE[key] ?? 'bg-mute'].join(' ')}
                     style={{ width: `${widthPct}%` }}
                     aria-hidden
                   />
                 )}
               </div>
               <div className="w-32 shrink-0 text-right">
-                <div className="text-sm font-mono font-bold tabular-nums">
+                <div className="text-sm font-mono font-bold tabular-nums text-ink">
                   {formatTHB(amount, locale)} THB
                 </div>
-                <div className="text-xs font-mono text-slate-500">
+                <div className="text-xs font-mono text-ink-2">
                   <Bilingual
                     en={soDict.en.replace('{n}', String(soCount)).replace('{plural}', soCount === 1 ? '' : 's')}
                     th={soDict.th?.replace('{n}', String(soCount)).replace('{plural}', soCount === 1 ? '' : 's')}
@@ -167,16 +167,16 @@ export function CustomerArHistory({
       </ul>
 
       <footer className="mt-3 grid grid-cols-2 gap-2 text-xs font-mono">
-        <div className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
-          <div className="text-slate-500 uppercase tracking-wider">
+        <div className="rounded-xl border border-rule bg-paper-3 px-3 py-2">
+          <div className="text-ink-2 uppercase tracking-wider">
             <Bilingual en={outstandingText.en} th={outstandingText.th} de={outstandingText.de} locale={locale} />
           </div>
-          <div className="text-base font-bold text-amber-200 tabular-nums">
+          <div className="text-base font-bold text-caution tabular-nums">
             {formatTHB(outstanding, locale)} THB
           </div>
         </div>
-        <div className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2">
-          <div className="text-slate-500 uppercase tracking-wider">
+        <div className="rounded-xl border border-rule bg-paper-3 px-3 py-2">
+          <div className="text-ink-2 uppercase tracking-wider">
             <Bilingual en={utilizationText.en} th={utilizationText.th} de={utilizationText.de} locale={locale} />
           </div>
           <div className={['text-base font-bold tabular-nums', utilizationTone].join(' ')}>

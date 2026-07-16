@@ -176,6 +176,50 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   void openTiles;
   void lockedTiles;
 
+  useEffect(() => {
+    const text = query.trim();
+    if (text.length < 3) {
+      setAiIntent(null);
+      return;
+    }
+    if (highlight > 0) return;
+
+    const reqId = ++aiReqId.current;
+    setAiBusy(true);
+    const handle = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/command/intent', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ query: text }),
+        });
+        const json = await res.json();
+        if (reqId !== aiReqId.current) return;
+        if (res.ok && json.ok && json.intent?.top) {
+          const top = json.intent.top;
+          setAiIntent({
+            id: top.tileId,
+            label: `AI · ${top.tileId} (${Math.round(top.confidence * 100)}%)`,
+            group: 'AI guess',
+            glyph: '✨',
+            perform: () => {
+              onNavigate(`/${top.tileId}`);
+              setOpenCommand(false);
+            },
+          });
+        } else {
+          setAiIntent(null);
+        }
+      } catch {
+        setAiIntent(null);
+      } finally {
+        if (reqId === aiReqId.current) setAiBusy(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(handle);
+  }, [query, highlight, onNavigate, setOpenCommand]);
+
   const finalList = useMemo(() => {
     if (!aiIntent) return filtered;
     return [aiIntent, ...filtered];

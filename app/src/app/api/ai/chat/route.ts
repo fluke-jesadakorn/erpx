@@ -92,7 +92,7 @@ export async function POST(req: Request) {
       temperature: 0.3,
     },
     { actorId: actor.id },
-  );
+  ).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : 'AI invoke failed' }));
 
   if (!result.ok) {
     return NextResponse.json({ ok: false, error: result.error || 'AI call failed' }, { status: 200 });

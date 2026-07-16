@@ -93,7 +93,6 @@ export interface SlipOcrOpts {
   kind: SlipKind;
   initialModels?: VisionModel[];
   currentUserId?: number;
-  autoExtract?: boolean;
   onSlipReady?: (slipId: number, kind: SlipKind) => void;
   onSlipDiscarded?: (slipId: number, kind: SlipKind) => void;
 }

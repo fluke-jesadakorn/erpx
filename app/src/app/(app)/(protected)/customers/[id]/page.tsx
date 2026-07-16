@@ -7,6 +7,7 @@ import { loadActivePermSession, hasPermission, PERM } from '@folio-lib/perm/serv
 import { getCustomer, getCustomerArHistory, listCustomerContacts } from '@folio-lib/customer/queries';
 import { query } from '@folio-lib/db';
 import { CustomerArHistory } from '@/components/customer/CustomerArHistory';
+import { CustomerAdvisoryCard } from '@/components/customer/CustomerAdvisoryCard';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { NoPermissionView } from '@/components/NoPermissionView';
@@ -107,6 +108,8 @@ export default async function CustomerDetailPage({ params }: PageProps) {
               </h3>
               <UpdateCustomerForm customer={customer} />
             </section>
+
+            <CustomerAdvisoryCard customerId={customerId} lang={locale} />
 
             <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
               <h3 className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-3">

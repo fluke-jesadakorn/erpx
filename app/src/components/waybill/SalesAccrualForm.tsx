@@ -7,7 +7,7 @@ import {
   postSalesGlAccrualAction,
   postSalesGlSettlementAction,
   postSalesGlVatAction,
-} from '@/app/actions';
+} from '@/app/actions/sales';
 import type { ProcurementJournalStepView, SalesJournalView } from '@folio-lib/waybill/queries';
 import { LinesTable, summarizeLines } from './GlLinesTable';
 
@@ -101,12 +101,12 @@ export function SalesAccrualForm({
         }
         locale={locale}
       />
-      <p className="font-mono text-sm uppercase tracking-widest text-slate-500">
+      <p className="font-mono text-sm uppercase tracking-widest text-ink-2">
         <Bilingual en="Each step locked until the previous is posted" th="ขั้นถัดไปจะล็อคจนกว่าขั้นก่อนหน้าจะถูกบันทึก" locale={locale} />
         {!stepSettlementPosted && (
           <>
             {' · '}
-            <span className="text-slate-600">
+            <span className="text-ink-2/80">
               <Bilingual en="settlement posts at so_paid" th="ชำระจะโพสต์ที่ so_paid" locale={locale} />
             </span>
           </>
@@ -162,10 +162,10 @@ function SalesStep({
         <button
           type="submit"
           className={
-            'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-950 shadow ' +
+            'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold shadow transition-colors ' +
             (tone === 'amber'
-              ? 'bg-caution text-ink hover:bg-caution-strong'
-              : 'bg-positive text-paper hover:bg-positive-strong')
+              ? 'bg-caution text-paper-2 hover:bg-caution-strong'
+              : 'bg-positive text-paper-2 hover:bg-positive-strong')
           }
         >
           <span aria-hidden>✓</span>
@@ -181,7 +181,7 @@ function SalesStep({
         <input type="hidden" name="step" value={stepNo === 3 ? 'settlement' : stepNo === 2 ? 'accrual' : 'vat'} />
         <button
           type="submit"
-          className="inline-flex items-center gap-1.5 rounded-lg bg-caution px-3 py-1.5 text-sm font-bold text-ink hover:bg-caution-strong"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-caution px-3 py-1.5 text-sm font-bold text-paper-2 hover:bg-caution-strong transition-colors"
         >
           <span aria-hidden>✓</span>
           <span>{<Bilingual en="Confirm GL" th="ยืนยัน GL" de="GL bestätigen" locale={locale} />}</span>
@@ -193,14 +193,14 @@ function SalesStep({
   const meta: React.ReactNode[] = [];
   if (posted) {
     meta.push(
-      <p key="posted-by" className="rounded-md border border-emerald-500/40 bg-emerald-950/40 p-2 font-mono text-emerald-100">
-        <span className="text-emerald-300">posted_by:</span>{' '}
+      <p key="posted-by" className="rounded-md border border-positive/40 bg-positive-soft p-2 font-mono text-positive-strong">
+        <span className="text-positive">posted_by:</span>{' '}
         {posted.finalized_by_name ?? '—'}{' '}
-        <span className="text-slate-500">#{posted.finalized_by ?? '—'}</span>
+        <span className="text-ink-2">#{posted.finalized_by ?? '—'}</span>
         {posted.finalized_at && (
           <>
-            <span className="mx-1 text-slate-700">·</span>
-            <span className="text-emerald-300/80">{fmtTs(posted.finalized_at, locale === 'de' ? 'en' as const : locale)}</span>
+            <span className="mx-1 text-mute">·</span>
+            <span className="text-positive/80">{fmtTs(posted.finalized_at, locale === 'de' ? 'en' as const : locale)}</span>
           </>
         )}
       </p>,
@@ -208,46 +208,46 @@ function SalesStep({
   }
   if (posted_event) {
     meta.push(
-      <p key="posted-event" className="rounded-md border border-emerald-500/40 bg-emerald-950/40 p-2 font-mono text-emerald-100">
-        <span className="text-emerald-300">posted_event:</span>{' '}
+      <p key="posted-event" className="rounded-md border border-positive/40 bg-positive-soft p-2 font-mono text-positive-strong">
+        <span className="text-positive">posted_event:</span>{' '}
         {posted_event.actor_name ?? '—'}{' '}
-        <span className="text-slate-500">#{posted_event.actor_id ?? '—'}</span>
-        <span className="mx-1 text-slate-700">·</span>
-        <span className="text-emerald-300/80">{fmtTs(posted_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
+        <span className="text-ink-2">#{posted_event.actor_id ?? '—'}</span>
+        <span className="mx-1 text-mute">·</span>
+        <span className="text-positive/80">{fmtTs(posted_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
       </p>,
     );
   }
   if (confirmed_event) {
     meta.push(
-      <p key="confirmed-event" className="rounded-md border border-cyan-500/40 bg-cyan-950/40 p-2 font-mono text-cyan-100 sm:col-span-2">
-        <span className="text-cyan-300">confirmed_event:</span>{' '}
+      <p key="confirmed-event" className="rounded-md border border-info/40 bg-info-soft p-2 font-mono text-info-strong sm:col-span-2">
+        <span className="text-info">confirmed_event:</span>{' '}
         {confirmed_event.actor_name ?? '—'}{' '}
-        <span className="text-slate-500">#{confirmed_event.actor_id ?? '—'}</span>
-        <span className="mx-1 text-slate-700">·</span>
-        <span className="text-cyan-300/80">{fmtTs(confirmed_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
+        <span className="text-ink-2">#{confirmed_event.actor_id ?? '—'}</span>
+        <span className="mx-1 text-mute">·</span>
+        <span className="text-info/80">{fmtTs(confirmed_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
       </p>,
     );
   }
 
   return (
     <section className={'space-y-3 rounded-xl border ' + (tone === 'cyan'
-      ? 'border-cyan-500/40 bg-cyan-950/15'
+      ? 'border-info/40 bg-info-soft/40'
       : tone === 'amber'
-        ? 'border-amber-500/40 bg-amber-950/15'
-        : 'border-emerald-500/40 bg-emerald-950/15')}>
+        ? 'border-caution/40 bg-caution-soft/40'
+        : 'border-positive/40 bg-positive-soft/40')}>
       <header className="flex flex-wrap items-baseline justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3">
           <span aria-hidden className="grid h-9 w-9 place-items-center rounded-xl bg-info-soft text-info text-lg ring-1 ring-info/40">
             {emoji}
           </span>
           <div className="flex flex-col">
-            <div className="flex items-center gap-2 text-base font-bold text-white">
-              <span className="glass-panel rounded-md border px-1.5 py-0.5 font-mono text-sm uppercase tracking-widest text-slate-300">
+            <div className="flex items-center gap-2 text-base font-bold text-ink">
+              <span className="glass-panel rounded-md border px-1.5 py-0.5 font-mono text-sm uppercase tracking-widest text-ink-2">
                 {<Bilingual en={`Step ${stepNo}`} th={`ขั้นที่ ${stepNo}`} locale={locale} />}
               </span>
               <span>{title}</span>
             </div>
-            <span className="font-mono text-sm uppercase tracking-widest text-slate-500">{subtitle}</span>
+            <span className="font-mono text-sm uppercase tracking-widest text-ink-2">{subtitle}</span>
           </div>
         </div>
         {actions.length > 0 && (
@@ -255,25 +255,25 @@ function SalesStep({
         )}
       </header>
 
-      <div className={'space-y-3 border-t border-slate-800/60 px-4 py-3 ' + (locked ? 'pointer-events-none opacity-60' : '')}>
+      <div className={'space-y-3 border-t border-rule px-4 py-3 ' + (locked ? 'pointer-events-none opacity-60' : '')}>
         {blockedReason && (
-          <p className="glass-panel rounded-md border p-3 text-sm italic text-slate-500">{blockedReason}</p>
+          <p className="glass-panel rounded-md border p-3 text-sm italic text-ink-2">{blockedReason}</p>
         )}
 
         {draft && (
-          <section className="space-y-2 rounded-lg border border-cyan-500/40 bg-cyan-950/15 p-3">
+          <section className="space-y-2 rounded-lg border border-info/40 bg-info-soft/30 p-3">
             <header className="flex flex-wrap items-baseline justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-cyan-200">
+                <span className="rounded-md border border-info/50 bg-info/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-info-strong">
                   📝 DRAFT
                 </span>
-                <span className="font-mono text-sm text-slate-500">JE #{draft.journal_id}</span>
+                <span className="font-mono text-sm text-ink-2">JE #{draft.journal_id}</span>
               </div>
-              <span className="font-mono text-sm text-slate-500">
-                entry_date: <span className="text-cyan-300">{fmtDate(draft.entry_date)}</span>
+              <span className="font-mono text-sm text-ink-2">
+                entry_date: <span className="text-info">{fmtDate(draft.entry_date)}</span>
               </span>
             </header>
-            {draft.description && <p className="text-sm text-slate-300">{draft.description}</p>}
+            {draft.description && <p className="text-sm text-ink">{draft.description}</p>}
             <GlVisibilityGate
               actorCanSeeLines={actorCanSeeLines}
               totalDebit={totals.totalDebit}
@@ -287,19 +287,19 @@ function SalesStep({
         )}
 
         {posted && (
-          <section className="space-y-2 rounded-lg border border-emerald-500/40 bg-emerald-950/15 p-3">
+          <section className="space-y-2 rounded-lg border border-positive/40 bg-positive-soft/30 p-3">
             <header className="flex flex-wrap items-baseline justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-emerald-200">
+                <span className="rounded-md border border-positive/50 bg-positive/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-positive-strong">
                   ✓ POSTED
                 </span>
-                <span className="font-mono text-sm text-slate-500">JE #{posted.journal_id}</span>
+                <span className="font-mono text-sm text-ink-2">JE #{posted.journal_id}</span>
               </div>
-              <span className="font-mono text-sm text-slate-500">
-                entry_date: <span className="text-emerald-300">{fmtDate(posted.entry_date)}</span>
+              <span className="font-mono text-sm text-ink-2">
+                entry_date: <span className="text-positive">{fmtDate(posted.entry_date)}</span>
               </span>
             </header>
-            {posted.description && <p className="text-sm text-slate-300">{posted.description}</p>}
+            {posted.description && <p className="text-sm text-ink">{posted.description}</p>}
             <GlVisibilityGate
               actorCanSeeLines={actorCanSeeLines}
               totalDebit={totals.totalDebit}

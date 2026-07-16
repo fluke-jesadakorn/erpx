@@ -136,6 +136,10 @@ export default async function PolicyPage() {
   }
 
   const matrix = await loadMatrix();
+  const policiesRes = await query<{ id: string; name: string }>(
+    `SELECT id, name FROM perm.policies WHERE enabled = TRUE ORDER BY name ASC, id ASC`,
+  );
+  const policies = policiesRes.rows.map((p) => ({ id: p.id, name: p.name }));
   const canEdit = hasPermission(out.session, PERM.rbac.matrix.edit);
   const actor = out.session.user;
 
@@ -148,6 +152,7 @@ export default async function PolicyPage() {
           personas={matrix.personas}
           canEdit={canEdit}
           actorName={(actor as any)?.fullname ?? (actor as any)?.id?.toString() ?? ''}
+          policies={policies}
         />
       </PageLayout>
     </>

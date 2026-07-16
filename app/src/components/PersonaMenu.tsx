@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Icon } from '@/components/icons';
 import { UserAvatar, roleGlyph, roleLabel, roleBadge, type StaffLevel } from './UserAvatar';
 import { ROLE_RANK, ROLE_LEVEL as ROLE_LEVEL_DISPLAY, type DisplayRoleName } from '@folio-lib/org/display';
 import { deptLabel as deptLabelFn, deptIcon as deptIconFn, deptCode as deptCodeFn } from '@folio-lib/perm/depts';
@@ -255,10 +256,10 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
         aria-haspopup="menu"
         aria-expanded={open}
         className={[
-          'flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-2xl border transition-all cursor-pointer shadow-xl',
+          'flex h-10 min-w-0 items-center gap-2 rounded-lg border pl-1.5 pr-2.5 transition-all cursor-pointer',
           open
-            ? 'bg-slate-900 border-indigo-500 ring-2 ring-indigo-500/20'
-            : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 hover:border-slate-700',
+            ? 'border-accent bg-surface-glass-strong ring-2 ring-accent/20'
+            : 'border-glass-border bg-surface-glass-heavy hover:border-glass-border-strong hover:bg-surface-glass-strong',
         ].join(' ')}
       >
         <UserAvatar
@@ -267,13 +268,13 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
           level={currentUser ? staffLevelOf(currentUser) : undefined}
           size="sm"
         />
-        <div className="text-left hidden md:block">
-          <span className="block text-xs font-bold text-white leading-tight">
+        <div className="hidden min-[360px]:block text-left">
+          <span className="block text-xs font-semibold text-ink leading-tight">
             {currentUser?.fullname?.split(' ')[0] || 'User'}
           </span>
           <span
             className={[
-              'inline-block px-1.5 py-0.2 rounded text-[8px] font-mono font-bold uppercase mt-0.5 border',
+              'inline-block rounded-md border px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase leading-none mt-0.5',
               roleBadge(curRole),
             ].join(' ')}
           >
@@ -281,13 +282,14 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
           </span>
         </div>
         <span
-          className="text-slate-400 text-xs ml-1 transition-transform duration-200"
+          className="ml-0.5 text-mute transition-transform duration-200"
           style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
           aria-hidden
         >
-          ▼
+          <Icon name="chevron-down" size={14} />
         </span>
       </button>
+
 
       {open && (
         <>

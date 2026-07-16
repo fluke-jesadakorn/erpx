@@ -25,8 +25,8 @@ import { Bilingual } from '@/components/i18n/Bilingual';
 import { headers } from 'next/headers';
 import { loadActivePermSession } from '@folio-lib/perm/server';
 import { loadSlipsForExpenses } from '@folio-lib/waybill/queries';
-import { BookBankMini } from './_components/BookBankMini';
-import { DocList } from './_components/DocList';
+import { ReceiptBankCard } from './_components/ReceiptBankCard';
+import { SqlQuickPanel } from '@/components/expense/SqlQuickPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -134,6 +134,7 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
         title="Expense · ใบส่งของ"
         subtitle={`My open Waybills · role=${role} · scope=${scope}`}
       >
+        <SqlQuickPanel />
         <nav className="mb-4 flex flex-wrap gap-2 text-xs font-mono">
           <a
             href={tabHref('mine')}
@@ -332,13 +333,14 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
                       </div>
                     </div>
                     {row.origin === 'expense' && (
-                      <div className="mt-2 space-y-1">
-                        <BookBankMini
-                          slips={slipMaps.get(row.origin_id) ?? []}
+                      <div className="basis-full mt-1">
+                        <ReceiptBankCard
                           waybillId={row.id}
-                          currentStage={row.current_stage}
+                          vendorName={row.vendor_name ?? null}
+                          totalAmount={row.total_amount ?? null}
+                          currency={row.currency}
+                          slips={slipMaps.get(row.origin_id) ?? []}
                         />
-                        <DocList waybillId={row.id} currentStage={row.current_stage} />
                       </div>
                     )}
                     <a

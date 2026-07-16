@@ -1,7 +1,7 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
 import { loadActor } from '@folio-lib/server/guard';
-import { listAllOpenWaybills, listMyWaybills, listAwaitingForActor, type WaybillInboxRow } from '@folio-lib/waybill/queries';
+import { listAllOpenWaybills, listActiveWaybills, listMyWaybills, listAwaitingForActor, type WaybillInboxRow } from '@folio-lib/waybill/queries';
 import { WaybillChip } from '@/components/waybill/WaybillChip';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
@@ -22,12 +22,17 @@ export default async function MyWaybillsPage({ searchParams }: PageProps) {
   const actor = await loadActor();
   if (!actor) redirect('/login');
 
-  const scope = asScope(sp.scope, 'mine');
+  if (!sp.scope) {
+    redirect('/my-waybills?scope=active');
+  }
+  const scope = asScope(sp.scope, 'active');
   const role = actor.role_name ?? 'staff';
 
   let rows: WaybillInboxRow[] = [];
   if (scope === 'all') {
     rows = await listAllOpenWaybills();
+  } else if (scope === 'active') {
+    rows = await listActiveWaybills();
   } else if (scope === 'queue') {
     rows = await listAwaitingForActor(actor.id, role);
   } else {
@@ -50,6 +55,18 @@ export default async function MyWaybillsPage({ searchParams }: PageProps) {
         subtitle={`My open Waybills · role=${role} · scope=${scope}`}
       >
         <nav className="mb-4 flex flex-wrap gap-2 text-xs font-mono">
+          <a
+            href={tabHref('active')}
+            aria-current={scope === 'active' ? 'page' : undefined}
+            className={
+              'rounded-lg border px-3 py-1.5 ' +
+              (scope === 'active'
+                ? 'border-cyan-500 bg-cyan-500/15 text-cyan-200'
+                : 'border-slate-700 text-slate-400 hover:border-slate-500')
+            }
+          >
+            ⚡ Active
+          </a>
           <a
             href={tabHref('mine')}
             aria-current={scope === 'mine' ? 'page' : undefined}
@@ -81,10 +98,10 @@ export default async function MyWaybillsPage({ searchParams }: PageProps) {
               'rounded-lg border px-3 py-1.5 ' +
               (scope === 'all'
                 ? 'border-cyan-500 bg-cyan-500/15 text-cyan-200'
-                : 'border-slate-700 text-slate-400 hover:border-slate-500')
+                : 'border-slate-700 text-slate-500 hover:border-slate-500')
             }
           >
-            🌐 All open
+            🗂 All
           </a>
         </nav>
 

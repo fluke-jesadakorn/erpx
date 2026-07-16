@@ -3,6 +3,12 @@ import { cache } from 'react';
 import { query } from '@folio-lib/db';
 import { assertRole } from '@folio-lib/perm/assertRole';
 import { getUserLevels, getUserStaffLevels } from '@folio-lib/org/scope';
+import { aiInvoke } from '@folio-lib/ai/router';
+import {
+  cockpitSummarizePrompt,
+  cockpitProjectionPrompt,
+  renderLocaleAwarePrompt,
+} from '@folio-lib/ai/systemPrompts';
 
 export async function getDashboardData() {
   try {
@@ -357,10 +363,10 @@ async function buildITPayload() {
   };
 }
 
-async function buildExecPayload() {
+const buildExecPayload = cache(async () => {
   const exec = await getExecutiveReport();
   if (!exec.success || !exec.report) {
-    return { trialBalance: { debit: 0, credit: 0, isBalanced: true }, cashflow: null, kpis: null, pipeline: [] };
+    return { trialBalance: { debit: 0, credit: 0, isBalanced: true }, cashflow: null, kpis: null, pipeline: [], aiNarrative: { cfo: null, ceo: null } };
   }
   const r = exec.report;
   const debits = (r.balanceSheet?.assets || []).reduce((s: number, a: any) => s + (a.balance || 0), 0)
@@ -376,6 +382,32 @@ async function buildExecPayload() {
     GROUP BY status
     ORDER BY count DESC
   `);
+
+  const cfoNarrative = await aiInvoke('cfo:cockpit', 'chat', {
+    systemPrompt: renderLocaleAwarePrompt(cockpitSummarizePrompt, 'en'),
+    text: JSON.stringify({
+      incomeStatement: r.incomeStatement,
+      balanceSheet: r.balanceSheet,
+      cashFlowStatement: r.cashFlowStatement,
+      kpis: r.kpis,
+      pipeline: pipelineRes.rows,
+    }, null, 0),
+    temperature: 0.2,
+    maxTokens: 1500,
+  }).catch(() => null);
+
+  const ceoBoard = await aiInvoke('ceo:cockpit', 'chat', {
+    systemPrompt: renderLocaleAwarePrompt(cockpitProjectionPrompt, 'en'),
+    text: JSON.stringify({
+      cash: r.kpis?.totalCash ?? 0,
+      mtdExpenses: r.kpis?.mtdExpenses ?? 0,
+      pipelineOpen: pipelineRes.rows.reduce((s: number, p: any) => s + (p.count ?? 0), 0),
+      outstandingLiabilities: r.kpis?.outstandingLiabilities ?? 0,
+    }, null, 0),
+    temperature: 0.2,
+    maxTokens: 600,
+  }).catch(() => null);
+
   return {
     trialBalance: {
       debit: debits,
@@ -387,8 +419,12 @@ async function buildExecPayload() {
     cashflow: r.cashFlowStatement,
     kpis: r.kpis,
     pipeline: pipelineRes.rows,
+    aiNarrative: {
+      cfo: cfoNarrative?.ok ? cfoNarrative.text : null,
+      ceo: ceoBoard?.ok ? ceoBoard.text : null,
+    },
   };
-}
+});
 
 async function buildHODPayload(dept: string) {
   const queue = await query(`

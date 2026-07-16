@@ -6,6 +6,12 @@ import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 import { useT } from '@/components/i18n/useT';
 import { T, interpolate } from '@/components/i18n/T';
 import permsDict from '@folio-lib/i18n/permissions';
+import { PolicyLintButton } from './PolicyLintButton';
+
+interface PolicyRow {
+  id: string;
+  name: string;
+}
 
 interface Stage {
   perm: string;
@@ -28,6 +34,7 @@ interface Props {
   personas: Persona[];
   canEdit: boolean;
   actorName: string;
+  policies: PolicyRow[];
 }
 
 function personaLabel(p: Persona, locale: 'th' | 'de'): string {
@@ -46,7 +53,7 @@ const STAGE_LABELS: Record<string, { icon: string }> = {
   ceo_authorization:          { icon: '🦅' },
 };
 
-export function PolicyMatrixPage({ stages, personas, canEdit, actorName }: Props) {
+export function PolicyMatrixPage({ stages, personas, canEdit, actorName, policies }: Props) {
   const router = useRouter();
   const locale = useSecondaryLocale();
   const t = useT(permsDict);
@@ -270,6 +277,8 @@ export function PolicyMatrixPage({ stages, personas, canEdit, actorName }: Props
         </span>
         <T value={t('matrix.howItWorksBody')} />
       </div>
+
+      <PolicyLintButton policies={policies} />
     </div>
   );
 }

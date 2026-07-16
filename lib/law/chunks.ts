@@ -2,6 +2,7 @@ import 'server-only';
 
 import { query } from '@folio-lib/db';
 import { invoke } from '@folio-lib/ai/router';
+import { enqueueIndexing } from './queue';
 
 export interface ContractChunk {
   id: string;
@@ -76,7 +77,26 @@ export async function listChunks(contractId: string, limit = 500): Promise<Contr
 }
 
 export async function indexContractText(contractId: string, text: string): Promise<number> {
-  const chunks = chunkText(text);
+  await enqueueIndexing({ contractId, rawText: text });
+  const existing = await query<{ chunk_count: number | null }>(
+    `SELECT chunk_count FROM law.contracts WHERE id = $1::uuid`,
+    [contractId],
+  );
+  return existing.rows[0]?.chunk_count ?? 0;
+}
+
+export async function runIndexingJob(_jobId: string, contractId: string, text: string | null): Promise<number> {
+  const t = text ?? '';
+  if (!t) {
+    await query(
+      `UPDATE law.contracts
+          SET status = 'failed', error_message = 'no text provided'
+        WHERE id = $1::uuid`,
+      [contractId],
+    );
+    throw new Error('no text provided');
+  }
+  const chunks = chunkText(t);
   try {
     const rows: Array<{
       chunk_index: number;

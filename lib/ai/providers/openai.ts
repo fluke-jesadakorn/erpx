@@ -48,3 +48,38 @@ export async function openaiListModels(cfg: OpenAIProviderConfig): Promise<strin
   });
   return Array.isArray(res.data?.data) ? res.data.data.map((m: any) => m.id) : [];
 }
+
+export async function* openaiChatStream(
+  cfg: OpenAIProviderConfig,
+  model: string,
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
+  params: Record<string, any> = {}
+): AsyncGenerator<string, void, void> {
+  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: headers(cfg),
+    body: JSON.stringify({ model, messages, stream: true, ...params }),
+  });
+  if (!res.ok || !res.body) throw new Error(`openai-compat stream HTTP ${res.status}`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf('\n')) >= 0) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (!line || !line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if (payload === '[DONE]') return;
+      try {
+        const obj = JSON.parse(payload);
+        const chunk = obj?.choices?.[0]?.delta?.content;
+        if (typeof chunk === 'string' && chunk.length > 0) yield chunk;
+      } catch { /* skip */ }
+    }
+  }
+}

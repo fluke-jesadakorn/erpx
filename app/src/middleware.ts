@@ -14,7 +14,9 @@ const PUBLIC_API = [
   '/api/health',
   '/api/ai/invoke',  // Accepts x-ai-key bridge header; route itself checks auth.
   '/api/hook/line',     // webhook: signature verified by provider secret
+  '/api/hook/line-hr',  // webhook: signature verified by provider secret
   '/api/hook/generic',  // webhook: signature verified by provider secret
+  '/api/law/index-worker',  // cron worker; caller authenticates via shared secret in n8n / launchd
 ];
 
 export async function middleware(req: NextRequest) {
@@ -29,6 +31,8 @@ export async function middleware(req: NextRequest) {
     pathname === '/api/auth/sign-in' ||
     pathname.startsWith('/api/auth/sign-in/') ||
     pathname === '/api/me/locale' ||
+    pathname.startsWith('/api/law/index-worker') ||
+    pathname.startsWith('/api/cron/approver-nudge') ||
     PUBLIC_API.some((p) => pathname === p);
 
   const token = req.cookies.get(SESSION_COOKIE)?.value ?? req.headers.get('x-folio-session');

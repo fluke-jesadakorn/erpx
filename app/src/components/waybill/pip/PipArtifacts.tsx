@@ -5,10 +5,12 @@ import type { ExpenseArtifacts, ProcurementArtifacts } from '@folio-lib/waybill/
 import {
   confirmGlRecordedAction,
   finalApproveWaybillAction,
+} from '@/app/actions/waybill';
+import {
   postProcurementAccrualAction,
   postProcurementSettlementAction,
   confirmProcurementGlAction,
-} from '@/app/actions';
+} from '@/app/actions/procurement';
 import { ZoneSection } from '../ZoneSection';
 import { PipArtifactPanel } from '../PipArtifactPanel';
 import { bi } from '@/components/i18n/bi';

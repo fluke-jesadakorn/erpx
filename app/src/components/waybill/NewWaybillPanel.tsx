@@ -1,6 +1,13 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
+import {
+  ChevronDown,
+  ChevronUp,
+  Trash2,
+  ShoppingCart,
+  Receipt,
+} from 'lucide-react';
 import { Bilingual } from '@/components/i18n/Bilingual';
 import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 
@@ -19,6 +26,8 @@ export interface NewWaybillPanelProps {
   children: ReactNode;
   hint: ReactNode;
   draftWaybillId: string | null;
+  headerExtra?: ReactNode;
+  stickyActionBar?: ReactNode;
 }
 
 export function NewWaybillPanel({
@@ -27,7 +36,7 @@ export function NewWaybillPanel({
   initialDraft: _initialDraft,
   title: _title,
   titleTh: _titleTh,
-  discardLabel,
+  discardLabel: _discardLabel,
   submitLabel,
   readyToSubmit,
   submitting,
@@ -36,6 +45,8 @@ export function NewWaybillPanel({
   children,
   hint,
   draftWaybillId,
+  headerExtra,
+  stickyActionBar,
 }: NewWaybillPanelProps) {
   const locale = useSecondaryLocale();
   const [open, setOpen] = useState(true);
@@ -43,67 +54,86 @@ export function NewWaybillPanel({
   void _initialDraft;
   void _title;
   void _titleTh;
+  void _discardLabel;
 
   const headerLabel = useMemo(() => {
     if (!draftWaybillId) {
       return domain === 'expense'
-        ? <Bilingual en="New expense claim" th="เบิกค่าใช้จ่ายใหม่" locale={locale} />
-        : <Bilingual en="New sales order" th="เปิดใบสั่งขายใหม่" locale={locale} />;
+        ? <Bilingual variant="inline" en="New expense claim" th="เบิกค่าใช้จ่ายใหม่" locale={locale} />
+        : <Bilingual variant="inline" en="New sales order" th="เปิดใบสั่งขายใหม่" locale={locale} />;
     }
     return (
       <>
-        <Bilingual en="Draft" th="ร่าง" locale={locale} />
-        <span className="ml-1">· {draftWaybillId}</span>
+        <Bilingual variant="inline" en="Draft" th="ร่าง" locale={locale} />
+        <span className="ml-1 text-ink-2 font-mono">· {draftWaybillId}</span>
       </>
     );
   }, [draftWaybillId, domain, locale]);
 
+  const isDraft = !!draftWaybillId;
+
+  const IconDomain = domain === 'expense' ? Receipt : ShoppingCart;
+
   return (
     <section
-      className="glass-tint-info relative mb-8 overflow-hidden rounded-3xl border"
+      className="relative mb-8 overflow-hidden rounded-3xl glass-panel-heavy"
       aria-label={domain === 'expense' ? 'New expense claim' : 'New sales order'}
     >
-      <div className="h-1 w-full bg-info rounded-t-3xl" aria-hidden />
-
-      <header className="relative flex items-start gap-4 p-5 sm:p-6 border-b border-rule">
+      <header className="relative grid grid-cols-1 md:grid-cols-[auto_minmax(0,1fr)_auto] gap-5 md:gap-6 px-5 sm:px-7 py-5 sm:py-7 border-b border-rule">
         <div
           className={
-            'shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-2xl sm:text-3xl ' +
+            'hidden md:flex shrink-0 w-14 h-14 rounded-2xl items-center justify-center border ' +
             (domain === 'expense'
-              ? 'glass-tint-accent text-accent'
-              : 'bg-info text-paper')
+              ? 'bg-accent-soft text-accent border-accent/30'
+              : 'bg-info-soft text-info border-info/30')
           }
           aria-hidden
         >
-          {domain === 'expense' ? '🧾' : '🛒'}
+          <IconDomain className="size-7" strokeWidth={1.6} />
         </div>
-        <div className="min-w-0 flex-1">
+
+        <div className="min-w-0 flex flex-col gap-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-lg sm:text-xl font-bold text-white leading-tight">
+            <h2 className="font-display text-xl sm:text-2xl font-semibold text-ink leading-tight tracking-tight">
               {headerLabel}
             </h2>
             <span
+              aria-label={isDraft ? 'Draft' : 'Not started'}
+              title={isDraft ? 'Draft · ร่าง' : 'Not started · ยังไม่เริ่ม'}
               className={
-                'hidden sm:inline px-2 py-0.5 rounded-full text-sm font-mono uppercase tracking-wider ' +
-                (domain === 'expense' ? 'glass-tint-info text-info' : 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/30')
+                'inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border ' +
+                (isDraft
+                  ? 'border-info/40 bg-info-soft'
+                  : 'border-rule bg-paper-3')
               }
             >
-              {draftWaybillId
-                ? <Bilingual en="Draft" th="ร่าง" locale={locale} />
-                : <Bilingual en="Not started" th="ยังไม่เริ่ม" locale={locale} />}
+              <span
+                aria-hidden
+                className={
+                  'inline-block w-1.5 h-1.5 rounded-full ' +
+                  (isDraft ? 'bg-info' : 'bg-mute')
+                }
+              />
+              <span className="sr-only">
+                {isDraft ? 'Draft' : 'Not started'}
+              </span>
             </span>
+            {headerExtra ? <div className="ml-1">{headerExtra}</div> : null}
           </div>
-          <div className="mt-1 text-sm text-ink-2 leading-relaxed">{hint}</div>
+          <div className="text-sm leading-relaxed text-ink-2 max-w-2xl">{hint}</div>
         </div>
-        <div className="flex flex-col gap-2 items-end">
+
+        <div className="flex md:flex-col items-stretch md:items-end gap-2">
           {draftWaybillId && (
             <button
               type="button"
               onClick={onDiscard}
               data-testid="panel-discard-draft"
-              className="glass-tint-critical rounded-lg hover:bg-critical-soft hover:border-critical/60 px-3 py-1.5 text-sm font-mono text-critical transition-colors disabled:opacity-50"
+              title="Discard draft · ลบร่าง"
+              aria-label="Discard draft"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-critical/40 bg-critical-soft w-9 h-9 text-critical hover:bg-critical/15 transition-colors disabled:opacity-50"
             >
-              {discardLabel}
+              <Trash2 className="size-4" strokeWidth={2} aria-hidden />
             </button>
           )}
           <button
@@ -111,41 +141,42 @@ export function NewWaybillPanel({
             onClick={() => setOpen((o) => !o)}
             aria-expanded={open}
             aria-controls={`new-${domain}-panel-body`}
-            className="glass-panel shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-rule-strong hover:bg-paper-3/80 hover:border-rule-strong px-3 py-1.5 text-sm font-mono text-ink-2 transition-colors"
+            aria-label={open ? 'Hide panel' : 'Open panel'}
+            title={open ? 'Hide · ซ่อน' : 'Open · เปิด'}
+            className="inline-flex items-center justify-center rounded-lg border border-rule-strong bg-paper-3 hover:bg-paper-3/80 w-9 h-9 text-ink-2 transition-colors"
           >
-            <span aria-hidden>{open ? '▾' : '▸'}</span>
             {open
-              ? <Bilingual en="Hide" th="ซ่อน" locale={locale} />
-              : <Bilingual en="Open" th="เปิด" locale={locale} />}
+              ? <ChevronUp className="size-4" strokeWidth={2} aria-hidden />
+              : <ChevronDown className="size-4" strokeWidth={2} aria-hidden />}
           </button>
         </div>
       </header>
 
       {open && (
-        <div id={`new-${domain}-panel-body`} className="relative p-5 sm:p-6 space-y-5">
+        <div id={`new-${domain}-panel-body`} className="relative p-5 sm:p-7 space-y-6">
           {children}
 
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={!readyToSubmit}
-            data-testid="panel-submit-all"
-            className={
-              'w-full py-3.5 rounded-xl text-sm font-bold font-mono inline-flex items-center justify-center gap-2 shadow-lg transition-all duration-200 ' +
-              'disabled:opacity-50 disabled:cursor-not-allowed ' +
-              (submitting
-                ? 'bg-rule-strong text-ink-2'
-                : readyToSubmit
-                  ? domain === 'expense'
-                    ? 'bg-positive hover:bg-positive-strong text-paper'
-                    : 'bg-positive hover:bg-positive-strong text-paper hover:-translate-y-px'
-                  : domain === 'expense'
-                    ? 'glass-panel text-mute'
-                    : 'bg-slate-800 text-slate-500')
-            }
-          >
-            {submitLabel}
-          </button>
+          {stickyActionBar}
+
+          {!stickyActionBar && (
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={!readyToSubmit}
+              data-testid="panel-submit-all"
+              className={
+                'w-full py-3 rounded-xl text-sm font-bold font-mono inline-flex items-center justify-center gap-2 transition-colors duration-200 border ' +
+                'disabled:opacity-50 disabled:cursor-not-allowed ' +
+                (submitting
+                  ? 'bg-rule-strong text-ink-2 border-rule-strong'
+                  : readyToSubmit
+                    ? 'bg-accent hover:bg-accent-strong text-paper-2 border-accent'
+                    : 'bg-paper-3 text-mute border-rule-strong')
+              }
+            >
+              {submitLabel}
+            </button>
+          )}
         </div>
       )}
     </section>

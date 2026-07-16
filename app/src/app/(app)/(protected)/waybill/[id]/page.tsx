@@ -18,6 +18,9 @@ import { WaybillTimelineBigPicture } from '@/components/waybill/WaybillTimelineB
 import { WaybillAuditSection } from '@/components/waybill/WaybillAuditSection';
 import { WaybillExpenseCollapsible } from '@/components/waybill/WaybillExpenseCollapsible';
 import { WaybillHeader } from '@/components/waybill/WaybillHeader';
+import { WaybillRiskBadge } from '@/components/waybill/WaybillRiskBadge';
+import { WaybillAnomalyBadge } from '@/components/waybill/WaybillAnomalyBadge';
+import { WaybillReviewHint } from '@/components/waybill/WaybillReviewHint';
 import { InlineActionForm } from '@/components/waybill/InlineActionForm';
 import { ExportPdfButton } from '@/components/waybill/ExportPdfButton';
 import { DecisionBar } from '@/components/waybill/DecisionBar';
@@ -164,6 +167,11 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             locale={locale}
           />
 
+          <div className="flex flex-wrap items-center gap-2">
+            <WaybillRiskBadge waybillId={wb.id} />
+            <WaybillAnomalyBadge flagged={wb.flagged_reason} />
+          </div>
+
           <DecisionBar
             waybillId={wb.id}
             currentStage={wb.current_stage}
@@ -180,6 +188,11 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             isRejected={isRejected}
             actorRole={actor.role_id}
           />
+
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+            <WaybillReviewHint waybillId={wb.id} lang={locale} stage="hod" label="HOD Review Hint" />
+            <WaybillReviewHint waybillId={wb.id} lang={locale} stage="am" label="AM Review Hint" />
+          </div>
 
           {action === 'reject' && canReject && !isRejected && wb.status === 'open' && (
             <InlineActionForm kind="reject" waybillId={wb.id} stage={wb.current_stage} locale={locale} />

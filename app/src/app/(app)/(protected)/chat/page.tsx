@@ -1,0 +1,64 @@
+import 'server-only';
+import { redirect } from 'next/navigation';
+import { loadActor } from '@folio-lib/server/guard';
+import { matchPerm } from '@folio-lib/perm/server';
+import { PageLayout } from '@/components/PageLayout';
+import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
+import { NoPermissionView } from '@/components/NoPermissionView';
+import { FullChat } from '@/components/chat/FullChat';
+import { listSessions } from '@/lib/chat/history';
+
+export const dynamic = 'force-dynamic';
+
+export default async function ChatPage() {
+  const actor = await loadActor();
+  if (!actor) redirect('/login');
+
+  const allowed = matchPerm(actor.permissions, 'tile:chat:view::allow');
+
+  if (!allowed) {
+    return (
+      <>
+        <BreadcrumbSetter
+          crumbs={[
+            { label: 'Folio', href: '/' },
+            { label: 'AI Chat' },
+          ]}
+        />
+        <PageLayout
+          title="AI Chat"
+          subtitle="Full AI assistant"
+          category={{ label: 'AI Chat', icon: 'zap', href: '/chat' }}
+        >
+          <NoPermissionView
+            kind="locked"
+            actor={actor as any}
+            attemptedPath="/chat"
+            reason="tile:chat:view required."
+          />
+        </PageLayout>
+      </>
+    );
+  }
+
+  const sessions = await listSessions(actor.id);
+
+  return (
+    <>
+      <BreadcrumbSetter
+        crumbs={[
+          { label: 'Folio', href: '/' },
+          { label: 'AI Chat' },
+        ]}
+      />
+      <PageLayout
+        title="AI Chat"
+        subtitle={`${actor.fullname} · ${actor.role_name}`}
+        category={{ label: 'AI Chat', icon: 'zap', href: '/chat' }}
+        className="max-w-none px-3 sm:px-4 py-6"
+      >
+        <FullChat initialSessions={sessions} />
+      </PageLayout>
+    </>
+  );
+}

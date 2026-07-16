@@ -14,7 +14,7 @@ import {
   finalRejectWaybillAction,
   rejectWaybillAction,
   resubmitWaybillAction,
-} from '@/app/actions';
+} from '@/app/actions/waybill';
 import { SettleForm } from '@/app/(app)/(protected)/waybill/[id]/_components/SettleForm';
 import { ZoneSection } from '../ZoneSection';
 import { ApproversList, type ActedUserLite } from '../ApproversList';

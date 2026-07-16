@@ -24,6 +24,24 @@ const DOMAIN_BY_REF: Record<string, string> = {
   notification: 'notifications',
 };
 
+const DOMAIN_TILE_PERM: Record<string, string | null> = {
+  expenses: 'tile:expense:view::allow',
+  pr: 'tile:pr:view::allow',
+  po: 'tile:po:view::allow',
+  slips: 'tile:expense:view::allow',
+  users: 'tile:roles:view::allow',
+  departments: 'tile:org_chart:view::allow',
+  audit: 'tile:audit:view::allow',
+  ai_settings: 'tile:models:view::allow',
+  notifications: null,
+  customers: 'tile:customers:view::allow',
+  sales: 'tile:sales:view::allow',
+};
+
+const ADMIN_PERM = 'admin:system:bypass::allow';
+
+const domainFanoutCache: Map<string, Set<number>> = new Map();
+
 function mapEventToDomain(type: string, refType: string | null): string | null {
   if (refType && DOMAIN_BY_REF[refType]) return DOMAIN_BY_REF[refType];
   if (type.startsWith('expense.')) return 'expenses';
@@ -39,6 +57,7 @@ function mapEventToDomain(type: string, refType: string | null): string | null {
 
 export async function computeRecipients(ctx: RecipientContext): Promise<number[]> {
   if (NO_FANOUT_TYPES.has(ctx.type)) return [];
+  domainFanoutCache.clear();
   const ids = new Set<number>();
   const ownerId = await lookupRefOwner(ctx.refType, ctx.refId);
   const submitterId = ownerId ?? ctx.actorId ?? null;
@@ -63,54 +82,45 @@ export async function computeRecipients(ctx: RecipientContext): Promise<number[]
 
   const domainId = mapEventToDomain(ctx.type, ctx.refType);
   if (domainId) {
-    const broadcast = await expandByDomainScope(domainId, ctx.refType, ctx.refId);
+    const broadcast = await expandByDomainScope(domainId);
     for (const uid of broadcast) ids.add(uid);
   }
 
   return [...ids];
 }
 
-async function expandByDomainScope(
-  domainId: string,
-  refType: string | null,
-  refId: number | null,
-): Promise<number[]> {
-  const roles = await query<{ user_id: number; scope_kind: string }>(
-    `SELECT u.id AS user_id, 'all'::text AS scope_kind
+async function expandByDomainScope(domainId: string): Promise<number[]> {
+  const cached = domainFanoutCache.get(domainId);
+  if (cached) return [...cached];
+
+  const tilePerm = DOMAIN_TILE_PERM[domainId];
+  if (tilePerm === undefined) return [];
+  const empty: number[] = [];
+  if (tilePerm === null) {
+    domainFanoutCache.set(domainId, new Set(empty));
+    return empty;
+  }
+
+  const r = await query<{ id: number }>(
+    `SELECT DISTINCT u.id
        FROM users u
-      WHERE u.is_active IS NOT FALSE`,
+      WHERE u.is_active IS NOT FALSE
+        AND (
+          EXISTS (SELECT 1 FROM perm.user_permissions up
+                   WHERE up.user_id = u.id AND up.revoked_at IS NULL
+                     AND (up.ends_at IS NULL OR up.ends_at > now())
+                     AND up.permission_id IN ($1, $2))
+          OR EXISTS (SELECT 1 FROM perm.user_roles ur
+                     JOIN perm.role_permissions rp ON rp.role_id = ur.role_id
+                    WHERE ur.user_id = u.id
+                      AND rp.permission_id IN ($1, $2))
+        )`,
+    [tilePerm, ADMIN_PERM],
   );
 
-  if (roles.rows.length === 0) return [];
-
-  let _anchorDept: string | null = null;
-  let anchorSubmitter: number | null = null;
-  if (refType === 'expense' && refId) {
-    const r = await query<{ submitter_id: number | null }>(
-      `SELECT submitter_id FROM expenses WHERE id = $1`,
-      [refId],
-    );
-    anchorSubmitter = r.rows[0]?.submitter_id ?? null;
-    if (anchorSubmitter) {
-      const u = await query<{ dept_id: string | null }>(
-        `SELECT split_part(up.permission_id, ':', 3) AS dept_id
-           FROM perm.user_permissions up
-          WHERE up.user_id = $1
-            AND up.permission_id LIKE 'user:dept:%'
-            AND up.revoked_at IS NULL
-            AND (up.ends_at IS NULL OR up.ends_at > now())
-          ORDER BY up.permission_id
-          LIMIT 1`,
-        [anchorSubmitter],
-      );
-      _anchorDept = u.rows[0]?.dept_id ?? null;
-    }
-  }
-
   const out = new Set<number>();
-  for (const row of roles.rows) {
-    out.add(row.user_id);
-  }
+  for (const row of r.rows) out.add(row.id);
+  domainFanoutCache.set(domainId, out);
   return [...out];
 }
 
@@ -140,6 +150,17 @@ async function lookupRefOwner(refType: string | null, refId: number | null): Pro
   return null;
 }
 
-async function lookupSupervisor(_userId: number): Promise<number | null> {
-  return null;
+async function lookupSupervisor(userId: number): Promise<number | null> {
+  const r = await query<{ head_user_id: number | null }>(
+    `SELECT parent.head_user_id
+       FROM perm.user_roles ur
+       JOIN perm.roles own ON own.id = ur.role_id
+       LEFT JOIN perm.roles parent ON parent.id = own.parent_role_id
+      WHERE ur.user_id = $1
+        AND own.is_system = false
+      ORDER BY split_part(ur.role_id, '::', 2)::int ASC, ur.granted_at ASC
+      LIMIT 1`,
+    [userId],
+  );
+  return r.rows[0]?.head_user_id ?? null;
 }

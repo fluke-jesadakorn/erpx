@@ -70,7 +70,6 @@ const DIRECT: Record<string, string> = {
   reconciliation: '/reconciliation',
   team_manage: '/team-manage',
   cockpit: '/cockpit',
-  summary: '/summary',
   ledger: '/ledger',
   search_coa: '/search-coa',
 };

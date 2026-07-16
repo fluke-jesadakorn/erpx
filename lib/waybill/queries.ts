@@ -36,15 +36,16 @@ export interface WaybillRow {
   status: 'open' | 'completed' | 'rejected' | 'reversed' | 'superseded';
   created_at: Date;
   updated_at: Date;
+  flagged_reason?: unknown;
 }
 
 export const loadWaybill = cache(async (id: string): Promise<WaybillRow | null> => {
   const r = await query<WaybillRow>(
     `SELECT id, origin, origin_id, fiscal_year, waybill_kind, submitter_id,
             vendor_name, vendor_address, created_to, created_to_address, total_amount, currency, current_stage,
-            current_owner_role, current_owner_user_id, status,
-            created_at, updated_at
-       FROM waybills WHERE id = $1`,
+             current_owner_role, current_owner_user_id, status, flagged_reason,
+             created_at, updated_at
+        FROM waybills WHERE id = $1`,
     [id],
   );
   return r.rows[0] ?? null;
@@ -68,6 +69,7 @@ export async function loadWaybillByOrigin(
 export interface WaybillInboxRow extends WaybillRow {
   submitter_name: string | null;
   age_hours: number;
+  risk_score?: number;
 }
 
 export async function listMyWaybills(actorId: number): Promise<WaybillInboxRow[]> {
@@ -77,12 +79,14 @@ export async function listMyWaybills(actorId: number): Promise<WaybillInboxRow[]
             w.current_owner_role, w.current_owner_user_id, w.status,
             w.created_at, w.updated_at,
             u.fullname AS submitter_name,
-            EXTRACT(EPOCH FROM (now() - w.updated_at)) / 3600.0 AS age_hours
+            EXTRACT(EPOCH FROM (now() - w.updated_at)) / 3600.0 AS age_hours,
+            r.risk_score
        FROM waybills w
   LEFT JOIN users u ON u.id = w.submitter_id
+  LEFT JOIN folio.waybill_risk r ON r.id = w.id
       WHERE w.submitter_id = $1
         AND w.status NOT IN ('completed', 'reversed', 'superseded')
-   ORDER BY w.updated_at DESC
+   ORDER BY r.risk_score DESC NULLS LAST, w.updated_at DESC
       LIMIT 100`,
     [actorId],
   );
@@ -101,12 +105,14 @@ export async function listAwaitingForActor(
             w.current_owner_role, w.current_owner_user_id, w.status,
             w.created_at, w.updated_at,
             u.fullname AS submitter_name,
-            EXTRACT(EPOCH FROM (now() - w.updated_at)) / 3600.0 AS age_hours
+            EXTRACT(EPOCH FROM (now() - w.updated_at)) / 3600.0 AS age_hours,
+            r.risk_score
        FROM waybills w
   LEFT JOIN users u ON u.id = w.submitter_id
+  LEFT JOIN folio.waybill_risk r ON r.id = w.id
       WHERE w.current_owner_role = $1
         AND w.status NOT IN ('completed', 'reversed', 'superseded')
-   ORDER BY w.updated_at DESC
+   ORDER BY r.risk_score DESC NULLS LAST, w.updated_at DESC
       LIMIT $2`,
     [actorRoleId, limit],
   );
@@ -120,11 +126,32 @@ export async function listAllOpenWaybills(limit = 200): Promise<WaybillInboxRow[
             w.current_owner_role, w.current_owner_user_id, w.status,
             w.created_at, w.updated_at,
             u.fullname AS submitter_name,
-            EXTRACT(EPOCH FROM (now() - w.updated_at)) / 3600.0 AS age_hours
+            EXTRACT(EPOCH FROM (now() - w.updated_at)) / 3600.0 AS age_hours,
+            r.risk_score
        FROM waybills w
   LEFT JOIN users u ON u.id = w.submitter_id
-      WHERE w.status NOT IN ('completed', 'reversed', 'superseded')
-   ORDER BY w.updated_at DESC
+  LEFT JOIN folio.waybill_risk r ON r.id = w.id
+   ORDER BY r.risk_score DESC NULLS LAST, w.updated_at DESC
+      LIMIT $1`,
+    [limit],
+  );
+  return r.rows;
+}
+
+export async function listActiveWaybills(limit = 200): Promise<WaybillInboxRow[]> {
+  const r = await query<WaybillInboxRow>(
+    `SELECT w.id, w.origin, w.origin_id, w.fiscal_year, w.waybill_kind, w.submitter_id,
+            w.vendor_name, w.total_amount, w.currency, w.current_stage,
+            w.current_owner_role, w.current_owner_user_id, w.status,
+            w.created_at, w.updated_at,
+            u.fullname AS submitter_name,
+            EXTRACT(EPOCH FROM (now() - w.updated_at)) / 3600.0 AS age_hours,
+            r.risk_score
+       FROM waybills w
+  LEFT JOIN users u ON u.id = w.submitter_id
+  LEFT JOIN folio.waybill_risk r ON r.id = w.id
+      WHERE w.status = 'open'
+   ORDER BY r.risk_score DESC NULLS LAST, w.updated_at DESC
       LIMIT $1`,
     [limit],
   );
@@ -584,7 +611,7 @@ export async function loadSalesArtifacts(_wb: WaybillRow): Promise<SalesArtifact
   return null;
 }
 
-export type InboxScope = 'mine' | 'queue' | 'all' | 'waiting' | 'watching';
+export type InboxScope = 'mine' | 'queue' | 'all' | 'active' | 'waiting' | 'watching';
 
 export interface InboxItemRow {
   waybill_id: string;
@@ -602,6 +629,7 @@ export interface InboxItemRow {
 
 export async function loadInboxForUser(userId: number, scope: InboxScope): Promise<WaybillInboxRow[]> {
   if (scope === 'all') return listAllOpenWaybills();
+  if (scope === 'active') return listActiveWaybills();
   if (scope === 'queue' || scope === 'waiting' || scope === 'watching') {
     return listAwaitingForActor(userId, null);
   }
@@ -705,10 +733,11 @@ export async function listApprovalPolicies(actorId?: number) {
       catch { return { success: false, error: 'forbidden', policies: [] }; }
     }
     const r = await query(
-      `SELECT p.*, u.fullname AS created_by_name
-       FROM approval_policies p
-       LEFT JOIN users u ON p.created_by = u.id
-       ORDER BY p.is_active DESC, p.priority ASC, p.id ASC`
+      `SELECT p.id, p.name, p.ast, p.description, p.enabled, p.version,
+              p.created_at, p.updated_at,
+              (p.enabled)::int AS is_active
+         FROM perm.policies p
+        ORDER BY p.enabled DESC, p.name ASC, p.id ASC`
     );
     return { success: true, policies: r.rows };
   } catch (error: any) {
@@ -739,12 +768,11 @@ export async function listPurchaseRequisitions(actorId?: number) {
               (SELECT split_part(up.permission_id, ':', 3) FROM perm.active_user_permissions up
                 WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
                 ORDER BY up.permission_id LIMIT 1) AS requester_dept_group_name,
-              d.display_name AS dept_name, p.display_name AS policy_name, p.priority AS policy_priority,
+              d.display_name AS dept_name,
               ra.fullname AS rejection_actor_name
        FROM purchase_requisitions pr
        JOIN users u ON pr.requester_id = u.id
        LEFT JOIN perm.roles d ON pr.dept_group_id = d.id
-       LEFT JOIN approval_policies p ON pr.matched_policy_id = p.id
        LEFT JOIN users ra ON ra.id = pr.rejection_actor_id
        ${scopeSql}
        ORDER BY pr.created_at DESC`,
@@ -798,8 +826,6 @@ export async function listPurchaseOrders(actorId?: number) {
                 WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
                 ORDER BY up.permission_id LIMIT 1) AS requester_dept_group_name,
               d.display_name AS dept_name,
-              p.display_name AS policy_name,
-              p.priority AS policy_priority,
               s.file_path AS paid_slip_path,
               s.mime_type AS paid_slip_mime,
               su.fullname AS settled_actor_name,
@@ -808,7 +834,6 @@ export async function listPurchaseOrders(actorId?: number) {
        JOIN purchase_requisitions pr ON po.pr_id = pr.id
        JOIN users u ON pr.requester_id = u.id
        LEFT JOIN perm.roles d ON pr.dept_group_id = d.id
-       LEFT JOIN approval_policies p ON po.matched_policy_id = p.id
        LEFT JOIN slips s ON po.settled_slip_id = s.id
        LEFT JOIN users su ON po.settled_by = su.id
        LEFT JOIN users ra ON ra.id = po.rejection_actor_id

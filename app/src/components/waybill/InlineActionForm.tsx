@@ -4,7 +4,7 @@ import { T } from '@/components/i18n/T';
 import {
   rejectWaybillAction,
   finalRejectWaybillAction,
-} from '@/app/actions';
+} from '@/app/actions/waybill';
 
 interface InlineActionFormProps {
   kind: 'reject' | 'final-reject';

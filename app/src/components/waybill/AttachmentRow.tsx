@@ -3,7 +3,7 @@ import type { WaybillAttachmentRow } from '@folio-lib/waybill/attachments';
 import { WAYBILL_KINDS, type WaybillAttachmentKind } from '@folio-lib/waybill/kinds';
 import { loadActor } from '@folio-lib/server/guard';
 import { canActorRemoveAttachment } from '@folio-lib/waybill/permissions';
-import { removeWaybillAttachmentAction } from '@/app/actions';
+import { removeWaybillAttachmentAction } from '@/app/actions/waybill';
 
 export interface AttachmentRowProps {
   waybillId: string;

@@ -90,7 +90,7 @@ export function LangPickerTrigger({ className }: TriggerProps) {
 
   return (
     <button type="button" onClick={swap} title="Toggle language (TH ↔ DE)" aria-label="Toggle language"
-      className={['inline-flex items-center justify-center h-9 px-2.5 rounded-md border border-rule text-sm font-mono uppercase tracking-wider text-ink-2 hover:bg-paper-2 hover:text-ink transition-colors',
+      className={['inline-flex h-9 min-w-11 items-center justify-center rounded-lg border border-glass-border bg-surface-glass-heavy px-2.5 text-sm font-mono uppercase tracking-wider text-ink-2 transition-colors hover:border-glass-border-strong hover:bg-surface-glass-strong hover:text-ink',
         className ?? '',
       ].join(' ')}>
       {lang === 'th' ? 'TH' : 'DE'}

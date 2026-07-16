@@ -209,18 +209,18 @@ export function CustomerCombobox({
   return (
     <div ref={rootRef} className={['relative w-full', className ?? ''].join(' ')}>
       {selected ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-cyan-500/40 bg-cyan-950/30 px-3 py-2">
-          <span className="font-mono text-sm uppercase tracking-wider text-cyan-200">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-info/40 bg-info-soft/40 px-3 py-2">
+          <span className="font-mono text-sm uppercase tracking-wider text-info-strong">
             {selected.code}
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm text-white">{selected.name}</span>
+          <span className="min-w-0 flex-1 truncate text-sm text-ink">{selected.name}</span>
           {selected.blacklist && (
-            <span className="rounded-full border border-rose-500/50 bg-rose-950/40 px-2 py-0.5 text-xs font-mono uppercase tracking-wider text-rose-200">
+            <span className="rounded-full border border-critical/50 bg-critical-soft px-2 py-0.5 text-xs font-mono uppercase tracking-wider text-critical-strong">
               <Bilingual en={blacklistPill.en} th={blacklistPill.th} de={blacklistPill.de} locale={locale} />
             </span>
           )}
           {selected.payment_terms && (
-            <span className="rounded-full border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-xs font-mono text-slate-300">
+            <span className="rounded-full border border-rule bg-paper-3 px-2 py-0.5 text-xs font-mono text-ink-2">
               {selected.payment_terms}
             </span>
           )}
@@ -228,7 +228,7 @@ export function CustomerCombobox({
             type="button"
             onClick={clear}
             disabled={disabled}
-            className="ml-auto rounded-md border border-slate-700 bg-slate-900/60 px-2 py-1 text-xs font-mono text-slate-300 hover:border-rose-500/50 hover:text-rose-200 disabled:opacity-50"
+            className="ml-auto rounded-md border border-rule bg-paper-3 px-2 py-1 text-xs font-mono text-ink-2 hover:border-critical/50 hover:text-critical transition-colors disabled:opacity-50"
             aria-label={t('customers.combo.clear', locale)}
             title={t('customers.combo.clear', locale)}
           >
@@ -246,7 +246,7 @@ export function CustomerCombobox({
           onFocus={() => setOpen(true)}
           placeholder={placeholderText}
           disabled={disabled}
-          className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-cyan-500/60 focus:outline-none focus:ring-1 focus:ring-cyan-500/40 disabled:opacity-50"
+          className="w-full rounded-lg border border-rule bg-paper-2 px-3 py-2 text-sm text-ink placeholder:text-mute/60 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/25 disabled:opacity-50 transition-colors"
           aria-label={t('customers.combo.placeholder', locale)}
           autoComplete="off"
         />
@@ -254,23 +254,23 @@ export function CustomerCombobox({
 
       {open && !selected && query.trim().length >= 1 && (
         <ul
-          className="absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-auto rounded-xl border border-slate-700 bg-slate-950/95 shadow-2xl shadow-black/40 backdrop-blur"
+          className="absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-auto rounded-xl glass-panel-heavy border border-rule shadow-modal"
           role="listbox"
         >
           {loading && (
-            <li className="px-3 py-2 text-sm font-mono text-slate-400">
-              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent align-middle" />{' '}
+            <li className="px-3 py-2 text-sm font-mono text-ink-2">
+              <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-info border-t-transparent align-middle" />{' '}
               <Bilingual en={searchingText.en} th={searchingText.th} de={searchingText.de} locale={locale} />
             </li>
           )}
           {error && !loading && (
-            <li className="px-3 py-2 text-sm text-rose-300">
+            <li className="px-3 py-2 text-sm text-critical">
               <Bilingual en={errorText.en} th={errorText.th} de={errorText.de} locale={locale} />
               {error && ` (${error})`}
             </li>
           )}
           {!loading && !error && results.length === 0 && (
-            <li className="px-3 py-2 text-sm font-mono text-slate-500">
+            <li className="px-3 py-2 text-sm font-mono text-ink-2">
               <Bilingual en={emptyText.en} th={emptyText.th} de={emptyText.de} locale={locale} />
             </li>
           )}
@@ -279,24 +279,24 @@ export function CustomerCombobox({
               <button
                 type="button"
                 onClick={() => pick(c)}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-900/80"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-paper-3 transition-colors"
                 role="option"
                 aria-selected={false}
               >
-                <span className="font-mono text-sm text-cyan-300">{c.code}</span>
-                <span className="min-w-0 flex-1 truncate text-sm text-white">{c.name}</span>
+                <span className="font-mono text-sm text-info">{c.code}</span>
+                <span className="min-w-0 flex-1 truncate text-sm text-ink">{c.name}</span>
                 {c.blacklist && (
-                  <span className="rounded-full border border-rose-500/50 bg-rose-950/40 px-1.5 py-0.5 text-xs font-mono text-rose-200">
+                  <span className="rounded-full border border-critical/50 bg-critical-soft px-1.5 py-0.5 text-xs font-mono text-critical-strong">
                     🚫
                   </span>
                 )}
                 {c.outstanding_ar_thb != null && c.credit_limit_thb != null && c.credit_limit_thb > 0 && (
                   <span
                     className={[
-                      'rounded-full px-1.5 py-0.5 text-xs font-mono',
+                      'rounded-full px-1.5 py-0.5 text-xs font-mono border',
                       c.outstanding_ar_thb / c.credit_limit_thb > 0.8
-                        ? 'border border-rose-500/50 bg-rose-950/40 text-rose-200'
-                        : 'border border-slate-700 bg-slate-900/60 text-slate-300',
+                        ? 'border-critical/50 bg-critical-soft text-critical-strong'
+                        : 'border-rule bg-paper-3 text-ink-2',
                     ].join(' ')}
                   >
                     <Bilingual
@@ -314,36 +314,36 @@ export function CustomerCombobox({
       )}
 
       {selected && creditLimit != null && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-mono text-slate-400">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-mono text-ink-2">
           <span>
             <Bilingual en={creditLimitText.en} th={creditLimitText.th} de={creditLimitText.de} locale={locale} />{' '}
-            <span className="text-slate-200 tabular-nums">
+            <span className="text-ink tabular-nums">
               {creditLimit.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
             </span>{' '}
             <Bilingual en={thbText.en} th={thbText.th} de={thbText.de} locale={locale} />
           </span>
           {outstanding != null && (
             <>
-              <span className="text-slate-700">·</span>
+              <span className="text-mute">·</span>
               <span>
                 <Bilingual en={arText.en} th={arText.th} de={arText.de} locale={locale} />{' '}
                 <span
                   className={[
                     'tabular-nums',
-                    overCredit ? 'text-rose-300' : 'text-amber-200',
+                    overCredit ? 'text-critical' : 'text-caution',
                   ].join(' ')}
                 >
                   {outstanding.toLocaleString('th-TH', { maximumFractionDigits: 0 })}
                 </span>{' '}
                 <Bilingual en={thbText.en} th={thbText.th} de={thbText.de} locale={locale} />
               </span>
-              <span className="text-slate-700">·</span>
+              <span className="text-mute">·</span>
               <span>
                 <Bilingual en={utilText.en} th={utilText.th} de={utilText.de} locale={locale} />{' '}
                 <span
                   className={[
                     'font-bold tabular-nums',
-                    overCredit ? 'text-rose-300' : 'text-amber-200',
+                    overCredit ? 'text-critical' : 'text-caution',
                   ].join(' ')}
                 >
                   {utilizationPct}%

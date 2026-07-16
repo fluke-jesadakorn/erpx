@@ -2,6 +2,24 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  Building2,
+  Package,
+  CalendarClock,
+  Banknote,
+  CircleAlert,
+  Check,
+  CircleDot,
+  Circle,
+  ArrowRight,
+  ArrowUpRight,
+  Loader2,
+  Lock,
+  CreditCard,
+  CalendarDays,
+  TriangleAlert,
+  CircleCheck,
+} from 'lucide-react';
 import { StepCard, StepBadge } from '@/components/StepCard';
 import { CustomerCombobox, type CustomerComboboxOption } from '@/components/customer/CustomerCombobox';
 import { CustomerArHistory, type CustomerArBucket } from '@/components/customer/CustomerArHistory';
@@ -9,6 +27,7 @@ import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 import { Bilingual } from '@/components/i18n/Bilingual';
 import salesDict from '@folio-lib/i18n/sales';
 import { NewWaybillPanel } from './NewWaybillPanel';
+import { SalesExtractPanel, type ExtractedDraft } from './SalesExtractPanel';
 
 export interface SoItemDraft {
   key: string;
@@ -41,6 +60,13 @@ export interface NewSalesPanelProps {
 const AUTOSAVE_DEBOUNCE_MS = 10_000;
 
 const PAYMENT_TERMS = ['Net 15', 'Net 30', 'Net 45', 'Net 60', 'Cash on delivery', 'Prepaid'];
+
+const SO_INPUT =
+  'rounded-lg border border-rule bg-paper-2 px-3 py-2 text-sm text-ink placeholder:text-mute/60 transition-colors focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25 disabled:opacity-50';
+const SO_INPUT_NUM =
+  'rounded-lg border border-rule bg-paper-2 px-3 py-2 text-sm text-ink tabular-nums placeholder:text-mute/60 transition-colors focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25 disabled:opacity-50';
+const SO_INPUT_ERR =
+  'rounded-lg border border-critical bg-paper-2 px-3 py-2 text-sm text-ink placeholder:text-mute/60 transition-colors focus:outline-none focus:border-critical focus:ring-2 focus:ring-critical/25 disabled:opacity-50';
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -94,6 +120,14 @@ function tKey(key: string, locale: 'th' | 'de'): string {
   return salesDict.th?.[key] ?? en;
 }
 
+function fmtShortDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}`;
+}
+
 export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProps) {
   void currentUserId;
   const locale = useSecondaryLocale();
@@ -137,6 +171,10 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
   const [arTotalInvoiced, setArTotalInvoiced] = useState<number>(initialDraft?.arTotalInvoiced ?? 0);
   const [arTotalPaid, setArTotalPaid] = useState<number>(initialDraft?.arTotalPaid ?? 0);
   const [arCreditLimit, setArCreditLimit] = useState<number>(initialDraft?.arCreditLimit ?? 0);
+  const [dirty, setDirty] = useState<Record<string, boolean>>({});
+  const markDirty = (k: string) =>
+    setDirty((prev) => (prev[k] ? prev : { ...prev, [k]: true }));
+  const fieldErr = (k: string, isInvalid: boolean) => dirty[k] === true && isInvalid;
 
   const router = useRouter();
   const draftRef = useRef({ waybillId: draftWaybillId });
@@ -157,7 +195,7 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
     {
       key: 'customer' as const,
       n: 1,
-      icon: '🏢',
+      Icon: Building2,
       title: 'Pick customer',
       titleTh: 'เลือกลูกค้า',
       done: customerReady,
@@ -166,7 +204,7 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
     {
       key: 'items' as const,
       n: 2,
-      icon: '📦',
+      Icon: Package,
       title: 'Line items',
       titleTh: 'รายการสินค้า',
       done: itemsReady,
@@ -175,14 +213,33 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
     {
       key: 'terms' as const,
       n: 3,
-      icon: '📅',
-      title: 'Payment terms & due date',
+      Icon: CalendarClock,
+      title: 'Payment terms',
       titleTh: 'เครดิต & กำหนดชำระ',
       done: termsReady,
       active: itemsReady && !termsReady,
     },
   ];
   const completedCount = steps.filter((s) => s.done).length;
+  const blocker = !customerReady
+    ? {
+        Icon: Building2,
+        en: 'Pick a customer',
+        th: 'เลือกลูกค้า',
+      }
+    : !itemsReady
+    ? { Icon: Package, en: 'Add at least 1 line item', th: 'เพิ่มรายการสินค้า' }
+    : !termsReady
+    ? { Icon: CalendarClock, en: 'Set due date', th: 'ตั้งกำหนดชำระ' }
+    : null;
+
+  function scrollToStep(n: number) {
+    if (typeof document === 'undefined') return;
+    document.getElementById(`step-${n}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    });
+  }
 
   useEffect(() => {
     if (!customer) {
@@ -289,8 +346,6 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
       })();
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-    // autosavePending intentionally read inside timer; we don't want it as a dep
-    // (it would reset the debounce on every state flip)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftWaybillId, customer, paymentTerms, dueDate, items, totals]);
 
@@ -375,41 +430,73 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
     }
   }
 
+  const applyDraft = (d: ExtractedDraft) => {
+    if (d.customer_id || d.customer_name || d.customer_code) {
+      setCustomer({
+        id: d.customer_id ?? 0,
+        code: d.customer_code ?? '',
+        name: d.customer_name ?? '',
+      });
+    }
+    if (Array.isArray(d.items) && d.items.length > 0) {
+      setItems(
+        d.items.map((it) => ({
+          key: uid(),
+          description: String(it.description ?? ''),
+          qty: Number(it.qty ?? 0) || 0,
+          unitPrice: Number(it.unit_price ?? 0) || 0,
+          vatPct: 7,
+        })),
+      );
+    }
+    if (d.payment_terms && PAYMENT_TERMS.includes(d.payment_terms)) {
+      setPaymentTerms(d.payment_terms);
+      setDueDate(defaultDueDate(d.payment_terms));
+    }
+  };
+
   const overCredit =
     arCreditLimit > 0 &&
     arTotalInvoiced - arTotalPaid >= arCreditLimit * 0.8;
 
+  const overCreditPct =
+    arCreditLimit > 0
+      ? Math.round(((arTotalInvoiced - arTotalPaid) / arCreditLimit) * 100)
+      : 0;
+
   const hint = (
-    <>
-      <Bilingual
-        en="Pick customer → add line items → set payment terms → submit for review. "
-        th="เลือกลูกค้า → เพิ่มรายการ → ตั้งเครดิต → ส่งอนุมัติ "
-        locale={locale}
-      />
-      <Bilingual
-        en="sales_rep submits; sales_supervisor approves then accounting issues the invoice."
-        th="sales_rep ส่ง, sales_supervisor อนุมัติ แล้วบัญชีออกใบแจ้งหนี้"
-        locale={locale}
-      />
+    <span
+      title="Pick customer → add line items → set payment terms → submit for review · เลือกลูกค้า → เพิ่มรายการ → ตั้งเครดิต → ส่งอนุมัติ"
+    >
+      <Bilingual showSecondary={false} en="Pick → add → set → submit" th="เลือก → เพิ่ม → ตั้ง → ส่ง" locale={locale} />
       {draftWaybillId && (
         <span className="ml-2 text-xs font-mono text-mute" data-testid="autosave-status">
-          {autosavePending
-            ? `· ${tKey('sales.panel.saving', locale)}`
+          · {autosavePending
+            ? tKey('sales.panel.saving', locale)
             : lastSavedAt
-              ? `· ${tKey('sales.panel.saved', locale)}`
-              : `· ${tKey('sales.panel.unsaved', locale)}`}
+              ? tKey('sales.panel.saved', locale)
+              : tKey('sales.panel.unsaved', locale)}
         </span>
       )}
-    </>
+    </span>
   );
 
-  const submitLabel = submitting
-    ? <Bilingual en="⏳ Saving…" th="⏳ กำลังบันทึก…" locale={locale} />
-    : canSubmitAll
-      ? <Bilingual en="✓ Submit sales order for approval" th="✓ ส่งใบสั่งขายเพื่ออนุมัติ" locale={locale} />
-      : <Bilingual en="🔒 Submit (disabled)" th="🔒 ส่ง (ปิดอยู่)" locale={locale} />;
-
-  const discardLabel = <Bilingual en="🗑 Discard draft" th="🗑 ลบร่าง" locale={locale} />;
+  const submitLabel = submitting ? (
+    <span className="inline-flex items-center gap-2">
+      <Loader2 className="size-4 animate-spin" aria-hidden />
+      <Bilingual showSecondary={false} en="Saving…" th="กำลังบันทึก…" locale={locale} />
+    </span>
+  ) : canSubmitAll ? (
+    <span className="inline-flex items-center gap-2">
+      <ArrowRight className="size-4" aria-hidden />
+      <Bilingual showSecondary={false} en="Submit" th="ส่ง" locale={locale} />
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-2">
+      <Lock className="size-4" aria-hidden />
+      <Bilingual showSecondary={false} en="Submit" th="ส่ง" locale={locale} />
+    </span>
+  );
 
   return (
     <NewWaybillPanel
@@ -418,7 +505,7 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
       initialDraft={initialDraft ?? null}
       title=""
       titleTh=""
-      discardLabel={discardLabel}
+      discardLabel={null}
       submitLabel={submitLabel}
       readyToSubmit={canSubmitAll}
       submitting={submitting}
@@ -426,71 +513,231 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
       onDiscard={handleDiscard}
       hint={hint}
       draftWaybillId={draftWaybillId}
+      headerExtra={
+        <span
+          aria-live="polite"
+          title={
+            totals.total > 0
+              ? `${totals.total.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`
+              : '—'
+          }
+          className={[
+            'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-sm font-mono font-semibold tabular-nums',
+            canSubmitAll
+              ? 'border-positive/40 bg-positive-soft text-positive'
+              : totals.total > 0
+              ? 'border-info/40 bg-info-soft text-info'
+              : 'border-rule bg-paper-3 text-mute',
+          ].join(' ')}
+          data-testid="sales-header-total"
+        >
+          <Banknote className="size-3.5" aria-hidden strokeWidth={2} />
+          {totals.total > 0
+            ? `${totals.total.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`
+            : '— THB'}
+        </span>
+      }
+      stickyActionBar={
+        <div
+          className="sticky bottom-2 z-10 -mx-5 sm:-mx-7 px-5 sm:px-7 py-4 glass-panel-heavy rounded-2xl border border-rule"
+          data-testid="sales-sticky-bar"
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:gap-5">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              {blocker ? (
+                <span
+                  title={`${blocker.en} · ${blocker.th}`}
+                  aria-label={blocker.en}
+                  className="inline-flex shrink-0 w-9 h-9 items-center justify-center rounded-full bg-caution-soft text-caution border border-caution/40"
+                >
+                  <blocker.Icon className="size-4" strokeWidth={2} aria-hidden />
+                </span>
+              ) : (
+                <>
+                  <span
+                    aria-label="Ready"
+                    title="Ready · พร้อม"
+                    className="inline-flex shrink-0 w-9 h-9 items-center justify-center rounded-full bg-positive-soft text-positive border border-positive/40"
+                  >
+                    <CircleCheck className="size-4" strokeWidth={2.5} aria-hidden />
+                  </span>
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-rule bg-paper-3 text-xs font-mono tabular-nums text-ink-2">
+                      <Package className="size-3" aria-hidden strokeWidth={2} />
+                      {items.length}
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-rule bg-paper-3 text-xs font-mono tabular-nums text-ink-2">
+                      <CalendarDays className="size-3" aria-hidden strokeWidth={2} />
+                      {fmtShortDate(dueDate)}
+                    </span>
+                    <span
+                      title={`${paymentTerms} · เงื่อนไขการชำระ`}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-rule bg-paper-3 text-xs font-mono tabular-nums text-ink-2"
+                    >
+                      <CreditCard className="size-3" aria-hidden strokeWidth={2} />
+                      {paymentTerms.replace('Net ', 'N')}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="hidden sm:block w-px h-12 bg-rule" aria-hidden />
+            <div className="flex items-center gap-4 justify-self-stretch sm:justify-self-end">
+              <div
+                aria-live="polite"
+                title={
+                  totals.total > 0
+                    ? `${totals.total.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB · รวม`
+                    : '—'
+                }
+                className={[
+                  'font-display text-2xl font-semibold tabular-nums leading-none',
+                  canSubmitAll ? 'text-positive' : 'text-ink',
+                ].join(' ')}
+                data-testid="sales-sticky-total"
+              >
+                {totals.total > 0
+                  ? totals.total.toLocaleString('th-TH', { minimumFractionDigits: 2 })
+                  : '—'}
+                <span className="ml-1 text-sm font-mono font-normal text-mute">THB</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!canSubmitAll}
+                title={
+                  canSubmitAll
+                    ? 'Submit for approval · ส่งเพื่ออนุมัติ'
+                    : 'Disabled · ปิดอยู่'
+                }
+                data-testid="sales-sticky-submit"
+                className={[
+                  'shrink-0 inline-flex items-center justify-center gap-2 rounded-xl border w-12 h-12 transition-all duration-200',
+                  'disabled:opacity-50 disabled:cursor-not-allowed',
+                  submitting
+                    ? 'bg-rule-strong text-ink-2 border-rule-strong'
+                    : canSubmitAll
+                    ? 'bg-accent hover:bg-accent-strong text-paper-2 border-accent shadow-[0_8px_24px_-8px_color-mix(in_oklab,var(--accent)_55%,transparent)]'
+                    : 'bg-paper-3 text-mute border-rule-strong',
+                ].join(' ')}
+              >
+                {submitting ? (
+                  <Loader2 className="size-5 animate-spin" aria-hidden />
+                ) : canSubmitAll ? (
+                  <ArrowUpRight className="size-5" aria-hidden strokeWidth={2.5} />
+                ) : (
+                  <Lock className="size-5" aria-hidden strokeWidth={2} />
+                )}
+                <span className="sr-only">
+                  {canSubmitAll ? 'Submit' : 'Submit (locked)'}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      }
     >
       {overCredit && customer && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-950/30 px-3 py-2 text-sm font-mono text-amber-200">
-          <Bilingual
-            en={`⚠ Customer ${customer.code} outstanding AR is at ≥ 80% of credit limit. Credit check is more likely to require manual review.`}
-            th={`⚠ ลูกค้า ${customer.code} มี AR ค้างชำระ ≥ 80% ของวงเงินเครดิต — อาจต้องตรวจสอบเครดิตด้วยตนเอง`}
-            locale={locale}
-          />
+        <div
+          title={`Customer ${customer.code} outstanding AR is at ≥ 80% of credit limit · ลูกค้า ${customer.code} มี AR ค้างชำระ ≥ 80% ของวงเงินเครดิต — อาจต้องตรวจสอบเครดิตด้วยตนเอง`}
+          className="inline-flex items-center gap-1.5 rounded-md border border-caution/40 bg-caution-soft px-2.5 py-1 text-xs font-mono text-caution self-start"
+        >
+          <TriangleAlert className="size-3.5" aria-hidden strokeWidth={2.5} />
+          <span>
+            {customer.code} · {overCreditPct}%
+          </span>
         </div>
       )}
 
-      <ol className="grid grid-cols-1 sm:grid-cols-3 gap-2" aria-label="Progress steps">
-        {steps.map((s) => (
-          <li
-            key={s.key}
-            className={[
-              'flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors',
-              s.done
-                ? 'border-emerald-500/30 bg-emerald-500/5'
-                : s.active
-                ? 'border-fuchsia-500/40 bg-fuchsia-500/5'
-                : 'glass-panel',
-            ].join(' ')}
-          >
-            <StepBadge n={s.n} done={s.done} active={s.active} />
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span aria-hidden className="text-sm">{s.icon}</span>
-                <p className="text-xs font-bold text-white truncate">
-                  <Bilingual en={s.title} th={s.titleTh} locale={locale} />
-                </p>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ol>
+      <SalesExtractPanel lang={locale} onUse={applyDraft} />
 
-      <div className="flex items-center gap-3">
-        <div className="flex-1 h-1.5 rounded-full bg-slate-800/80 overflow-hidden">
-          <div
-            className="h-full bg-accent transition-[width] duration-500 ease-out"
-            style={{ width: `${(completedCount / steps.length) * 100}%` }}
-            aria-hidden
-          />
-        </div>
-        <span className="text-sm font-mono text-slate-400 tabular-nums">
+      <div className="flex items-center justify-end" aria-label="Progress">
+        <span className="text-xs font-mono tabular-nums text-mute">
           {completedCount}/{steps.length}
         </span>
       </div>
+      <ol className="relative grid grid-cols-3 gap-y-3">
+        {steps.map((s, i) => {
+          const Icon = s.Icon;
+          return (
+            <li key={s.key} className="relative flex justify-center">
+              {i < steps.length - 1 && (
+                <span
+                  aria-hidden
+                  className="hidden sm:block absolute top-[18px] left-[calc(50%+22px)] right-[calc(-50%+22px)] h-px bg-rule overflow-hidden"
+                >
+                  <span
+                    className="block h-full bg-positive transition-[width] duration-500 ease-out"
+                    style={{ width: completedCount > i ? '100%' : '0%' }}
+                  />
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => scrollToStep(s.n)}
+                aria-current={s.active ? 'step' : undefined}
+                aria-label={`Jump to step ${s.n}: ${s.title}`}
+                title={`${s.title} · ${s.titleTh}`}
+                className="group flex flex-col items-center gap-1.5 w-full sm:w-auto px-2 py-2 transition-colors"
+              >
+                <StepBadge n={s.n} done={s.done} active={s.active} tone="accent" />
+                <Icon
+                  aria-hidden
+                  className={[
+                    'size-4 mt-0.5',
+                    s.done
+                      ? 'text-positive'
+                      : s.active
+                      ? 'text-accent'
+                      : 'text-mute',
+                  ].join(' ')}
+                  strokeWidth={2}
+                />
+                <p
+                  className={[
+                    'text-xs truncate max-w-full text-center',
+                    s.done || s.active ? 'text-ink font-semibold' : 'text-ink-2',
+                  ].join(' ')}
+                >
+                  {s.title}
+                </p>
+                <span aria-hidden className="text-mute">
+                  {s.done ? (
+                    <Check className="size-3 text-positive" strokeWidth={3} />
+                  ) : s.active ? (
+                    <CircleDot className="size-3 text-accent" strokeWidth={3} />
+                  ) : (
+                    <Circle className="size-3 text-mute" strokeWidth={2} />
+                  )}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
 
       <StepCard
         n={1}
-        icon="🏢"
-        title="Pick customer"
-        titleTh="เลือกลูกค้า"
-        hint={
+        icon={<Building2 className="size-4" strokeWidth={2} aria-hidden />}
+        title={
           <Bilingual
-            en="Search by code or name. Newer customers with high AR utilization will be flagged."
-            th="ค้นหาจากรหัสหรือชื่อ ลูกค้าที่ใช้เครดิตสูงจะถูกแจ้งเตือน"
+            showSecondary={false}
+            en="Pick customer"
+            th="เลือกลูกค้า"
             locale={locale}
           />
         }
+        hint={
+          <span title="Search by code or name. Newer customers with high AR utilization will be flagged · ค้นหาจากรหัสหรือชื่อ ลูกค้าที่ใช้เครดิตสูงจะถูกแจ้งเตือน">
+            <Bilingual showSecondary={false} en="Search by code or name" th="ค้นหาจากรหัสหรือชื่อ" locale={locale} />
+          </span>
+        }
+        cardId="step-1"
         done={customerReady}
         active={!customerReady}
-        tone="indigo"
+        tone="accent"
+        bodyTint
+        flat
       >
         <CustomerCombobox
           value={customer?.id ?? null}
@@ -512,140 +759,170 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
 
       <StepCard
         n={2}
-        icon="📦"
-        title="Add line items"
-        titleTh="เพิ่มรายการสินค้า/บริการ"
-        hint={
+        icon={<Package className="size-4" strokeWidth={2} aria-hidden />}
+        title={
           <Bilingual
-            en="Each line carries description, qty, unit price, and VAT %. Subtotal + VAT roll up to the invoice total."
-            th="แต่ละบรรทัดมีรายละเอียด, จำนวน, ราคาต่อหน่วย และภาษี % ยอดรวมก่อนภาษี + ภาษี จะรวมเป็นยอดใบแจ้งหนี้"
+            showSecondary={false}
+            en="Line items"
+            th="รายการสินค้า"
             locale={locale}
           />
         }
+        hint={
+          <span title="Each line carries description, qty, unit price, and VAT % · แต่ละบรรทัดมีรายละเอียด, จำนวน, ราคาต่อหน่วย และภาษี %">
+            <Bilingual showSecondary={false} en="Description, qty, price, VAT" th="รายละเอียด จำนวน ราคา ภาษี" locale={locale} />
+          </span>
+        }
+        cardId="step-2"
         done={itemsReady}
         active={customerReady && !itemsReady}
-        tone="cyan"
+        tone="accent"
+        bodyTint
+        flat
         badge={
           itemsReady ? (
-            <span className="text-sm font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-500/30">
-              {items.length} <Bilingual en="line" th="รายการ" locale={locale} />{items.length === 1 ? '' : 's'}
+            <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-positive-soft text-positive border border-positive/40 inline-flex items-center gap-1">
+              <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
+              {items.length}
             </span>
           ) : null
         }
       >
         <div className="space-y-2">
-          <div className="grid grid-cols-12 gap-2 text-sm font-mono uppercase tracking-wider text-slate-500 px-1">
-            <div className="col-span-6">
-              <Bilingual en="description" th="รายละเอียด" locale={locale} />
+          <div className="grid grid-cols-12 gap-2 text-xs font-mono uppercase tracking-wider text-ink-2 px-1">
+            <div className="col-span-5">
+              <Bilingual showSecondary={false} en="Description" th="รายละเอียด" locale={locale} />
             </div>
             <div className="col-span-2 text-right">
-              <Bilingual en="qty" th="จำนวน" locale={locale} />
+              <Bilingual showSecondary={false} en="Qty" th="จำนวน" locale={locale} />
             </div>
             <div className="col-span-2 text-right">
-              <Bilingual en="unit (THB)" th="หน่วย (THB)" locale={locale} />
+              <Bilingual showSecondary={false} en="Unit" th="หน่วย" locale={locale} />
             </div>
             <div className="col-span-1 text-right">
-              <Bilingual en="VAT %" th="ภาษี %" locale={locale} />
+              <Bilingual showSecondary={false} en="VAT" th="ภาษี" locale={locale} />
             </div>
-            <div className="col-span-1 text-right">
-              <Bilingual en="line" th="รวม" locale={locale} />
+            <div className="col-span-2 text-right">
+              <Bilingual showSecondary={false} en="Line" th="รวม" locale={locale} />
             </div>
           </div>
           {items.map((it, idx) => {
             const t = lineTotals(it);
+            const showDescErr = fieldErr(`${it.key}-desc`, !it.description.trim());
+            const showQtyErr = fieldErr(`${it.key}-qty`, it.qty <= 0);
             return (
-              <div
-                key={it.key}
-                className="glass-panel grid grid-cols-12 gap-2 items-center rounded-lg border px-2 py-2"
-              >
-                <input
-                  type="text"
-                  value={it.description}
-                  onChange={(e) => changeItem(idx, { description: e.target.value })}
-                  placeholder={tKey('sales.panel.item_description', locale)}
-                  className="glass-panel col-span-6 rounded-md border px-2 py-1.5 text-sm text-white focus:border-fuchsia-500/60 focus:outline-none"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={it.qty}
-                  onChange={(e) =>
-                    changeItem(idx, { qty: parseFloat(e.target.value) || 0 })
-                  }
-                  className="glass-panel col-span-2 rounded-md border px-2 py-1.5 text-right text-sm text-white tabular-nums focus:border-fuchsia-500/60 focus:outline-none"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  value={it.unitPrice}
-                  onChange={(e) =>
-                    changeItem(idx, { unitPrice: parseFloat(e.target.value) || 0 })
-                  }
-                  className="glass-panel col-span-2 rounded-md border px-2 py-1.5 text-right text-sm text-white tabular-nums focus:border-fuchsia-500/60 focus:outline-none"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step="0.01"
-                  value={it.vatPct}
-                  onChange={(e) =>
-                    changeItem(idx, { vatPct: parseFloat(e.target.value) || 0 })
-                  }
-                  className="glass-panel col-span-1 rounded-md border px-2 py-1.5 text-right text-sm text-white tabular-nums focus:border-fuchsia-500/60 focus:outline-none"
-                />
-                <div className="col-span-1 text-right">
-                  <button
-                    type="button"
-                    onClick={() => removeItem(idx)}
-                    disabled={items.length <= 1}
-                    className="glass-panel rounded-md border px-1.5 py-1 text-sm font-mono text-slate-300 hover:border-rose-500/50 hover:text-rose-200 disabled:opacity-30"
-                    aria-label={`Remove line ${idx + 1}`}
-                    title={`Remove line ${idx + 1}`}
+              <div key={it.key} className="space-y-1">
+                <div className="grid grid-cols-12 gap-2 items-center rounded-xl border border-rule bg-paper-3 px-2 py-2">
+                  <input
+                    type="text"
+                    value={it.description}
+                    onChange={(e) => {
+                      markDirty(`${it.key}-desc`);
+                      changeItem(idx, { description: e.target.value });
+                    }}
+                    placeholder={tKey('sales.panel.item_description', locale)}
+                    aria-invalid={showDescErr || undefined}
+                    className={`col-span-5 ${showDescErr ? SO_INPUT_ERR : SO_INPUT}`}
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={it.qty}
+                    onChange={(e) => {
+                      markDirty(`${it.key}-qty`);
+                      changeItem(idx, { qty: parseFloat(e.target.value) || 0 });
+                    }}
+                    aria-invalid={showQtyErr || undefined}
+                    className={`col-span-2 text-right ${showQtyErr ? SO_INPUT_ERR : SO_INPUT_NUM}`}
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={it.unitPrice}
+                    onChange={(e) =>
+                      changeItem(idx, { unitPrice: parseFloat(e.target.value) || 0 })
+                    }
+                    className={`col-span-2 text-right ${SO_INPUT_NUM}`}
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="0.01"
+                    value={it.vatPct}
+                    onChange={(e) =>
+                      changeItem(idx, { vatPct: parseFloat(e.target.value) || 0 })
+                    }
+                    className={`col-span-1 text-right ${SO_INPUT_NUM}`}
+                  />
+                  <div
+                    aria-live="polite"
+                    className={[
+                      'col-span-1 self-center text-right text-sm font-mono font-bold tabular-nums',
+                      t.total > 0 ? 'text-positive' : 'text-mute',
+                    ].join(' ')}
                   >
-                    ✕
-                  </button>
+                    {t.total.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                  </div>
+                  <div className="col-span-1 text-right">
+                    <button
+                      type="button"
+                      onClick={() => removeItem(idx)}
+                      disabled={items.length <= 1}
+                      className="rounded-md border border-rule bg-paper-2 px-1.5 py-1 text-xs font-mono text-ink-2 hover:border-critical hover:text-critical disabled:opacity-30"
+                      aria-label={`Remove line ${idx + 1}`}
+                      title={`Remove line ${idx + 1}`}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
-                <div className="col-span-12 -mt-1 px-1 text-right text-sm font-mono text-slate-500">
-                  <Bilingual en="line" th="รายการ" locale={locale} /> {idx + 1} · {tKey('sales.panel.subtotal', locale)} {t.subtotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} · {tKey('sales.panel.vat', locale)} {t.vat.toLocaleString('th-TH', { minimumFractionDigits: 2 })} ·{' '}
-                  <span className="text-emerald-300">{t.total.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB</span>
-                </div>
+                {(showDescErr || showQtyErr) && (
+                  <p className="px-2 text-xs font-mono text-critical">
+                    {showDescErr && showQtyErr
+                      ? <Bilingual en="Description required · qty must be > 0" th="ต้องระบุรายละเอียด และจำนวนต้อง > 0" locale={locale} />
+                      : showDescErr
+                      ? <Bilingual en="Description required" th="ต้องระบุรายละเอียด" locale={locale} />
+                      : <Bilingual en="Qty must be > 0" th="จำนวนต้องมากกว่า 0" locale={locale} />}
+                  </p>
+                )}
               </div>
             );
           })}
           <button
             type="button"
             onClick={addItem}
-            className="glass-panel w-full rounded-lg border border-dashed py-2 text-sm font-mono text-slate-300 hover:border-fuchsia-500/60 hover:text-fuchsia-200"
+            className="w-full rounded-lg border border-dashed border-rule bg-paper-3 py-2 text-sm font-mono text-ink-2 hover:border-accent hover:text-accent transition-colors inline-flex items-center justify-center gap-1.5"
           >
-            <Bilingual en="+ add line" th="+ เพิ่มรายการ" locale={locale} />
+            <span aria-hidden>+</span>
+            <Bilingual showSecondary={false} en="Add line" th="เพิ่มรายการ" locale={locale} />
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-2 text-sm font-mono">
-          <div className="glass-panel rounded-lg border px-3 py-2">
-            <div className="text-slate-500 uppercase tracking-wider">
-              <Bilingual en="Subtotal" th="ก่อนภาษี" locale={locale} />
+        <div className="mt-4 grid grid-cols-3 gap-2 text-xs font-mono">
+          <div className="rounded-lg border border-rule bg-paper-3 px-3 py-2">
+            <div className="text-mute uppercase tracking-wider text-xs">
+              <Bilingual showSecondary={false} en="Subtotal" th="ก่อนภาษี" locale={locale} />
             </div>
-            <div className="text-sm text-slate-200 tabular-nums">
+            <div className="text-sm text-ink tabular-nums mt-0.5">
               {totals.subtotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB
             </div>
           </div>
-          <div className="glass-panel rounded-lg border px-3 py-2">
-            <div className="text-slate-500 uppercase tracking-wider">
-              <Bilingual en="VAT" th="ภาษี" locale={locale} />
+          <div className="rounded-lg border border-rule bg-paper-3 px-3 py-2">
+            <div className="text-mute uppercase tracking-wider text-xs">
+              <Bilingual showSecondary={false} en="VAT" th="ภาษี" locale={locale} />
             </div>
-            <div className="text-sm text-amber-200 tabular-nums">
+            <div className="text-sm text-caution tabular-nums mt-0.5">
               {totals.vat.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB
             </div>
           </div>
-          <div className="rounded-lg border border-emerald-500/40 bg-emerald-950/30 px-3 py-2">
-            <div className="text-slate-300 uppercase tracking-wider">
-              <Bilingual en="Total" th="รวมทั้งสิ้น" locale={locale} />
+          <div className="rounded-lg border border-positive/40 bg-positive-soft px-3 py-2">
+            <div className="text-positive uppercase tracking-wider text-xs">
+              <Bilingual showSecondary={false} en="Total" th="รวมทั้งสิ้น" locale={locale} />
             </div>
-            <div className="text-base font-bold text-emerald-300 tabular-nums">
+            <div className="text-lg font-bold text-positive tabular-nums mt-0.5">
               {totals.total.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB
             </div>
           </div>
@@ -654,23 +931,33 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
 
       <StepCard
         n={3}
-        icon="📅"
-        title="Payment terms & due date"
-        titleTh="เครดิต & กำหนดชำระ"
-        hint={
+        icon={<CalendarClock className="size-4" strokeWidth={2} aria-hidden />}
+        title={
           <Bilingual
-            en="sales_rep submits; auto-skips sales_review when total < 5,000 THB."
-            th="sales_rep ส่ง; ข้าม sales_review อัตโนมัติเมื่อยอด < 5,000 THB"
+            showSecondary={false}
+            en="Payment terms"
+            th="เครดิต & กำหนดชำระ"
             locale={locale}
           />
         }
+        hint={
+          <span title="sales_rep submits; auto-skips sales_review when total < 5,000 THB · sales_rep ส่ง; ข้าม sales_review อัตโนมัติเมื่อยอด < 5,000 THB">
+            <Bilingual showSecondary={false} en="Auto-skip review under 5,000" th="ข้าม review เมื่อ < 5,000" locale={locale} />
+          </span>
+        }
+        cardId="step-3"
         done={termsReady}
         active={itemsReady && !termsReady}
-        tone="indigo"
+        tone="accent"
+        bodyTint
+        flat
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label className="block text-sm font-mono uppercase tracking-wider text-slate-400">
-            <Bilingual en="Payment terms" th="เงื่อนไขการชำระ" locale={locale} />
+          <label className="block text-xs font-mono uppercase tracking-wider text-ink-2">
+            <span className="inline-flex items-center gap-1.5">
+              <CreditCard className="size-3.5" aria-hidden strokeWidth={2} />
+              <Bilingual showSecondary={false} en="Terms" th="เงื่อนไข" locale={locale} />
+            </span>
             <select
               value={paymentTerms}
               onChange={(e) => {
@@ -678,7 +965,7 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
                 setPaymentTerms(next);
                 setDueDate(defaultDueDate(next));
               }}
-              className="glass-panel mt-1 w-full rounded-md border px-2 py-2 text-sm text-white focus:border-fuchsia-500/60 focus:outline-none"
+              className={`mt-1.5 w-full ${SO_INPUT}`}
             >
               {PAYMENT_TERMS.map((term) => (
                 <option key={term} value={term}>
@@ -687,21 +974,29 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
               ))}
             </select>
           </label>
-          <label className="block text-sm font-mono uppercase tracking-wider text-slate-400">
-            <Bilingual en="Due date" th="กำหนดชำระ" locale={locale} />
+          <label className="block text-xs font-mono uppercase tracking-wider text-ink-2">
+            <span className="inline-flex items-center gap-1.5">
+              <CalendarDays className="size-3.5" aria-hidden strokeWidth={2} />
+              <Bilingual showSecondary={false} en="Due" th="ครบกำหนด" locale={locale} />
+            </span>
             <input
               type="date"
               value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className="glass-panel mt-1 w-full rounded-md border px-2 py-2 text-sm text-white focus:border-fuchsia-500/60 focus:outline-none"
+              onChange={(e) => {
+                markDirty('due');
+                setDueDate(e.target.value);
+              }}
+              aria-invalid={fieldErr('due', !termsReady) || undefined}
+              className={`mt-1.5 w-full ${fieldErr('due', !termsReady) ? SO_INPUT_ERR : SO_INPUT}`}
             />
           </label>
         </div>
       </StepCard>
 
       {submitError && (
-        <p className="mt-3 rounded-md border border-rose-500/40 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
-          ⚠ {submitError}
+        <p className="mt-3 rounded-md border border-critical/40 bg-critical-soft px-3 py-2 text-xs text-critical inline-flex items-center gap-2">
+          <CircleAlert className="size-3.5" aria-hidden strokeWidth={2.5} />
+          {submitError}
         </p>
       )}
     </NewWaybillPanel>

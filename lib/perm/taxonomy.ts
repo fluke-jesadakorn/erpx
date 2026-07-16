@@ -34,7 +34,11 @@ export const PERM = {
     },
     role:    { assign: allow('user', 'role', 'assign') },
     manager: { set: allow('user', 'manager', 'set') },
-    dept:    { edit: allow('user', 'dept', 'edit') },
+    dept: {
+      edit: allow('user', 'dept', 'edit'),
+      sales: allow('user', 'dept', 'sales'),
+      law:   allow('user', 'dept', 'law'),
+    },
     subtree: { edit: allow('user', 'subtree', 'edit') },
   },
   org: {
@@ -71,6 +75,9 @@ export const PERM = {
     ledger:           { view: allow('finance', 'ledger', 'view') },
     report:           { executive: allow('finance', 'report', 'executive') },
     budget:           { view: allow('finance', 'budget', 'view') },
+    client_contracts: { view: allow('finance', 'client_contracts', 'view') },
+    core_operations:  { view: allow('finance', 'core_operations', 'view') },
+    project_tasks:    { view: allow('finance', 'project_tasks', 'view') },
   },
   stage: {
     submission:                 { act: allow('stage', 'submission', 'act') },
@@ -187,6 +194,10 @@ export const PERM = {
     assignment: {
       read: allow('ai', 'assignment', 'read'), create: allow('ai', 'assignment', 'create'),
       delete: allow('ai', 'assignment', 'delete'),
+    },
+    chat: {
+      open:  allow('ai', 'chat', 'open'),
+      full:  allow('ai', 'chat', 'full'),
     },
     invocation:     { view: allow('ai', 'invocation', 'view') },
     section_health: { view: allow('ai', 'section_health', 'view') },

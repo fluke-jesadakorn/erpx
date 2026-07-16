@@ -5,7 +5,10 @@ import { query } from '../db';
 import { decryptKey } from './crypto';
 import * as ollama from './providers/ollama';
 import * as openai from './providers/openai';
-import type { AITask } from './sections';
+import type { AITask, SectionKey } from './sections';
+import { assertSection } from './sections';
+
+export type { SectionKey } from './sections';
 
 export interface InvokeInput {
   text?: string;
@@ -64,7 +67,7 @@ const FALLBACK_ENV = {
   },
 };
 
-export async function resolve(sectionKey: string, task: AITask, modelOverride?: string): Promise<ResolvedAssignment | null> {
+export async function resolve(sectionKey: string | SectionKey, task: AITask, modelOverride?: string): Promise<ResolvedAssignment | null> {
   // 0. Model override (per-call): look up the model by name and use its provider directly.
   if (modelOverride) {
     const r = await query<{
@@ -266,11 +269,12 @@ function approxTokens(s: string | undefined): number {
 // Server-action-friendly alias
 export const aiInvoke = invoke;
 export async function invoke(
-  sectionKey: string,
+  sectionKey: string | SectionKey,
   task: AITask,
   input: InvokeInput,
   meta: { actorId?: number; staffId?: number } = {}
 ): Promise<InvokeResult> {
+  assertSection(sectionKey);
   const t0 = Date.now();
   const res = await resolve(sectionKey, task, input.modelOverride);
 
@@ -319,6 +323,91 @@ export async function invoke(
       upstreamMessage: upstreamMessage ?? undefined,
       providerId: res.provider.id, modelId: res.model.id, modelName: res.model.name, latencyMs,
     };
+  }
+}
+
+export interface InvokeStreamInput extends Omit<InvokeInput, 'maxTokens' | 'topP'> {
+  maxTokens?: number;
+  topP?: number;
+}
+
+export async function* invokeStream(
+  sectionKey: SectionKey | string,
+  task: AITask,
+  input: InvokeStreamInput,
+  meta: { actorId?: number; staffId?: number } = {}
+): AsyncGenerator<string, void, void> {
+  const res = await resolve(sectionKey, task, input.modelOverride);
+  if (!res) {
+    await logInvocation({
+      sectionKey, task, status: 'error', error: 'No provider/model resolved for section',
+      promptExcerpt: input.text || input.messages?.map(m => m.content).join('\n'),
+      actorId: meta.actorId, staffId: meta.staffId,
+    });
+    throw new Error(`No AI provider configured for ${sectionKey} (${task})`);
+  }
+
+  const params = { ...(res.model.defaults_json || {}), ...(res.params || {}) };
+  const temperature = input.temperature ?? (params as any).temperature;
+  const maxTokens = input.maxTokens ?? (params as any).maxTokens;
+
+  if (res.provider.type !== 'ollama' && res.provider.type !== 'openai_compat' && res.provider.type !== 'minimax') {
+    throw new Error(`invokeStream: unsupported provider type "${res.provider.type}"`);
+  }
+
+  const messages = buildMessages(input, !!input.images?.length, input.images);
+
+  const t0 = Date.now();
+  let fullText = '';
+
+  try {
+    if (res.provider.type === 'ollama') {
+      const stream = ollama.ollamaChatStream(
+        { baseUrl: res.provider.base_url },
+        res.model.name,
+        messages,
+        {
+          ...(temperature != null ? { temperature } : {}),
+          ...(maxTokens != null ? { options: { num_predict: maxTokens } } : {}),
+        }
+      );
+      for await (const chunk of stream) {
+        fullText += chunk;
+        yield chunk;
+      }
+    } else {
+      const cfg = { baseUrl: res.provider.base_url, apiKey: res.provider.api_key };
+      const stream = openai.openaiChatStream(cfg, res.model.name, messages, {
+        ...(temperature != null ? { temperature } : {}),
+        ...(maxTokens != null ? { max_tokens: maxTokens } : {}),
+        ...((params as any).top_p != null ? { top_p: (params as any).top_p } : {}),
+      });
+      for await (const chunk of stream) {
+        fullText += chunk;
+        yield chunk;
+      }
+    }
+
+    const latencyMs = Date.now() - t0;
+    await logInvocation({
+      sectionKey, task, status: 'ok',
+      providerId: res.provider.id, modelId: res.model.id,
+      staffId: meta.staffId, actorId: meta.actorId,
+      promptTokens: approxTokens(input.text || input.messages?.map(m => m.content).join('\n') || ''),
+      responseTokens: approxTokens(fullText),
+      latencyMs,
+      promptExcerpt: (input.text || '').slice(0, 500),
+      responseExcerpt: fullText.slice(0, 500),
+    });
+  } catch (e: any) {
+    await logInvocation({
+      sectionKey, task, status: 'error',
+      providerId: res.provider.id, modelId: res.model.id,
+      staffId: meta.staffId, actorId: meta.actorId,
+      latencyMs: Date.now() - t0,
+      error: e?.message || String(e),
+    });
+    throw e;
   }
 }
 

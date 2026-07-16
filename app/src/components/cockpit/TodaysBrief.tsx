@@ -12,6 +12,10 @@ import { SparklineTrends } from './SparklineTrends';
 import { TodaysBriefPinnedCharts } from './TodaysBriefPinnedCharts';
 import { AiSummaryCharts } from './AiSummaryCharts';
 import { ProjectionCard } from './ProjectionCard';
+import { CockpitAiNarrative } from './CockpitAiNarrative';
+import { CockpitSqlPanel } from './CockpitSqlPanel';
+import { FinanceRagPanel } from './FinanceRagPanel';
+import { GlCommentaryCard } from './GlCommentaryCard';
 import Link from 'next/link';
 
 export interface TodaysBriefActor {
@@ -186,6 +190,10 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
 
       <div className="mb-6">
         <ExecutiveNarrative execReport={execReport} audience={audience} />
+      </div>
+
+      <div className="mb-6">
+        <CockpitAiNarrative actorId={actor.id} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 2xl:gap-6 mb-6">
@@ -469,6 +477,14 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
       </div>
 
       <TodaysBriefPinnedCharts />
+
+      <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <CockpitSqlPanel />
+        <FinanceRagPanel />
+        <div className="lg:col-span-2">
+          <GlCommentaryCard />
+        </div>
+      </section>
     </section>
   );
 }

@@ -19,7 +19,7 @@ import {
 import { AttachmentRow } from './AttachmentRow';
 import { AttachmentUpload } from './AttachmentUpload';
 import type { ApproversByStage } from '@folio-lib/waybill/queries';
-import { approveWaybillAction, confirmGlRecordedAction, finalApproveWaybillAction } from '@/app/actions';
+import { approveWaybillAction, confirmGlRecordedAction, finalApproveWaybillAction } from '@/app/actions/waybill';
 import { SettleForm } from '@/app/(app)/(protected)/waybill/[id]/_components/SettleForm';
 import type { VisionModel } from '@folio-lib/ai/loadVisionModels';
 import { roleDisplay, eventKindLabel } from './ui';

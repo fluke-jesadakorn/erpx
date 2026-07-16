@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { attachPaymentSlipAction } from '@/app/actions';
+import { attachPaymentSlipAction } from '@/app/actions/expense';
 import { SlipUpload } from '@/components/SlipUpload';
 import type { VisionModel } from '@folio-lib/ai/loadVisionModels';
 
@@ -66,7 +66,6 @@ export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels
             currentUserId={0}
             onSlipReady={(id) => setSlipId(id)}
             hideSubmitButton
-            autoExtract
             initialModels={visionModels}
           />
         </div>

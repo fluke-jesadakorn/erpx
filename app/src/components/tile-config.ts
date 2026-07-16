@@ -17,6 +17,8 @@
 export type TileGroup =
   | 'work'
   | 'finance'
+  | 'people'
+  | 'legal'
   | 'exec'
   | 'admin';
 
@@ -56,6 +58,8 @@ export function tileHref(id: string): string {
 export const GROUP_LABEL: Record<TileGroup, { label: string; icon: string }> = {
   work:                   { label: 'Work',                   icon: '🧰' },
   finance:                { label: 'Finance',                icon: '📒' },
+  people:                 { label: 'People',                 icon: '👥' },
+  legal:                  { label: 'Legal',                  icon: '⚖️' },
   exec:                   { label: 'Exec',                   icon: '👑' },
   admin:                  { label: 'Admin',                  icon: '⚙️' },
 };
@@ -63,6 +67,8 @@ export const GROUP_LABEL: Record<TileGroup, { label: string; icon: string }> = {
 const GROUP_LABEL_BI: Record<TileGroup, { en: string; th: string; de: string }> = {
   work:                   { en: 'Work',                   th: 'งาน',               de: 'Arbeit' },
   finance:                { en: 'Finance',                th: 'การเงิน',          de: 'Finanzen' },
+  people:                 { en: 'People',                 th: 'บุคลากร',          de: 'Personal' },
+  legal:                  { en: 'Legal',                  th: 'กฎหมาย',          de: 'Recht' },
   exec:                   { en: 'Exec',                   th: 'ผู้บริหาร',        de: 'Geschäftsleitung' },
   admin:                  { en: 'Admin',                  th: 'ผู้ดูแล',          de: 'Verwaltung' },
 };
@@ -70,6 +76,8 @@ const GROUP_LABEL_BI: Record<TileGroup, { en: string; th: string; de: string }> 
 export const GROUP_ORDER: TileGroup[] = [
   'work',
   'finance',
+  'people',
+  'legal',
   'exec',
   'admin',
 ];

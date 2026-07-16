@@ -1,5 +1,7 @@
 import 'server-only';
 import { query } from '@folio-lib/db';
+import { aiInvoke } from '@folio-lib/ai/router';
+import { customerCreditPrompt, renderLocaleAwarePrompt } from '@folio-lib/ai/systemPrompts';
 
 export interface CustomerRow {
   id: number;
@@ -173,8 +175,61 @@ export async function listCustomerContacts(customerId: number): Promise<Customer
   }
 }
 
+export async function searchCustomersSemantic(
+  q: string,
+  limit = 10
+): Promise<CustomerRow[]> {
+  const text = q.trim();
+  if (!text) return [];
+  const r = await aiInvoke('acct:coa-search', 'embed', { text, modelOverride: 'bge-m3' });
+  if (!r.ok || !r.embedding || r.embedding.length !== 1024) return [];
+  const vec = `[${r.embedding.join(',')}]`;
+  const out = await query<any>(
+    `SELECT id, code, name, name_th, tax_id, billing_address, shipping_address,
+            contact_name, contact_email, contact_phone,
+            credit_limit_thb::float8 AS credit_limit_thb,
+            payment_terms, blacklist, is_active,
+            1 - (embedding <=> $1::vector) AS score
+       FROM folio.customers
+      WHERE embedding IS NOT NULL
+        AND is_active = TRUE
+   ORDER BY embedding <=> $1::vector
+      LIMIT $2`,
+    [vec, Math.min(Math.max(limit, 1), 30)]
+  );
+  return out.rows.map(row => ({
+    id: Number(row.id),
+    code: row.code,
+    name: row.name,
+    name_th: row.name_th ?? null,
+    tax_id: row.tax_id ?? null,
+    billing_address: row.billing_address ?? null,
+    shipping_address: row.shipping_address ?? null,
+    contact_name: row.contact_name ?? null,
+    contact_email: row.contact_email ?? null,
+    contact_phone: row.contact_phone ?? null,
+    credit_limit_thb: Number(row.credit_limit_thb ?? 0),
+    payment_terms: row.payment_terms ?? 'Net 30',
+    blacklist: !!row.blacklist,
+    is_active: !!row.is_active,
+  }));
+}
+
 export async function searchCustomers(q: string, limit = 20): Promise<CustomerRow[]> {
-  return listCustomers({ search: q, activeOnly: true, limit });
+  const text = q.trim();
+  if (!text) return [];
+  const ilike = await listCustomers({ search: text, activeOnly: true, limit });
+  if (ilike.length >= 3) return ilike;
+  const sem = await searchCustomersSemantic(text, limit).catch(() => [] as CustomerRow[]);
+  const seen = new Set<number>();
+  const merged: CustomerRow[] = [];
+  for (const r of [...ilike, ...sem]) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    merged.push(r);
+    if (merged.length >= limit) break;
+  }
+  return merged;
 }
 
 export async function createCustomer(input: Omit<CustomerRow, 'id'>): Promise<CustomerRow> {
@@ -251,4 +306,53 @@ export async function blacklistCustomer(id: number, value: boolean): Promise<voi
   } catch (error: any) {
     console.error('blacklistCustomer failed:', error);
   }
+}
+
+export interface CustomerAdvisory {
+  customerId: number;
+  customerCode: string;
+  customerName: string;
+  advisory: string;
+  severity: 'ok' | 'watch' | 'critical';
+  computedAt: string;
+}
+
+export async function getCustomerAdvisory(
+  customerId: number,
+  opts?: { lang?: 'en' | 'th' | 'de' }
+): Promise<CustomerAdvisory | null> {
+  const lang = opts?.lang ?? 'en';
+  const hist = await getCustomerArHistory(customerId);
+  if (!hist) return null;
+
+  const r = await aiInvoke('customer:advisory', 'chat', {
+    systemPrompt: renderLocaleAwarePrompt(customerCreditPrompt, lang),
+    text: JSON.stringify({
+      customerCode: hist.customer_code,
+      customerName: hist.customer_name,
+      creditLimit: hist.credit_limit,
+      outstandingAr: hist.outstanding_ar,
+      totalPaid: hist.total_paid,
+      soCount: hist.so_count,
+    }),
+    temperature: 0.1,
+    maxTokens: 300,
+  });
+  if (!r.ok || !r.text) return null;
+
+  const advisory = r.text.trim();
+  const lower = advisory.toLowerCase();
+  const severity: CustomerAdvisory['severity'] =
+    hist.outstanding_ar > hist.credit_limit ? 'critical'
+      : lower.includes('limit') || lower.includes('concern') || lower.includes('เกิน') ? 'watch'
+        : 'ok';
+
+  return {
+    customerId: hist.customer_id,
+    customerCode: hist.customer_code,
+    customerName: hist.customer_name,
+    advisory,
+    severity,
+    computedAt: new Date().toISOString(),
+  };
 }

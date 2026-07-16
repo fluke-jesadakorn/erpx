@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { VisionModel } from '@folio-lib/ai/loadVisionModels';
-import { discardSlip, getSlipLockState } from '@/app/actions';
+import { discardSlip, getSlipLockState } from '@/app/actions/slips';
 import type {
   ExtractionState,
   ParsedFields,
@@ -19,7 +19,6 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     kind,
     initialModels = [],
     currentUserId,
-    autoExtract = true,
     onSlipReady,
     onSlipDiscarded,
   } = opts;
@@ -121,7 +120,13 @@ export function useSlipOcr(opts: SlipOcrOpts) {
           } else {
             try {
               const j = JSON.parse(xhr.responseText);
-              reject(new Error(j.detail?.error || j.error || `HTTP ${xhr.status}`));
+              const detail = typeof j?.detail === 'string' ? j.detail : null;
+              const upstream = typeof j?.upstreamMessage === 'string' ? j.upstreamMessage : null;
+              const msg =
+                (detail && upstream ? `${detail} — ${upstream}` : detail) ||
+                j?.error ||
+                `HTTP ${xhr.status}`;
+              reject(new Error(msg));
             } catch {
               reject(new Error(`HTTP ${xhr.status}`));
             }
@@ -163,7 +168,7 @@ export function useSlipOcr(opts: SlipOcrOpts) {
         return;
       }
       setError(err instanceof Error ? err.message : String(err));
-      setExtractionState('pending');
+      setExtractionState('done');
     }
   }
 
@@ -183,6 +188,16 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     }
   }
 
+  function extract() {
+    if (!pendingFile) return;
+    if (extractionState === 'running') return;
+    if (phase === 'confirming' || phase === 'confirmed') return;
+    setError(null);
+    setPhase('extracting');
+    setExtractionState('running');
+    void uploadFile(pendingFile);
+  }
+
   function selectFile(file: File) {
     setError(null);
     resetOcrState();
@@ -194,7 +209,6 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     setPendingFile(file);
     setPhase('extracting');
     setExtractionState('pending');
-    void uploadFile(file);
   }
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -208,19 +222,6 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     const f = e.dataTransfer.files?.[0];
     if (f) selectFile(f);
   }
-
-  useEffect(() => {
-    if (
-      autoExtract &&
-      selectedModel &&
-      pendingFile &&
-      extractionState === 'pending' &&
-      phase === 'extracting'
-    ) {
-      void uploadFile(pendingFile);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoExtract, selectedModel, pendingFile, extractionState, phase]);
 
   async function removeFile() {
     if (slipId == null) return;
@@ -279,6 +280,7 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     locked,
     lockReason,
     selectFile,
+    extract,
     removeFile,
     pickAnother,
     onPick,

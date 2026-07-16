@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Icon } from '@/components/icons';
 import { NotificationPanel, type NotificationItem } from './NotificationPanel';
 
 interface NotificationBellClientProps {
@@ -149,11 +150,11 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
           type="button"
           aria-label="Notifications"
           onClick={() => setOpen((v) => !v)}
-          className="relative w-9 h-9 inline-flex items-center justify-center rounded-xl bg-slate-900/60 border border-slate-800 text-slate-300 hover:text-white"
+          className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-glass-border bg-surface-glass-heavy text-ink-2 transition-colors hover:border-glass-border-strong hover:bg-surface-glass-strong hover:text-ink"
         >
-          <span className="text-base">🔔</span>
+          <Icon name="bell" size={16} />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-rose-500 text-xs font-mono text-white">
+            <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold font-mono text-white">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
@@ -161,7 +162,7 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
       )}
 
       {hideButton && unreadCount > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 inline-flex items-center justify-center rounded-full bg-rose-500 text-xs font-mono text-white">
+        <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold font-mono text-white">
           {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       )}

@@ -39,3 +39,20 @@ export async function withTransaction<T>(
     client.release();
   }
 }
+
+let readonlyPool: pg.Pool | null = null;
+
+export function getReadOnlyPool(): pg.Pool {
+  if (readonlyPool) return readonlyPool;
+  readonlyPool = new pg.Pool({
+    host: dbConfig.host,
+    port: dbConfig.port,
+    database: dbConfig.database,
+    user: 'folio_readonly_agent',
+    password: process.env.READONLY_AGENT_PW || 'agent_readonly_pw_change_me',
+    max: 4,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+  });
+  return readonlyPool;
+}

@@ -11,25 +11,25 @@
     --rule:            #3F4D70;
     --rule-strong:     #5A6E96;
 
-    --accent:          #84B393;
-    --accent-strong:   #A8C8B2;
+    --accent:          #B0DCC0;
+    --accent-strong:   #C8E6D2;
     --accent-soft:     #1A2620;
-    --accent-ink:      #B5D3C0;
+    --accent-ink:      #C8E6D2;
 
-    --positive:        #84B393;
-    --positive-strong: #A8C8B2;
+    --positive:        #B0DCC0;
+    --positive-strong: #C8E6D2;
     --positive-soft:   #142018;
-    --caution:         #D49A55;
-    --caution-strong:  #E0B074;
+    --caution:         #F5C28A;
+    --caution-strong:  #FAE0B8;
     --caution-soft:    #2A2118;
-    --critical:        #E59A9B;
-    --critical-strong: #F0B7B8;
+    --critical:        #F5C9CB;
+    --critical-strong: #FBD9DB;
     --critical-soft:   #2A1A1A;
-    --info:            #8AA9C2;
-    --info-strong:     #A8C2D6;
+    --info:            #C4D8E8;
+    --info-strong:     #D6E4F0;
     --info-soft:       #162028;
-    --neutral:         #A8B2C7;
-    --neutral-strong:  #C2CADE;
+    --neutral:         #C2CADE;
+    --neutral-strong:  #D4DAE8;
     --neutral-soft:    #181F2C;
 
     --shadow-popover:  0 1px 0 rgba(0,0,0,0.35), 0 12px 32px rgba(0,0,0,0.55);
@@ -61,30 +61,30 @@
     --paper-2:         #F2F3EE;
     --paper-3:         #E8EAE3;
     --ink:             #0A0F1A;
-    --ink-2:           #2D364A;
-    --mute:            #4A5366;
+    --ink-2:           #1F2937;
+    --mute:            #1F2937;
     --rule:            #D6DBC9;
     --rule-strong:     #B6BDA9;
 
-    --accent:          #1F4F3A;
-    --accent-strong:   #143126;
+    --accent:          #0D2A1F;
+    --accent-strong:   #06180E;
     --accent-soft:     #E4ECDF;
-    --accent-ink:      #143126;
+    --accent-ink:      #06180E;
 
-    --positive:        #1F4F3A;
-    --positive-strong: #2A6B4F;
+    --positive:        #0D2A1F;
+    --positive-strong: #15402F;
     --positive-soft:   #E4ECDF;
-    --caution:         #8B5418;
-    --caution-strong:  #C2812A;
+    --caution:         #4D2A0E;
+    --caution-strong:  #7A4815;
     --caution-soft:    #F2E4CD;
-    --critical:        #8E2B22;
-    --critical-strong: #B0382D;
+    --critical:        #5A1812;
+    --critical-strong: #7A2118;
     --critical-soft:   #F0DDD9;
-    --info:            #2B4A66;
-    --info-strong:     #3D6889;
+    --info:            #11273D;
+    --info-strong:     #1A3E5C;
     --info-soft:       #DEE6EE;
-    --neutral:         #7A8398;
-    --neutral-strong:  #5C6478;
+    --neutral:         #3A4456;
+    --neutral-strong:  #1F2937;
     --neutral-soft:    #ECE7DA;
 
     --shadow-popover:  0 1px 2px rgba(15,23,42,0.06), 0 8px 24px rgba(15,23,42,0.08);
@@ -119,19 +119,25 @@
     --mute:            #C2CADC;
     --rule:            #3F4D70;
     --rule-strong:     #5A6E96;
-    --accent:          #84B393;
-    --accent-strong:   #A8C8B2;
+    --font-display-family: ui-sans-serif, system-ui, -apple-system,
+      "Segoe UI", "Helvetica Neue", Arial, "Noto Sans Thai", "Sarabun", sans-serif;
+    --font-sans-family:    ui-sans-serif, system-ui, -apple-system,
+      "Segoe UI", "Helvetica Neue", Arial, "Noto Sans Thai", "Sarabun", sans-serif;
+    --font-mono-family:    ui-monospace, "SF Mono", "JetBrains Mono",
+      "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+    --accent:          #B0DCC0;
+    --accent-strong:   #C8E6D2;
     --accent-soft:     #1A2620;
-    --accent-ink:      #B5D3C0;
-    --positive:        #84B393;
+    --accent-ink:      #C8E6D2;
+    --positive:        #B0DCC0;
     --positive-soft:   #142018;
-    --caution:         #D49A55;
+    --caution:         #F5C28A;
     --caution-soft:    #2A2118;
-    --critical:        #D88485;
+    --critical:        #F5C9CB;
     --critical-soft:   #2A1A1A;
-    --info:            #8AA9C2;
+    --info:            #C4D8E8;
     --info-soft:       #162028;
-    --neutral:         #95A0B8;
+    --neutral:         #C2CADE;
     --neutral-soft:    #181F2C;
     --shadow-popover:  0 1px 0 rgba(0,0,0,0.35), 0 12px 32px rgba(0,0,0,0.55);
     --shadow-modal:    0 1px 0 rgba(0,0,0,0.4), 0 24px 64px rgba(0,0,0,0.6);

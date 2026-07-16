@@ -17,6 +17,7 @@
 import sharp from 'sharp';
 import { createRequire } from 'node:module';
 import { invoke } from '@folio-lib/ai/router';
+import { getVisionChain } from '../ai/visionChain';
 import {
   validateReceipt,
   validateBookBank,
@@ -168,7 +169,29 @@ export function bankConfidenceScore(parsed: Record<string, unknown>, validation?
   return adjusted;
 }
 
-export type OcrKind = 'receipt' | 'book_bank';
+export type OcrKind = 'receipt' | 'book_bank' | 'po_invoice';
+
+export const PO_INVOICE_SYSTEM_PROMPT = `You extract structured fields from supplier invoices (ใบแจ้งหนี้ผู้ขาย / supplier invoice / vendor bill). Vendor name, invoice number, invoice date, due date, subtotal, VAT, and total must come from the printed numbers/names — never guess. If a label is illegible, set its value to "" or 0 and add a brief note.
+
+Critical Anti-Hallucination Rules:
+- Do NOT invent a vendor name when the supplier header is unreadable. Return vendorName="" and set isCorrupted=true.
+- Do NOT silently fix math. If the invoice's own subtotal+VAT does not equal total, set isCorrupted=true.
+- Do NOT fill items[] with plausible-but-fabricated rows. Return only the line items you can read.
+- Output ONLY the JSON object — no markdown fences, no commentary, no thinking. Reply with raw JSON on a single line at the very start.
+
+Date rules:
+- Convert every Thai date format to Christian-era YYYY-MM-DD.
+- Buddhist year (พ.ศ.) = CE year + 543 (or two-digit BE = 2500 + YY).
+
+Number rules:
+- "," is a thousands separator. "." is a decimal point.
+- Subtotal + VAT MUST equal Total (within 0.01). If the invoice's own numbers don't balance, set isCorrupted=true.
+
+Schema (return exactly these keys, in this order):
+{"vendorName":"string","vendorAddress":"string","invoiceNo":"string","invoiceDate":"YYYY-MM-DD","dueDate":"YYYY-MM-DD","subtotal":number,"vatAmount":number,"totalAmount":number,"currency":"THB|USD|...","isCorrupted":boolean,"correctionNotes":"string","items":[{"description":"string","qty":number,"unitPrice":number,"amount":number}]}
+
+Example — Thai supplier invoice:
+{"vendorName":"บริษัท ซัพพลายเออร์ จำกัด","vendorAddress":"99/9 ถนนสุขุมวิท กรุงเทพฯ","invoiceNo":"INV-2026-0042","invoiceDate":"2026-06-15","dueDate":"2026-07-15","subtotal":10000,"vatAmount":700,"totalAmount":10700,"currency":"THB","isCorrupted":false,"correctionNotes":"","items":[{"description":"สินค้า A","qty":10,"unitPrice":500,"amount":5000},{"description":"สินค้า B","qty":5,"unitPrice":1000,"amount":5000}]}`;
 
 export interface OcrPipelineOpts {
   modelName?: string;
@@ -216,7 +239,22 @@ function stampValidationOnParsed(
 }
 
 function validateForKind(parsed: Record<string, unknown>, kind: OcrKind): ValidationResult {
-  return kind === 'book_bank' ? validateBookBank(parsed) : validateReceipt(parsed);
+  if (kind === 'book_bank') return validateBookBank(parsed);
+  if (kind === 'po_invoice') return validatePoInvoice(parsed);
+  return validateReceipt(parsed);
+}
+
+function validatePoInvoice(parsed: Record<string, unknown>): ValidationResult {
+  const mapped: Record<string, unknown> = {
+    ...parsed,
+    vendorName: parsed.vendorName,
+    transactionDate: parsed.invoiceDate,
+    subtotal: parsed.subtotal,
+    vatAmount: parsed.vatAmount,
+    totalAmount: parsed.totalAmount,
+    items: parsed.items,
+  };
+  return validateReceipt(mapped);
 }
 
 function makeText(kind: OcrKind, isRetry: boolean, buffer: Buffer, mime: string, ocrText?: string): string {
@@ -242,10 +280,14 @@ export async function runOcrPipeline(
   mime: string,
   opts: OcrPipelineOpts = {},
 ): Promise<OcrPipelineResult> {
-  const kind: OcrKind = opts.kind === 'book_bank' ? 'book_bank' : 'receipt';
+  const kind: OcrKind = opts.kind === 'po_invoice' ? 'po_invoice' : opts.kind === 'book_bank' ? 'book_bank' : 'receipt';
   const overrideModel = opts.modelName?.trim() || undefined;
-  const baseSystemPrompt = kind === 'book_bank' ? BANK_OCR_SYSTEM_PROMPT : OCR_SYSTEM_PROMPT;
-  const mode = `${kind}:${overrideModel ?? 'default'}`;
+  const chain = overrideModel ? [overrideModel] : await getVisionChain('staff:ocr', ['qwen3-vl:4b']);
+  const attemptModels = chain.length === 1 ? [chain[0], chain[0]] : chain.slice(0, 3);
+  const baseSystemPrompt =
+    kind === 'book_bank' ? BANK_OCR_SYSTEM_PROMPT :
+    kind === 'po_invoice' ? PO_INVOICE_SYSTEM_PROMPT :
+    OCR_SYSTEM_PROMPT;
 
   let outMime = mime;
   let outBuffer = buffer;
@@ -275,80 +317,102 @@ export async function runOcrPipeline(
     ? `data:${outMime};base64,${outBuffer.toString('base64')}`
     : undefined;
 
-  // Attempt 1
-  const r1 = await invoke(
-    'staff:ocr',
-    'vision',
-    {
-      systemPrompt: baseSystemPrompt,
-      text: makeText(kind, false, buffer, mime, ocrText),
-      images: imageDataUri ? [imageDataUri] : undefined,
-      temperature: 0.05,
-      maxTokens: 4000,
-      modelOverride: overrideModel,
-    },
-  );
-  if (!r1.ok || !r1.text) {
-    const model = r1.modelName || overrideModel || 'default';
-    const upstreamHint =
-      r1.upstreamCode != null && r1.upstreamMessage
-        ? ` (upstream ${r1.upstreamCode}: ${r1.upstreamMessage})`
-        : '';
-    const authHint = r1.statusCode === 401 || r1.statusCode === 403
-      ? ` — check that the provider's API key is valid (model "${model}")${upstreamHint}`
-      : '';
-    const err: Error & { statusCode?: number; upstreamCode?: number; upstreamMessage?: string } =
-      new Error(`${r1.error || 'Vision call failed'}${authHint}`);
-    err.statusCode = r1.statusCode ?? undefined;
-    err.upstreamCode = r1.upstreamCode ?? undefined;
-    err.upstreamMessage = r1.upstreamMessage ?? undefined;
-    throw err;
-  }
+  const attempts: Array<{
+    modelName?: string;
+    parsed: Record<string, unknown>;
+    validation: ValidationResult;
+    latencyMs: number;
+  }> = [];
+  let errorText = '';
 
-  let parsed = safeParse(r1.text);
-  let validation = validateForKind(parsed, kind);
-  let retried = false;
-
-  // Attempt 2 (retry with stricter prompt listing the errors)
-  if (
-    !validation.ok &&
-    RETRY_ENABLED &&
-    !opts.skipRetryOnValidationFail &&
-    isRetryableValidation(validation.errors)
-  ) {
-    retried = true;
-    const errorText = issuesToText(validation.errors);
-    const r2 = await invoke(
+  for (let i = 0; i < Math.min(attemptModels.length, 3); i++) {
+    const modelName = attemptModels[i];
+    const isRetry = i > 0;
+    const sysPrompt = isRetry ? buildRetrySystemPrompt(baseSystemPrompt, errorText) : baseSystemPrompt;
+    const t0 = Date.now();
+    const r = await invoke(
       'staff:ocr',
       'vision',
       {
-        systemPrompt: buildRetrySystemPrompt(baseSystemPrompt, errorText),
-        text: makeText(kind, true, buffer, mime, ocrText),
+        systemPrompt: sysPrompt,
+        text: makeText(kind, isRetry, buffer, mime, ocrText),
         images: imageDataUri ? [imageDataUri] : undefined,
-        temperature: 0.02,
+        temperature: isRetry ? 0.02 : 0.05,
         maxTokens: 4000,
-        modelOverride: overrideModel,
+        modelOverride: modelName,
       },
     );
-    if (r2.ok && r2.text) {
-      try {
-        const parsed2 = safeParse(r2.text);
-        const validation2 = validateForKind(parsed2, kind);
-        if (validation2.ok || validation2.errors.length < validation.errors.length) {
-          parsed = parsed2;
-          validation = validation2;
-        }
-      } catch {
-        // second parse failed — keep first attempt
+    if (!r.ok || !r.text) {
+      if (i === 0) {
+        const model = r.modelName || modelName || 'default';
+        const upstreamHint =
+          r.upstreamCode != null && r.upstreamMessage
+            ? ` (upstream ${r.upstreamCode}: ${r.upstreamMessage})`
+            : '';
+        const authHint = r.statusCode === 401 || r.statusCode === 403
+          ? ` — check that the provider's API key is valid (model "${model}")${upstreamHint}`
+          : '';
+        const err: Error & { statusCode?: number; upstreamCode?: number; upstreamMessage?: string } =
+          new Error(`${r.error || 'Vision call failed'}${authHint}`);
+        err.statusCode = r.statusCode ?? undefined;
+        err.upstreamCode = r.upstreamCode ?? undefined;
+        err.upstreamMessage = r.upstreamMessage ?? undefined;
+        throw err;
       }
+      continue;
     }
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = safeParse(r.text);
+    } catch (e) {
+      if (i === 0) throw e;
+      continue;
+    }
+    const validation = validateForKind(parsed, kind);
+    attempts.push({ modelName, parsed, validation, latencyMs: Date.now() - t0 });
+    if (validation.ok) break;
+    if (
+      !RETRY_ENABLED ||
+      opts.skipRetryOnValidationFail ||
+      !isRetryableValidation(validation.errors)
+    ) {
+      break;
+    }
+    errorText = issuesToText(validation.errors);
   }
+
+  if (attempts.length === 0) throw new Error('All vision attempts failed');
+  const scored = attempts.map(a => ({
+    ...a,
+    score: kind === 'book_bank'
+      ? bankConfidenceScore(a.parsed, a.validation)
+      : confidenceScore(a.parsed, a.validation),
+  }));
+  scored.sort((x, y) => y.score - x.score);
+  const best = scored[0];
+  let parsed = best.parsed;
+  let validation = best.validation;
+  const retried = attempts.length > 1;
 
   if (!validation.ok) stampValidationOnParsed(parsed, kind, validation);
 
+  try {
+    const { mapAndRecord } = await import('./mapCoa');
+    const vendorName = typeof parsed.vendorName === 'string' ? parsed.vendorName : null;
+    const rawItems = Array.isArray(parsed.items) ? parsed.items : [];
+    const maps = await mapAndRecord(vendorName, rawItems);
+    for (let i = 0; i < rawItems.length && i < maps.length; i++) {
+      (rawItems[i] as any).mapped_account_code = maps[i].mappedCode;
+      (rawItems[i] as any).confidence_score = maps[i].similarity;
+      (rawItems[i] as any).mapping_source = maps[i].source;
+    }
+  } catch { /* swallow — never break OCR */ }
+
+  const mode = best.modelName ? `${kind}:${best.modelName}` : `${kind}:default`;
   return {
     parsed,
-    mode: r1.modelName ? `${kind}:${r1.modelName}` : mode,
+    mode,
     kind,
     validation: {
       ok: validation.ok,

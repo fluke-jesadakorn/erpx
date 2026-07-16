@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { Icon, type IconName } from '@/components/icons';
 import { matchSidebar, SIDEBAR_GROUPS } from './sidebar-config';
 
@@ -76,6 +76,8 @@ export interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentUser }) => {
   const pathname = usePathname() || '/';
+  const search = useSearchParams()?.toString() ?? '';
+  const searchStr = search ? `?${search}` : '';
   const fullName = currentUser?.fullname || '';
   const roleLabel = currentUser?.role_name || '';
 
@@ -89,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser }) => {
             </div>
             <div className="space-y-0.5">
               {section.items.map((item) => {
-                const active = matchSidebar(pathname, item);
+                const active = matchSidebar(pathname, item, searchStr);
                 return (
                   <NavRow key={item.key} href={item.href} icon={item.icon} label={item.label} active={active} />
                 );

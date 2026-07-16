@@ -7,7 +7,7 @@ import {
   allowedKindsFor,
   type WaybillAttachmentKind,
 } from '@folio-lib/waybill/kinds';
-import { attachWaybillDocumentAction } from '@/app/actions';
+import { attachWaybillDocumentAction } from '@/app/actions/waybill';
 
 interface Props {
   waybillId: string;
@@ -111,9 +111,9 @@ export function AttachmentUpload({ waybillId, stage }: Props) {
   return (
     <form
       onSubmit={(e) => void onUpload(e)}
-      className="rounded-2xl border border-cyan-500/30 bg-cyan-950/15 p-3"
+      className="rounded-2xl border-2 border-info/30 bg-info-soft/40 p-4 space-y-3"
     >
-      <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-cyan-300">
+      <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-info-strong font-bold">
         <span>📤</span>
         <span>
           Attach document · stage: {stage}
@@ -121,65 +121,67 @@ export function AttachmentUpload({ waybillId, stage }: Props) {
         </span>
       </div>
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <div className="space-y-1">
-          <label className="text-xs font-mono text-slate-400">File (≤ 50 MB)</label>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1.5">
+          <label className="text-xs font-mono uppercase tracking-wider text-ink font-bold">File (≤ 50 MB)</label>
           <input
             ref={fileRef}
             type="file"
             accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/*"
             onChange={onPick}
             disabled={busy || !usable}
-            className="block w-full rounded border border-slate-800 bg-slate-950 p-2 text-xs text-white file:mr-2 file:rounded file:border-0 file:bg-cyan-500/30 file:px-3 file:py-1 file:text-cyan-100"
+            className="block w-full rounded-lg border border-rule bg-paper-2 p-2 text-xs text-ink file:mr-3 file:rounded-md file:border-0 file:bg-accent file:px-3 file:py-1.5 file:text-paper-2 file:font-bold file:cursor-pointer"
           />
           {filename && (
-            <div className="text-xs font-mono text-slate-500">
+            <div className="text-xs font-mono text-ink-2">
               {filename} · {byteSize ? `${(byteSize / 1024).toFixed(1)} KB` : ''}
             </div>
           )}
         </div>
 
-        <div className="grid gap-2">
-          <label className="text-xs font-mono text-slate-400">Kind</label>
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as WaybillAttachmentKind)}
-            disabled={busy || !usable}
-            className="rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs text-white"
-          >
-            {WAYBILL_KIND_ORDER.filter((k) => allowed.includes(k)).map((k) => {
-              const meta = WAYBILL_KINDS[k];
-              return (
-                <option key={k} value={k}>
-                  {meta.emoji} {k} — {meta.en}
-                </option>
-              );
-            })}
-          </select>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-mono uppercase tracking-wider text-ink font-bold">Kind</label>
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value as WaybillAttachmentKind)}
+              disabled={busy || !usable}
+              className="w-full rounded-lg border border-rule bg-paper-2 px-3 py-2 text-xs text-ink focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
+            >
+              {WAYBILL_KIND_ORDER.filter((k) => allowed.includes(k)).map((k) => {
+                const meta = WAYBILL_KINDS[k];
+                return (
+                  <option key={k} value={k}>
+                    {meta.emoji} {k} — {meta.en}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
           <input
             type="text"
             name="caption"
             placeholder="Caption (optional)"
             disabled={busy}
-            className="rounded border border-slate-800 bg-slate-950 px-2 py-1.5 text-xs text-white"
+            className="w-full rounded-lg border border-rule bg-paper-2 px-3 py-2 text-xs text-ink placeholder:text-mute/60 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25"
           />
         </div>
       </div>
 
       {error && (
-        <div className="mt-2 rounded border border-rose-500/40 bg-rose-950/40 p-2 text-sm text-rose-200">
+        <div className="rounded-lg border border-critical/40 bg-critical-soft p-2.5 text-sm text-critical">
           ⚠ {error}
         </div>
       )}
 
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <span className="text-xs font-mono text-slate-500">
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <span className="text-xs font-mono text-ink-2">
           {allowed.length} kind{allowed.length === 1 ? '' : 's'} allowed at this stage
         </span>
         <button
           type="submit"
           disabled={busy || !usable || !filename}
-          className="rounded-lg bg-cyan-500 px-3 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-400 disabled:opacity-50"
+          className="rounded-lg bg-accent px-4 py-2 text-xs font-bold text-paper-2 hover:bg-accent-strong disabled:opacity-50 transition-colors"
         >
           {busy ? `Uploading (${phase})…` : '⤴ Upload & record event'}
         </button>

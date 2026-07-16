@@ -1,6 +1,25 @@
 'use client';
 
 import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import {
+  Building2,
+  Upload,
+  UploadCloud,
+  RefreshCw,
+  Trash2,
+  Loader2,
+  CircleDot,
+  Banknote,
+  Hash,
+  User,
+  CircleCheck,
+  CircleAlert,
+  ZoomIn,
+  ChevronDown,
+  Eye,
+  FileSpreadsheet,
+  Wand2,
+} from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import {
   FilledTick,
@@ -24,7 +43,6 @@ export interface BookBankUploadProps {
   onSlipDiscarded?: (slipId: number, kind: 'book_bank') => void;
   onBookBankFieldsChange?: (f: BookBankFields) => void;
   hideSubmitButton?: boolean;
-  autoExtract?: boolean;
 }
 
 const INPUT_CLS =
@@ -38,7 +56,6 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
       onSlipReady,
       onSlipDiscarded,
       onBookBankFieldsChange,
-      autoExtract = true,
     },
     ref,
   ) {
@@ -46,7 +63,6 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
       kind: 'book_bank',
       initialModels,
       currentUserId,
-      autoExtract,
       onSlipReady: (id) => onSlipReady?.(id, 'book_bank'),
       onSlipDiscarded: (id) => onSlipDiscarded?.(id, 'book_bank'),
     });
@@ -95,13 +111,6 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
 
     return (
       <div className="space-y-3">
-        <h3 className="text-xs font-bold text-ink uppercase tracking-wider flex items-center gap-2 font-mono">
-          <span>📖</span>
-          {ocr.phase === 'confirmed'
-            ? 'Book Bank (Attached)'
-            : 'Book Bank (Upload → OCR → Review → Attached on receipt confirm)'}
-        </h3>
-
         <input
           ref={ocr.inputRef}
           type="file"
@@ -110,7 +119,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
           className="hidden"
         />
 
-        <div className="glass-panel rounded-2xl p-5 space-y-4">
+        <div className="space-y-3">
           <div className="flex items-start gap-4">
             {!ocr.pendingFile ? (
               <div
@@ -124,18 +133,20 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                   ocr.onDrop(e);
                 }}
                 onClick={() => ocr.inputRef.current?.click()}
-                className={`glass-tint-positive shrink-0 w-48 h-64 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors ${
+                className={`shrink-0 w-full sm:w-40 h-32 sm:h-44 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors ${
                   dragOver
-                    ? 'border-positive '
+                    ? 'border-positive'
                     : 'border-rule-strong bg-paper-3/40 hover:border-positive/50'
                 }`}
                 data-testid="slip-drop-zone"
+                aria-label="Drop a book bank slip or click to browse"
               >
-                <span className="text-4xl">📄</span>
+                <UploadCloud className="size-7 text-ink-2" strokeWidth={1.5} aria-hidden />
                 <p className="text-xs font-mono text-ink-2 text-center px-3">
-                  Drag &amp; drop a book bank slip
-                  <br />
-                  or click to browse
+                  Drop or click
+                </p>
+                <p className="text-[10px] font-mono text-mute text-center px-3">
+                  JPG · PNG · WEBP · PDF · ≤ 20 MB
                 </p>
               </div>
             ) : ocr.preview ? (
@@ -143,132 +154,119 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 type="button"
                 onClick={() => ocr.setZoomOpen(true)}
                 disabled={ocr.extractionState === 'running'}
-                className="glass-panel relative shrink-0 group rounded-xl hover:border-positive/50 transition-colors disabled:cursor-default disabled:hover:border-rule"
+                className="relative shrink-0 group rounded-xl hover:border-positive/50 transition-colors disabled:cursor-default disabled:hover:border-rule border border-rule bg-paper-3"
                 title={ocr.extractionState === 'running' ? '' : 'Click to enlarge'}
                 data-testid="slip-preview-zoom"
               >
                 <img
                   src={ocr.preview}
                   alt="preview"
-                  className={`glass-panel object-contain rounded-xl ${
-                    ocr.extractionState === 'running' ? 'w-32 h-40' : 'w-48 h-64'
+                  className={`object-contain rounded-xl ${
+                    ocr.extractionState === 'running' ? 'w-32 h-40' : 'w-40 h-52'
                   }`}
                 />
                 {ocr.extractionState !== 'running' && (
                   <span
                     aria-hidden
-                    className="glass-panel absolute bottom-1.5 right-1.5 grid place-items-center w-6 h-6 rounded-full ring-1 ring-rule-strong text-sm text-ink opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute bottom-1.5 right-1.5 grid place-items-center w-6 h-6 rounded-full ring-1 ring-rule-strong text-sm text-ink opacity-0 group-hover:opacity-100 transition-opacity bg-paper-2"
                   >
-                    🔍
+                    <ZoomIn className="size-3.5" strokeWidth={2} />
                   </span>
                 )}
               </button>
             ) : (
               <div
-                className={`glass-panel shrink-0 rounded-xl flex items-center justify-center text-5xl ${
-                  ocr.extractionState === 'running' ? 'w-32 h-40' : 'w-48 h-64'
+                className={`shrink-0 rounded-xl flex items-center justify-center border border-rule bg-paper-3 ${
+                  ocr.extractionState === 'running' ? 'w-32 h-40' : 'w-40 h-52'
                 }`}
               >
-                📄
+                <FileSpreadsheet className="size-12 text-ink-2" strokeWidth={1.2} aria-hidden />
               </div>
             )}
 
-            <div className="flex-1 min-w-0 space-y-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span
-                  className={`glass-tint-caution px-2 py-0.5 rounded-full text-xs font-mono uppercase ${
-                    !ocr.pendingFile
-                      ? 'bg-rule-strong/40 text-ink-2'
-                      : ocr.extractionState === 'pending'
+            {ocr.pendingFile && (
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs font-mono uppercase inline-flex items-center gap-1 ${
+                      ocr.extractionState === 'pending'
                         ? 'bg-rule-strong/40 text-ink-2'
                         : ocr.extractionState === 'running'
-                          ? ' text-caution'
-                          : 'bg-positive-soft text-positive'
-                  }`}
-                  data-testid="slip-step-badge"
-                >
-                  {!ocr.pendingFile && 'Step 1 · Pick model & file'}
-                  {ocr.pendingFile && ocr.extractionState === 'pending' &&
-                    'Step 2 · Ready to extract'}
-                  {ocr.pendingFile && ocr.extractionState === 'running' &&
-                    `Step 2 · Extracting · ${ocr.elapsed}s`}
-                  {ocr.pendingFile && ocr.extractionState === 'done' && 'Step 2 · Review OCR'}
-                </span>
-                {ocr.pendingFile && (
-                  <span className="text-xs font-mono text-ink-2">
+                          ? 'bg-caution-soft text-caution border border-caution/40'
+                          : 'bg-positive-soft text-positive border border-positive/40'
+                    }`}
+                    title={
+                      ocr.extractionState === 'pending'
+                        ? 'Ready to extract'
+                        : ocr.extractionState === 'running'
+                          ? `Extracting · ${ocr.elapsed}s`
+                          : 'Review OCR'
+                    }
+                    data-testid="slip-step-badge"
+                  >
+                    {ocr.extractionState === 'running' ? (
+                      <Loader2 className="size-3 animate-spin" strokeWidth={2.5} />
+                    ) : ocr.extractionState === 'done' ? (
+                      <CircleCheck className="size-3" strokeWidth={2.5} />
+                    ) : (
+                      <span className="font-mono">2/2</span>
+                    )}
+                    {ocr.extractionState === 'pending'
+                      ? 'ready'
+                      : ocr.extractionState === 'running'
+                        ? <span className="tabular-nums">{ocr.elapsed}s</span>
+                        : 'review'}
+                  </span>
+                  <span className="text-xs font-mono text-ink-2 inline-flex items-center gap-1">
+                    <FileSpreadsheet className="size-3" aria-hidden strokeWidth={2} />
                     {pendingKind} · {formatBytes(ocr.pendingFile.size)}
                   </span>
-                )}
-                {ocr.pendingFile && ocr.extractionState === 'done' && (
-                  <span className="text-xs font-mono text-ink-2">
-                    {confPct}% confidence · {ocr.mode}
-                  </span>
-                )}
-              </div>
-              <p className="text-sm font-bold text-white truncate">
-                {ocr.pendingFile ? ocr.pendingFile.name : 'No file selected'}
-              </p>
-
-              {ocr.extractionState !== 'running' &&
-                ocr.extractionState !== 'done' &&
-                ocr.visionModels.length > 0 && (
-                  <div className="space-y-2 pt-1">
-                    <span className="text-xs font-mono text-ink-2 uppercase tracking-wider">
-                      Vision model
-                    </span>
-                    <div
-                      className="grid grid-cols-1 md:grid-cols-2 gap-2"
-                      data-testid="slip-vision-model"
+                  {ocr.extractionState === 'done' && (
+                    <span
+                      title={`${confPct}% confidence · mode ${ocr.mode}`}
+                      className="text-xs font-mono text-ink-2"
                     >
-                      {ocr.visionModels.map((m) => (
-                        <div key={m.id} className="min-w-0">
-                          <ModelCard
-                            m={m}
-                            selected={m.name === ocr.selectedModel}
-                            onSelect={ocr.pickModel}
-                            testId={`slip-vision-model-${m.id}`}
-                            disabled={ocr.phase === 'confirming'}
-                          />
-                        </div>
-                      ))}
+                      <CircleDot className="size-3 inline-block mr-0.5 text-positive" strokeWidth={2.5} />
+                      {confPct}%
+                    </span>
+                  )}
+                </div>
+                <p
+                  className="text-sm font-bold text-white truncate"
+                  title={ocr.pendingFile.name}
+                >
+                  {ocr.pendingFile.name}
+                </p>
+
+                {ocr.extractionState === 'running' && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-ink-2 font-mono inline-flex items-center gap-1.5">
+                      <Loader2 className="size-3 animate-spin" aria-hidden />
+                      <span>
+                        Running <span className="text-ink">{ocr.selectedModel || '…'}</span>
+                        {ocr.elapsed >= 5 && (
+                          <span className="text-mute"> · 1–3 min possible</span>
+                        )}
+                      </span>
+                    </p>
+                    <div className="relative w-full h-1.5 rounded-full overflow-hidden bg-rule">
+                      <div
+                        className="absolute inset-y-0 left-0 bg-positive/40 w-1/3 rounded-full"
+                        style={{ animation: 'slip-indeterminate 1.4s ease-in-out infinite' }}
+                      />
                     </div>
                   </div>
                 )}
-              {ocr.extractionState !== 'running' &&
-                ocr.extractionState !== 'done' &&
-                ocr.visionModels.length === 0 && (
-                  <p className="text-xs text-mute italic">Loading models…</p>
-                )}
-
-              {ocr.extractionState === 'running' && (
-                <div className="space-y-2">
-                  <p className="text-xs text-ink-2 font-mono">
-                    Running vision model <span className="text-ink">{ocr.selectedModel || '…'}</span>
-                    {ocr.elapsed >= 5 && (
-                      <span className="text-mute"> · large models can take 1-3 min</span>
-                    )}
-                  </p>
-                  <div className="glass-panel relative w-full h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="absolute inset-y-0 left-0 bg-positive/40 w-1/3 rounded-full"
-                      style={{ animation: 'slip-indeterminate 1.4s ease-in-out infinite' }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
-          {!ocr.pendingFile && (
-            <div className="glass-panel rounded-xl border border-rule-strong p-4">
-              <p className="text-sm font-mono text-center text-ink-2 py-3">
-                Drop a book bank slip above or click to pick a file · Supports JPG / PNG / WEBP / PDF · Max 20 MB
-              </p>
-            </div>
-          )}
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Bank name">
+            <Field
+              label="Bank"
+              hint="optional"
+              icon={<Banknote className="size-3" aria-hidden strokeWidth={2} />}
+            >
               <div className="relative">
                 <input
                   value={bankName}
@@ -276,7 +274,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                     setBankName(e.target.value);
                     emit({ bankName: e.target.value });
                   }}
-                  placeholder="e.g. Krungthai, SCB, Kasikorn…"
+                  placeholder="e.g. Krungthai, SCB, Kasikorn"
                   disabled={disabled}
                   className={INPUT_CLS}
                 />
@@ -284,7 +282,11 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 {ocr.extractionState === 'done' && bankName.trim() && <FilledTick filled />}
               </div>
             </Field>
-            <Field label="Branch" hint="optional">
+            <Field
+              label="Branch"
+              hint="optional"
+              icon={<Building2 className="size-3" aria-hidden strokeWidth={2} />}
+            >
               <div className="relative">
                 <input
                   value={bankBranch}
@@ -292,7 +294,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                     setBankBranch(e.target.value);
                     emit({ bankBranch: e.target.value });
                   }}
-                  placeholder="e.g. 0080 สาขาฟิวเจอร์พาร์ค รังสิต"
+                  placeholder="optional branch"
                   disabled={disabled}
                   className={INPUT_CLS}
                 />
@@ -300,7 +302,11 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 {ocr.extractionState === 'done' && bankBranch.trim() && <FilledTick filled />}
               </div>
             </Field>
-            <Field label="Account number">
+            <Field
+              label="Account"
+              hint="digits"
+              icon={<Hash className="size-3" aria-hidden strokeWidth={2} />}
+            >
               <div className="relative">
                 <input
                   inputMode="numeric"
@@ -318,7 +324,11 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 {ocr.extractionState === 'done' && accountNumber.trim() && <FilledTick filled />}
               </div>
             </Field>
-            <Field label="Account name">
+            <Field
+              label="Holder"
+              hint="optional"
+              icon={<User className="size-3" aria-hidden strokeWidth={2} />}
+            >
               <div className="relative">
                 <input
                   value={accountName}
@@ -326,7 +336,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                     setAccountName(e.target.value);
                     emit({ accountName: e.target.value });
                   }}
-                  placeholder="holder name as printed on the passbook"
+                  placeholder="holder name"
                   disabled={disabled}
                   className={INPUT_CLS}
                 />
@@ -337,20 +347,35 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
           </div>
 
           {ocr.pendingFile && ocr.extractionState === 'done' && (
-            <div className="glass-panel rounded-xl border border-rule-strong p-4 space-y-1">
-              <p className="text-sm font-mono text-positive text-center">
-                ✓ Book bank attached — SLIP-{ocr.slipId}
-              </p>
-              <p className="text-xs font-mono text-center text-ink-2">
-                Will be linked to the expense when you submit the receipt.
-              </p>
+            <div
+              title={`Book bank attached · SLIP-${ocr.slipId} · links when receipt submits`}
+              className="rounded-xl border border-positive/40 p-3 space-y-1 bg-positive-soft inline-flex items-center gap-2"
+            >
+              <CircleCheck className="size-4 text-positive" strokeWidth={2.5} aria-hidden />
+              <span className="text-xs font-mono text-positive inline-flex items-center gap-1">
+                SLIP-{ocr.slipId}
+                <span className="text-positive/70 normal-case font-normal tracking-normal">linked on receipt submit</span>
+              </span>
             </div>
           )}
 
-          {ocr.error && <p className="text-xs text-critical font-mono">⚠ {ocr.error}</p>}
+          {ocr.error && (
+            <p
+              title={ocr.error}
+              className="text-xs text-critical font-mono inline-flex items-center gap-1.5"
+            >
+              <CircleAlert className="size-3.5" strokeWidth={2.5} aria-hidden />
+              {ocr.error}
+            </p>
+          )}
 
           {ocr.pendingFile && ocr.extractionState === 'done' && ocr.selectedModelDesc && (
-            <p className="text-xs text-mute italic">{ocr.selectedModelDesc}</p>
+            <p
+              title={ocr.selectedModelDesc}
+              className="text-xs text-mute italic line-clamp-2"
+            >
+              {ocr.selectedModelDesc}
+            </p>
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-rule">
@@ -359,10 +384,12 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 type="button"
                 onClick={ocr.removeFile}
                 disabled={ocr.phase === 'confirming'}
-                className="glass-tint-critical px-3 py-1.5 rounded-lg hover:bg-critical-soft text-critical text-sm font-mono disabled:opacity-50"
+                title="Remove · ลบ"
+                aria-label="Remove"
                 data-testid="slip-remove"
+                className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-critical/40 bg-critical-soft text-critical hover:bg-critical/15 transition-colors disabled:opacity-50"
               >
-                🗑 Remove (wrong upload)
+                <Trash2 className="size-4" strokeWidth={2} aria-hidden />
               </button>
             ) : (
               <span />
@@ -373,19 +400,28 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                   type="button"
                   onClick={ocr.pickAnother}
                   disabled={ocr.phase === 'confirming'}
-                  className="glass-panel px-3 py-1.5 rounded-lg hover:bg-paper-3 text-ink border border-rule-strong text-sm font-mono disabled:opacity-50"
+                  title={ocr.pendingFile ? 'Replace file · เปลี่ยนไฟล์' : 'Pick a file · เลือกไฟล์'}
+                  aria-label={ocr.pendingFile ? 'Replace file' : 'Pick a file'}
+                  className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-rule-strong bg-paper-3 hover:bg-paper-3/80 text-ink-2 transition-colors disabled:opacity-50"
                 >
-                  {ocr.pendingFile ? '↺ Pick another file' : '📂 Pick a file'}
+                  {ocr.pendingFile ? (
+                    <RefreshCw className="size-4" strokeWidth={2} aria-hidden />
+                  ) : (
+                    <Upload className="size-4" strokeWidth={2} aria-hidden />
+                  )}
                 </button>
               )}
-              {ocr.pendingFile && ocr.extractionState === 'done' && (
+              {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
                 <details className="relative group" data-testid="slip-vision-model-review">
-                  <summary className="glass-panel list-none cursor-pointer flex items-center gap-1.5 px-2 py-1 rounded-lg hover:border-rule-strong text-xs font-mono text-ink-2 [&::-webkit-details-marker]:hidden">
-                    <span className="text-ink-2">Model:</span>
-                    <span className="text-white truncate max-w-[160px]">{ocr.selectedModel || '—'}</span>
-                    <span className="text-mute">▾</span>
+                  <summary
+                    title="Model"
+                    className="list-none cursor-pointer flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:border-rule-strong text-xs font-mono text-ink-2 [&::-webkit-details-marker]:hidden border border-rule bg-paper-2"
+                  >
+                    <Eye className="size-3.5" strokeWidth={2} aria-hidden />
+                    <span className="text-white truncate max-w-[140px]">{ocr.selectedModel || 'auto'}</span>
+                    <ChevronDown className="size-3 text-mute" />
                   </summary>
-                  <div className="glass-panel absolute right-0 top-full mt-1 z-20 w-[min(560px,90vw)] p-2 rounded-xl">
+                  <div className="absolute right-0 top-full mt-1 z-20 w-[min(560px,90vw)] p-2 rounded-xl bg-paper-2 border border-rule-strong shadow-2xl">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto">
                       {ocr.visionModels.map((m) => (
                         <ModelCard
@@ -401,6 +437,19 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                   </div>
                 </details>
               )}
+              {ocr.pendingFile && ocr.extractionState === 'pending' && (
+                <button
+                  type="button"
+                  onClick={ocr.extract}
+                  disabled={!ocr.selectedModel || ocr.phase === 'confirming'}
+                  title="Run OCR with the selected model"
+                  data-testid="slip-extract"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 text-xs font-mono font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:border-rule-strong disabled:text-mute"
+                >
+                  <Wand2 className="size-3.5" strokeWidth={2.5} aria-hidden />
+                  <span>Extract</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -415,7 +464,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
             width="2xl"
             hideCloseButton={false}
           >
-            <div className="glass-panel flex items-center justify-center rounded-xl p-1">
+            <div className="flex items-center justify-center rounded-xl p-1 border border-rule bg-paper-2">
               <img
                 src={ocr.preview}
                 alt="preview enlarged"

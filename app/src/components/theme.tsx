@@ -37,8 +37,9 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => 
     return (
       <div
         role="radiogroup" aria-label="Color theme"
-        className={['flex items-center gap-0.5 rounded-md border h-9 p-0.5 border-glass-border bg-surface-glass-heavy', className || ''].join(' ')}
+        className={['flex items-center gap-0.5 rounded-lg border h-9 p-0.5 border-glass-border bg-surface-glass-heavy', className || ''].join(' ')}
       >
+
         {OPTIONS.map((o) => (
           <span key={o.mode} className="inline-flex items-center justify-center w-6 h-6 rounded-sm" aria-hidden>
             <Icon name={o.icon} size={14} />
@@ -50,7 +51,7 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => 
 
   return (
     <div role="radiogroup" aria-label="Color theme"
-      className={['glass-panel flex items-center gap-0.5 rounded-md h-9 p-0.5', className || ''].join(' ')}>
+      className={['border border-glass-border bg-surface-glass-heavy flex items-center gap-0.5 rounded-lg h-9 p-0.5', className || ''].join(' ')}>
       {OPTIONS.map((o) => {
         const active = o.mode === mode;
         return (
@@ -63,10 +64,10 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => 
             title={o.label}
             onClick={() => setMode(o.mode)}
             className={[
-              'inline-flex items-center justify-center w-6 h-6 rounded-sm border-0 transition-all',
+              'inline-flex items-center justify-center w-6 h-6 rounded-md border-0 transition-all',
               active
                 ? 'bg-accent/25 text-accent shadow-[inset_0_0_0_1px_rgba(132,179,147,0.45)]'
-                : 'text-mute hover:text-ink-2 hover:bg-paper-2',
+                : 'text-mute hover:text-ink-2 hover:bg-surface-glass-strong',
             ].join(' ')}
           >
             <Icon name={o.icon} size={14} />

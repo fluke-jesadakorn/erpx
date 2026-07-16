@@ -36,18 +36,18 @@ export function LineRow({
   locale: Locale;
 }) {
   return (
-    <tr className="align-top font-mono text-slate-300">
-      <td className="border-b border-slate-800/40 px-2 py-2 text-cyan-300">{account.code}</td>
-      <td className="border-b border-slate-800/40 px-2 py-2 text-slate-200">
+    <tr className="align-top font-mono text-ink-2">
+      <td className="border-b border-rule px-2 py-2 text-info">{account.code}</td>
+      <td className="border-b border-rule px-2 py-2 text-ink">
         {pickAccountName(account, locale)}
       </td>
-      <td className="border-b border-slate-800/40 px-2 py-2 text-right text-emerald-200 tabular-nums">
+      <td className="border-b border-rule px-2 py-2 text-right text-positive tabular-nums">
         {debit > 0 ? fmtMoney(debit, '').trim() : ''}
       </td>
-      <td className="border-b border-slate-800/40 px-2 py-2 text-right text-amber-200 tabular-nums">
+      <td className="border-b border-rule px-2 py-2 text-right text-caution tabular-nums">
         {credit > 0 ? fmtMoney(credit, '').trim() : ''}
       </td>
-      <td className="border-b border-slate-800/40 px-2 py-2 text-slate-500">{description ?? ''}</td>
+      <td className="border-b border-rule px-2 py-2 text-ink-2">{description ?? ''}</td>
     </tr>
   );
 }
@@ -61,7 +61,7 @@ export function LinesTable({
 }) {
   if (lines.length === 0) {
     return (
-      <p className="glass-panel rounded-md border p-3 text-sm italic text-slate-500">
+      <p className="glass-panel rounded-md border p-3 text-sm italic text-ink-2">
         {<Bilingual en="no ledger lines" th="ไม่มีรายการบัญชี" de="keine Buchungszeilen" locale={locale} />}
       </p>
     );
@@ -73,18 +73,18 @@ export function LinesTable({
     <div className="overflow-x-auto">
       <table className="w-full min-w-[640px] border-collapse text-xs">
         <thead>
-          <tr className="text-left font-mono text-sm uppercase tracking-widest text-slate-500">
-            <th className="border-b border-slate-800/60 px-2 py-1.5">code</th>
-            <th className="border-b border-slate-800/60 px-2 py-1.5">
+          <tr className="text-left font-mono text-sm uppercase tracking-widest text-ink-2">
+            <th className="border-b border-rule px-2 py-1.5">code</th>
+            <th className="border-b border-rule px-2 py-1.5">
               {<Bilingual en="account" th="ชื่อบัญชี" de="Konto" locale={locale} />}
             </th>
-            <th className="border-b border-slate-800/60 px-2 py-1.5 text-right">
+            <th className="border-b border-rule px-2 py-1.5 text-right">
               {<Bilingual en="debit" th="เดบิต" de="Soll" locale={locale} />}
             </th>
-            <th className="border-b border-slate-800/60 px-2 py-1.5 text-right">
+            <th className="border-b border-rule px-2 py-1.5 text-right">
               {<Bilingual en="credit" th="เครดิต" de="Haben" locale={locale} />}
             </th>
-            <th className="border-b border-slate-800/60 px-2 py-1.5">
+            <th className="border-b border-rule px-2 py-1.5">
               {<Bilingual en="description" th="รายละเอียด" de="Beschreibung" locale={locale} />}
             </th>
           </tr>
@@ -103,25 +103,25 @@ export function LinesTable({
         </tbody>
         <tfoot>
           <tr className="font-mono text-sm font-bold uppercase tracking-wider">
-            <td className="border-t border-slate-700/60 px-2 py-2 text-slate-400" colSpan={2}>
+            <td className="border-t border-rule-strong px-2 py-2 text-ink-2" colSpan={2}>
               {<Bilingual en="total" th="รวม" de="Summe" locale={locale} />}
             </td>
-            <td className="border-t border-slate-700/60 px-2 py-2 text-right text-emerald-200 tabular-nums">
+            <td className="border-t border-rule-strong px-2 py-2 text-right text-positive tabular-nums">
               {fmtMoney(totalDebit, '').trim()}
             </td>
-            <td className="border-t border-slate-700/60 px-2 py-2 text-right text-amber-200 tabular-nums">
+            <td className="border-t border-rule-strong px-2 py-2 text-right text-caution tabular-nums">
               {fmtMoney(totalCredit, '').trim()}
             </td>
-            <td className="border-t border-slate-700/60 px-2 py-2">
+            <td className="border-t border-rule-strong px-2 py-2">
               {balanced ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-emerald-200">
+                <span className="inline-flex items-center gap-1 rounded-full border border-positive/40 bg-positive-soft px-2 py-0.5 text-positive-strong">
                   <span aria-hidden>✓</span>
                   <span>
                     {<Bilingual en="balanced" th="สมดุล" de="ausgeglichen" locale={locale} />}
                   </span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-rose-200">
+                <span className="inline-flex items-center gap-1 rounded-full border border-critical/40 bg-critical-soft px-2 py-0.5 text-critical-strong">
                   <span aria-hidden>⚠</span>
                   <span>
                     {<Bilingual en="unbalanced" th="ไม่สมดุล" de="nicht ausgeglichen" locale={locale} />}
@@ -187,43 +187,43 @@ export function GlLinesView({
   return (
     <div className="space-y-4">
       {draft && (
-        <section className="space-y-2 rounded-xl border border-cyan-500/40 bg-cyan-950/15 p-3">
+        <section className="space-y-2 rounded-xl border border-info/40 bg-info-soft/40 p-3">
           <header className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-cyan-200">
+              <span className="rounded-md border border-info/50 bg-info/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-info-strong">
                 📝 DRAFT
               </span>
-              <span className="font-mono text-sm text-slate-500">JE #{draft.journal_id}</span>
+              <span className="font-mono text-sm text-ink-2">JE #{draft.journal_id}</span>
             </div>
-            <span className="font-mono text-sm text-slate-500">
-              entry_date: <span className="text-cyan-300">{draft.entry_date as any}</span>
+            <span className="font-mono text-sm text-ink-2">
+              entry_date: <span className="text-info">{draft.entry_date as any}</span>
             </span>
           </header>
-          {draft.description && <p className="text-sm text-slate-300">{draft.description}</p>}
+          {draft.description && <p className="text-sm text-ink">{draft.description}</p>}
           <LinesTable lines={draft.lines} locale={locale} />
         </section>
       )}
 
       {posted && (
-        <section className="space-y-2 rounded-xl border border-emerald-500/40 bg-emerald-950/15 p-3">
+        <section className="space-y-2 rounded-xl border border-positive/40 bg-positive-soft/40 p-3">
           <header className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-emerald-200">
+              <span className="rounded-md border border-positive/50 bg-positive/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-positive-strong">
                 ✓ POSTED
               </span>
-              <span className="font-mono text-sm text-slate-500">JE #{posted.journal_id}</span>
+              <span className="font-mono text-sm text-ink-2">JE #{posted.journal_id}</span>
             </div>
-            <span className="font-mono text-sm text-slate-500">
-              entry_date: <span className="text-emerald-300">{posted.entry_date as any}</span>
+            <span className="font-mono text-sm text-ink-2">
+              entry_date: <span className="text-positive">{posted.entry_date as any}</span>
             </span>
           </header>
-          {posted.description && <p className="text-sm text-slate-300">{posted.description}</p>}
+          {posted.description && <p className="text-sm text-ink">{posted.description}</p>}
           <LinesTable lines={posted.lines} locale={locale} />
         </section>
       )}
 
       {totalsOverride && (
-        <p className="text-sm font-mono text-slate-400">
+        <p className="text-sm font-mono text-ink-2">
           Σ {fmtMoney(totalsOverride.totalDebit, '').trim()} / {fmtMoney(totalsOverride.totalCredit, '').trim()}{' '}
           {totalsOverride.balanced ? '✓ balanced' : '⚠ unbalanced'}
         </p>

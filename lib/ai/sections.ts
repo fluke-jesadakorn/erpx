@@ -96,8 +96,74 @@ export const SECTION_CATALOG: Section[] = [
     task: 'chat',
     description: 'Condenses a batch of domain events into a single human-readable digest.',
   },
+  {
+    key: 'sales:extract',
+    label: 'Sales Order extractor',
+    labelTh: 'แยกข้อความเป็นใบสั่งขาย',
+    task: 'chat',
+    description: 'Extracts customer + line items from a free-text description into a draft SO.',
+  },
+  {
+    key: 'customer:advisory',
+    label: 'Customer credit advisory',
+    labelTh: 'คำแนะนำเครดิตลูกค้า',
+    task: 'chat',
+    description: 'Two-sentence advisory based on credit limit and AR aging.',
+  },
+  {
+    key: 'cockpit:sql',
+    label: 'Chat-to-SQL',
+    labelTh: 'ถามข้อมูลด้วย SQL',
+    task: 'chat',
+    description: 'Translates natural-language questions into read-only SQL queries against allow-listed tables.',
+  },
+  {
+    key: 'cockpit:projection',
+    label: 'Cash projection interpreter',
+    labelTh: 'ตีความการคาดการณ์เงินสด',
+    task: 'chat',
+    description: 'Interprets the 90-day cash projection summary in 2-3 sentences of executive prose.',
+  },
+  {
+    key: 'cockpit:summarize',
+    label: 'Cockpit daily brief summarizer',
+    labelTh: 'สรุปข้อมูลค็อกพิทรายวัน',
+    task: 'chat',
+    description: 'Condenses today\'s cockpit metrics (cash, MTD burn, approvals) into a 2-3 sentence exec brief.',
+  },
+  {
+    key: 'finance:rag',
+    label: 'Finance RAG answer',
+    labelTh: 'คำตอบจากข้อมูลการเงิน',
+    task: 'chat',
+    description: 'Answers questions about historical expenses, vendors, and patterns using RAG over folio.vendor_embeddings.',
+  },
+  {
+    key: 'hr:agent',
+    label: 'HR LINE agent',
+    labelTh: 'บอท HR (LINE)',
+    task: 'chat',
+    description: 'Tool-calling HR agent for LINE — handles leave requests, balance checks, team schedules.',
+  },
+  {
+    key: 'chat:full',
+    label: 'Full AI Chat',
+    labelTh: 'แชท AI แบบเต็ม',
+    task: 'chat',
+    description: 'General-purpose AI assistant. Renders charts, HTML reports, and runs read-only SQL via [SQL] blocks.',
+  },
 ];
 
+export type SectionKey = (typeof SECTION_CATALOG)[number]['key'];
+
+export function getSection(key: SectionKey): Section;
+export function getSection(key: string): Section | undefined;
 export function getSection(key: string): Section | undefined {
   return SECTION_CATALOG.find(s => s.key === key);
+}
+
+export function assertSection(k: string): asserts k is SectionKey {
+  if (!getSection(k)) {
+    throw new Error(`Unknown AI section key: ${k}`);
+  }
 }
