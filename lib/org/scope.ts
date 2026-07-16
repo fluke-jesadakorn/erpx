@@ -4,10 +4,10 @@
 // No legacy rbac matrix; no separate dept column on users.
 
 import 'server-only';
-import { query } from '@folio-lib/db';
+import { query } from '@/db';
 import {
   parseRoleId, parseDeptFromPerms, matchPerm, parseLevelFromRoles,
-} from '@folio-lib/perm/server';
+} from '@/perm/server';
 
 export interface OrgNode {
   id: number;

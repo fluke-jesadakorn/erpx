@@ -1,14 +1,14 @@
 import 'server-only';
 import { cache } from 'react';
-import { query } from '@folio-lib/db';
-import { assertRole } from '@folio-lib/perm/assertRole';
-import { getUserLevels, getUserStaffLevels } from '@folio-lib/org/scope';
-import { aiInvoke } from '@folio-lib/ai/router';
+import { query } from '@/db';
+import { assertRole } from '@/perm/assertRole';
+import { getUserLevels, getUserStaffLevels } from '@/org/scope';
+import { aiInvoke } from '@/ai/router';
 import {
   cockpitSummarizePrompt,
   cockpitProjectionPrompt,
   renderLocaleAwarePrompt,
-} from '@folio-lib/ai/systemPrompts';
+} from '@/ai/systemPrompts';
 
 export async function getDashboardData() {
   try {

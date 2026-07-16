@@ -242,7 +242,7 @@ export async function aiGuardForRequest(
   _headers: Record<string, string | string[] | undefined>,
   _opts: { perm?: string },
 ): Promise<AiGuardOk | AiGuardFail> {
-  return { ok: false, status: 401, error: 'aiGuardForRequest is deprecated — use apiGuard from @folio-lib/server/apiGuard' };
+  return { ok: false, status: 401, error: 'aiGuardForRequest is deprecated — use apiGuard from @/server/apiGuard' };
 }
 
 export type { ActorScope };

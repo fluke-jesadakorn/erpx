@@ -1,10 +1,3 @@
-// lib/waybill/kinds.ts
-//
-// Taxonomy for documents attached to a Waybill at a given stage.
-// Allowed kinds per stage are enforced by `KINDS_ALLOWED_AT_STAGE`;
-// all kinds are also enforced at the DB level (see migration
-// 2026-07-10-A-waybill-attachments).
-
 import type { WaybillStagePip } from './labels';
 import { EXPENSE_STAGES, PROCUREMENT_STAGES } from './labels';
 
@@ -21,23 +14,28 @@ export type WaybillAttachmentKind =
   | 'other';
 
 export interface WaybillKindMeta {
+  id: string;
   en: string;
   th: string;
   de: string;
   emoji: string;
 }
 
+function meta(id: string, emoji: string): WaybillKindMeta {
+  return { id, en: id, th: id, de: id, emoji };
+}
+
 export const WAYBILL_KINDS: Record<WaybillAttachmentKind, WaybillKindMeta> = {
-  slip:            { en: 'Slip / receipt',        th: 'ใบเสร็จ',                  de: 'Beleg',                   emoji: '🧾' },
-  pr_doc:          { en: 'PR document',           th: 'เอกสาร PR',                de: 'PR-Dokument',             emoji: '📄' },
-  po_doc:          { en: 'PO document',           th: 'เอกสาร PO',                de: 'PO-Dokument',             emoji: '📎' },
-  payment_receipt: { en: 'Payment receipt',       th: 'หลักฐานจ่ายเงิน',           de: 'Zahlungsbeleg',           emoji: '💸' },
-  signoff_memo:    { en: 'Sign-off memo',         th: 'หนังสืออนุมัติ',            de: 'Genehmigungsschreiben',   emoji: '🛡️' },
-  invoice:         { en: 'Tax invoice',           th: 'ใบกำกับภาษี',              de: 'Steuerrechnung',          emoji: '🧮' },
-  wht_cert:        { en: 'WHT certificate',       th: 'หนังสือรับรองหัก ณ ที่จ่าย', de: 'Quellensteuerbescheinigung', emoji: '📑' },
-  photo:           { en: 'Photo evidence',        th: 'ภาพประกอบ',                de: 'Foto',                    emoji: '🖼' },
-  memo:            { en: 'Internal memo',         th: 'บันทึกภายใน',              de: 'Internes Memo',           emoji: '📝' },
-  other:           { en: 'Other',                 th: 'อื่น ๆ',                   de: 'Sonstiges',               emoji: '📄' },
+  slip: meta('waybill.attachment.slip', '🧾'),
+  pr_doc: meta('waybill.attachment.prDocument', '📄'),
+  po_doc: meta('waybill.attachment.poDocument', '📎'),
+  payment_receipt: meta('waybill.attachment.paymentReceipt', '💸'),
+  signoff_memo: meta('waybill.attachment.signoffMemo', '🛡️'),
+  invoice: meta('waybill.attachment.invoice', '🧮'),
+  wht_cert: meta('waybill.attachment.whtCertificate', '📑'),
+  photo: meta('waybill.attachment.photo', '🖼'),
+  memo: meta('waybill.attachment.memo', '📝'),
+  other: meta('waybill.attachment.other', '📄'),
 };
 
 export const WAYBILL_KIND_ORDER: WaybillAttachmentKind[] = [
@@ -57,18 +55,18 @@ const CEO: WaybillAttachmentKind[] = ['signoff_memo'];
 const ALL: WaybillAttachmentKind[] = [...WAYBILL_KIND_ORDER];
 
 export const KINDS_ALLOWED_AT_STAGE: Record<string, WaybillAttachmentKind[]> = {
-  submission:                    STAFF,
-  dept_verification:             SUPERVISOR,
-  dept_authorization:            MANAGER,
-  accounting_verification:       ACCOUNTANT,
-  accounting_supervision:        ACCOUNT_SUP,
-  accounting_authorization:      ACCT_MGR,
-  disbursement_authorization:    FINANCE,
-  cfo_authorization:             CFO,
-  ceo_authorization:             CEO,
-  awaiting_disbursement:         FINANCE,
-  disbursed:                     [],
-  rejected:                      [],
+  submission: STAFF,
+  dept_verification: SUPERVISOR,
+  dept_authorization: MANAGER,
+  accounting_verification: ACCOUNTANT,
+  accounting_supervision: ACCOUNT_SUP,
+  accounting_authorization: ACCT_MGR,
+  disbursement_authorization: FINANCE,
+  cfo_authorization: CFO,
+  ceo_authorization: CEO,
+  awaiting_disbursement: FINANCE,
+  disbursed: [],
+  rejected: [],
 };
 
 export function pipsForKindLayout(domain: 'expense' | 'procurement'): WaybillStagePip[] {

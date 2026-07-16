@@ -1,27 +1,49 @@
 {
   "name": "folio",
   "version": "1.0.0",
-  "description": "Folio — single Next.js process on 3004. AI/RBAC logic in folio/lib/ as @folio-lib/*. Bundler: Turbopack only.",
-  "main": "index.js",
-  "workspaces": ["app", "lib"],
+  "description": "Folio — flat Next.js 16 process on 3004. Domain logic in lib/ as @/*. Bundler: Turbopack only.",
+  "private": true,
   "scripts": {
+    "dev": "next dev --turbopack -p 3004 -H 0.0.0.0",
+    "build": "next build --turbopack",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
     "embed": "node db/embed_coa.js",
-    "audit": "node db/audit_ai_coverage.js",
-    "dev": "cd app && bun run dev",
-    "lint": "cd app && bun run lint",
-    "typecheck": "cd app && bunx tsc --noEmit"
+    "audit": "node db/audit_ai_coverage.js"
   },
   "dependencies": {
-    "axios": "^1.7.2",
+    "@casl/ability": "^7.0.1",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@radix-ui/react-tooltip": "^1.2.11",
+    "axios": "^1.7.7",
     "isomorphic-dompurify": "^3.18.0",
     "lucide-react": "^1.24.0",
-    "pg": "^8.12.0"
+    "minio": "^8.0.7",
+    "next": "16.2.9",
+    "next-intl": "^4.13.2",
+    "pdf-lib": "^1.17.1",
+    "pg": "^8.22.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.9.2",
+    "sharp": "^0.34.4",
+    "uuid": "^11.0.3"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4",
     "@types/minio": "^7.1.1",
-    "@types/node": "^26.1.0",
+    "@types/node": "^22.10.0",
     "@types/pg": "^8.20.0",
-    "minio": "^8.0.7"
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.9",
+    "tailwindcss": "^4",
+    "tsx": "^4.19.0",
+    "typescript": "^5"
   },
   "trustedDependencies": [
     "unrs-resolver"

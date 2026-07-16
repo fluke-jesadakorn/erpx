@@ -1,5 +1,5 @@
 import 'server-only';
-import { aiInvoke } from '@folio-lib/ai/router';
+import { aiInvoke } from '@/ai/router';
 import { query } from '../db';
 
 const EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || process.env.EMBED_MODEL || 'bge-m3';

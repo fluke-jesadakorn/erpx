@@ -1,26 +1,17 @@
 import 'server-only';
 import { cookies } from 'next/headers';
+import { isSecondary, normalizeSecondaryLocale, LOCALE_HEADER, LOCALE_COOKIE, type SecondaryLocale } from '@/i18n/config';
 import { query } from '../db';
 import { verifySession } from './sessionToken';
 
-export type SecondaryLocale = 'th' | 'de';
-
-const COOKIE_KEY = 'folio.locale';
-const HEADER_KEY = 'x-folio-locale';
-
-export function isSecondaryLocale(v: unknown): v is SecondaryLocale {
-  return v === 'th' || v === 'de';
-}
-
-export function normalizeSecondaryLocale(v: unknown): SecondaryLocale {
-  return v === 'de' ? 'de' : 'th';
-}
+export type { SecondaryLocale };
+export { isSecondary, isSecondary as isSecondaryLocale, normalizeSecondaryLocale, LOCALE_COOKIE, LOCALE_HEADER };
 
 export async function getSecondaryLocale(): Promise<SecondaryLocale> {
   try {
     const c = await cookies();
-    const cookieVal = c.get(COOKIE_KEY)?.value;
-    if (isSecondaryLocale(cookieVal)) return cookieVal;
+    const cookieVal = c.get(LOCALE_COOKIE)?.value;
+    if (isSecondary(cookieVal)) return cookieVal;
 
     const token = c.get('folio_session')?.value ?? null;
     const payload = await verifySession(token);
@@ -30,20 +21,19 @@ export async function getSecondaryLocale(): Promise<SecondaryLocale> {
         [payload.id],
       );
       const v = r.rows[0]?.locale;
-      if (isSecondaryLocale(v)) return v;
-    }
+      if (isSecondary(v)) return v;
 
-    const erpTok = c.get('folio_session')?.value ?? null;
-    const pl = await verifySession(erpTok);
-    if (pl) {
-      const r = await query<{ secondary_locale: string }>(
-        `SELECT secondary_locale FROM users WHERE id = $1 LIMIT 1`,
-        [pl.sub],
-      );
-      return normalizeSecondaryLocale(r.rows[0]?.secondary_locale);
+      const erpTok = c.get('folio_session')?.value ?? null;
+      const pl = await verifySession(erpTok);
+      if (pl) {
+        const r2 = await query<{ secondary_locale: string }>(
+          `SELECT secondary_locale FROM users WHERE id = $1 LIMIT 1`,
+          [pl.sub],
+        );
+        return normalizeSecondaryLocale(r2.rows[0]?.secondary_locale);
+      }
     }
-  } catch {
-  }
+  } catch {}
   return 'th';
 }
 
@@ -59,18 +49,15 @@ export function getSecondaryLocaleFromHeaders(
     if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'string') return v[0];
     return undefined;
   };
-  const h = get(HEADER_KEY);
-  if (isSecondaryLocale(h)) return h;
+  const h = get(LOCALE_HEADER);
+  if (isSecondary(h)) return h;
   const cookie = get('cookie');
   if (cookie) {
     const match = cookie.match(/(?:^|;\s*)folio\.locale=([^;]+)/);
     if (match) {
       const v = decodeURIComponent(match[1]);
-      if (isSecondaryLocale(v)) return v;
+      if (isSecondary(v)) return v;
     }
   }
   return 'th';
 }
-
-export const LOCALE_COOKIE = COOKIE_KEY;
-export const LOCALE_HEADER = HEADER_KEY;

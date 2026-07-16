@@ -1,5 +1,5 @@
 import 'server-only';
-import { aiInvoke } from '@folio-lib/ai/router';
+import { aiInvoke } from '@/ai/router';
 import { query } from '../db';
 import { loadWaybill, domainOf } from './queries';
 

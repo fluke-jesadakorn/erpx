@@ -1,6 +1,6 @@
 import 'server-only';
-import { query } from '@folio-lib/db';
-import { ROLE_DOMAIN, type DisplayRoleName } from '@folio-lib/org/display';
+import { query } from '@/db';
+import { ROLE_DOMAIN, type DisplayRoleName } from '@/org/display';
 
 export interface UserForWiring {
   id: number;

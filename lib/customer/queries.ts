@@ -1,7 +1,7 @@
 import 'server-only';
-import { query } from '@folio-lib/db';
-import { aiInvoke } from '@folio-lib/ai/router';
-import { customerCreditPrompt, renderLocaleAwarePrompt } from '@folio-lib/ai/systemPrompts';
+import { query } from '@/db';
+import { aiInvoke } from '@/ai/router';
+import { customerCreditPrompt, renderLocaleAwarePrompt } from '@/ai/systemPrompts';
 
 export interface CustomerRow {
   id: number;

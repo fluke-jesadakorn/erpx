@@ -1,7 +1,7 @@
 import 'server-only';
-import { aiInvoke } from '@folio-lib/ai/router';
-import { salesExtractPrompt, renderLocaleAwarePrompt } from '@folio-lib/ai/systemPrompts';
-import { searchCustomers } from '@folio-lib/customer/queries';
+import { aiInvoke } from '@/ai/router';
+import { salesExtractPrompt, renderLocaleAwarePrompt } from '@/ai/systemPrompts';
+import { searchCustomers } from '@/customer/queries';
 import { query } from '../db';
 
 export interface ExtractedSoItem {

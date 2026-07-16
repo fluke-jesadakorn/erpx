@@ -1,5 +1,5 @@
 // perm/index.ts — client-safe barrel. No 'server-only' modules re-exported here.
-// Server code should import from '@folio-lib/perm/server' instead.
+// Server code should import from '@/perm/server' instead.
 
 export * from './grammar';
 export * from './schema';

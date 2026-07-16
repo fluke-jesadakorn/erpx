@@ -1,5 +1,5 @@
 // Ambient declarations for Next.js modules that lib/ uses.
-// lib/ is logically part of web-admin (consumed via @folio-lib/* alias) but
+// lib/ is logically part of web-admin (consumed via @/* alias) but
 // lives outside app/tsconfig.json's node_modules. This shim gives
 // tsc the few symbols we touch without dragging in the full Next.js types.
 //

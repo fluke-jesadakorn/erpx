@@ -1,7 +1,7 @@
 import 'server-only';
-import { aiInvoke } from '@folio-lib/ai/router';
-import { query } from '@folio-lib/db';
-import { renderLocaleAwarePrompt } from '@folio-lib/ai/systemPrompts';
+import { aiInvoke } from '@/ai/router';
+import { query } from '@/db';
+import { renderLocaleAwarePrompt } from '@/ai/systemPrompts';
 
 export interface LedgerLineCommentary {
   accountCode: string;

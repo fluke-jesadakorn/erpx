@@ -1,7 +1,7 @@
 import 'server-only';
-import { query } from '@folio-lib/db';
-import { assertRole } from '@folio-lib/perm/assertRole';
-import { getUserLevels, getUserStaffLevels, resolveActorScope, loadOrgTree, type OrgNode } from '@folio-lib/org/scope';
+import { query } from '@/db';
+import { assertRole } from '@/perm/assertRole';
+import { getUserLevels, getUserStaffLevels, resolveActorScope, loadOrgTree, type OrgNode } from '@/org/scope';
 
 export async function listOrgTree(actorId: number) {
   try { await assertRole(actorId, [], { perm: 'tile:org_chart:view::allow' }); }

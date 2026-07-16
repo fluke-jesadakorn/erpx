@@ -2,7 +2,24 @@
 
 Single source of truth for permissions, roles, departments, and tiles.
 
-Last revised: 2026-07-03 (after Steps 1–6 consolidation).
+Last revised: 2026-07-16 (folio flatten: domain logic in `lib/perm/`; grammar
+now uses inline `::effect` and role-id `::level` — see
+`folio/lib/perm/grammar.ts`).
+
+> **Grammar migration.** The 4-segment grammar below (`domain:subject:verb:scope`)
+> has been replaced by an inline-effect form:
+> `<domain>:<subject>:<verb>[:<qualifier>]::<effect>` with effect ∈
+> `{allow, deny}` encoded in the string itself. There is no separate `effect`
+> column on any RBAC table. Roles use `<name>::<level>` with level ∈ 1..10.
+>
+> **`lib/perm/grammar.ts` is now the canonical source of truth** — it owns the
+> single `parsePerm` / `parseRoleId` / `buildPerm` / `buildRoleId` /
+> `effectOf` / `matchPerm` parser-encoder pair, with no effect / dept / scope
+> columns anywhere in the schema.
+>
+> See `db/perm/9000-rebuild-string-grammar.sql` and `db/perm/9001-seed-new-grammar.sql`
+> for the schema migration that removed the `effect`, `kind`, `level`,
+> `required_level`, `required_dept_id`, and `dept_group_id` columns.
 
 ---
 
@@ -10,54 +27,52 @@ Last revised: 2026-07-03 (after Steps 1–6 consolidation).
 
 | Term | Definition |
 |---|---|
-| **Role** | A persona + an org-tree position. Two kinds: `persona` (e.g. `manager`, `admin`) and `department` (e.g. `dept-engineering`). All roles live in `perm.roles`. |
-| **Permission** | A 4-segment verb on a subject in a domain. Encodes scope declaratively. |
-| **User** | A person (employee). Belongs to exactly one department role + zero-or-more persona roles via `perm.user_roles`. |
-| **Department** | A role with `kind='department'`. Has parent_role_id (tree), display_name, display_name_th. |
-| **Tile** | A navigable surface, gated by **(user.staff_level ≤ tile.required_level) AND (user.dept_group_id = tile.required_dept_id)**. NULL on either axis = wildcard. **No perm is consulted for tile visibility** (no role grant, no acting grant, no admin bypass). |
-| **Acting grant** | A time-bound perm grant via `rbac.perm_grants` (ends_at NOT NULL mandatory). Used for **mutation perms only** (head-of-department, acting-as workflow responsibilities). Never bypasses tile view. |
+| **Role** | A persona + an org-tree position. Level encoded in the role id as `<name>::<level>` (level 1 = CEO, 10 = lowest). All roles live in `perm.roles`. |
+| **Permission** | A verb on a subject in a domain; format `<domain>:<subject>:<verb>[:<qualifier>]::<effect>`. Effect (allow / deny) is encoded inline. |
+| **User** | A person (employee). Bound to roles via `perm.user_roles`. Department membership is granted via `user:dept:<id>::allow` on `perm.user_permissions`. |
+| **Department** | A `perm.roles` row whose id follows `<name>::<level>` — no `kind` flag. Has `parent_role_id` for the tree. |
+| **Tile** | A navigable surface, gated by the union of the actor's effective permissions plus the tile's `view_perm_id`. No `required_level` or `required_dept_id` columns anymore. |
+| **Acting grant** | A time-bound perm row on `perm.user_permissions` (`ends_at NOT NULL`). Used for **mutation perms only** (head-of-department, acting-as responsibilities). Never bypasses tile view. |
 
 ---
 
-## 2. Permission grammar — 4-segment
+## 2. Permission grammar — inline-effect
 
 ```
-domain:subject:verb:scope
+<domain>:<subject>:<verb>[:<qualifier>]::<effect>
 ```
 
-Frozen scopes: `self | dept | subtree | all`. Lowercase snake throughout.
+`domain ∈ {rbac, user, org, finance, stage, tile, hook, ai, policy, access_request, admin}`.
+`subject` and `verb` are lowercase snake. `qualifier` is optional (omit or `*` for global).
+`effect ∈ {allow, deny}` is required and **encoded inline** in the string.
 
 ### Examples
 
 ```
-finance:expense:approve:dept     ← approve expenses in your dept
-finance:expense:approve:all      ← approve any expense (admin/CFO)
-rbac:level:grant:min:3:all       ← grant level-3 authority
-rbac:level:grant:min:1:all       ← grant CEO-level authority
-dept:engineering:head:3:all      ← head of engineering, requires level 3
-tile:ledger:view:all             ← gate for /ledger tile
+finance:expense:approve::allow               ← global allow
+finance:expense:approve:finance-2::allow    ← dept-scoped allow
+user:dept:finance-2::allow                   ← dept membership marker
+tile:expense:view::allow                     ← tile view gate
+admin:system:bypass::allow                   ← admin bypass — grants everything
 ```
 
-### Why 4-segment
+### Why inline effect
 
-- Scope is declarative in the perm key — no `rbac.domain_scope` table needed
-- `getActorScope()` parses the 4th segment; no hardcoded lists
-- Easy to add new perms without touching code
+- One canonical shape; no `effect` column to drift between the string and the row.
+- `effectOf()` parses the string; no hardcoded lists anywhere.
+- Adding a new perm requires zero code changes.
 
 ---
 
 ## 3. Schema (current state)
 
 ```
-perm.roles               (id, display_name, display_name_th, kind 'persona'|'department',
-                          parent_role_id, description, is_system, sort_order, level smallint)
-perm.permissions         (id text PK = 'domain:subject:verb:scope',
-                          domain, subject, verb, scope, description,
-                          composite PK on (domain, subject, verb, scope))
-perm.role_permissions    (role_id, permission_id, effect 'allow'|'deny', granted_at, granted_by)
-perm.user_roles          (user_id, role_id, granted_at, granted_by)
-perm.audit               (id, kind, actor, target jsonb, occurred_at)
-perm.tiles               (id, display_name, ..., required_level smallint 1..5 NULL,
+perm.roles               (id PK = '<name>::<level>', display_name, description,
+                          is_system, sort_order, parent_role_id,
+                          display_name_th, display_name_de, monthly_budget,
+                          head_user_id)                      -- NO 'kind', NO 'level'
+perm.permissions         (id PK = full '::' string, description)
+perm.role_permissions    (role_id, permission_id, granted_at, granted_by)   -- NO 'effect'
                           required_dept_id text NULL FK → perm.roles(kind='department'))
 
 rbac.perm_grants         (id, user_id, permission_id, starts_at, ends_at NOT NULL,

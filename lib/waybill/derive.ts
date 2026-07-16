@@ -36,60 +36,32 @@ export function pipIndex(domain: WaybillDomain, key: string): number {
   return pips.findIndex((p) => p.key === key);
 }
 
-export function bucketLabel(bucket: WaybillBucket, lang: 'en' | 'th' | 'de' = 'en'): string {
-  const map: Record<WaybillBucket, { en: string; th: string; de: string }> = {
-    submission:    { en: 'Submission',     th: 'ยื่นเอกสาร',      de: 'Einreichung' },
-    verification:  { en: 'Verification',   th: 'ตรวจสอบ',         de: 'Prüfung' },
-    authorization: { en: 'Authorization',  th: 'ลงนามอนุมัติ',      de: 'Genehmigung' },
-    disbursement:  { en: 'Disbursement',   th: 'จ่ายเงิน',         de: 'Auszahlung' },
-    closed:        { en: 'Closed',         th: 'ปิดรายการ',         de: 'Abgeschlossen' },
-  };
-  return map[bucket][lang] ?? map[bucket].en;
+export function bucketLabel(bucket: WaybillBucket, _lang: 'en' | 'th' | 'de' = 'en'): string {
+  return `waybill.bucket.${bucket}`;
 }
 
-const STAGE_ROLE_LABEL_EN: Record<string, string> = {
-  draft: 'Submitter', submission: 'Submitter',
-  dept_verification: 'Higher level', dept_authorization: 'Higher level',
-  accounting_verification: 'Account / Finance reviewer',
-  accounting_supervision: 'Account supervisor (QC)',
-  accounting_authorization: 'Highest account / finance approver',
-  final_authorization: 'Finance final approval',
-  awaiting_disbursement: 'Finance', disbursed: 'Finance',
-  gl_confirmed: 'Account / Finance confirmer',
-  rejected: '—',
-  so_draft: 'Sales rep', so_sales_review: 'Sales supervisor',
-  so_credit_check: 'Account / Sales supervisor', so_invoiced: 'Account officer', so_paid: 'Finance',
-};
-const STAGE_ROLE_LABEL_TH: Record<string, string> = {
-  draft: 'ผู้ส่ง', submission: 'ผู้ส่ง',
-  dept_verification: 'ระดับสูง', dept_authorization: 'ระดับสูง',
-  accounting_verification: 'ผู้ตรวจบัญชี/การเงิน',
-  accounting_supervision: 'หน.บัญชี (QC)',
-  accounting_authorization: 'ผู้อนุมัติสูงสุดบัญชี/การเงิน',
-  final_authorization: 'การเงินขั้นสุดท้าย',
-  awaiting_disbursement: 'การเงิน', disbursed: 'การเงิน',
-  gl_confirmed: 'ผู้ยืนยันบัญชี/การเงิน',
-  rejected: '—',
-  so_draft: 'เซลล์', so_sales_review: 'หัวหน้าทีมขาย',
-  so_credit_check: 'บัญชี/หน.ทีมขาย', so_invoiced: 'เจ้าหน้าที่บัญชี', so_paid: 'การเงิน',
-};
-const STAGE_ROLE_LABEL_DE: Record<string, string> = {
-  draft: 'Einreicher', submission: 'Einreicher',
-  dept_verification: 'Höhere Ebene', dept_authorization: 'Höhere Ebene',
-  accounting_verification: 'Buchhaltung/Finanz-Prüfer',
-  accounting_supervision: 'Buchhaltungsleiter (QC)',
-  accounting_authorization: 'Höchster Buchhaltungs-/Finanz-Genehmiger',
-  final_authorization: 'Finanz-Endgenehmigung',
-  awaiting_disbursement: 'Finanzen', disbursed: 'Finanzen',
-  gl_confirmed: 'Buchhaltung/Finanz-Bestätiger',
-  rejected: '—',
-  so_draft: 'Verkaufsmitarbeiter', so_sales_review: 'Verkaufsleiter',
-  so_credit_check: 'Buchhaltung/Verkaufsleiter', so_invoiced: 'Buchhalter', so_paid: 'Finanzen',
+const STAGE_ROLE_LABEL: Record<string, string> = {
+  draft: 'waybill.role.submitter',
+  submission: 'waybill.role.submitter',
+  dept_verification: 'waybill.role.higherLevel',
+  dept_authorization: 'waybill.role.higherLevel',
+  accounting_verification: 'waybill.role.accountFinanceReviewer',
+  accounting_supervision: 'waybill.role.accountSupervisor',
+  accounting_authorization: 'waybill.role.highestAccountFinanceApprover',
+  final_authorization: 'waybill.role.financeFinalApproval',
+  awaiting_disbursement: 'waybill.role.finance',
+  disbursed: 'waybill.role.finance',
+  gl_confirmed: 'waybill.role.accountFinanceConfirmer',
+  rejected: 'waybill.role.none',
+  so_draft: 'waybill.role.salesRep',
+  so_sales_review: 'waybill.role.salesSupervisor',
+  so_credit_check: 'waybill.role.accountSalesSupervisor',
+  so_invoiced: 'waybill.role.accountOfficer',
+  so_paid: 'waybill.role.finance',
 };
 
-export function stageRoleLabel(stage: string, lang: 'en' | 'th' | 'de' = 'en'): string {
-  const map = lang === 'th' ? STAGE_ROLE_LABEL_TH : lang === 'de' ? STAGE_ROLE_LABEL_DE : STAGE_ROLE_LABEL_EN;
-  return map[stage] ?? map[normalizeStage(stage) ?? ''] ?? '—';
+export function stageRoleLabel(stage: string, _lang: 'en' | 'th' | 'de' = 'en'): string {
+  return STAGE_ROLE_LABEL[stage] ?? STAGE_ROLE_LABEL[normalizeStage(stage) ?? ''] ?? 'waybill.role.unknown';
 }
 
 export function nextStageOf(

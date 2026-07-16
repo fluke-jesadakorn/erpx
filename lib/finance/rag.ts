@@ -1,8 +1,8 @@
 import 'server-only';
-import { aiInvoke } from '@folio-lib/ai/router';
+import { aiInvoke } from '@/ai/router';
 import { query } from '../db';
-import { loadActor } from '@folio-lib/server/guard';
-import { getActorScope } from '@folio-lib/perm/server';
+import { loadActor } from '@/server/guard';
+import { getActorScope } from '@/perm/server';
 
 export interface RagHit {
   expense_id: number;

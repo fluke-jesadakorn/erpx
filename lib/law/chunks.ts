@@ -1,7 +1,7 @@
 import 'server-only';
 
-import { query } from '@folio-lib/db';
-import { invoke } from '@folio-lib/ai/router';
+import { query } from '@/db';
+import { invoke } from '@/ai/router';
 import { enqueueIndexing } from './queue';
 
 export interface ContractChunk {

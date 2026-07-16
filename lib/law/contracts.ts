@@ -2,8 +2,8 @@ import 'server-only';
 
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { query } from '@folio-lib/db';
-import { put, remove } from '@folio-lib/slips/storage';
+import { query } from '@/db';
+import { put, remove } from '@/slips/storage';
 
 const bucket = process.env.MINIO_BUCKET ?? 'folio-storage';
 const prefix = 'law/contracts/';

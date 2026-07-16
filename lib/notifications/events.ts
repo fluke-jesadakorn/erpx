@@ -6,8 +6,8 @@
 // inbox so the bell can show per-persona feeds with read-state.
 
 import 'server-only';
-import { query } from '@folio-lib/db';
-import { computeRecipients } from '@folio-lib/notifications/recipients';
+import { query } from '@/db';
+import { computeRecipients } from '@/notifications/recipients';
 
 export interface PublishOpts {
   actorId?: number | null;

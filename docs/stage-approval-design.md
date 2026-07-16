@@ -1,6 +1,25 @@
 # Stage Approval — Tiered Access Design
 
-Fix for `Action failed: Current stage "manager_review" requires role "manager_of_department", but actor is "accounting_manager"`.
+> **Historical snapshot.** This doc was written before the folio flatten
+> (2026-07-16) and the inline-effect perm grammar. The references to
+> `app/src/app/actions.ts:441` / `:809` and to `rbac_role_id` levels
+> (`L3`, `L4`) are out of date. The current state is:
+>
+> - Stages live in `lib/perm/stages.ts` (FINANCE_STANDARD enum, 12 pips);
+>   canonical finance-standard keys (`accounting_verification`,
+>   `accounting_supervision`, `accounting_authorization`,
+>   `disbursement_authorization`, `cfo_authorization`, `ceo_authorization`,
+>   `awaiting_disbursement`, `disbursed`, `rejected`).
+> - Action handlers live in `app/actions/{expense,procurement,waybill,sales,slips,ai,hr,law}.ts`
+>   (still server-only).
+> - Roles use the `<name>::<level>` form (1 = CEO, 10 = lowest). The matrix
+>   matches via `lib/perm/chain.ts` → `canActOnStage()` against
+>   `lib/perm/taxonomy.ts` → PERM catalog.
+> - Waybill approval actions call `appendWaybillEvent()` from
+>   `lib/waybill/append.ts` (signed audit log).
+
+The rest of this doc is retained as a historical record of the original
+design problem and Option A resolution.
 
 ## Problem
 

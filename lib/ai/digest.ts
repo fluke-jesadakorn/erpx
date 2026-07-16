@@ -1,8 +1,8 @@
 import 'server-only';
 
-import { query } from '@folio-lib/db';
-import { aiInvoke } from '@folio-lib/ai/router';
-import { listRecentNotifications } from '@folio-lib/notifications/queries';
+import { query } from '@/db';
+import { aiInvoke } from '@/ai/router';
+import { listRecentNotifications } from '@/notifications/queries';
 
 export type DigestSeverity = 'info' | 'success' | 'warning' | 'error';
 

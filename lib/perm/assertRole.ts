@@ -5,8 +5,8 @@
 // the perm-string system.
 
 import 'server-only';
-import { query } from '@folio-lib/db';
-import { matchPerm, parseRoleId } from '@folio-lib/perm/server';
+import { query } from '@/db';
+import { matchPerm, parseRoleId } from '@/perm/server';
 
 export async function assertRole(
   actorId: number,

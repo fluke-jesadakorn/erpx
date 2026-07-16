@@ -1,5 +1,5 @@
 import 'server-only';
-import { pool } from '@folio-lib/db';
+import { pool } from '@/db';
 import type { HookEventInput, HookEventRow, HookStatus, HookProvider } from './types';
 
 export async function loadProvider(id: string): Promise<HookProvider | null> {

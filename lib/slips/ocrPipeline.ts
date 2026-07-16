@@ -16,7 +16,7 @@
 
 import sharp from 'sharp';
 import { createRequire } from 'node:module';
-import { invoke } from '@folio-lib/ai/router';
+import { invoke } from '@/ai/router';
 import { getVisionChain } from '../ai/visionChain';
 import {
   validateReceipt,
@@ -301,7 +301,7 @@ export async function runOcrPipeline(
   if (mime.startsWith('image/')) {
     try {
       const require = createRequire(`${process.cwd()}/`);
-      const visionBridge = require('../lib/native/vision-ocr/index.js');
+      const visionBridge = require('lib/native/vision-ocr/index.js');
       if (visionBridge.ocrAvailable()) {
         const ocrResult = await visionBridge.ocrImageFile(outBuffer);
         if (ocrResult && ocrResult.ok && Array.isArray(ocrResult.lines) && ocrResult.lines.length > 0) {

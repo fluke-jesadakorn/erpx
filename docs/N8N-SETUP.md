@@ -1,5 +1,16 @@
 # n8n Setup
 
+> **Historical context (2026-07-16 flatten).** Most of the n8n flows this doc
+> describes are now deprecated — the Law RAG and HR agent ingest paths live
+> in-process inside folio's Next.js server (`lib/hook/`, `lib/law/`,
+> `lib/hr/agent.ts`). The flows under `folio/n8n/flows/` are kept only as a
+> reference of the old externalization. New ingest should be added to the
+> Next.js route handlers in `app/api/hook/{line,line-hr,line-law,generic}/`,
+> not as new n8n flows.
+>
+> The setup steps below still apply for those who run the old flows or who
+> want to flip them back on.
+
 n8n รัน host-native ผ่าน launchd (`com.folio.n8n`) ที่ `http://localhost:5678` และ exposed ผ่าน Cloudflare tunnel `https://n8n.jesadakorn.com`.
 
 ## 1. เข้า n8n UI

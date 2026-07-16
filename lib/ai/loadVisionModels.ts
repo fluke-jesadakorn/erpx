@@ -1,8 +1,8 @@
 import 'server-only';
 import { unstable_cache } from 'next/cache';
-import { query } from '@folio-lib/db';
-import { decryptKey } from '@folio-lib/ai/crypto';
-import { descriptionFor, ratingsFor } from '@folio-lib/ai/modelDescriptions';
+import { query } from '@/db';
+import { decryptKey } from '@/ai/crypto';
+import { descriptionFor, ratingsFor } from '@/ai/modelDescriptions';
 
 export interface VisionModel {
   id: number;

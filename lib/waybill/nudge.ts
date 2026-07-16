@@ -1,5 +1,5 @@
 import 'server-only';
-import { aiInvoke } from '@folio-lib/ai/router';
+import { aiInvoke } from '@/ai/router';
 import { query } from '../db';
 import { loadWaybill } from './queries';
 import { STAGE_TO_ROLE } from '../perm/stages';

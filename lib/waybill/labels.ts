@@ -1,216 +1,112 @@
-// lib/waybill/labels.ts — canonical bilingual stage vocabulary for the
-// Waybill UI. The new key set replaces the legacy snake_case codes.
+export type WaybillBucket = 'submission' | 'verification' | 'authorization' | 'disbursement' | 'closed';
 
 export interface WaybillStagePip {
   key: string;
+  label: string;
+  description: string;
   en: string;
   th: string;
   de?: string;
-  emoji: string;
-  bucket: 'submission' | 'verification' | 'authorization' | 'disbursement' | 'closed';
   description_en: string;
   description_th: string;
   description_de?: string;
+  emoji: string;
+  bucket: WaybillBucket;
   thirdParty?: boolean;
   paysBefore?: boolean;
 }
 
 export interface WaybillDomainPips {
+  title: string;
   title_en: string;
   title_th: string;
   pips: WaybillStagePip[];
 }
 
+function pip(
+  key: string,
+  label: string,
+  description: string,
+  emoji: string,
+  bucket: WaybillBucket,
+  options: Pick<WaybillStagePip, 'thirdParty' | 'paysBefore'> = {},
+): WaybillStagePip {
+  return {
+    key,
+    label,
+    description,
+    en: label,
+    th: label,
+    de: label,
+    description_en: description,
+    description_th: description,
+    description_de: description,
+    emoji,
+    bucket,
+    ...options,
+  };
+}
+
+export const EXPENSE_LABEL = 'waybill.domain.expense';
+export const PROCUREMENT_LABEL = 'waybill.domain.procurement';
+export const SALES_LABEL = 'waybill.domain.sales';
+
 export const EXPENSE_STAGES: WaybillDomainPips = {
-  title_en: 'Expense Waybill',
-  title_th: 'ใบส่งจ่าย (เบิกจ่ายพนักงาน)',
+  title: EXPENSE_LABEL,
+  title_en: EXPENSE_LABEL,
+  title_th: EXPENSE_LABEL,
   pips: [
-    {
-      key: 'submission',
-      en: 'Submission',
-      th: 'ยื่นเบิก',
-      emoji: '📤',
-      bucket: 'submission',
-      description_en: 'Slip uploaded · OCR auto-extracted fields',
-      description_th: 'อัปโหลดสลิป · OCR ดึงข้อมูลอัตโนมัติ',
-    },
-    {
-      key: 'dept_verification',
-      en: 'Dept Verification',
-      th: 'ตรวจสอบระดับแผนก',
-      emoji: '👥',
-      bucket: 'verification',
-      description_en: 'Supervisor confirms vendor + items',
-      description_th: 'หัวหน้างานยืนยันผู้ขายและรายการ',
-    },
-    {
-      key: 'dept_authorization',
-      en: 'Dept Authorization',
-      th: 'อนุมัติระดับแผนก',
-      emoji: '🛡️',
-      bucket: 'authorization',
-      description_en: 'Dept manager signs off',
-      description_th: 'ผู้จัดการแผนกลงนาม',
-    },
-    {
-      key: 'accounting_verification',
-      en: 'Accounting Verification',
-      th: 'บัญชีตรวจสอบ',
-      emoji: '🧾',
-      bucket: 'verification',
-      description_en: 'Account officer line-item check',
-      description_th: 'เจ้าหน้าที่บัญชีตรวจรายการ',
-    },
-    {
-      key: 'accounting_supervision',
-      en: 'Accounting Supervision',
-      th: 'หน.บัญชีตรวจทาน',
-      emoji: '🧮',
-      bucket: 'verification',
-      description_en: 'Account supervisor quality control',
-      description_th: 'หัวหน้าบัญชีตรวจทาน',
-    },
-    {
-      key: 'accounting_authorization',
-      en: 'Accounting Authorization',
-      th: 'ผจก.บัญชีลงนาม',
-      emoji: '⚙️',
-      bucket: 'authorization',
-      description_en: 'Accounting manager recognises expense',
-      description_th: 'ผู้จัดการบัญชีรับรองรายจ่าย',
-    },
-    {
-      key: 'disbursement_authorization',
-      en: 'Disbursement Authorization',
-      th: 'อนุมัติจ่าย',
-      emoji: '💰',
-      bucket: 'authorization',
-      description_en: 'Finance releases funds',
-      description_th: 'การเงินอนุมัติจ่าย',
-    },
-    {
-      key: 'cfo_authorization',
-      en: 'CFO Authorization',
-      th: 'CFO ลงนาม',
-      emoji: '👑',
-      bucket: 'authorization',
-      description_en: 'CFO fiscal sign-off',
-      description_th: 'CFO ลงนามทางการเงิน',
-    },
-    {
-      key: 'ceo_authorization',
-      en: 'CEO Authorization',
-      th: 'CEO ลงนาม',
-      emoji: '🦅',
-      bucket: 'authorization',
-      description_en: 'Auto-armed when total ≥ 200,000 THB',
-      description_th: 'ขอ CEO ลงนามอัตโนมัติเมื่อยอด ≥ 200,000 บาท',
-    },
-    {
-      key: 'awaiting_disbursement',
-      en: 'Awaiting Disbursement',
-      th: 'พร้อมจ่าย',
-      emoji: '✅',
-      bucket: 'disbursement',
-      description_en: 'Approved — settlement slot',
-      description_th: 'อนุมัติแล้ว — รอจ่าย',
-    },
-    {
-      key: 'disbursed',
-      en: 'Disbursed',
-      th: 'จ่ายแล้ว',
-      emoji: '💳',
-      bucket: 'closed',
-      description_en: 'Paid · slip issued · GL posted',
-      description_th: 'จ่ายสำเร็จ · ออกสลิป · บันทึกบัญชี',
-    },
-    {
-      key: 'rejected',
-      en: 'Rejected',
-      th: 'ปฏิเสธ',
-      emoji: '❌',
-      bucket: 'closed',
-      description_en: 'Stopped pending resubmission',
-      description_th: 'หยุดรอ ส่งใหม่ได้',
-    },
+    pip('submission', 'waybill.stage.submission', 'waybill.stage.submissionDescription', '📤', 'submission'),
+    pip('dept_verification', 'waybill.stage.deptVerification', 'waybill.stage.deptVerificationDescription', '👥', 'verification'),
+    pip('dept_authorization', 'waybill.stage.deptAuthorization', 'waybill.stage.deptAuthorizationDescription', '🛡️', 'authorization'),
+    pip('accounting_verification', 'waybill.stage.accountingVerification', 'waybill.stage.accountingVerificationDescription', '🧾', 'verification'),
+    pip('accounting_supervision', 'waybill.stage.accountingSupervision', 'waybill.stage.accountingSupervisionDescription', '🧮', 'verification'),
+    pip('accounting_authorization', 'waybill.stage.accountingAuthorization', 'waybill.stage.accountingAuthorizationDescription', '⚙️', 'authorization'),
+    pip('disbursement_authorization', 'waybill.stage.disbursementAuthorization', 'waybill.stage.disbursementAuthorizationDescription', '💰', 'authorization'),
+    pip('cfo_authorization', 'waybill.stage.cfoAuthorization', 'waybill.stage.cfoAuthorizationDescription', '👑', 'authorization'),
+    pip('ceo_authorization', 'waybill.stage.ceoAuthorization', 'waybill.stage.ceoAuthorizationDescription', '🦅', 'authorization'),
+    pip('awaiting_disbursement', 'waybill.stage.awaitingDisbursement', 'waybill.stage.awaitingDisbursementDescription', '✅', 'disbursement'),
+    pip('disbursed', 'waybill.stage.disbursed', 'waybill.stage.disbursedDescription', '💳', 'closed'),
+    pip('rejected', 'waybill.stage.rejected', 'waybill.stage.rejectedDescription', '❌', 'closed'),
   ],
 };
 
 export const PROCUREMENT_STAGES: WaybillDomainPips = {
-  title_en: 'Procurement Waybill',
-  title_th: 'ใบส่งจ่าย (จัดซื้อจัดจ้าง)',
+  title: PROCUREMENT_LABEL,
+  title_en: PROCUREMENT_LABEL,
+  title_th: PROCUREMENT_LABEL,
   pips: [
-    {
-      key: 'submission',
-      en: 'PR Submitted',
-      th: 'ยื่น PR',
-      emoji: '📝',
-      bucket: 'submission',
-      description_en: 'Purchase request created',
-      description_th: 'ส่งคำขอซื้อ',
-    },
-    {
-      key: 'dept_authorization',
-      en: 'PR Approved',
-      th: 'อนุมัติ PR',
-      emoji: '🛡️',
-      bucket: 'authorization',
-      description_en: 'Dept manager signs',
-      description_th: 'ผู้จัดการแผนกลงนาม',
-    },
-    {
-      key: 'accounting_authorization',
-      en: 'PO Issued',
-      th: 'ออก PO',
-      emoji: '📦',
-      bucket: 'disbursement',
-      description_en: 'Accounting issues PO',
-      description_th: 'บัญชีออกใบสั่งซื้อ',
-    },
-    {
-      key: 'cfo_authorization',
-      en: 'PO Approved',
-      th: 'อนุมัติ PO',
-      emoji: '✅',
-      bucket: 'authorization',
-      description_en: 'PO sign-off before payment',
-      description_th: 'ลงนาม PO ก่อนจ่าย',
-    },
-    {
-      key: 'disbursed',
-      en: 'Payslip',
-      th: 'สลิปจ่าย',
-      emoji: '💳',
-      bucket: 'closed',
-      description_en: 'Disbursement slip attached',
-      description_th: 'แนบสลิปจ่ายเงิน',
-    },
+    pip('submission', 'waybill.stage.prSubmitted', 'waybill.stage.prSubmittedDescription', '📝', 'submission'),
+    pip('dept_authorization', 'waybill.stage.prApproved', 'waybill.stage.prApprovedDescription', '🛡️', 'authorization'),
+    pip('accounting_authorization', 'waybill.stage.poIssued', 'waybill.stage.poIssuedDescription', '📦', 'disbursement'),
+    pip('cfo_authorization', 'waybill.stage.poApproved', 'waybill.stage.poApprovedDescription', '✅', 'authorization'),
+    pip('disbursed', 'waybill.stage.payslip', 'waybill.stage.payslipDescription', '💳', 'closed'),
   ],
 };
 
-// Convenience: fallback label lookup by stage key.
 export const SALES_STAGES: WaybillDomainPips = {
-  title_en: 'Sales Order Waybill',
-  title_th: 'ใบส่งจ่าย (ใบสั่งขาย)',
+  title: SALES_LABEL,
+  title_en: SALES_LABEL,
+  title_th: SALES_LABEL,
   pips: [
-    { key: 'so_draft', en: 'Draft', th: 'ร่าง', de: 'Entwurf', emoji: '📝', bucket: 'submission', description_en: 'Composing SO', description_th: 'กำลังร่าง SO', description_de: 'SO wird erstellt' },
-    { key: 'so_sales_review', en: 'Sales Review', th: 'ตรวจสอบยอดขาย', de: 'Verkaufsprüfung', emoji: '🛡️', bucket: 'authorization', description_en: 'Sales supervisor confirms', description_th: 'หัวหน้าทีมขายยืนยัน', description_de: 'Verkaufsleiter bestätigt' },
-    { key: 'so_credit_check', en: 'Credit Check', th: 'ตรวจเครดิตลูกค้า', de: 'Bonitätsprüfung', emoji: '🔍', bucket: 'verification', description_en: 'Verify AR + credit limit', description_th: 'ตรวจสอบวงเงิน AR + เครดิต', description_de: 'AR + Kreditlimit prüfen' },
-    { key: 'so_invoiced', en: 'Invoiced', th: 'ออกใบกำกับภาษี', de: 'Fakturiert', emoji: '🧾', bucket: 'disbursement', description_en: 'Tax Invoice issued', description_th: 'ออกใบกำกับภาษีแล้ว', description_de: 'Rechnung ausgestellt', thirdParty: true },
-    { key: 'so_paid', en: 'Paid (AR Receipt)', th: 'รับชำระแล้ว', de: 'Bezahlt', emoji: '💰', bucket: 'closed', description_en: 'AR receipt attached', description_th: 'แนบสลิปรับชำระแล้ว', description_de: 'AR-Beleg angehängt', thirdParty: true },
+    pip('so_draft', 'waybill.stage.soDraft', 'waybill.stage.soDraftDescription', '📝', 'submission'),
+    pip('so_sales_review', 'waybill.stage.soSalesReview', 'waybill.stage.soSalesReviewDescription', '🛡️', 'authorization'),
+    pip('so_credit_check', 'waybill.stage.soCreditCheck', 'waybill.stage.soCreditCheckDescription', '🔍', 'verification'),
+    pip('so_invoiced', 'waybill.stage.soInvoiced', 'waybill.stage.soInvoicedDescription', '🧾', 'disbursement', { thirdParty: true }),
+    pip('so_paid', 'waybill.stage.soPaid', 'waybill.stage.soPaidDescription', '💰', 'closed', { thirdParty: true }),
   ],
 };
 
 export function stageLabel(
   stageKey: string,
   domain: 'expense' | 'procurement' | 'sales',
-  lang: 'en' | 'th' = 'en',
+  _lang: 'en' | 'th' | 'de' = 'en',
 ): { label: string; emoji: string } {
   const set = domain === 'sales' ? SALES_STAGES : domain === 'procurement' ? PROCUREMENT_STAGES : EXPENSE_STAGES;
   const pip = set.pips.find((p) => p.key === stageKey);
-  if (pip) return { label: lang === 'th' ? pip.th : pip.en, emoji: pip.emoji };
+  if (pip) return { label: pip.label, emoji: pip.emoji };
   const fallback = EXPENSE_STAGES.pips.find((p) => p.key === stageKey);
-  if (fallback) return { label: lang === 'th' ? fallback.th : fallback.en, emoji: fallback.emoji };
+  if (fallback) return { label: fallback.label, emoji: fallback.emoji };
   return { label: stageKey, emoji: '📄' };
 }
 

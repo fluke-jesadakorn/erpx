@@ -1,6 +1,6 @@
 import 'server-only';
 import { query } from '../db';
-import { aiInvoke } from '@folio-lib/ai/router';
+import { aiInvoke } from '@/ai/router';
 import { STAGE_ORDER } from '../perm/stages';
 
 export interface PolicyLintFinding {

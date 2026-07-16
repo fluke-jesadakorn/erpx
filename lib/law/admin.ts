@@ -1,7 +1,7 @@
 import 'server-only';
 
-import { query } from '@folio-lib/db';
-import { presignedGetUrl } from '@folio-lib/slips/storage';
+import { query } from '@/db';
+import { presignedGetUrl } from '@/slips/storage';
 
 export interface ContractStats {
   total: number;

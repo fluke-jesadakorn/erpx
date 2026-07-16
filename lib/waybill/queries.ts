@@ -1,21 +1,21 @@
 import 'server-only';
 import { cache } from 'react';
-import { query } from '@folio-lib/db';
-import { listEvents, type WaybillEventRow } from '@folio-lib/waybill/events';
+import { query } from '@/db';
+import { listEvents, type WaybillEventRow } from '@/waybill/events';
 import {
   listAttachments,
   attachmentsAndEventsMerged,
   type WaybillAttachmentRow,
-} from '@folio-lib/waybill/attachments';
+} from '@/waybill/attachments';
 import {
   pipsForDomain,
   type WaybillDomain,
-} from '@folio-lib/waybill/derive';
-import { stageRoles } from '@folio-lib/perm/server';
-import { getActorScope, scopeFilter, PERM } from '@folio-lib/perm/server';
-import { assertRole } from '@folio-lib/perm/assertRole';
-import { aiInvoke } from '@folio-lib/ai/router';
-import { loadActor } from '@folio-lib/server/guard';
+} from '@/waybill/derive';
+import { stageRoles } from '@/perm/server';
+import { getActorScope, scopeFilter, PERM } from '@/perm/server';
+import { assertRole } from '@/perm/assertRole';
+import { aiInvoke } from '@/ai/router';
+import { loadActor } from '@/server/guard';
 
 export interface WaybillRow {
   id: string;

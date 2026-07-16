@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { query } from '@folio-lib/db';
+import { query } from '@/db';
 
 function safeParse(s: string): any {
   try { return JSON.parse(s); } catch { return {}; }

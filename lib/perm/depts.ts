@@ -1,30 +1,33 @@
-// lib/perm/depts.ts — canonical department id → display label.
-//
-// The DB column perm.user_permissions holds `user:dept:<id>::allow` grants.
-// The <id> is the canonical department key (development, executive, finance,
-// hr, it, marketing). This module maps the key to a readable label and icon.
-
 export const DEPT_LABEL: Record<string, string> = {
-  development: 'Engineering',
-  executive:   'Executive',
-  finance:     'Finance',
-  hr:          'HR',
-  it:          'IT',
-  marketing:   'Marketing',
+  development: 'departments.development',
+  executive: 'departments.executive',
+  finance: 'departments.finance',
+  hr: 'departments.hr',
+  it: 'departments.it',
+  marketing: 'departments.marketing',
 };
 
 export const DEPT_ICON: Record<string, string> = {
   development: '🛠️',
-  executive:   '👑',
-  finance:     '💰',
-  hr:          '🤝',
-  it:          '💻',
-  marketing:   '📣',
+  executive: '👑',
+  finance: '💰',
+  hr: '🤝',
+  it: '💻',
+  marketing: '📣',
+};
+
+const DEPT_CODE: Record<string, string> = {
+  development: 'ENG',
+  executive: 'EXE',
+  finance: 'FIN',
+  hr: 'HR',
+  it: 'IT',
+  marketing: 'MKT',
 };
 
 export function deptLabel(key: string | null | undefined): string {
-  if (!key) return 'Department';
-  return DEPT_LABEL[key] || key.charAt(0).toUpperCase() + key.slice(1);
+  if (!key) return 'departments.department';
+  return DEPT_LABEL[key] ?? `departments.${key}`;
 }
 
 export function deptIcon(key: string | null | undefined): string {
@@ -34,6 +37,5 @@ export function deptIcon(key: string | null | undefined): string {
 
 export function deptCode(key: string | null | undefined): string {
   if (!key) return 'DEP';
-  const lbl = deptLabel(key);
-  return lbl.split(/\s+/).map((w) => w[0] || '').join('').slice(0, 3).toUpperCase() || 'DEP';
+  return DEPT_CODE[key] ?? (key.replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase() || 'DEP');
 }

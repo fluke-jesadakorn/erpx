@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { query } from '@folio-lib/db';
+import { query } from '@/db';
 
 export interface RecipientContext {
   type: string;
