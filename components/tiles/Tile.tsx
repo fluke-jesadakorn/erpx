@@ -155,7 +155,7 @@ export const Tile: React.FC<TileProps> = ({
         </div>
       )}
 
-      <div className={`absolute -right-4 -bottom-5 text-[96px] leading-none select-none pointer-events-none ${locked ? 'opacity-[0.03]' : 'opacity-[0.05]'}`}>
+      <div className={`absolute -right-6 -bottom-8 text-[120px] leading-none select-none pointer-events-none ${locked ? 'opacity-[0.03]' : 'opacity-[0.05]'}`}>
         {tile.icon}
       </div>
 
@@ -172,7 +172,7 @@ export const Tile: React.FC<TileProps> = ({
 
       <div className="relative z-10 flex flex-col h-full">
         <div className="flex items-start justify-between gap-2">
-          <span className={`text-[44px] drop-shadow-lg leading-none ${locked ? 'grayscale opacity-60' : ''}`}>{tile.icon}</span>
+          <span className={`text-[52px] drop-shadow-lg leading-none ${locked ? 'grayscale opacity-60' : ''}`}>{tile.icon}</span>
           {tile.count !== undefined && (
             <div className={`flex flex-col items-end ${live && !locked ? '' : 'opacity-70'}`}>
               <span className={`font-black font-mono leading-none ${locked ? 'text-slate-500' : c.text} text-3xl`}>
@@ -202,7 +202,7 @@ export const Tile: React.FC<TileProps> = ({
             <div className="mt-2 flex flex-wrap items-center gap-1">
               <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider ${locked ? 'bg-slate-900/70 text-slate-500 border-slate-800' : 'bg-slate-900/70 text-slate-300 border-slate-700/70'}`}>
                 <span aria-hidden>{locked ? '🔒' : '✓'}</span>
-                <span className="truncate max-w-[180px]">{locked ? <T id="tiles.locked" hideSecondary /> : <T id="tiles.open" hideSecondary />}</span>
+                <span className="truncate max-w-[220px]">{locked ? <T id="tiles.locked" hideSecondary /> : <T id="tiles.open" hideSecondary />}</span>
               </span>
             </div>
           )}
