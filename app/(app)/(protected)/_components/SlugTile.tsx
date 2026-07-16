@@ -1,5 +1,7 @@
 import 'server-only';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+
+const DEPRECATED_SLUGS = new Set(['my-waybills', 'my_waybills']);
 import { PageLayout } from '@/components/PageLayout';
 import {
   evaluateTile,
@@ -60,8 +62,7 @@ const DIRECT: Record<string, string> = {
   inbox: '/inbox',
   pr: '/expense?scope=mine',
   po: '/expense?scope=queue',
-  my_waybills: '/my-waybills?scope=mine',
-  my_prs: '/my-waybills?scope=mine&origin=pr',
+  my_prs: '/inbox?scope=watching',
   sales: '/sales',
   customers: '/customers',
   reconciliation: '/reconciliation',
@@ -72,6 +73,7 @@ const DIRECT: Record<string, string> = {
 };
 
 export async function SlugTile({ slug, actor }: Props) {
+  if (DEPRECATED_SLUGS.has(slug)) notFound();
   const directKey = slug.replace(/[-_]/g, '_');
   if (directKey in DIRECT) redirect(DIRECT[directKey]);
 

@@ -6,5 +6,5 @@ export const dynamic = 'force-dynamic';
 export default async function PoLanding() {
   const actor = await loadActor();
   if (!actor) redirect('/login');
-  redirect('/my-waybills?scope=all');
+  redirect('/inbox?scope=all');
 }

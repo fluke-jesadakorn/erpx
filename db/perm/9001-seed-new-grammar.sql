@@ -362,8 +362,8 @@ ON CONFLICT DO NOTHING;
 INSERT INTO perm.tiles (id, display_name, subtitle, icon, accent, group_name, href, sort_order, view_perm_id) VALUES
   ('inbox',           'Inbox',             'Approval queue',          '📥', 'sky',    'work',     '/inbox',            10,  'tile:inbox:view::allow'),
   ('expense',         'Expense',           'Submit / track claims',   '🧾', 'emerald','work',     '/expense',          20,  'tile:expense:view::allow'),
-  ('pr',              'PR',                'Purchase requisitions',   '📝', 'violet', 'work',     '/my-waybills?scope=mine&origin=pr', 30, 'tile:pr:view::allow'),
-  ('po',              'PO & Payslip',      'Purchase orders',         '📦', 'amber',  'work',     '/my-waybills?scope=mine&origin=po', 40, 'tile:po:view::allow'),
+  ('pr',              'PR',                'Purchase requisitions',   '📝', 'violet', 'work',     '/inbox?scope=watching',             30, 'tile:pr:view::allow'),
+  ('po',              'PO & Payslip',      'Purchase orders',         '📦', 'amber',  'work',     '/inbox?scope=all',                  40, 'tile:po:view::allow'),
   ('sales',           'Sales Orders',      'Sales orders',            '💼', 'cyan',   'work',     '/sales',            50,  'tile:sales:view::allow'),
   ('customers',       'Customers',         'Customer master',         '👤', 'cyan',   'work',     '/customers',        55,  'tile:customers:view::allow'),
   ('search-coa',      'Search',            'Chart of accounts',       '🔍', 'slate',  'work',     '/search-coa',       60,  'tile:search_coa:view::allow'),

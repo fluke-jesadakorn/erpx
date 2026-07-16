@@ -6,5 +6,5 @@ export const dynamic = 'force-dynamic';
 export default async function PrLanding() {
   const actor = await loadActor();
   if (!actor) redirect('/login');
-  redirect('/my-waybills?scope=mine');
+  redirect('/inbox?scope=watching');
 }

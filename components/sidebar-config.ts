@@ -41,10 +41,10 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
     key: 'approvals',
     label: { id: 'sidebar.approvals' },
     items: [
-      { key: 'inbox', label: { id: 'sidebar.labels.inbox' }, icon: 'inbox',     href: '/my-waybills?scope=active' },
-      { key: 'queue', label: { id: 'sidebar.labels.queue' }, icon: 'clock',     href: '/my-waybills?scope=queue' },
-      { key: 'mine',  label: { id: 'sidebar.labels.mine' },  icon: 'file-text', href: '/my-waybills?scope=mine' },
-      { key: 'all',   label: { id: 'sidebar.labels.all' },   icon: 'layers',    href: '/my-waybills?scope=all' },
+      { key: 'inbox', label: { id: 'sidebar.labels.inbox' }, icon: 'inbox',     href: '/inbox?scope=waiting' },
+      { key: 'queue', label: { id: 'sidebar.labels.queue' }, icon: 'clock',     href: '/inbox?scope=waiting' },
+      { key: 'mine',  label: { id: 'sidebar.labels.mine' },  icon: 'file-text', href: '/inbox?scope=watching' },
+      { key: 'all',   label: { id: 'sidebar.labels.all' },   icon: 'layers',    href: '/inbox?scope=all' },
     ],
   },
   {

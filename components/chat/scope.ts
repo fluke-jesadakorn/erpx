@@ -56,7 +56,7 @@ export function deriveScope(pathname: string, search: string): ChatScope | null 
   if (pathname === '/law' || pathname.startsWith('/law/')) return make('law', 'Law', 'You are on the Law page.', 'law');
   if (pathname === '/org-chart' || pathname.startsWith('/org-chart/')) return make('org', 'Org', 'You are on the Org Chart page.', 'org');
   if (pathname === '/inbox' || pathname.startsWith('/inbox/')) return make('inbox', 'Inbox', 'You are on the Inbox page.', 'inbox');
-  if (pathname === '/my-waybills' || pathname.startsWith('/my-waybills/')) {
+  if (pathname === '/inbox' || pathname.startsWith('/inbox/')) {
     const tail = scopeParam ? ` · ${scopeParam}` : '';
     return make('waybills', `Waybills${tail}`, 'You are on the Waybills page.', 'waybills');
   }

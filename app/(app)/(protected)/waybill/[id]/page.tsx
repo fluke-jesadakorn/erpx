@@ -140,7 +140,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
       <BreadcrumbSetter
         crumbs={[
            { label: <T id="nav.home" locale={locale} />, href: '/' },
-           { label: <T id="waybill.inbox.title" locale={locale} />, href: '/my-waybills' },
+           { label: <T id="waybill.inbox.title" locale={locale} />, href: '/inbox' },
           { label: wb.id, href: `/waybill/${wb.id}` },
         ]}
       />
