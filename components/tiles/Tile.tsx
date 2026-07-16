@@ -155,7 +155,7 @@ export const Tile: React.FC<TileProps> = ({
         </div>
       )}
 
-      <div className={`absolute -right-3 -bottom-4 text-[88px] leading-none select-none pointer-events-none ${locked ? 'opacity-[0.03]' : 'opacity-[0.05]'}`}>
+      <div className={`absolute -right-4 -bottom-5 text-[96px] leading-none select-none pointer-events-none ${locked ? 'opacity-[0.03]' : 'opacity-[0.05]'}`}>
         {tile.icon}
       </div>
 
