@@ -122,7 +122,7 @@ export const SortableTileGrid: React.FC<SortableTileGridProps> = ({
   return (
     <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={ids} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4 grid-rows-[210px] auto-rows-[210px]">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4 grid-rows-[280px] auto-rows-[280px]">
           {list.map(({ tile, access }, idx) => (
             <div
               key={tile.id}

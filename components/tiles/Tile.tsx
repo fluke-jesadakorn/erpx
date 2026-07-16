@@ -103,16 +103,16 @@ function TileText({
   return (
     <>
       <span className={nameClass}>
-        <span className="block">{nameEn}</span>
+        <span className="block break-words">{nameEn}</span>
         {secName ? (
-          <span className="block mt-0.5 text-xs font-normal text-slate-400">{secName}</span>
+          <span className="block mt-1 text-xs font-normal text-slate-400 break-words">{secName}</span>
         ) : null}
       </span>
       {subEn ? (
         <p className={subClass}>
-          <span className="line-clamp-1">{subEn}</span>
+          <span className="block break-words">{subEn}</span>
           {secSub ? (
-            <span className="block mt-0.5 text-xs font-normal text-slate-500 line-clamp-1">{secSub}</span>
+            <span className="block mt-1 text-xs font-normal text-slate-500 break-words">{secSub}</span>
           ) : null}
         </p>
       ) : null}
@@ -155,7 +155,7 @@ export const Tile: React.FC<TileProps> = ({
         </div>
       )}
 
-      <div className={`absolute -right-2 -bottom-3 text-[96px] leading-none select-none pointer-events-none ${locked ? 'opacity-[0.03]' : 'opacity-[0.06]'}`}>
+      <div className={`absolute -right-3 -bottom-4 text-[88px] leading-none select-none pointer-events-none ${locked ? 'opacity-[0.03]' : 'opacity-[0.05]'}`}>
         {tile.icon}
       </div>
 
@@ -187,22 +187,22 @@ export const Tile: React.FC<TileProps> = ({
           )}
         </div>
 
-        <div className="mt-auto pt-2">
+        <div className="mt-auto pt-3">
           <h3 className={`font-black leading-tight text-[14px] ${locked ? 'text-slate-400' : 'text-white'}`}>
             <TileText
               tileId={tile.id}
               fallbackEn={tile.display_name}
               fallbackSub={tile.subtitle}
               nameClass=""
-              subClass="mt-0.5 font-sans leading-snug text-sm text-slate-400 line-clamp-1"
+              subClass="mt-1.5 font-sans leading-snug text-xs text-slate-400"
               stack
             />
           </h3>
           {hasMeta && viewPermId && (
-            <div className="mt-1.5 flex flex-wrap items-center gap-1">
-              <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-xs font-mono uppercase tracking-wider ${locked ? 'bg-slate-900/70 text-slate-500 border-slate-800' : 'bg-slate-900/70 text-slate-300 border-slate-700/70'}`}>
+            <div className="mt-2 flex flex-wrap items-center gap-1">
+              <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider ${locked ? 'bg-slate-900/70 text-slate-500 border-slate-800' : 'bg-slate-900/70 text-slate-300 border-slate-700/70'}`}>
                 <span aria-hidden>{locked ? '🔒' : '✓'}</span>
-                <span className="truncate max-w-[160px]">{locked ? <T id="tiles.locked" hideSecondary /> : <T id="tiles.open" hideSecondary />}</span>
+                <span className="truncate max-w-[180px]">{locked ? <T id="tiles.locked" hideSecondary /> : <T id="tiles.open" hideSecondary />}</span>
               </span>
             </div>
           )}
@@ -215,7 +215,7 @@ export const Tile: React.FC<TileProps> = ({
     'group relative rounded-2xl overflow-hidden text-left block w-full',
     'bg-gradient-to-br',
     c.bg,
-    'h-[210px] p-5',
+    'min-h-[280px] p-5',
     locked
       ? `opacity-50 grayscale saturate-50 ring-1 ring-slate-800/60 border border-slate-800/80 cursor-not-allowed`
       : active
