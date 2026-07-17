@@ -83,10 +83,10 @@ export interface ScopeFilter {
   params: unknown[];
 }
 
-export function scopeFilter(
+export async function scopeFilter(
   scope: ActorScope,
   userColumn: string = 'submitter_id',
-): ScopeFilter {
+): Promise<ScopeFilter> {
   switch (scope.kind) {
     case 'all':
       return { clause: '', params: [] };
@@ -94,7 +94,7 @@ export function scopeFilter(
       if (!scope.deptId) {
         return { clause: `${userColumn} = $1`, params: [scope.userId] };
       }
-      return { clause: `${userColumn} = ANY($1::int[])`, params: [usersInDept(scope.deptId) as unknown as number[]] };
+      return { clause: `${userColumn} = ANY($1::int[])`, params: [await usersInDept(scope.deptId)] };
     case 'subtree':
       if (!scope.subtreeUserIds.length) {
         return { clause: `${userColumn} = $1`, params: [scope.userId] };
@@ -106,10 +106,14 @@ export function scopeFilter(
   }
 }
 
-// Placeholder resolver — the caller is expected to pass resolved ids when needed.
-// For 'department' scope without pre-resolved ids, fall back to self-only.
-function usersInDept(_deptId: string): number[] {
-  return [];
+async function usersInDept(deptId: string): Promise<number[]> {
+  const r = await query<{ user_id: number }>(
+    `SELECT user_id FROM perm.user_permissions
+      WHERE permission_id = $1 AND revoked_at IS NULL
+        AND (ends_at IS NULL OR ends_at > now())`,
+    [`user:dept:${deptId}::allow`],
+  );
+  return r.rows.map((row) => row.user_id);
 }
 
 export async function assertInScope(

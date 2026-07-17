@@ -55,7 +55,8 @@ export default async function ChatPage() {
         title="AI Chat"
         subtitle={`${actor.fullname} · ${actor.role_name}`}
         category={{ label: 'AI Chat', icon: 'zap', href: '/chat' }}
-        className="max-w-none px-3 sm:px-4 py-6"
+        className="max-w-none px-3 sm:px-4 pt-2 pb-2"
+        contentClassName="mt-2"
       >
         <FullChat initialSessions={sessions} />
       </PageLayout>

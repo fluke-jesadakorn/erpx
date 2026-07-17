@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Icon } from '@/components/icons';
+import { Icon, type IconName } from '@/components/icons';
 import { T } from '@/components/i18n/T';
 import { UserAvatar, roleGlyph, roleLabel, roleBadge, type StaffLevel } from './UserAvatar';
 import { ROLE_RANK, ROLE_LEVEL as ROLE_LEVEL_DISPLAY, type DisplayRoleName } from '@/org/display';
@@ -14,10 +14,10 @@ type SortBy = 'level' | 'name' | 'role';
 const LS_GROUP = 'folio.persona.groupby';
 const LS_SORT = 'folio.persona.sortby';
 
-const GROUP_OPTIONS: { key: GroupBy; id: string; icon: string }[] = [
-  { key: 'department', id: 'persona.groupDept', icon: '🏢' },
-  { key: 'level',      id: 'persona.groupLevel', icon: '🧭' },
-  { key: 'role',       id: 'persona.groupRole',  icon: ' badge' },
+const GROUP_OPTIONS: { key: GroupBy; id: string; icon: IconName }[] = [
+  { key: 'department', id: 'persona.groupDept', icon: 'building' },
+  { key: 'level',      id: 'persona.groupLevel', icon: 'gauge' },
+  { key: 'role',       id: 'persona.groupRole',  icon: 'shield' },
 ];
 const SORT_OPTIONS: { key: SortBy; id: string }[] = [
   { key: 'level', id: 'persona.sortLevel' },
@@ -53,28 +53,6 @@ function staffLevelOf(u: any): StaffLevel {
   return ROLE_LEVEL_DISPLAY[role as DisplayRoleName] ?? 5;
 }
 
-function initials(name?: string): string {
-  if (!name) return '?';
-  const p = name.trim().split(/\s+/);
-  if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
-  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
-}
-
-function deptMeta(deptId: string | null | undefined, deptName: string | null | undefined) {
-  const cleaned = (deptId || '').replace(/^dept-/, '');
-  if (cleaned) {
-    return {
-      code: deptCodeFn(cleaned),
-      icon: deptIconFn(cleaned),
-    };
-  }
-  if (deptName) {
-    const code = deptName.split(/\s+/).map((w) => w[0] || '').join('').slice(0, 3).toUpperCase() || 'DEP';
-    return { code, icon: '🏢' };
-  }
-  return { code: 'DEP', icon: '🏢' };
-}
-
 interface PersonaMenuProps {
   users: any[];
   currentUser: any;
@@ -89,6 +67,7 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
   const [sortBy, setSortBy] = useState<SortBy>(() => lsGet(LS_SORT, ['level', 'name', 'role'] as const, 'level'));
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => { lsSet(LS_GROUP, groupBy); }, [groupBy]);
   useEffect(() => { lsSet(LS_SORT, sortBy); }, [sortBy]);
@@ -219,6 +198,12 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
     if (open && flat.length) setHighlight(0);
   }, [query, open, flat.length]);
 
+  useEffect(() => {
+    if (!open || !listRef.current) return;
+    const el = listRef.current.querySelector<HTMLElement>(`[data-idx="${highlight}"]`);
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }, [highlight, open]);
+
   const curRole = currentUser?.role_id || currentUser?.role_name;
 
   return (
@@ -274,65 +259,104 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
           />
           <div
             role="menu"
-            className="absolute right-0 mt-2 w-[28rem] max-w-[92vw] bg-slate-950/98 border border-indigo-500/40 rounded-2xl shadow-2xl shadow-black/70 p-2 z-50 animate-fade-in flex flex-col max-h-[min(72vh,640px)]"
+            className="absolute right-0 mt-2 w-[30rem] max-w-[94vw] glass-panel-heavy rounded-2xl shadow-modal z-50 animate-fade-scale flex flex-col max-h-[min(78vh,680px)] overflow-hidden"
           >
-            <div className="px-3 pt-2 pb-1 text-xs font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center justify-between">
-              <span><T id="persona.title" /></span>
-              <span className="text-slate-500 normal-case font-normal">{flat.length}/{users.length}</span>
-            </div>
-            <div className="px-1 pt-1 pb-1.5 flex flex-wrap items-center gap-1.5">
-              <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950/60 p-0.5">
-                {GROUP_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setGroupBy(opt.key)}
-                    className={[
-                      'px-2 py-1 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-colors',
-                      groupBy === opt.key
-                        ? 'bg-indigo-500/30 text-indigo-200 border border-indigo-500/50'
-                        : 'text-slate-400 hover:text-slate-200 border border-transparent',
-                    ].join(' ')}
-                    title={`Group by `}
-                  >
-                    {opt.icon} <T id={opt.id} />
-                  </button>
-                ))}
+            {/* ── Header ─────────────────────────────────────────── */}
+            <div className="relative px-4 pt-4 pb-3 border-b border-slate-800/80">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500/30 to-purple-500/20 border border-indigo-400/40 text-indigo-200">
+                  <Icon name="users" size={14} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-mono font-bold uppercase tracking-widest text-slate-300 leading-tight">
+                    <T id="persona.title" />
+                  </div>
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mt-0.5 truncate">
+                    {currentUser?.fullname || 'Anonymous'}
+                  </div>
+                </div>
+                <span className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900/70 px-1.5 py-1 text-[10px] font-mono font-bold text-slate-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {flat.length}/{users.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Close"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white hover:border-slate-700 transition-colors"
+                >
+                  <Icon name="x" size={12} />
+                </button>
               </div>
-              <div className="flex items-center rounded-lg border border-slate-800 bg-slate-950/60 p-0.5">
-                <span className="px-1.5 text-xs font-mono uppercase text-slate-500"><T id="persona.sort" /></span>
-                {SORT_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setSortBy(opt.key)}
-                    className={[
-                      'px-2 py-1 rounded-md text-xs font-mono font-bold uppercase tracking-wider transition-colors',
-                      sortBy === opt.key
-                        ? 'bg-purple-500/30 text-purple-200 border border-purple-500/50'
-                        : 'text-slate-400 hover:text-slate-200 border border-transparent',
-                    ].join(' ')}
-                    title={`Sort by `}
-                  >
-                    <T id={opt.id} />
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="px-1 pt-0.5 pb-2">
-              <input
-                autoFocus
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by name, code, or role…"
-                className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500/60"
-              />
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto pb-1">
+            {/* ── Controls ──────────────────────────────────────── */}
+            <div className="px-4 py-3 border-b border-slate-800/80 space-y-2.5">
+              <ControlRow labelId="persona.group" icon="filter">
+                {GROUP_OPTIONS.map((opt) => {
+                  const active = groupBy === opt.key;
+                  return (
+                    <SegPill
+                      key={opt.key}
+                      active={active}
+                      onClick={() => setGroupBy(opt.key)}
+                      label={<T id={opt.id} />}
+                      icon={opt.icon}
+                    />
+                  );
+                })}
+              </ControlRow>
+              <ControlRow labelId="persona.sort" icon="sort">
+                {SORT_OPTIONS.map((opt) => {
+                  const active = sortBy === opt.key;
+                  return (
+                    <SegPill
+                      key={opt.key}
+                      active={active}
+                      onClick={() => setSortBy(opt.key)}
+                      label={<T id={opt.id} />}
+                    />
+                  );
+                })}
+              </ControlRow>
+            </div>
+
+            {/* ── Search ────────────────────────────────────────── */}
+            <div className="px-4 py-3 border-b border-slate-800/80">
+              <label className="relative block">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 pointer-events-none">
+                  <Icon name="search" size={14} />
+                </span>
+                <input
+                  autoFocus
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by name, code, or role…"
+                  className="w-full pl-9 pr-9 py-2.5 rounded-xl glass-input text-sm text-white placeholder:text-slate-500 focus:outline-none"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery('')}
+                    aria-label="Clear search"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-white transition-colors"
+                  >
+                    <Icon name="x" size={12} />
+                  </button>
+                )}
+              </label>
+            </div>
+
+            {/* ── List ──────────────────────────────────────────── */}
+            <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
               {grouped.length === 0 ? (
-                <div className="px-4 py-8 text-center text-xs text-slate-500 font-mono">
-                  <T id="persona.noMatch" values={{ query }} />
+                <div className="px-4 py-12 text-center">
+                  <div className="mx-auto mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-800 bg-slate-900/60 text-slate-500">
+                    <Icon name="search" size={16} />
+                  </div>
+                  <div className="text-xs text-slate-400 font-mono">
+                    <T id="persona.noMatch" values={{ query }} />
+                  </div>
                 </div>
               ) : (
                 grouped.map(([gKey, arr], gi) => {
@@ -344,37 +368,38 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                         icon: STAFF_LEVEL_GLYPH[lv] ?? '🧭',
                         label: `P${lv}`,
                         code: gKey,
+                        tone: 'level',
                       };
                     }
                     if (groupBy === 'role') {
                       const rk = (head?.role_id || head?.role_name || gKey) as DisplayRoleName;
                       return {
-                        icon: roleGlyph(rk as any) || 'badge',
+                        icon: roleGlyph(rk as any) || '🛡️',
                         label: roleLabel(rk as any) || gKey,
                         code: (head?.role_id || gKey).toString().toUpperCase().slice(0, 6),
+                        tone: 'role',
                       };
                     }
                     const dKey = gKey !== '__other__' ? gKey : (head?.department || 'department');
                     const m = deptMetaFromKey(dKey);
-                    return { icon: m.icon, label: m.label, code: m.code };
+                    return { icon: m.icon, label: m.label, code: m.code, tone: 'dept' };
                   })();
                   return (
-                    <div key={gKey}>
-                      {gi > 0 && <div className="my-1.5 mx-2 border-t border-slate-800/80" />}
-                      <div className="mx-1 mb-1 px-2 py-1 flex items-center gap-2 rounded-md bg-slate-900/50 border border-slate-800">
-                        <span className="text-xs">{gMeta.icon}</span>
-                        {groupBy === 'level' ? (
-                          <span className="text-xs uppercase tracking-widest font-mono font-bold text-slate-300">
-                            <T id={`persona.level.${Number(gKey.replace(/^P/, ''))}`} />
-                          </span>
-                        ) : (
-                          <span className="text-xs uppercase tracking-widest font-mono font-bold text-slate-300">                           <T id={gMeta.label} /></span>
-                        )}
-                        <span className="ml-auto text-[8px] font-mono px-1.5 py-0.5 rounded border border-slate-700 bg-slate-950/60 text-slate-300">
-                          {gMeta.code} • {arr.length}
+                    <div key={gKey} className={gi > 0 ? 'mt-2' : ''}>
+                      <div className="mx-2 mb-1.5 px-2 pt-1 pb-1 flex items-center gap-2">
+                        <span className="text-sm leading-none opacity-90">{gMeta.icon}</span>
+                        <span className="text-[10px] uppercase tracking-widest font-mono font-bold text-slate-300">
+                          {gMeta.tone === 'level'
+                            ? <T id={`persona.level.${Number(gKey.replace(/^P/, ''))}`} />
+                            : <T id={gMeta.label} />}
+                        </span>
+                        <span className="ml-auto inline-flex items-center gap-1 rounded-md border border-slate-800 bg-slate-900/70 px-1.5 py-0.5 text-[9px] font-mono font-bold text-slate-400">
+                          <span className="text-slate-500">{gMeta.code}</span>
+                          <span className="text-slate-600">·</span>
+                          <span className="text-slate-300">{arr.length}</span>
                         </span>
                       </div>
-                      <div className="space-y-0.5">
+                      <div className="space-y-1">
                         {arr.map((u: any) => {
                           const idx = flat.findIndex((f) => f.id === u.id);
                           const selected = currentUser?.id === u.id;
@@ -383,43 +408,66 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                           return (
                             <button
                               key={u.id}
+                              data-idx={idx}
                               role="menuitem"
                               type="button"
                               onClick={() => selectUser(u)}
                               onMouseEnter={() => setHighlight(idx)}
                               className={[
-                                'w-full flex items-center gap-2.5 px-2 py-2 rounded-xl text-left transition-all',
-                                focused ? 'bg-slate-900' : 'bg-transparent',
-                                selected ? 'border border-indigo-500/40' : 'border border-transparent hover:border-slate-800',
+                                'group relative w-full flex items-center gap-3 pl-3 pr-2.5 py-2 rounded-xl text-left transition-all overflow-hidden',
+                                focused
+                                  ? 'bg-slate-900/80 ring-1 ring-inset ring-slate-700/80'
+                                  : 'ring-1 ring-inset ring-transparent hover:bg-slate-900/50',
+                                selected ? 'ring-indigo-400/70' : '',
                               ].join(' ')}
                             >
+                              {selected && (
+                                <span
+                                  aria-hidden
+                                  className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-gradient-to-b from-indigo-400 to-purple-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]"
+                                />
+                              )}
                               <UserAvatar
                                 fullname={u.fullname}
                                 role={roleKey}
                                 level={staffLevelOf(u)}
-                                size="xs"
+                                size="sm"
+                                ring={selected}
                               />
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-bold truncate text-white">{u.fullname}</span>
-                                  {selected && <span className="text-emerald-400 text-xs font-bold">✔</span>}
+                                  <span className={[
+                                    'text-[13px] font-semibold truncate',
+                                    selected ? 'text-white' : 'text-slate-100',
+                                  ].join(' ')}>
+                                    {u.fullname}
+                                  </span>
+                                  {selected && (
+                                    <span className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold uppercase tracking-wider text-emerald-300">
+                                      <Icon name="check" size={9} />
+                                    </span>
+                                  )}
                                 </div>
                                 <div className="flex items-center gap-1 mt-1 flex-wrap">
                                   <span
                                     className={[
-                                      'px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase border',
+                                      'px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border tracking-wider',
                                       roleBadge(roleKey),
                                     ].join(' ')}
                                   >
                                     {positionLabel(roleKey, u.department ?? null)}
                                   </span>
-                                  <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase border bg-slate-500/10 text-slate-300 border-slate-600/50">
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border border-slate-700 bg-slate-800/60 text-slate-300">
                                     P{staffLevelOf(u)}
                                   </span>
-                                  <span className="text-xs text-slate-600 font-mono">{u.employee_code}</span>
+                                  <span className="text-[10px] text-slate-500 font-mono tabular-nums">
+                                    {u.employee_code}
+                                  </span>
                                 </div>
                               </div>
-                              <span className="text-base leading-none opacity-70 shrink-0">{roleGlyph(roleKey)}</span>
+                              <span className="text-base leading-none opacity-50 shrink-0 group-hover:opacity-90 transition-opacity">
+                                {roleGlyph(roleKey)}
+                              </span>
                             </button>
                           );
                         })}
@@ -430,20 +478,34 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
               )}
             </div>
 
-            <div className="px-3 py-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-xs text-slate-500 font-mono">
-              <span className="shrink-0"><T id="persona.filterHint" /></span>
-              <span className="flex items-center gap-1.5">
-                <span className={['px-1.5 py-0.5 rounded border', roleBadge(curRole)].join(' ')}>
-                  ● {positionLabel(curRole, currentUser?.department ?? null)}
+            {/* ── Footer ────────────────────────────────────────── */}
+            <div className="px-4 py-2.5 border-t border-slate-800/80 bg-slate-950/40 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+                <Kbd>↑</Kbd>
+                <Kbd>↓</Kbd>
+                <span className="ml-0.5 mr-1.5">select</span>
+                <Kbd>↵</Kbd>
+                <span className="ml-0.5 mr-1.5">confirm</span>
+                <Kbd>Esc</Kbd>
+                <span className="ml-0.5">close</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className={[
+                  'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider',
+                  roleBadge(curRole),
+                ].join(' ')}>
+                  <span className="opacity-70">●</span>
+                  {positionLabel(curRole, currentUser?.department ?? null)}
                 </span>
                 <button
                   type="button"
                   onClick={signOut}
-                  className="px-1.5 py-0.5 rounded border border-rose-500/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 transition-colors font-bold uppercase tracking-wider"
+                  className="inline-flex items-center gap-1 rounded-md border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider text-rose-200 hover:bg-rose-500/20 hover:border-rose-400/60 transition-colors"
                 >
+                  <Icon name="arrow-right" size={10} />
                   <T id="chrome.signOut" />
                 </button>
-              </span>
+              </div>
             </div>
           </div>
         </>
@@ -451,6 +513,49 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
     </div>
   );
 };
+
+const Kbd: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <kbd className="inline-flex min-w-[1.25rem] h-[1.125rem] items-center justify-center rounded border border-slate-700 bg-slate-900/80 px-1 text-[9px] font-mono font-bold text-slate-300 shadow-[inset_0_-1px_0_rgba(0,0,0,0.4)]">
+    {children}
+  </kbd>
+);
+
+const ControlRow: React.FC<{
+  labelId: string;
+  icon: IconName;
+  children: React.ReactNode;
+}> = ({ labelId, icon, children }) => (
+  <div className="flex items-center gap-2">
+    <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-slate-500 shrink-0 w-16">
+      <Icon name={icon} size={10} />
+      <T id={labelId} />
+    </span>
+    <div className="flex items-center gap-1 p-0.5 rounded-lg border border-slate-800 bg-slate-950/60 flex-1 min-w-0">
+      {children}
+    </div>
+  </div>
+);
+
+const SegPill: React.FC<{
+  active: boolean;
+  onClick: () => void;
+  label: React.ReactNode;
+  icon?: IconName;
+}> = ({ active, onClick, label, icon }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={[
+      'flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-mono font-bold uppercase tracking-wider transition-all',
+      active
+        ? 'bg-gradient-to-b from-indigo-500/40 to-purple-500/30 text-white border border-indigo-400/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_12px_rgba(99,102,241,0.25)]'
+        : 'text-slate-400 border border-transparent hover:text-slate-100 hover:bg-slate-900/60',
+    ].join(' ')}
+  >
+    {icon && <Icon name={icon} size={11} />}
+    {label}
+  </button>
+);
 
 const STAFF_LEVEL_GLYPH: Record<number, string> = {
   1: '👑',

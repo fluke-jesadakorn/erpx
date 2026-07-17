@@ -45,7 +45,7 @@ export function FullChat({ initialSessions, initialSessionId }: Props) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-9rem)] gap-3">
+    <div className="flex h-[calc(100vh-7rem)] gap-3">
       <aside className="w-64 shrink-0 overflow-y-auto rounded-2xl border border-slate-800 bg-slate-950/60 p-2 text-sm">
         <SessionList
           sessions={cs.sessions.length > 0 ? cs.sessions : (initialSessions as any)}

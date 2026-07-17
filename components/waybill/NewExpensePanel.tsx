@@ -394,7 +394,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
           ) : null
         }
       >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           <div className="rounded-2xl border border-rule bg-paper-3/40 p-4 space-y-3">
             <header className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-ink-2 uppercase tracking-widest">
@@ -436,14 +436,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
             />
           </div>
 
-          <div
-            className={
-              'rounded-2xl border p-4 space-y-3 ' +
-              (needsBookBank
-                ? 'border-rule bg-paper-3/40'
-                : 'border-rule bg-paper-3/20 opacity-70')
-            }
-          >
+          <div className="rounded-2xl border border-rule bg-paper-3/40 p-4 space-y-3">
             <header className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-ink-2 uppercase tracking-widest">
                 <Landmark className="size-3.5" aria-hidden strokeWidth={2} />

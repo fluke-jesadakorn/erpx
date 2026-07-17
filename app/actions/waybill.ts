@@ -34,6 +34,18 @@ function canActOnWaybillStage(actor: ActorWithScope, wb: WbForCheck): boolean {
   if (actor.role_name === 'cfo' || actor.role_name === 'ceo' || actor.role_name === 'admin') {
     return true;
   }
+  if (wb.origin === 'so' && stage === 'so_dept_approval' && actor.role_name === 'manager') {
+    return true;
+  }
+  if (wb.origin === 'so' && stage === 'so_sales_review' && actor.role_name === 'sales_supervisor') {
+    return true;
+  }
+  if (wb.origin === 'so' && stage === 'so_credit_check' && actor.role_name === 'accounting_manager') {
+    return true;
+  }
+  if (wb.origin === 'so' && stage === 'so_invoiced' && actor.role_name === 'account_officer') {
+    return true;
+  }
   if (wb.origin === 'expense' || wb.origin === 'so') return false;
   if (actor.id === wb.submitter_id && stage === 'submission' && matchPerm(actor.permissions, 'finance:expense:create::allow')) {
     return true;

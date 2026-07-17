@@ -216,7 +216,7 @@ export function resolveNextStage(
   domain?: 'expense' | 'procurement' | 'sales',
 ): { stage: string; completed: boolean } | null {
   if (domain === 'sales') {
-    const salesOrder = ['so_draft', 'so_sales_review', 'so_credit_check', 'so_invoiced', 'so_paid'];
+    const salesOrder = ['so_draft', 'so_sales_review', 'so_dept_approval', 'so_credit_check', 'so_invoiced', 'so_paid'];
     const idx = salesOrder.indexOf(currentStage);
     if (idx < 0 || idx >= salesOrder.length - 1) return null;
     return { stage: salesOrder[idx + 1], completed: false };

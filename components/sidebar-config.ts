@@ -19,6 +19,7 @@ export interface SidebarLink {
 export interface SidebarSection {
   key: string;
   label: SidebarLabel;
+  icon: IconName;
   items: SidebarLink[];
 }
 
@@ -26,6 +27,7 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
   {
     key: 'home',
     label: { id: 'sidebar.home' },
+    icon: 'home',
     items: [
       { key: 'hub', label: { id: 'sidebar.labels.hub' }, icon: 'home', href: '/' },
     ],
@@ -33,6 +35,7 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
   {
     key: 'ai',
     label: { id: 'sidebar.aiChat' },
+    icon: 'zap',
     items: [
       { key: 'chat', label: { id: 'sidebar.labels.chat' }, icon: 'zap', href: '/chat' },
     ],
@@ -40,18 +43,16 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
   {
     key: 'approvals',
     label: { id: 'sidebar.approvals' },
+    icon: 'inbox',
     items: [
-      { key: 'inbox', label: { id: 'sidebar.labels.inbox' }, icon: 'inbox',     href: '/inbox?scope=waiting' },
-      { key: 'queue', label: { id: 'sidebar.labels.queue' }, icon: 'clock',     href: '/inbox?scope=waiting' },
-      { key: 'mine',  label: { id: 'sidebar.labels.mine' },  icon: 'file-text', href: '/inbox?scope=watching' },
-      { key: 'all',   label: { id: 'sidebar.labels.all' },   icon: 'layers',    href: '/inbox?scope=all' },
+      { key: 'inbox', label: { id: 'sidebar.labels.inbox' }, icon: 'inbox', href: '/inbox?scope=waiting' },
     ],
   },
   {
     key: 'finance',
     label: { id: 'sidebar.finance' },
+    icon: 'gauge',
     items: [
-      { key: 'cockpit', label: { id: 'sidebar.labels.cockpit' }, icon: 'gauge',   href: '/cockpit' },
       { key: 'expense', label: { id: 'sidebar.labels.expense' }, icon: 'receipt', href: '/expense' },
       { key: 'pr',      label: { id: 'sidebar.labels.pr' },      icon: 'package', href: '/pr' },
       { key: 'po',      label: { id: 'sidebar.labels.po' },      icon: 'truck',   href: '/po' },
@@ -60,6 +61,7 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
   {
     key: 'procurement',
     label: { id: 'sidebar.procurement' },
+    icon: 'shopping-cart',
     items: [
       { key: 'sales', label: { id: 'sidebar.labels.sales' }, icon: 'shopping-cart', href: '/sales' },
     ],
@@ -67,6 +69,7 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
   {
     key: 'policy',
     label: { id: 'sidebar.policy' },
+    icon: 'shield-check',
     items: [
       { key: 'policy', label: { id: 'sidebar.labels.policy' }, icon: 'shield-check', href: '/policy' },
       { key: 'roles',  label: { id: 'sidebar.labels.roles' },  icon: 'user-check',   href: '/roles' },
@@ -76,16 +79,18 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
   {
     key: 'people',
     label: { id: 'sidebar.people' },
+    icon: 'users',
     items: [
       { key: 'audit',     label: { id: 'sidebar.labels.audit' },     icon: 'history',  href: '/audit' },
       { key: 'customers', label: { id: 'sidebar.labels.customers' }, icon: 'building', href: '/customers' },
     ],
   },
   {
-    key: 'admin',
-    label: { id: 'sidebar.admin' },
+    key: 'executive',
+    label: { id: 'sidebar.executive' },
+    icon: 'star',
     items: [
-      { key: 'system', label: { id: 'sidebar.labels.system' }, icon: 'settings', href: '/cockpit?view=admin' },
+      { key: 'overview', label: { id: 'sidebar.labels.executive' }, icon: 'star', href: '/executive' },
     ],
   },
 ];

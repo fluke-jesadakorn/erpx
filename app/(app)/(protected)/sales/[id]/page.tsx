@@ -30,6 +30,8 @@ import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { NoPermissionView } from '@/components/NoPermissionView';
 import { SalesPipPanel } from './_components/SalesPipPanel';
+import { SalesExtractPanel, type SoItemRow } from '@/components/waybill/SalesExtractPanel';
+import { query } from '@/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,7 +88,7 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
 
   const salesArtifacts = await loadSalesArtifacts(wb);
 
-  const [approversByStage, actedUsersByStage, visionModels, locale, salesJournal, events, integrity] = await Promise.all([
+  const [approversByStage, actedUsersByStage, visionModels, locale, salesJournal, events, integrity, soItemsRes, arSlipRes] = await Promise.all([
     loadApproversByStage(wb.id),
     loadActedUsersByStage(wb.id),
     loadVisionModels(),
@@ -94,7 +96,30 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
     loadJournalForWaybill(wb.id),
     loadWaybillEvents(wb.id),
     verifyEventChain(wb.id),
+    query<SoItemRow>(
+      `SELECT id, description, qty::float AS qty, unit_price::float AS unit_price,
+              vat_amount::float AS vat_amount, line_total::float AS line_total,
+              mapped_revenue_account_code, confidence_score::float AS confidence_score
+         FROM so_items
+        WHERE sales_order_id = $1
+        ORDER BY id ASC`,
+      [wb.origin_id],
+    ),
+    query<{ ar_slip_id: number | null }>(
+      `SELECT ar_slip_id FROM sales_orders WHERE id = $1`,
+      [wb.origin_id],
+    ),
   ]);
+
+  const soItems = soItemsRes.rows.map((r) => ({
+    ...r,
+    qty: Number(r.qty),
+    unit_price: Number(r.unit_price),
+    vat_amount: Number(r.vat_amount),
+    line_total: Number(r.line_total),
+    confidence_score: r.confidence_score == null ? null : Number(r.confidence_score),
+  }));
+  const existingArSlipId = arSlipRes.rows[0]?.ar_slip_id ?? null;
 
   const perms = actor.permissions;
   const actorRole = actor.role_name;
@@ -105,6 +130,11 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
   const canPostSalesGlSettlement = matchPerm(perms, 'finance:gl:post::allow');
   const canConfirmSalesGl = matchPerm(perms, 'finance:gl:confirm::allow');
   const canSettle = matchPerm(perms, 'finance:sales:settle::allow');
+
+  const canRecordSalesPayment =
+    matchPerm(perms, 'admin:system:bypass::allow') ||
+    matchPerm(perms, 'finance:sales:settle::allow') ||
+    ['finance', 'account_officer', 'account_supervisor', 'accounting_manager', 'cfo', 'ceo'].includes(actorRole);
 
   const rejectionEvent = ctx.events.find((e) => e.kind === 'so-rejected') ?? null;
   const rejectionReason = (rejectionEvent?.payload as { reason?: string } | null)?.reason ?? null;
@@ -247,6 +277,26 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
               currentStage={wb.current_stage}
             />
           ) : null}
+
+          <section className="space-y-3">
+            <header className="flex items-baseline justify-between">
+              <h2 className="text-sm font-mono uppercase tracking-widest text-slate-400">
+                Record to GL
+              </h2>
+              <span className="text-xs font-mono text-slate-500">
+                stage · {wb.current_stage}
+              </span>
+            </header>
+            <SalesExtractPanel
+              lang={locale as 'en' | 'th' | 'de'}
+              onUse={() => {}}
+              waybillId={wb.id}
+              soId={wb.origin_id}
+              soItems={soItems}
+              existingArSlipId={existingArSlipId}
+              canRecord={canRecordSalesPayment}
+            />
+          </section>
 
           <WaybillGlSection
             waybillId={wb.id}

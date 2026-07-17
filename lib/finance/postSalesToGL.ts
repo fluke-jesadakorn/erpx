@@ -17,6 +17,7 @@ export interface SalesGlLine {
 export interface SalesGlResult {
   journalId: number;
   lines: SalesGlLine[];
+  metadata: { note: string | null };
 }
 
 interface SalesGlConfig {
@@ -206,15 +207,17 @@ async function buildAccrualLines(
   salesOrderId: number,
   cfg: SalesGlConfig,
   locale: Locale,
-): Promise<SalesGlLine[]> {
+): Promise<{ lines: SalesGlLine[]; note: string | null }> {
   const items = await query<{
+    id: number;
     line_total: string;
     description: string;
     mapped_revenue_account_code: string | null;
     account_name: string | null;
     account_name_th: string | null;
   }>(
-    `SELECT i.line_total::text,
+    `SELECT i.id,
+            i.line_total::text,
             i.description,
             i.mapped_revenue_account_code,
             c.name AS account_name,
@@ -225,6 +228,20 @@ async function buildAccrualLines(
    ORDER BY i.id ASC`,
     [salesOrderId],
   );
+
+  let unmappedCount = 0;
+  let allMapped = items.rows.length > 0;
+  for (const it of items.rows) {
+    if (!it.mapped_revenue_account_code) {
+      unmappedCount++;
+      allMapped = false;
+    }
+  }
+  const note: string | null = allMapped
+    ? 'all_mapped_by_ai'
+    : unmappedCount > 0
+      ? `unmapped_so_lines:${unmappedCount}`
+      : null;
 
   const coaCodes = new Set<string>([cfg.arAccountCode]);
   for (const it of items.rows) {
@@ -285,7 +302,7 @@ async function buildAccrualLines(
     description: arDesc,
   });
 
-  return lines;
+  return { lines, note };
 }
 
 async function buildSettlementLines(
@@ -359,6 +376,7 @@ async function upsertDraftStep(
   buildLines: () => Promise<SalesGlLine[]>,
   vendorName: string,
   locale: Locale,
+  metadataNote?: string | null,
 ): Promise<SalesGlResult> {
   const journalId = await withTransaction(async (q) => {
     const existing = await q<{ id: number }>(
@@ -371,12 +389,15 @@ async function upsertDraftStep(
     if (existing.rows[0]) {
       id = existing.rows[0].id;
     } else {
-      const desc =
+      const baseDesc =
         locale === 'de'
           ? T.draftDesc.de(vendorName, step, salesOrderId)
           : locale === 'th'
             ? T.draftDesc.th(vendorName, step, salesOrderId)
             : T.draftDesc.en(vendorName, step, salesOrderId);
+      const desc = metadataNote
+        ? `${baseDesc} · [note: ${metadataNote}]`
+        : baseDesc;
       const ins = await q<{ id: number }>(
         `INSERT INTO journal_entries (so_id, description, is_draft, draft_source, step)
          VALUES ($1, $2, TRUE, 'so', $3)
@@ -390,7 +411,7 @@ async function upsertDraftStep(
   });
   const lines = await buildLines();
   if (lines.length > 0) await insertLines(journalId, lines);
-  return { journalId, lines };
+  return { journalId, lines, metadata: { note: metadataNote ?? null } };
 }
 
 export async function upsertSalesDraftVat(args: {
@@ -416,12 +437,18 @@ export async function upsertSalesDraftAccrual(args: {
 }): Promise<SalesGlResult> {
   const locale: Locale = args.locale ?? 'th';
   const cfg = await loadConfig(args.salesOrderId);
+  let capturedNote: string | null | undefined;
   return upsertDraftStep(
     args.salesOrderId,
     'sales_accrual',
-    () => buildAccrualLines(args.salesOrderId, cfg, locale),
+    async () => {
+      const { lines, note } = await buildAccrualLines(args.salesOrderId, cfg, locale);
+      capturedNote = note;
+      return lines;
+    },
     args.vendorName,
     locale,
+    capturedNote,
   );
 }
 

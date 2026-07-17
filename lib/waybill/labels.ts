@@ -91,6 +91,7 @@ export const SALES_STAGES: WaybillDomainPips = {
   pips: [
     pip('so_draft', 'waybill.stage.soDraft', 'waybill.stage.soDraftDescription', '📝', 'submission'),
     pip('so_sales_review', 'waybill.stage.soSalesReview', 'waybill.stage.soSalesReviewDescription', '🛡️', 'authorization'),
+    pip('so_dept_approval', 'waybill.stage.soDeptApproval', 'waybill.stage.soDeptApprovalDescription', '🏛️', 'authorization'),
     pip('so_credit_check', 'waybill.stage.soCreditCheck', 'waybill.stage.soCreditCheckDescription', '🔍', 'verification'),
     pip('so_invoiced', 'waybill.stage.soInvoiced', 'waybill.stage.soInvoicedDescription', '🧾', 'disbursement', { thirdParty: true }),
     pip('so_paid', 'waybill.stage.soPaid', 'waybill.stage.soPaidDescription', '💰', 'closed', { thirdParty: true }),

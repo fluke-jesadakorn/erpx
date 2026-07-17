@@ -8,7 +8,8 @@ import { recordEvent } from '@/waybill/events';
 import { loadWaybill } from '@/waybill/queries';
 import { matchPerm } from '@/perm';
 import type { ActorWithScope } from '@/server/guard';
-import { finalizeSalesDraft } from '@/finance/postSalesToGL';
+import { finalizeSalesDraft, upsertSalesDraftSettlement, loadDraftSalesJournal } from '@/finance/postSalesToGL';
+import { canActAtSalesRecording } from '@folio-lib/sales/coa';
 import { actorForWaybill, type WbForCheck } from './_helpers';
 
 function canPostSalesGlStep(actor: ActorWithScope, wb: WbForCheck, stage: string): boolean {
@@ -180,4 +181,158 @@ export async function confirmSalesGlAction(formData: FormData): Promise<void> {
 
   revalidatePath(`/waybill/${wb.id}`);
   redirect(`/waybill/${wb.id}`);
+}
+
+const RecordSalesPaymentForm = z.object({
+  waybillId: z.string().regex(/^WB-\d{4}-\d{6}$/),
+});
+
+export async function recordSalesPaymentAction(formData: FormData): Promise<void> {
+  const parsed = RecordSalesPaymentForm.parse({
+    waybillId: String(formData.get('waybillId') ?? ''),
+  });
+
+  const wb = await loadWaybill(parsed.waybillId);
+  if (!wb || wb.origin !== 'so') throw new Error('Not a sales waybill');
+  if (wb.current_stage !== 'so_paid') {
+    throw new Error(`Cannot record from ${wb.current_stage}`);
+  }
+
+  const actor = await actorForWaybill();
+  if (!(await canActAtSalesRecording(new Set(actor.permissions ?? []), actor.role_name))) {
+    throw new Error('Forbidden');
+  }
+
+  const soRes = await _query<{ ar_slip_id: number | null; total_amount: string; so_number: string | null }>(
+    `SELECT ar_slip_id, total_amount::text, so_number FROM sales_orders WHERE id = $1`,
+    [wb.origin_id],
+  );
+  const so = soRes.rows[0];
+  if (!so) throw new Error('Sales order not found');
+  if (!so.ar_slip_id) throw new Error('Payment slip required before record');
+
+  await upsertSalesDraftSettlement({
+    salesOrderId: wb.origin_id,
+    vendorName: so.so_number ?? '',
+  });
+  const sett = await loadDraftSalesJournal({
+    salesOrderId: wb.origin_id,
+    step: 'sales_settlement',
+  });
+  if (sett) await finalizeSalesDraft({ journalId: sett.journalId, actorId: actor.id });
+
+  await recordEvent({
+    waybillId: wb.id,
+    kind: 'posted-to-gl-sales-settlement',
+    stageFrom: 'so_paid',
+    stageTo: 'so_paid',
+    actorId: actor.id,
+    actorRole: actor.role_name,
+    payload: { origin: 'so', totalAmount: so.total_amount, slipId: so.ar_slip_id },
+  });
+
+  await _query(
+    `UPDATE waybills SET status = 'completed', current_stage = 'so_paid', updated_at = now() WHERE id = $1`,
+    [wb.id],
+  );
+  await _query(
+    `UPDATE sales_orders SET status = 'so_paid', updated_at = now() WHERE id = $1`,
+    [wb.origin_id],
+  );
+
+  revalidatePath(`/waybill/${wb.id}`);
+  revalidatePath(`/sales/${wb.origin_id}`);
+  redirect(`/waybill/${wb.id}`);
+}
+
+export interface AttachSalesPaymentSlipFields {
+  payerBankName?: string;
+  payerAccountNumber?: string;
+  payerAccountName?: string;
+  receiverBankName?: string;
+  receiverAccountNumber?: string;
+  receiverAccountName?: string;
+  amount?: number;
+  transactionDate?: string;
+}
+
+export interface AttachSalesPaymentSlipInput {
+  waybillId: string;
+  soId: number;
+  slipId: number;
+  fields: AttachSalesPaymentSlipFields;
+}
+
+export async function attachSalesPaymentSlipAction(
+  input: AttachSalesPaymentSlipInput,
+): Promise<void> {
+  if (!/^WB-\d{4}-\d{6}$/.test(input.waybillId)) {
+    throw new Error('Invalid waybillId');
+  }
+  if (!Number.isInteger(input.soId) || input.soId <= 0) {
+    throw new Error('Invalid soId');
+  }
+  if (!Number.isInteger(input.slipId) || input.slipId <= 0) {
+    throw new Error('Invalid slipId');
+  }
+
+  const actor = await actorForWaybill();
+  if (!actor) throw new Error('unauthorized');
+
+  const wb = await loadWaybill(input.waybillId);
+  if (!wb) throw new Error('Waybill not found');
+  if (wb.origin !== 'so') throw new Error(`Sales origin required (got ${wb.origin})`);
+  if (wb.current_stage !== 'so_paid') {
+    throw new Error(`Slip can only attach at so_paid (current: ${wb.current_stage})`);
+  }
+  if (wb.origin_id !== input.soId) {
+    throw new Error(`Waybill origin_id ${wb.origin_id} ≠ input soId ${input.soId}`);
+  }
+
+  const permOk =
+    matchPerm(actor.permissions, 'stage:so_paid:act::allow') ||
+    matchPerm(actor.permissions, 'admin:system:bypass::allow') ||
+    ['finance', 'admin', 'cfo', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
+  if (!permOk) throw new Error('Forbidden at so_paid');
+
+  const slipRes = await _query<{ id: number; status: string; uploaded_by: number }>(
+    `SELECT id, status, uploaded_by FROM slips WHERE id = $1`,
+    [input.slipId],
+  );
+  if (slipRes.rows.length === 0) throw new Error('Slip not found');
+  if (slipRes.rows[0].status !== 'pending') {
+    throw new Error(`Slip must be pending (current: ${slipRes.rows[0].status})`);
+  }
+
+  await _query(
+    `UPDATE slips
+        SET status = 'confirmed',
+            confirmed_at = now()
+      WHERE id = $1 AND status = 'pending'`,
+    [input.slipId],
+  );
+
+  await _query(
+    `UPDATE sales_orders
+        SET ar_slip_id = $1,
+            paid_at = COALESCE(paid_at, now()),
+            paid_by_id = $2,
+            updated_at = now()
+      WHERE id = $3`,
+    [input.slipId, actor.id, input.soId],
+  );
+
+  await recordEvent({
+    waybillId: input.waybillId,
+    kind: 'so-paid',
+    stageFrom: 'so_paid',
+    stageTo: 'so_paid',
+    actorId: actor.id,
+    actorRole: actor.role_name,
+    payload: { slipId: input.slipId, fields: input.fields },
+  });
+
+  revalidatePath(`/waybill/${input.waybillId}`);
+  revalidatePath(`/sales/${input.soId}`);
+  redirect(`/waybill/${input.waybillId}`);
 }

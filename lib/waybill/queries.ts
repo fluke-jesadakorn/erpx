@@ -389,7 +389,7 @@ export type ApproversByStage = Record<string, ApproverRow[]>;
 export type ActedUsersByStage = Record<string, ActedUserEntry[]>;
 
 // Stages whose approver pool is scoped to the submitter's own department.
-const DEPT_SCOPED_STAGES = new Set(['submission', 'dept_verification', 'dept_authorization']);
+const DEPT_SCOPED_STAGES = new Set(['submission', 'dept_verification', 'dept_authorization', 'so_dept_approval']);
 
 export async function loadApproversByStage(waybillId: string): Promise<ApproversByStage> {
   const wb = await loadWaybill(waybillId);
@@ -753,7 +753,7 @@ export async function listPurchaseRequisitions(actorId?: number) {
       const actor = await loadActor();
       if (actor) {
         const scope = await getActorScope(new Set(actor.permissions ?? []), actor.id);
-        const f = scopeFilter(scope, 'pr.requester_id');
+        const f = await scopeFilter(scope, 'pr.requester_id');
         if (f.clause) {
           scopeSql = 'WHERE ' + f.clause;
           params = f.params;
@@ -809,7 +809,7 @@ export async function listPurchaseOrders(actorId?: number) {
       const actor = await loadActor();
       if (actor) {
         const scope = await getActorScope(new Set(actor.permissions ?? []), actor.id);
-        const f = scopeFilter(scope, 'pr.requester_id');
+        const f = await scopeFilter(scope, 'pr.requester_id');
         if (f.clause) {
           scopeSql = 'WHERE ' + f.clause;
           params = f.params;

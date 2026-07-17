@@ -207,7 +207,7 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     }
     setFileName(file.name);
     setPendingFile(file);
-    setPhase('extracting');
+    setPhase('idle');
     setExtractionState('pending');
   }
 

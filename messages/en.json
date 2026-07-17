@@ -185,7 +185,7 @@
     "procurement": "Procurement",
     "policy": "Policy",
     "people": "People",
-    "admin": "Admin",
+    "executive": "Executive",
     "lock": "Locked",
     "labels": {
       "hub": "Hub",
@@ -194,7 +194,6 @@
       "queue": "Queue",
       "mine": "Mine",
       "all": "All",
-      "cockpit": "Cockpit",
       "expense": "Expense",
       "pr": "PR",
       "po": "PO",
@@ -204,8 +203,13 @@
       "tiles": "Tile Gates",
       "audit": "Audit",
       "customers": "Customers",
-      "system": "System"
+      "executive": "Overview"
     }
+  },
+  "executive": {
+    "title": "Executive overview",
+    "subtitle": "Org-wide pipeline · KPIs · budget posture",
+    "placeholder": "Executive content lands here."
   },
   "waybill": {
     "headerTotalAmount": "Total amount",
@@ -1603,6 +1607,9 @@
   "inbox": {
     "title": "Inbox",
     "filters": "Filters",
+    "filterWaiting": "Waiting",
+    "filterWatching": "Watching",
+    "filterAll": "All",
     "empty": "Nothing waiting."
   },
   "access": {

@@ -15,7 +15,6 @@ import {
   CircleCheck,
   CircleAlert,
   ZoomIn,
-  ChevronDown,
   Eye,
   FileSpreadsheet,
   Wand2,
@@ -25,11 +24,11 @@ import {
   FilledTick,
   Field,
   FieldSpinner,
-  ModelCard,
   fileKind,
   formatBytes,
 } from './SlipCard';
 import { useSlipOcr } from './useSlipOcr';
+import { ModelSelect } from './ModelSelect';
 import type {
   BookBankFields,
   ParsedFields,
@@ -412,30 +411,20 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 </button>
               )}
               {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
-                <details className="relative group" data-testid="slip-vision-model-review">
-                  <summary
-                    title="Model"
-                    className="list-none cursor-pointer flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:border-rule-strong text-xs font-mono text-ink-2 [&::-webkit-details-marker]:hidden border border-rule bg-paper-2"
-                  >
-                    <Eye className="size-3.5" strokeWidth={2} aria-hidden />
-                    <span className="text-white truncate max-w-[140px]">{ocr.selectedModel || 'auto'}</span>
-                    <ChevronDown className="size-3 text-mute" />
-                  </summary>
-                  <div className="absolute right-0 top-full mt-1 z-20 w-[min(560px,90vw)] p-2 rounded-xl bg-paper-2 border border-rule-strong shadow-2xl">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[60vh] overflow-y-auto">
-                      {ocr.visionModels.map((m) => (
-                        <ModelCard
-                          key={m.id}
-                          m={m}
-                          selected={m.name === ocr.selectedModel}
-                          onSelect={ocr.pickModel}
-                          testId={`slip-vision-model-review-${m.id}`}
-                          disabled={ocr.phase === 'confirming'}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </details>
+                <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-3/40">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
+                    <Eye className="size-3" strokeWidth={2} aria-hidden />
+                    Model
+                  </span>
+                  <ModelSelect
+                    models={ocr.visionModels}
+                    value={ocr.selectedModel}
+                    onChange={ocr.pickModel}
+                    disabled={ocr.phase === 'confirming'}
+                    testId="slip-vision-model-picker"
+                    buttonTestId="slip-vision-model-trigger"
+                  />
+                </div>
               )}
               {ocr.pendingFile && ocr.extractionState === 'pending' && (
                 <button

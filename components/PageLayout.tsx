@@ -14,6 +14,7 @@ interface PageLayoutProps {
   actions?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  contentClassName?: string;
 }
 
 export const PageLayout: React.FC<PageLayoutProps> = ({
@@ -23,6 +24,7 @@ export const PageLayout: React.FC<PageLayoutProps> = ({
   actions,
   children,
   className,
+  contentClassName,
 }) => {
   return (
     <main
@@ -64,7 +66,7 @@ export const PageLayout: React.FC<PageLayoutProps> = ({
         </div>
       )}
 
-      <div className="mt-8">{children}</div>
+      <div className={['mt-8', contentClassName].filter(Boolean).join(' ')}>{children}</div>
     </main>
   );
 };

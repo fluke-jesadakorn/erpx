@@ -3,10 +3,28 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Icon, type IconName } from '@/components/icons';
-import { T } from '@/components/i18n/T';
+import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 import { matchSidebar, SIDEBAR_GROUPS, type SidebarLabel, type SidebarLink, type SidebarSection } from './sidebar-config';
 import { MobileDrawer } from './MobileDrawer';
+import thDict from '../messages/th.json';
+import deDict from '../messages/de.json';
+
+type Dict = Record<string, unknown>;
+
+function lookup(dict: Dict, path: string): string | undefined {
+  const parts = path.split('.');
+  let cur: unknown = dict;
+  for (const p of parts) {
+    if (cur && typeof cur === 'object' && p in (cur as Record<string, unknown>)) {
+      cur = (cur as Record<string, unknown>)[p];
+    } else {
+      return undefined;
+    }
+  }
+  return typeof cur === 'string' ? cur : undefined;
+}
 
 export interface SidebarBadgeProps {
   count?: number | string;
@@ -23,18 +41,37 @@ const TONE: Record<NonNullable<SidebarBadgeProps['tone']>, string> = {
   neutral: 'bg-paper-3 text-mute border-rule',
 };
 
+type GroupTone = {
+  text: string;
+  soft: string;
+  active: string;
+  border: string;
+  dot: string;
+};
+
+const GROUP_TONE: Record<string, GroupTone> = {
+  home: { text: 'text-info', soft: 'bg-info-soft/20', active: 'bg-info-soft/50', border: 'border-info/45', dot: 'bg-info' },
+  ai: { text: 'text-accent', soft: 'bg-accent-soft/20', active: 'bg-accent-soft/50', border: 'border-accent/45', dot: 'bg-accent' },
+  approvals: { text: 'text-caution', soft: 'bg-caution-soft/20', active: 'bg-caution-soft/50', border: 'border-caution/45', dot: 'bg-caution' },
+  finance: { text: 'text-positive', soft: 'bg-positive-soft/20', active: 'bg-positive-soft/50', border: 'border-positive/45', dot: 'bg-positive' },
+  procurement: { text: 'text-info', soft: 'bg-info-soft/20', active: 'bg-info-soft/50', border: 'border-info/45', dot: 'bg-info' },
+  policy: { text: 'text-accent', soft: 'bg-accent-soft/20', active: 'bg-accent-soft/50', border: 'border-accent/45', dot: 'bg-accent' },
+  people: { text: 'text-positive', soft: 'bg-positive-soft/20', active: 'bg-positive-soft/50', border: 'border-positive/45', dot: 'bg-positive' },
+  executive: { text: 'text-caution', soft: 'bg-caution-soft/20', active: 'bg-caution-soft/50', border: 'border-caution/45', dot: 'bg-caution' },
+};
+
 export function SidebarBadge({ count, tone = 'neutral', locked }: SidebarBadgeProps) {
   if (locked) {
     return (
-      <span className="ml-auto inline-flex h-5 w-5 items-center justify-center rounded-md border border-rule bg-paper-3 text-mute">
-        <Icon name="lock" size={10} />
+      <span className="ml-auto inline-flex h-4 w-4 items-center justify-center rounded-md border border-rule bg-paper-3 text-mute">
+        <Icon name="lock" size={9} />
       </span>
     );
   }
   if (count == null) return null;
   return (
     <span className={[
-      'ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-md border px-1.5 text-[11px] tabular-nums',
+      'ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-md border px-1 text-[10px] tabular-nums',
       TONE[tone] || TONE.neutral,
     ].join(' ')}>
       {typeof count === 'number' && count > 99 ? '99+' : count}
@@ -49,37 +86,39 @@ export interface SidebarItemProps {
   active?: boolean;
   locked?: boolean;
   badge?: React.ReactNode;
+  tone?: GroupTone;
 }
 
-function NavRow({ icon, label, href, active, locked, badge }: SidebarItemProps) {
-  const base = 'group relative flex min-h-11 items-stretch gap-3 rounded-lg pl-3 pr-2.5 py-2 transition-colors';
+function NavRow({ icon, label, href, active, locked, badge, tone = GROUP_TONE.home }: SidebarItemProps) {
+  const base = 'group relative flex min-h-10 items-stretch gap-3 rounded-lg border border-transparent pl-3.5 pr-3 py-1.5 transition-all duration-200';
   const state = active
-    ? 'bg-accent-soft text-ink ring-1 ring-accent/20'
+    ? `${tone.border} ${tone.active} text-ink`
     : locked
-      ? 'text-mute opacity-60 cursor-not-allowed'
-      : 'text-ink-2 hover:bg-paper-3/60 hover:text-ink';
+      ? 'text-mute/70 opacity-60 cursor-not-allowed'
+      : 'text-ink-2 hover:border-rule/40 hover:bg-paper-3/40 hover:text-ink';
   const inner = (
     <>
       <span
         aria-hidden
         className={[
-          'absolute left-0 top-2 bottom-2 w-[3px] rounded-full transition-colors',
-          active ? 'bg-accent' : 'bg-transparent',
+          'absolute left-0.5 top-2 bottom-2 w-0.5 rounded-full transition-colors',
+          active ? tone.dot : 'bg-transparent',
         ].join(' ')}
       />
-      <span className={[
-        'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors',
-        active
-          ? 'border-accent/40 bg-paper text-accent'
-          : 'border-rule bg-paper text-ink-2 group-hover:border-rule-strong group-hover:text-ink',
-      ].join(' ')}>
-        <Icon name={icon} size={16} />
+      <span
+        aria-hidden
+        className={[
+          'flex h-5 w-5 shrink-0 items-center justify-center transition-colors',
+          tone.text,
+        ].join(' ')}
+      >
+        <Icon name={icon} size={14} />
       </span>
-      <span className="flex min-w-0 flex-1 flex-col justify-center text-left">
+      <span className="flex min-w-0 flex-1 items-center text-left">
         {label}
       </span>
       {locked ? (
-        <Icon name="lock" size={12} className="self-center text-mute" />
+        <Icon name="lock" size={11} className="self-center text-mute/70" />
       ) : (
         badge
       )}
@@ -94,8 +133,36 @@ function NavRow({ icon, label, href, active, locked, badge }: SidebarItemProps) 
   );
 }
 
-function labelNode(label: SidebarLabel): React.ReactNode {
-  return typeof label === 'string' ? label : <T id={label.id} variant="stacked" />;
+function BilingualLabel({ label, active, section = false, activeTone }: { label: SidebarLabel; active?: boolean; section?: boolean; activeTone?: string }) {
+  const t = useTranslations();
+  const loc = useSecondaryLocale();
+  const primaryClass = section
+    ? ['truncate text-[14px] font-semibold leading-tight tracking-[0.02em]', active ? activeTone || 'text-accent-strong' : 'text-ink-2'].join(' ')
+    : ['truncate text-[13px] font-medium', active ? activeTone || 'text-ink' : 'text-ink-2'].join(' ');
+
+  if (typeof label === 'string') {
+    return <span className={primaryClass}>{label}</span>;
+  }
+
+  const primary = t(label.id) || '';
+  const dict = loc === 'th' ? (thDict as Dict) : (deDict as Dict);
+  const secondary = lookup(dict, label.id);
+  const showSecondary = secondary && secondary !== primary;
+
+  if (!showSecondary) {
+    return <span className={primaryClass}>{primary}</span>;
+  }
+
+  return (
+    <span className="flex min-w-0 flex-col justify-center leading-tight">
+      <span className={primaryClass}>
+        {primary}
+      </span>
+      <span className={section ? 'truncate text-[10px] font-normal text-mute/70' : 'truncate text-[10.5px] font-normal text-mute/70'} lang={loc}>
+        {secondary}
+      </span>
+    </span>
+  );
 }
 
 function itemBadge(item: SidebarLink) {
@@ -192,9 +259,10 @@ function SectionGroup({
   collapsed: boolean;
   onToggle: () => void;
 }) {
-  const hasActive = section.items.some((item) => matchSidebar(pathname, item, search));
-  const forceOpen = collapsed && hasActive;
+  const sectionActive = section.items.some((item) => matchSidebar(pathname, item, search));
+  const forceOpen = collapsed && sectionActive;
   const showItems = !collapsed || forceOpen;
+  const tone = GROUP_TONE[section.key] || GROUP_TONE.home;
 
   return (
     <section>
@@ -203,17 +271,26 @@ function SectionGroup({
         onClick={onToggle}
         aria-expanded={!collapsed}
         className={[
-          'group flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
-          'hover:bg-paper-3/60 focus-visible:bg-paper-3/60',
+          'group flex w-full items-center gap-2.5 rounded-lg border border-transparent px-2.5 py-2 text-left transition-all duration-200',
+          'hover:border-rule/40 hover:bg-paper-3/35 focus-visible:bg-paper-3/40',
+          sectionActive ? `${tone.active} ${tone.border}` : tone.soft,
         ].join(' ')}
       >
-        <span aria-hidden className="h-1 w-1 rounded-full bg-accent/70" />
-        <span className="text-[11px] font-medium uppercase tracking-wider text-mute transition-colors group-hover:text-ink-2">
-          {labelNode(section.label)}
+        <span
+          aria-hidden
+          className={[
+            'flex h-6 w-6 shrink-0 items-center justify-center transition-colors',
+            tone.text,
+          ].join(' ')}
+        >
+          <Icon name={section.icon} size={15} />
         </span>
-        <span className="ml-auto flex items-center gap-1.5 text-mute">
+        <span className="min-w-0 flex-1 text-[13px] font-semibold uppercase tracking-[0.1em] text-mute transition-colors group-hover:text-ink-2">
+          <BilingualLabel label={section.label} active={sectionActive} section activeTone={tone.text} />
+        </span>
+        <span className={['ml-auto flex items-center gap-2', tone.text].join(' ')}>
           {forceOpen && (
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" title="Active section" />
+            <span aria-hidden className={['h-1.5 w-1.5 rounded-full', tone.dot].join(' ')} title="Active section" />
           )}
           <Icon
             name="chevron-down"
@@ -228,7 +305,7 @@ function SectionGroup({
       <div
         className={[
           'grid transition-[grid-template-rows] duration-200 ease-out',
-          showItems ? 'grid-rows-[1fr] mt-0.5' : 'grid-rows-[0fr]',
+          showItems ? 'grid-rows-[1fr] mt-1' : 'grid-rows-[0fr]',
         ].join(' ')}
       >
         <div className="overflow-hidden">
@@ -238,10 +315,11 @@ function SectionGroup({
                 key={item.key}
                 href={item.href}
                 icon={item.icon}
-                label={labelNode(item.label)}
+                label={<BilingualLabel label={item.label} active={matchSidebar(pathname, item, search)} activeTone={tone.text} />}
                 active={matchSidebar(pathname, item, search)}
                 locked={item.locked}
                 badge={itemBadge(item)}
+                tone={tone}
               />
             ))}
           </div>
@@ -263,33 +341,34 @@ function SidebarBody({ currentUser }: SidebarProps) {
   return (
     <>
       <nav
-        className="min-h-0 flex-1 overflow-y-auto px-3 pb-2"
+        className="min-h-0 flex-1 overflow-y-auto px-3 pb-3"
         aria-label="Primary navigation"
       >
-        <div className="space-y-1.5">
-          {SIDEBAR_GROUPS.map((section) => (
-            <SectionGroup
-              key={section.key}
-              section={section}
-              pathname={pathname}
-              search={search}
-              collapsed={hydrated ? Boolean(map[section.key]) : false}
-              onToggle={() => toggle(section.key)}
-            />
+        <div className="space-y-1.5 divide-y divide-rule/30">
+          {SIDEBAR_GROUPS.map((section, idx) => (
+            <div key={section.key} className={idx === 0 ? '' : 'pt-2'}>
+              <SectionGroup
+                section={section}
+                pathname={pathname}
+                search={search}
+                collapsed={hydrated ? Boolean(map[section.key]) : false}
+                onToggle={() => toggle(section.key)}
+              />
+            </div>
           ))}
         </div>
       </nav>
 
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-2.5">
         <button
           type="button"
           onClick={allCollapsed ? expandAll : collapseAll}
           aria-label={allCollapsed ? 'Expand all sections' : 'Collapse all sections'}
-          className="group flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-rule py-1.5 text-[11px] font-medium uppercase tracking-wider text-mute transition-colors hover:border-rule-strong hover:bg-paper-3/60 hover:text-ink-2"
+          className="group flex w-full items-center justify-center gap-2 rounded-lg border border-accent/25 bg-accent-soft/15 py-1.5 text-[10px] font-medium uppercase tracking-[0.1em] text-accent-strong transition-colors hover:border-accent/50 hover:bg-accent-soft/35 hover:text-accent-strong"
         >
           <Icon
             name={allCollapsed ? 'chevron-down' : 'chevron-up'}
-            size={12}
+            size={11}
             className="transition-transform group-hover:scale-110"
           />
           <span>{allCollapsed ? 'Expand all' : 'Collapse all'}</span>
@@ -297,17 +376,16 @@ function SidebarBody({ currentUser }: SidebarProps) {
       </div>
 
       {currentUser && (
-        <div className="m-2 mt-1 rounded-xl border border-rule bg-paper p-3 shadow-[var(--shadow-panel)]">
-          <div className="flex items-center gap-3">
+        <div className="mx-3 mb-3 mt-1 rounded-2xl border border-positive/30 bg-positive-soft/20 p-3 shadow-[var(--shadow-panel)]">
+          <div className="flex items-center gap-2.5">
             <div className="relative shrink-0">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-rule bg-gradient-to-br from-accent-soft to-paper-3 text-sm font-semibold text-accent">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-rule bg-gradient-to-br from-accent-soft to-paper-3 text-xs font-semibold text-accent">
                 {initials(name)}
               </div>
-              <span aria-hidden className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-paper bg-positive" />
+              <span aria-hidden className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-paper bg-positive" />
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-ink">{name}</div>
-              <div className="truncate text-xs text-mute">{role}</div>
+            <div className="min-w-0 flex-1" title={role}>
+              <div className="truncate text-[13px] font-medium text-ink">{name}</div>
             </div>
           </div>
         </div>
@@ -336,7 +414,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser }) => {
         className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-64 shrink-0 flex-col border-r border-rule bg-paper-2/80 backdrop-blur supports-[backdrop-filter]:bg-paper-2/70 lg:flex"
         style={{
           backgroundImage:
-            'linear-gradient(180deg, color-mix(in oklab, var(--paper-2) 92%, var(--paper)) 0%, var(--paper-2) 100%)',
+            'radial-gradient(ellipse 110% 28% at 10% 0%, color-mix(in oklab, var(--ambient-1) 32%, transparent) 0%, transparent 72%), radial-gradient(ellipse 90% 30% at 100% 38%, color-mix(in oklab, var(--ambient-2) 24%, transparent) 0%, transparent 72%), linear-gradient(180deg, color-mix(in oklab, var(--paper-2) 92%, var(--paper)) 0%, var(--paper-2) 100%)',
         }}
       >
         <SidebarBody currentUser={currentUser} />

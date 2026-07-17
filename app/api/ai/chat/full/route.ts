@@ -6,7 +6,8 @@ import { parseChartBlocks } from '@/components/chat/chartContract';
 import { parseHtmlBlocks } from '@/ai/htmlContract';
 import { parseSqlBlocks } from '@/ai/sqlContract';
 import { askSql } from '@/ai/sql';
-import { appendMessage, createSession } from '@/chat/history';
+import { appendMessage, createSession, renameSession } from '@/chat/history';
+import { isPlaceholderTitle, suggestTitle } from '@/chat/titleGenerator';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
   const lastUser = messages[messages.length - 1];
   if (lastUser?.role === 'user') {
     await appendMessage(actor.id, sid, { role: 'user', content: lastUser.content });
+    await maybeAutoRename(actor.id, sid, lastUser.content);
   }
 
   const encoder = new TextEncoder();
@@ -102,17 +104,16 @@ export async function POST(req: NextRequest) {
         }
         const latencyMs = Date.now() - t0;
 
-        const { asks: sqlAsks } = parseSqlBlocks(full);
+        const { plain: afterChart, charts } = parseChartBlocks(full);
+        const { plain: afterHtml, htmls } = parseHtmlBlocks(afterChart);
+        const { plain: afterSql, asks: sqlAsks } = parseSqlBlocks(afterHtml);
         const resolvedSqls: any[] = [];
         for (const ask of sqlAsks) {
           const r = await askSql({ question: ask.question, lang: lang ?? 'en' });
           if (r) resolvedSqls.push(r);
         }
 
-        const { charts } = parseChartBlocks(full);
-        const { htmls } = parseHtmlBlocks(full);
-
-        const blocks = { plain: '', charts, htmls: htmls.map(h => h.html), sqls: resolvedSqls };
+        const blocks = { plain: afterSql, charts, htmls: htmls.map(h => h.html), sqls: resolvedSqls };
         send('meta', { sessionId: sid, modelName: usedModel, latencyMs, blocks, fellBack: attemptedFallback });
 
         await appendMessage(actor.id, sid, {
@@ -138,6 +139,16 @@ export async function POST(req: NextRequest) {
 
 function deriveTitle(messages: Array<{ role: string; content: string }>): string {
   const first = messages.find(m => m.role === 'user');
-  const text = first?.content ?? 'New chat';
-  return text.length > 60 ? text.slice(0, 57) + '…' : text;
+  return suggestTitle(first?.content ?? '');
+}
+
+async function maybeAutoRename(userId: number, sessionId: string, userText: string): Promise<void> {
+  const { listSessions } = await import('@/chat/history');
+  const sessions = await listSessions(userId);
+  const s = sessions.find((x) => x.id === sessionId);
+  if (!s) return;
+  if (!isPlaceholderTitle(s.title)) return;
+  const title = suggestTitle(userText);
+  if (!title || isPlaceholderTitle(title)) return;
+  await renameSession(userId, sessionId, title);
 }

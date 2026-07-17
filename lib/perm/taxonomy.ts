@@ -94,6 +94,7 @@ export const PERM = {
     po_cfo:                     { act: allow('stage', 'po_cfo', 'act') },
     so_draft:                   { act: allow('stage', 'so_draft', 'act') },
     so_sales_review:            { act: allow('stage', 'so_sales_review', 'act') },
+    so_dept_approval:           { act: allow('stage', 'so_dept_approval', 'act') },
     so_credit_check:            { act: allow('stage', 'so_credit_check', 'act') },
     so_invoiced:                { act: allow('stage', 'so_invoiced', 'act') },
     so_paid:                    { act: allow('stage', 'so_paid', 'act') },

@@ -19,7 +19,13 @@ export type StageName =
   | 'disbursed'
   | 'rejected'
   | 'po_pending'
-  | 'po_cfo';
+  | 'po_cfo'
+  | 'so_draft'
+  | 'so_sales_review'
+  | 'so_dept_approval'
+  | 'so_credit_check'
+  | 'so_invoiced'
+  | 'so_paid';
 
 const CANONICAL_STAGES = new Set<StageName>([
   'submission',
@@ -36,6 +42,12 @@ const CANONICAL_STAGES = new Set<StageName>([
   'rejected',
   'po_pending',
   'po_cfo',
+  'so_draft',
+  'so_sales_review',
+  'so_dept_approval',
+  'so_credit_check',
+  'so_invoiced',
+  'so_paid',
 ]);
 
 const LEGACY_TO_NEW: Record<string, StageName> = {
@@ -75,6 +87,8 @@ export const STAGE_ORDER: StageName[] = [
 type RoleId =
   | 'supervisor'
   | 'manager'
+  | 'sales_rep'
+  | 'sales_supervisor'
   | 'account_officer'
   | 'account_supervisor'
   | 'accounting_manager'
@@ -115,6 +129,13 @@ const rawToRoleMap: Record<string, RoleId[]> = {
   po_pending:                    ['manager'],
   po_cfo:                        ['cfo'],
   pending_approval:              ['cfo'],
+  // Sales
+  so_draft:                      ['sales_rep'],
+  so_sales_review:               ['sales_supervisor'],
+  so_dept_approval:              ['manager'],
+  so_credit_check:               ['accounting_manager'],
+  so_invoiced:                   ['account_officer'],
+  so_paid:                       ['finance'],
 };
 
 export const STAGE_TO_ROLE: Record<string, readonly string[]> = rawToRoleMap;
@@ -160,6 +181,7 @@ const rawToPermMap: Record<string, string> = {
   // Sales
   so_draft:                      'stage:so_draft:act::allow',
   so_sales_review:               'stage:so_sales_review:act::allow',
+  so_dept_approval:              'stage:so_dept_approval:act::allow',
   so_credit_check:               'stage:so_credit_check:act::allow',
   so_invoiced:                   'stage:so_invoiced:act::allow',
   so_paid:                       'stage:so_paid:act::allow',
