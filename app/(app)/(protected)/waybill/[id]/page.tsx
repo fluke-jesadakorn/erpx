@@ -1,5 +1,7 @@
 import React, { Suspense } from 'react';
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { CircleAlert } from 'lucide-react';
 import {
   loadWaybillRailContext,
   loadApproversByStage,
@@ -127,13 +129,14 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
   const stepsTotal = pipsAll.filter((p) => p.key !== 'rejected').length;
   const progressPct =
     wb.status === 'completed' ? 100
+      : wb.status === 'rejected' ? 0
       : stepsTotal > 0 ? Math.round((stepsDone / stepsTotal) * 100) : 0;
 
   const statusTone = wb.status === 'completed'
-     ? { ring: 'from-emerald-500/50 to-cyan-500/40', chip: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/50', dot: 'bg-emerald-400', label: <T id="waybill.status.completed" locale={locale} /> }
+     ? { ring: 'from-emerald-500/50 to-cyan-500/40', chip: 'glass-tint-positive text-positive border-emerald-400/50', dot: 'bg-emerald-400', label: <T id="waybill.status.completed" locale={locale} /> }
      : wb.status === 'rejected'
-       ? { ring: 'from-rose-500/60 to-rose-500/20', chip: 'bg-rose-500/15 text-rose-200 border-rose-400/50', dot: 'bg-rose-400', label: <T id="waybill.status.rejected" locale={locale} /> }
-       : { ring: 'from-cyan-500/60 to-indigo-500/40', chip: 'bg-cyan-500/15 text-cyan-200 border-cyan-400/50', dot: 'bg-cyan-400 animate-pulse', label: <T id="waybill.status.inProgress" locale={locale} /> };
+       ? { ring: 'from-rose-500/60 to-rose-500/20', chip: 'glass-tint-critical text-critical border-rose-400/50', dot: 'bg-rose-400', label: <T id="waybill.status.rejected" locale={locale} /> }
+       : { ring: 'from-cyan-500/60 to-indigo-500/40', chip: 'glass-tint-info text-info border-cyan-400/50', dot: 'bg-cyan-400 animate-pulse', label: <T id="waybill.status.inProgress" locale={locale} /> };
 
   return (
     <>
@@ -167,6 +170,41 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             activeActorName={ctx.activeActorName}
             locale={locale}
           />
+
+          {isRejected && (
+            <section
+              role="alert"
+              aria-label="Rejection summary"
+              data-testid="waybill-rejection-banner"
+              className="rounded-2xl border border-critical/50 bg-critical-soft/40 px-4 py-3 flex flex-wrap items-start gap-3"
+            >
+              <CircleAlert className="size-5 shrink-0 text-critical mt-0.5" aria-hidden strokeWidth={2.5} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-critical">
+                  <T id="waybill.status.rejected" locale={locale} hideSecondary />
+                  {rejectionActorName && (
+                    <>
+                      {' · '}
+                      <span className="font-normal">{rejectionActorName}</span>
+                    </>
+                  )}
+                </p>
+                {rejectionReason && (
+                  <p className="mt-1 text-sm text-critical/90 italic truncate" title={rejectionReason}>
+                    &ldquo;{rejectionReason}&rdquo;
+                  </p>
+                )}
+              </div>
+              {actor.id === wb.submitter_id && (
+                <Link
+                  href={wb.origin === 'expense' ? '/expense' : wb.origin === 'pr' ? '/pr' : '/po'}
+                  className="rounded-lg border border-critical/40 bg-paper-2 px-3 py-1.5 text-xs font-mono text-critical hover:bg-critical/10 transition-colors"
+                >
+                  <T id="waybill.resubmit" locale={locale} hideSecondary />
+                </Link>
+              )}
+            </section>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <WaybillRiskBadge waybillId={wb.id} />
@@ -221,7 +259,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
           />
 
           {expensePicture && (
-            <Suspense fallback={<div className="h-24 animate-pulse rounded-2xl border border-slate-800/60 bg-slate-950/40" aria-hidden />}>
+ <Suspense fallback={<div className="h-24 animate-pulse border glass-panel" aria-hidden />}>
               <WaybillExpenseCollapsible
                 data={expensePicture}
                 waybillId={wb.id}
@@ -231,10 +269,11 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             </Suspense>
           )}
 
-          <Suspense fallback={
+          {wb.status !== 'rejected' && wb.status !== 'completed' && (
+            <Suspense fallback={
             <div className="space-y-4">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-48 animate-pulse rounded-2xl border border-slate-800/60 bg-slate-950/40" aria-hidden />
+ <div key={i} className="h-48 animate-pulse border glass-panel" aria-hidden />
               ))}
             </div>
           }>
@@ -279,7 +318,8 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
               }}
               ui={{ action, actionStage: wb.current_stage, locale }}
             />
-          </Suspense>
+            </Suspense>
+          )}
 
           <WaybillAuditSection
             waybillId={wb.id}

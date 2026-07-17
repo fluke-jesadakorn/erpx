@@ -61,44 +61,44 @@ function toneForState(state: PipState) {
   switch (state) {
     case 'passed':
       return {
-        card: 'border-emerald-500/50 bg-emerald-950/30 text-emerald-100',
-        bullet: 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.7)] text-emerald-200',
-        badge: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40',
-        title: 'text-emerald-200',
-        sectionHead: 'text-emerald-300/80',
+        card: 'border-emerald-500/50 glass-tint-positive text-positive',
+        bullet: 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.7)] text-positive',
+        badge: 'glass-tint-positive text-positive border glass-tint-positive',
+        title: 'text-positive',
+        sectionHead: 'text-positive/80',
       };
     case 'active':
       return {
-        card: 'border-cyan-400/80 bg-cyan-950/40 text-white ring-2 ring-cyan-400/70',
-        bullet: 'bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.9)] animate-pulse text-cyan-100',
+        card: 'border-cyan-400/80 bg-cyan-950/40 text-ink ring-2 ring-cyan-400/70',
+        bullet: 'bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.9)] animate-pulse text-info',
         badge: 'bg-cyan-400 text-slate-950 border border-cyan-300',
-        title: 'text-cyan-200',
-        sectionHead: 'text-cyan-300/80',
+        title: 'text-info',
+        sectionHead: 'text-info/80',
       };
     case 'skipped':
       return {
-        card: 'border-slate-900 bg-slate-950/30 text-slate-700 opacity-60',
-        bullet: 'bg-slate-800 text-slate-600',
-        badge: 'bg-slate-800 text-slate-600 border border-slate-700',
-        title: 'text-slate-700',
-        sectionHead: 'text-slate-700',
+ card: 'border-slate-900 glass-panel text-[var(--text-ghost)] opacity-60',
+ bullet: 'glass-panel text-[var(--text-faint)]',
+ badge: 'glass-panel text-[var(--text-faint)] border ',
+        title: 'text-[var(--text-ghost)]',
+        sectionHead: 'text-[var(--text-ghost)]',
       };
     case 'rejected':
       return {
-        card: 'border-rose-500/70 bg-rose-950/40 text-rose-100 ring-2 ring-rose-500/50',
-        bullet: 'bg-rose-400 text-rose-100 shadow-[0_0_10px_rgba(244,63,94,0.7)]',
-        badge: 'bg-rose-500/25 text-rose-200 border border-rose-400/50',
-        title: 'text-rose-200',
-        sectionHead: 'text-rose-300/80',
+        card: 'border-rose-500/70 glass-tint-critical text-critical ring-2 ring-rose-500/50',
+        bullet: 'bg-rose-400 text-critical shadow-[0_0_10px_rgba(244,63,94,0.7)]',
+        badge: 'bg-rose-500/25 text-critical border border-rose-400/50',
+        title: 'text-critical',
+        sectionHead: 'text-critical/80',
       };
     case 'pending':
     default:
       return {
-        card: 'border-slate-800/60 bg-slate-950/40 text-slate-400',
-        bullet: 'bg-slate-700 text-slate-500',
-        badge: 'bg-slate-800 text-slate-500 border border-slate-700',
-        title: 'text-slate-400',
-        sectionHead: 'text-slate-500',
+ card: ' glass-panel text-mute',
+        bullet: 'bg-paper-3 text-[var(--text-faint)]',
+ badge: 'glass-panel text-[var(--text-faint)] border ',
+        title: 'text-mute',
+        sectionHead: 'text-[var(--text-faint)]',
       };
   }
 }
@@ -150,15 +150,15 @@ export function WaybillTimelineBigPicture({
             🚦
           </span>
           <div className="flex flex-col">
-            <span className="text-base font-bold text-white sm:text-lg">
+            <span className="text-base font-bold text-ink sm:text-lg">
               <T id={domain === 'procurement' ? 'waybill.timeline.procurementPipeline' : 'waybill.timeline.expensePipeline'} />
             </span>
-            <span className="text-xs font-mono uppercase tracking-widest text-slate-500">
+            <span className="text-xs uppercase tracking-widest text-[var(--text-faint)]">
               {<T id="waybill.timeline.bottom_top_approval_order" />}
             </span>
           </div>
         </div>
-        <span className="rounded-full border border-slate-700 bg-slate-900/60 px-3 py-1 text-xs font-mono text-slate-300">
+ <span className="rounded-full border glass-panel px-3 py-1 text-xs font-mono text-mute">
            {isRejected ? (
              <T id="waybill.timeline.closed_rejected" />
            ) : (
@@ -172,7 +172,7 @@ export function WaybillTimelineBigPicture({
 
       <div className="flex items-stretch gap-5">
         <div className="relative flex w-8 shrink-0 flex-col items-center pt-2 pb-2">
-          <span aria-hidden className="z-10 mb-1 text-lg leading-none text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.7)]">▲</span>
+          <span aria-hidden className="z-10 mb-1 text-lg leading-none text-info drop-shadow-[0_0_8px_rgba(34,211,238,0.7)]">▲</span>
           <span className="z-10 h-1 w-4 rounded bg-cyan-400" />
           <div className="relative z-0 h-full w-1 flex-1 rounded-full bg-gradient-to-b from-cyan-400 via-indigo-500/60 to-slate-800" />
         </div>
@@ -273,7 +273,7 @@ function StepCard({
   const isRejected = state === 'rejected';
   const isPassed = state === 'passed';
   const isPending = state === 'pending' && !isCurrentStage;
-  const isCollapsed = !isCurrentStage && (isPassed || isPending);
+  const isCollapsed = !isCurrentStage && state !== 'rejected';
 
   const rejectionEvent = isRejected
     ? events.find((e) => e.kind === 'rejected') ?? null
@@ -296,7 +296,7 @@ function StepCard({
           <span className={'truncate text-sm font-bold ' + tone.title}>
             <T id={pip.label} />
           </span>
-          <span className="font-mono text-[10px] uppercase tracking-wider text-mute">
+          <span className="text-[10px] uppercase tracking-wider text-mute">
             #{pipIndexN + 1}
           </span>
           {lastAdvanced && (
@@ -330,7 +330,7 @@ function StepCard({
           <h3 className={'text-base font-bold leading-tight sm:text-lg ' + tone.title}>
              <T id={pip.label} />
           </h3>
-          <span className="font-mono text-xs uppercase tracking-wider text-slate-500">
+          <span className="text-xs uppercase tracking-wider text-[var(--text-faint)]">
             #{pipIndexN + 1}
           </span>
         </Link>
@@ -339,22 +339,22 @@ function StepCard({
         >
            <T id={PIP_BADGE_EN[state]} />
         </span>
-        <span className="rounded-md border border-slate-700/60 bg-slate-900/60 px-2 py-0.5 text-xs font-mono uppercase tracking-wider text-slate-400">
+ <span className=" border glass-panel px-2 py-0.5 text-xs uppercase tracking-wider text-mute">
            <T id={bucketKind} />
         </span>
         {roleText && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/40 bg-cyan-500/15 px-2 py-0.5 text-xs font-mono font-bold uppercase tracking-widest text-cyan-200">
+          <span className="inline-flex items-center gap-1 rounded-full border glass-tint-info glass-tint-info px-2 py-0.5 text-xs font-bold uppercase tracking-widest text-info">
              <T id="waybill.pip.role" />
-             <span className="text-cyan-100"><T id={roleText} /></span>
+             <span className="text-info"><T id={roleText} /></span>
           </span>
         )}
         {paysBefore && (
-          <span className="inline-flex items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-xs font-mono text-amber-200">
+          <span className="inline-flex items-center gap-1 rounded-md border glass-tint-caution glass-tint-caution px-2 py-0.5 text-xs font-mono text-caution">
             🧾 <T id="waybill.timeline.pre_paid_slip" />
           </span>
         )}
         {thirdParty && (
-          <span className="inline-flex items-center gap-1 rounded-md border border-indigo-500/40 bg-indigo-500/15 px-2 py-0.5 text-xs font-mono text-indigo-200">
+          <span className="inline-flex items-center gap-1 rounded-md border glass-tint-info glass-tint-info px-2 py-0.5 text-xs font-mono text-info">
             💸 <T id="waybill.timeline.pays_3rd_party" />
           </span>
         )}
@@ -412,15 +412,15 @@ function DocumentsBlock({
 }) {
   return (
     <section>
-      <div className={'text-xs font-mono uppercase tracking-widest ' + sectionHead}>
+      <div className={'text-xs uppercase tracking-widest ' + sectionHead}>
         {<T id="waybill.timeline.documents" />} ({attachments.length})
       </div>
       {attachments.length === 0 ? (
-        <p className="mt-1.5 text-sm italic text-slate-500">
+        <p className="mt-1.5 text-sm italic text-[var(--text-faint)]">
           {<T id="waybill.timeline.no_documents_at_this_pip" />}
         </p>
       ) : (
-        <div className="mt-2 divide-y divide-slate-800/40">
+        <div className="mt-2 divide-y divide-rule/40">
           {attachments.map((a) => (
             <AttachmentRow key={a.id} waybillId={waybillId} attachment={a} />
           ))}
@@ -483,22 +483,22 @@ function ActionPromptBlock({
     const reason =
       (rejectionEvent?.payload as { reason?: string } | null)?.reason ?? null;
     return (
-      <section className="space-y-2 border-t border-rose-500/30 pt-4 text-sm">
-        <div className="text-xs font-mono uppercase tracking-widest text-rose-200/80">
+      <section className="space-y-2 border-t glass-tint-critical pt-4 text-sm">
+        <div className="text-xs uppercase tracking-widest text-critical/80">
           ✗ {<T id="waybill.timeline.rejected_by" />}
         </div>
         {rejectionEvent ? (
-          <div className="mt-2 text-sm text-rose-100">
+          <div className="mt-2 text-sm text-critical">
             <span className="font-mono">
               {roleDisplay(rejectionEvent.actor_role, locale)} #{rejectionEvent.actor_id ?? '—'}
             </span>
-            <span className="ml-2 font-mono text-rose-300">{formatDateServer(rejectionEvent.occurred_at, locale)}</span>
+            <span className="ml-2 font-mono text-critical">{formatDateServer(rejectionEvent.occurred_at, locale)}</span>
             {reason && (
-              <p className="mt-2 text-rose-100 italic">&ldquo;{reason}&rdquo;</p>
+              <p className="mt-2 text-critical italic">&ldquo;{reason}&rdquo;</p>
             )}
           </div>
         ) : (
-          <p className="mt-2 text-sm text-rose-100">
+          <p className="mt-2 text-sm text-critical">
             {<T id="waybill.timeline.no_rejection_event_recorded" />}
           </p>
         )}
@@ -509,19 +509,19 @@ function ActionPromptBlock({
 
   if (isPassed) {
     return (
-      <section className="space-y-2 border-t border-emerald-500/30 pt-4 text-sm">
-        <div className="text-xs font-mono uppercase tracking-widest text-emerald-200/80">
+      <section className="space-y-2 border-t glass-tint-positive pt-4 text-sm">
+        <div className="text-xs uppercase tracking-widest text-positive/80">
           ✓ {<T id="waybill.timeline.completed_by" />}
         </div>
         {lastAdvanced ? (
-          <div className="mt-2 text-sm text-emerald-100">
+          <div className="mt-2 text-sm text-positive">
             <span className="font-mono">
               {roleDisplay(lastAdvanced.actor_role, locale)} #{lastAdvanced.actor_id ?? '—'}
             </span>
-            <span className="ml-2 font-mono text-emerald-300">{formatDateServer(lastAdvanced.occurred_at, locale)}</span>
+            <span className="ml-2 font-mono text-positive">{formatDateServer(lastAdvanced.occurred_at, locale)}</span>
           </div>
         ) : (
-          <p className="mt-2 text-sm text-emerald-100">
+          <p className="mt-2 text-sm text-positive">
             {<T id="waybill.timeline.no_event_recorded_at_this_pip" />}
           </p>
         )}
@@ -537,14 +537,14 @@ function ActionPromptBlock({
     if (isFinalApproval) {
       return (
         <section className="space-y-3 border-t border-fuchsia-500/30 pt-4 text-sm">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs font-mono uppercase tracking-widest text-fuchsia-200">
+          <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs uppercase tracking-widest text-accent">
             <span>
               🔒 {<T id="waybill.timeline.final_authorization" />}
-              <span className="ml-2 text-slate-400">
+              <span className="ml-2 text-mute">
                 {<T id="waybill.timeline.current_stage" />}
               </span>
             </span>
-            <span className="rounded-md border border-fuchsia-400/40 bg-fuchsia-500/15 px-2 py-0.5 text-fuchsia-200">
+            <span className="rounded-md border border-fuchsia-400/40 bg-fuchsia-500/15 px-2 py-0.5 text-accent">
               {<T id="waybill.timeline.approve_gl_post_reject_no_gl" />}
             </span>
           </div>
@@ -558,13 +558,13 @@ function ActionPromptBlock({
                 <button
                   type="submit"
                   data-testid={`big-final-approve-${waybillId}`}
-                  className="group inline-flex w-full flex-col items-center justify-center gap-1 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 px-5 py-5 text-lg font-bold text-slate-950 shadow-xl shadow-emerald-500/40 transition hover:from-emerald-300 hover:to-cyan-400 hover:shadow-emerald-500/50"
+                  className="group inline-flex w-full flex-col items-center justify-center gap-1 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 px-5 py-5 text-lg font-bold text-slate-950 shadow-popover shadow-emerald-500/40 transition hover:from-emerald-300 hover:to-cyan-400 hover:shadow-emerald-500/50"
                 >
                   <span className="flex items-center gap-2">
                     <span aria-hidden className="text-2xl">✓</span>
                     <span>{<T id="waybill.timeline.final_approve" />}</span>
                   </span>
-                  <span className="text-xs font-mono uppercase tracking-widest text-emerald-950/70 group-hover:text-emerald-950">
+                  <span className="text-xs uppercase tracking-widest text-emerald-950/70 group-hover:text-emerald-950">
                     {<T id="waybill.timeline.posts_to_gl" />}
                   </span>
                 </button>
@@ -572,19 +572,19 @@ function ActionPromptBlock({
               <Link
                 href={`/waybill/${waybillId}?action=final-reject&stage=final_authorization`}
                 data-testid={`big-final-reject-${waybillId}`}
-                className="group inline-flex flex-col items-center justify-center gap-1 rounded-2xl bg-gradient-to-br from-rose-400 to-rose-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-xl shadow-rose-500/40 transition hover:from-rose-300 hover:to-rose-500 hover:shadow-rose-500/50"
+                className="group inline-flex flex-col items-center justify-center gap-1 rounded-2xl bg-gradient-to-br from-rose-400 to-rose-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-popover shadow-rose-500/40 transition hover:from-rose-300 hover:to-rose-500 hover:shadow-rose-500/50"
               >
                 <span className="flex items-center gap-2">
                   <span aria-hidden className="text-2xl">✗</span>
                   <span>{<T id="waybill.timeline.final_reject" />}</span>
                 </span>
-                <span className="text-xs font-mono uppercase tracking-widest text-rose-950/70 group-hover:text-rose-950">
+                <span className="text-xs uppercase tracking-widest text-rose-950/70 group-hover:text-rose-950">
                   {<T id="waybill.timeline.no_gl_post" />}
                 </span>
               </Link>
             </div>
           ) : (
-            <p className="text-sm font-mono text-slate-400">
+            <p className="text-sm font-mono text-mute">
               {locale=== 'th'
                 ? 'รอเจ้าหน้าที่การเงินอนุมัติขั้นสุดท้าย'
                 : 'Waiting on a finance officer for the final approval.'}
@@ -604,25 +604,25 @@ function ActionPromptBlock({
         .filter((e) => e.kind === 'gl-confirmed')
         .sort((a, b) => b.sequence - a.sequence)[0];
       return (
-        <section className="space-y-3 border-t border-emerald-500/30 pt-4 text-sm">
-          <div className="text-xs font-mono uppercase tracking-widest text-emerald-300">
+        <section className="space-y-3 border-t glass-tint-positive pt-4 text-sm">
+          <div className="text-xs uppercase tracking-widest text-positive">
             ✅ {<T id="waybill.timeline.confirm_gl_recorded" />}
-            <span className="ml-2 text-slate-400">
+            <span className="ml-2 text-mute">
               {<T id="waybill.timeline.current_stage" />}
             </span>
           </div>
           {glConfirmed && confirmEvent ? (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-sm text-emerald-100">
+            <div className="rounded-xl border glass-tint-positive glass-tint-positive p-3 text-sm text-positive">
               <div className="font-mono">
                 ✓ {<T id="waybill.timeline.confirmed_by" />}{' '}
                 {roleDisplay(confirmEvent.actor_role, locale)} #{confirmEvent.actor_id ?? '—'}
               </div>
-              <div className="mt-1 font-mono text-emerald-300">{formatDateServer(confirmEvent.occurred_at, locale)}</div>
+              <div className="mt-1 font-mono text-positive">{formatDateServer(confirmEvent.occurred_at, locale)}</div>
             </div>
           ) : canConfirmGl && originId != null ? (
             <form
               action={confirmGlRecordedAction}
-              className="rounded-xl border border-amber-500/50 bg-amber-950/30 p-4 text-sm text-amber-100"
+              className="rounded-xl border border-amber-500/50 bg-amber-950/30 p-4 text-sm text-caution"
             >
               <input type="hidden" name="waybillId" value={waybillId} />
               <input type="hidden" name="expenseId" value={originId} />
@@ -634,14 +634,14 @@ function ActionPromptBlock({
               <button
                 type="submit"
                 data-testid={`gl-confirm-${waybillId}`}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 px-5 py-5 text-lg font-bold text-slate-950 shadow-lg shadow-amber-500/40 transition hover:from-amber-300 hover:to-amber-400 hover:shadow-amber-500/50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 px-5 py-5 text-lg font-bold text-slate-950 shadow-popover shadow-amber-500/40 transition hover:from-amber-300 hover:to-amber-400 hover:shadow-amber-500/50"
               >
                 <span aria-hidden className="text-2xl">✓</span>
                 <span>{<T id="waybill.timeline.confirm_gl_recorded" />}</span>
               </button>
             </form>
           ) : (
-            <p className="text-sm font-mono text-slate-400">
+            <p className="text-sm font-mono text-mute">
               {locale=== 'th'
                 ? 'รอการบันทึกบัญชี (GL) จากขั้นตอนก่อนหน้า'
                 : 'Waiting for the GL post from the previous step.'}
@@ -658,10 +658,10 @@ function ActionPromptBlock({
     }
     if (isDisbursement && canSettle && originId != null) {
       return (
-        <section className="space-y-3 border-t border-cyan-500/30 pt-4 text-sm">
-          <div className="text-xs font-mono uppercase tracking-widest text-cyan-300">
+        <section className="space-y-3 border-t glass-tint-info pt-4 text-sm">
+          <div className="text-xs uppercase tracking-widest text-info">
             💸 {<T id="waybill.timeline.disbursement_step" />}
-            <span className="ml-2 text-slate-400">
+            <span className="ml-2 text-mute">
               {<T id="waybill.timeline.current_stage" />}
             </span>
           </div>
@@ -676,10 +676,10 @@ function ActionPromptBlock({
       );
     }
     return (
-      <section className="space-y-3 border-t border-cyan-500/30 pt-4 text-sm">
-        <div className="text-xs font-mono uppercase tracking-widest text-cyan-300">
+      <section className="space-y-3 border-t glass-tint-info pt-4 text-sm">
+        <div className="text-xs uppercase tracking-widest text-info">
           ⚡ {<T id="waybill.timeline.acting_now" />}
-          <span className="ml-2 text-slate-400">
+          <span className="ml-2 text-mute">
             {<T id="waybill.timeline.current_stage" />}
           </span>
         </div>
@@ -693,7 +693,7 @@ function ActionPromptBlock({
               <button
                 type="submit"
                 data-testid={`big-approve-${pipKey}`}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-xl shadow-emerald-500/40 transition hover:from-emerald-300 hover:to-emerald-500 hover:shadow-emerald-500/50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-popover shadow-emerald-500/40 transition hover:from-emerald-300 hover:to-emerald-500 hover:shadow-emerald-500/50"
               >
                 <span aria-hidden className="text-2xl">✓</span>
                 <span>{<T id="waybill.timeline.approve" />}</span>
@@ -702,14 +702,14 @@ function ActionPromptBlock({
             <Link
               href={`/waybill/${waybillId}?action=reject&stage=${pipKey}`}
               data-testid={`big-reject-${pipKey}`}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-rose-400 to-rose-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-xl shadow-rose-500/40 transition hover:from-rose-300 hover:to-rose-500 hover:shadow-rose-500/50"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-rose-400 to-rose-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-popover shadow-rose-500/40 transition hover:from-rose-300 hover:to-rose-500 hover:shadow-rose-500/50"
             >
               <span aria-hidden className="text-2xl">✗</span>
               <span>{<T id="waybill.timeline.reject" />}</span>
             </Link>
           </div>
         ) : (
-          <p className="text-sm font-mono text-slate-400">
+          <p className="text-sm font-mono text-mute">
             {locale=== 'th'
               ? 'คุณไม่มีสิทธิ์อนุมัติขั้นนี้'
               : "you don't have approval rights for this stage"}
@@ -727,27 +727,27 @@ function ActionPromptBlock({
 
   if (isPending) {
     return (
-      <section className="space-y-3 border-t border-cyan-500/30 pt-4 text-sm">
-        <div className="text-xs font-mono uppercase tracking-widest text-cyan-300">
+      <section className="space-y-3 border-t glass-tint-info pt-4 text-sm">
+        <div className="text-xs uppercase tracking-widest text-info">
           🪜 {<T id="waybill.timeline.acting_next" />}
-          <span className="ml-2 text-slate-400">
+          <span className="ml-2 text-mute">
             {<T id="waybill.timeline.read_only_preview" />}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {roleText && (
-            <span className="inline-flex items-center gap-1 rounded-md border border-cyan-500/40 bg-cyan-500/10 px-2 py-1 text-xs font-mono text-cyan-200">
+            <span className="inline-flex items-center gap-1 rounded-md border glass-tint-info glass-tint-info px-2 py-1 text-xs font-mono text-info">
               {<T id="waybill.timeline.will_act_as" />}{' '}
-               <span className="font-bold text-cyan-100"><T id={roleText} /></span>
+               <span className="font-bold text-info"><T id={roleText} /></span>
             </span>
           )}
         </div>
         <div>
-          <div className="text-xs font-mono uppercase tracking-widest text-slate-500">
+          <div className="text-xs uppercase tracking-widest text-[var(--text-faint)]">
              <T id="waybill.timeline.attachmentsNextApprover" />
           </div>
           {allowedKinds.length === 0 ? (
-            <p className="mt-2 text-sm italic text-slate-500">
+            <p className="mt-2 text-sm italic text-[var(--text-faint)]">
                <T id="waybill.timeline.noAttachmentsStage" />
             </p>
           ) : (
@@ -757,11 +757,11 @@ function ActionPromptBlock({
                 return (
                   <li
                     key={k}
-                    className="flex items-center gap-2 rounded-lg border border-slate-800/60 bg-slate-950/40 px-2.5 py-1 text-xs"
+ className="flex items-center gap-2 border glass-panel px-2.5 py-1 text-xs"
                   >
                     <span aria-hidden className="text-base">{meta.emoji}</span>
-                    <span className="font-mono text-cyan-300">{k}</span>
-                     <span className="text-slate-400">— <T id={meta.id} /></span>
+                    <span className="font-mono text-info">{k}</span>
+                     <span className="text-mute">— <T id={meta.id} /></span>
                   </li>
                 );
               })}
