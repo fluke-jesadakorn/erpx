@@ -45,7 +45,7 @@ export interface BookBankUploadProps {
 }
 
 const INPUT_CLS =
-  'glass-panel w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-mute font-medium';
+  'glass-panel w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-mute font-medium';
 
 export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
   function BookBankUpload(
@@ -141,10 +141,10 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 aria-label="Drop a book bank slip or click to browse"
               >
                 <UploadCloud className="size-9 text-accent" strokeWidth={1.5} aria-hidden />
-                <p className="text-xs font-mono text-ink-2 text-center px-3">
+                <p className="text-xs font-sans tabular-nums text-ink-2 text-center px-3">
                   Drop or click
                 </p>
-                <p className="text-xs font-mono text-mute text-center px-3 uppercase tracking-wider">
+                <p className="text-xs font-sans tabular-nums text-mute text-center px-3 uppercase tracking-wider">
                   JPG · PNG · WEBP · PDF · ≤ 20 MB
                 </p>
               </div>
@@ -181,7 +181,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
               <div className="w-full min-w-0 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span
-                    className={`px-2.5 py-1 rounded-md text-xs font-mono uppercase inline-flex items-center gap-1 font-bold ${
+                    className={`px-2.5 py-1 rounded-md text-xs font-sans tabular-nums uppercase inline-flex items-center gap-1 font-bold ${
                       ocr.extractionState === 'pending'
                         ? 'bg-rule-strong/40 text-ink-2'
                         : ocr.extractionState === 'running'
@@ -202,7 +202,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                     ) : ocr.extractionState === 'done' ? (
                       <CircleCheck className="size-3.5" strokeWidth={2.5} />
                     ) : (
-                      <span className="font-mono">2/2</span>
+                      <span className="font-sans tabular-nums">2/2</span>
                     )}
                     {ocr.extractionState === 'pending'
                       ? 'ready'
@@ -210,14 +210,14 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                         ? <span className="tabular-nums">{ocr.elapsed}s</span>
                         : 'review'}
                   </span>
-                  <span className="text-xs font-mono text-ink-2 inline-flex items-center gap-1">
+                  <span className="text-xs font-sans tabular-nums text-ink-2 inline-flex items-center gap-1">
                     <FileSpreadsheet className="size-3" aria-hidden strokeWidth={2} />
                     {pendingKind} · {formatBytes(ocr.pendingFile.size)}
                   </span>
                   {ocr.extractionState === 'done' && (
                     <span
                       title={`${confPct}% confidence · mode ${ocr.mode}`}
-                      className="text-xs font-mono text-ink-2"
+                      className="text-xs font-sans tabular-nums text-ink-2"
                     >
                       <CircleDot className="size-3 inline-block mr-0.5 text-positive" strokeWidth={2.5} />
                       {confPct}%
@@ -225,7 +225,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                   )}
                 </div>
                 <p
-                  className="text-sm font-bold text-white truncate"
+                  className="text-sm font-bold text-ink truncate"
                   title={ocr.pendingFile.name}
                 >
                   {ocr.pendingFile.name}
@@ -233,7 +233,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
 
                 {ocr.extractionState === 'running' && (
                   <div className="space-y-2">
-                    <p className="text-xs text-ink-2 font-mono inline-flex items-center gap-1.5">
+                    <p className="text-xs text-ink-2 font-sans tabular-nums inline-flex items-center gap-1.5">
                       <Loader2 className="size-3 animate-spin" aria-hidden />
                       <span>
                         Running <span className="text-ink">{ocr.selectedModel || '…'}</span>
@@ -254,7 +254,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 pt-2">
                     <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-3/40">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
+                      <span className="text-[10px] font-sans tabular-nums uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
                         <Eye className="size-3" strokeWidth={2} aria-hidden />
                         Model
                       </span>
@@ -274,7 +274,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                         disabled={!ocr.selectedModel || ocr.phase === 'confirming'}
                         title="Run OCR with the selected model"
                         data-testid="slip-extract"
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 text-xs font-mono font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:border-rule-strong disabled:text-mute"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 text-xs font-sans tabular-nums font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:border-rule-strong disabled:text-mute"
                       >
                         <Wand2 className="size-3.5" strokeWidth={2.5} aria-hidden />
                         <span>Extract</span>
@@ -286,7 +286,8 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {ocr.pendingFile && ocr.extractionState !== 'pending' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field
               label="Bank"
               hint="optional"
@@ -343,7 +344,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                   }}
                   placeholder="digits only"
                   disabled={disabled}
-                  className={`${INPUT_CLS} font-mono`}
+                  className={`${INPUT_CLS} font-sans tabular-nums`}
                 />
                 {ocr.extractionState === 'running' && !accountNumber && <FieldSpinner />}
                 {ocr.extractionState === 'done' && accountNumber.trim() && <FilledTick filled />}
@@ -370,6 +371,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
               </div>
             </Field>
           </div>
+          )}
 
           {ocr.pendingFile && ocr.extractionState === 'done' && (
             <div
@@ -377,7 +379,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
               className="glass-panel rounded-lg border border-positive/40 bg-positive-soft/30 p-3 flex items-center gap-2"
             >
               <CircleCheck className="size-4 text-positive" strokeWidth={2.5} aria-hidden />
-              <span className="text-xs font-mono text-positive inline-flex items-center gap-1">
+              <span className="text-xs font-sans tabular-nums text-positive inline-flex items-center gap-1">
                 SLIP-{ocr.slipId}
                 <span className="text-positive/70 normal-case font-normal tracking-normal">linked on receipt submit</span>
               </span>
@@ -387,7 +389,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
           {ocr.error && (
             <p
               title={ocr.error}
-              className="text-xs text-critical font-mono inline-flex items-center gap-1.5"
+              className="text-xs text-critical font-sans tabular-nums inline-flex items-center gap-1.5"
             >
               <CircleAlert className="size-3.5" strokeWidth={2.5} aria-hidden />
               {ocr.error}

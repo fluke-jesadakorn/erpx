@@ -69,10 +69,10 @@ export interface ReceiptUploadProps {
 }
 
 const INPUT_CLS =
-  'glass-panel w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-ink-2/60 font-medium';
+  'glass-panel w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-ink-2/60 font-medium';
 
 const NUMBER_CLS =
-  'glass-panel w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-white font-mono text-right focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-ink-2/60 font-medium';
+  'glass-panel w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink font-sans tabular-nums text-right focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-ink-2/60 font-medium';
 
 const TABLE_INPUT_CLS =
   'glass-panel w-full focus:border-rule-strong rounded px-2 py-1 text-sm text-ink focus:outline-none';
@@ -283,10 +283,10 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 aria-label="Drop a slip or click to browse"
               >
                 <UploadCloud className="size-9 text-accent" strokeWidth={1.5} aria-hidden />
-                <p className="text-xs font-mono text-ink-2 text-center px-3">
+                <p className="text-xs font-sans tabular-nums text-ink-2 text-center px-3">
                   Drop or click
                 </p>
-                <p className="text-xs font-mono text-mute text-center px-3 uppercase tracking-wider">
+                <p className="text-xs font-sans tabular-nums text-mute text-center px-3 uppercase tracking-wider">
                   JPG · PNG · WEBP · PDF · ≤ 20 MB
                 </p>
               </div>
@@ -323,7 +323,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
               <div className="w-full min-w-0 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span
-                    className={`px-2.5 py-1 rounded-md text-xs font-mono uppercase font-bold inline-flex items-center gap-1 ${
+                    className={`px-2.5 py-1 rounded-md text-xs font-sans tabular-nums uppercase font-bold inline-flex items-center gap-1 ${
                       ocr.phase === 'confirmed'
                         ? 'bg-positive-soft text-positive border border-positive/40'
                         : ocr.extractionState === 'pending'
@@ -350,7 +350,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                     ) : ocr.extractionState === 'done' && canConfirm ? (
                       <CircleCheck className="size-3.5" strokeWidth={2.5} />
                     ) : (
-                      <span className="font-mono">2/2</span>
+                      <span className="font-sans tabular-nums">2/2</span>
                     )}
                     {ocr.phase === 'confirmed'
                       ? 'ok'
@@ -362,14 +362,14 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                             ? 'OCR'
                             : 'review'}
                   </span>
-                  <span className="text-xs font-mono text-ink-2 inline-flex items-center gap-1">
+                  <span className="text-xs font-sans tabular-nums text-ink-2 inline-flex items-center gap-1">
                     <FileSpreadsheet className="size-3" aria-hidden strokeWidth={2} />
                     {pendingKind} · {formatBytes(ocr.pendingFile.size)}
                   </span>
                   {ocr.extractionState === 'done' && (
                     <span
                       title={`${confPct}% confidence · mode ${ocr.mode}`}
-                      className="text-xs font-mono text-ink-2"
+                      className="text-xs font-sans tabular-nums text-ink-2"
                     >
                       <CircleDot className="size-3 inline-block mr-0.5 text-positive" strokeWidth={2.5} />
                       {confPct}%
@@ -377,7 +377,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   )}
                 </div>
                 <p
-                  className="text-sm font-bold text-white truncate"
+                  className="text-sm font-bold text-ink truncate"
                   title={ocr.pendingFile.name}
                 >
                   {ocr.pendingFile.name}
@@ -385,7 +385,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
 
                 {ocr.extractionState === 'running' && (
                   <div className="space-y-2">
-                    <p className="text-xs text-ink-2 font-mono inline-flex items-center gap-1.5">
+                    <p className="text-xs text-ink-2 font-sans tabular-nums inline-flex items-center gap-1.5">
                       <Loader2 className="size-3 animate-spin" aria-hidden />
                       <span>
                         Running <span className="text-ink">{ocr.selectedModel || '…'}</span>
@@ -406,7 +406,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 {ocr.phase === 'confirmed' && confirmedStatus && (
                   <p
                     title={`Submitted → ${confirmedStatus}`}
-                    className="text-xs text-ink-2 font-mono inline-flex items-center gap-1"
+                    className="text-xs text-ink-2 font-sans tabular-nums inline-flex items-center gap-1"
                   >
                     <CircleCheck className="size-3 text-positive" strokeWidth={2.5} />
                     Submitted
@@ -416,7 +416,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2 pt-2">
                     <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-3/40">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
+                      <span className="text-[10px] font-sans tabular-nums uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
                         <Eye className="size-3" strokeWidth={2} aria-hidden />
                         Model
                       </span>
@@ -436,7 +436,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                         disabled={!ocr.selectedModel || ocr.phase === 'confirming'}
                         title="Run OCR with the selected model"
                         data-testid="slip-extract"
-                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 text-xs font-mono font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:border-rule-strong disabled:text-mute"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 text-xs font-sans tabular-nums font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:border-rule-strong disabled:text-mute"
                       >
                         <Wand2 className="size-3.5" strokeWidth={2.5} aria-hidden />
                         <span>Extract</span>
@@ -448,14 +448,14 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
             )}
           </div>
 
-          {ocr.phase !== 'confirmed' && (
+          {ocr.phase !== 'confirmed' && ocr.extractionState !== 'pending' && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="sm:col-span-2 pt-4 pb-1 space-y-3 border-t border-rule first:border-t-0 first:pt-0">
                   <div className="flex items-center gap-2 pb-2">
                     <span aria-hidden className="text-info">{<Building2 className="size-4" strokeWidth={2.5} />}</span>
                     <h4 className="text-sm font-semibold text-ink">Vendor</h4>
-                    <span className="text-xs font-mono text-mute normal-case tracking-normal">Created from</span>
+                    <span className="text-xs font-sans tabular-nums text-mute normal-case tracking-normal">Created from</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Name" icon={<Building2 className="size-3" aria-hidden strokeWidth={2} />}>
@@ -499,7 +499,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   <div className="flex items-center gap-2 pb-2">
                     <span aria-hidden className="text-info">{<User className="size-4" strokeWidth={2.5} />}</span>
                     <h4 className="text-sm font-semibold text-ink">Customer</h4>
-                    <span className="text-xs font-mono text-mute normal-case tracking-normal">Created to</span>
+                    <span className="text-xs font-sans tabular-nums text-mute normal-case tracking-normal">Created to</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Name" icon={<User className="size-3" aria-hidden strokeWidth={2} />}>
@@ -572,7 +572,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                             onPaymentChange?.(v);
                           }}
                           disabled={disabled || ocr.extractionState === 'running'}
-                          className="w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-white focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed font-medium border border-rule bg-paper-2"
+                          className="w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed font-medium border border-rule bg-paper-2"
                           title="Payment method"
                         >
                           <option value="cash">Cash</option>
@@ -633,7 +633,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <p
-                      className={`text-xs font-mono flex-1 min-w-0 ${
+                      className={`text-xs font-sans tabular-nums flex-1 min-w-0 ${
                         canConfirm ? 'text-positive/80' : 'text-caution/80'
                       }`}
                     >
@@ -669,7 +669,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                           : 'Disabled · ปิดอยู่'
                       }
                       data-testid="slip-confirm"
-                      className={`w-12 h-12 inline-flex items-center justify-center gap-2 rounded-xl border text-sm font-mono font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      className={`w-12 h-12 inline-flex items-center justify-center gap-2 rounded-xl border text-sm font-sans tabular-nums font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
                         ocr.phase === 'confirming'
                           ? 'bg-rule-strong text-ink-2 border-rule-strong'
                           : canConfirm
@@ -699,7 +699,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                       className="flex items-center justify-between px-3 py-2 border-b border-rule cursor-pointer select-none hover:bg-paper-3/60 transition-colors [&::-webkit-details-marker]:hidden"
                       title="OCR line items"
                     >
-                      <span className="text-xs font-mono text-ink-2 uppercase tracking-widest font-semibold inline-flex items-center gap-1.5">
+                      <span className="text-xs font-sans tabular-nums text-ink-2 uppercase tracking-widest font-semibold inline-flex items-center gap-1.5">
                         <FileSpreadsheet className="size-3.5 text-positive" strokeWidth={2} aria-hidden />
                         Items
                         <span className="text-mute normal-case tracking-normal">({items.length})</span>
@@ -708,7 +708,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                     </summary>
                     <div className="p-3 space-y-3">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-sm font-mono">
+                        <table className="w-full text-left border-collapse text-sm font-sans tabular-nums">
                           <thead>
                             <tr className="border-b border-rule text-mute uppercase tracking-wider text-xs">
                               <th title="Description" className="py-1.5 px-2 pb-2 text-ink-2 font-semibold">
@@ -756,7 +756,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                                       )
                                     }
                                     disabled={ocr.phase === 'confirming'}
-                                    className="w-16 focus:border-rule-strong rounded px-1.5 py-1 text-center text-sm font-mono text-ink focus:outline-none border border-rule bg-paper-2"
+                                    className="w-16 focus:border-rule-strong rounded px-1.5 py-1 text-center text-sm font-sans tabular-nums text-ink focus:outline-none border border-rule bg-paper-2"
                                   />
                                 </td>
                                 <td className="py-2 px-1 text-right">
@@ -775,7 +775,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                                       )
                                     }
                                     disabled={ocr.phase === 'confirming'}
-                                    className="w-20 focus:border-rule-strong rounded px-1.5 py-1 text-right text-sm font-mono text-ink focus:outline-none border border-rule bg-paper-2"
+                                    className="w-20 focus:border-rule-strong rounded px-1.5 py-1 text-right text-sm font-sans tabular-nums text-ink focus:outline-none border border-rule bg-paper-2"
                                   />
                                 </td>
                                 <td className="py-2 px-1 text-right">
@@ -793,7 +793,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                                       )
                                     }
                                     disabled={ocr.phase === 'confirming'}
-                                    className="w-24 focus:border-rule-strong rounded px-1.5 py-1 text-right text-sm font-mono font-semibold text-positive focus:outline-none border border-rule bg-paper-2"
+                                    className="w-24 focus:border-rule-strong rounded px-1.5 py-1 text-right text-sm font-sans tabular-nums font-semibold text-positive focus:outline-none border border-rule bg-paper-2"
                                   />
                                 </td>
                                 <td className="py-2 px-1 text-center">
@@ -823,7 +823,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                             ])
                           }
                           disabled={ocr.phase === 'confirming'}
-                          className="px-2.5 py-1 rounded hover:bg-rule-strong border border-rule-strong text-ink text-xs font-mono transition-colors inline-flex items-center gap-1"
+                          className="px-2.5 py-1 rounded hover:bg-rule-strong border border-rule-strong text-ink text-xs font-sans tabular-nums transition-colors inline-flex items-center gap-1"
                         >
                           <Plus className="size-3" strokeWidth={2.5} aria-hidden />
                           Add
@@ -837,7 +837,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
               {ocr.error && (
                 <p
                   title={ocr.error}
-                  className="text-xs text-critical font-mono inline-flex items-center gap-1.5"
+                  className="text-xs text-critical font-sans tabular-nums inline-flex items-center gap-1.5"
                 >
                   <CircleAlert className="size-3.5" strokeWidth={2.5} aria-hidden />
                   {ocr.error}
@@ -909,8 +909,8 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-white truncate">{vendor || ocr.fileName}</p>
-                  <p className="text-xs text-ink-2 font-mono">
+                  <p className="text-sm font-bold text-ink truncate">{vendor || ocr.fileName}</p>
+                  <p className="text-xs text-ink-2 font-sans tabular-nums">
                     {confirmedExpenseId != null && `EXP-${confirmedExpenseId} · `}
                     SLIP-{ocr.slipId}
                   </p>
@@ -923,7 +923,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   }
                   title="Open in expense workflow"
                   aria-label="Open in expense workflow"
-                  className="text-info hover:text-white inline-flex items-center justify-center gap-1.5 w-9 h-9 rounded-lg border border-info/30 bg-info-soft hover:bg-info/20 transition-colors"
+                  className="text-info-strong hover:text-info inline-flex items-center justify-center gap-1.5 w-9 h-9 rounded-lg border border-info/30 glass-tint-info hover:shadow-popover transition-colors"
                 >
                   <LinkIcon className="size-4" strokeWidth={2} aria-hidden />
                 </Link>
@@ -946,7 +946,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
               {ocr.locked && ocr.lockReason && (
                 <p
                   title={ocr.lockReason}
-                  className="text-xs font-mono text-mute border-t border-rule pt-2 inline-flex items-center gap-1.5"
+                  className="text-xs font-sans tabular-nums text-mute border-t border-rule pt-2 inline-flex items-center gap-1.5"
                 >
                   <Lock className="size-3" strokeWidth={2} aria-hidden />
                   {ocr.lockReason}

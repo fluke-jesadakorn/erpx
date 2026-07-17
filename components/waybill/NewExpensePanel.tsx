@@ -7,6 +7,7 @@ import {
   Banknote,
   CreditCard,
   CircleDot,
+  CircleAlert,
   ArrowRight,
   ArrowUpRight,
   Loader2,
@@ -49,6 +50,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
   const [bookBankFields, setBookBankFields] = useState<BookBankFields>(EMPTY_BANK);
   const [submitState, setSubmitState] = useState<SubmitState | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   void submitExpenseFromSlip;
 
@@ -113,8 +115,9 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
 
   async function handleSubmitAll() {
     if (!receiptSlipId) return;
+    setSubmitError(null);
     setSubmitting(true);
-    await submitExpenseFromSlip({
+    const r = await submitExpenseFromSlip({
       slipId: receiptSlipId,
       actorId: currentUserId,
       overrides: needsBookBank && bookBankSlipId
@@ -126,6 +129,15 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
         : { paymentMethod: payment },
     });
     setSubmitting(false);
+    if (!r.success) {
+      setSubmitError(r.error ?? 'Submit failed');
+      return;
+    }
+    if (r.waybillId) {
+      window.location.assign(`/waybill/${r.waybillId}`);
+    } else if (r.expenseId) {
+      window.location.assign(`/waybill/by-expense/${r.expenseId}`);
+    }
   }
 
   const hint = (
@@ -175,7 +187,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
               : '—'
           }
           className={[
-            'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-sm font-mono font-semibold tabular-nums',
+            'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-sm font-semibold font-sans tabular-nums tabular-nums',
             canSubmitAll
               ? 'border-positive/40 bg-positive-soft text-positive'
               : receiptTotal > 0
@@ -217,7 +229,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                   <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                     <span
                       title={`${payMeta.en} · ${payMeta.th}`}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rule bg-paper-3 text-sm font-mono font-medium tabular-nums text-ink"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rule bg-paper-3 text-sm font-medium font-sans tabular-nums text-ink"
                     >
                       <payMeta.Icon className="size-3" aria-hidden strokeWidth={2} />
                       {payMeta.en}
@@ -225,7 +237,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                     {parsed?.vendorName && (
                       <span
                         title={`Vendor · ผู้ขาย`}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rule bg-paper-3 text-sm font-mono font-medium text-ink max-w-[180px] truncate"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rule bg-paper-3 text-sm font-medium font-sans text-ink max-w-[180px] truncate"
                       >
                         <Building2 className="size-3" aria-hidden strokeWidth={2} />
                         {parsed.vendorName}
@@ -253,7 +265,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 {receiptTotal > 0
                   ? receiptTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })
                   : '—'}
-                <span className="ml-1.5 text-base font-mono font-medium text-ink-2 uppercase tracking-wider">THB</span>
+                <span className="ml-1.5 text-base font-medium font-sans text-ink-2 uppercase tracking-wider">THB</span>
               </div>
               <button
                 type="button"
@@ -289,11 +301,22 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
               </button>
             </div>
           </div>
+          {submitError && (
+            <p
+              role="alert"
+              title={submitError}
+              data-testid="expense-sticky-error"
+              className="mt-2 flex items-center gap-1.5 text-xs text-critical font-sans tabular-nums"
+            >
+              <CircleAlert className="size-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
+              <span className="truncate">{submitError}</span>
+            </p>
+          )}
         </div>
       }
     >
       <div className="flex items-center justify-end" aria-label="Progress">
-        <span className="text-xs font-mono tabular-nums text-mute">
+        <span className="text-xs text-mute font-sans tabular-nums">
           {completedCount}/{steps.length}
         </span>
       </div>
@@ -367,7 +390,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
         flat
         badge={
           receiptHasFile ? (
-            <span className="text-xs font-mono px-2 py-0.5 rounded-full border border-info/40 bg-info-soft text-info inline-flex items-center gap-1">
+            <span className="text-xs font-sans tabular-nums px-2 py-0.5 rounded-full border border-info/40 bg-info-soft text-info inline-flex items-center gap-1">
               {receiptReady ? (
                 <>
                   <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
@@ -390,11 +413,11 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 <Receipt className="size-5 text-accent shrink-0" aria-hidden strokeWidth={2} />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-ink leading-tight"><T id="waybill.expense.receipt" /></p>
-                  <p className="text-xs text-mute font-mono mt-0.5 uppercase tracking-wider">RECEIPT</p>
+                  <p className="text-xs text-mute mt-0.5 font-sans tabular-nums uppercase tracking-wider">RECEIPT</p>
                 </div>
               </div>
               {receiptHasFile ? (
-                <span className="inline-flex items-center gap-1 rounded-md border border-info/40 bg-info-soft px-2.5 py-1 text-xs font-bold font-mono uppercase tracking-widest text-info">
+                <span className="inline-flex items-center gap-1 rounded-md border border-info/40 bg-info-soft px-2.5 py-1 text-xs font-bold font-sans tabular-nums uppercase tracking-widest text-info">
                   {receiptReady ? (
                     <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
                   ) : (
@@ -405,7 +428,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                     : <T id="waybill.expense.ocr" />}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-3 px-2.5 py-1 text-xs font-bold font-mono uppercase tracking-widest text-mute">
+                <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-3 px-2.5 py-1 text-xs font-bold font-sans tabular-nums uppercase tracking-widest text-mute">
                   <CircleDot className="size-3" aria-hidden strokeWidth={2} />
                   <T id="waybill.expense.empty" />
                 </span>
@@ -434,16 +457,16 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 <Landmark className="size-5 text-accent shrink-0" aria-hidden strokeWidth={2} />
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-ink leading-tight"><T id="waybill.expense.book_bank" /></p>
-                  <p className="text-xs text-mute font-mono mt-0.5 uppercase tracking-wider">BOOK BANK</p>
+                  <p className="text-xs text-mute mt-0.5 font-sans tabular-nums uppercase tracking-wider">BOOK BANK</p>
                 </div>
               </div>
               {bookBankSlipId != null ? (
-                <span className="inline-flex items-center gap-1 rounded-md border border-positive/40 bg-positive-soft px-2.5 py-1 text-xs font-bold font-mono uppercase tracking-widest text-positive-strong">
+                <span className="inline-flex items-center gap-1 rounded-md border border-positive/40 bg-positive-soft px-2.5 py-1 text-xs font-bold font-sans tabular-nums uppercase tracking-widest text-positive-strong">
                   <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
                   SLIP-{bookBankSlipId}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-3 px-2.5 py-1 text-xs font-bold font-mono uppercase tracking-widest text-mute">
+                <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-3 px-2.5 py-1 text-xs font-bold font-sans tabular-nums uppercase tracking-widest text-mute">
                   <CircleDot className="size-3" aria-hidden strokeWidth={2} />
                   <T id="waybill.expense.empty" />
                 </span>
