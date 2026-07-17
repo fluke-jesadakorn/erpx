@@ -35,10 +35,6 @@ const ROUTES: Route[] = [
     build: (locale, _path) => [homeCrumbFor(locale), { label: lbl('tiles.pageLabel', locale), href: '/tiles' }],
   },
   {
-    test: (p) => p === '/roles',
-    build: (locale, _path) => [homeCrumbFor(locale), { label: lbl('nav.roles', locale), href: '/roles' }],
-  },
-  {
     test: (p) => p === '/policy',
     build: (locale, _path) => [homeCrumbFor(locale), { label: lbl('nav.policy', locale), href: '/policy' }],
   },

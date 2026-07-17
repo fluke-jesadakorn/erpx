@@ -49,7 +49,6 @@ async function getTileBySlugPerm(slug: string): Promise<TileRow | null> {
 
 const DIRECT: Record<string, string> = {
   org_chart: '/org-chart',
-  roles: '/roles',
   directory: '/directory',
   departments: '/departments',
   access_requests: '/access-requests',

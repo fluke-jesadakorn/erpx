@@ -20,7 +20,6 @@ const TILE_CATALOG = [
   { id: 'sales', title: 'Sales Orders', description: 'Create and manage sales orders' },
   { id: 'customers', title: 'Customers', description: 'Customer master and AR aging' },
   { id: 'policy', title: 'Approval Policies', description: 'Edit and lint approval policies' },
-  { id: 'roles', title: 'Roles & Permissions', description: 'Manage roles, users, grants' },
   { id: 'tiles', title: 'Tiles', description: 'Tile catalog and visibility' },
   { id: 'audit', title: 'Audit Log', description: 'Permission and tile audit trail' },
   { id: 'law', title: 'Law Contracts', description: 'Contracts RAG search' },

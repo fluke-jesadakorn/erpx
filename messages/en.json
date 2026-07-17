@@ -50,10 +50,9 @@
     "po": "PO",
     "procurement": "Procurement",
     "sales": "Sales orders",
-    "policy": "Policy",
-    "matrix": "Policy matrix",
-    "roles": "Roles",
-    "tiles": "Tile catalog",
+      "policy": "Policy",
+      "matrix": "Policy matrix",
+      "tiles": "Tile catalog",
     "people": "People",
     "audit": "Audit log",
     "customers": "Customers",
@@ -73,10 +72,6 @@
     "noUserSession": "No user session. POST /api/actor with a user id to sign in.",
     "noTiles": "No tiles in catalog.",
     "restricted": "Restricted",
-    "langPickerTitle": "Pick language",
-    "langPickerHint": "Choose a secondary translation language · English is primary",
-    "langPickerHintEn": "Secondary · English primary",
-    "langPickerPrimary": "Primary always English (static)",
     "thai": "ไทย",
     "german": "Deutsch",
     "toggleLangTitle": "Toggle language (TH ↔ DE)",
@@ -199,7 +194,6 @@
       "po": "PO",
       "sales": "Sales",
       "policy": "RBAC Policy",
-      "roles": "Roles",
       "tiles": "Tile Gates",
       "audit": "Audit",
       "customers": "Customers",
@@ -1264,10 +1258,6 @@
         "name": "Org chart",
         "subtitle": "Organization structure"
       },
-      "roles": {
-        "name": "Roles",
-        "subtitle": "User → Role → Permission"
-      },
       "tile-gates": {
         "name": "Tile gates",
         "subtitle": "Per-tile (level + dept) requirement editor"
@@ -1350,18 +1340,6 @@
     "pageTilesViewRequired": "Tile-gate editing requires the rbac:matrix:view permission.",
     "pageNoPerm": "You don't have permission to view this page.",
     "inboxRequired": "tile:inbox:view required."
-  },
-  "roles": {
-    "subtitle": "Persona catalog — {roles} roles · {perms} perms",
-    "role": "Role",
-    "level": "Level",
-    "allow": "Allow",
-    "deny": "Deny",
-    "users": "Users",
-    "system": "System",
-    "systemValue": "system",
-    "customValue": "custom",
-    "editHint": "Edit individual role grants via the role permissions API."
   },
   "hr": {
     "audit": "Audit",
@@ -1783,7 +1761,29 @@
       "findingsFor": "Findings for {name}",
       "noIssues": "No issues found."
     },
-    "subtitle": "Stage chain matrix - persona x stage grants",
+    "subtitle": "Full permission matrix · departments × specific roles × system perms",
+    "matrix2": {
+      "title": "Permission matrix",
+      "subtitle": "Check / uncheck system perms on departments and specific roles. Department grants inherit to every member.",
+      "grantsN": "{n} grants",
+      "editGranted": "Edit granted",
+      "viewOnly": "View only",
+      "colTarget": "Target",
+      "colActions": "Actions",
+      "reset": "Reset",
+      "save": "Save",
+      "saving": "Saving…",
+      "createTarget": "New target",
+      "create": "Create",
+      "cancel": "Cancel",
+      "assignUser": "Assign user",
+      "assignDept": "Department",
+      "assignRoles": "Specific roles",
+      "searchPlaceholder": "Search targets…",
+      "legendTitle": "How it works",
+      "legendBody": "Checkmarks grant the system permission to the target. Department-target grants flow to every user in the department. Specific roles expose direct role membership (used per-user).",
+      "significance": "Significant cells appear with the amber tag and can be revoked at any time."
+    },
     "title": "RBAC Policy"
   },
   "command": {

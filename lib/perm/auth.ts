@@ -10,6 +10,7 @@ import {
   SESSION_COOKIE, verifySession, sessionFromHeaders, type SessionPayload,
 } from '../server/sessionToken';
 import type { PermSession } from './session';
+import { loadDeptPermissionBundles, expandUserPermissions } from './deptGrant';
 
 export { hasPermission, canManageResource, sessionDept, sessionLevel, sessionRoleName, ADMIN_PERM, levelFromRoles } from './auth-client';
 
@@ -78,13 +79,16 @@ async function hydratePermSession(payload: SessionPayload): Promise<ActivePermSe
   );
   if (profile.rows.length === 0) return null;
   const row = profile.rows[0];
+  const bundles = await loadDeptPermissionBundles();
+  const base = row.permissions ?? [];
+  const expanded = expandUserPermissions(base, bundles);
   const session: PermSession = {
     user: {
       id: payload.sub,
       name: row.fullname,
       role: row.role_id ?? 'officer::5',
     },
-    permissions: row.permissions ?? [],
+    permissions: Array.from(expanded),
   };
   const decoded: DecodedPermToken = { ...session, iat: payload.iat, exp: payload.exp };
   return { session, decoded };

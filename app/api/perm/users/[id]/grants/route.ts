@@ -43,16 +43,59 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   if (!userId) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
 
   const all = await listActiveUserPerms(userId);
+  const activeIds = Array.from(new Set(
+    all.filter((g) => g.revoked_at === null && (g.ends_at === null || new Date(g.ends_at).getTime() >= Date.now()))
+      .map((g) => g.permission_id),
+  ));
+
+  const u = await query<{
+    id: number; fullname: string; employee_code: string; department: string | null;
+  }>(
+    `SELECT u.id, u.fullname, u.employee_code,
+       (SELECT up.permission_id FROM perm.user_permissions up
+         WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
+           AND up.revoked_at IS NULL
+           AND (up.ends_at IS NULL OR up.ends_at > now())
+         ORDER BY up.permission_id LIMIT 1) AS dept_perm,
+       (SELECT ur.role_id FROM perm.user_roles ur
+         WHERE ur.user_id = u.id
+         ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
+                        WHEN ur.role_id LIKE '%::2' THEN 1
+                        WHEN ur.role_id LIKE '%::3' THEN 2
+                        WHEN ur.role_id LIKE '%::4' THEN 3
+                        WHEN ur.role_id LIKE '%::5' THEN 4
+                        ELSE 5 END), ur.granted_at ASC LIMIT 1) AS role_id
+       FROM users u WHERE u.id = $1`,
+    [userId],
+  );
+  const rolesRes = await query<{ role_id: string }>(
+    `SELECT role_id FROM perm.user_roles WHERE user_id = $1 ORDER BY role_id`,
+    [userId],
+  );
+  const roleNamesRes = await query<{ role_id: string; display_name: string }>(
+    `SELECT pr.id AS role_id, pr.display_name FROM perm.user_roles ur
+       JOIN perm.roles pr ON pr.id = ur.role_id WHERE ur.user_id = $1
+       ORDER BY pr.display_name`,
+    [userId],
+  );
+
+  const dept = u.rows[0]?.dept_perm
+    ? u.rows[0].dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '')
+    : null;
 
   return NextResponse.json({
     user_id: userId,
+    user: {
+      id: u.rows[0]?.id ?? userId,
+      fullname: u.rows[0]?.fullname ?? 'Unknown user',
+      employee_code: u.rows[0]?.employee_code ?? '',
+      department: dept,
+      role_id: u.rows[0]?.role_id ?? null,
+      perm_role_ids: rolesRes.rows.map((r) => r.role_id),
+      perm_role_names: roleNamesRes.rows.map((r) => r.display_name),
+    },
     grants: all,
-    active_perm_ids: [
-      ...new Set(
-        all.filter((g) => g.revoked_at === null && (g.ends_at === null || new Date(g.ends_at).getTime() >= Date.now()))
-          .map((g) => g.permission_id),
-      ),
-    ],
+    active_perm_ids: activeIds,
   });
 }
 

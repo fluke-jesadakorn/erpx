@@ -73,10 +73,6 @@
     "noUserSession": "Keine Benutzersitzung. POST /api/actor mit einer Benutzer-ID zur Anmeldung.",
     "noTiles": "Keine Kacheln im Katalog.",
     "restricted": "Eingeschränkt",
-    "langPickerTitle": "Sprache wählen",
-    "langPickerHint": "Sekundäre Übersetzungssprache wählen · Englisch ist primär",
-    "langPickerHintEn": "Sekundär · Englisch primär",
-    "langPickerPrimary": "Primär immer Englisch (statisch)",
     "thai": "ไทย",
     "german": "Deutsch",
     "toggleLangTitle": "Sprache wechseln (TH ↔ DE)",
@@ -1261,12 +1257,8 @@
         "subtitle": "Stufenkettenmatrix - Persona x Stufenrechte"
       },
       "org-chart": {
-        "name": "Organigramm",
-        "subtitle": "Organisationsstruktur"
-      },
-      "roles": {
-        "name": "Rollen",
-        "subtitle": "Benutzer → Rolle → Berechtigung"
+        "name": "Org chart",
+        "subtitle": "Organization structure"
       },
       "tile-gates": {
         "name": "Kachel-Zugriff",
@@ -1350,18 +1342,6 @@
     "pageTilesViewRequired": "Die Bearbeitung der Kachel-Gates erfordert die Berechtigung rbac:matrix:view.",
     "pageNoPerm": "Sie haben keine Berechtigung, diese Seite anzuzeigen.",
     "inboxRequired": "tile:inbox:view erforderlich."
-  },
-  "roles": {
-    "subtitle": "Persona-Katalog — {roles} Rollen · {perms} Berechtigungen",
-    "role": "Rolle",
-    "level": "Stufe",
-    "allow": "Erlauben",
-    "deny": "Verweigern",
-    "users": "Benutzer",
-    "system": "System",
-    "systemValue": "System",
-    "customValue": "Benutzerdefiniert",
-    "editHint": "Einzelne Rollenberechtigungen über die Rollenberechtigungs-API bearbeiten."
   },
   "hr": {
     "audit": "Audit",
@@ -1783,7 +1763,29 @@
       "findingsFor": "Befunde für {name}",
       "noIssues": "Keine Probleme gefunden."
     },
-    "subtitle": "Stufenkette-Matrix - Persona x Stufen-Berechtigungen",
+    "subtitle": "Vollständige Berechtigungsmatrix · Abteilungen × konkrete Rollen × Systemrechte",
+    "matrix2": {
+      "title": "Berechtigungsmatrix",
+      "subtitle": "Systemrechte auf Abteilungen und konkreten Rollen markieren. Abteilungsrechte gelten für jedes Mitglied.",
+      "grantsN": "{n} Rechte",
+      "editGranted": "Bearbeitung erlaubt",
+      "viewOnly": "Nur Ansicht",
+      "colTarget": "Ziel",
+      "colActions": "Aktionen",
+      "reset": "Zurücksetzen",
+      "save": "Speichern",
+      "saving": "Speichern…",
+      "createTarget": "Neues Ziel",
+      "create": "Erstellen",
+      "cancel": "Abbrechen",
+      "assignUser": "Benutzer zuweisen",
+      "assignDept": "Abteilung",
+      "assignRoles": "Konkrete Rollen",
+      "searchPlaceholder": "Ziele suchen…",
+      "legendTitle": "So funktioniert es",
+      "legendBody": "Markierungen gewähren dem Ziel das Systemrecht. Abteilungsrechte wirken auf alle Mitglieder. Konkrete Rollen werden für einzelne Benutzer gesetzt.",
+      "significance": "Signifikante Zellen erscheinen mit dem gelben Tag und sind jederzeit widerrufbar."
+    },
     "title": "RBAC-Richtlinie"
   },
   "command": {

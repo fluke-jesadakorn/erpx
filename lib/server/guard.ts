@@ -10,6 +10,7 @@ import {
   matchPerm, parseDeptFromPerms, parseRoleId,
 } from '../perm/grammar';
 import { getActorScope, type ActorScope } from '../perm/scope';
+import { loadDeptPermissionBundles, expandUserPermissions } from '../perm/deptGrant';
 
 export interface SessionActor {
   id: number;
@@ -116,6 +117,9 @@ export async function loadActorRaw(): Promise<SessionActor | null> {
   if (!row) return null;
   const parsed = parseRoleId(row.role_id ?? 'officer::5');
   const deptId = parseDeptFromPerms(row.permissions ?? []);
+  const bundles = await loadDeptPermissionBundles();
+  const base = row.permissions ?? [];
+  const expanded = expandUserPermissions(base, bundles);
   return {
     id: row.id,
     employee_code: row.employee_code,
@@ -126,7 +130,7 @@ export async function loadActorRaw(): Promise<SessionActor | null> {
     role_name: parsed?.name ?? 'officer',
     level: parsed?.level ?? 5,
     dept_id: deptId,
-    permissions: row.permissions ?? [],
+    permissions: Array.from(expanded),
   };
 }
 

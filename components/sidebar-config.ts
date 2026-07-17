@@ -72,7 +72,6 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
     icon: 'shield-check',
     items: [
       { key: 'policy', label: { id: 'sidebar.labels.policy' }, icon: 'shield-check', href: '/policy' },
-      { key: 'roles',  label: { id: 'sidebar.labels.roles' },  icon: 'user-check',   href: '/roles' },
       { key: 'tiles',  label: { id: 'sidebar.labels.tiles' },  icon: 'grid',         href: '/tiles' },
     ],
   },

@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { T } from '@/components/i18n/T';
 import {
   SECONDARIES,
   STORAGE_KEY,
@@ -64,25 +63,11 @@ function LangList({ current, onPick, className }: ListProps) {
   return (
     <div
       className={[
-        'glass-panel-heavy rounded-2xl border border-glass-border-strong shadow-2xl shadow-black/50 overflow-hidden',
+        'glass-panel-heavy rounded-xl border border-glass-border-strong shadow-xl shadow-black/40 overflow-hidden',
         className ?? '',
       ].join(' ')}
     >
-      <div className="px-4 pt-3.5 pb-2 border-b border-glass-border">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="font-display text-base text-ink">
-            <T id="chrome.langPickerTitle" hideSecondary />
-          </h2>
-          <span className="text-[10px] font-mono uppercase tracking-widest text-mute">
-            <T id="chrome.langPickerHintEn" hideSecondary />
-          </span>
-        </div>
-        <p className="text-xs text-mute font-sans mt-1">
-          <T id="chrome.langPickerHint" hideSecondary />
-        </p>
-      </div>
-
-      <ul role="listbox" className="py-1.5">
+      <ul role="listbox" className="py-1">
         {SECONDARIES.map((loc) => {
           const meta = LOCALE_META[loc];
           const selected = loc === current;
@@ -95,50 +80,33 @@ function LangList({ current, onPick, className }: ListProps) {
                 lang={meta.bcp47}
                 onClick={() => onPick(loc)}
                 className={[
-                  'group w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors',
+                  'w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors',
                   selected
-                    ? 'bg-accent/15 border-l-2 border-accent'
-                    : 'border-l-2 border-transparent hover:bg-surface-glass-strong',
+                    ? 'bg-accent/15 text-ink'
+                    : 'text-ink-2 hover:bg-surface-glass-strong hover:text-ink',
                 ].join(' ')}
               >
                 <span
                   aria-hidden
-                  className="text-2xl leading-none shrink-0 drop-shadow-sm"
+                  className="text-lg leading-none shrink-0"
                   style={{ fontFamily: '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif' }}
                 >
                   {meta.flag}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-ink truncate">
-                    {meta.native}
-                  </span>
-                  <span className="block text-[11px] font-medium text-mute truncate">
-                    {meta.english}
-                  </span>
+                <span className="flex-1 text-sm font-medium truncate">
+                  {meta.native}
                 </span>
-                <span className="flex flex-col items-end gap-0.5 shrink-0">
-                  <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-ink-2">
-                    {meta.code}
-                  </span>
-                  {selected ? (
-                    <span aria-hidden className="text-[11px] font-bold text-accent">
-                      ✓
-                    </span>
-                  ) : (
-                    <span className="text-[11px] font-mono text-mute opacity-0 group-hover:opacity-100">
-                      ↵
-                    </span>
-                  )}
+                <span className="text-[10px] font-mono uppercase tracking-wider text-mute">
+                  {meta.code}
                 </span>
+                {selected ? (
+                  <span aria-hidden className="text-accent text-xs">✓</span>
+                ) : null}
               </button>
             </li>
           );
         })}
       </ul>
-
-      <div className="px-4 py-2.5 border-t border-glass-border text-[10px] font-mono uppercase tracking-wider text-mute">
-        <T id="chrome.langPickerPrimary" hideSecondary />
-      </div>
     </div>
   );
 }

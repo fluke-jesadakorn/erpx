@@ -373,7 +373,7 @@ INSERT INTO perm.tiles (id, display_name, subtitle, icon, accent, group_name, hr
   ('summary',         'Cross-Slice Summary','Cross-cut dashboard',    '📊', 'slate',  'exec',     '/summary',          210, 'tile:summary:view::allow'),
   ('policy',          'RBAC Policy',       'Stage matrix',            '🎯', 'violet', 'admin',    '/policy',           300, 'tile:policy:view::allow'),
   ('org-chart',       'Org Chart',         'Org tree',                '🌳', 'sky',    'admin',    '/org-chart',        310, 'tile:org_chart:view::allow'),
-  ('roles',           'Roles',             'Persona catalog',         '🪪', 'violet', 'admin',    '/roles',            320, 'tile:roles:view::allow'),
+  ('roles',           'Roles',             'Persona catalog',         '🪪', 'violet', 'admin',    '/policy',           320,  'tile:roles:view::allow'),
   ('tile-gates',      'Tile Gates',        'Visibility gates',        '🚪', 'slate',  'admin',    '/tiles',            330, 'tile:tile_gates:view::allow'),
   ('directory',       'User Management',   'User directory',          '👥', 'sky',    'admin',    '/directory',        340, 'tile:directory:view::allow'),
   ('audit',           'Audit',             'Audit log',               '📜', 'slate',  'admin',    '/audit',            350, 'tile:audit:view::allow'),

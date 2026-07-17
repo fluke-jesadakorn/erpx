@@ -48,7 +48,6 @@ export function deriveScope(pathname: string, search: string): ChatScope | null 
   if (pathname === '/cockpit' || pathname.startsWith('/cockpit/')) return make('cockpit', 'Cockpit', 'You are on the Cockpit page.', 'cockpit');
   if (pathname === '/ledger' || pathname.startsWith('/ledger/')) return make('ledger', 'Ledger', 'You are on the Ledger page.', 'ledger');
   if (pathname === '/policy' || pathname.startsWith('/policy/')) return make('policy', 'Policy', 'You are on the Policy page.', 'policy');
-  if (pathname === '/roles' || pathname.startsWith('/roles/')) return make('roles', 'Roles', 'You are on the Roles page.', 'roles');
   if (pathname === '/tiles' || pathname.startsWith('/tiles/')) return make('tiles', 'Tiles', 'You are on the Tile Catalog page.', 'tiles');
   if (pathname === '/audit' || pathname.startsWith('/audit/')) return make('audit', 'Audit', 'You are on the Audit page.', 'audit');
   if (pathname === '/ai-settings' || pathname.startsWith('/ai-settings/')) return make('ai-settings', 'AI Settings', 'You are on the AI Settings page.', 'ai-settings');
