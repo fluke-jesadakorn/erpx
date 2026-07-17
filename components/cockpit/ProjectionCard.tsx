@@ -228,7 +228,7 @@ export function ProjectionCard() {
                     tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
-                    contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 8, fontSize: 11 }}
+                    contentStyle={{ background: '#0f172a', border: '1px solid #334155', borderRadius: 4, fontSize: 11 }}
                     formatter={((value: unknown, name: unknown) => [
                       `${Number(value).toLocaleString()} THB`,
                       <T

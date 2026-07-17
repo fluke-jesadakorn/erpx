@@ -27,8 +27,6 @@ export default async function ChatPage() {
         />
         <PageLayout
           title="AI Chat"
-          subtitle="Full AI assistant"
-          category={{ label: 'AI Chat', icon: 'zap', href: '/chat' }}
         >
           <NoPermissionView
             kind="locked"
@@ -53,9 +51,7 @@ export default async function ChatPage() {
       />
       <PageLayout
         title="AI Chat"
-        subtitle={`${actor.fullname} · ${actor.role_name}`}
-        category={{ label: 'AI Chat', icon: 'zap', href: '/chat' }}
-        className="max-w-none px-3 sm:px-4 pt-2 pb-2"
+        density="compact"
         contentClassName="mt-2"
       >
         <FullChat initialSessions={sessions} />

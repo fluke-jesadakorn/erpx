@@ -179,9 +179,9 @@ body { margin: 0; padding: 0; font: 13px/1.5 -apple-system, BlinkMacSystemFont, 
 .hdr .sub { color: #94a3b8; font-size: 11px; }
 .hdr .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: rgba(34,211,238,.18); color: #67e8f9; font-size: 10px; letter-spacing: .08em; font-family: ui-monospace, monospace; }
 .tools { display: flex; gap: 6px; margin-left: auto; }
-.tools button { background: transparent; border: 1px solid #334155; color: #cbd5e1; padding: 3px 8px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+.tools button { background: transparent; border: 1px solid #334155; color: #cbd5e1; padding: 3px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
 .tools button:hover { background: #1e293b; color: #f1f5f9; }
-.search { width: 100%; padding: 6px 10px; margin: 8px 0 10px; border: 1px solid #1e293b; border-radius: 8px; background: #0b1220; color: #e2e8f0; font-size: 12px; outline: none; }
+.search { width: 100%; padding: 6px 10px; margin: 8px 0 10px; border: 1px solid #1e293b; border-radius: 4px; background: #0b1220; color: #e2e8f0; font-size: 12px; outline: none; }
 .search:focus { border-color: #22d3ee; }
 .tbl { width: 100%; border-collapse: separate; border-spacing: 0; }
 .tbl thead th { position: sticky; top: 0; background: #0b1220; color: #cbd5e1; font-weight: 600; text-align: left; padding: 8px 12px; border-bottom: 1px solid #1e293b; cursor: pointer; user-select: none; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; }

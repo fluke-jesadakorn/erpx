@@ -3,7 +3,24 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon, type IconName } from '@/components/icons';
-import { type AdminTarget, type AdminColumn } from './PermissionTypes';
+
+interface AdminColumn {
+  perm: string;
+  domain: string;
+  subject: string;
+  verb: string;
+  description: string | null;
+}
+
+interface AdminTarget {
+  id: string;
+  kind: 'department' | 'role';
+  label: string;
+  significance: boolean;
+  member_count: number;
+  is_seed_persona: boolean;
+  is_system: boolean;
+}
 
 interface Props {
   columns: AdminColumn[];
@@ -528,53 +545,55 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
                       Pick a user on the left to manage their roles &amp; departments.
                     </div>
                   ) : (
-                    <div className="divide-y divide-rule/40">
-                      <SubHeader label="Departments" tone="info" count={departmentTargets.length} />
+                    <div className="overflow-auto max-h-[68vh] divide-y divide-rule/40">
                       <div>
-                        {departmentTargets.map((d) => {
-                          const isActive = activeTargetId === d.id;
-                          return (
-                            <NavRow
-                              key={d.id}
-                              tone="info"
-                              active={isActive}
-                              dot
-                              left={<Icon name="building" size={13} />}
-                              onClick={() => pickTarget(d)}
-                              center={
-                                <span className="flex min-w-0 flex-col leading-snug">
-                                  <span className={['truncate text-[14px] transition-colors', isActive ? 'font-bold' : 'font-semibold'].join(' ')}>{d.label}</span>
-                                  <span className="truncate text-[12px] text-mute/80 font-mono">{d.id}</span>
-                                </span>
-                              }
-                              right={<span className="text-[12px] text-mute tabular-nums">{d.member_count} mem</span>}
-                            />
-                          );
-                        })}
-                      </div>
+                        <SubHeader label="Departments" tone="info" count={departmentTargets.length} />
+                        <div>
+                          {departmentTargets.map((d) => {
+                            const isActive = activeTargetId === d.id;
+                            return (
+                              <NavRow
+                                key={d.id}
+                                tone="info"
+                                active={isActive}
+                                dot
+                                left={<Icon name="building" size={13} />}
+                                onClick={() => pickTarget(d)}
+                                center={
+                                  <span className="flex min-w-0 flex-col leading-snug">
+                                    <span className={['truncate text-[14px] transition-colors', isActive ? 'font-bold' : 'font-semibold'].join(' ')}>{d.label}</span>
+                                    <span className="truncate text-[12px] text-mute/80 font-mono">{d.id}</span>
+                                  </span>
+                                }
+                                right={<span className="text-[12px] text-mute tabular-nums">{d.member_count} mem</span>}
+                              />
+                            );
+                          })}
+                        </div>
 
-                      <SubHeader label="Specific roles" tone="accent" count={roleTargets.length} />
-                      <div>
-                        {roleTargets.map((r) => {
-                          const isActive = activeTargetId === r.id;
-                          return (
-                            <NavRow
-                              key={r.id}
-                              tone="accent"
-                              active={isActive}
-                              dot
-                              left={<Icon name="shield" size={13} />}
-                              onClick={() => pickTarget(r)}
-                              center={
-                                <span className="flex min-w-0 flex-col leading-snug">
-                                  <span className={['truncate text-[14px] transition-colors', isActive ? 'font-bold' : 'font-semibold'].join(' ')}>{r.label}</span>
-                                  <span className="truncate text-[12px] text-mute/80 font-mono">{r.id}</span>
-                                </span>
-                              }
-                              right={<span className="text-[12px] text-mute tabular-nums">{r.member_count} mem</span>}
-                            />
-                          );
-                        })}
+                        <SubHeader label="Specific roles" tone="accent" count={roleTargets.length} />
+                        <div>
+                          {roleTargets.map((r) => {
+                            const isActive = activeTargetId === r.id;
+                            return (
+                              <NavRow
+                                key={r.id}
+                                tone="accent"
+                                active={isActive}
+                                dot
+                                left={<Icon name="shield" size={13} />}
+                                onClick={() => pickTarget(r)}
+                                center={
+                                  <span className="flex min-w-0 flex-col leading-snug">
+                                    <span className={['truncate text-[14px] transition-colors', isActive ? 'font-bold' : 'font-semibold'].join(' ')}>{r.label}</span>
+                                    <span className="truncate text-[12px] text-mute/80 font-mono">{r.id}</span>
+                                  </span>
+                                }
+                                right={<span className="text-[12px] text-mute tabular-nums">{r.member_count} mem</span>}
+                              />
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   )}

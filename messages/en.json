@@ -1206,6 +1206,10 @@
     "pageTilesTitle": "Tile access gates",
     "pageTilesSubtitle": "Per-tile (level, dept) requirement — no per-user overrides. Leave blank to skip the axis.",
     "tile": {
+      "executive": {
+        "name": "Executive",
+        "subtitle": "Overview · KPIs · budget"
+      },
       "inbox": {
         "name": "Inbox",
         "subtitle": "Approvals · watches · notifications"
@@ -1323,6 +1327,10 @@
       "admin": {
         "label": "Admin",
         "icon": "⚙️"
+      },
+      "self": {
+        "label": "Self",
+        "icon": "👤"
       }
     },
     "locked": "Locked",
@@ -1783,6 +1791,16 @@
       "legendTitle": "How it works",
       "legendBody": "Checkmarks grant the system permission to the target. Department-target grants flow to every user in the department. Specific roles expose direct role membership (used per-user).",
       "significance": "Significant cells appear with the amber tag and can be revoked at any time."
+    },
+    "admin": {
+      "title": "Admin",
+      "subtitle": "Create / hard-delete departments, roles, and assign users. Seed personas are protected.",
+      "createRole": "New role",
+      "createDepartment": "New department",
+      "create": "Create",
+      "delete": "Delete",
+      "assignUser": "Assign user",
+      "saveAssignment": "Save assignment"
     },
     "title": "RBAC Policy"
   },

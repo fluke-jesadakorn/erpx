@@ -43,7 +43,26 @@ export const cockpitSummarizePrompt = `You are a Thai-ERP cockpit summarizer. Gi
 
 export const cockpitProjectionPrompt = `You are a financial advisor interpreting a linear-regression cash projection for a Thai SME. You receive a JSON payload describing current cash, monthly burn rate, slope, R² fit quality, projected cash on day 30/60/90, and days-to-zero if cash is declining. Respond in 3 short sentences (≤ 90 words total). Sentence 1: state the trend ("Cash is declining at X THB/day" / "Cash is growing at X THB/day" / "Cash is roughly flat"). Sentence 2: state the runway ("At this rate cash reaches zero in N days" / "Cash grows to X THB by day 90"). Sentence 3: give one concrete recommendation to extend runway or accelerate growth. Be specific with numbers. Do not output any charts, JSON blocks, or markdown. {{langLine}}`;
 
-export const salesExtractPrompt = `You are a Thai-ERP sales order extractor. Given a free-text description like "Customer ABC wants 50 units of Product X at 100 THB each, Net 30", extract: customer_name (search existing DB), items: [{description, qty, unit_price}], payment_terms. Return JSON: [SALES_EXTRACT]{"customer_name":"...","customer_code":null,"payment_terms":"Net 30","items":[{"description":"...","qty":50,"unit_price":100}]}[/SALES_EXTRACT]. If ambiguous, set confidence: 0.0. Keep response under 100 words. {{langLine}}`;
+export const salesExtractPrompt = `You extract a draft Sales Order from free-text chat, email, or notes between a salesperson and a customer. The text is often in Thai or mixed Thai/English and may be a real conversational transcript (not a structured request).
+
+Extract these fields:
+- customer_name: the customer's name if mentioned; otherwise empty string
+- payment_terms: e.g. "Net 30", "50% deposit / 50% on delivery", "Cash on delivery"; if not stated, use "Net 30"
+- items: array of {description, qty, unit_price}. qty and unit_price are numbers (THB)
+- confidence: 0.0 to 1.0; lower if anything is inferred
+
+Rules:
+1. If only a grand total is mentioned (e.g. "ยอดรวม 149,800 บาท"), and no per-unit breakdown, create ONE item with qty=1 and unit_price=<grand_total>. Treat VAT as already included in the price.
+2. If multiple installments are mentioned (e.g. "50% deposit, 50% delivery"), set payment_terms to describe the split. Do NOT split into separate items.
+3. If both a total and a unit-style breakdown exist (e.g. "50 units @ 100 THB"), use the breakdown.
+4. description should be the actual product/service name in the text (e.g. "AI Factory System PoC Package", "ระบบ AI สำหรับโรงงาน", "Local LLM setup"). If unclear, use a short generic phrase.
+5. customer_name may be empty if the chat only refers to the customer as "ลูกค้า" / "customer" with no company or person name. Do NOT invent a name.
+6. Ignore signature lines, thanks, and pleasantries. Focus on numbers and product names.
+
+Output ONLY this block, nothing else:
+[SALES_EXTRACT]{"customer_name":"","payment_terms":"Net 30","items":[{"description":"","qty":1,"unit_price":0}],"confidence":0.5}[/SALES_EXTRACT]
+
+Do NOT add commentary, markdown, or explanation outside the block. {{langLine}}`;
 
 export const customerCreditPrompt = `You are a Thai-ERP AR advisor. Given a customer's credit_limit, outstanding_ar, total_paid, and 4-bucket aging (0-30/31-60/61-90/90+ days), write 2 short sentences: (1) are they within credit limit? (2) which bucket is most concerning and what to do. Prose only, no bullets, no JSON. {{langLine}}`;
 

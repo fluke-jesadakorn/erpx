@@ -3,7 +3,7 @@
 // DELETE /api/perm/roles/[id]            — delete custom role (cascades).
 
 import { NextResponse } from 'next/server';
-import { query } from '@/db';
+import { query, withTransaction } from '@/db';
 import {
   loadActivePermSession, hasPermission, PERM, effectOf, parseRoleId,
 } from '@/perm/server';
@@ -162,15 +162,35 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     [id],
   );
 
-  await query(`DELETE FROM perm.roles WHERE id = $1`, [id]);
+  const result = await withTransaction(async (q) => {
+    const members = await q<{ user_id: number }>(
+      `DELETE FROM perm.user_roles WHERE role_id = $1 RETURNING user_id`,
+      [id],
+    );
+    await q(
+      `DELETE FROM perm.department_permissions WHERE department_id = $1`,
+      [id],
+    );
+    await q(`DELETE FROM perm.roles WHERE id = $1`, [id]);
+    return { cascaded_user_ids: members.rows.map((r) => r.user_id) };
+  });
 
   await query(
     `INSERT INTO perm.audit (kind, actor, target) VALUES ('role.delete', $1, $2)`,
     [
       `user:${out.session.user.id}`,
-      { role_id: id, display_name: cur.rows[0].display_name, cascaded_members: memberCount.rows[0].count },
+      {
+        role_id: id,
+        display_name: cur.rows[0].display_name,
+        cascaded_members: memberCount.rows[0].count,
+        cascaded_user_ids: result.cascaded_user_ids,
+      },
     ],
   );
 
-  return NextResponse.json({ ok: true, cascaded_members: memberCount.rows[0].count });
+  return NextResponse.json({
+    ok: true,
+    cascaded_members: memberCount.rows[0].count,
+    cascaded_user_ids: result.cascaded_user_ids,
+  });
 }

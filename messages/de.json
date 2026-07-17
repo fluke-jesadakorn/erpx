@@ -1208,6 +1208,10 @@
     "pageTilesTitle": "Kachel-Zugriffsgatter",
     "pageTilesSubtitle": "Pro Kachel (Stufe, Abt.) Anforderung — keine benutzerspezifischen Overrides. Leer lassen, um die Achse zu überspringen.",
     "tile": {
+      "executive": {
+        "name": "Geschäftsleitung",
+        "subtitle": "Übersicht · KPIs · Budget"
+      },
       "inbox": {
         "name": "Posteingang",
         "subtitle": "Freigaben · Beobachtungen · Benachrichtigungen"
@@ -1325,6 +1329,10 @@
       "admin": {
         "label": "Verwaltung",
         "icon": "⚙️"
+      },
+      "self": {
+        "label": "Selbst",
+        "icon": "👤"
       }
     },
     "locked": "Gesperrt",
@@ -1785,6 +1793,16 @@
       "legendTitle": "So funktioniert es",
       "legendBody": "Markierungen gewähren dem Ziel das Systemrecht. Abteilungsrechte wirken auf alle Mitglieder. Konkrete Rollen werden für einzelne Benutzer gesetzt.",
       "significance": "Signifikante Zellen erscheinen mit dem gelben Tag und sind jederzeit widerrufbar."
+    },
+    "admin": {
+      "title": "Admin",
+      "subtitle": "Abteilungen / Rollen anlegen oder endgültig löschen, Benutzer zuordnen. Seed-Personae sind geschützt.",
+      "createRole": "Neue Rolle",
+      "createDepartment": "Neue Abteilung",
+      "create": "Anlegen",
+      "delete": "Löschen",
+      "assignUser": "Benutzer zuordnen",
+      "saveAssignment": "Zuordnung speichern"
     },
     "title": "RBAC-Richtlinie"
   },

@@ -59,6 +59,12 @@ export {
   setUserPermanentPerms,
 } from './grants';
 export {
+  type DeptMutation,
+  deptPermId,
+  setUserDept,
+  clearUserDept,
+} from './depts.server';
+export {
   getActorScope,
   scopeFilter,
   assertInScope,

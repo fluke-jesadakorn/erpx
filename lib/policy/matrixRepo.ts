@@ -3,6 +3,25 @@ import 'server-only';
 import { query } from '../db';
 import { effectOf } from '../perm/grammar';
 
+export const SEED_PERSONA_IDS: readonly string[] = [
+  'ceo::1',
+  'cfo::2',
+  'finance::2',
+  'admin::2',
+  'it::2',
+  'manager::3',
+  'hr_manager::3',
+  'accounting_manager::3',
+  'sales_rep::3',
+  'supervisor::4',
+  'account_supervisor::4',
+  'sales_supervisor::2',
+  'officer::5',
+  'hr::5',
+  'account_officer::5',
+  'law::5',
+];
+
 export interface MatrixColumn {
   perm: string;
   domain: string;
@@ -17,6 +36,8 @@ export interface MatrixTarget {
   label: string;
   significance: boolean;
   member_count: number;
+  is_seed_persona: boolean;
+  is_system: boolean;
 }
 
 export interface MatrixGrant {
@@ -57,7 +78,9 @@ export async function loadMatrixTargets(): Promise<MatrixTarget[]> {
            'department'::text AS kind,
            initcap(d.dept_id)::text AS label,
            d.significance,
-           COALESCE(m.count, 0) AS member_count
+           COALESCE(m.count, 0) AS member_count,
+           false AS is_seed_persona,
+           false AS is_system
       FROM dept d
       LEFT JOIN members m ON m.dept_id = d.dept_id
     UNION ALL
@@ -65,14 +88,19 @@ export async function loadMatrixTargets(): Promise<MatrixTarget[]> {
            'role'::text AS kind,
            COALESCE(r.display_name, r.id)::text AS label,
            false AS significance,
-           COALESCE(uc.count, 0)::int AS member_count
+           COALESCE(uc.count, 0)::int AS member_count,
+           (r.id = ANY($1::text[])) AS is_seed_persona,
+           r.is_system
       FROM perm.roles r
       LEFT JOIN (
         SELECT role_id, COUNT(*)::int AS count
           FROM perm.user_roles GROUP BY role_id
       ) uc ON uc.role_id = r.id
-     WHERE r.is_system = false OR r.id IN ('ceo::1','cfo::2','manager::3','supervisor::4','officer::5','hr_manager::3','hr::5','accounting_manager::3','account_officer::5','account_supervisor::4','finance::2','admin::2','it::2','sales_rep::3','sales_supervisor::2')
+     WHERE r.is_system = false
+        OR r.id LIKE 'dept-%'
+        OR r.id = ANY($1::text[])
     ORDER BY kind, id`,
+    [SEED_PERSONA_IDS as unknown as string[]],
   );
   return rows;
 }

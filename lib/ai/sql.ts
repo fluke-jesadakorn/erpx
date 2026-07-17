@@ -29,8 +29,9 @@ const ALLOWED_TABLES = new Set([
   'finance.chart_of_accounts',
   'finance.ledger_lines',
   'finance.journal_entries',
-  'hr.employees',
-  'hr.leave_requests',
+  'folio.hr_leave',
+  'perm.roles',
+  'perm.user_roles',
 ]);
 
 const ALLOWED_COLUMNS: Record<string, Set<string>> = {
@@ -46,8 +47,9 @@ const ALLOWED_COLUMNS: Record<string, Set<string>> = {
   'finance.chart_of_accounts': new Set(['code','name','name_th','account_type']),
   'finance.ledger_lines': new Set(['id','journal_entry_id','account_code','debit','credit','description']),
   'finance.journal_entries': new Set(['id','entry_date','description','is_draft','finalized_at','finalized_by','expense_id','pr_id','po_id','so_id','step','draft_source']),
-  'hr.employees': new Set(['id','employee_code','name','department','position','role','total_sick_leave','used_sick_leave','total_annual_leave','used_annual_leave','total_personal_leave','used_personal_leave','is_active','created_at']),
-  'hr.leave_requests': new Set(['id','employee_id','leave_type','start_date','end_date','days','reason','reject_reason','status','approved_by','created_at','updated_at']),
+  'folio.hr_leave': new Set(['waybill_id','employee_id','leave_type','start_date','end_date','days','reason','medical_cert_note']),
+  'perm.roles': new Set(['id','display_name','description','is_system','sort_order','parent_role_id','display_name_th','display_name_de','monthly_budget','head_user_id']),
+  'perm.user_roles': new Set(['user_id','role_id','granted_at','granted_by']),
 };
 
 const FORBIDDEN_KEYWORDS = /\b(INSERT|UPDATE|DELETE|TRUNCATE|DROP|ALTER|CREATE|GRANT|REVOKE|COPY|VACUUM|REINDEX|CLUSTER|LOCK|CALL|DO\s+\$|EXPLAIN\s+ANALYZE|INTO\s+OUTFILE|LOAD\s+DATA|WITH\s+RECURSIVE\s+.*\bINSERT|pg_read_file|pg_ls_dir)\b/i;

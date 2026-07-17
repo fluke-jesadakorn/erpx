@@ -15,6 +15,7 @@ interface PageLayoutProps {
   children: React.ReactNode;
   className?: string;
   contentClassName?: string;
+  density?: 'comfortable' | 'compact';
 }
 
 export const PageLayout: React.FC<PageLayoutProps> = ({
@@ -25,11 +26,18 @@ export const PageLayout: React.FC<PageLayoutProps> = ({
   children,
   className,
   contentClassName,
+  density = 'comfortable',
 }) => {
+  const densityCls =
+    density === 'compact'
+      ? 'px-3 py-2'
+      : 'px-[var(--page-pad-x)] py-[var(--page-pad-y)]';
+
   return (
     <main
       className={[
-        'max-w-6xl mx-auto px-6 py-10 text-slate-100 selection:bg-indigo-500 selection:text-white',
+        'mx-auto max-w-[var(--page-max-w)] text-slate-100 selection:bg-indigo-500 selection:text-white',
+        densityCls,
         className || '',
       ].join(' ')}
     >

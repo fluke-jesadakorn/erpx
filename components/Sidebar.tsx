@@ -260,9 +260,25 @@ function SectionGroup({
   onToggle: () => void;
 }) {
   const sectionActive = section.items.some((item) => matchSidebar(pathname, item, search));
+  const tone = GROUP_TONE[section.key] || GROUP_TONE.home;
+
+  if (section.items.length === 1) {
+    const item = section.items[0];
+    return (
+      <NavRow
+        href={item.href}
+        icon={item.icon}
+        label={<BilingualLabel label={item.label} active={matchSidebar(pathname, item, search)} activeTone={tone.text} />}
+        active={matchSidebar(pathname, item, search)}
+        locked={item.locked}
+        badge={itemBadge(item)}
+        tone={tone}
+      />
+    );
+  }
+
   const forceOpen = collapsed && sectionActive;
   const showItems = !collapsed || forceOpen;
-  const tone = GROUP_TONE[section.key] || GROUP_TONE.home;
 
   return (
     <section>

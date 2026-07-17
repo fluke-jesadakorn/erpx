@@ -34,7 +34,6 @@ import {
   FilledTick,
   Field,
   FieldSpinner,
-  SectionHeader,
   fileKind,
   formatBytes,
 } from './SlipCard';
@@ -262,7 +261,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
         />
 
         <div className="space-y-3">
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col items-stretch gap-4">
             {!ocr.pendingFile ? (
               <div
                 onDragOver={(e) => {
@@ -275,7 +274,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   ocr.onDrop(e);
                 }}
                 onClick={() => ocr.inputRef.current?.click()}
-                className={`shrink-0 w-full sm:w-40 h-32 sm:h-44 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                className={`w-full h-40 sm:h-56 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors duration-200 hover:border-accent/60 hover:bg-paper-3/30 ${
                   dragOver
                     ? 'border-positive'
                     : 'border-rule-strong bg-paper-3/40 hover:border-positive/50'
@@ -283,11 +282,11 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 data-testid="slip-drop-zone"
                 aria-label="Drop a slip or click to browse"
               >
-                <UploadCloud className="size-7 text-ink-2" strokeWidth={1.5} aria-hidden />
+                <UploadCloud className="size-9 text-accent" strokeWidth={1.5} aria-hidden />
                 <p className="text-xs font-mono text-ink-2 text-center px-3">
                   Drop or click
                 </p>
-                <p className="text-[10px] font-mono text-mute text-center px-3">
+                <p className="text-xs font-mono text-mute text-center px-3 uppercase tracking-wider">
                   JPG · PNG · WEBP · PDF · ≤ 20 MB
                 </p>
               </div>
@@ -296,41 +295,35 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 type="button"
                 onClick={() => ocr.setZoomOpen(true)}
                 disabled={ocr.extractionState === 'running'}
-                className="relative shrink-0 group rounded-xl hover:border-positive/50 transition-colors disabled:cursor-default disabled:hover:border-rule border border-rule bg-paper-3"
+                className="relative w-full group rounded-lg hover:border-positive/50 transition-colors duration-200 disabled:cursor-default disabled:hover:border-rule border border-rule bg-paper-3 overflow-hidden ring-1 ring-rule/50"
                 title={ocr.extractionState === 'running' ? '' : 'Click to enlarge'}
                 data-testid="slip-preview-zoom"
               >
                 <img
                   src={ocr.preview}
                   alt="preview"
-                  className={`object-contain rounded-xl ${
-                    ocr.extractionState === 'running' ? 'w-32 h-40' : 'w-40 h-52'
-                  }`}
+                  className="w-full max-h-72 sm:max-h-80 object-contain rounded-lg"
                 />
                 {ocr.extractionState !== 'running' && (
                   <span
                     aria-hidden
-                    className="absolute bottom-1.5 right-1.5 grid place-items-center w-6 h-6 rounded-full ring-1 ring-rule-strong text-sm text-ink opacity-0 group-hover:opacity-100 transition-opacity bg-paper-2"
+                    className="absolute bottom-1.5 right-1.5 grid place-items-center w-6 h-6 rounded-md ring-1 ring-rule text-sm text-ink opacity-70 group-hover:opacity-100 transition-opacity bg-paper-2"
                   >
                     <ZoomIn className="size-3.5" strokeWidth={2} />
                   </span>
                 )}
               </button>
             ) : (
-              <div
-                className={`shrink-0 rounded-xl flex items-center justify-center border border-rule bg-paper-3 ${
-                  ocr.extractionState === 'running' ? 'w-32 h-40' : 'w-40 h-52'
-                }`}
-              >
+              <div className="w-full h-32 sm:h-44 rounded-xl flex items-center justify-center border border-rule bg-paper-3">
                 <FileSpreadsheet className="size-12 text-ink-2" strokeWidth={1.2} aria-hidden />
               </div>
             )}
 
             {ocr.pendingFile && (
-              <div className="flex-1 min-w-0 space-y-2">
+              <div className="w-full min-w-0 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-mono uppercase inline-flex items-center gap-1 ${
+                    className={`px-2.5 py-1 rounded-md text-xs font-mono uppercase font-bold inline-flex items-center gap-1 ${
                       ocr.phase === 'confirmed'
                         ? 'bg-positive-soft text-positive border border-positive/40'
                         : ocr.extractionState === 'pending'
@@ -351,11 +344,11 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                     data-testid="slip-step-badge"
                   >
                     {ocr.phase === 'confirmed' ? (
-                      <CircleCheck className="size-3" strokeWidth={2.5} />
+                      <CircleCheck className="size-3.5" strokeWidth={2.5} />
                     ) : ocr.extractionState === 'running' ? (
-                      <Loader2 className="size-3 animate-spin" strokeWidth={2.5} />
+                      <Loader2 className="size-3.5 animate-spin" strokeWidth={2.5} />
                     ) : ocr.extractionState === 'done' && canConfirm ? (
-                      <CircleCheck className="size-3" strokeWidth={2.5} />
+                      <CircleCheck className="size-3.5" strokeWidth={2.5} />
                     ) : (
                       <span className="font-mono">2/2</span>
                     )}
@@ -419,6 +412,38 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                     Submitted
                   </p>
                 )}
+
+                {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 pt-2">
+                    <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-3/40">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
+                        <Eye className="size-3" strokeWidth={2} aria-hidden />
+                        Model
+                      </span>
+                      <ModelSelect
+                        models={ocr.visionModels}
+                        value={ocr.selectedModel}
+                        onChange={ocr.pickModel}
+                        disabled={ocr.phase === 'confirming'}
+                        testId="slip-vision-model-picker"
+                        buttonTestId="slip-vision-model-trigger"
+                      />
+                    </div>
+                    {ocr.extractionState === 'pending' && (
+                      <button
+                        type="button"
+                        onClick={ocr.extract}
+                        disabled={!ocr.selectedModel || ocr.phase === 'confirming'}
+                        title="Run OCR with the selected model"
+                        data-testid="slip-extract"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 text-xs font-mono font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:border-rule-strong disabled:text-mute"
+                      >
+                        <Wand2 className="size-3.5" strokeWidth={2.5} aria-hidden />
+                        <span>Extract</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -426,13 +451,12 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
           {ocr.phase !== 'confirmed' && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2 rounded-xl p-3.5 space-y-3 border-2 border-info/30 bg-info-soft/40">
-                  <SectionHeader
-                    icon={<Building2 className="size-4" strokeWidth={2.5} aria-hidden />}
-                    label="Vendor"
-                    tone="info"
-                    trailing={<span className="text-xs font-mono normal-case tracking-normal font-semibold text-ink-2 px-2 py-0.5 rounded bg-info-soft/60 border border-info/30">Created from</span>}
-                  />
+                <div className="sm:col-span-2 pt-4 pb-1 space-y-3 border-t border-rule first:border-t-0 first:pt-0">
+                  <div className="flex items-center gap-2 pb-2">
+                    <span aria-hidden className="text-info">{<Building2 className="size-4" strokeWidth={2.5} />}</span>
+                    <h4 className="text-sm font-semibold text-ink">Vendor</h4>
+                    <span className="text-xs font-mono text-mute normal-case tracking-normal">Created from</span>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Name" icon={<Building2 className="size-3" aria-hidden strokeWidth={2} />}>
                       <div className="relative">
@@ -471,13 +495,12 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   </div>
                 </div>
 
-                <div className="sm:col-span-2 rounded-xl p-3.5 space-y-3 border-2 border-info/30 bg-info-soft/40">
-                  <SectionHeader
-                    icon={<User className="size-4" strokeWidth={2.5} aria-hidden />}
-                    label="Customer"
-                    tone="info"
-                    trailing={<span className="text-xs font-mono normal-case tracking-normal font-semibold text-ink-2 px-2 py-0.5 rounded bg-info-soft/60 border border-info/30">Created to</span>}
-                  />
+                <div className="sm:col-span-2 pt-4 pb-1 space-y-3 border-t border-rule first:border-t-0 first:pt-0">
+                  <div className="flex items-center gap-2 pb-2">
+                    <span aria-hidden className="text-info">{<User className="size-4" strokeWidth={2.5} />}</span>
+                    <h4 className="text-sm font-semibold text-ink">Customer</h4>
+                    <span className="text-xs font-mono text-mute normal-case tracking-normal">Created to</span>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Name" icon={<User className="size-3" aria-hidden strokeWidth={2} />}>
                       <div className="relative">
@@ -516,12 +539,11 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   </div>
                 </div>
 
-                <div className="sm:col-span-2 rounded-xl p-3.5 space-y-3 border-2 border-caution/30 bg-caution-soft/40">
-                  <SectionHeader
-                    icon={<Calendar className="size-4" strokeWidth={2.5} aria-hidden />}
-                    label="Transaction"
-                    tone="caution"
-                  />
+                <div className="sm:col-span-2 pt-4 pb-1 space-y-3 border-t border-rule first:border-t-0 first:pt-0">
+                  <div className="flex items-center gap-2 pb-2">
+                    <span aria-hidden className="text-caution">{<Calendar className="size-4" strokeWidth={2.5} />}</span>
+                    <h4 className="text-sm font-semibold text-ink">Transaction</h4>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Date" icon={<Calendar className="size-3" aria-hidden strokeWidth={2} />}>
                       <div className="relative">
@@ -563,12 +585,11 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   </div>
                 </div>
 
-                <div className="sm:col-span-2 rounded-xl p-3.5 space-y-3 border-2 border-positive/30 bg-positive-soft/40">
-                  <SectionHeader
-                    icon={<Banknote className="size-4" strokeWidth={2.5} aria-hidden />}
-                    label="Summary"
-                    tone="positive"
-                  />
+                <div className="sm:col-span-2 pt-4 pb-1 space-y-3 border-t border-rule first:border-t-0 first:pt-0">
+                  <div className="flex items-center gap-2 pb-2">
+                    <span aria-hidden className="text-positive">{<Banknote className="size-4" strokeWidth={2.5} />}</span>
+                    <h4 className="text-sm font-semibold text-ink">Summary</h4>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {([
                       { key: 'Subtotal', value: subtotal, set: setSubtotal },
@@ -832,7 +853,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 </p>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-rule">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-rule-strong">
                 {ocr.pendingFile && ocr.slipId != null && ocr.extractionState !== 'running' ? (
                   <button
                     type="button"
@@ -863,35 +884,6 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                       ) : (
                         <Upload className="size-4" strokeWidth={2} aria-hidden />
                       )}
-                    </button>
-                  )}
-                  {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
-                    <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-3/40">
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
-                        <Eye className="size-3" strokeWidth={2} aria-hidden />
-                        Model
-                      </span>
-                      <ModelSelect
-                        models={ocr.visionModels}
-                        value={ocr.selectedModel}
-                        onChange={ocr.pickModel}
-                        disabled={ocr.phase === 'confirming'}
-                        testId="slip-vision-model-picker"
-                        buttonTestId="slip-vision-model-trigger"
-                      />
-                    </div>
-                  )}
-                  {ocr.pendingFile && ocr.extractionState === 'pending' && (
-                    <button
-                      type="button"
-                      onClick={ocr.extract}
-                      disabled={!ocr.selectedModel || ocr.phase === 'confirming'}
-                      title="Run OCR with the selected model"
-                      data-testid="slip-extract"
-                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 text-xs font-mono font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:border-rule-strong disabled:text-mute"
-                    >
-                      <Wand2 className="size-3.5" strokeWidth={2.5} aria-hidden />
-                      <span>Extract</span>
                     </button>
                   )}
                 </div>

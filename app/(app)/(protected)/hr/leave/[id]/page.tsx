@@ -1,6 +1,7 @@
 import 'server-only';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { PageLayout } from '@/components/PageLayout';
 import { findLeaveRequestById } from '@/hr/server';
 
 export const dynamic = 'force-dynamic';
@@ -15,8 +16,8 @@ export default async function LeaveDetailPage({
   if (!req) notFound();
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12 font-sans">
-      <div className="max-w-3xl mx-auto space-y-6">
+    <PageLayout className="max-w-3xl">
+      <div className="space-y-6">
         <Link
           href="/hr"
           className="text-sm text-indigo-400 hover:text-indigo-300"
@@ -77,7 +78,7 @@ export default async function LeaveDetailPage({
           → ดูประวัติทั้งหมดของ {req.employee_name}
         </Link>
       </div>
-    </main>
+    </PageLayout>
   );
 }
 

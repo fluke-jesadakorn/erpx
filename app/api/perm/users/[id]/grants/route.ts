@@ -124,6 +124,14 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   );
   const validIds = valid.rows.map((r) => r.id);
 
+  const deptCount = validIds.filter((p) => p.startsWith('user:dept:')).length;
+  if (deptCount > 1) {
+    return NextResponse.json(
+      { error: 'A user may belong to at most one department.' },
+      { status: 409 },
+    );
+  }
+
   const result = await setUserPermanentPerms({
     user_id: userId,
     desired_perm_ids: validIds,

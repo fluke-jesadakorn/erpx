@@ -6,9 +6,7 @@ import {
   Rocket,
   Banknote,
   CreditCard,
-  Check,
   CircleDot,
-  Circle,
   ArrowRight,
   ArrowUpRight,
   Loader2,
@@ -18,7 +16,6 @@ import {
   Building2,
   Landmark,
   Receipt,
-  ArrowRightCircle,
 } from 'lucide-react';
 import {
   SlipUpload,
@@ -195,7 +192,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
       }
       stickyActionBar={
         <div
-          className="sticky bottom-2 z-10 -mx-5 sm:-mx-7 px-5 sm:px-7 py-4 glass-panel-heavy rounded-2xl border border-rule"
+          className="sticky bottom-2 z-10 -mx-5 sm:-mx-7 px-5 sm:px-7 py-4 glass-panel-heavy rounded-xl border border-rule border-l-4 border-l-accent/60 shadow-popover"
           data-testid="expense-sticky-bar"
         >
           <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:gap-5">
@@ -204,7 +201,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 <span
                   title={`${blocker.en} · ${blocker.th}`}
                   aria-label={blocker.en}
-                  className="inline-flex shrink-0 w-9 h-9 items-center justify-center rounded-full bg-caution-soft text-caution border border-caution/40"
+                  className="inline-flex shrink-0 w-11 h-11 items-center justify-center rounded-lg bg-caution-soft text-caution border border-caution/40"
                 >
                   <blocker.Icon className="size-4" strokeWidth={2} aria-hidden />
                 </span>
@@ -213,14 +210,14 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                   <span
                     aria-label="Ready"
                     title="Ready · พร้อม"
-                    className="inline-flex shrink-0 w-9 h-9 items-center justify-center rounded-full bg-positive-soft text-positive border border-positive/40"
+                    className="inline-flex shrink-0 w-11 h-11 items-center justify-center rounded-lg bg-positive-soft text-positive border border-positive/40"
                   >
                     <CircleCheck className="size-4" strokeWidth={2.5} aria-hidden />
                   </span>
                   <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                     <span
                       title={`${payMeta.en} · ${payMeta.th}`}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-rule bg-paper-3 text-xs font-mono tabular-nums text-ink-2"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rule bg-paper-3 text-sm font-mono font-medium tabular-nums text-ink"
                     >
                       <payMeta.Icon className="size-3" aria-hidden strokeWidth={2} />
                       {payMeta.en}
@@ -228,7 +225,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                     {parsed?.vendorName && (
                       <span
                         title={`Vendor · ผู้ขาย`}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-rule bg-paper-3 text-xs font-mono text-ink-2 max-w-[180px] truncate"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rule bg-paper-3 text-sm font-mono font-medium text-ink max-w-[180px] truncate"
                       >
                         <Building2 className="size-3" aria-hidden strokeWidth={2} />
                         {parsed.vendorName}
@@ -238,7 +235,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 </>
               )}
             </div>
-            <div className="hidden sm:block w-px h-12 bg-rule" aria-hidden />
+            <div className="hidden sm:block w-px h-11 bg-rule" aria-hidden />
             <div className="flex items-center gap-4 justify-self-stretch sm:justify-self-end">
               <div
                 aria-live="polite"
@@ -248,7 +245,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                     : '—'
                 }
                 className={[
-                  'font-display text-2xl font-semibold tabular-nums leading-none',
+                  'font-display text-3xl font-bold tabular-nums leading-none tracking-tight',
                   canSubmitAll ? 'text-positive' : 'text-ink',
                 ].join(' ')}
                 data-testid="expense-sticky-total"
@@ -256,7 +253,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 {receiptTotal > 0
                   ? receiptTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })
                   : '—'}
-                <span className="ml-1 text-sm font-mono font-normal text-mute">THB</span>
+                <span className="ml-1.5 text-base font-mono font-medium text-ink-2 uppercase tracking-wider">THB</span>
               </div>
               <button
                 type="button"
@@ -269,13 +266,14 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 }
                 data-testid="expense-sticky-submit"
                 className={[
-                  'shrink-0 inline-flex items-center justify-center gap-2 rounded-xl border w-12 h-12 transition-all duration-200',
+                  'shrink-0 inline-flex items-center justify-center gap-2 rounded-lg border-2 w-12 h-12 transition-all duration-200',
                   'disabled:opacity-50 disabled:cursor-not-allowed',
                   submitting
                     ? 'bg-rule-strong text-ink-2 border-rule-strong'
                     : canSubmitAll
                     ? 'bg-accent hover:bg-accent-strong text-paper-2 border-accent shadow-[0_8px_24px_-8px_color-mix(in_oklab,var(--accent)_55%,transparent)]'
                     : 'bg-paper-3 text-mute border-rule-strong',
+                  'ring-1 ring-accent/30',
                 ].join(' ')}
               >
                 {submitting ? (
@@ -338,21 +336,12 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 />
                 <p
                   className={[
-                    'text-xs truncate max-w-full text-center',
+                    'text-sm font-semibold text-center',
                     s.done || s.active ? 'text-ink font-semibold' : 'text-ink-2',
                   ].join(' ')}
                 >
                   {s.title}
                 </p>
-                <span aria-hidden className="text-mute">
-                  {s.done ? (
-                    <Check className="size-3 text-positive" strokeWidth={3} />
-                  ) : s.active ? (
-                    <CircleDot className="size-3 text-accent" strokeWidth={3} />
-                  ) : (
-                    <Circle className="size-3 text-mute" strokeWidth={2} />
-                  )}
-                </span>
               </button>
             </li>
           );
@@ -394,27 +383,30 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
           ) : null
         }
       >
-        <div className="grid grid-cols-1 gap-4">
-          <div className="rounded-2xl border border-rule bg-paper-3/40 p-4 space-y-3">
-            <header className="flex items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-ink-2 uppercase tracking-widest">
-                <Receipt className="size-3.5" aria-hidden strokeWidth={2} />
-                <T id="waybill.expense.receipt" />
-              </span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="rounded-xl border border-rule bg-paper-2/40 p-5 space-y-4">
+            <header className="flex items-start justify-between gap-3 pb-3 border-b border-rule">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Receipt className="size-5 text-accent shrink-0" aria-hidden strokeWidth={2} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink leading-tight"><T id="waybill.expense.receipt" /></p>
+                  <p className="text-xs text-mute font-mono mt-0.5 uppercase tracking-wider">RECEIPT</p>
+                </div>
+              </div>
               {receiptHasFile ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-info/40 bg-info-soft px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-info">
+                <span className="inline-flex items-center gap-1 rounded-md border border-info/40 bg-info-soft px-2.5 py-1 text-xs font-bold font-mono uppercase tracking-widest text-info">
                   {receiptReady ? (
-                    <CircleCheck className="size-2.5" aria-hidden strokeWidth={2.5} />
+                    <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
                   ) : (
-                    <Loader2 className="size-2.5 animate-spin" aria-hidden />
+                    <Loader2 className="size-3 animate-spin" aria-hidden />
                   )}
                   {receiptReady
                     ? <T id="waybill.expense.ocr_ok" />
                     : <T id="waybill.expense.ocr" />}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-rule bg-paper-3 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-mute">
-                  <CircleDot className="size-2.5" aria-hidden strokeWidth={2} />
+                <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-3 px-2.5 py-1 text-xs font-bold font-mono uppercase tracking-widest text-mute">
+                  <CircleDot className="size-3" aria-hidden strokeWidth={2} />
                   <T id="waybill.expense.empty" />
                 </span>
               )}
@@ -436,57 +428,43 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
             />
           </div>
 
-          <div className="rounded-2xl border border-rule bg-paper-3/40 p-4 space-y-3">
-            <header className="flex items-center justify-between gap-2">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-bold text-ink-2 uppercase tracking-widest">
-                <Landmark className="size-3.5" aria-hidden strokeWidth={2} />
-                <T id="waybill.expense.book_bank" />
-              </span>
+          <div className="rounded-xl border border-rule bg-paper-2/40 p-5 space-y-4">
+            <header className="flex items-start justify-between gap-3 pb-3 border-b border-rule">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Landmark className="size-5 text-accent shrink-0" aria-hidden strokeWidth={2} />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink leading-tight"><T id="waybill.expense.book_bank" /></p>
+                  <p className="text-xs text-mute font-mono mt-0.5 uppercase tracking-wider">BOOK BANK</p>
+                </div>
+              </div>
               {bookBankSlipId != null ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-positive/40 bg-positive-soft px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-positive-strong">
-                  <CircleCheck className="size-2.5" aria-hidden strokeWidth={2.5} />
+                <span className="inline-flex items-center gap-1 rounded-md border border-positive/40 bg-positive-soft px-2.5 py-1 text-xs font-bold font-mono uppercase tracking-widest text-positive-strong">
+                  <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
                   SLIP-{bookBankSlipId}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full border border-rule bg-paper-3 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-mute">
-                  <CircleDot className="size-2.5" aria-hidden strokeWidth={2} />
+                <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-3 px-2.5 py-1 text-xs font-bold font-mono uppercase tracking-widest text-mute">
+                  <CircleDot className="size-3" aria-hidden strokeWidth={2} />
                   <T id="waybill.expense.empty" />
                 </span>
               )}
             </header>
-            {needsBookBank ? (
-              <SlipUpload
-                kind="book_bank"
-                currentUserId={currentUserId}
-                initialModels={initialModels}
-                onSlipReady={(slipId, kind) => {
-                  if (kind === 'book_bank') setBookBankSlipId(slipId);
-                }}
-                onSlipDiscarded={(slipId, kind) => {
-                  if (kind === 'book_bank' && bookBankSlipId === slipId) {
-                    setBookBankSlipId(null);
-                    setBookBankFields(EMPTY_BANK);
-                  }
-                }}
-                onBookBankFieldsChange={setBookBankFields}
-                hideSubmitButton
-              />
-            ) : (
-              <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-rule bg-paper-2/40 px-4 py-5">
-                <p className="text-xs text-ink-2 leading-relaxed">
-                  <T id="waybill.expense.bank_info_is_only_required_for_tr_c6aa6e" />
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setPayment('transfer')}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent-soft px-2.5 py-1.5 text-xs font-mono text-accent hover:bg-accent/15 transition-colors"
-                  title={locale === 'th' ? 'เลือกโอนเงิน' : 'Pick transfer'}
-                >
-                  <ArrowRightCircle className="size-3.5" aria-hidden strokeWidth={2} />
-                  <T id="waybill.expense.pick_transfer" />
-                </button>
-              </div>
-            )}
+            <SlipUpload
+              kind="book_bank"
+              currentUserId={currentUserId}
+              initialModels={initialModels}
+              onSlipReady={(slipId, kind) => {
+                if (kind === 'book_bank') setBookBankSlipId(slipId);
+              }}
+              onSlipDiscarded={(slipId, kind) => {
+                if (kind === 'book_bank' && bookBankSlipId === slipId) {
+                  setBookBankSlipId(null);
+                  setBookBankFields(EMPTY_BANK);
+                }
+              }}
+              onBookBankFieldsChange={setBookBankFields}
+              hideSubmitButton
+            />
           </div>
         </div>
       </StepCard>

@@ -1,6 +1,7 @@
 import 'server-only';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { PageLayout } from '@/components/PageLayout';
 import { getEmployee } from '@/hr/server';
 import { listLeaveRequests } from '@/hr/server';
 
@@ -21,8 +22,8 @@ export default async function EmployeeDetailPage({
   const personalRem = emp.total_personal_leave - emp.used_personal_leave;
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-12 font-sans">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <PageLayout className="max-w-4xl">
+      <div className="space-y-6">
         <Link
           href="/hr"
           className="text-sm text-indigo-400 hover:text-indigo-300"
@@ -93,7 +94,7 @@ export default async function EmployeeDetailPage({
           )}
         </div>
       </div>
-    </main>
+    </PageLayout>
   );
 }
 

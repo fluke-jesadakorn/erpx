@@ -18,7 +18,7 @@ function envLabel(): string {
 
 export const Topbar: React.FC<TopbarProps> = ({ users, currentUser }) => {
   return (
-    <header role="banner" className="glass-panel-heavy sticky top-0 z-40 flex h-14 items-center rounded-b-2xl border-b border-rule px-3 sm:px-4">
+    <header role="banner" className="glass-panel-heavy sticky top-0 z-40 flex h-14 items-center rounded-none px-3 sm:px-4">
       <div className="hidden h-full shrink-0 items-center sm:flex">
         <Link href="/" aria-label="Go to home" className="inline-flex items-baseline gap-2">
           <span className="font-display text-xl font-medium tracking-tight text-ink leading-none">Folio</span>

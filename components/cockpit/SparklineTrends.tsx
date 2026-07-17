@@ -58,7 +58,7 @@ export function SparklineTrends({ cash, mtd }: SparklineTrendsProps) {
               contentStyle={{
                 background: '#0f172a',
                 border: '1px solid #334155',
-                borderRadius: 8,
+                borderRadius: 4,
                 fontSize: 11,
               }}
               formatter={((value: unknown, name: unknown) => [

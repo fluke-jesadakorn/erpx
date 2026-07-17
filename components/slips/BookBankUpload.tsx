@@ -119,7 +119,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
         />
 
         <div className="space-y-3">
-          <div className="flex items-start gap-4">
+          <div className="flex flex-col items-stretch gap-4">
             {!ocr.pendingFile ? (
               <div
                 onDragOver={(e) => {
@@ -132,7 +132,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                   ocr.onDrop(e);
                 }}
                 onClick={() => ocr.inputRef.current?.click()}
-                className={`shrink-0 w-full sm:w-40 h-32 sm:h-44 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+                className={`w-full h-40 sm:h-56 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors duration-200 hover:border-accent/60 hover:bg-paper-3/30 ${
                   dragOver
                     ? 'border-positive'
                     : 'border-rule-strong bg-paper-3/40 hover:border-positive/50'
@@ -140,11 +140,11 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 data-testid="slip-drop-zone"
                 aria-label="Drop a book bank slip or click to browse"
               >
-                <UploadCloud className="size-7 text-ink-2" strokeWidth={1.5} aria-hidden />
+                <UploadCloud className="size-9 text-accent" strokeWidth={1.5} aria-hidden />
                 <p className="text-xs font-mono text-ink-2 text-center px-3">
                   Drop or click
                 </p>
-                <p className="text-[10px] font-mono text-mute text-center px-3">
+                <p className="text-xs font-mono text-mute text-center px-3 uppercase tracking-wider">
                   JPG · PNG · WEBP · PDF · ≤ 20 MB
                 </p>
               </div>
@@ -153,41 +153,35 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 type="button"
                 onClick={() => ocr.setZoomOpen(true)}
                 disabled={ocr.extractionState === 'running'}
-                className="relative shrink-0 group rounded-xl hover:border-positive/50 transition-colors disabled:cursor-default disabled:hover:border-rule border border-rule bg-paper-3"
+                className="relative w-full group rounded-lg hover:border-positive/50 transition-colors duration-200 disabled:cursor-default disabled:hover:border-rule border border-rule bg-paper-3 overflow-hidden ring-1 ring-rule/50"
                 title={ocr.extractionState === 'running' ? '' : 'Click to enlarge'}
                 data-testid="slip-preview-zoom"
               >
                 <img
                   src={ocr.preview}
                   alt="preview"
-                  className={`object-contain rounded-xl ${
-                    ocr.extractionState === 'running' ? 'w-32 h-40' : 'w-40 h-52'
-                  }`}
+                  className="w-full max-h-72 sm:max-h-80 object-contain rounded-lg"
                 />
                 {ocr.extractionState !== 'running' && (
                   <span
                     aria-hidden
-                    className="absolute bottom-1.5 right-1.5 grid place-items-center w-6 h-6 rounded-full ring-1 ring-rule-strong text-sm text-ink opacity-0 group-hover:opacity-100 transition-opacity bg-paper-2"
+                    className="absolute bottom-1.5 right-1.5 grid place-items-center w-6 h-6 rounded-md ring-1 ring-rule text-sm text-ink opacity-70 group-hover:opacity-100 transition-opacity bg-paper-2"
                   >
                     <ZoomIn className="size-3.5" strokeWidth={2} />
                   </span>
                 )}
               </button>
             ) : (
-              <div
-                className={`shrink-0 rounded-xl flex items-center justify-center border border-rule bg-paper-3 ${
-                  ocr.extractionState === 'running' ? 'w-32 h-40' : 'w-40 h-52'
-                }`}
-              >
+              <div className="w-full h-32 sm:h-44 rounded-xl flex items-center justify-center border border-rule bg-paper-3">
                 <FileSpreadsheet className="size-12 text-ink-2" strokeWidth={1.2} aria-hidden />
               </div>
             )}
 
             {ocr.pendingFile && (
-              <div className="flex-1 min-w-0 space-y-2">
+              <div className="w-full min-w-0 space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
                   <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-mono uppercase inline-flex items-center gap-1 ${
+                    className={`px-2.5 py-1 rounded-md text-xs font-mono uppercase inline-flex items-center gap-1 font-bold ${
                       ocr.extractionState === 'pending'
                         ? 'bg-rule-strong/40 text-ink-2'
                         : ocr.extractionState === 'running'
@@ -204,9 +198,9 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                     data-testid="slip-step-badge"
                   >
                     {ocr.extractionState === 'running' ? (
-                      <Loader2 className="size-3 animate-spin" strokeWidth={2.5} />
+                      <Loader2 className="size-3.5 animate-spin" strokeWidth={2.5} />
                     ) : ocr.extractionState === 'done' ? (
-                      <CircleCheck className="size-3" strokeWidth={2.5} />
+                      <CircleCheck className="size-3.5" strokeWidth={2.5} />
                     ) : (
                       <span className="font-mono">2/2</span>
                     )}
@@ -254,6 +248,38 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                         style={{ animation: 'slip-indeterminate 1.4s ease-in-out infinite' }}
                       />
                     </div>
+                  </div>
+                )}
+
+                {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 pt-2">
+                    <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-3/40">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
+                        <Eye className="size-3" strokeWidth={2} aria-hidden />
+                        Model
+                      </span>
+                      <ModelSelect
+                        models={ocr.visionModels}
+                        value={ocr.selectedModel}
+                        onChange={ocr.pickModel}
+                        disabled={ocr.phase === 'confirming'}
+                        testId="slip-vision-model-picker"
+                        buttonTestId="slip-vision-model-trigger"
+                      />
+                    </div>
+                    {ocr.extractionState === 'pending' && (
+                      <button
+                        type="button"
+                        onClick={ocr.extract}
+                        disabled={!ocr.selectedModel || ocr.phase === 'confirming'}
+                        title="Run OCR with the selected model"
+                        data-testid="slip-extract"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 text-xs font-mono font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:border-rule-strong disabled:text-mute"
+                      >
+                        <Wand2 className="size-3.5" strokeWidth={2.5} aria-hidden />
+                        <span>Extract</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -348,7 +374,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
           {ocr.pendingFile && ocr.extractionState === 'done' && (
             <div
               title={`Book bank attached · SLIP-${ocr.slipId} · links when receipt submits`}
-              className="rounded-xl border border-positive/40 p-3 space-y-1 bg-positive-soft inline-flex items-center gap-2"
+              className="glass-panel rounded-lg border border-positive/40 bg-positive-soft/30 p-3 flex items-center gap-2"
             >
               <CircleCheck className="size-4 text-positive" strokeWidth={2.5} aria-hidden />
               <span className="text-xs font-mono text-positive inline-flex items-center gap-1">
@@ -377,7 +403,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
             </p>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-rule">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-rule-strong">
             {ocr.pendingFile && ocr.slipId != null && ocr.extractionState !== 'running' ? (
               <button
                 type="button"
@@ -408,35 +434,6 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                   ) : (
                     <Upload className="size-4" strokeWidth={2} aria-hidden />
                   )}
-                </button>
-              )}
-              {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
-                <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-3/40">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
-                    <Eye className="size-3" strokeWidth={2} aria-hidden />
-                    Model
-                  </span>
-                  <ModelSelect
-                    models={ocr.visionModels}
-                    value={ocr.selectedModel}
-                    onChange={ocr.pickModel}
-                    disabled={ocr.phase === 'confirming'}
-                    testId="slip-vision-model-picker"
-                    buttonTestId="slip-vision-model-trigger"
-                  />
-                </div>
-              )}
-              {ocr.pendingFile && ocr.extractionState === 'pending' && (
-                <button
-                  type="button"
-                  onClick={ocr.extract}
-                  disabled={!ocr.selectedModel || ocr.phase === 'confirming'}
-                  title="Run OCR with the selected model"
-                  data-testid="slip-extract"
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 text-xs font-mono font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:border-rule-strong disabled:text-mute"
-                >
-                  <Wand2 className="size-3.5" strokeWidth={2.5} aria-hidden />
-                  <span>Extract</span>
                 </button>
               )}
             </div>

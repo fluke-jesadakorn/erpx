@@ -20,7 +20,8 @@ export type TileGroup =
   | 'people'
   | 'legal'
   | 'exec'
-  | 'admin';
+  | 'admin'
+  | 'self';
 
 export interface TileAccessMeta {
   viewPermId?: string | null;
@@ -62,6 +63,7 @@ export const GROUP_LABEL: Record<TileGroup, { label: string; icon: string; id: s
   legal:                  { label: 'Legal',   icon: '⚖️', id: 'tiles.group.legal.label' },
   exec:                   { label: 'Exec',    icon: '👑', id: 'tiles.group.exec.label' },
   admin:                  { label: 'Admin',   icon: '⚙️', id: 'tiles.group.admin.label' },
+  self:                   { label: 'Self',    icon: '👤', id: 'tiles.group.self.label' },
 };
 
 export const GROUP_ORDER: TileGroup[] = [
@@ -71,6 +73,7 @@ export const GROUP_ORDER: TileGroup[] = [
   'legal',
   'exec',
   'admin',
+  'self',
 ];
 
 export function groupLabel(g: TileGroup): string {
