@@ -24,7 +24,11 @@
     "edit": "Edit",
     "done": "Done",
     "today": "Today",
-    "yesterday": "Yesterday"
+    "yesterday": "Yesterday",
+    "empty": {
+      "title": "Nothing here yet",
+      "body": "There's nothing to show in this view."
+    }
   },
   "hero": {
     "greeting": {
@@ -135,10 +139,18 @@
     "yourTiles": "Your Tiles",
     "tilesCount": "{open} accessible · {locked} locked · request access",
     "resetOrder": "↺ reset",
-    "resetOrderTitle": "Reset to default order (open tiles left, locked tiles right)",
+    "resetOrderTitle": "Reset order",
     "catalogSubtitle": "{n} tiles in catalog — locked or open per your role",
     "signedInTo": "Signed in to {dept}",
     "heroAria": "Hub hero",
+    "greeting": {
+      "hello": "Hello, {name}",
+      "lastActiveNow": "Active now",
+      "lastActiveJust": "Just now",
+      "lastActiveMin": "{n}m ago",
+      "lastActiveHr": "{n}h ago",
+      "lastActiveDay": "{n}d ago"
+    },
     "nudgesLink": "Approver nudges",
     "nudgesTitle": "Approver nudges",
     "nudgesNew": "new"
@@ -166,8 +178,8 @@
     }
   },
   "sidebar": {
-    "home": "Hub",
-    "aiChat": "AI Chat",
+    "home": "Workspace",
+    "aiChat": "AI",
     "approvals": "Approvals",
     "finance": "Finance",
     "procurement": "Procurement",
@@ -177,20 +189,20 @@
     "lock": "Locked",
     "labels": {
       "hub": "Hub",
-      "chat": "AI Chat",
+      "chat": "Chat",
       "inbox": "Inbox",
-      "queue": "My queue",
+      "queue": "Queue",
       "mine": "Mine",
       "all": "All",
-      "cockpit": "Overview",
+      "cockpit": "Cockpit",
       "expense": "Expense",
       "pr": "PR",
       "po": "PO",
-      "sales": "Sales orders",
-      "policy": "Policy matrix",
+      "sales": "Sales",
+      "policy": "RBAC Policy",
       "roles": "Roles",
-      "tiles": "Tile catalog",
-      "audit": "Audit log",
+      "tiles": "Tile Gates",
+      "audit": "Audit",
       "customers": "Customers",
       "system": "System"
     }
@@ -229,6 +241,10 @@
       "submitter": "submitter: {name}",
       "age": "age {h}h"
     },
+    "empty": {
+      "title": "No Waybills yet",
+      "body": "Submit a slip, PR, or PO to start a Waybill."
+    },
     "role": {
       "submitter": "Submitter",
       "higherLevel": "Higher level",
@@ -249,8 +265,8 @@
     "decisionsAria": "Decision bar",
     "stage": {
       "submission": "Submission",
-      "deptVerification": "Dept verification",
-      "deptAuthorization": "Dept authorization",
+      "deptVerification": "Department review",
+      "deptAuthorization": "Department authorization",
       "accountingVerification": "Accounting verification",
       "accountingSupervision": "Accounting supervision",
       "accountingAuthorization": "Accounting authorization",
@@ -262,17 +278,21 @@
       "disbursed": "Disbursed",
       "rejected": "Rejected",
       "draft": "Draft",
-      "soDraft": "SO Draft",
-      "soSalesReview": "Sales Review",
-      "soCreditCheck": "Credit Check",
+      "draftDescription": "Saved as draft — not yet submitted",
+      "soDraft": "Draft",
+      "soSalesReview": "Sales review",
+      "soCreditCheck": "Credit check",
       "soInvoiced": "Invoiced",
-      "soPaid": "Paid (AR Receipt)",
-      "poPending": "PO Pending",
-      "prSubmitted": "PR Submitted",
-      "prApproved": "PR Approved",
-      "poIssued": "PO Issued",
-      "poApproved": "PO Approved",
+      "soPaid": "Paid",
+      "poPending": "PO pending",
+      "prSubmitted": "PR submitted",
+      "prApproved": "PR approved",
+      "poIssued": "PO issued",
+      "poApproved": "PO approved",
       "payslip": "Payslip",
+      "hrReview": "HR review",
+      "hrAuthorization": "HR authorization",
+      "hrDisbursed": "Disbursed",
       "submissionDescription": "Slip uploaded · OCR auto-extracted fields",
       "deptVerificationDescription": "Supervisor confirms vendor + items",
       "deptAuthorizationDescription": "Dept manager signs off",
@@ -533,9 +553,10 @@
       "photo_scan_or_pdf": "Photo, scan or PDF",
       "ocr_ok": "ocr ok",
       "ocr": "ocr…",
+      "ocr_ready": "click extract",
       "empty": "empty",
       "book_bank": "Book bank",
-      "bank_info_is_only_required_for_tr_c6aa6e": "Bank info is only required for Transfer payments. Pick Transfer below to attach a book bank slip.",
+      "bank_info_is_only_required_for_tr_c6aa6e": "Required for Transfer payments only.",
       "pick_transfer": "Pick Transfer",
       "none": "none",
       "not_attached": "not attached",
@@ -678,7 +699,18 @@
       "subtotal": "Subtotal",
       "total": "Total",
       "payment_terms": "Payment terms",
-      "auto_skip_review_under_5_000": "Auto-skip review under 5,000"
+      "auto_skip_review_under_5_000": "Auto-skip review under 5,000",
+      "panel": {
+        "saved": "saved",
+        "saving": "saving…",
+        "unsaved": "unsaved",
+        "discardConfirm": "Discard this sales draft? The waybill ID and any uploaded items will be removed.",
+        "pickCustomerFirst": "Pick a customer first",
+        "submitFailed": "submit failed",
+        "itemDescription": "Description",
+        "subtotal": "subtotal",
+        "vat": "VAT"
+      }
     },
     "gl": {
       "title": "GL lines",
@@ -756,8 +788,8 @@
       "attachRecordEvent": "⤴ Upload & record event",
       "pickingFile": "pick a file first",
       "fileTooLarge": "file too large (max 50 MB)",
-       "kindSelect": "Kind",
-       "fileLimit": "File (≤ 50 MB)",
+      "kindSelect": "Kind",
+      "fileLimit": "File (≤ 50 MB)",
       "captionPh": "Caption (optional)",
       "kindsAllowed": "{n} kind | {n} kinds allowed at this stage",
       "stagePrefix": "stage",
@@ -1093,6 +1125,17 @@
       "submit": "Post accrual",
       "saved": "Accrual saved",
       "failed": "Accrual failed"
+    },
+    "panel": {
+      "saved": "saved",
+      "saving": "saving…",
+      "unsaved": "unsaved",
+      "discardConfirm": "Discard this sales draft? The waybill ID and any uploaded items will be removed.",
+      "pickCustomerFirst": "Pick a customer first",
+      "submitFailed": "submit failed",
+      "itemDescription": "Description",
+      "subtotal": "subtotal",
+      "vat": "VAT"
     }
   },
   "customers": {
@@ -1174,11 +1217,15 @@
         "subtitle": "Waybills · submit, track, settle"
       },
       "pr": {
-        "name": "PR",
-        "subtitle": "Purchase requisitions · Waybill"
+        "name": "Purchase requisitions",
+        "subtitle": "PR · Waybill · approval chain"
+      },
+      "po": {
+        "name": "Purchase orders",
+        "subtitle": "PO · attach payslip · close"
       },
       "sales": {
-        "name": "Sales Orders",
+        "name": "Sales orders",
         "subtitle": "Customer SOs · AR pipeline"
       },
       "customers": {
@@ -1186,39 +1233,31 @@
         "subtitle": "Customer master · AR history"
       },
       "search-coa": {
-        "name": "Search",
-        "subtitle": "COA & receipts"
+        "name": "Chart of accounts",
+        "subtitle": "Search COA & receipts"
       },
       "reconciliation": {
         "name": "Reconciliation",
         "subtitle": "Check balances"
       },
+      "ledger": {
+        "name": "General ledger",
+        "subtitle": "Posted journals"
+      },
       "cockpit": {
-        "name": "Executive Cockpit",
+        "name": "Executive cockpit",
         "subtitle": "Cash · Income · Flow"
       },
       "summary": {
-        "name": "Cross-Slice Summary",
+        "name": "Cross-slice summary",
         "subtitle": "Activity across features, departments, groups, personas"
       },
-      "ledger": {
-        "name": "General Ledger",
-        "subtitle": "Posted journals"
-      },
-      "po": {
-        "name": "PO & Payslip",
-        "subtitle": "Approve PO + attach slip"
-      },
       "policy": {
-        "name": "RBAC Policy",
+        "name": "RBAC policy",
         "subtitle": "Stage chain matrix - persona x stage grants"
       },
-      "settings": {
-        "name": "AI Settings",
-        "subtitle": "Manage AI providers"
-      },
       "org-chart": {
-        "name": "Org Chart",
+        "name": "Org chart",
         "subtitle": "Organization structure"
       },
       "roles": {
@@ -1226,12 +1265,12 @@
         "subtitle": "User → Role → Permission"
       },
       "tile-gates": {
-        "name": "Tile Gates",
+        "name": "Tile gates",
         "subtitle": "Per-tile (level + dept) requirement editor"
       },
       "directory": {
-        "name": "User Management",
-        "subtitle": "Edit profiles, departments, status"
+        "name": "User directory",
+        "subtitle": "Browse users · roles · departments"
       },
       "audit": {
         "name": "Audit",
@@ -1242,11 +1281,15 @@
         "subtitle": "Change manager of department"
       },
       "access-requests": {
-        "name": "Access Requests",
+        "name": "Access requests",
         "subtitle": "Review tile-unlock requests"
       },
+      "settings": {
+        "name": "AI settings",
+        "subtitle": "Manage AI providers"
+      },
       "hook": {
-        "name": "Hook Events",
+        "name": "Webhook events",
         "subtitle": "Inbound webhooks (LINE, generic). Inspect, replay."
       },
       "law": {
@@ -1331,7 +1374,17 @@
     "export": "Export",
     "cockpit": {
       "stuckSales": "Stuck sales (≥ 24h)"
-    }
+    },
+    "landing": {
+      "title": "HR Dashboard",
+      "subtitle": "Employees · Leave · Analytics"
+    },
+    "action": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "rejectedReason": "Reason"
+    },
+    "rejected": "Rejected"
   },
   "ai": {
     "explain": {
@@ -1369,6 +1422,12 @@
     "send": "Send",
     "stop": "Stop",
     "thinking": "Thinking…",
+    "reasoning": {
+      "show": "Show reasoning",
+      "hide": "Hide reasoning",
+      "thinking": "Thinking…",
+      "empty": "(no answer returned)"
+    },
     "newSession": "New chat",
     "sessions": "Sessions",
     "pinToCockpit": "Pin to cockpit",
@@ -1452,6 +1511,10 @@
   },
   "cockpit": {
     "title": "Cockpit",
+    "empty": {
+      "title": "No data yet",
+      "body": "Once finance activity flows in, charts and KPIs will appear here."
+    },
     "today": "Today's brief",
     "narrative": "Narrative",
     "sqlPanel": "SQL panel",
@@ -1463,6 +1526,8 @@
     "glCommentary": "GL commentary",
     "pinnedCharts": "Pinned charts",
     "aiSummaryHeader": "🤖 AI Summary · Charts & Insights",
+    "aiInterpret": "Interpret",
+    "interpreting": "Interpreting…",
     "arAgingHeading": "📊 AR Aging (0-30 / 31-60 / 61-90 / 90+ days)",
     "arNoOverdue": "no overdue AR 🎉",
     "ask": "Ask",
@@ -1473,7 +1538,6 @@
     "daysUnit": "days",
     "deptBudgetBurn": "🏢 Department Budget Burn",
     "deptBudgetEmpty": "No department budgets yet.",
-    "expand": "Expand",
     "explain": "Explain",
     "generateSummary": "Generate summary",
     "glCommentaryHint": "Explain a chart-of-account balance in plain language.",
@@ -1499,6 +1563,9 @@
     "over90": "over 90%",
     "projectionComputing": "Computing projection…",
     "projectionCurrentCash": "Current cash",
+    "projectionDay30": "Day 30",
+    "projectionDay60": "Day 60",
+    "projectionDay90": "Day 90",
     "projectionDecline": "Cash declining at {rate}k THB/month",
     "projectionDeclineWithDays": "Cash declining at {rate}k THB/month · 💀 runs out in ~{days} days",
     "projectionError": "Not available yet — {error}",
@@ -1515,6 +1582,7 @@
     "salesRolling7Day": "🛒 Sales · 7-day rolling",
     "sosUnit": "SOs",
     "sparklineDay": "day",
+    "sparklineDays": "days",
     "sparklineEmpty": "No snapshots yet — run bun run snapshot-exec to seed.",
     "sqlAskTheBooks": "Ask the books",
     "sqlNoRows": "No rows",
@@ -1522,14 +1590,15 @@
     "stuckAnomalies": "⚠ Stuck & Anomalies",
     "stuckOver24h": "stuck ≥ 24h",
     "subtitle": "Executive dashboard",
-    "summaryHidden": "Summary hidden. Click Expand to view again.",
     "thinking": "thinking…",
     "todaysBriefGreeting": "Hello {name}",
     "todaysBriefHeading": "Today's Brief · {audience}",
     "todaysBriefLastUpdated": "Last updated",
     "todaysBriefRefresh": "Refresh AI",
     "totalOverdue": "Total overdue",
-    "trend7Day": "📈 7-day trend"
+    "trend7Day": "📈 7-day trend",
+    "expand": "Expand",
+    "summaryHidden": "Summary hidden. Click Expand to view again."
   },
   "inbox": {
     "title": "Inbox",
@@ -1539,15 +1608,14 @@
   "access": {
     "deniedTitle": "Access denied",
     "deniedBody": "You don't have permission to view this resource.",
-    "deniedHelp": "Please switch to a role with access to this section or contact the administrator to request additional permissions.",
     "currentRole": "Current Role:",
     "required": "Required:",
     "lockedTitle": "Insufficient Access Permissions",
-    "lockedSubtitle": "This feature is restricted to specific roles. You can request access below.",
+    "lockedSubtitle": "Restricted to specific roles.",
     "stageLockedTitle": "Waiting for Another Stage",
-    "stageLockedSubtitle": "This action belongs to a different approval stage. Check back later or request an override.",
+    "stageLockedSubtitle": "Owned by another approval stage.",
     "notFoundTitle": "Page Not Found",
-    "notFoundSubtitle": "The URL you visited does not match any feature in this workspace.",
+    "notFoundSubtitle": "No feature matches this URL.",
     "pathLabel": "PATH",
     "yourRole": "Your Role",
     "source": "Source",
@@ -1556,14 +1624,15 @@
     "openOverrideConsole": "Open Override Console",
     "switchPersonaDev": "Switch Persona (Dev)",
     "help": {
-      "locked": "Please switch to a role with access to this section or contact the administrator to request additional permissions.",
-      "stage_locked": "This action is owned by another stage of the approval chain. You will be notified when it advances to your stage.",
-      "not_found": "The link may be outdated, mistyped, or the feature may have been renamed. Visit the home page to browse available features."
+      "locked": "This feature is restricted to specific roles. You can request access below.",
+      "stage_locked": "This action belongs to a different approval stage. Check back later or request an override. You will be notified when it advances to your stage.",
+      "not_found": "The URL you visited does not match any feature in this workspace. The link may be outdated, mistyped, or the feature may have been renamed. Visit the home page to browse available features."
     },
     "askTarget": "Ask {target} to enable this feature for you.",
     "requestSending": "Sending…",
     "requestNote": "Approval is recorded in the Access Requests inbox; your actual permissions will not change until your role is updated by HR. This only notifies {target}.",
-    "signInBody": "Sign in to continue."
+    "signInBody": "Sign in to continue.",
+    "deniedHelp": "Please switch to a role with access to this section or contact the administrator to request additional permissions."
   },
   "tilesUi": {
     "caption": "{n} in this group",
@@ -1614,7 +1683,13 @@
     "category": "Category",
     "tax": "Tax",
     "confirm": "Confirm",
-    "reupload": "Re-upload"
+    "reupload": "Re-upload",
+    "status": {
+      "saving": "Saving…",
+      "ready": "Ready",
+      "needBank": "Bank slip needed",
+      "needFields": "Fields incomplete"
+    }
   },
   "law": {
     "title": "Law",
@@ -1624,7 +1699,24 @@
     "chunks": "Chunks",
     "rag": "Law RAG",
     "admin": "Law admin",
-    "preview": "Preview"
+    "preview": "Preview",
+    "detail": {
+      "title": "Contract",
+      "tabPdf": "PDF preview",
+      "tabChunks": "Chunks",
+      "tabMetadata": "Metadata"
+    },
+    "uploadTitle": "Upload contract",
+    "adminTitle": "Law admin",
+    "stats": {
+      "total": "Total",
+      "ready": "Ready",
+      "pending": "Pending",
+      "failed": "Failed"
+    },
+    "storage": "Storage",
+    "recentActivity": "Recent activity",
+    "noActivity": "No activity yet"
   },
   "breadcrumbs": {
     "home": "Hub"
@@ -1759,11 +1851,86 @@
     "subtitleCount": "AI provider catalog — {n} provider(s).",
     "test": "Test",
     "testing": "Testing…",
-    "title": "AI Settings"
+    "title": "AI Settings",
+    "tabProviders": "Providers",
+    "tabModels": "Models",
+    "tabAssignments": "Assignments",
+    "tabMyDefaults": "My defaults",
+    "tabSectionsHealth": "Section health",
+    "tabInvocations": "Invocations",
+    "noAssignments": "No assignments.",
+    "noModels": "No models registered.",
+    "noDefaults": "No per-section defaults set — global section assignments apply.",
+    "inheritDefault": "inherit",
+    "section": "Section",
+    "task": "Task",
+    "yourDefault": "Your default",
+    "provider": "Provider",
+    "model": "Model",
+    "priority": "Priority",
+    "capabilities": "Capabilities",
+    "context": "Context",
+    "actions": "Actions",
+    "newAssignment": "+ New assignment",
+    "sectionKey": "Section key",
+    "myDefaultsHint": "Personal model preference per section. Overrides the section assignment for your account only.",
+    "clear": "Clear",
+    "enable": "Enable",
+    "disable": "Disable",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "healthOk": "Reachable",
+    "healthError": "Unreachable",
+    "healthNever": "Not tested yet",
+    "lastTested": "Last tested {ago}",
+    "sectionsHealthTitle": "Section coverage",
+    "sectionsHealthSubtitle": "ACTIVE {active} · DORMANT {dormant} · NEVER {never} · UNCONFIGURED {unconfigured} · COVERAGE {coverage}%",
+    "sectionActive": "active",
+    "sectionDormant": "dormant",
+    "sectionNever": "never",
+    "sectionUnconfigured": "unconfigured",
+    "sectionOrphan": "orphan",
+    "invocationsTitle": "AI invocations",
+    "invocationsSubtitle": "Most recent AI calls — last {n} rows.",
+    "invcSection": "Section",
+    "invcStatus": "Status",
+    "invcProvider": "Provider",
+    "invcModel": "Model",
+    "invcLatency": "Latency",
+    "invcError": "Error"
   },
   "audit": {
     "feedHelp": "Audit log feed. Use the /api/perm/audit endpoint or query perm.audit directly.",
     "notConfigured": "Audit tile is not configured.",
     "subtitle": "Audit log feed"
+  },
+  "me": {
+    "leave": {
+      "title": "My Leave",
+      "subtitle": "Quota · history · request",
+      "quotaSick": "Sick",
+      "quotaAnnual": "Annual",
+      "quotaPersonal": "Personal",
+      "remaining": "remaining",
+      "submit": {
+        "title": "Request leave",
+        "leaveType": "Type",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "days": "Days",
+        "reason": "Reason",
+        "button": "Submit request"
+      },
+      "history": {
+        "title": "Recent requests",
+        "empty": "No requests yet"
+      },
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected"
+      }
+    }
   }
 }

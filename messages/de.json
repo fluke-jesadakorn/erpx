@@ -24,7 +24,11 @@
     "edit": "Bearbeiten",
     "done": "Fertig",
     "today": "Heute",
-    "yesterday": "Gestern"
+    "yesterday": "Gestern",
+    "empty": {
+      "title": "Noch nichts vorhanden",
+      "body": "Es gibt nichts in dieser Ansicht."
+    }
   },
   "hero": {
     "greeting": {
@@ -135,10 +139,18 @@
     "yourTiles": "Ihre Kacheln",
     "tilesCount": "{open} verfügbar · {locked} gesperrt · Zugriff anfordern",
     "resetOrder": "↺ zurücksetzen",
-    "resetOrderTitle": "Auf Standardreihenfolge zurücksetzen (offene Kacheln links, gesperrte rechts)",
+    "resetOrderTitle": "Reihenfolge zurücksetzen",
     "catalogSubtitle": "{n} Kacheln im Katalog — je nach Rolle offen oder gesperrt",
     "signedInTo": "Angemeldet bei {dept}",
     "heroAria": "Hub-Übersicht",
+    "greeting": {
+      "hello": "Hallo, {name}",
+      "lastActiveNow": "Jetzt aktiv",
+      "lastActiveJust": "Gerade eben",
+      "lastActiveMin": "vor {n} Min.",
+      "lastActiveHr": "vor {n} Std.",
+      "lastActiveDay": "vor {n} Tagen"
+    },
     "nudgesLink": "Genehmiger-Erinnerungen",
     "nudgesTitle": "Genehmiger-Erinnerungen",
     "nudgesNew": "neu"
@@ -166,31 +178,31 @@
     }
   },
   "sidebar": {
-    "home": "Start",
-    "aiChat": "KI-Chat",
+    "home": "Arbeitsbereich",
+    "aiChat": "KI",
     "approvals": "Freigaben",
     "finance": "Finanzen",
     "procurement": "Beschaffung",
-    "policy": "Richtlinie",
-    "people": "Personal",
-    "admin": "Admin",
+    "policy": "Richtlinien",
+    "people": "Personen",
+    "admin": "Administration",
     "lock": "Gesperrt",
     "labels": {
       "hub": "Start",
-      "chat": "KI-Chat",
+      "chat": "Chat",
       "inbox": "Posteingang",
-      "queue": "Meine Warteschlange",
+      "queue": "Warteschlange",
       "mine": "Meine",
       "all": "Alle",
-      "cockpit": "Übersicht",
-      "expense": "Auslagen",
-      "pr": "Bestellanfrage",
-      "po": "Bestellung",
-      "sales": "Verkaufsaufträge",
-      "policy": "Richtlinienmatrix",
+      "cockpit": "Cockpit",
+      "expense": "Spesen",
+      "pr": "PR",
+      "po": "PO",
+      "sales": "Verkauf",
+      "policy": "RBAC-Richtlinie",
       "roles": "Rollen",
-      "tiles": "Kachel-Katalog",
-      "audit": "Audit-Log",
+      "tiles": "Kachel-Zugriff",
+      "audit": "Audit",
       "customers": "Kunden",
       "system": "System"
     }
@@ -229,6 +241,10 @@
       "submitter": "Einreicher: {name}",
       "age": "Alter {h} Std."
     },
+    "empty": {
+      "title": "Noch keine Waybills",
+      "body": "Beleg, Bestellanfrage oder Bestellung einreichen, um einen Waybill zu starten."
+    },
     "role": {
       "submitter": "Einreicher",
       "higherLevel": "Höhere Ebene",
@@ -248,9 +264,9 @@
     "stepPdf": "Schritt-PDF",
     "decisionsAria": "Entscheidungsleiste",
     "stage": {
-      "submission": "Einreichung",
-      "deptVerification": "Abteilungsprüfung",
-      "deptAuthorization": "Abteilungsfreigabe",
+      "submission": "Entwurf",
+      "deptVerification": "Fachprüfung",
+      "deptAuthorization": "Fachfreigabe",
       "accountingVerification": "Buchhaltungsprüfung",
       "accountingSupervision": "Buchhaltungsaufsicht",
       "accountingAuthorization": "Buchhaltungsfreigabe",
@@ -258,21 +274,25 @@
       "disbursementAuthorization": "Auszahlungsfreigabe",
       "cfoAuthorization": "CFO-Freigabe",
       "ceoAuthorization": "CEO-Freigabe",
-      "awaitingDisbursement": "Auszahlung ausstehend",
+      "awaitingDisbursement": "Ausstehende Auszahlung",
       "disbursed": "Ausgezahlt",
       "rejected": "Abgelehnt",
       "draft": "Entwurf",
-      "soDraft": "VO-Entwurf",
+      "draftDescription": "Als Entwurf gespeichert — noch nicht eingereicht",
+      "soDraft": "Entwurf",
       "soSalesReview": "Verkaufsprüfung",
       "soCreditCheck": "Kreditprüfung",
       "soInvoiced": "Fakturiert",
-      "soPaid": "Bezahlt (AR-Beleg)",
+      "soPaid": "Bezahlt",
       "poPending": "PO ausstehend",
-      "prSubmitted": "PR eingereicht",
-      "prApproved": "PR genehmigt",
-      "poIssued": "PO ausgestellt",
-      "poApproved": "PO genehmigt",
+      "prSubmitted": "Bestellanfrage eingereicht",
+      "prApproved": "Bestellanfrage genehmigt",
+      "poIssued": "Bestellung ausgestellt",
+      "poApproved": "Bestellung genehmigt",
       "payslip": "Zahlungsbeleg",
+      "hrReview": "HR-Prüfung",
+      "hrAuthorization": "HR-Freigabe",
+      "hrDisbursed": "Ausgezahlt",
       "submissionDescription": "Beleg hochgeladen · OCR-Felder automatisch extrahiert",
       "deptVerificationDescription": "Supervisor bestätigt Lieferant und Positionen",
       "deptAuthorizationDescription": "Abteilungsleiter zeichnet ab",
@@ -533,9 +553,10 @@
       "photo_scan_or_pdf": "Photo, scan or PDF",
       "ocr_ok": "ocr ok",
       "ocr": "ocr…",
+      "ocr_ready": "Extrahieren",
       "empty": "empty",
       "book_bank": "Kontoauszug",
-      "bank_info_is_only_required_for_tr_c6aa6e": "Bank info is only required for Transfer payments. Pick Transfer below to attach a book bank slip.",
+      "bank_info_is_only_required_for_tr_c6aa6e": "Nur bei Überweisungen erforderlich.",
       "pick_transfer": "Pick Transfer",
       "none": "keine",
       "not_attached": "nicht angehängt",
@@ -678,7 +699,18 @@
       "subtotal": "Subtotal",
       "total": "Total",
       "payment_terms": "Payment terms",
-      "auto_skip_review_under_5_000": "Auto-skip review under 5,000"
+      "auto_skip_review_under_5_000": "Auto-skip review under 5,000",
+      "panel": {
+        "saved": "saved",
+        "saving": "saving…",
+        "unsaved": "unsaved",
+        "discardConfirm": "Discard this sales draft? The waybill ID and any uploaded items will be removed.",
+        "pickCustomerFirst": "Pick a customer first",
+        "submitFailed": "submit failed",
+        "itemDescription": "Description",
+        "subtotal": "subtotal",
+        "vat": "VAT"
+      }
     },
     "gl": {
       "title": "GL-Buchungen",
@@ -756,8 +788,8 @@
       "attachRecordEvent": "⤴ Upload & record event",
       "pickingFile": "pick a file first",
       "fileTooLarge": "file too large (max 50 MB)",
-       "kindSelect": "Kind",
-       "fileLimit": "Datei (≤ 50 MB)",
+      "kindSelect": "Kind",
+      "fileLimit": "Datei (≤ 50 MB)",
       "captionPh": "Caption (optional)",
       "kindsAllowed": "{n} kind | {n} kinds allowed at this stage",
       "stagePrefix": "stage",
@@ -1093,6 +1125,17 @@
       "submit": "Abgrenzung buchen",
       "saved": "Abgrenzung gespeichert",
       "failed": "Abgrenzung fehlgeschlagen"
+    },
+    "panel": {
+      "saved": "gespeichert",
+      "saving": "speichern…",
+      "unsaved": "ungespeichert",
+      "discardConfirm": "Diesen Verkaufsentwurf verwerfen? Waybill-ID und hochgeladene Positionen werden entfernt.",
+      "pickCustomerFirst": "Bitte zuerst Kunde wählen",
+      "submitFailed": "Einreichen fehlgeschlagen",
+      "itemDescription": "Beschreibung",
+      "subtotal": "Zwischensumme",
+      "vat": "USt."
     }
   },
   "customers": {
@@ -1170,12 +1213,16 @@
         "subtitle": "Freigaben · Beobachtungen · Benachrichtigungen"
       },
       "expense": {
-        "name": "Auslagen",
+        "name": "Spesen",
         "subtitle": "Waybills · einreichen, verfolgen, abrechnen"
       },
       "pr": {
-        "name": "Bestellanfrage",
-        "subtitle": "Bestellanfragen · Waybill"
+        "name": "Bestellanfragen",
+        "subtitle": "PR · Waybill · Freigabekette"
+      },
+      "po": {
+        "name": "Bestellungen",
+        "subtitle": "PO · Beleg anhängen · abschließen"
       },
       "sales": {
         "name": "Verkaufsaufträge",
@@ -1186,36 +1233,28 @@
         "subtitle": "Kundenstamm · Forderungshistorie"
       },
       "search-coa": {
-        "name": "Suche",
-        "subtitle": "Kontenplan & Belege"
+        "name": "Kontenplan",
+        "subtitle": "Kontenplan & Belege durchsuchen"
       },
       "reconciliation": {
         "name": "Abstimmung",
         "subtitle": "Salden prüfen"
       },
-      "cockpit": {
-        "name": "Executive Cockpit",
-        "subtitle": "Cash · Ertrag · Cashflow"
-      },
-      "summary": {
-        "name": "Querschnittsübersicht",
-        "subtitle": "Aktivitäten über Funktionen, Abteilungen, Gruppen, Personas"
-      },
       "ledger": {
         "name": "Hauptbuch",
         "subtitle": "Gebuchte Journale"
       },
-      "po": {
-        "name": "Bestellung & Beleg",
-        "subtitle": "Bestellung genehmigen + Beleg anhängen"
+      "cockpit": {
+        "name": "Cockpit",
+        "subtitle": "Cash · Ertrag · Cashflow"
+      },
+      "summary": {
+        "name": "Übersicht",
+        "subtitle": "Aktivitäten über Funktionen, Abteilungen, Gruppen, Personas"
       },
       "policy": {
         "name": "RBAC-Richtlinie",
         "subtitle": "Stufenkettenmatrix - Persona x Stufenrechte"
-      },
-      "settings": {
-        "name": "KI-Einstellungen",
-        "subtitle": "KI-Anbieter verwalten"
       },
       "org-chart": {
         "name": "Organigramm",
@@ -1226,12 +1265,12 @@
         "subtitle": "Benutzer → Rolle → Berechtigung"
       },
       "tile-gates": {
-        "name": "Kachel-Gates",
+        "name": "Kachel-Zugriff",
         "subtitle": "Editor für Kachel-Anforderungen (Stufe + Abteilung)"
       },
       "directory": {
-        "name": "Benutzerverwaltung",
-        "subtitle": "Profile, Abteilungen, Status bearbeiten"
+        "name": "Benutzerverzeichnis",
+        "subtitle": "Benutzer · Rollen · Abteilungen durchsuchen"
       },
       "audit": {
         "name": "Audit",
@@ -1244,6 +1283,10 @@
       "access-requests": {
         "name": "Zugriffsanfragen",
         "subtitle": "Kachel-Freischaltungsanfragen prüfen"
+      },
+      "settings": {
+        "name": "KI-Einstellungen",
+        "subtitle": "KI-Anbieter verwalten"
       },
       "hook": {
         "name": "Webhook-Ereignisse",
@@ -1291,6 +1334,8 @@
     "locked": "Gesperrt",
     "open": "Offen",
     "requestAccess": "Zugriff anfordern",
+    "permLabel": "Berechtigung",
+    "rolesWithAccess": "Rollen mit Zugriff",
     "colActions": "Aktionen",
     "colGroup": "Gruppe",
     "colTile": "Kachel",
@@ -1329,7 +1374,17 @@
     "export": "Exportieren",
     "cockpit": {
       "stuckSales": "Hängende Verkäufe (≥ 24 Std.)"
-    }
+    },
+    "landing": {
+      "title": "HR-Dashboard",
+      "subtitle": "Mitarbeiter · Urlaub · Auswertungen"
+    },
+    "action": {
+      "approve": "Genehmigen",
+      "reject": "Ablehnen",
+      "rejectedReason": "Grund"
+    },
+    "rejected": "Abgelehnt"
   },
   "ai": {
     "explain": {
@@ -1367,6 +1422,12 @@
     "send": "Senden",
     "stop": "Stopp",
     "thinking": "Denke nach…",
+    "reasoning": {
+      "show": "Begründung anzeigen",
+      "hide": "Begründung ausblenden",
+      "thinking": "Denke nach…",
+      "empty": "(keine Antwort)"
+    },
     "newSession": "Neuer Chat",
     "sessions": "Sitzungen",
     "pinToCockpit": "An Cockpit anheften",
@@ -1450,6 +1511,10 @@
   },
   "cockpit": {
     "title": "Cockpit",
+    "empty": {
+      "title": "Noch keine Daten",
+      "body": "Sobald Finanzaktivitäten fließen, erscheinen Diagramme und KPIs hier."
+    },
     "today": "Heutige Zusammenfassung",
     "narrative": "Bericht",
     "sqlPanel": "SQL-Bereich",
@@ -1461,6 +1526,8 @@
     "glCommentary": "GL-Kommentar",
     "pinnedCharts": "Angeheftete Diagramme",
     "aiSummaryHeader": "🤖 KI-Zusammenfassung · Diagramme & Erkenntnisse",
+    "aiInterpret": "Interpretieren",
+    "interpreting": "Interpretiere…",
     "arAgingHeading": "📊 Forderungsalter (0-30 / 31-60 / 61-90 / 90+ Tage)",
     "arNoOverdue": "keine überfälligen Forderungen 🎉",
     "ask": "Fragen",
@@ -1471,7 +1538,6 @@
     "daysUnit": "Tage",
     "deptBudgetBurn": "🏢 Abteilungsbudget-Verbrauch",
     "deptBudgetEmpty": "Noch keine Abteilungsbudgets.",
-    "expand": "Ausklappen",
     "explain": "Erklären",
     "generateSummary": "Zusammenfassung erstellen",
     "glCommentaryHint": "Konto-Saldo in einfacher Sprache erklären.",
@@ -1497,6 +1563,9 @@
     "over90": "über 90%",
     "projectionComputing": "Prognose wird berechnet…",
     "projectionCurrentCash": "Aktueller Cashbestand",
+    "projectionDay30": "Tag 30",
+    "projectionDay60": "Tag 60",
+    "projectionDay90": "Tag 90",
     "projectionDecline": "Cash sinkt um {rate}k THB/Monat",
     "projectionDeclineWithDays": "Cash sinkt um {rate}k THB/Monat · 💀 reicht noch ~{days} Tage",
     "projectionError": "Noch nicht verfügbar — {error}",
@@ -1513,6 +1582,7 @@
     "salesRolling7Day": "🛒 Umsatz · rollierend 7 Tage",
     "sosUnit": "SOs",
     "sparklineDay": "Tag",
+    "sparklineDays": "Tage",
     "sparklineEmpty": "Noch keine Snapshots — führe bun run snapshot-exec aus, um Daten zu erzeugen.",
     "sqlAskTheBooks": "Bücher befragen",
     "sqlNoRows": "Keine Zeilen",
@@ -1520,14 +1590,15 @@
     "stuckAnomalies": "⚠ Hänger & Anomalien",
     "stuckOver24h": "Hänger ≥ 24 Std.",
     "subtitle": "Executive-Dashboard",
-    "summaryHidden": "Zusammenfassung ausgeblendet. Auf Ausklappen klicken, um sie erneut anzuzeigen.",
     "thinking": "denkt nach…",
     "todaysBriefGreeting": "Hallo {name}",
     "todaysBriefHeading": "Heutiges Briefing · {audience}",
     "todaysBriefLastUpdated": "Zuletzt aktualisiert",
     "todaysBriefRefresh": "KI aktualisieren",
     "totalOverdue": "Überfällig gesamt",
-    "trend7Day": "📈 7-Tage-Trend"
+    "trend7Day": "📈 7-Tage-Trend",
+    "expand": "Ausklappen",
+    "summaryHidden": "Zusammenfassung ausgeblendet. Auf Ausklappen klicken, um sie erneut anzuzeigen."
   },
   "inbox": {
     "title": "Posteingang",
@@ -1537,15 +1608,14 @@
   "access": {
     "deniedTitle": "Zugriff verweigert",
     "deniedBody": "Sie haben keine Berechtigung, diese Ressource anzuzeigen.",
-    "deniedHelp": "Bitte wechseln Sie zu einer Rolle mit Zugriff auf diesen Bereich oder wenden Sie sich an den Administrator, um zusätzliche Berechtigungen anzufordern.",
     "currentRole": "Aktuelle Rolle:",
     "required": "Erforderlich:",
     "lockedTitle": "Unzureichende Zugriffsrechte",
-    "lockedSubtitle": "Diese Funktion ist auf bestimmte Rollen beschränkt. Sie können unten Zugriff anfordern.",
+    "lockedSubtitle": "Auf bestimmte Rollen beschränkt.",
     "stageLockedTitle": "Warten auf eine andere Stufe",
-    "stageLockedSubtitle": "Diese Aktion gehört zu einer anderen Freigabestufe. Bitte später prüfen oder Override anfordern.",
+    "stageLockedSubtitle": "Anderer Genehmigungsschritt",
     "notFoundTitle": "Seite nicht gefunden",
-    "notFoundSubtitle": "Die aufgerufene URL entspricht keiner Funktion in diesem Workspace.",
+    "notFoundSubtitle": "Keine Funktion für diese URL",
     "pathLabel": "PFAD",
     "yourRole": "Ihre Rolle",
     "source": "Quelle",
@@ -1554,14 +1624,15 @@
     "openOverrideConsole": "Override-Konsole öffnen",
     "switchPersonaDev": "Persona wechseln (Dev)",
     "help": {
-      "locked": "Bitte wechseln Sie zu einer Rolle mit Zugriff auf diesen Bereich oder wenden Sie sich an den Administrator, um zusätzliche Berechtigungen anzufordern.",
-      "stage_locked": "Diese Aktion gehört zu einer anderen Stufe der Freigabekette. Sie werden benachrichtigt, sobald sie Ihre Stufe erreicht.",
-      "not_found": "Der Link könnte veraltet, falsch geschrieben oder die Funktion umbenannt sein. Besuchen Sie die Startseite, um verfügbare Funktionen zu durchsuchen."
+      "locked": "Diese Funktion ist auf bestimmte Rollen beschränkt. Sie können unten Zugriff anfordern.",
+      "stage_locked": "Diese Aktion gehört zu einer anderen Freigabestufe. Bitte später prüfen oder Override anfordern. Sie werden benachrichtigt, sobald sie Ihre Stufe erreicht.",
+      "not_found": "Die aufgerufene URL entspricht keiner Funktion in diesem Workspace. Der Link könnte veraltet, falsch geschrieben oder die Funktion umbenannt sein. Besuchen Sie die Startseite, um verfügbare Funktionen zu durchsuchen."
     },
     "askTarget": "Bitten Sie {target}, diese Funktion für Sie zu aktivieren.",
     "requestSending": "Wird gesendet…",
     "requestNote": "Die Genehmigung wird im Access-Requests-Posteingang erfasst. Ihre tatsächlichen Berechtigungen ändern sich erst, wenn Ihre Rolle von HR aktualisiert wurde. Dies benachrichtigt nur {target}.",
-    "signInBody": "Bitte anmelden, um fortzufahren."
+    "signInBody": "Bitte anmelden, um fortzufahren.",
+    "deniedHelp": "Bitte wechseln Sie zu einer Rolle mit Zugriff auf diesen Bereich oder wenden Sie sich an den Administrator, um zusätzliche Berechtigungen anzufordern."
   },
   "tilesUi": {
     "caption": "{n} in dieser Gruppe",
@@ -1570,7 +1641,9 @@
     "request": "Zugriff anfordern",
     "filtersAll": "Alle",
     "filtersOpen": "Offen",
-    "filtersLocked": "Gesperrt"
+    "filtersLocked": "Gesperrt",
+    "permLabel": "Berechtigung",
+    "rolesWithAccess": "Rollen mit Zugriff"
   },
   "expense": {
     "title": "Auslagen",
@@ -1610,7 +1683,13 @@
     "category": "Kategorie",
     "tax": "Steuer",
     "confirm": "Bestätigen",
-    "reupload": "Erneut hochladen"
+    "reupload": "Erneut hochladen",
+    "status": {
+      "saving": "Speichern…",
+      "ready": "Bereit",
+      "needBank": "Bancauszug erforderlich",
+      "needFields": "Felder unvollständig"
+    }
   },
   "law": {
     "title": "Recht",
@@ -1620,7 +1699,24 @@
     "chunks": "Chunks",
     "rag": "Law RAG",
     "admin": "Recht-Admin",
-    "preview": "Vorschau"
+    "preview": "Vorschau",
+    "detail": {
+      "title": "Vertrag",
+      "tabPdf": "PDF-Vorschau",
+      "tabChunks": "Chunks",
+      "tabMetadata": "Metadaten"
+    },
+    "uploadTitle": "Vertrag hochladen",
+    "adminTitle": "Rechts-Administration",
+    "stats": {
+      "total": "Gesamt",
+      "ready": "Bereit",
+      "pending": "Offen",
+      "failed": "Fehler"
+    },
+    "storage": "Speicher",
+    "recentActivity": "Letzte Aktivitäten",
+    "noActivity": "Noch keine Aktivität"
   },
   "breadcrumbs": {
     "home": "Start"
@@ -1755,11 +1851,86 @@
     "subtitleCount": "AI-Provider-Katalog — {n} Einträge.",
     "test": "Test",
     "testing": "Wird getestet…",
-    "title": "KI-Einstellungen"
+    "title": "KI-Einstellungen",
+    "tabProviders": "Provider",
+    "tabModels": "Modelle",
+    "tabAssignments": "Zuweisungen",
+    "tabMyDefaults": "Meine Standardwerte",
+    "tabSectionsHealth": "Sektionsstatus",
+    "tabInvocations": "Aufrufe",
+    "noAssignments": "Keine Zuweisungen.",
+    "noModels": "Keine Modelle registriert.",
+    "noDefaults": "Keine persönlichen Standardwerte gesetzt — globale Zuweisung gilt.",
+    "inheritDefault": "übernehmen",
+    "section": "Sektion",
+    "task": "Aufgabe",
+    "yourDefault": "Ihr Standardwert",
+    "provider": "Provider",
+    "model": "Modell",
+    "priority": "Priorität",
+    "capabilities": "Fähigkeiten",
+    "context": "Kontext",
+    "actions": "Aktionen",
+    "newAssignment": "+ Neue Zuweisung",
+    "sectionKey": "Sektionsschlüssel",
+    "myDefaultsHint": "Persönliche Modelleinstellung pro Sektion. Überschreibt die Sektionszuweisung nur für Ihr Konto.",
+    "clear": "Leeren",
+    "enable": "Aktivieren",
+    "disable": "Deaktivieren",
+    "delete": "Löschen",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "healthOk": "Erreichbar",
+    "healthError": "Nicht erreichbar",
+    "healthNever": "Noch nicht getestet",
+    "lastTested": "Zuletzt getestet {ago}",
+    "sectionsHealthTitle": "Sektionsabdeckung",
+    "sectionsHealthSubtitle": "AKTIV {active} · RUHEND {dormant} · NIE {never} · NICHT KONFIGURIERT {unconfigured} · ABDECKUNG {coverage}%",
+    "sectionActive": "aktiv",
+    "sectionDormant": "ruhend",
+    "sectionNever": "nie",
+    "sectionUnconfigured": "nicht konfiguriert",
+    "sectionOrphan": "verwaist",
+    "invocationsTitle": "KI-Aufrufe",
+    "invocationsSubtitle": "Letzte KI-Aufrufe — {n} Zeilen.",
+    "invcSection": "Sektion",
+    "invcStatus": "Status",
+    "invcProvider": "Provider",
+    "invcModel": "Modell",
+    "invcLatency": "Latenz",
+    "invcError": "Fehler"
   },
   "audit": {
     "feedHelp": "Audit-Log-Feed. Verwende /api/perm/audit oder query perm.audit direkt.",
     "notConfigured": "Audit-Kachel ist nicht konfiguriert.",
     "subtitle": "Audit-Log-Feed"
+  },
+  "me": {
+    "leave": {
+      "title": "Mein Urlaub",
+      "subtitle": "Kontingent · Verlauf · Antrag",
+      "quotaSick": "Krank",
+      "quotaAnnual": "Erholung",
+      "quotaPersonal": "Persönlich",
+      "remaining": "verbleibend",
+      "submit": {
+        "title": "Urlaub beantragen",
+        "leaveType": "Art",
+        "startDate": "Startdatum",
+        "endDate": "Enddatum",
+        "days": "Tage",
+        "reason": "Grund",
+        "button": "Antrag senden"
+      },
+      "history": {
+        "title": "Letzte Anträge",
+        "empty": "Keine Anträge"
+      },
+      "status": {
+        "pending": "Offen",
+        "approved": "Genehmigt",
+        "rejected": "Abgelehnt"
+      }
+    }
   }
 }

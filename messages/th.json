@@ -24,7 +24,11 @@
     "edit": "แก้ไข",
     "done": "เสร็จสิ้น",
     "today": "วันนี้",
-    "yesterday": "เมื่อวาน"
+    "yesterday": "เมื่อวาน",
+    "empty": {
+      "title": "ยังไม่มีข้อมูล",
+      "body": "ไม่มีข้อมูลในมุมมองนี้"
+    }
   },
   "hero": {
     "greeting": {
@@ -135,10 +139,18 @@
     "yourTiles": "ไทล์ของคุณ",
     "tilesCount": "{open} เข้าถึงได้ · {locked} ล็อก · ขอสิทธิ์",
     "resetOrder": "↺ รีเซ็ต",
-    "resetOrderTitle": "รีเซ็ตเป็นลำดับเดิม (ไทล์ที่เปิดอยู่ซ้าย, ล็อกขวา)",
+    "resetOrderTitle": "รีเซ็ตลำดับ",
     "catalogSubtitle": "{n} ไทล์ในแคตตาล็อก — เปิดหรือล็อกตามบทบาทของคุณ",
     "signedInTo": "เข้าสู่ระบบใน {dept}",
     "heroAria": "ส่วนสรุปหน้าหลัก",
+    "greeting": {
+      "hello": "สวัสดี, {name}",
+      "lastActiveNow": "กำลังใช้งาน",
+      "lastActiveJust": "เมื่อกี้นี้",
+      "lastActiveMin": "{n} นาทีที่แล้ว",
+      "lastActiveHr": "{n} ชม. ที่แล้ว",
+      "lastActiveDay": "{n} วันที่แล้ว"
+    },
     "nudgesLink": "การแจ้งเตือนผู้อนุมัติ",
     "nudgesTitle": "การแจ้งเตือนผู้อนุมัติ",
     "nudgesNew": "ใหม่"
@@ -166,30 +178,30 @@
     }
   },
   "sidebar": {
-    "home": "หน้าหลัก",
-    "aiChat": "แชท AI",
+    "home": "พื้นที่ทำงาน",
+    "aiChat": "AI",
     "approvals": "การอนุมัติ",
     "finance": "การเงิน",
     "procurement": "จัดซื้อ",
     "policy": "นโยบาย",
     "people": "บุคลากร",
-    "admin": "ผู้ดูแล",
+    "admin": "ผู้ดูแลระบบ",
     "lock": "ล็อก",
     "labels": {
       "hub": "หน้าหลัก",
-      "chat": "แชท AI",
+      "chat": "แชท",
       "inbox": "กล่องขาเข้า",
-      "queue": "งานรอฉัน",
+      "queue": "งานรอ",
       "mine": "ของฉัน",
       "all": "ทั้งหมด",
-      "cockpit": "ภาพรวม",
+      "cockpit": "ค็อกพิท",
       "expense": "เบิกจ่าย",
-      "pr": "ใบขอซื้อ",
-      "po": "ใบสั่งซื้อ",
+      "pr": "PR",
+      "po": "PO",
       "sales": "ใบสั่งขาย",
-      "policy": "เมทริกซ์นโยบาย",
+      "policy": "นโยบาย RBAC",
       "roles": "บทบาท",
-      "tiles": "แคตตาล็อกไทล์",
+      "tiles": "ประตูทางเข้า",
       "audit": "บันทึก",
       "customers": "ลูกค้า",
       "system": "ระบบ"
@@ -229,6 +241,10 @@
       "submitter": "ผู้ส่ง: {name}",
       "age": "อายุ {h} ชม."
     },
+    "empty": {
+      "title": "ยังไม่มี Waybill",
+      "body": "ส่งสลิป ใบขอซื้อ หรือใบสั่งซื้อเพื่อเริ่ม Waybill"
+    },
     "role": {
       "submitter": "ผู้ส่ง",
       "higherLevel": "ระดับสูง",
@@ -248,31 +264,35 @@
     "stepPdf": "สเต็ป PDF",
     "decisionsAria": "แถบตัดสินใจ",
     "stage": {
-      "submission": "ยื่นเบิก",
-      "deptVerification": "ตรวจสอบระดับแผนก",
-      "deptAuthorization": "อนุมัติระดับแผนก",
+      "submission": "ร่าง",
+      "deptVerification": "ตรวจสอบฝ่าย",
+      "deptAuthorization": "อนุมัติฝ่าย",
       "accountingVerification": "ตรวจสอบบัญชี",
-      "accountingSupervision": "ตรวจสอบบัญชี (หน.)",
-      "accountingAuthorization": "อนุมัติการบัญชี",
+      "accountingSupervision": "ทบทวนบัญชี",
+      "accountingAuthorization": "อนุมัติบัญชี",
       "finalAuthorization": "อนุมัติขั้นสุดท้าย",
       "disbursementAuthorization": "อนุมัติจ่ายเงิน",
       "cfoAuthorization": "อนุมัติโดย CFO",
       "ceoAuthorization": "อนุมัติโดย CEO",
       "awaitingDisbursement": "รอจ่ายเงิน",
-      "disbursed": "จ่ายเงินแล้ว",
+      "disbursed": "จ่ายแล้ว",
       "rejected": "ปฏิเสธ",
       "draft": "ร่าง",
-      "soDraft": "ร่าง SO",
-      "soSalesReview": "ตรวจสอบการขาย",
+      "draftDescription": "บันทึกเป็นร่าง — ยังไม่ได้ยื่น",
+      "soDraft": "ร่าง",
+      "soSalesReview": "ทบทวนการขาย",
       "soCreditCheck": "ตรวจสอบเครดิต",
       "soInvoiced": "ออกใบแจ้งหนี้แล้ว",
-      "soPaid": "ชำระแล้ว (ใบเสร็จ AR)",
+      "soPaid": "ชำระแล้ว",
       "poPending": "PO รอ",
-      "prSubmitted": "ยื่น PR",
-      "prApproved": "อนุมัติ PR",
-      "poIssued": "ออก PO",
-      "poApproved": "อนุมัติ PO",
+      "prSubmitted": "ส่งคำขอซื้อ",
+      "prApproved": "อนุมัติคำขอซื้อ",
+      "poIssued": "ออกใบสั่งซื้อ",
+      "poApproved": "อนุมัติใบสั่งซื้อ",
       "payslip": "สลิปจ่าย",
+      "hrReview": "ทบทวนโดย HR",
+      "hrAuthorization": "อนุมัติโดย HR",
+      "hrDisbursed": "จ่ายแล้ว",
       "submissionDescription": "อัปโหลดสลิป · OCR ดึงข้อมูลอัตโนมัติ",
       "deptVerificationDescription": "หัวหน้างานยืนยันผู้ขายและรายการ",
       "deptAuthorizationDescription": "ผู้จัดการแผนกลงนาม",
@@ -533,9 +553,10 @@
       "photo_scan_or_pdf": "รูป สแกน หรือ PDF",
       "ocr_ok": "ocr ผ่าน",
       "ocr": "กำลังอ่าน",
+      "ocr_ready": "กดดึงข้อมูล",
       "empty": "ว่าง",
       "book_bank": "สมุดบัญชี",
-      "bank_info_is_only_required_for_tr_c6aa6e": "ต้องระบุข้อมูลบัญชีเฉพาะการชำระแบบโอนเงิน เลือกโอนเงินด้านล่างเพื่อแนบสลิปสมุดบัญชี",
+      "bank_info_is_only_required_for_tr_c6aa6e": "ระบุเฉพาะเมื่อชำระด้วยโอนเงิน",
       "pick_transfer": "เลือกโอนเงิน",
       "none": "ไม่มี",
       "not_attached": "ยังไม่ได้แนบ",
@@ -678,7 +699,18 @@
       "subtotal": "ก่อนภาษี",
       "total": "รวมทั้งสิ้น",
       "payment_terms": "เครดิต & กำหนดชำระ",
-      "auto_skip_review_under_5_000": "ข้าม review เมื่อ < 5,000"
+      "auto_skip_review_under_5_000": "ข้าม review เมื่อ < 5,000",
+      "panel": {
+        "saved": "saved",
+        "saving": "saving…",
+        "unsaved": "unsaved",
+        "discardConfirm": "Discard this sales draft? The waybill ID and any uploaded items will be removed.",
+        "pickCustomerFirst": "Pick a customer first",
+        "submitFailed": "submit failed",
+        "itemDescription": "Description",
+        "subtotal": "subtotal",
+        "vat": "VAT"
+      }
     },
     "gl": {
       "title": "รายการ GL",
@@ -756,8 +788,8 @@
       "attachRecordEvent": "⤴ Upload & record event",
       "pickingFile": "pick a file first",
       "fileTooLarge": "file too large (max 50 MB)",
-       "kindSelect": "Kind",
-       "fileLimit": "ไฟล์ (ไม่เกิน 50 MB)",
+      "kindSelect": "Kind",
+      "fileLimit": "ไฟล์ (ไม่เกิน 50 MB)",
       "captionPh": "Caption (optional)",
       "kindsAllowed": "{n} kind | {n} kinds allowed at this stage",
       "stagePrefix": "stage",
@@ -1093,6 +1125,17 @@
       "submit": "ลงรายการ",
       "saved": "บันทึกแล้ว",
       "failed": "ล้มเหลว"
+    },
+    "panel": {
+      "saved": "บันทึกแล้ว",
+      "saving": "กำลังบันทึก…",
+      "unsaved": "ยังไม่ได้บันทึก",
+      "discardConfirm": "ลบร่างใบสั่งขายนี้? รหัส Waybill และรายการที่อัปโหลดจะถูกลบออก",
+      "pickCustomerFirst": "กรุณาเลือกลูกค้าก่อน",
+      "submitFailed": "ส่งไม่สำเร็จ",
+      "itemDescription": "รายละเอียด",
+      "subtotal": "ก่อนภาษี",
+      "vat": "ภาษี"
     }
   },
   "customers": {
@@ -1170,12 +1213,16 @@
         "subtitle": "การอนุมัติ · การเฝ้าดู · การแจ้งเตือน"
       },
       "expense": {
-        "name": "เบิกจ่าย",
+        "name": "เบิกค่าใช้จ่าย",
         "subtitle": "Waybills · ส่ง ติดตาม ชำระ"
       },
       "pr": {
-        "name": "ใบขอซื้อ",
-        "subtitle": "ใบขอซื้อ · Waybill"
+        "name": "คำขอซื้อ",
+        "subtitle": "PR · Waybill · ลำดับการอนุมัติ"
+      },
+      "po": {
+        "name": "ใบสั่งซื้อ",
+        "subtitle": "PO · แนบสลิปจ่าย · ปิดงาน"
       },
       "sales": {
         "name": "ใบสั่งขาย",
@@ -1186,39 +1233,31 @@
         "subtitle": "ข้อมูลลูกค้า · ประวัติลูกหนี้"
       },
       "search-coa": {
-        "name": "ค้นหา",
-        "subtitle": "ผังบัญชีและใบเสร็จ"
+        "name": "ผังบัญชี",
+        "subtitle": "ค้นหาผังบัญชีและใบเสร็จ"
       },
       "reconciliation": {
         "name": "กระทบยอด",
         "subtitle": "ตรวจสอบยอดคงเหลือ"
       },
+      "ledger": {
+        "name": "บัญชีแยกประเภท",
+        "subtitle": "รายการบัญชีที่บันทึกแล้ว"
+      },
       "cockpit": {
-        "name": "ห้องนักบินผู้บริหาร",
+        "name": "ห้องนักบริหาร",
         "subtitle": "เงินสด · รายได้ · กระแสเงินสด"
       },
       "summary": {
         "name": "สรุปภาพรวม",
         "subtitle": "กิจกรรมข้ามฟีเจอร์ แผนก กลุ่ม บุคคล"
       },
-      "ledger": {
-        "name": "บัญชีแยกประเภท",
-        "subtitle": "รายการบัญชีที่บันทึกแล้ว"
-      },
-      "po": {
-        "name": "ใบสั่งซื้อ & สลิป",
-        "subtitle": "อนุมัติ PO + แนบสลิป"
-      },
       "policy": {
         "name": "นโยบาย RBAC",
         "subtitle": "เมทริกซ์ขั้นตอน - สิทธิ์ของบุคคลตามขั้นตอน"
       },
-      "settings": {
-        "name": "ตั้งค่า AI",
-        "subtitle": "จัดการผู้ให้บริการ AI"
-      },
       "org-chart": {
-        "name": "ผังองค์กร",
+        "name": "แผนผังองค์กร",
         "subtitle": "โครงสร้างองค์กร"
       },
       "roles": {
@@ -1226,15 +1265,15 @@
         "subtitle": "ผู้ใช้ → บทบาท → สิทธิ์"
       },
       "tile-gates": {
-        "name": "เกทไทล์",
+        "name": "ประตูทางเข้า",
         "subtitle": "ตัวแก้ไขข้อกำหนดไทล์ (ระดับ + แผนก)"
       },
       "directory": {
-        "name": "จัดการผู้ใช้",
-        "subtitle": "แก้ไขโปรไฟล์ แผนก สถานะ"
+        "name": "สมุดรายชื่อผู้ใช้",
+        "subtitle": "เรียกดูผู้ใช้ · บทบาท · แผนก"
       },
       "audit": {
-        "name": "บันทึก",
+        "name": "บันทึกตรวจสอบ",
         "subtitle": "ประวัติการเปลี่ยนสิทธิ์และบทบาท"
       },
       "departments": {
@@ -1244,6 +1283,10 @@
       "access-requests": {
         "name": "คำขอสิทธิ์",
         "subtitle": "ตรวจสอบคำขอปลดล็อกไทล์"
+      },
+      "settings": {
+        "name": "ตั้งค่า AI",
+        "subtitle": "จัดการผู้ให้บริการ AI"
       },
       "hook": {
         "name": "เหตุการณ์ Webhook",
@@ -1291,6 +1334,8 @@
     "locked": "ล็อก",
     "open": "เปิด",
     "requestAccess": "ขอสิทธิ์",
+    "permLabel": "สิทธิ์",
+    "rolesWithAccess": "บทบาทที่เข้าถึงได้",
     "colActions": "การดำเนินการ",
     "colGroup": "กลุ่ม",
     "colTile": "ไทล์",
@@ -1329,7 +1374,17 @@
     "export": "ส่งออก",
     "cockpit": {
       "stuckSales": "ยอดขายค้าง (≥ 24 ชม.)"
-    }
+    },
+    "landing": {
+      "title": "แดชบอร์ด HR",
+      "subtitle": "พนักงาน · การลา · การวิเคราะห์"
+    },
+    "action": {
+      "approve": "อนุมัติ",
+      "reject": "ปฏิเสธ",
+      "rejectedReason": "เหตุผล"
+    },
+    "rejected": "ปฏิเสธ"
   },
   "ai": {
     "explain": {
@@ -1367,6 +1422,12 @@
     "send": "ส่ง",
     "stop": "หยุด",
     "thinking": "กำลังคิด…",
+    "reasoning": {
+      "show": "แสดงเหตุผล",
+      "hide": "ซ่อนเหตุผล",
+      "thinking": "กำลังคิด…",
+      "empty": "(ไม่มีคำตอบ)"
+    },
     "newSession": "แชทใหม่",
     "sessions": "เซสชัน",
     "pinToCockpit": "ปักหมุดไปยังค็อกพิต",
@@ -1450,6 +1511,10 @@
   },
   "cockpit": {
     "title": "ค็อกพิต",
+    "empty": {
+      "title": "ยังไม่มีข้อมูล",
+      "body": "เมื่อมีกิจกรรมทางการเงินเกิดขึ้น แผนภูมิและ KPI จะปรากฏที่นี่"
+    },
     "today": "บทสรุปวันนี้",
     "narrative": "บทสรุป",
     "sqlPanel": "แผง SQL",
@@ -1461,6 +1526,8 @@
     "glCommentary": "คำอธิบาย GL",
     "pinnedCharts": "แผนภูมิที่ปักหมุด",
     "aiSummaryHeader": "🤖 สรุป AI · แผนภูมิและข้อมูลเชิงลึก",
+    "aiInterpret": "ตีความ",
+    "interpreting": "กำลังตีความ…",
     "arAgingHeading": "📊 อายุลูกหนี้ (0-30 / 31-60 / 61-90 / 90+ วัน)",
     "arNoOverdue": "ไม่มี AR ค้างชำระ 🎉",
     "ask": "ถาม",
@@ -1471,7 +1538,6 @@
     "daysUnit": "วัน",
     "deptBudgetBurn": "🏢 การเบิกงบประมาณแผนก",
     "deptBudgetEmpty": "ยังไม่มีงบประมาณแผนก",
-    "expand": "ขยาย",
     "explain": "อธิบาย",
     "generateSummary": "สร้างสรุป",
     "glCommentaryHint": "อธิบายยอดบัญชีในภาษาทั่วไป",
@@ -1497,6 +1563,9 @@
     "over90": "เกิน 90%",
     "projectionComputing": "กำลังคำนวณการคาดการณ์…",
     "projectionCurrentCash": "เงินสดปัจจุบัน",
+    "projectionDay30": "วันที่ 30",
+    "projectionDay60": "วันที่ 60",
+    "projectionDay90": "วันที่ 90",
     "projectionDecline": "เงินสดลดลง {rate}k บาท/เดือน",
     "projectionDeclineWithDays": "เงินสดลดลง {rate}k บาท/เดือน · 💀 จะหมดในอีก ~{days} วัน",
     "projectionError": "ยังไม่พร้อมใช้งาน — {error}",
@@ -1513,6 +1582,7 @@
     "salesRolling7Day": "🛒 ยอดขาย · 7 วันล่าสุด",
     "sosUnit": "SO",
     "sparklineDay": "วัน",
+    "sparklineDays": "วัน",
     "sparklineEmpty": "ยังไม่มีสแนปชอต — รัน bun run snapshot-exec เพื่อสร้างข้อมูล",
     "sqlAskTheBooks": "ถามข้อมูลบัญชี",
     "sqlNoRows": "ไม่มีแถว",
@@ -1520,14 +1590,15 @@
     "stuckAnomalies": "⚠ ค้างและความผิดปกติ",
     "stuckOver24h": "ค้าง ≥ 24 ชม.",
     "subtitle": "แดชบอร์ดผู้บริหาร",
-    "summaryHidden": "ซ่อนสรุปไว้ กดขยายเพื่อดูอีกครั้ง",
     "thinking": "กำลังคิด…",
     "todaysBriefGreeting": "สวัสดี {name}",
     "todaysBriefHeading": "บรีฟวันนี้ · {audience}",
     "todaysBriefLastUpdated": "อัปเดตล่าสุดเมื่อ",
     "todaysBriefRefresh": "รีเฟรช AI",
     "totalOverdue": "ยอดค้างรวม",
-    "trend7Day": "📈 แนวโน้ม 7 วัน"
+    "trend7Day": "📈 แนวโน้ม 7 วัน",
+    "expand": "ขยาย",
+    "summaryHidden": "ซ่อนสรุปไว้ กดขยายเพื่อดูอีกครั้ง"
   },
   "inbox": {
     "title": "กล่องขาเข้า",
@@ -1537,15 +1608,14 @@
   "access": {
     "deniedTitle": "ไม่มีสิทธิ์เข้าถึง",
     "deniedBody": "คุณไม่มีสิทธิ์ดูทรัพยากรนี้",
-    "deniedHelp": "กรุณาสลับไปยังบทบาทที่เข้าถึงส่วนนี้ได้ หรือติดต่อผู้ดูแลเพื่อขอสิทธิ์เพิ่ม",
     "currentRole": "บทบาทปัจจุบัน:",
     "required": "ต้องการ:",
     "lockedTitle": "สิทธิ์ไม่เพียงพอ",
-    "lockedSubtitle": "ฟีเจอร์นี้จำกัดเฉพาะบทบาทที่กำหนด คุณสามารถขอสิทธิ์ได้ด้านล่าง",
+    "lockedSubtitle": "จำกัดเฉพาะบทบาทที่กำหนด",
     "stageLockedTitle": "กำลังรอขั้นตอนอื่น",
-    "stageLockedSubtitle": "การกระทำนี้เป็นของขั้นตอนการอนุมัติอื่น โปรดกลับมาใหม่หรือขอการ override",
+    "stageLockedSubtitle": "เป็นของขั้นตอนการอนุมัติอื่น",
     "notFoundTitle": "ไม่พบหน้า",
-    "notFoundSubtitle": "URL ที่คุณเยี่ยมชมไม่ตรงกับฟีเจอร์ใดใน workspace นี้",
+    "notFoundSubtitle": "ไม่พบฟีเจอร์ที่ตรงกับ URL นี้",
     "pathLabel": "PATH",
     "yourRole": "บทบาทของคุณ",
     "source": "แหล่ง",
@@ -1554,14 +1624,15 @@
     "openOverrideConsole": "เปิดคอนโซล Override",
     "switchPersonaDev": "สลับบุคคล (Dev)",
     "help": {
-      "locked": "กรุณาสลับไปยังบทบาทที่เข้าถึงส่วนนี้ได้ หรือติดต่อผู้ดูแลเพื่อขอสิทธิ์เพิ่ม",
-      "stage_locked": "การกระทำนี้เป็นของขั้นตอนอื่นในสายอนุมัติ ระบบจะแจ้งเมื่อมาถึงขั้นของคุณ",
-      "not_found": "ลิงก์อาจล้าสมัย พิมพ์ผิด หรือฟีเจอร์ถูกเปลี่ยนชื่อ เยี่ยมชมหน้าหลักเพื่อเรียกดูฟีเจอร์ที่มี"
+      "locked": "ฟีเจอร์นี้จำกัดเฉพาะบทบาทที่กำหนด คุณสามารถขอสิทธิ์ได้ด้านล่าง",
+      "stage_locked": "การกระทำนี้เป็นของขั้นตอนการอนุมัติอื่น โปรดกลับมาใหม่หรือขอการ override ระบบจะแจ้งเมื่อมาถึงขั้นของคุณ",
+      "not_found": "URL ที่คุณเยี่ยมชมไม่ตรงกับฟีเจอร์ใดใน workspace นี้ ลิงก์อาจล้าสมัย พิมพ์ผิด หรือฟีเจอร์ถูกเปลี่ยนชื่อ เยี่ยมชมหน้าหลักเพื่อเรียกดูฟีเจอร์ที่มี"
     },
     "askTarget": "ขอให้ {target} เปิดใช้ฟีเจอร์นี้ให้คุณ",
     "requestSending": "กำลังส่ง…",
     "requestNote": "คำขอจะถูกบันทึกในกล่องขาเข้า Access Requests · สิทธิ์จริงของคุณจะไม่เปลี่ยนจนกว่า HR จะอัปเดตบทบาทของคุณ · การแจ้งนี้เป็นการแจ้ง {target} เท่านั้น",
-    "signInBody": "กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ"
+    "signInBody": "กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ",
+    "deniedHelp": "กรุณาสลับไปยังบทบาทที่เข้าถึงส่วนนี้ได้ หรือติดต่อผู้ดูแลเพื่อขอสิทธิ์เพิ่ม"
   },
   "tilesUi": {
     "caption": "{n} ในกลุ่มนี้",
@@ -1570,7 +1641,9 @@
     "request": "ขอสิทธิ์",
     "filtersAll": "ทั้งหมด",
     "filtersOpen": "เปิด",
-    "filtersLocked": "ล็อก"
+    "filtersLocked": "ล็อก",
+    "permLabel": "สิทธิ์",
+    "rolesWithAccess": "บทบาทที่เข้าถึงได้"
   },
   "expense": {
     "title": "ค่าใช้จ่าย",
@@ -1610,7 +1683,13 @@
     "category": "หมวดหมู่",
     "tax": "ภาษี",
     "confirm": "ยืนยัน",
-    "reupload": "อัปโหลดใหม่"
+    "reupload": "อัปโหลดใหม่",
+    "status": {
+      "saving": "กำลังบันทึก…",
+      "ready": "พร้อม",
+      "needBank": "ต้องแนบสลิปสมุดบัญชี",
+      "needFields": "ข้อมูลไม่ครบ"
+    }
   },
   "law": {
     "title": "กฎหมาย",
@@ -1620,7 +1699,24 @@
     "chunks": "ชิ้นส่วน",
     "rag": "Law RAG",
     "admin": "ผู้ดูแลกฎหมาย",
-    "preview": "ตัวอย่าง"
+    "preview": "ตัวอย่าง",
+    "detail": {
+      "title": "สัญญา",
+      "tabPdf": "ดูตัวอย่าง PDF",
+      "tabChunks": "ส่วนย่อย",
+      "tabMetadata": "ข้อมูลเมตา"
+    },
+    "uploadTitle": "อัปโหลดสัญญา",
+    "adminTitle": "ผู้ดูแลกฎหมาย",
+    "stats": {
+      "total": "ทั้งหมด",
+      "ready": "พร้อม",
+      "pending": "รอ",
+      "failed": "ล้มเหลว"
+    },
+    "storage": "พื้นที่จัดเก็บ",
+    "recentActivity": "กิจกรรมล่าสุด",
+    "noActivity": "ยังไม่มีกิจกรรม"
   },
   "breadcrumbs": {
     "home": "หน้าหลัก"
@@ -1755,11 +1851,86 @@
     "subtitleCount": "แคตตาล็อก AI provider — {n} รายการ",
     "test": "ทดสอบ",
     "testing": "กำลังทดสอบ…",
-    "title": "ตั้งค่า AI"
+    "title": "ตั้งค่า AI",
+    "tabProviders": "Provider",
+    "tabModels": "Model",
+    "tabAssignments": "การมอบหมาย",
+    "tabMyDefaults": "ค่าเริ่มต้นของฉัน",
+    "tabSectionsHealth": "สุขภาพเซกชัน",
+    "tabInvocations": "การเรียกใช้",
+    "noAssignments": "ไม่มีการมอบหมาย",
+    "noModels": "ไม่มี Model ที่ลงทะเบียน",
+    "noDefaults": "ไม่ได้ตั้งค่าเริ่มต้น — ใช้การมอบหมายส่วนกลาง",
+    "inheritDefault": "ตามค่ามอบหมาย",
+    "section": "เซกชัน",
+    "task": "งาน",
+    "yourDefault": "ค่าเริ่มต้นของคุณ",
+    "provider": "Provider",
+    "model": "Model",
+    "priority": "ลำดับความสำคัญ",
+    "capabilities": "ความสามารถ",
+    "context": "Context",
+    "actions": "การดำเนินการ",
+    "newAssignment": "+ มอบหมายใหม่",
+    "sectionKey": "Section key",
+    "myDefaultsHint": "ค่าเริ่มต้น Model ต่อเซกชันส่วนบุคคล ใช้แทนค่ามอบหมายระบบสำหรับบัญชีของคุณเท่านั้น",
+    "clear": "ล้าง",
+    "enable": "เปิดใช้งาน",
+    "disable": "ปิดใช้งาน",
+    "delete": "ลบ",
+    "save": "บันทึก",
+    "cancel": "ยกเลิก",
+    "healthOk": "เข้าถึงได้",
+    "healthError": "เข้าถึงไม่ได้",
+    "healthNever": "ยังไม่ได้ทดสอบ",
+    "lastTested": "ทดสอบล่าสุด {ago}",
+    "sectionsHealthTitle": "ความครอบคลุมของเซกชัน",
+    "sectionsHealthSubtitle": "ใช้งาน {active} · หยุดนิ่ง {dormant} · ไม่เคย {never} · ยังไม่ตั้งค่า {unconfigured} · ครอบคลุม {coverage}%",
+    "sectionActive": "ใช้งาน",
+    "sectionDormant": "หยุดนิ่ง",
+    "sectionNever": "ไม่เคย",
+    "sectionUnconfigured": "ยังไม่ตั้งค่า",
+    "sectionOrphan": "กำพร้า",
+    "invocationsTitle": "การเรียก AI",
+    "invocationsSubtitle": "การเรียก AI ล่าสุด — {n} แถว",
+    "invcSection": "เซกชัน",
+    "invcStatus": "สถานะ",
+    "invcProvider": "Provider",
+    "invcModel": "Model",
+    "invcLatency": "เวลา",
+    "invcError": "ข้อผิดพลาด"
   },
   "audit": {
     "feedHelp": "ฟีดบันทึกการตรวจสอบ ใช้ endpoint /api/perm/audit หรือ query perm.audit โดยตรง",
     "notConfigured": "ไทล์ Audit ยังไม่ได้กำหนดค่า",
     "subtitle": "ฟีดบันทึกการตรวจสอบ"
+  },
+  "me": {
+    "leave": {
+      "title": "การลาของฉัน",
+      "subtitle": "โควตา · ประวัติ · ยื่นคำขอ",
+      "quotaSick": "ลาป่วย",
+      "quotaAnnual": "ลาพักร้อน",
+      "quotaPersonal": "ลากิจ",
+      "remaining": "คงเหลือ",
+      "submit": {
+        "title": "ยื่นคำขอลา",
+        "leaveType": "ประเภท",
+        "startDate": "วันที่เริ่ม",
+        "endDate": "วันที่สิ้นสุด",
+        "days": "จำนวนวัน",
+        "reason": "เหตุผล",
+        "button": "ส่งคำขอ"
+      },
+      "history": {
+        "title": "คำขอล่าสุด",
+        "empty": "ยังไม่มีคำขอ"
+      },
+      "status": {
+        "pending": "รออนุมัติ",
+        "approved": "อนุมัติแล้ว",
+        "rejected": "ปฏิเสธแล้ว"
+      }
+    }
   }
 }
