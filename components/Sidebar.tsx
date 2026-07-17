@@ -50,14 +50,14 @@ type GroupTone = {
 };
 
 const GROUP_TONE: Record<string, GroupTone> = {
-  home: { text: 'text-info', soft: 'bg-info-soft/20', active: 'bg-info-soft/50', border: 'border-info/45', dot: 'bg-info' },
-  ai: { text: 'text-accent', soft: 'bg-accent-soft/20', active: 'bg-accent-soft/50', border: 'border-accent/45', dot: 'bg-accent' },
-  approvals: { text: 'text-caution', soft: 'bg-caution-soft/20', active: 'bg-caution-soft/50', border: 'border-caution/45', dot: 'bg-caution' },
-  finance: { text: 'text-positive', soft: 'bg-positive-soft/20', active: 'bg-positive-soft/50', border: 'border-positive/45', dot: 'bg-positive' },
-  procurement: { text: 'text-info', soft: 'bg-info-soft/20', active: 'bg-info-soft/50', border: 'border-info/45', dot: 'bg-info' },
-  policy: { text: 'text-accent', soft: 'bg-accent-soft/20', active: 'bg-accent-soft/50', border: 'border-accent/45', dot: 'bg-accent' },
-  people: { text: 'text-positive', soft: 'bg-positive-soft/20', active: 'bg-positive-soft/50', border: 'border-positive/45', dot: 'bg-positive' },
-  executive: { text: 'text-caution', soft: 'bg-caution-soft/20', active: 'bg-caution-soft/50', border: 'border-caution/45', dot: 'bg-caution' },
+  home: { text: 'text-info', soft: 'bg-info-soft/20', active: 'bg-info-soft/65', border: 'border-info/60', dot: 'bg-info' },
+  ai: { text: 'text-accent', soft: 'bg-accent-soft/20', active: 'bg-accent-soft/65', border: 'border-accent/60', dot: 'bg-accent' },
+  approvals: { text: 'text-caution', soft: 'bg-caution-soft/20', active: 'bg-caution-soft/65', border: 'border-caution/60', dot: 'bg-caution' },
+  finance: { text: 'text-positive', soft: 'bg-positive-soft/20', active: 'bg-positive-soft/65', border: 'border-positive/60', dot: 'bg-positive' },
+  procurement: { text: 'text-info', soft: 'bg-info-soft/20', active: 'bg-info-soft/65', border: 'border-info/60', dot: 'bg-info' },
+  policy: { text: 'text-accent', soft: 'bg-accent-soft/20', active: 'bg-accent-soft/65', border: 'border-accent/60', dot: 'bg-accent' },
+  people: { text: 'text-positive', soft: 'bg-positive-soft/20', active: 'bg-positive-soft/65', border: 'border-positive/60', dot: 'bg-positive' },
+  executive: { text: 'text-caution', soft: 'bg-caution-soft/20', active: 'bg-caution-soft/65', border: 'border-caution/60', dot: 'bg-caution' },
 };
 
 export function SidebarBadge({ count, tone = 'neutral', locked }: SidebarBadgeProps) {
@@ -92,10 +92,10 @@ export interface SidebarItemProps {
 function NavRow({ icon, label, href, active, locked, badge, tone = GROUP_TONE.home }: SidebarItemProps) {
   const base = 'group relative flex min-h-10 items-stretch gap-3 rounded-lg border border-transparent pl-3.5 pr-3 py-1.5 transition-all duration-200';
   const state = active
-    ? `${tone.border} ${tone.active} text-ink`
+    ? `${tone.border} ${tone.active} text-ink shadow-[var(--shadow-panel)]`
     : locked
       ? 'text-mute/70 opacity-60 cursor-not-allowed'
-      : 'text-ink-2 hover:border-rule/40 hover:bg-paper-3/40 hover:text-ink';
+      : 'text-ink-2 hover:border-rule/60 hover:bg-paper-3/60 hover:text-ink';
   const inner = (
     <>
       <span
@@ -137,7 +137,7 @@ function BilingualLabel({ label, active, section = false, activeTone }: { label:
   const t = useTranslations();
   const loc = useSecondaryLocale();
   const primaryClass = section
-    ? ['truncate text-[14px] font-semibold leading-tight tracking-[0.02em]', active ? activeTone || 'text-accent-strong' : 'text-ink-2'].join(' ')
+    ? ['truncate text-[14px] font-semibold leading-tight tracking-[0.02em]', active ? activeTone || 'text-accent-strong' : 'text-mute/85'].join(' ')
     : ['truncate text-[13px] font-medium', active ? activeTone || 'text-ink' : 'text-ink-2'].join(' ');
 
   if (typeof label === 'string') {
@@ -158,7 +158,7 @@ function BilingualLabel({ label, active, section = false, activeTone }: { label:
       <span className={primaryClass}>
         {primary}
       </span>
-      <span className={section ? 'truncate text-[10px] font-normal text-mute/70' : 'truncate text-[10.5px] font-normal text-mute/70'} lang={loc}>
+      <span className={section ? 'truncate text-[10px] font-normal text-mute/90' : 'truncate text-[10.5px] font-normal text-mute/90'} lang={loc}>
         {secondary}
       </span>
     </span>
@@ -272,7 +272,7 @@ function SectionGroup({
         aria-expanded={!collapsed}
         className={[
           'group flex w-full items-center gap-2.5 rounded-lg border border-transparent px-2.5 py-2 text-left transition-all duration-200',
-          'hover:border-rule/40 hover:bg-paper-3/35 focus-visible:bg-paper-3/40',
+          'hover:border-rule/60 hover:bg-paper-3/50 focus-visible:bg-paper-3/60',
           sectionActive ? `${tone.active} ${tone.border}` : tone.soft,
         ].join(' ')}
       >
@@ -285,7 +285,7 @@ function SectionGroup({
         >
           <Icon name={section.icon} size={15} />
         </span>
-        <span className="min-w-0 flex-1 text-[13px] font-semibold uppercase tracking-[0.1em] text-mute transition-colors group-hover:text-ink-2">
+        <span className="min-w-0 flex-1 text-[13px] font-semibold uppercase tracking-[0.1em] transition-opacity group-hover:opacity-100">
           <BilingualLabel label={section.label} active={sectionActive} section activeTone={tone.text} />
         </span>
         <span className={['ml-auto flex items-center gap-2', tone.text].join(' ')}>
@@ -344,7 +344,7 @@ function SidebarBody({ currentUser }: SidebarProps) {
         className="min-h-0 flex-1 overflow-y-auto px-3 pb-3"
         aria-label="Primary navigation"
       >
-        <div className="space-y-1.5 divide-y divide-rule/30">
+        <div className="space-y-1.5 divide-y divide-rule/60">
           {SIDEBAR_GROUPS.map((section, idx) => (
             <div key={section.key} className={idx === 0 ? '' : 'pt-2'}>
               <SectionGroup
