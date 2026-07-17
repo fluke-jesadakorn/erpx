@@ -70,34 +70,34 @@ export async function WaybillAuditSection({
       </summary>
 
       <div className="border-t border-slate-800/60 px-4 py-4">
-        <p className="font-mono text-xs uppercase tracking-widest text-slate-500">
-          waybill: <span className="text-cyan-300">{waybillId}</span> ·{' '}
-          <T id="waybill.audit.eventsTotal" locale={localeSafe} /> {integrity.total}
+<p className="font-mono text-xs uppercase tracking-widest text-slate-500">
+          waybill: <span className="text-cyan-400">{waybillId}</span> ·{' '}
+          <T id="waybill.audit.eventsTotal" locale={localeSafe} hideSecondary /> {integrity.total}
         </p>
         {events.length === 0 ? (
           <p className="mt-3 text-sm italic text-slate-500">
-            <T id="waybill.audit.noEvents" locale={localeSafe} />
+            <T id="waybill.audit.noEvents" locale={localeSafe} hideSecondary />
           </p>
         ) : (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse text-xs">
               <thead>
                 <tr className="text-left font-mono text-xs uppercase tracking-widest text-slate-500">
-                  <th className="border-b border-slate-800/60 px-2 py-1.5">#</th>
-                  <th className="border-b border-slate-800/60 px-2 py-1.5">
-                    <T id="waybill.audit.kind" locale={localeSafe} />
+                  <th className="border-b border-slate-800 px-2 py-1.5">#</th>
+                  <th className="border-b border-slate-800 px-2 py-1.5">
+                    <T id="waybill.audit.kind" locale={localeSafe} hideSecondary />
                   </th>
-                  <th className="border-b border-slate-800/60 px-2 py-1.5">
-                    <T id="waybill.audit.fromTo" locale={localeSafe} />
+                  <th className="border-b border-slate-800 px-2 py-1.5">
+                    <T id="waybill.audit.fromTo" locale={localeSafe} hideSecondary />
                   </th>
-                  <th className="border-b border-slate-800/60 px-2 py-1.5">
-                    <T id="waybill.audit.actor" locale={localeSafe} />
+                  <th className="border-b border-slate-800 px-2 py-1.5">
+                    <T id="waybill.audit.actor" locale={localeSafe} hideSecondary />
                   </th>
-                  <th className="border-b border-slate-800/60 px-2 py-1.5">
-                    <T id="waybill.audit.at" locale={localeSafe} />
+                  <th className="border-b border-slate-800 px-2 py-1.5">
+                    <T id="waybill.audit.at" locale={localeSafe} hideSecondary />
                   </th>
-                  <th className="border-b border-slate-800/60 px-2 py-1.5">
-                    <T id="waybill.audit.payload" locale={localeSafe} />
+                  <th className="border-b border-slate-800 px-2 py-1.5">
+                    <T id="waybill.audit.payload" locale={localeSafe} hideSecondary />
                   </th>
                 </tr>
               </thead>
@@ -144,9 +144,9 @@ export async function WaybillAuditSection({
                         {e.payload ? (
                           <details>
                             <summary className="cursor-pointer text-cyan-300 hover:text-cyan-200">
-                              <T id="waybill.audit.expand" locale={localeSafe} />
+                              <T id="waybill.audit.expand" locale={localeSafe} hideSecondary />
                             </summary>
-                            <pre className="mt-1 max-w-md overflow-x-auto whitespace-pre-wrap break-all rounded bg-slate-950 p-2 text-xs text-slate-300">
+                            <pre className="mt-1 max-w-md max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-950 p-2 text-xs text-slate-300">
                               {payloadStringify(e.payload)}
                             </pre>
                           </details>

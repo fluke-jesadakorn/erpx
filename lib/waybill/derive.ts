@@ -127,6 +127,17 @@ export function eventsForPip(
   return touching.slice(0, limit);
 }
 
+export function lastAdvancedEvent<T extends WaybillEventLite>(
+  events: ReadonlyArray<T>,
+  pipKey: string,
+): T | null {
+  const advanced = events.find((e) => e.kind === 'advanced' && e.stage_to === pipKey);
+  if (advanced) return advanced;
+  const toStage = events.find((e) => e.stage_to === pipKey);
+  if (toStage) return toStage;
+  return null;
+}
+
 export function pipsForKindLayout(domain: 'expense' | 'procurement' | 'sales'): WaybillStagePip[] {
   return pipsForDomain(domain);
 }

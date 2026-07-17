@@ -13,9 +13,11 @@ import type {
   WaybillRow,
 } from '@/waybill/queries';
 import type { PipState, WaybillDomain } from '@/waybill/derive';
-import { pipsForDomain, pipIndex, domainForOrigin } from '@/waybill/derive';
+import { pipsForDomain, pipIndex, domainForOrigin, lastAdvancedEvent } from '@/waybill/derive';
 import type { VisionModel } from '@/ai/loadVisionModels';
 import { PipCard } from './pip/PipCard';
+import { roleDisplay } from './ui';
+import { formatDateServer } from '@/components/i18n/formattersServer';
 
 import { T } from '@/components/i18n/T';
 
@@ -183,14 +185,60 @@ export function WaybillStepCards({
             !!actions.canPostSalesGlSettlement ||
             !!actions.canConfirmSalesGl);
         const dimmed = state !== 'passed' && !(state === 'active' && hasAnyPerm);
+        const isCollapsed = !isCurrentStage && (state === 'passed' || state === 'pending');
 
         const pipEvents = events.filter(
           (e) => e.stage_from === pip.key || e.stage_to === pip.key,
         );
         const badgeTextKey = stateBadge(state, hasAnyPerm);
 
+        if (isCollapsed) {
+          const last = lastAdvancedEvent(pipEvents, pip.key);
+          const tone = stateToTone(state, false);
+          const borderTone =
+            state === 'passed'
+              ? 'border-emerald-500/30'
+              : 'border-rule';
+          const bgTone =
+            state === 'passed'
+              ? 'bg-emerald-500/5'
+              : 'bg-paper-2/50';
+          return (
+            <li
+              key={pip.key}
+              id={`pip-${pip.key}`}
+              className={`scroll-mt-24 flex items-center gap-3 rounded-2xl border px-4 py-2 ${borderTone} ${bgTone}`}
+              data-tone={tone}
+              data-status={state}
+            >
+              <span className="font-mono text-xs text-mute">#{idx + 1}</span>
+              <span aria-hidden className="text-base leading-none text-ink-2">
+                {pip.emoji}
+              </span>
+              <h3 className="text-sm font-semibold text-ink leading-tight">
+                <T id={pip.label} hideSecondary />
+              </h3>
+              {last && (
+                <span className="truncate text-xs text-mute">
+                  · {roleDisplay(last.actor_role, locale)} #{last.actor_id} · {formatDateServer(last.occurred_at, locale)}
+                </span>
+              )}
+              <span
+                className={[
+                  'ml-auto inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider',
+                  state === 'passed'
+                    ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200'
+                    : 'border-rule bg-paper-3 text-mute',
+                ].join(' ')}
+              >
+                <T id={badgeTextKey} hideSecondary />
+              </span>
+            </li>
+          );
+        }
+
         return (
-          <li key={pip.key} id={`pip-${pip.key}`}>
+          <li key={pip.key} id={`pip-${pip.key}`} className="scroll-mt-24">
             <StepCard
               n={idx + 1}
               icon={pip.emoji}

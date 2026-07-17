@@ -8,6 +8,7 @@ import {
   bucketLabel,
   computePipState,
   stageRoleLabel,
+  lastAdvancedEvent,
 } from '@/waybill/derive';
 import type { WaybillEventRow } from '@/waybill/events';
 import type { WaybillAttachmentRow } from '@/waybill/attachments';
@@ -22,7 +23,7 @@ import type { ApproversByStage } from '@/waybill/queries';
 import { approveWaybillAction, confirmGlRecordedAction, finalApproveWaybillAction } from '@/app/actions/waybill';
 import { SettleForm } from '@/app/(app)/(protected)/waybill/[id]/_components/SettleForm';
 import type { VisionModel } from '@/ai/loadVisionModels';
-import { roleDisplay, eventKindLabel } from './ui';
+import { roleDisplay } from './ui';
 import { formatDateServer } from '@/components/i18n/formattersServer';
 import { ApproversList } from './ApproversList';
 import { T } from '@/components/i18n/T';
@@ -54,13 +55,6 @@ const PIP_BADGE_EN: Record<PipState, string> = {
   pending: 'waybill.pip.pending',
   rejected: 'waybill.pip.stop',
   skipped: 'waybill.pip.skip',
-};
-const BULLET_GLYPH: Record<PipState, string> = {
-  passed: '✓',
-  active: '◉',
-  pending: '○',
-  rejected: '✗',
-  skipped: '—',
 };
 
 function toneForState(state: PipState) {
@@ -276,23 +270,54 @@ function StepCard({
   const tone = toneForState(state);
   const paysBefore = pip.paysBefore === true;
   const thirdParty = pip.thirdParty === true;
-  const bullet = BULLET_GLYPH[state];
   const isRejected = state === 'rejected';
   const isPassed = state === 'passed';
   const isPending = state === 'pending' && !isCurrentStage;
+  const isCollapsed = !isCurrentStage && (isPassed || isPending);
 
   const rejectionEvent = isRejected
     ? events.find((e) => e.kind === 'rejected') ?? null
     : null;
-  const lastAdvanced = isPassed
-    ? events.filter((e) => e.kind === 'advanced' && e.stage_to === pip.key).slice(-1)[0] ??
-      events.filter((e) => e.stage_to === pip.key).slice(-1)[0] ??
-      null
-    : null;
+  const lastAdvanced = lastAdvancedEvent(events, pip.key);
+
+  if (isCollapsed) {
+    return (
+      <article
+        id={`pip-${pip.key}`}
+        className={'scroll-mt-24 flex items-center gap-3 rounded-2xl border px-4 py-2.5 transition ' + tone.card}
+        aria-label={`${pip.label} · ${roleText}`}
+      >
+        <span className="text-xl leading-none" aria-hidden>{pip.emoji}</span>
+        <Link
+          href={`/waybill/${waybillId}?pip=${pip.key}`}
+          className="flex min-w-0 flex-1 items-baseline gap-2"
+          aria-label={`Open ${pip.label} detail`}
+        >
+          <span className={'truncate text-sm font-bold ' + tone.title}>
+            <T id={pip.label} />
+          </span>
+          <span className="font-mono text-[10px] uppercase tracking-wider text-mute">
+            #{pipIndexN + 1}
+          </span>
+          {lastAdvanced && (
+            <span className="truncate text-xs text-mute">
+              · {roleDisplay(lastAdvanced.actor_role, locale)} #{lastAdvanced.actor_id} · {formatDateServer(lastAdvanced.occurred_at, locale)}
+            </span>
+          )}
+        </Link>
+        <span
+          className={'inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ' + tone.badge}
+        >
+          <T id={PIP_BADGE_EN[state]} />
+        </span>
+      </article>
+    );
+  }
 
   return (
     <article
-      className={'rounded-2xl border p-4 transition ' + tone.card}
+      id={`pip-${pip.key}`}
+      className={'scroll-mt-24 rounded-2xl border p-4 transition ' + tone.card}
       aria-label={`${pip.label} · ${roleText}`}
     >
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -301,12 +326,6 @@ function StepCard({
           className="flex shrink-0 items-center gap-3"
            aria-label={`Open ${pip.label} detail`}
         >
-          <span
-            className={'flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ' + tone.bullet}
-            aria-hidden
-          >
-            {bullet}
-          </span>
           <span className="text-2xl leading-none" aria-hidden>{pip.emoji}</span>
           <h3 className={'text-base font-bold leading-tight sm:text-lg ' + tone.title}>
              <T id={pip.label} />
@@ -346,18 +365,9 @@ function StepCard({
       </p>
 
       <div className="mt-4 space-y-3">
-        <ActivityBlock
-          state={state}
-          events={events}
-          locale={locale}
-          sectionHead={tone.sectionHead}
-        />
-
         <DocumentsBlock
-          state={state}
           attachments={attachments}
           waybillId={waybillId}
-          locale={locale}
           sectionHead={tone.sectionHead}
         />
 
@@ -391,74 +401,13 @@ function StepCard({
   );
 }
 
-function ActivityBlock({
-  state,
-  events,
-  locale,
-  sectionHead,
-}: {
-  state: PipState;
-  events: WaybillEventRow[];
-  locale: SecondaryLocale;
-  sectionHead: string;
-}) {
-  const stateAccent =
-    state === 'passed'
-      ? 'text-emerald-200/80'
-      : state === 'active'
-      ? 'text-cyan-200/80'
-      : state === 'rejected'
-      ? 'text-rose-200/80'
-      : 'text-slate-500';
-
-  return (
-    <section>
-      <div className={'text-xs font-mono uppercase tracking-widest ' + sectionHead}>
-        {<T id="waybill.timeline.activity" />} ({events.length})
-      </div>
-      {events.length === 0 ? (
-        <p className={'mt-1.5 text-sm italic ' + stateAccent}>
-          {<T id="waybill.timeline.no_events_recorded_at_this_pip_yet" />}
-        </p>
-      ) : (
-        <ol className="mt-2 divide-y divide-slate-800/40">
-          {events.map((e) => (
-            <li
-              key={e.id}
-              className="py-2 text-xs font-mono text-slate-300"
-            >
-              <span className="text-cyan-400">#{e.sequence}</span>
-              <span className="mx-2 text-slate-700">·</span>
-              <span className="font-bold text-white">{eventKindLabel(e.kind, locale)}</span>
-              {e.stage_from || e.stage_to ? (
-                <span className="ml-2 text-slate-400">
-                  {e.stage_from ?? '—'} → <span className="text-cyan-300">{e.stage_to ?? '—'}</span>
-                </span>
-              ) : null}
-              {e.actor_id != null && (
-                <span className="ml-2 text-slate-500">
-                  by {roleDisplay(e.actor_role, locale)} <span className="text-slate-400">#{e.actor_id}</span>
-                </span>
-              )}
-              <span className="ml-2 text-slate-500">{formatDateServer(e.occurred_at, locale)}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
-  );
-}
-
 function DocumentsBlock({
   attachments,
   waybillId,
-  locale,
   sectionHead,
 }: {
-  state: PipState;
   attachments: WaybillAttachmentRow[];
   waybillId: string;
-  locale: SecondaryLocale;
   sectionHead: string;
 }) {
   return (
