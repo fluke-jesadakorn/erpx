@@ -16,7 +16,7 @@ export async function LayOut({ children, crumbs }: LayOutProps) {
     loadActor(),
     getDashboardData(),
   ]);
-  const users = (data.users || []) as any[];
+  const users = (data.users || []).filter((u: any) => u.is_active) as any[];
 
   return (
     <div className="app-shell flex min-h-screen flex-col">

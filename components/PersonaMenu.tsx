@@ -49,8 +49,9 @@ function lsSet(key: string, v: string) {
 }
 
 const GENERIC_ROLES = new Set(['supervisor', 'officer', 'manager', 'staff', 'head_of_department']);
-function positionLabel(roleName: string, deptKey: string | null): string {
-  const cleanRole = roleName.indexOf('::') >= 0 ? roleName.slice(0, roleName.indexOf('::')) : roleName;
+function positionLabel(roleName: string | null | undefined, deptKey: string | null): string {
+  const role = roleName || 'unconfigured';
+  const cleanRole = role.indexOf('::') >= 0 ? role.slice(0, role.indexOf('::')) : role;
   const r = roleLabel(cleanRole);
   if (deptKey && GENERIC_ROLES.has(cleanRole)) {
     const d = deptLabelFn((deptKey || '').replace(/^dept-/, ''));

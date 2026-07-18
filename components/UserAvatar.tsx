@@ -31,21 +31,21 @@ export function roleNameOf(role?: string | null): string {
   return i >= 0 ? role.slice(0, i) : role;
 }
 
-export function roleAccent(role?: string): string {
+export function roleAccent(role?: string | null): string {
   return ROLE_ACCENT[roleNameOf(role) as DisplayRoleName] || 'from-paper-2 to-paper-3';
 }
 
-export function roleGlyph(role?: string): string {
+export function roleGlyph(role?: string | null): string {
   return ROLE_GLYPH[roleNameOf(role) as DisplayRoleName] || '👤';
 }
 
-export function roleLabel(role?: string): string {
+export function roleLabel(role?: string | null): string {
   if (!role) return 'Unknown';
   const key = roleNameOf(role);
   return ROLE_LABEL[key as DisplayRoleName] || key || 'Unknown';
 }
 
-export function roleBadge(role?: string): string {
+export function roleBadge(role?: string | null): string {
   return ROLE_BADGE[roleNameOf(role) as DisplayRoleName] || 'bg-paper-2/15 text-ink border-rule/40';
 }
 
@@ -66,7 +66,7 @@ function initialsOf(name?: string): string {
 
 interface UserAvatarProps {
   fullname?: string;
-  role?: string;
+  role?: string | null;
   level?: number | null;
   size?: 'xs' | 'sm' | 'md' | 'lg';
   ring?: boolean;
