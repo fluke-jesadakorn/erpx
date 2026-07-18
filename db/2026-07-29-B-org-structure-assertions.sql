@@ -1,17 +1,22 @@
 SET search_path TO folio, public;
 
-SELECT count(*) = 0 AS no_active_users
+SELECT count(*) = 14 AS active_development_users
   FROM users
- WHERE is_active;
+ WHERE is_active
+   AND employee_code LIKE 'DEV-%';
 
-SELECT count(*) = 0 AS no_access_bindings
+SELECT count(*) = 14 AS seeded_role_bindings
   FROM (
     SELECT user_id FROM perm.user_roles
-    UNION ALL
-    SELECT user_id FROM perm.user_departments
-    UNION ALL
-    SELECT user_id FROM perm.user_permissions
   ) x;
+
+SELECT count(*) = 14 AS seeded_department_bindings
+  FROM perm.user_departments;
+
+SELECT count(*) = 14 AS seeded_membership_permissions
+  FROM perm.user_permissions
+ WHERE permission_id LIKE 'user:dept:%::allow'
+   AND revoked_at IS NULL;
 
 SELECT count(*) = 5 AS department_count_ok
   FROM perm.departments;
@@ -54,6 +59,10 @@ SELECT bool_and(grants > 0) AS every_role_has_permissions
       LEFT JOIN perm.role_permissions rp ON rp.role_id = r.id
      GROUP BY r.id
   ) x;
+
+SELECT count(*) = 5 AS every_department_has_a_head
+  FROM perm.departments
+ WHERE head_user_id IS NOT NULL;
 
 SELECT NOT EXISTS (
   SELECT 1

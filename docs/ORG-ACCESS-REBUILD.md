@@ -2,7 +2,7 @@
 
 ## Outcome
 
-The rebuilt organization has five departments, 14 department-owned hierarchy roles, no generic hierarchy roles, no system-admin role, and no active user identities.
+The rebuilt organization has five departments, 14 department-owned hierarchy roles, no generic hierarchy roles, no system-admin role, and 14 active development accounts—one per planned role.
 
 | Department | Role | Rank | Primary system responsibility |
 |---|---|---:|---|
@@ -45,7 +45,7 @@ Department permissions expose the relevant product area. Role permissions add au
 
 IT Manager receives explicit administration grants. `admin:system:bypass::allow` is not granted to any role, so IT administration does not imply financial or executive approval authority.
 
-## User cleanup
+## User cleanup and development accounts
 
 Historical business records reference the current users through protected foreign keys. Deleting those rows would either fail or require deleting expense, slip, procurement, HR leave, and journal evidence.
 
@@ -58,16 +58,17 @@ The migration therefore performs an audit-safe cleanup:
 5. Clear position, job description, and department labels.
 6. Deactivate every identity.
 
-The result is zero active users and an empty access-assignment directory while financial history retains valid foreign keys. No replacement or mock users are created. A real first user must be created through the controlled bootstrap process and assigned a department-owned role before interactive administration resumes.
+The first rebuild result was zero active users and an empty access-assignment directory while financial history retained valid foreign keys. The follow-up seed migration creates one clearly labeled `DEV-*` account for each planned role, assigns the department and role, and makes the manager/CFO/CEO accounts department heads. These are development identities, not personal employee records; replace their names and employee codes with real staff data before production use.
 
 ## Delivery sequence
 
 1. Back up the database before applying the destructive migration.
 2. Apply `db/2026-07-29-A-org-structure-rebuild.sql` in one transaction.
-3. Run `db/2026-07-29-B-org-structure-assertions.sql`.
-4. Verify role creation and assignment APIs enforce the department relation.
-5. Run ESLint and TypeScript static checks.
-6. Start the Next.js development server on port 3004.
+3. Apply `db/2026-07-29-D-seed-development-users.sql` in one transaction.
+4. Run `db/2026-07-29-B-org-structure-assertions.sql` and the user-seed assertions.
+5. Verify role creation and assignment APIs enforce the department relation.
+6. Run ESLint and TypeScript static checks.
+7. Start the Next.js development server on port 3004.
 
 ## Recovery
 
