@@ -38,7 +38,7 @@ import type {
 export interface BookBankUploadProps {
   currentUserId?: number;
   initialModels?: Parameters<typeof useSlipOcr>[0]['initialModels'];
-  onSlipReady?: (slipId: number, kind: 'book_bank') => void;
+  onSlipReady?: (slipId: number, kind: 'book_bank', parsed: ParsedFields) => void;
   onSlipDiscarded?: (slipId: number, kind: 'book_bank') => void;
   onBookBankFieldsChange?: (f: BookBankFields) => void;
   hideSubmitButton?: boolean;
@@ -62,7 +62,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
       kind: 'book_bank',
       initialModels,
       currentUserId,
-      onSlipReady: (id) => onSlipReady?.(id, 'book_bank'),
+      onSlipReady: (id, _kind, parsed) => onSlipReady?.(id, 'book_bank', parsed),
       onSlipDiscarded: (id) => onSlipDiscarded?.(id, 'book_bank'),
     });
 

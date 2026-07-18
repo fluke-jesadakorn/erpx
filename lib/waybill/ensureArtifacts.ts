@@ -38,7 +38,7 @@ export async function ensurePrForExpense(
     `INSERT INTO purchase_requisitions
         (requester_id, vendor_name, total_estimate, currency, status, dept_group_id)
      VALUES ($1, $2, $3, 'THB', 'submission',
-             (SELECT dept_group_id FROM users WHERE id = $1))
+             (SELECT department_id FROM perm.user_departments WHERE user_id = $1))
      RETURNING id`,
     [exp.submitter_id, exp.vendor_name ?? '', total],
   );
@@ -121,8 +121,8 @@ export async function ensureGlForExpense(
     `UPDATE expenses
         SET journal_entry_id = $1,
             updated_at = now()
-      WHERE id = $3`,
-    [finalized.journalId, actorId, expenseId],
+      WHERE id = $2`,
+    [finalized.journalId, expenseId],
   );
   return finalized.journalId;
 }

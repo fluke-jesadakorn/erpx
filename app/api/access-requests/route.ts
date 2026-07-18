@@ -34,17 +34,14 @@ export async function GET(req: NextRequest) {
   }
   const r = await query(
     `SELECT ar.id, ar.actor_id, u.fullname AS actor_name,
-            (SELECT up.permission_id FROM perm.user_permissions up
-              WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS actor_dept_perm,
+            ud.department_id AS actor_department,
             ar.tile_id, ar.tile_title, ar.note, ar.status, ar.target_user_id,
             tu.fullname AS target_name, ar.target_role,
             ar.created_at, ar.resolved_at, ar.resolved_by_user_id,
             ru.fullname AS resolver_name, ar.resolved_note
        FROM access_requests ar
        JOIN users u ON u.id = ar.actor_id
+       LEFT JOIN perm.user_departments ud ON ud.user_id = u.id
        LEFT JOIN users tu ON tu.id = ar.target_user_id
        LEFT JOIN users ru ON ru.id = ar.resolved_by_user_id
        ${where}
@@ -54,15 +51,9 @@ export async function GET(req: NextRequest) {
   );
   const requests = r.rows.map((row: any) => ({
     ...row,
-    actor_department: row.actor_dept_perm
-      ? row.actor_dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '')
-      : null,
-    actor_dept_group_id: row.actor_dept_perm
-      ? row.actor_dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '')
-      : null,
-    actor_dept_group_name: row.actor_dept_perm
-      ? row.actor_dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '')
-      : null,
+    actor_department: row.actor_department ?? null,
+    actor_dept_group_id: row.actor_department ?? null,
+    actor_dept_group_name: row.actor_department ?? null,
   }));
   return NextResponse.json({ requests });
 }
@@ -84,9 +75,17 @@ export async function POST(req: NextRequest) {
       WHERE u.is_active = TRUE
         AND EXISTS (
           SELECT 1 FROM perm.user_roles ur
-           WHERE ur.user_id = u.id AND split_part(ur.role_id, '::', 1) = $1
+          LEFT JOIN perm.user_departments ud ON ud.user_id = ur.user_id
+           WHERE ur.user_id = u.id
+             AND (($1 = 'hr_manager' AND ud.department_id = 'hr' AND ur.role_kind = 'hierarchy')
+               OR ($1 = 'cfo' AND ur.role_id = 'cfo' AND ur.role_kind = 'hierarchy')
+               OR ($1 = 'admin' AND ur.role_id = 'system_admin' AND ur.role_kind = 'system'))
         )
-      ORDER BY u.id LIMIT 1`,
+      ORDER BY CASE WHEN $1 = 'hr_manager' THEN (
+        SELECT r.rank FROM perm.user_roles h
+        JOIN perm.roles r ON r.id = h.role_id AND r.kind = h.role_kind
+        WHERE h.user_id = u.id AND h.role_kind = 'hierarchy' LIMIT 1
+      ) ELSE 0 END, u.id LIMIT 1`,
     [target],
   );
   const targetUser = targetRes.rows[0];

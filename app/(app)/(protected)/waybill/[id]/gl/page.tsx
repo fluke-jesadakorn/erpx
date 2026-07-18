@@ -5,7 +5,6 @@ import { BookMarked } from 'lucide-react';
 import { loadWaybillRailContext } from '@/waybill/queries';
 import { loadActor } from '@/server/guard';
 import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
-import { PERM } from '@folio-lib/perm/taxonomy';
 import { loadJournalForWaybill } from '@/waybill/queries';
 import { WaybillGlSection } from '@/components/waybill/WaybillGlSection';
 import { PageLayout } from '@/components/PageLayout';
@@ -14,6 +13,9 @@ import { crumbsForPath } from '@/components/breadcrumbs/routes';
 import { getSecondaryLocale } from '@/server/locale';
 import { OverviewShell } from '../_components/Overview';
 import { Empty } from '@/components/ui';
+import { authorizeExpenseStage, loadExpenseFlowContext, type ExpenseActor } from '@/waybill/expenseFlow';
+import { query } from '@/db';
+import { recomputeExpenseDraftGlAction } from '@/app/actions/waybill';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,10 +40,31 @@ export default async function WaybillGlPage({ params }: PageProps) {
 
   const actorCanSeeGlLines = hasPermission(session.session, 'finance:gl:view::allow');
   const stage = wb.current_stage;
-  const canFinalApprove = stage === 'accounting_review'
-    && hasPermission(session.session, PERM.finance.expense.approve);
-  const canConfirmGl = stage === 'disbursed'
-    && hasPermission(session.session, 'finance:gl:confirm::allow');
+  let canFinalApprove = false;
+  let canConfirmGl = false;
+  let canEditDraft = false;
+  if (wb.origin === 'expense' && !['completed', 'rejected'].includes(stage)) {
+    const flow = await loadExpenseFlowContext(wb.id);
+    const flowActor: ExpenseActor = {
+      id: actor.id,
+      permissions: actor.permissions,
+      deptId: actor.dept_id,
+      departmentId: actor.dept_id,
+      level: actor.level,
+      rank: actor.level,
+      roleName: actor.role_name,
+    };
+    const decision = await authorizeExpenseStage(flowActor, flow);
+    const claim = await query<{ claimed_by: number }>(
+      `SELECT claimed_by FROM waybill_stage_claims
+        WHERE waybill_id = $1 AND stage = $2 AND released_at IS NULL`,
+      [wb.id, stage],
+    );
+    const ownsClaim = claim.rows[0]?.claimed_by === actor.id;
+    canFinalApprove = stage === 'accounting_approval' && decision.allow;
+    canConfirmGl = stage === 'settlement' && decision.allow && ownsClaim;
+    canEditDraft = ['accounting_review', 'settlement'].includes(stage) && decision.allow && ownsClaim;
+  }
 
   const journal = await loadJournalForWaybill(wb.id);
 
@@ -62,11 +85,22 @@ export default async function WaybillGlPage({ params }: PageProps) {
               lang={locale}
               canFinalApprove={canFinalApprove}
               canConfirmGl={canConfirmGl}
-              isFinalApproval={stage === 'accounting_review'}
-              isDisbursed={stage === 'disbursed'}
+              canEditDraft={canEditDraft}
+              isFinalApproval={stage === 'accounting_approval'}
+              isDisbursed={stage === 'settlement'}
             />
           ) : (
-            <Empty icon={BookMarked} title="No GL journal available for this waybill yet." />
+            <div className="space-y-3">
+              <Empty icon={BookMarked} title="No GL journal available for this waybill yet." />
+              {canEditDraft && (
+                <form action={recomputeExpenseDraftGlAction}>
+                  <input type="hidden" name="waybillId" value={wb.id} />
+                  <button type="submit" className="rounded-md bg-info px-3 py-2 text-sm font-semibold text-paper">
+                    Ask AI to draft GL
+                  </button>
+                </form>
+              )}
+            </div>
           )}
         </OverviewShell>
       </PageLayout>

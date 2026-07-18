@@ -34,6 +34,8 @@ interface AdminTarget {
   member_count: number;
   is_seed_persona: boolean;
   is_system: boolean;
+  role_kind?: 'hierarchy' | 'system' | null;
+  rank?: number | null;
 }
 
 interface Props {

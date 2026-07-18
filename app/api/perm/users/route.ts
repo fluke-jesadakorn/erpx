@@ -27,25 +27,16 @@ export async function GET(req: Request) {
     perm_role_names: string[];
   }>(
     `SELECT u.id, u.fullname, u.employee_code, u.is_active,
-            (SELECT up.permission_id FROM perm.user_permissions up
-              WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS dept_perm,
+            (SELECT ud.department_id FROM perm.user_departments ud
+              WHERE ud.user_id = u.id) AS department,
             NULL::text AS department_th,
             NULL::text AS department_de,
-            COALESCE((
-              SELECT MIN(split_part(ur.role_id, '::', 2)::int)
-                FROM perm.user_roles ur WHERE ur.user_id = u.id
-            ), 5) AS effective_level,
+            COALESCE((SELECT r.rank FROM perm.user_roles ur
+              JOIN perm.roles r ON r.id = ur.role_id
+              WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'), 99) AS effective_level,
             (SELECT ur.role_id FROM perm.user_roles ur
-              WHERE ur.user_id = u.id
-              ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                             WHEN ur.role_id LIKE '%::2' THEN 1
-                             WHEN ur.role_id LIKE '%::3' THEN 2
-                             WHEN ur.role_id LIKE '%::4' THEN 3
-                             WHEN ur.role_id LIKE '%::5' THEN 4
-                             ELSE 5 END), ur.granted_at ASC
+              WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+              ORDER BY ur.granted_at ASC
               LIMIT 1) AS role_id,
             COALESCE((SELECT array_agg(ur.role_id ORDER BY ur.role_id)
                         FROM perm.user_roles ur WHERE ur.user_id = u.id),
@@ -57,20 +48,11 @@ export async function GET(req: Request) {
        FROM users u
        ORDER BY u.id`,
   );
-  const users = res.rows.map((row: any) => ({
+  const users = res.rows.map((row) => ({
     ...row,
-    department: row.dept_perm
-      ? row.dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '')
-      : null,
-    department_th: row.dept_perm
-      ? row.dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '')
-      : null,
-    department_de: row.dept_perm
-      ? row.dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '')
-      : null,
-    dept_group_id: row.dept_perm
-      ? row.dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '')
-      : null,
+    department_th: row.department,
+    department_de: row.department,
+    dept_group_id: row.department,
   }));
   return NextResponse.json({ users });
 }

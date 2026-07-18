@@ -18,12 +18,12 @@ export const dynamic = 'force-dynamic';
 
 function canMutate(s: ReturnType<typeof JSON.parse>['session'] | null) {
   if (!s) return false;
-  return (
-    hasPermission(s, PERM.rbac.role.assign) ||
-    hasPermission(s, PERM.user.role.assign) ||
-    hasPermission(s, PERM.rbac.matrix.edit) ||
-    hasPermission(s, PERM.admin.system.bypass)
-  );
+  return hasPermission(s, PERM.rbac.matrix.edit) || hasPermission(s, PERM.admin.system.bypass);
+}
+
+function canView(s: ReturnType<typeof JSON.parse>['session'] | null) {
+  if (!s) return false;
+  return hasPermission(s, PERM.rbac.matrix.view) || hasPermission(s, PERM.admin.system.bypass);
 }
 
 function defaultEndsAt(): string {
@@ -35,7 +35,7 @@ function defaultEndsAt(): string {
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const out = await loadActivePermSession(req);
   if (!out) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  if (!canMutate(out.session))
+  if (!canView(out.session))
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
   const { id: idStr } = await ctx.params;
@@ -49,23 +49,15 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   ));
 
   const u = await query<{
-    id: number; fullname: string; employee_code: string; department: string | null;
-    dept_perm: string | null; role_id: string | null;
+    department: string | null; role_id: string | null;
+    id: number; fullname: string; employee_code: string;
   }>(
     `SELECT u.id, u.fullname, u.employee_code,
-       (SELECT up.permission_id FROM perm.user_permissions up
-         WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-           AND up.revoked_at IS NULL
-           AND (up.ends_at IS NULL OR up.ends_at > now())
-         ORDER BY up.permission_id LIMIT 1) AS dept_perm,
+       (SELECT ud.department_id FROM perm.user_departments ud
+         WHERE ud.user_id = u.id) AS department,
        (SELECT ur.role_id FROM perm.user_roles ur
-         WHERE ur.user_id = u.id
-         ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                        WHEN ur.role_id LIKE '%::2' THEN 1
-                        WHEN ur.role_id LIKE '%::3' THEN 2
-                        WHEN ur.role_id LIKE '%::4' THEN 3
-                        WHEN ur.role_id LIKE '%::5' THEN 4
-                        ELSE 5 END), ur.granted_at ASC LIMIT 1) AS role_id
+         WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+         ORDER BY ur.granted_at ASC LIMIT 1) AS role_id
        FROM users u WHERE u.id = $1`,
     [userId],
   );
@@ -80,17 +72,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     [userId],
   );
 
-  const dept = u.rows[0]?.dept_perm
-    ? u.rows[0].dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '')
-    : null;
-
   return NextResponse.json({
     user_id: userId,
     user: {
       id: u.rows[0]?.id ?? userId,
       fullname: u.rows[0]?.fullname ?? 'Unknown user',
       employee_code: u.rows[0]?.employee_code ?? '',
-      department: dept,
+      department: u.rows[0]?.department ?? null,
       role_id: u.rows[0]?.role_id ?? null,
       perm_role_ids: rolesRes.rows.map((r) => r.role_id),
       perm_role_names: roleNamesRes.rows.map((r) => r.display_name),
@@ -109,6 +97,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   const { id: idStr } = await ctx.params;
   const userId = parseInt(idStr, 10);
   if (!userId) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  if (userId === out.session.user.id)
+    return NextResponse.json({ error: 'Users cannot change their own access' }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
   const mode = body.mode === 'permanent' ? 'permanent' : 'temporary';
@@ -125,11 +115,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
   );
   const validIds = valid.rows.map((r) => r.id);
 
-  const deptCount = validIds.filter((p) => p.startsWith('user:dept:')).length;
-  if (deptCount > 1) {
+  if (validIds.some((p) => p.startsWith('user:dept:'))) {
     return NextResponse.json(
-      { error: 'A user may belong to at most one department.' },
-      { status: 409 },
+      { error: 'Department membership must be changed through the atomic access endpoint.' },
+      { status: 400 },
     );
   }
 
@@ -171,6 +160,8 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   const { id: idStr } = await ctx.params;
   const userId = parseInt(idStr, 10);
   if (!userId) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
+  if (userId === out.session.user.id)
+    return NextResponse.json({ error: 'Users cannot change their own access' }, { status: 403 });
 
   const body = await req.json().catch(() => ({}));
   const id = Number(body.id);

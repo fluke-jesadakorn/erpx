@@ -153,7 +153,7 @@ export function useSlipOcr(opts: SlipOcrOpts) {
         setPhase('confirmed');
       } else {
         setExtractionState('done');
-        onSlipReady?.(result.slipId, kind);
+        onSlipReady?.(result.slipId, kind, result.parsed ?? {});
       }
       xhrRef.current = null;
     } catch (err: unknown) {

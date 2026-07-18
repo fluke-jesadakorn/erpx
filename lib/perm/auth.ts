@@ -45,20 +45,26 @@ async function hydratePermSession(payload: SessionPayload): Promise<ActivePermSe
   const profile = await query<{
     fullname: string;
     role_id: string | null;
+    rank: number | null;
+    department_id: string | null;
+    system_roles: string[];
     permissions: string[];
   }>(
     `SELECT u.fullname,
        COALESCE((
          SELECT ur.role_id FROM perm.user_roles ur
-          WHERE ur.user_id = u.id
-          ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                         WHEN ur.role_id LIKE '%::2' THEN 1
-                         WHEN ur.role_id LIKE '%::3' THEN 2
-                         WHEN ur.role_id LIKE '%::4' THEN 3
-                         WHEN ur.role_id LIKE '%::5' THEN 4
-                         ELSE 5 END), ur.granted_at ASC
+          WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+          ORDER BY ur.granted_at ASC
           LIMIT 1
-       ), 'officer::5') AS role_id,
+       ), NULL) AS role_id,
+       (SELECT r.rank FROM perm.user_roles ur
+          JOIN perm.roles r ON r.id = ur.role_id
+         WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+         LIMIT 1) AS rank,
+       (SELECT ud.department_id FROM perm.user_departments ud WHERE ud.user_id = u.id) AS department_id,
+       COALESCE((SELECT array_agg(ur.role_id ORDER BY ur.role_id)
+                   FROM perm.user_roles ur
+                  WHERE ur.user_id = u.id AND ur.role_kind = 'system'), ARRAY[]::text[]) AS system_roles,
        COALESCE((
          SELECT array_agg(DISTINCT p_id ORDER BY p_id)
            FROM (
@@ -71,6 +77,15 @@ async function hydratePermSession(payload: SessionPayload): Promise<ActivePermSe
                FROM perm.user_permissions
               WHERE user_id = u.id AND revoked_at IS NULL
                 AND (ends_at IS NULL OR ends_at > now())
+             UNION
+             SELECT dp.permission_id AS p_id
+               FROM perm.user_departments ud
+               JOIN perm.department_permissions dp ON dp.department_id = ud.department_id
+              WHERE ud.user_id = u.id
+             UNION
+             SELECT 'user:dept:' || ud.department_id || '::allow' AS p_id
+               FROM perm.user_departments ud
+              WHERE ud.user_id = u.id
            ) t
        ), ARRAY[]::text[]) AS permissions
       FROM users u
@@ -86,7 +101,10 @@ async function hydratePermSession(payload: SessionPayload): Promise<ActivePermSe
     user: {
       id: payload.sub,
       name: row.fullname,
-      role: row.role_id ?? 'officer::5',
+      role: row.role_id ?? 'unconfigured',
+      department: row.department_id,
+      rank: row.rank,
+      systemRoles: row.system_roles ?? [],
     },
     permissions: Array.from(expanded),
   };

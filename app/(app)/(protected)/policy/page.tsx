@@ -9,6 +9,7 @@ import { PermissionMatrix } from '@/components/policy/PermissionMatrix';
 import { PolicyAdmin } from '@/components/policy/PolicyAdmin';
 import { NoPermissionView } from '@/components/NoPermissionView';
 import { T } from '@/components/i18n/TServer';
+import Link from 'next/link';
 import { loadMatrixCells, loadMatrixColumns, loadMatrixTargets } from '@/policy/matrixRepo';
 import { getSecondaryLocale } from '@/server/locale';
 
@@ -45,6 +46,10 @@ export default async function PolicyPage({
     if (typeof v === 'string') search.set(k, v);
   }
   const flash = parseFlash(search);
+  const rawView = search.get('view') ?? 'assignment';
+  const view = ['assignment', 'roles', 'departments', 'matrix', 'audit'].includes(rawView)
+    ? rawView as 'assignment' | 'roles' | 'departments' | 'matrix' | 'audit'
+    : 'assignment';
 
   if (!out) {
     return (
@@ -79,11 +84,12 @@ export default async function PolicyPage({
     );
   }
 
-  const [columns, targets, cells, usersRes] = await Promise.all([
+  const [columns, targets, cells, usersRes, auditRes] = await Promise.all([
     loadMatrixColumns(),
     loadMatrixTargets(),
     loadMatrixCells(),
     fetchUserDirectory(),
+    queryAudit(),
   ]);
   const cellsObj: Record<string, string[]> = {};
   for (const [tid, set] of cells) cellsObj[tid] = Array.from(set);
@@ -102,25 +108,67 @@ export default async function PolicyPage({
         density="compact"
         width="full"
       >
-        <PermissionMatrix
-          columns={columns}
-          targets={targets}
-          initialCells={cellsObj}
-          canEdit={canEdit}
-          actorName={(actor as any)?.fullname ?? (actor as any)?.id?.toString() ?? ''}
-        />
-        <div className="mt-4">
+        <nav className="mb-4 flex flex-wrap gap-2" aria-label="Access administration views">
+          {[
+            ['assignment', 'Assignment'],
+            ['roles', 'Roles'],
+            ['departments', 'Departments'],
+            ['matrix', 'Permission Matrix'],
+            ['audit', 'Audit'],
+          ].map(([id, label]) => (
+            <Link
+              key={id}
+              href={`/policy?view=${id}`}
+              className={view === id
+                ? 'rounded-md border border-accent bg-accent-soft px-3 py-2 text-sm font-bold text-accent-strong'
+                : 'rounded-md border border-rule bg-paper-2 px-3 py-2 text-sm text-mute hover:text-ink'}
+            >
+              {label}
+            </Link>
+          ))}
+        </nav>
+        {view === 'matrix' ? (
+          <PermissionMatrix
+            columns={columns}
+            targets={targets}
+            initialCells={cellsObj}
+            canEdit={canEdit}
+            actorName={(actor as any)?.fullname ?? (actor as any)?.id?.toString() ?? ''}
+          />
+        ) : view === 'audit' ? (
+          <section className="overflow-hidden rounded-md border border-rule bg-paper-2">
+            <header className="border-b border-rule px-4 py-3 text-sm font-bold text-ink">Access audit</header>
+            <div className="divide-y divide-rule/40">
+              {auditRes.map((entry) => (
+                <article key={entry.id} className="grid gap-1 px-4 py-3 md:grid-cols-[180px_180px_1fr]">
+                  <time className="text-xs font-mono text-mute">{new Date(entry.occurred_at).toLocaleString()}</time>
+                  <span className="text-sm font-bold text-ink">{entry.kind} · {entry.actor}</span>
+                  <pre className="overflow-auto whitespace-pre-wrap text-xs text-mute">{JSON.stringify(entry.target, null, 2)}</pre>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : (
           <PolicyAdmin
             targets={targets}
             users={usersRes}
             canEdit={canEdit}
             canAssign={canAssign}
             flash={flash}
+            view={view}
           />
-        </div>
+        )}
       </PageLayout>
     </>
   );
+}
+
+async function queryAudit() {
+  const { query } = await import('@/db');
+  const res = await query<{ id: number; kind: string; actor: string; target: unknown; occurred_at: string }>(
+    `SELECT id, kind, actor, target, occurred_at FROM perm.audit ORDER BY occurred_at DESC, id DESC LIMIT 100`,
+  );
+  return res.rows;
 }
 
 interface UserLite {
@@ -136,13 +184,8 @@ async function fetchUserDirectory(): Promise<UserLite[]> {
   const { query } = await import('@/db');
   const res = await query<UserLite>(
     `SELECT u.id, u.fullname, u.employee_code,
-            (SELECT split_part(up.permission_id, ':', 3)
-               FROM perm.user_permissions up
-              WHERE up.user_id = u.id
-                AND up.permission_id LIKE 'user:dept:%::allow'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS department,
+            (SELECT ud.department_id FROM perm.user_departments ud
+              WHERE ud.user_id = u.id) AS department,
             COALESCE((SELECT array_agg(ur.role_id ORDER BY ur.role_id)
                         FROM perm.user_roles ur WHERE ur.user_id = u.id),
                       ARRAY[]::text[]) AS perm_role_ids,

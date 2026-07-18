@@ -11,7 +11,7 @@ import {
   pipsForDomain,
   type WaybillDomain,
 } from '@/waybill/derive';
-import { stageRoles } from '@/perm/server';
+import { stageDepartment, stageRoles } from '@/perm/server';
 import { getActorScope, scopeFilter, PERM } from '@/perm/server';
 import { assertRole } from '@/perm/assertRole';
 import { aiInvoke } from '@/ai/router';
@@ -389,7 +389,7 @@ export type ApproversByStage = Record<string, ApproverRow[]>;
 export type ActedUsersByStage = Record<string, ActedUserEntry[]>;
 
 // Stages whose approver pool is scoped to the submitter's own department.
-const DEPT_SCOPED_STAGES = new Set(['submission', 'dept_verification', 'dept_authorization', 'so_dept_approval']);
+const DEPT_SCOPED_STAGES = new Set(['submission', 'department_approval', 'dept_verification', 'dept_authorization', 'so_dept_approval']);
 
 export async function loadApproversByStage(waybillId: string): Promise<ApproversByStage> {
   const wb = await loadWaybill(waybillId);
@@ -414,13 +414,12 @@ export async function loadApproversByStage(waybillId: string): Promise<Approvers
   let submitterLevel = 10;
   if (wb.submitter_id != null) {
     const s = await query<{ dept_id: string | null; level: number }>(
-      `SELECT (SELECT split_part(up.permission_id, ':', 3) FROM perm.user_permissions up
-                WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                  AND up.revoked_at IS NULL
-                  AND (up.ends_at IS NULL OR up.ends_at > now())
-                ORDER BY up.permission_id LIMIT 1) AS dept_id,
-              COALESCE((SELECT MIN(split_part(ur.role_id, '::', 2)::int)
-                          FROM perm.user_roles ur WHERE ur.user_id = u.id), 10) AS level
+      `SELECT (SELECT ud.department_id FROM perm.user_departments ud
+                WHERE ud.user_id = u.id) AS dept_id,
+              COALESCE((SELECT r.rank FROM perm.user_roles ur
+                          JOIN perm.roles r ON r.id = ur.role_id AND r.kind = ur.role_kind
+                         WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+                         LIMIT 1), 99) AS level
          FROM users u
         WHERE u.id = $1`,
       [wb.submitter_id],
@@ -431,23 +430,17 @@ export async function loadApproversByStage(waybillId: string): Promise<Approvers
 
   const r = await query<ApproverRow>(
     `SELECT u.id AS user_id, u.fullname, ur.role_id,
-            (SELECT split_part(up.permission_id, ':', 3) FROM perm.user_permissions up
-              WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS dept_group_id,
-            (SELECT split_part(up.permission_id, ':', 3) FROM perm.user_permissions up
-              WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS dept_group_name,
+            ud.department_id AS dept_group_id,
+            d.display_name AS dept_group_name,
             NULL::text AS dept_group_name_th,
             NULL::text AS dept_group_name_de,
-            COALESCE((SELECT MIN(split_part(ur.role_id, '::', 2)::int)
-                        FROM perm.user_roles ur WHERE ur.user_id = u.id), 10) AS level
+            pr.rank AS level
        FROM perm.user_roles ur
+       JOIN perm.roles pr ON pr.id = ur.role_id AND pr.kind = ur.role_kind
        JOIN users u ON u.id = ur.user_id AND u.is_active
-       WHERE ur.role_id = ANY($1::text[])
+       LEFT JOIN perm.user_departments ud ON ud.user_id = u.id
+       LEFT JOIN perm.departments d ON d.id = ud.department_id
+       WHERE ur.role_kind = 'hierarchy' AND ur.role_id = ANY($1::text[])
     ORDER BY level ASC, u.fullname`,
     [roles],
   );
@@ -458,6 +451,8 @@ export async function loadApproversByStage(waybillId: string): Promise<Approvers
     const keys = roleToPips.get(row.role_id ?? '') ?? [];
     for (const key of keys) {
       if (DEPT_SCOPED_STAGES.has(key) && row.dept_group_id !== submitterDept) continue;
+      const requiredDept = stageDepartment(key);
+      if (requiredDept && row.dept_group_id !== requiredDept) continue;
       out[key].push(row);
     }
   }
@@ -478,8 +473,7 @@ export async function loadActedUsersByStage(waybillId: string): Promise<ActedUse
     `SELECT we.stage_to, we.stage_from, we.sequence, we.kind, we.occurred_at,
             we.actor_id, u.fullname,
             (SELECT ur.role_id FROM perm.user_roles ur
-              WHERE ur.user_id = we.actor_id
-              ORDER BY split_part(ur.role_id, '::', 2)::int ASC NULLS LAST
+              WHERE ur.user_id = we.actor_id AND ur.role_kind = 'hierarchy'
               LIMIT 1) AS role_id
        FROM waybill_events we
   LEFT JOIN users u ON u.id = we.actor_id
@@ -660,7 +654,7 @@ export interface ExpenseJournalView {
 }
 
 export interface ProcurementJournalStepView {
-  stepKey: 'accrual' | 'settlement';
+  stepKey: 'vat' | 'accrual' | 'settlement';
   draft: JournalEntryLike | null;
   posted: JournalEntryLike | null;
   posted_event: JournalEventLike | null;
@@ -678,18 +672,117 @@ export interface SalesJournalView {
   settlement: ProcurementJournalStepView;
 }
 
-export interface JournalView {
-  kind: 'expense' | 'procurement' | 'sales';
+export type WaybillJournalView =
+  | ({ kind: 'expense' } & ExpenseJournalView)
+  | ({ kind: 'procurement' } & ProcurementJournalView)
+  | ({ kind: 'sales' } & SalesJournalView);
+
+async function loadJournalStep(args: {
+  origin: 'expense' | 'pr' | 'po' | 'so';
+  originId: number;
+  waybillId: string;
+  step: 'vat' | 'accrual' | 'settlement';
+}): Promise<ProcurementJournalStepView> {
+  const ref = args.origin === 'expense' ? 'expense_id'
+    : args.origin === 'pr' ? 'pr_id'
+      : args.origin === 'po' ? 'po_id'
+        : 'so_id';
+  const dbStep = args.origin === 'so' ? `sales_${args.step}` : args.step;
+  const journals = await query<{
+    journal_id: number;
+    entry_date: string | Date;
+    description: string | null;
+    is_draft: boolean;
+    finalized_by: number | null;
+    finalized_by_name: string | null;
+    finalized_at: string | null;
+  }>(
+    `SELECT je.id AS journal_id, je.entry_date, je.description, je.is_draft,
+            je.finalized_by, u.fullname AS finalized_by_name, je.finalized_at
+       FROM journal_entries je
+       LEFT JOIN users u ON u.id = je.finalized_by
+      WHERE je.${ref} = $1 AND COALESCE(je.step, 'accrual') = $2
+      ORDER BY je.id DESC`,
+    [args.originId, dbStep],
+  );
+  const ids = journals.rows.map((row) => row.journal_id);
+  const lines = ids.length ? await query<JournalLineRow & { journal_entry_id: number }>(
+    `SELECT ll.journal_entry_id, ll.account_code,
+            c.name AS account_name, c.name_th AS account_name_th,
+            ll.debit::float8 AS debit, ll.credit::float8 AS credit, ll.description
+       FROM ledger_lines ll
+       LEFT JOIN chart_of_accounts c ON c.code = ll.account_code
+      WHERE ll.journal_entry_id = ANY($1::int[])
+      ORDER BY ll.journal_entry_id, ll.id`,
+    [ids],
+  ) : { rows: [] as Array<JournalLineRow & { journal_entry_id: number }> };
+  const block = (draft: boolean): JournalEntryLike | null => {
+    const row = journals.rows.find((item) => item.is_draft === draft);
+    if (!row) return null;
+    return {
+      ...row,
+      lines: lines.rows.filter((line) => line.journal_entry_id === row.journal_id),
+    };
+  };
+  const eventKinds = args.origin === 'so'
+    ? {
+        posted: `posted-to-gl-sales-${args.step}`,
+        confirmed: `gl-confirmed-sales-${args.step}`,
+      }
+    : {
+        posted: `posted-to-gl-${args.step}`,
+        confirmed: `gl-confirmed-${args.step}`,
+      };
+  const events = await query<JournalEventLike & { kind: string }>(
+    `SELECT we.kind, we.actor_id, u.fullname AS actor_name, we.occurred_at
+       FROM waybill_events we
+       LEFT JOIN users u ON u.id = we.actor_id
+      WHERE we.waybill_id = $1 AND we.kind = ANY($2::text[])
+      ORDER BY we.sequence DESC`,
+    [args.waybillId, [eventKinds.posted, eventKinds.confirmed]],
+  );
+  return {
+    stepKey: args.step,
+    draft: block(true),
+    posted: block(false),
+    posted_event: events.rows.find((event) => event.kind === eventKinds.posted) ?? null,
+    confirmed_event: events.rows.find((event) => event.kind === eventKinds.confirmed) ?? null,
+  };
 }
 
-export type WaybillJournalView =
-  | { kind: 'expense';        journal: ExpenseJournalView }
-  | { kind: 'procurement';    journal: ProcurementJournalView }
-  | { kind: 'sales';          journal: SalesJournalView }
-  | JournalView;
-
-export async function loadJournalForWaybill(_waybillId: string): Promise<JournalView | null> {
-  return null;
+export async function loadJournalForWaybill(waybillId: string): Promise<WaybillJournalView | null> {
+  const wb = await query<{ origin: 'expense' | 'pr' | 'po' | 'so'; origin_id: number; current_stage: string }>(
+    `SELECT origin, origin_id, current_stage FROM waybills WHERE id = $1`,
+    [waybillId],
+  );
+  const row = wb.rows[0];
+  if (!row || !['expense', 'pr', 'po', 'so'].includes(row.origin)) return null;
+  if (row.origin === 'expense') {
+    const step = row.current_stage === 'settlement' || row.current_stage === 'completed'
+      ? 'settlement'
+      : 'accrual';
+    const journal = await loadJournalStep({ origin: row.origin, originId: row.origin_id, waybillId, step });
+    return {
+      kind: 'expense',
+      draft: journal.draft,
+      posted: journal.posted,
+      posted_event: journal.posted_event,
+      confirmed_event: journal.confirmed_event,
+    };
+  }
+  if (row.origin === 'so') {
+    const [vat, accrual, settlement] = await Promise.all([
+      loadJournalStep({ origin: row.origin, originId: row.origin_id, waybillId, step: 'vat' }),
+      loadJournalStep({ origin: row.origin, originId: row.origin_id, waybillId, step: 'accrual' }),
+      loadJournalStep({ origin: row.origin, originId: row.origin_id, waybillId, step: 'settlement' }),
+    ]);
+    return { kind: 'sales', vat, accrual, settlement };
+  }
+  const [accrual, settlement] = await Promise.all([
+    loadJournalStep({ origin: row.origin, originId: row.origin_id, waybillId, step: 'accrual' }),
+    loadJournalStep({ origin: row.origin, originId: row.origin_id, waybillId, step: 'settlement' }),
+  ]);
+  return { kind: 'procurement', accrual, settlement };
 }
 
 
@@ -762,17 +855,14 @@ export async function listPurchaseRequisitions(actorId?: number) {
     }
     const r = await query(
       `SELECT pr.*, u.fullname AS requester_name,
-              (SELECT split_part(up.permission_id, ':', 3) FROM perm.active_user_permissions up
-                WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                ORDER BY up.permission_id LIMIT 1) AS requester_dept_group_id,
-              (SELECT split_part(up.permission_id, ':', 3) FROM perm.active_user_permissions up
-                WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                ORDER BY up.permission_id LIMIT 1) AS requester_dept_group_name,
+              ud.department_id AS requester_dept_group_id,
+              d.display_name AS requester_dept_group_name,
               d.display_name AS dept_name,
               ra.fullname AS rejection_actor_name
        FROM purchase_requisitions pr
        JOIN users u ON pr.requester_id = u.id
-       LEFT JOIN perm.roles d ON pr.dept_group_id = d.id
+       LEFT JOIN perm.user_departments ud ON ud.user_id = u.id
+       LEFT JOIN perm.departments d ON d.id = pr.dept_group_id
        LEFT JOIN users ra ON ra.id = pr.rejection_actor_id
        ${scopeSql}
        ORDER BY pr.created_at DESC`,
@@ -819,12 +909,8 @@ export async function listPurchaseOrders(actorId?: number) {
     const r = await query(
       `SELECT po.*,
               u.fullname AS requester_name,
-              (SELECT split_part(up.permission_id, ':', 3) FROM perm.active_user_permissions up
-                WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                ORDER BY up.permission_id LIMIT 1) AS requester_dept_group_id,
-              (SELECT split_part(up.permission_id, ':', 3) FROM perm.active_user_permissions up
-                WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                ORDER BY up.permission_id LIMIT 1) AS requester_dept_group_name,
+              ud.department_id AS requester_dept_group_id,
+              d.display_name AS requester_dept_group_name,
               d.display_name AS dept_name,
               s.file_path AS paid_slip_path,
               s.mime_type AS paid_slip_mime,
@@ -833,7 +919,8 @@ export async function listPurchaseOrders(actorId?: number) {
        FROM purchase_orders po
        JOIN purchase_requisitions pr ON po.pr_id = pr.id
        JOIN users u ON pr.requester_id = u.id
-       LEFT JOIN perm.roles d ON pr.dept_group_id = d.id
+       LEFT JOIN perm.user_departments ud ON ud.user_id = u.id
+       LEFT JOIN perm.departments d ON d.id = pr.dept_group_id
        LEFT JOIN slips s ON po.settled_slip_id = s.id
        LEFT JOIN users su ON po.settled_by = su.id
        LEFT JOIN users ra ON ra.id = po.rejection_actor_id

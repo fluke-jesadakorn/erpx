@@ -39,7 +39,12 @@ export type WaybillEventKind =
   | 'gl-confirmed-settlement'
   | 'gl-confirmed-sales-vat'
   | 'gl-confirmed-sales-accrual'
-  | 'gl-confirmed-sales-settlement';
+  | 'gl-confirmed-sales-settlement'
+  | 'stage-claimed'
+  | 'stage-released'
+  | 'stage-reassigned'
+  | 'executive-skipped'
+  | 'payment-confirmed';
 
 export interface RecordEventInput {
   waybillId: string;

@@ -1,6 +1,6 @@
 import 'server-only';
 import { query } from '../db';
-import { STAGE_TO_ROLE } from '../perm/stages';
+import { STAGE_TO_ROLE, stageDepartment } from '../perm/stages';
 
 export interface WaybillWatcherRow {
   id: number;
@@ -113,25 +113,23 @@ export async function listWaitingOnForUser(
   const userRes = await query<{ role_id: string; dept_id: string | null; dept_group_id: string | null }>(
     `SELECT COALESCE((
               SELECT ur.role_id FROM perm.user_roles ur
-                WHERE ur.user_id = u.id
-            ORDER BY split_part(ur.role_id, '::', 2)::int ASC NULLS LAST LIMIT 1
+                WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+                LIMIT 1
             ), '') AS role_id,
-            (SELECT split_part(up.permission_id, ':', 3) FROM perm.active_user_permissions up
-               WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-               ORDER BY up.permission_id LIMIT 1) AS dept_id,
-            (SELECT split_part(up.permission_id, ':', 3) FROM perm.active_user_permissions up
-               WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-               ORDER BY up.permission_id LIMIT 1) AS dept_group_id
+            ud.department_id AS dept_id,
+            ud.department_id AS dept_group_id
        FROM users u
+       LEFT JOIN perm.user_departments ud ON ud.user_id = u.id
       WHERE u.id = $1`,
     [userId],
   );
   const user = userRes.rows[0];
   if (!user || !user.role_id) return [];
 
-  const roleName = user.role_id.split('::')[0];
+  const roleName = user.role_id;
   const stages = Object.entries(STAGE_TO_ROLE)
-    .filter(([, roles]) => roles.includes(roleName))
+    .filter(([stage, roles]) => roles.includes(roleName)
+      && (!stageDepartment(stage) || stageDepartment(stage) === user.dept_id))
     .map(([s]) => s);
   if (stages.length === 0) return [];
 
@@ -145,8 +143,11 @@ export async function listWaitingOnForUser(
       WHERE wb.status = 'open'
         AND wb.current_stage = ANY($1::text[])
         AND (
-          wb.current_stage NOT IN ('submission','dept_verification','dept_authorization')
-          OR (sub.dept_group_id IS NOT NULL AND sub.dept_group_id = $2)
+          wb.current_stage NOT IN ('submission','department_approval','dept_verification','dept_authorization')
+          OR EXISTS (
+            SELECT 1 FROM perm.user_departments sud
+             WHERE sud.user_id = sub.id AND sud.department_id = $2
+          )
         )
    ORDER BY wb.updated_at DESC
       LIMIT 100`,

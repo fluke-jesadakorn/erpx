@@ -94,9 +94,8 @@ export async function applySoCoaAction(input: {
 
 export async function canActAtSalesRecording(
   actorPerms: Set<string>,
-  roleName: string,
+  _roleName: string,
 ): Promise<boolean> {
   if (actorPerms.has('admin:system:bypass::allow')) return true;
-  if (actorPerms.has('stage:so_paid:act::allow')) return true;
-  return roleName === 'finance' || roleName === 'cfo' || roleName === 'admin';
+  return actorPerms.has('stage:so_paid:act::allow');
 }

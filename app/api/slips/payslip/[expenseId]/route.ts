@@ -193,7 +193,7 @@ export async function GET(
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
   const session = {
-    user: { id: actor.id, name: actor.fullname, role: actor.role_id ?? 'officer::5' },
+    user: { id: actor.id, name: actor.fullname, role: actor.role_id ?? 'unconfigured' },
     permissions: actor.permissions,
   };
   const subRes = await query<{ submitter_id: number | null }>(`SELECT submitter_id FROM expenses WHERE id = $1`, [id]);

@@ -222,24 +222,20 @@ export const loadUsersAndRoles = cache(async (): Promise<{
   const [usersRes, rolesRes, permsRes, grantsRes] = await Promise.all([
     query<{
       id: number; fullname: string; employee_code: string; is_active: boolean;
-      role_id: string | null; dept_perm: string | null;
+      role_id: string | null; rank: number | null; department_id: string | null;
       role_ids: string[] | null; role_names: string[] | null;
     }>(
       `SELECT u.id, u.fullname, u.employee_code, u.is_active,
               (SELECT ur.role_id FROM perm.user_roles ur
                 WHERE ur.user_id = u.id
-                ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                               WHEN ur.role_id LIKE '%::2' THEN 1
-                               WHEN ur.role_id LIKE '%::3' THEN 2
-                               WHEN ur.role_id LIKE '%::4' THEN 3
-                               WHEN ur.role_id LIKE '%::5' THEN 4
-                               ELSE 5 END), ur.granted_at ASC
+                  AND ur.role_kind = 'hierarchy'
                 LIMIT 1) AS role_id,
-              (SELECT up.permission_id FROM perm.user_permissions up
-                WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                  AND up.revoked_at IS NULL
-                  AND (up.ends_at IS NULL OR up.ends_at > now())
-                ORDER BY up.permission_id LIMIT 1) AS dept_perm,
+              (SELECT r.rank FROM perm.user_roles ur
+                 JOIN perm.roles r ON r.id = ur.role_id AND r.kind = ur.role_kind
+                WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+                LIMIT 1) AS rank,
+              (SELECT ud.department_id FROM perm.user_departments ud
+                WHERE ud.user_id = u.id) AS department_id,
               COALESCE((SELECT array_agg(ur.role_id ORDER BY ur.role_id)
                           FROM perm.user_roles ur WHERE ur.user_id = u.id),
                         ARRAY[]::text[]) AS role_ids,
@@ -253,19 +249,16 @@ export const loadUsersAndRoles = cache(async (): Promise<{
     query<{
       id: string; display_name: string; description: string | null;
       is_system: boolean; sort_order: number; display_name_th: string | null;
-      display_name_de: string | null;
+      display_name_de: string | null; rank: number | null;
     }>(
-      `SELECT id, display_name, description, is_system, sort_order,
-              display_name_th, display_name_de
+      `SELECT id, display_name, description, is_system, sort_order, rank,
+              NULL::text AS display_name_th, NULL::text AS display_name_de
          FROM perm.roles
         ORDER BY is_system DESC, sort_order, id`,
     ),
     query<{ count: string }>(`SELECT COUNT(*)::text AS count FROM perm.permissions`),
     query<{ role_id: string; permission_id: string }>(
       `SELECT role_id, permission_id FROM perm.role_permissions`,
-    ),
-    query<{ role_id: string; count: number }>(
-      `SELECT role_id, COUNT(*)::int AS count FROM perm.user_roles GROUP BY role_id`,
     ),
   ]);
 
@@ -282,18 +275,16 @@ export const loadUsersAndRoles = cache(async (): Promise<{
   )).rows) userCountByRole.set(r.role_id, r.count);
 
   const users: AccessRow[] = usersRes.rows.map((u) => {
-    const parsed = parseRoleId(u.role_id ?? 'officer::5');
-    const deptId = u.dept_perm
-      ? u.dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '')
-      : null;
+    const parsed = u.role_id ? parseRoleId(u.role_id) : null;
+    const deptId = u.department_id;
     return {
       id: u.id, fullname: u.fullname, employee_code: u.employee_code, is_active: u.is_active,
       department: deptId, department_th: deptId, department_de: deptId,
-      dept_id: deptId, dept_group_id: deptId as any,
-      effective_level: parsed?.level ?? 5,
-      role_id: u.role_id, role_name: parsed?.name ?? 'officer',
+      dept_id: deptId,
+      effective_level: u.rank ?? parsed?.level ?? null,
+      role_id: u.role_id, role_name: parsed?.name ?? null,
       perm_role_ids: u.role_ids ?? [], perm_role_names: u.role_names ?? [],
-    } as AccessRow;
+    };
   });
 
   const roles: AccessRole[] = rolesRes.rows.map((r) => {
@@ -303,7 +294,7 @@ export const loadUsersAndRoles = cache(async (): Promise<{
       id: r.id, display_name: r.display_name, description: r.description,
       is_system: r.is_system, sort_order: r.sort_order,
       display_name_th: r.display_name_th, display_name_de: r.display_name_de,
-      level: parsed?.level ?? 0,
+      level: r.rank ?? parsed?.level ?? 0,
       user_count: userCountByRole.get(r.id) ?? 0,
       allow: grants.allow.sort(), deny: grants.deny.sort(),
     };

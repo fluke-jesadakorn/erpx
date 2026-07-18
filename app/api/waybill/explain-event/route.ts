@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   if (!actor) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
-  const session = { user: { id: actor.id, name: actor.fullname, role: actor.role_id ?? 'officer::5' }, permissions: actor.permissions };
+  const session = { user: { id: actor.id, name: actor.fullname, role: actor.role_id ?? 'unconfigured' }, permissions: actor.permissions };
   const allowed = hasPermission(session, 'finance:expense:view_all::allow')
     || hasPermission(session, 'finance:expense:view_own::allow');
   if (!allowed) {

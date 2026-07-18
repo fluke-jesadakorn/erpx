@@ -3,9 +3,10 @@ import Link from 'next/link';
 import { fmtDate, fmtTs } from './ui';
 import { GlVisibilityGate } from './GlVisibilityGate';
 import {
+  approveWaybillAction,
   confirmGlRecordedAction,
-  finalApproveWaybillAction,
   recomputeExpenseDraftGlAction,
+  saveExpenseDraftGlAction,
 } from '@/app/actions/waybill';
 import {
   confirmProcurementGlAction,
@@ -24,6 +25,7 @@ export function ExpenseGlPostConfirm({
   journal,
   canFinalApprove,
   canConfirmGl,
+  canEditDraft,
   isFinalApproval,
   isDisbursed,
   actorCanSeeLines,
@@ -33,6 +35,7 @@ export function ExpenseGlPostConfirm({
   journal: ExpenseJournalView;
   canFinalApprove: boolean;
   canConfirmGl: boolean;
+  canEditDraft: boolean;
   isFinalApproval: boolean;
   isDisbursed: boolean;
   actorCanSeeLines: boolean;
@@ -59,7 +62,7 @@ export function ExpenseGlPostConfirm({
   }
   if (canFinalApprove && isFinalApproval) {
     headerActions.push(
-      <form key="final" action={finalApproveWaybillAction}>
+      <form key="final" action={approveWaybillAction}>
         <input type="hidden" name="waybillId" value={waybillId} />
         <button
           type="submit"
@@ -85,11 +88,6 @@ export function ExpenseGlPostConfirm({
     headerActions.push(
       <form key="confirm" action={confirmGlRecordedAction}>
         <input type="hidden" name="waybillId" value={waybillId} />
-        <input
-          type="hidden"
-          name="expenseId"
-          value={String(journal.draft?.journal_id ?? journal.posted?.journal_id ?? 0)}
-        />
         <button
           type="submit"
           className="inline-flex items-center gap-1.5 rounded-lg bg-caution px-3 py-1.5 text-sm font-bold text-ink hover:bg-caution-strong"
@@ -175,6 +173,45 @@ export function ExpenseGlPostConfirm({
           >
             <LinesTable lines={draft.lines} locale={locale} />
           </GlVisibilityGate>
+          {canEditDraft && actorCanSeeLines && (
+            <form action={saveExpenseDraftGlAction} className="space-y-3 rounded-md border border-info/40 bg-paper-2 p-3">
+              <input type="hidden" name="waybillId" value={waybillId} />
+              <input type="hidden" name="lineCount" value={draft.lines.length} />
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-xs">
+                  <thead>
+                    <tr className="text-left font-mono uppercase tracking-wider text-mute">
+                      <th className="px-2 py-1">Account</th>
+                      <th className="px-2 py-1">Debit</th>
+                      <th className="px-2 py-1">Credit</th>
+                      <th className="px-2 py-1">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {draft.lines.map((line, index) => (
+                      <tr key={`${line.account_code}-${index}`}>
+                        <td className="p-1">
+                          <input name={`accountCode.${index}`} defaultValue={line.account_code} required className="w-28 rounded border border-rule bg-paper px-2 py-1.5 font-mono" />
+                        </td>
+                        <td className="p-1">
+                          <input name={`debit.${index}`} defaultValue={line.debit} type="number" min="0" step="0.01" required className="w-28 rounded border border-rule bg-paper px-2 py-1.5 text-right font-mono" />
+                        </td>
+                        <td className="p-1">
+                          <input name={`credit.${index}`} defaultValue={line.credit} type="number" min="0" step="0.01" required className="w-28 rounded border border-rule bg-paper px-2 py-1.5 text-right font-mono" />
+                        </td>
+                        <td className="p-1">
+                          <input name={`description.${index}`} defaultValue={line.description ?? ''} required className="w-full min-w-64 rounded border border-rule bg-paper px-2 py-1.5" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <button type="submit" className="rounded-md bg-info px-3 py-2 text-sm font-semibold text-paper">
+                Validate and save GL draft
+              </button>
+            </form>
+          )}
         </section>
       )}
 

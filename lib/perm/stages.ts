@@ -18,6 +18,12 @@ export type StageName =
   | 'awaiting_disbursement'
   | 'disbursed'
   | 'rejected'
+  | 'department_approval'
+  | 'accounting_review'
+  | 'accounting_approval'
+  | 'executive_approval'
+  | 'payment'
+  | 'settlement'
   | 'po_pending'
   | 'po_cfo'
   | 'so_draft'
@@ -40,6 +46,12 @@ const CANONICAL_STAGES = new Set<StageName>([
   'awaiting_disbursement',
   'disbursed',
   'rejected',
+  'department_approval',
+  'accounting_review',
+  'accounting_approval',
+  'executive_approval',
+  'payment',
+  'settlement',
   'po_pending',
   'po_cfo',
   'so_draft',
@@ -73,69 +85,69 @@ export function normalizeStage(raw: string | null | undefined): StageName | null
 
 export const STAGE_ORDER: StageName[] = [
   'submission',
-  'dept_verification',
-  'dept_authorization',
-  'accounting_verification',
-  'accounting_supervision',
-  'accounting_authorization',
-  'disbursement_authorization',
-  'cfo_authorization',
-  'ceo_authorization',
+  'department_approval',
+  'accounting_review',
+  'accounting_approval',
+  'executive_approval',
+  'payment',
+  'settlement',
 ];
 
 // Helper: full table; TS narrows on read but legacy keys must still resolve.
 type RoleId =
+  | 'staff'
+  | 'officer'
   | 'supervisor'
   | 'manager'
-  | 'sales_rep'
-  | 'sales_supervisor'
-  | 'account_officer'
-  | 'account_supervisor'
-  | 'accounting_manager'
-  | 'finance'
+  | 'director'
   | 'cfo'
   | 'ceo'
-  | 'admin';
+  | 'system_admin';
 
 // Each stage may be acted on by one or more persona roles. The first entry is
 // the "primary" role (used for chain resolution, labels, owner lookup); any
 // further entries are additional eligible approvers (still subject to
 // dept-scoping where the stage is dept-scoped).
 const rawToRoleMap: Record<string, RoleId[]> = {
+  department_approval:            ['supervisor', 'manager', 'director', 'cfo', 'ceo'],
+  accounting_review:              ['staff', 'officer', 'supervisor', 'manager', 'director'],
+  accounting_approval:            ['supervisor', 'manager', 'director'],
+  executive_approval:             ['cfo', 'ceo'],
+  payment:                        ['staff', 'officer', 'supervisor', 'manager', 'director'],
+  settlement:                     ['staff', 'officer', 'supervisor', 'manager', 'director'],
   submission:                    ['supervisor'],
   dept_verification:             ['supervisor', 'manager'],
   dept_authorization:            ['manager'],
-  accounting_verification:       ['account_officer'],
-  accounting_supervision:        ['account_supervisor'],
-  accounting_authorization:      ['accounting_manager'],
-  disbursement_authorization:    ['finance'],
+  accounting_verification:       ['staff', 'officer', 'supervisor', 'manager', 'director'],
+  accounting_supervision:        ['supervisor', 'manager', 'director'],
+  accounting_authorization:      ['manager', 'director'],
+  disbursement_authorization:    ['staff', 'officer', 'supervisor', 'manager', 'director'],
   cfo_authorization:             ['cfo'],
   ceo_authorization:             ['ceo'],
-  awaiting_disbursement:         ['finance'],
-  disbursed:                     ['finance'],
+  awaiting_disbursement:         ['staff', 'officer', 'supervisor', 'manager', 'director'],
+  disbursed:                     ['staff', 'officer', 'supervisor', 'manager', 'director'],
   // legacy aliases (DB migration renamed them; if anything reads old code-path)
   ocr_extracted:                 ['supervisor'],
   supervisor_review:             ['supervisor'],
   manager_review:                ['manager'],
-  account_officer_review:        ['account_officer'],
-  account_supervisor_review:     ['account_supervisor'],
-  accounting_review:             ['accounting_manager'],
-  finance_review:                ['finance'],
+  account_officer_review:        ['staff', 'officer', 'supervisor', 'manager', 'director'],
+  account_supervisor_review:     ['supervisor', 'manager', 'director'],
+  finance_review:                ['staff', 'officer', 'supervisor', 'manager', 'director'],
   cfo_review:                    ['cfo'],
   ceo_review:                    ['ceo'],
-  approved:                      ['finance'],
-  paid:                          ['finance'],
+  approved:                      ['staff', 'officer', 'supervisor', 'manager', 'director'],
+  paid:                          ['staff', 'officer', 'supervisor', 'manager', 'director'],
   // PO specifics (kept for legacy callers like ProcurementStepper)
   po_pending:                    ['manager'],
   po_cfo:                        ['cfo'],
   pending_approval:              ['cfo'],
   // Sales
-  so_draft:                      ['sales_rep'],
-  so_sales_review:               ['sales_supervisor'],
+  so_draft:                      ['staff', 'officer', 'supervisor', 'manager', 'director'],
+  so_sales_review:               ['supervisor', 'manager', 'director'],
   so_dept_approval:              ['manager'],
-  so_credit_check:               ['accounting_manager'],
-  so_invoiced:                   ['account_officer'],
-  so_paid:                       ['finance'],
+  so_credit_check:               ['manager', 'director'],
+  so_invoiced:                   ['staff', 'officer', 'supervisor', 'manager', 'director'],
+  so_paid:                       ['staff', 'officer', 'supervisor', 'manager', 'director'],
 };
 
 export const STAGE_TO_ROLE: Record<string, readonly string[]> = rawToRoleMap;
@@ -148,7 +160,35 @@ export function stagePrimaryRole(stage: string): string | null {
   return STAGE_TO_ROLE[stage]?.[0] ?? null;
 }
 
+const STAGE_DEPARTMENT: Record<string, string> = {
+  accounting_review: 'accounting',
+  accounting_approval: 'accounting',
+  settlement: 'accounting',
+  accounting_verification: 'accounting',
+  accounting_supervision: 'accounting',
+  accounting_authorization: 'accounting',
+  payment: 'finance',
+  disbursement_authorization: 'finance',
+  awaiting_disbursement: 'finance',
+  disbursed: 'finance',
+  so_draft: 'sales',
+  so_sales_review: 'sales',
+  so_credit_check: 'accounting',
+  so_invoiced: 'accounting',
+  so_paid: 'finance',
+};
+
+export function stageDepartment(stage: string): string | null {
+  return STAGE_DEPARTMENT[stage] ?? null;
+}
+
 const rawToPermMap: Record<string, string> = {
+  department_approval:            'stage:department_approval:act::allow',
+  accounting_review:              'stage:accounting_review:act::allow',
+  accounting_approval:            'stage:accounting_approval:act::allow',
+  executive_approval:             'stage:executive_approval:act::allow',
+  payment:                        'stage:payment:act::allow',
+  settlement:                     'stage:settlement:act::allow',
   submission:                    'stage:submission:act::allow',
   dept_verification:             'stage:dept_verification:act::allow',
   dept_authorization:            'stage:dept_authorization:act::allow',
@@ -167,7 +207,6 @@ const rawToPermMap: Record<string, string> = {
   manager_review:                'stage:dept_authorization:act::allow',
   account_officer_review:        'stage:accounting_verification:act::allow',
   account_supervisor_review:     'stage:accounting_supervision:act::allow',
-  accounting_review:             'stage:accounting_authorization:act::allow',
   finance_review:                'stage:disbursement_authorization:act::allow',
   cfo_review:                    'stage:cfo_authorization:act::allow',
   ceo_review:                    'stage:ceo_authorization:act::allow',

@@ -37,19 +37,13 @@ export async function POST(req: Request) {
   if (!r.rows.length) return NextResponse.json({ error: 'user not found' }, { status: 404 });
 
   const roleRow = await query<{ id: string; name: string }>(
-    `SELECT pr.id, split_part(pr.id, '::', 1) AS name FROM perm.user_roles ur
+    `SELECT pr.id, pr.id AS name FROM perm.user_roles ur
        JOIN perm.roles pr ON pr.id = ur.role_id
-      WHERE ur.user_id = $1
-      ORDER BY (CASE WHEN pr.id LIKE '%::1' THEN 0
-                     WHEN pr.id LIKE '%::2' THEN 1
-                     WHEN pr.id LIKE '%::3' THEN 2
-                     WHEN pr.id LIKE '%::4' THEN 3
-                     WHEN pr.id LIKE '%::5' THEN 4
-                     ELSE 5 END), ur.granted_at ASC
+      WHERE ur.user_id = $1 AND ur.role_kind = 'hierarchy'
       LIMIT 1`,
     [id],
   );
-  const roleName = roleRow.rows[0]?.name || 'officer';
+  const roleName = roleRow.rows[0]?.name || 'unconfigured';
 
   const sid = mintSessionId();
   await query(

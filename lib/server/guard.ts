@@ -6,11 +6,10 @@
 import 'server-only';
 import { query } from '../db';
 import { verifySession, type SessionPayload } from './sessionToken';
-import {
-  matchPerm, parseDeptFromPerms, parseRoleId,
-} from '../perm/grammar';
+import { matchPerm, parseRoleId } from '../perm/grammar';
 import { getActorScope, type ActorScope } from '../perm/scope';
 import { loadDeptPermissionBundles, expandUserPermissions } from '../perm/deptGrant';
+import { authorize } from '../perm/authorize';
 
 export interface SessionActor {
   id: number;
@@ -61,8 +60,8 @@ function enrichActor(a: SessionActor): ActorWithScope {
     isHod: matchPerm(perms, 'user:subtree:edit::allow'),
     isHr: matchPerm(perms, 'tile:directory:view::allow'),
     isHrManager: matchPerm(perms, 'user:role:assign::allow'),
-    isItOrAdmin: role === 'it' || role === 'admin',
-    isCeoOrAdmin: role === 'ceo' || role === 'admin',
+    isItOrAdmin: a.department === 'it' || matchPerm(perms, 'admin:system:bypass::allow'),
+    isCeoOrAdmin: role === 'ceo' || matchPerm(perms, 'admin:system:bypass::allow'),
   };
 }
 
@@ -81,20 +80,22 @@ export async function loadActorRaw(): Promise<SessionActor | null> {
     employee_code: string;
     fullname: string;
     role_id: string | null;
+    rank: number | null;
+    department_id: string | null;
     permissions: string[];
   }>(
     `SELECT u.id, u.employee_code, u.fullname,
        COALESCE((
          SELECT ur.role_id FROM perm.user_roles ur
-          WHERE ur.user_id = u.id
-          ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                         WHEN ur.role_id LIKE '%::2' THEN 1
-                         WHEN ur.role_id LIKE '%::3' THEN 2
-                         WHEN ur.role_id LIKE '%::4' THEN 3
-                         WHEN ur.role_id LIKE '%::5' THEN 4
-                         ELSE 5 END), ur.granted_at ASC
+          WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+          ORDER BY ur.granted_at ASC
           LIMIT 1
-       ), 'officer::5') AS role_id,
+       ), NULL) AS role_id,
+       (SELECT r.rank FROM perm.user_roles ur
+          JOIN perm.roles r ON r.id = ur.role_id
+         WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+         LIMIT 1) AS rank,
+       (SELECT ud.department_id FROM perm.user_departments ud WHERE ud.user_id = u.id) AS department_id,
        COALESCE((
          SELECT array_agg(DISTINCT p_id ORDER BY p_id)
            FROM (
@@ -107,6 +108,15 @@ export async function loadActorRaw(): Promise<SessionActor | null> {
                FROM perm.user_permissions
               WHERE user_id = u.id AND revoked_at IS NULL
                 AND (ends_at IS NULL OR ends_at > now())
+             UNION
+             SELECT dp.permission_id AS p_id
+               FROM perm.user_departments ud
+               JOIN perm.department_permissions dp ON dp.department_id = ud.department_id
+              WHERE ud.user_id = u.id
+             UNION
+             SELECT 'user:dept:' || ud.department_id || '::allow' AS p_id
+               FROM perm.user_departments ud
+              WHERE ud.user_id = u.id
            ) t
        ), ARRAY[]::text[]) AS permissions
       FROM users u
@@ -115,8 +125,8 @@ export async function loadActorRaw(): Promise<SessionActor | null> {
   );
   const row = res.rows[0];
   if (!row) return null;
-  const parsed = parseRoleId(row.role_id ?? 'officer::5');
-  const deptId = parseDeptFromPerms(row.permissions ?? []);
+  const parsed = parseRoleId(row.role_id ?? '');
+  const deptId = row.department_id;
   const bundles = await loadDeptPermissionBundles();
   const base = row.permissions ?? [];
   const expanded = expandUserPermissions(base, bundles);
@@ -126,9 +136,9 @@ export async function loadActorRaw(): Promise<SessionActor | null> {
     fullname: row.fullname,
     department: deptId,
     dept_group_name: deptId,
-    role_id: row.role_id ?? 'officer::5',
-    role_name: parsed?.name ?? 'officer',
-    level: parsed?.level ?? 5,
+    role_id: row.role_id ?? 'unconfigured',
+    role_name: parsed?.name ?? 'unconfigured',
+    level: row.rank ?? parsed?.level ?? 99,
     dept_id: deptId,
     permissions: Array.from(expanded),
   };
@@ -156,7 +166,7 @@ async function currentToken(): Promise<string | null> {
 }
 
 export function requireTab(actor: ActorWithScope, tab: string): void {
-  if (actor.role_name === 'it' || actor.role_name === 'admin') return;
+  if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return;
   const permByTab: Record<string, string> = {
     workbench: 'tile:inbox:view::allow',
     pr: 'tile:pr:view::allow',
@@ -188,10 +198,20 @@ export async function requireAction(
   _actionName: string,
   opts: RequireActionOpts = {},
 ): Promise<RequireActionResult> {
-  if (opts.perm) {
-    if (!matchPerm(actor.permissions, opts.perm)) {
-      throw new GuardError(`missing permission "${opts.perm}"`, 403);
-    }
+  if (opts.stage || opts.perm) {
+    const decision = await authorize(
+      {
+        id: actor.id,
+        permissions: actor.permissions,
+        deptId: actor.dept_id,
+        level: actor.level,
+        roleName: actor.role_name,
+      },
+      opts.stage
+        ? { kind: 'stage', stage: opts.stage }
+        : { kind: 'perm', perm: opts.perm as string },
+    );
+    if (!decision.allow) throw new GuardError(decision.reason, 403);
   }
   return { allowed: true, override: false };
 }

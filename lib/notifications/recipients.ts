@@ -151,16 +151,22 @@ async function lookupRefOwner(refType: string | null, refId: number | null): Pro
 }
 
 async function lookupSupervisor(userId: number): Promise<number | null> {
-  const r = await query<{ head_user_id: number | null }>(
-    `SELECT parent.head_user_id
-       FROM perm.user_roles ur
-       JOIN perm.roles own ON own.id = ur.role_id
-       LEFT JOIN perm.roles parent ON parent.id = own.parent_role_id
-      WHERE ur.user_id = $1
-        AND own.is_system = false
-      ORDER BY split_part(ur.role_id, '::', 2)::int ASC, ur.granted_at ASC
-      LIMIT 1`,
+  const r = await query<{ supervisor_id: number | null }>(
+    `SELECT COALESCE(
+       d.head_user_id,
+       (SELECT ur.user_id
+          FROM perm.user_departments peer
+          JOIN perm.user_roles ur ON ur.user_id = peer.user_id AND ur.role_kind = 'hierarchy'
+          JOIN perm.roles r ON r.id = ur.role_id AND r.kind = ur.role_kind
+          JOIN users u ON u.id = peer.user_id AND u.is_active IS TRUE
+         WHERE peer.department_id = own.department_id AND peer.user_id <> $1
+         ORDER BY r.rank ASC, ur.granted_at ASC
+         LIMIT 1)
+     ) AS supervisor_id
+       FROM perm.user_departments own
+       JOIN perm.departments d ON d.id = own.department_id
+      WHERE own.user_id = $1`,
     [userId],
   );
-  return r.rows[0]?.head_user_id ?? null;
+  return r.rows[0]?.supervisor_id ?? null;
 }

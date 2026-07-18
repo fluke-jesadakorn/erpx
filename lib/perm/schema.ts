@@ -1,16 +1,15 @@
 // perm row shapes — match perm.* tables exactly (post string-grammar rebuild).
 
 export interface Role {
-  id: string;            // '<name>::<level>' e.g. 'manager::3'
+  id: string;
   display_name: string;
   description: string | null;
+  kind: 'hierarchy' | 'system';
+  rank: number | null;
   is_system: boolean;
   sort_order: number;
-  parent_role_id: string | null;
-  display_name_th: string | null;
-  display_name_de: string | null;
-  monthly_budget: number;
-  head_user_id: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Permission {
@@ -20,6 +19,7 @@ export interface Permission {
 
 export interface RolePermission {
   role_id: string;
+  role_kind: 'hierarchy' | 'system';
   permission_id: string;
   granted_at: string;
   granted_by: string;
@@ -28,6 +28,7 @@ export interface RolePermission {
 export interface UserRole {
   user_id: number;
   role_id: string;
+  role_kind: 'hierarchy' | 'system';
   granted_at: string;
 }
 

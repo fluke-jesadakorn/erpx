@@ -59,6 +59,11 @@ function qualifierOf(perm: string): string | null {
 }
 
 async function loadUserDept(userId: number, permSet: Set<string>): Promise<string | null> {
+  const r = await query<{ department_id: string }>(
+    `SELECT department_id FROM perm.user_departments WHERE user_id = $1`,
+    [userId],
+  );
+  if (r.rows[0]) return r.rows[0].department_id;
   const fromPerms = parseDeptFromPerms(permSet);
   if (fromPerms) return fromPerms;
   return null;
@@ -66,13 +71,7 @@ async function loadUserDept(userId: number, permSet: Set<string>): Promise<strin
 
 async function loadDeptSubtree(deptId: string): Promise<string[]> {
   const { rows } = await query<{ id: string }>(
-    `WITH RECURSIVE tree AS (
-       SELECT id FROM perm.roles WHERE id = $1
-       UNION
-       SELECT child.id FROM perm.roles child
-        JOIN tree t ON child.parent_role_id = t.id
-     )
-     SELECT id FROM tree`,
+    `SELECT id FROM perm.departments WHERE id = $1`,
     [deptId],
   );
   return rows.map((r) => r.id);

@@ -7,7 +7,7 @@ export interface UserForWiring {
   employee_code: string;
   fullname: string;
   role_name: string;
-  dept_id: number | null;
+  dept_id: string | null;
   dept_code: string | null;
   dept_name: string | null;
   level: number;
@@ -108,50 +108,30 @@ export async function loadAllUsersForWiring(): Promise<UserForWiring[]> {
   const r = await query(
     `SELECT u.id, u.employee_code, u.fullname,
             u.is_active,
-            COALESCE((
-              SELECT split_part(ur.role_id, '::', 2)::int
-                FROM perm.user_roles ur
-               WHERE ur.user_id = u.id
-               ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                              WHEN ur.role_id LIKE '%::2' THEN 1
-                              WHEN ur.role_id LIKE '%::3' THEN 2
-                              WHEN ur.role_id LIKE '%::4' THEN 3
-                              WHEN ur.role_id LIKE '%::5' THEN 4
-                              ELSE 5 END), ur.granted_at ASC
-               LIMIT 1
-            ), 5) AS level,
+            COALESCE((SELECT pr.rank FROM perm.user_roles ur
+                       JOIN perm.roles pr ON pr.id = ur.role_id AND pr.kind = ur.role_kind
+                      WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+                      LIMIT 1), 99) AS level,
             (SELECT ur.role_id FROM perm.user_roles ur
-              WHERE ur.user_id = u.id
-              ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                             WHEN ur.role_id LIKE '%::2' THEN 1
-                             WHEN ur.role_id LIKE '%::3' THEN 2
-                             WHEN ur.role_id LIKE '%::4' THEN 3
-                             WHEN ur.role_id LIKE '%::5' THEN 4
-                             ELSE 5 END), ur.granted_at ASC
+              WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
               LIMIT 1) AS role_id,
-            (SELECT up.permission_id FROM perm.user_permissions up
-              WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS dept_perm
+            (SELECT ud.department_id FROM perm.user_departments ud
+              WHERE ud.user_id = u.id) AS dept_id
        FROM users u
-       ORDER BY COALESCE(
-         (SELECT split_part(ur.role_id, '::', 2)::int FROM perm.user_roles ur
-           WHERE ur.user_id = u.id LIMIT 1), 5), u.id`
+       ORDER BY level, u.id`
   );
   return r.rows.map((row: any) => {
-    const deptRaw: string | null = row.dept_perm ?? null;
-    const deptId = deptRaw ? deptRaw.replace(/^user:dept:/, '').replace(/::allow$/, '') : null;
-    const roleName = row.role_id ? row.role_id.split('::')[0] : null;
+    const deptId: string | null = row.dept_id ?? null;
+    const roleName = row.role_id ?? null;
     return {
       id: row.id,
       employee_code: row.employee_code,
       fullname: row.fullname,
       role_name: roleName,
-      dept_id: deptId as any,
+      dept_id: deptId,
       dept_code: null,
       dept_name: deptId,
-      level: typeof row.level === 'number' ? row.level : 5,
+      level: typeof row.level === 'number' ? row.level : 99,
       reports_to_user_id: null,
       is_active: row.is_active,
     };
@@ -198,7 +178,7 @@ export async function proposeAutoWire(): Promise<AutoWireProposal> {
 
   const eligibleParents = new Set<number>([root.id, ...proposedWires.keys()]);
 
-  for (const lv of [1, 2, 3, 4, 5]) {
+  for (const lv of [1, 2, 3, 4, 5, 6, 7, 99]) {
     const tier = byLevel.get(lv) ?? [];
     for (const u of tier) {
       if (u.id === root.id) continue;

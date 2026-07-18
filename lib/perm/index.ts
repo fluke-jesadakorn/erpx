@@ -6,7 +6,7 @@ export * from './schema';
 export * from './session';
 export { PERM, DOMAINS, type Domain } from './taxonomy';
 export {
-  STAGE_ORDER, STAGE_TO_ROLE, STAGE_TO_PERM, stageRoles, stagePrimaryRole, type StageName,
+  STAGE_ORDER, STAGE_TO_ROLE, STAGE_TO_PERM, stageRoles, stagePrimaryRole, stageDepartment, type StageName,
 } from './stages';
 export {
   hasPermission,

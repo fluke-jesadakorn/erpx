@@ -27,6 +27,12 @@ export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<'cash' | 'credit_card' | 'transfer'>('transfer');
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [amount, setAmount] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [payee, setPayee] = useState('');
+  const [reference, setReference] = useState('');
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -42,6 +48,7 @@ export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels
       fd.set('expenseId', String(expenseId));
       fd.set('slipId', String(slipId));
       fd.set('paymentMethod', method);
+      fd.set('paymentDate', paymentDate);
       const res = await attachPaymentSlipAction(fd);
       if (!res.ok) {
          setError(res.error ?? 'waybill.settle.attachFailed');
@@ -73,7 +80,17 @@ export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels
           <SlipUpload
             kind="receipt"
             currentUserId={0}
-            onSlipReady={(id) => setSlipId(id)}
+            onSlipReady={(id, _kind, parsed) => {
+              setSlipId(id);
+              if (parsed.transactionDate) setPaymentDate(parsed.transactionDate);
+              if (parsed.totalAmount != null) setAmount(String(parsed.totalAmount));
+              if (parsed.bankName) setBankName(parsed.bankName);
+              if (parsed.accountNumber) setAccountNumber(parsed.accountNumber);
+              if (parsed.payee || parsed.accountName || parsed.vendorName) {
+                setPayee(parsed.payee ?? parsed.accountName ?? parsed.vendorName ?? '');
+              }
+              if (parsed.reference) setReference(parsed.reference);
+            }}
             hideSubmitButton
             initialModels={visionModels}
           />
@@ -108,6 +125,33 @@ export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels
         >
            {busy ? <T id="waybill.settle.posting" /> : <T id="waybill.settle.confirmDisbursement" />}
         </button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="text-xs font-mono uppercase tracking-wider text-info">
+          Payment date
+          <input name="paymentDate" type="date" required value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="mt-1 w-full rounded-md border border-rule bg-paper px-3 py-2 text-ink" />
+        </label>
+        <label className="text-xs font-mono uppercase tracking-wider text-info">
+          Confirmed amount (THB)
+          <input name="amount" type="number" min="0.01" step="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} className="mt-1 w-full rounded-md border border-rule bg-paper px-3 py-2 text-ink" />
+        </label>
+        <label className="text-xs font-mono uppercase tracking-wider text-info">
+          Bank or cash account
+          <input name="bankName" required placeholder="Bank name or Cash" value={bankName} onChange={(e) => setBankName(e.target.value)} className="mt-1 w-full rounded-md border border-rule bg-paper px-3 py-2 text-ink" />
+        </label>
+        <label className="text-xs font-mono uppercase tracking-wider text-info">
+          Account number
+          <input name="accountNumber" placeholder="Optional" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} className="mt-1 w-full rounded-md border border-rule bg-paper px-3 py-2 text-ink" />
+        </label>
+        <label className="text-xs font-mono uppercase tracking-wider text-info">
+          Payee
+          <input name="payee" required value={payee} onChange={(e) => setPayee(e.target.value)} className="mt-1 w-full rounded-md border border-rule bg-paper px-3 py-2 text-ink" />
+        </label>
+        <label className="text-xs font-mono uppercase tracking-wider text-info">
+          Payment reference
+          <input name="reference" required value={reference} onChange={(e) => setReference(e.target.value)} className="mt-1 w-full rounded-md border border-rule bg-paper px-3 py-2 text-ink" />
+        </label>
       </div>
 
       {error && (

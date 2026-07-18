@@ -85,18 +85,12 @@ function rowToEmployee(r: EmployeeDBRow): EmployeeRow {
 const USER_SELECT = `
   SELECT u.id, u.employee_code, u.line_user_id,
          u.fullname        AS name,
-         u.dept_label      AS department,
+         COALESCE(d.display_name, u.dept_label) AS department,
          u.position,
          COALESCE(u.position, '') AS job_description,
          COALESCE((
            SELECT ur.role_id FROM perm.user_roles ur
-            WHERE ur.user_id = u.id
-            ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                           WHEN ur.role_id LIKE '%::2' THEN 1
-                           WHEN ur.role_id LIKE '%::3' THEN 2
-                           WHEN ur.role_id LIKE '%::4' THEN 3
-                           WHEN ur.role_id LIKE '%::5' THEN 4
-                           ELSE 5 END), ur.granted_at ASC
+            WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
             LIMIT 1
          ), 'staff') AS role,
          u.quota_sick       AS total_sick_leave,
@@ -107,6 +101,8 @@ const USER_SELECT = `
          u.used_personal    AS used_personal_leave,
          u.created_at::text
     FROM folio.users u
+    LEFT JOIN perm.user_departments ud ON ud.user_id = u.id
+    LEFT JOIN perm.departments d ON d.id = ud.department_id
 `;
 
 export async function listEmployees(): Promise<EmployeeRow[]> {
@@ -120,9 +116,8 @@ export async function listHRUsers(): Promise<HRUserOption[]> {
   const r = await query<EmployeeDBRow>(
     `${USER_SELECT}
       WHERE EXISTS (
-        SELECT 1 FROM perm.user_roles ur
-         WHERE ur.user_id = u.id
-           AND (ur.role_id LIKE 'hr\\_%' ESCAPE '\\' OR ur.role_id = 'hr_manager::3')
+        SELECT 1 FROM perm.user_departments hud
+         WHERE hud.user_id = u.id AND hud.department_id = 'hr'
       )
       ORDER BY u.fullname ASC`,
   );

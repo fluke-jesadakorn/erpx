@@ -9,7 +9,7 @@ import { loadWaybill } from '@/waybill/queries';
 import { loadActor, type ActorWithScope } from '@/server/guard';
 import { hasPermission } from '@folio-lib/perm/server';
 import { PERM } from '@folio-lib/perm/taxonomy';
-import { STAGE_TO_PERM, stageRoles } from '@/perm';
+import { STAGE_TO_PERM } from '@/perm';
 import {
   upsertSalesDraftVat,
   upsertSalesDraftAccrual,
@@ -52,9 +52,7 @@ async function requireActor(): Promise<ActorWithScope> {
 function canActOnSalesStage(actor: ActorWithScope, stage: string): boolean {
   if (hasPermission(actor, PERM.admin.system.bypass)) return true;
   const stagePerm = STAGE_TO_PERM[stage];
-  if (stagePerm && hasPermission(actor, stagePerm)) return true;
-  const roles = stageRoles(stage);
-  return roles.includes(actor.role_name);
+  return !!stagePerm && hasPermission(actor, stagePerm);
 }
 
 export async function submitSalesOrderAction(formData: FormData): Promise<void> {

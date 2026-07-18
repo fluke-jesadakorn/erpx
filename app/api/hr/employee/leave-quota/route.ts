@@ -139,9 +139,9 @@ export async function POST(req: Request) {
     const hrRes = await query<{ name: string }>(
       `SELECT u.fullname AS name
          FROM folio.users u
-         JOIN perm.user_roles ur ON ur.user_id = u.id
+         JOIN perm.user_departments ud ON ud.user_id = u.id
         WHERE u.id = $1
-          AND (ur.role_id LIKE 'hr\\_%' ESCAPE '\\' OR ur.role_id = 'hr_manager::3')
+          AND ud.department_id = 'hr'
         LIMIT 1`,
       [hrId],
     );

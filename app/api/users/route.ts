@@ -21,49 +21,38 @@ export async function GET(req: NextRequest) {
   const params: unknown[] = [];
   const where: string[] = [];
   if (!includeInactive) where.push('u.is_active=TRUE');
-  if (filterDeptId || filterRole) {
-    where.push(`EXISTS (
-      SELECT 1 FROM perm.user_permissions up
-       WHERE up.user_id = u.id AND up.revoked_at IS NULL
-         AND (up.ends_at IS NULL OR up.ends_at > now())
-         ${filterDeptId ? `AND up.permission_id = $${params.length + 1}` : ''}
-         ${filterRole ? `AND up.permission_id LIKE '%' || $${params.length + (filterDeptId ? 2 : 1)} || '%'` : ''}
-    )`);
-    if (filterDeptId) params.push(`user:dept:${filterDeptId}::allow`);
-    if (filterRole) params.push(filterRole);
+  if (filterDeptId) {
+    params.push(filterDeptId);
+    where.push(`ud.department_id = $${params.length}`);
+  }
+  if (filterRole) {
+    params.push(filterRole);
+    where.push(`ur.role_id = $${params.length}`);
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const r = await query(
     `SELECT u.id, u.employee_code, u.fullname, u.is_active,
             u.line_user_id, u.created_at, u.hired_at,
-            (SELECT up.permission_id FROM perm.user_permissions up
-              WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS dept_perm,
-            (SELECT ur.role_id FROM perm.user_roles ur
-              WHERE ur.user_id = u.id
-              ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                             WHEN ur.role_id LIKE '%::2' THEN 1
-                             WHEN ur.role_id LIKE '%::3' THEN 2
-                             WHEN ur.role_id LIKE '%::4' THEN 3
-                             WHEN ur.role_id LIKE '%::5' THEN 4
-                             ELSE 5 END), ur.granted_at ASC
-              LIMIT 1) AS role_id
+            ud.department_id,
+            ur.role_id,
+            pr.rank
        FROM users u
+       LEFT JOIN perm.user_departments ud ON ud.user_id = u.id
+       LEFT JOIN perm.user_roles ur ON ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+       LEFT JOIN perm.roles pr ON pr.id = ur.role_id AND pr.kind = ur.role_kind
        ${whereSql}
        ORDER BY u.id`,
     params,
   );
   const users = r.rows.map((row: any) => {
-    const parsed = parseRoleId(row.role_id ?? 'officer::5');
-    const deptId = row.dept_perm ? row.dept_perm.replace(/^user:dept:/, '').replace(/::allow$/, '') : null;
+    const parsed = parseRoleId(row.role_id ?? '');
+    const deptId = row.department_id ?? null;
     return {
       ...row,
-      role_name: parsed?.name ?? 'officer',
+      role_name: parsed?.name ?? 'unconfigured',
       role_id: row.role_id,
-      level: parsed?.level ?? 5,
+      level: row.rank ?? parsed?.level ?? 99,
       dept_id: deptId,
       dept_group_name: deptId,
       dept_group_id: deptId,

@@ -60,7 +60,7 @@ export interface ReceiptUploadProps {
     status: string;
     waybillId?: string;
   }) => void;
-  onSlipReady?: (slipId: number, kind: 'receipt') => void;
+  onSlipReady?: (slipId: number, kind: 'receipt', parsed: ParsedFields) => void;
   onSlipDiscarded?: (slipId: number, kind: 'receipt') => void;
   onSubmitStateChange?: (state: SubmitState) => void;
   onDraftStarted?: (info: { waybillId: string; expenseId: number }) => void;
@@ -98,7 +98,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
       kind: 'receipt',
       initialModels,
       currentUserId,
-      onSlipReady: (id) => onSlipReady?.(id, 'receipt'),
+      onSlipReady: (id, _kind, parsed) => onSlipReady?.(id, 'receipt', parsed),
       onSlipDiscarded: (id) => onSlipDiscarded?.(id, 'receipt'),
     });
     const [vendor, setVendor] = useState('');

@@ -41,20 +41,20 @@ async function fetchActor(actorId: number) {
   const r = await query<{
     id: number;
     role_id: string | null;
+    rank: number | null;
+    department_id: string | null;
     permissions: string[];
   }>(
     `SELECT u.id,
-       COALESCE((
-         SELECT ur.role_id FROM perm.user_roles ur
-          WHERE ur.user_id = u.id
-          ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                         WHEN ur.role_id LIKE '%::2' THEN 1
-                         WHEN ur.role_id LIKE '%::3' THEN 2
-                         WHEN ur.role_id LIKE '%::4' THEN 3
-                         WHEN ur.role_id LIKE '%::5' THEN 4
-                         ELSE 5 END), ur.granted_at ASC
-          LIMIT 1
-       ), 'officer::5') AS role_id,
+       (SELECT ur.role_id FROM perm.user_roles ur
+         WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+         LIMIT 1) AS role_id,
+       (SELECT pr.rank FROM perm.user_roles ur
+         JOIN perm.roles pr ON pr.id = ur.role_id AND pr.kind = ur.role_kind
+        WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+        LIMIT 1) AS rank,
+       (SELECT ud.department_id FROM perm.user_departments ud
+         WHERE ud.user_id = u.id) AS department_id,
        COALESCE((
          SELECT array_agg(DISTINCT p_id ORDER BY p_id)
            FROM (
@@ -67,6 +67,11 @@ async function fetchActor(actorId: number) {
                FROM perm.user_permissions
               WHERE user_id = u.id AND revoked_at IS NULL
                 AND (ends_at IS NULL OR ends_at > now())
+             UNION
+             SELECT dp.permission_id AS p_id
+               FROM perm.user_departments ud
+               JOIN perm.department_permissions dp ON dp.department_id = ud.department_id
+              WHERE ud.user_id = u.id
            ) t
        ), ARRAY[]::text[]) AS permissions
       FROM users u WHERE u.id = $1`,
@@ -79,17 +84,17 @@ async function fetchActor(actorId: number) {
 async function loadActorScope(actorId: number): Promise<UserScopeResult> {
   const actor = await fetchActor(actorId);
   const perms = actor.permissions ?? [];
-  const parsed = parseRoleId(actor.role_id ?? 'officer::5');
-  const role_name = parsed?.name ?? 'officer';
-  const level = parsed?.level ?? 5;
-  const dept_id = parseDeptFromPerms(perms);
+  const parsed = parseRoleId(actor.role_id ?? '');
+  const role_name = parsed?.name ?? 'unconfigured';
+  const level = actor.rank ?? parsed?.level ?? 99;
+  const dept_id = actor.department_id ?? parseDeptFromPerms(perms);
 
   const isHrManager = matchPerm(perms, 'user:role:assign::allow') || matchPerm(perms, 'user:dept:edit::allow');
   const isHr = matchPerm(perms, 'tile:directory:view::allow');
   const isHod = matchPerm(perms, 'user:subtree:edit::allow');
 
   return {
-    actor: { id: actor.id, role_id: actor.role_id ?? 'officer::5', role_name, level, dept_id },
+    actor: { id: actor.id, role_id: actor.role_id ?? 'unconfigured', role_name, level, dept_id },
     permissions: perms,
     isHrManager,
     isHr,
@@ -132,19 +137,10 @@ export async function loadOrgTree(actorId: number): Promise<OrgNode[]> {
   }>(
     `SELECT u.id, u.fullname, u.employee_code, u.is_active,
             (SELECT ur.role_id FROM perm.user_roles ur
-              WHERE ur.user_id = u.id
-              ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                            WHEN ur.role_id LIKE '%::2' THEN 1
-                            WHEN ur.role_id LIKE '%::3' THEN 2
-                            WHEN ur.role_id LIKE '%::4' THEN 3
-                            WHEN ur.role_id LIKE '%::5' THEN 4
-                            ELSE 5 END), ur.granted_at ASC
+              WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
               LIMIT 1) AS role_id,
-            (SELECT up.permission_id FROM perm.user_permissions up
-              WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS dept_id
+            (SELECT ud.department_id FROM perm.user_departments ud
+              WHERE ud.user_id = u.id) AS dept_id
        FROM users u
        ORDER BY u.id`,
   );
@@ -160,15 +156,15 @@ export async function loadOrgTree(actorId: number): Promise<OrgNode[]> {
 
   const nodes = new Map<number, OrgNode>();
   for (const u of userRows.rows) {
-    const parsed = parseRoleId(u.role_id ?? 'officer::5');
+    const parsed = parseRoleId(u.role_id ?? '');
     nodes.set(u.id, {
       id: u.id,
       fullname: u.fullname,
       employee_code: u.employee_code,
       role_id: u.role_id,
-      role_name: parsed?.name ?? 'officer',
-      level: parsed?.level ?? 5,
-      dept_id: u.dept_id ? u.dept_id.replace(/^user:dept:/, '').replace(/::allow$/, '') : null,
+      role_name: parsed?.name ?? 'unconfigured',
+      level: parsed?.level ?? 99,
+      dept_id: u.dept_id,
       dept_name: null,
       is_active: u.is_active,
       children: [],
@@ -199,13 +195,13 @@ export async function getUserLevels(): Promise<Map<number, number>> {
   const r = await query<{ id: number; role_id: string | null }>(
     `SELECT u.id,
             (SELECT ur.role_id FROM perm.user_roles ur
-              WHERE ur.user_id = u.id LIMIT 1) AS role_id
+              WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy' LIMIT 1) AS role_id
        FROM users u`,
   );
   const levels = new Map<number, number>();
   for (const row of r.rows) {
-    const parsed = parseRoleId(row.role_id ?? 'officer::5');
-    levels.set(row.id, parsed?.level ?? 5);
+    const parsed = parseRoleId(row.role_id ?? '');
+    levels.set(row.id, parsed?.level ?? 99);
   }
   return levels;
 }
@@ -214,6 +210,7 @@ export async function getUserStaffLevels(): Promise<Map<number, number>> {
   const r = await query<{ user_id: number; role_ids: string[] | null }>(
     `SELECT ur.user_id, array_agg(ur.role_id) AS role_ids
        FROM perm.user_roles ur
+      WHERE ur.role_kind = 'hierarchy'
       GROUP BY ur.user_id`,
   );
   const out = new Map<number, number>();

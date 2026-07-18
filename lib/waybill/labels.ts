@@ -57,17 +57,12 @@ export const EXPENSE_STAGES: WaybillDomainPips = {
   title_th: EXPENSE_LABEL,
   pips: [
     pip('submission', 'waybill.stage.submission', 'waybill.stage.submissionDescription', '📤', 'submission'),
-    pip('dept_verification', 'waybill.stage.deptVerification', 'waybill.stage.deptVerificationDescription', '👥', 'verification'),
-    pip('dept_authorization', 'waybill.stage.deptAuthorization', 'waybill.stage.deptAuthorizationDescription', '🛡️', 'authorization'),
-    pip('accounting_verification', 'waybill.stage.accountingVerification', 'waybill.stage.accountingVerificationDescription', '🧾', 'verification'),
-    pip('accounting_supervision', 'waybill.stage.accountingSupervision', 'waybill.stage.accountingSupervisionDescription', '🧮', 'verification'),
-    pip('accounting_authorization', 'waybill.stage.accountingAuthorization', 'waybill.stage.accountingAuthorizationDescription', '⚙️', 'authorization'),
-    pip('disbursement_authorization', 'waybill.stage.disbursementAuthorization', 'waybill.stage.disbursementAuthorizationDescription', '💰', 'authorization'),
-    pip('cfo_authorization', 'waybill.stage.cfoAuthorization', 'waybill.stage.cfoAuthorizationDescription', '👑', 'authorization'),
-    pip('ceo_authorization', 'waybill.stage.ceoAuthorization', 'waybill.stage.ceoAuthorizationDescription', '🦅', 'authorization'),
-    pip('awaiting_disbursement', 'waybill.stage.awaitingDisbursement', 'waybill.stage.awaitingDisbursementDescription', '✅', 'disbursement'),
-    pip('disbursed', 'waybill.stage.disbursed', 'waybill.stage.disbursedDescription', '💳', 'closed'),
-    pip('rejected', 'waybill.stage.rejected', 'waybill.stage.rejectedDescription', '❌', 'closed'),
+    pip('department_approval', 'waybill.stage.departmentApproval', 'waybill.stage.departmentApprovalDescription', '🛡️', 'authorization'),
+    pip('accounting_review', 'waybill.stage.accountingReview', 'waybill.stage.accountingReviewDescription', '🧾', 'verification'),
+    pip('accounting_approval', 'waybill.stage.accountingApproval', 'waybill.stage.accountingApprovalDescription', '⚖️', 'authorization'),
+    pip('executive_approval', 'waybill.stage.executiveApproval', 'waybill.stage.executiveApprovalDescription', '👑', 'authorization'),
+    pip('payment', 'waybill.stage.payment', 'waybill.stage.paymentDescription', '💳', 'disbursement'),
+    pip('settlement', 'waybill.stage.settlement', 'waybill.stage.settlementDescription', '📚', 'closed'),
   ],
 };
 

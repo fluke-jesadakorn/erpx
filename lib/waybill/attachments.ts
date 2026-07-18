@@ -40,6 +40,7 @@ export interface RecordAttachmentInput {
   actorId: number;
   actorRole: string;
   caption?: string | null;
+  client?: typeof query;
 }
 
 export async function recordAttachment(input: RecordAttachmentInput): Promise<WaybillAttachmentRow> {
@@ -50,7 +51,8 @@ export async function recordAttachment(input: RecordAttachmentInput): Promise<Wa
   }
   if (input.byteSize < 0) throw new Error('byteSize must be >= 0');
 
-  const inserted = await query<WaybillAttachmentRow>(
+  const q = input.client ?? query;
+  const inserted = await q<WaybillAttachmentRow>(
     `INSERT INTO waybill_attachments (
        waybill_id, stage_key, kind, storage_key,
        filename, content_type, byte_size,
@@ -73,6 +75,7 @@ export async function recordAttachment(input: RecordAttachmentInput): Promise<Wa
   const row = inserted.rows[0];
 
   await recordEvent({
+    client: q,
     waybillId: input.waybillId,
     kind: 'attached',
     stageFrom: null,

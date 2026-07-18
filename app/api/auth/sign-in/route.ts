@@ -37,17 +37,9 @@ export async function POST(req: Request) {
 
   const r = await query<{ id: number; fullname: string; role_id: string | null }>(
     `SELECT u.id, u.fullname,
-            COALESCE((
-              SELECT ur.role_id FROM perm.user_roles ur
-               WHERE ur.user_id = u.id
-               ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
-                              WHEN ur.role_id LIKE '%::2' THEN 1
-                              WHEN ur.role_id LIKE '%::3' THEN 2
-                              WHEN ur.role_id LIKE '%::4' THEN 3
-                              WHEN ur.role_id LIKE '%::5' THEN 4
-                              ELSE 5 END), ur.granted_at ASC
-               LIMIT 1
-            ), 'officer::5') AS role_id
+            (SELECT ur.role_id FROM perm.user_roles ur
+              WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+              LIMIT 1) AS role_id
        FROM users u
       WHERE u.id = $1`,
     [id],
@@ -55,7 +47,7 @@ export async function POST(req: Request) {
   if (!r.rows.length) return NextResponse.json({ error: 'user not found' }, { status: 404 });
 
   const row = r.rows[0];
-  const roleId = row.role_id ?? 'officer::5';
+  const roleId = row.role_id ?? 'unconfigured';
   const { rows: permRows } = await query<{ permission_id: string }>(
     `SELECT DISTINCT p_id AS permission_id FROM (
         SELECT rp.permission_id AS p_id
@@ -67,6 +59,15 @@ export async function POST(req: Request) {
           FROM perm.user_permissions
          WHERE user_id = $1 AND revoked_at IS NULL
            AND (ends_at IS NULL OR ends_at > now())
+        UNION
+        SELECT dp.permission_id AS p_id
+          FROM perm.user_departments ud
+          JOIN perm.department_permissions dp ON dp.department_id = ud.department_id
+         WHERE ud.user_id = $1
+        UNION
+        SELECT 'user:dept:' || ud.department_id || '::allow' AS p_id
+          FROM perm.user_departments ud
+         WHERE ud.user_id = $1
      ) t
      ORDER BY p_id`,
     [row.id],

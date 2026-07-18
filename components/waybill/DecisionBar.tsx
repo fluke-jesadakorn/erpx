@@ -7,6 +7,7 @@ import { AiRecommendChip } from './AiRecommendChip';
 import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 import { T } from '@/components/i18n/T';
 import { CircleDot, Download } from 'lucide-react';
+import { claimExpenseStageAction } from '@/app/actions/waybill';
 
 interface Props {
   waybillId: string;
@@ -30,6 +31,12 @@ interface Props {
   canPostSalesGlSettlement?: boolean;
   canConfirmSalesGl?: boolean;
   actorRole: string | null;
+  claim?: {
+    claimedBy: number | null;
+    claimedByName: string | null;
+    isMine: boolean;
+    canClaim: boolean;
+  } | null;
 }
 
 export function DecisionBar({
@@ -54,6 +61,7 @@ export function DecisionBar({
   canPostSalesGlSettlement,
   canConfirmSalesGl,
   actorRole,
+  claim,
 }: Props) {
   const locale = useSecondaryLocale();
   void _status;
@@ -108,6 +116,25 @@ export function DecisionBar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {claim?.canClaim ? (
+            <form action={claimExpenseStageAction}>
+              <input type="hidden" name="waybillId" value={waybillId} />
+              <button
+                type="submit"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-positive/55 bg-positive px-3 py-1.5 text-sm font-bold text-paper hover:bg-positive-strong"
+              >
+                Claim task
+              </button>
+            </form>
+          ) : claim?.isMine ? (
+            <span className="rounded-lg border border-positive/45 bg-positive-soft px-3 py-1.5 text-sm font-bold text-positive">
+              Claimed by you
+            </span>
+          ) : claim?.claimedBy ? (
+            <span className="rounded-lg border border-caution/45 bg-caution-soft px-3 py-1.5 text-sm text-caution">
+              Claimed by {claim.claimedByName ?? `user #${claim.claimedBy}`}
+            </span>
+          ) : null}
           <a
             href={`/api/waybill/${waybillId}/attachments/file?key=waybill-attachments/${waybillId}/combined&include=mockups`}
             target="_blank"

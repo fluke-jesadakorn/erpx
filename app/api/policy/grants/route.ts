@@ -55,12 +55,23 @@ export async function PUT(req: Request) {
       const sig = e.significance && Object.prototype.hasOwnProperty.call(e.significance, p)
         ? !!e.significance[p]
         : e.target_kind === 'department';
-      await query(
-        `INSERT INTO ${table} (${keyCol}, permission_id, significance, granted_by)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT DO NOTHING`,
-        [e.target_id, p, sig, actor],
-      );
+      if (e.target_kind === 'role') {
+        await query(
+          `INSERT INTO perm.role_permissions
+             (role_id, role_kind, permission_id, significance, granted_by)
+           SELECT id, kind, $2, $3, $4 FROM perm.roles WHERE id = $1
+           ON CONFLICT DO NOTHING`,
+          [e.target_id, p, sig, actor],
+        );
+      } else {
+        await query(
+          `INSERT INTO perm.department_permissions
+             (department_id, permission_id, significance, granted_by)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT DO NOTHING`,
+          [e.target_id, p, sig, actor],
+        );
+      }
     }
     summary.push({ kind: e.target_kind, id: e.target_id, added: added.length, removed: removed.length });
 

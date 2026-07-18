@@ -32,6 +32,7 @@ import { DecisionBar } from '@/components/waybill/DecisionBar';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { T } from '@/components/i18n/TServer';
+import { authorizeExpenseStage, loadExpenseFlowContext, type ExpenseActor } from '@/waybill/expenseFlow';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,12 +46,8 @@ function asString(v: string | string[] | undefined): string | null {
   return v ?? null;
 }
 
-function isRecallRole(roleName: string): boolean {
-  return roleName === 'cfo' || roleName === 'ceo' || roleName === 'finance' || roleName === 'admin';
-}
-
-function isFinalApproveStage(stage: string): boolean {
-  return stage === 'accounting_authorization';
+function isRejectedStage(stage: string): boolean {
+  return stage === 'rejected';
 }
 
 export default async function WaybillDetail({ params, searchParams }: PageProps) {
@@ -73,7 +70,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
 
   const action = asString(sp.action);
 
-  const [approversByStage, actedUsersByStage, visionModels, locale, expensePicture, events, integrity] = await Promise.all([
+  const [approversByStage, actedUsersByStage, visionModels, locale, expensePicture, events, integrity, openClaim] = await Promise.all([
     loadApproversByStage(wb.id),
     loadActedUsersByStage(wb.id),
     loadVisionModels(),
@@ -81,6 +78,14 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
     wb.origin === 'expense' ? loadExpenseFullPicture(wb.origin_id) : Promise.resolve(null),
     loadWaybillEvents(wb.id),
     verifyEventChain(wb.id),
+    wb.origin === 'expense'
+      ? query<{ claimed_by: number; fullname: string }>(
+          `SELECT c.claimed_by, u.fullname
+             FROM waybill_stage_claims c JOIN users u ON u.id = c.claimed_by
+            WHERE c.waybill_id = $1 AND c.stage = $2 AND c.released_at IS NULL`,
+          [wb.id, wb.current_stage],
+        ).then((res) => res.rows[0] ?? null)
+      : Promise.resolve(null),
   ]);
 
   const stage = wb.current_stage;
@@ -102,19 +107,11 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
   ].includes(stage);
   let sameDeptAsSubmitter = true;
   if (isDeptScopedUiStage && wb.submitter_id) {
-    const submitterDeptRes = await query<{ permission_id: string | null }>(
-      `SELECT permission_id FROM perm.user_permissions
-        WHERE user_id = $1
-          AND permission_id LIKE 'user:dept:%'
-          AND revoked_at IS NULL
-          AND (ends_at IS NULL OR ends_at > now())
-        ORDER BY permission_id LIMIT 1`,
+    const submitterDeptRes = await query<{ department_id: string | null }>(
+      `SELECT department_id FROM perm.user_departments WHERE user_id = $1`,
       [wb.submitter_id],
     );
-    const pid = submitterDeptRes.rows[0]?.permission_id ?? null;
-    const submitterDept = pid
-      ? pid.replace(/^user:dept:/, '').replace(/::allow$/, '')
-      : null;
+    const submitterDept = submitterDeptRes.rows[0]?.department_id ?? null;
     sameDeptAsSubmitter = !!actor.dept_id && actor.dept_id === submitterDept;
   }
   const hasStageAll = perms.includes(`stage:${stage}:act:all::allow`);
@@ -123,37 +120,40 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
   const submitterFallback = actor.id === wb.submitter_id
     && stage === 'submission'
     && hasPermission(session.session, PERM.finance.expense.create);
-  const canAct = hasPermission(session.session, PERM.admin.system.bypass)
+  let canAct = hasPermission(session.session, PERM.admin.system.bypass)
     || hasStageAll
     || (hasStageScoped && (isCrossDeptUiStage || sameDeptAsSubmitter))
-    || submitterFallback
-    || actor.role_name === 'cfo'
-    || actor.role_name === 'ceo'
-    || actor.role_name === 'admin';
+    || submitterFallback;
+  if (wb.origin === 'expense' && !isRejectedStage(stage)) {
+    const flow = await loadExpenseFlowContext(wb.id);
+    const flowActor: ExpenseActor = {
+      id: actor.id,
+      permissions: actor.permissions,
+      deptId: actor.dept_id,
+      departmentId: actor.dept_id,
+      level: actor.level,
+      rank: actor.level,
+      roleName: actor.role_name,
+    };
+    canAct = (await authorizeExpenseStage(flowActor, flow)).allow;
+  }
+  const claimable = ['accounting_review', 'payment', 'settlement'].includes(stage);
+  const claimMine = !openClaim || openClaim.claimed_by === actor.id;
+  const canActNow = canAct && (!claimable || (!!openClaim && claimMine));
   const canAttach = hasPermission(session.session, 'finance:waybill:attach::allow')
     || (actor.id === wb.submitter_id && stage === 'submission' && hasPermission(session.session, PERM.finance.expense.create));
-  const canSettle = stage === 'awaiting_disbursement'
-    && hasPermission(session.session, PERM.finance.expense.settle);
-  const canFinalApprove = isFinalApproveStage(stage)
-    && hasPermission(session.session, PERM.finance.expense.approve);
-  const canConfirmGl = stage === 'disbursed'
-    && hasPermission(session.session, 'finance:gl:confirm::allow');
+  const canSettle = stage === 'payment' && canActNow;
+  const canFinalApprove = stage === 'accounting_approval' && canActNow;
+  const canConfirmGl = stage === 'settlement' && canActNow;
   const canReCall = !['disbursed', 'rejected'].includes(stage)
-    && isRecallRole(actor.role_name);
-  const canSaveAccrual = hasPermission(session.session, 'finance:pr:edit::allow');
-  const canPostAccrual = stage === 'accounting_authorization'
-    && hasPermission(session.session, 'finance:gl:post::allow');
-  const canPostSettlement = stage === 'disbursed'
-    && hasPermission(session.session, 'finance:gl:post::allow');
-  const canReject = !['disbursed', 'gl_confirmed', 'rejected'].includes(stage)
     && (hasPermission(session.session, PERM.admin.system.bypass)
-      || actor.role_name === 'cfo'
-      || actor.role_name === 'ceo'
-      || actor.role_name === 'admin'
-      || actor.role_name === 'finance'
-      || actor.role_name === 'account_officer'
-      || actor.role_name === 'account_supervisor'
-      || actor.role_name === 'accounting_manager');
+      || (wb.origin === 'expense'
+        ? hasPermission(session.session, PERM.finance.expense.override)
+        : hasPermission(session.session, PERM.finance.pr.override_approve)));
+  const canSaveAccrual = hasPermission(session.session, 'finance:pr:edit::allow');
+  const canPostAccrual = stage === 'accounting_review' && canActNow;
+  const canPostSettlement = stage === 'settlement' && canActNow;
+  const canReject = !['settlement', 'completed', 'rejected'].includes(stage) && canActNow;
 
   const isRejected = wb.status === 'rejected';
   const rejectionEvent = ctx.events.find((e) => e.kind === 'rejected') ?? null;
@@ -271,11 +271,17 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             canFinalApprove={canFinalApprove}
             canSettle={canSettle}
             canConfirmGl={canConfirmGl}
-            isFinalApproval={wb.current_stage === 'accounting_authorization'}
-            isAwaitingDisbursement={wb.current_stage === 'awaiting_disbursement'}
-            isDisbursed={wb.current_stage === 'disbursed'}
+            isFinalApproval={wb.current_stage === 'accounting_approval'}
+            isAwaitingDisbursement={wb.current_stage === 'payment'}
+            isDisbursed={wb.current_stage === 'settlement'}
             isRejected={isRejected}
             actorRole={actor.role_id}
+            claim={claimable ? {
+              claimedBy: openClaim?.claimed_by ?? null,
+              claimedByName: openClaim?.fullname ?? null,
+              isMine: openClaim?.claimed_by === actor.id,
+              canClaim: canAct && !openClaim,
+            } : null}
           />
 
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -300,7 +306,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             attachments={ctx.attachments}
             amountTHB={wb.total_amount ? Number(wb.total_amount) : null}
             locale={locale}
-            canAct={canAct && !isRejected}
+            canAct={canActNow && !isRejected}
             canAttach={canAttach && !isRejected}
             canSettle={canSettle}
             canFinalApprove={canFinalApprove}
@@ -347,7 +353,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
               originId={wb.origin_id}
               visionModels={visionModels}
               actions={{
-                canAct,
+                canAct: canActNow,
                 canAttach,
                 canSettle,
                 canFinalApprove,
@@ -361,8 +367,8 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
               }}
               flags={{
                 isSubmitter: actor.id === wb.submitter_id,
-                isFinalApproval: wb.current_stage === 'accounting_authorization',
-                isDisbursed: wb.current_stage === 'disbursed',
+                isFinalApproval: wb.current_stage === 'accounting_approval',
+                isDisbursed: wb.current_stage === 'settlement',
               }}
               rejection={{
                 reason: rejectionReason,

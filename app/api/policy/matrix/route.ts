@@ -12,14 +12,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const STAGE_PERMS: string[] = [
-  PERM.stage.dept_verification.act,
-  PERM.stage.dept_authorization.act,
-  PERM.stage.accounting_verification.act,
-  PERM.stage.accounting_supervision.act,
-  PERM.stage.accounting_authorization.act,
-  PERM.stage.disbursement_authorization.act,
-  PERM.stage.cfo_authorization.act,
-  PERM.stage.ceo_authorization.act,
+  PERM.stage.department_approval.act,
+  PERM.stage.accounting_review.act,
+  PERM.stage.accounting_approval.act,
+  PERM.stage.executive_approval.act,
+  PERM.stage.payment.act,
+  PERM.stage.settlement.act,
 ];
 
 export async function GET(_req: Request) {
@@ -32,12 +30,11 @@ export async function GET(_req: Request) {
     id: string;
     display_name: string;
     sort_order: number;
-    level: number;
+    rank: number | null;
   }>(
-    `SELECT id, display_name, sort_order,
-            split_part(id, '::', 2)::int AS level
+    `SELECT id, display_name, sort_order, rank
        FROM perm.roles
-      ORDER BY sort_order, display_name`,
+      ORDER BY rank NULLS LAST, sort_order, display_name`,
   );
 
   const grantsRes = await query<{ role_id: string; permission_id: string }>(

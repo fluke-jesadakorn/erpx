@@ -7,15 +7,20 @@
 import 'server-only';
 import { query } from '../db';
 import type { StageName } from './stages';
-import { STAGE_ORDER, normalizeStage, stagePrimaryRole, stageRoles } from './stages';
+import { STAGE_ORDER, normalizeStage, stageDepartment, stagePrimaryRole, stageRoles } from './stages';
 import { levelOf, roleNameOf } from './grammar';
 
 export { STAGE_TO_ROLE, STAGE_TO_PERM, normalizeStage, stageRoles, stagePrimaryRole } from './stages';
 export type { StageName } from './stages';
 export { STAGE_ORDER } from './stages';
 
-const OVERRIDE_ROLE_NAMES = new Set(['cfo', 'ceo', 'admin']);
+const OVERRIDE_ROLE_NAMES = new Set(['cfo', 'ceo', 'system_admin']);
 const CROSS_DEPT_STAGES = new Set<string>([
+  'accounting_review',
+  'accounting_approval',
+  'executive_approval',
+  'payment',
+  'settlement',
   'accounting_verification',
   'accounting_supervision',
   'accounting_authorization',
@@ -29,6 +34,7 @@ const ALREADY_APPROVED_DEPT_KEYS = new Set<string>([
   'supervisor_review',
   'dept_verification',
   'dept_authorization',
+  'department_approval',
 ]);
 
 export interface ApproverCheck {
@@ -57,30 +63,22 @@ export interface ActorCtx {
 
 async function findApprover(
   roleName: string,
-  deptId: string,
+  deptId: string | null,
 ): Promise<{ user_id: number | null; level: number } | null> {
-  // Match any role-id whose name part equals `roleName` (e.g. 'manager' → 'manager::3').
   const r = await query<{ user_id: number | null; level: number | null }>(
     `SELECT ur.user_id,
-            MIN(CASE
-              WHEN ur.role_id ~ '\\m[0-9]+$'
-                THEN split_part(ur.role_id, '::', 2)::int
-              ELSE 5
-            END) AS level
+            MIN(pr.rank) AS level
        FROM perm.user_roles ur
+       JOIN perm.roles pr ON pr.id = ur.role_id AND pr.kind = 'hierarchy'
        JOIN users u ON u.id = ur.user_id
-      WHERE split_part(ur.role_id, '::', 1) = $1
+       LEFT JOIN perm.user_departments ud ON ud.user_id = u.id
+      WHERE ur.role_id = $1
         AND u.is_active IS NOT FALSE
-        AND EXISTS (
-          SELECT 1 FROM perm.user_permissions up
-           WHERE up.user_id = u.id
-             AND up.permission_id = $2
-             AND up.revoked_at IS NULL
-        )
+        AND ($2::text IS NULL OR ud.department_id = $2)
       GROUP BY ur.user_id
       ORDER BY level ASC NULLS LAST
       LIMIT 1`,
-    [roleName, `user:dept:${deptId}::allow`],
+    [roleName, deptId],
   );
   if (r.rows.length === 0) return null;
   const row = r.rows[0];
@@ -100,16 +98,8 @@ export async function resolveApprovalChain(
 }> {
   const chain: ApproverCheck[] = [];
   const hasAmount = typeof totalAmount === 'number' && Number.isFinite(totalAmount);
-  const needCeo = hasAmount && (totalAmount as number) >= CEO_ESCALATION_THRESHOLD_THB;
-  const skipCeo = hasAmount && !needCeo;
-
-  const withCeo: StageName[] = needCeo
-    ? STAGE_ORDER.flatMap((s) =>
-        s === 'cfo_authorization' ? (['cfo_authorization', 'ceo_authorization'] as StageName[]) : [s],
-      )
-    : skipCeo
-    ? STAGE_ORDER.filter((s) => s !== 'ceo_authorization')
-    : STAGE_ORDER;
+  const needCeo = hasAmount && (totalAmount as number) > CEO_ESCALATION_THRESHOLD_THB;
+  const withCeo = STAGE_ORDER.filter((stage) => stage !== 'executive_approval' || needCeo);
 
   const seen = new Set<StageName>();
   const dynamicOrder: StageName[] = [];
@@ -124,8 +114,9 @@ export async function resolveApprovalChain(
     if (!roleName) continue;
     let userId: number | null = null;
     let approverLevel = 5;
-    if (ctx.submitterDeptId) {
-      const assignee = await findApprover(roleName, ctx.submitterDeptId);
+    const targetDept = stage === 'executive_approval' ? null : stageDepartment(stage) ?? ctx.submitterDeptId;
+    if (targetDept || stage === 'executive_approval') {
+      const assignee = await findApprover(roleName, targetDept);
       userId = assignee?.user_id ?? null;
       approverLevel = assignee?.level ?? 5;
     }
@@ -181,7 +172,7 @@ export async function canActOnStage(
       return { allow: false, reason: `Stage "${stage}" requires same department as submitter` };
     }
   }
-  if (actor.level > submitter.submitterLevel) {
+  if (!CROSS_DEPT_STAGES.has(stage) && actor.level > submitter.submitterLevel) {
     return {
       allow: false,
       reason: `Actor level ${actor.level} is below submitter level ${submitter.submitterLevel}`,
@@ -221,10 +212,19 @@ export function resolveNextStage(
     if (idx < 0 || idx >= salesOrder.length - 1) return null;
     return { stage: salesOrder[idx + 1], completed: false };
   }
+  if (domain === 'procurement') {
+    const order = ['submission', 'dept_authorization', 'accounting_authorization', 'cfo_authorization', 'disbursed'];
+    const idx = order.indexOf(currentStage);
+    if (idx < 0 || idx >= order.length - 1) return null;
+    return { stage: order[idx + 1], completed: false };
+  }
   const norm = normalizeStage(currentStage);
   if (!norm) return null;
   const idx = STAGE_ORDER.indexOf(norm);
-  if (idx < 0 || idx >= STAGE_ORDER.length - 1) return { stage: 'awaiting_disbursement', completed: true };
+  if (idx < 0 || idx >= STAGE_ORDER.length - 1) return { stage: 'settlement', completed: true };
+  if (norm === 'accounting_approval' && (_amount ?? 0) <= CEO_ESCALATION_THRESHOLD_THB) {
+    return { stage: 'payment', completed: false };
+  }
   return { stage: STAGE_ORDER[idx + 1], completed: false };
 }
 

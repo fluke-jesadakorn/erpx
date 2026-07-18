@@ -32,8 +32,7 @@ export async function switchActor(formData: FormData): Promise<{ ok: boolean; us
   const r = await query<{ id: number; fullname: string; role_id: string | null }>(
     `SELECT u.id, u.fullname,
             (SELECT ur.role_id FROM perm.user_roles ur
-              WHERE ur.user_id = u.id
-              ORDER BY split_part(ur.role_id, '::', 2)::int ASC NULLS LAST
+              WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
               LIMIT 1) AS role_id
        FROM users u
       WHERE u.id = $1`,
@@ -41,7 +40,7 @@ export async function switchActor(formData: FormData): Promise<{ ok: boolean; us
   );
   if (!r.rows.length) throw new Error('user not found');
 
-  const roleName = r.rows[0].role_id ?? 'officer';
+  const roleName = r.rows[0].role_id ?? 'unconfigured';
 
   const c = await cookies();
   const prevTok = c.get(SESSION_COOKIE)?.value ?? null;

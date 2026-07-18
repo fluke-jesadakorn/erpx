@@ -24,6 +24,7 @@ interface Props {
   canEdit: boolean;
   canAssign: boolean;
   flash?: { kind: 'ok' | 'err'; code: string; meta?: Record<string, string> } | null;
+  view?: 'assignment' | 'roles' | 'departments';
 }
 
 function Badge({ children, tone }: { children: React.ReactNode; tone: 'positive' | 'caution' | 'critical' | 'info' | 'neutral' }) {
@@ -62,7 +63,7 @@ function flashCopy(code: string, meta?: Record<string, string>): { tone: 'positi
   }
 }
 
-export async function PolicyAdmin({ targets, users, canEdit, canAssign, flash }: Props) {
+export async function PolicyAdmin({ targets, users, canEdit, canAssign, flash, view = 'assignment' }: Props) {
   const locale = await getSecondaryLocale();
   const flashMsg = flash ? flashCopy(flash.code, flash.meta) : null;
   const roles = targets.filter((t) => t.kind === 'role');
@@ -94,40 +95,46 @@ export async function PolicyAdmin({ targets, users, canEdit, canAssign, flash }:
         ) : null}
       </header>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        <CreateRoleForm canEdit={canEdit} />
-        <CreateDepartmentForm canEdit={canEdit} />
-        <AssignUserForm users={sortedUsers} departments={sortedDepts} roles={sortedRoles} canAssign={canAssign} />
-      </div>
+      {view === 'assignment' ? (
+        <div className="max-w-2xl">
+          <AssignUserForm users={sortedUsers} departments={sortedDepts} roles={sortedRoles} canAssign={canAssign} />
+        </div>
+      ) : view === 'roles' ? (
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,420px)_1fr] gap-4">
+          <CreateRoleForm canEdit={canEdit} />
+          <TargetList
+            title="Roles"
+            empty="No roles yet."
+            canDelete={canEdit}
+            rows={sortedRoles.map((r) => ({
+              id: r.id,
+              label: r.label,
+              meta: `${r.role_kind ?? 'role'}${r.rank ? ` · rank ${r.rank}` : ''} · ${r.member_count} members`,
+              kind: 'role',
+              protected: r.is_seed_persona || r.is_system,
+              action: deleteRoleAction,
+            }))}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,420px)_1fr] gap-4">
+          <CreateDepartmentForm canEdit={canEdit} />
+          <TargetList
+            title="Departments"
+            empty="No departments yet."
+            canDelete={canEdit}
+            rows={sortedDepts.map((d) => ({
+              id: d.id,
+              label: d.label,
+              meta: `${d.member_count} members`,
+              kind: 'department',
+              protected: d.is_system,
+              action: deleteDepartmentAction,
+            }))}
+          />
+        </div>
+      )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <TargetList
-          title="Departments"
-          empty="No departments yet."
-          canDelete={canEdit}
-          rows={sortedDepts.map((d) => ({
-            id: d.id,
-            label: d.label,
-            meta: `${d.member_count} member${d.member_count === 1 ? '' : 's'}`,
-            kind: 'department',
-            protected: false,
-            action: deleteDepartmentAction,
-          }))}
-        />
-        <TargetList
-          title="Specific roles"
-          empty="No roles yet."
-          canDelete={canEdit}
-          rows={sortedRoles.map((r) => ({
-            id: r.id,
-            label: r.label,
-            meta: `${r.member_count} member${r.member_count === 1 ? '' : 's'}`,
-            kind: 'role',
-            protected: r.is_seed_persona || r.is_system,
-            action: deleteRoleAction,
-          }))}
-        />
-      </div>
     </section>
   );
 }
@@ -181,8 +188,14 @@ async function CreateRoleForm({ canEdit }: { canEdit: boolean }) {
       <FieldShell label="display name">
         <input name="display_name" required placeholder="Regional supervisor" className={inputCls()} />
       </FieldShell>
-      <FieldShell label="level (1–10)" hint="1 = highest authority">
-        <input name="level" type="number" min={1} max={10} defaultValue={5} className={inputCls()} />
+      <FieldShell label="kind">
+        <select name="kind" defaultValue="hierarchy" className={inputCls()}>
+          <option value="hierarchy">Hierarchy</option>
+          <option value="system">System</option>
+        </select>
+      </FieldShell>
+      <FieldShell label="rank (1–7)" hint="1 = highest authority; ignored for system roles">
+        <input name="rank" type="number" min={1} max={7} defaultValue={7} className={inputCls()} />
       </FieldShell>
       <button type="submit" disabled={!canEdit} className={btnPrimary(!canEdit)}>
         <T id="policy.admin.create" locale={locale} hideSecondary />
@@ -238,17 +251,26 @@ async function AssignUserForm({
           ))}
         </select>
       </FieldShell>
-      <FieldShell label="department (one only)" hint="Single department per user">
-        <select name="dept" className={inputCls()} defaultValue="__none__">
-          <option value="__none__">— none —</option>
+      <FieldShell label="department" hint="Exactly one department per configured user">
+        <select name="department_id" required className={inputCls()} defaultValue="">
+          <option value="">— pick department —</option>
           {departments.map((d) => (
             <option key={d.id} value={d.id}>{d.label} · {d.id}</option>
           ))}
         </select>
       </FieldShell>
-      <FieldShell label="roles (multi)">
-        <select name="roles" multiple size={Math.min(6, Math.max(4, roles.length))} className={inputCls('h-auto')}>
-          {roles.map((r) => (
+      <FieldShell label="hierarchy role">
+        <select name="hierarchy_role_id" required className={inputCls()} defaultValue="">
+          <option value="">— pick hierarchy role —</option>
+          {roles.filter((r) => r.role_kind === 'hierarchy').map((r) => (
+            <option key={r.id} value={r.id}>{r.label} · {r.id}</option>
+          ))}
+        </select>
+      </FieldShell>
+      <FieldShell label="system role" hint="Optional; one maximum">
+        <select name="system_role_id" className={inputCls()} defaultValue="">
+          <option value="">— none —</option>
+          {roles.filter((r) => r.role_kind === 'system').map((r) => (
             <option key={r.id} value={r.id}>{r.label} · {r.id}</option>
           ))}
         </select>
@@ -266,7 +288,7 @@ interface TargetRow {
   meta: string;
   kind: 'role' | 'department';
   protected: boolean;
-  action: (formData: FormData) => Promise<never>;
+  action: (formData: FormData) => Promise<void>;
 }
 
 function TargetList({

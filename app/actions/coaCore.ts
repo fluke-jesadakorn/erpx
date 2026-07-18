@@ -31,9 +31,6 @@ function canActAtAccountingReview(
   if (hasPermission(actor, PERM.admin.system.bypass)) return true;
   if (hasPermission(actor, `stage:${current_stage}:act::allow`)) return true;
   if (hasPermission(actor, `stage:${current_stage}:act:all::allow`)) return true;
-  if (actor.role_name === 'cfo' || actor.role_name === 'ceo' || actor.role_name === 'admin') {
-    return true;
-  }
   return false;
 }
 

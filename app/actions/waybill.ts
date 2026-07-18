@@ -16,13 +16,23 @@ import { PERM } from '@folio-lib/perm/taxonomy';
 import { loadActor, type ActorWithScope } from '@/server/guard';
 import { ensureGlForExpense, ensurePoForExpense as ensurePoForExpenseWithClient } from '@/waybill/ensureArtifacts';
 import { ensurePoPdf } from '@/finance/poPdf';
-import { upsertDraftJournal, finalizeDraftJournal, setExpenseJournalEntry } from '@/finance/postExpenseToGL';
+import { upsertDraftJournal, finalizeDraftJournal, saveDraftJournalLines, setExpenseJournalEntry, validateJournalLines, type DraftGlLine } from '@/finance/postExpenseToGL';
 import { upsertProcurementDraftAccrual } from '@/finance/postProcurementToGL';
 import { pipsForDomain } from '@/waybill/derive';
 import {
+  assertExpenseClaim,
+  authorizeExpenseStage,
+  claimExpenseStage,
+  loadExpenseFlowContext,
+  nextExpenseStage,
+  reassignExpenseClaim,
+  releaseExpenseClaim,
+  type ExpenseActor,
+} from '@/waybill/expenseFlow';
+import { ensureExpensePaymentDocument } from '@/finance/expenseDocument';
+import { aiInvoke } from '@/ai/router';
+import {
   actorForWaybill,
-  canConfirmGl,
-  canSaveProcurementAccrual,
   type WbForCheck,
 } from './_helpers';
 
@@ -45,18 +55,11 @@ const CROSS_DEPT_STAGES = new Set<string>([
 
 async function submitterDeptId(wb: WbForCheck): Promise<string | null> {
   if (!wb.submitter_id) return null;
-  const r = await _query<{ permission_id: string | null }>(
-    `SELECT permission_id FROM perm.user_permissions
-      WHERE user_id = $1
-        AND permission_id LIKE 'user:dept:%'
-        AND revoked_at IS NULL
-        AND (ends_at IS NULL OR ends_at > now())
-      ORDER BY permission_id LIMIT 1`,
+  const r = await _query<{ department_id: string | null }>(
+    `SELECT department_id FROM perm.user_departments WHERE user_id = $1`,
     [wb.submitter_id],
   );
-  const pid = r.rows[0]?.permission_id;
-  if (!pid) return null;
-  return pid.replace(/^user:dept:/, '').replace(/::allow$/, '');
+  return r.rows[0]?.department_id ?? null;
 }
 
 async function canActOnWaybillStage(actor: ActorWithScope, wb: WbForCheck): Promise<boolean> {
@@ -74,21 +77,6 @@ async function canActOnWaybillStage(actor: ActorWithScope, wb: WbForCheck): Prom
     }
     return true;
   }
-  if (actor.role_name === 'cfo' || actor.role_name === 'ceo' || actor.role_name === 'admin') {
-    return true;
-  }
-  if (wb.origin === 'so' && stage === 'so_dept_approval' && actor.role_name === 'manager') {
-    return true;
-  }
-  if (wb.origin === 'so' && stage === 'so_sales_review' && actor.role_name === 'sales_supervisor') {
-    return true;
-  }
-  if (wb.origin === 'so' && stage === 'so_credit_check' && actor.role_name === 'accounting_manager') {
-    return true;
-  }
-  if (wb.origin === 'so' && stage === 'so_invoiced' && actor.role_name === 'account_officer') {
-    return true;
-  }
   if (actor.id === wb.submitter_id && stage === 'submission' && hasPermission(actor, PERM.finance.expense.create)) {
     return true;
   }
@@ -98,20 +86,25 @@ async function canActOnWaybillStage(actor: ActorWithScope, wb: WbForCheck): Prom
 
 function canRecall(actor: ActorWithScope, wb: WbForCheck): boolean {
   if (hasPermission(actor, PERM.admin.system.bypass)) return true;
-  return ['cfo', 'ceo', 'finance', 'admin'].includes(actor.role_name) && !['disbursed', 'gl_confirmed', 'rejected'].includes(wb.current_stage);
+  if (['disbursed', 'gl_confirmed', 'rejected'].includes(wb.current_stage)) return false;
+  return wb.origin === 'expense'
+    ? hasPermission(actor, PERM.finance.expense.override)
+    : hasPermission(actor, PERM.finance.pr.override_approve);
 }
 
 function canRejectWaybill(actor: ActorWithScope, wb: WbForCheck): boolean {
   if (['disbursed', 'gl_confirmed', 'rejected'].includes(wb.current_stage)) return false;
   if (hasPermission(actor, PERM.admin.system.bypass)) return true;
-  return ['cfo', 'ceo', 'admin', 'finance', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
+  if (wb.origin === 'po') return hasPermission(actor, PERM.finance.po.reject);
+  if (wb.origin === 'pr') return hasPermission(actor, PERM.finance.pr.approve);
+  return hasPermission(actor, PERM.finance.expense.approve);
 }
 
 function canFinalApproveExpense(actor: ActorWithScope, wb: WbForCheck): boolean {
   if (!['accounting_authorization', 'final_authorization'].includes(wb.current_stage)) return false;
   if (hasPermission(actor, PERM.finance.expense.approve)) return true;
   if (hasPermission(actor, PERM.finance.expense.settle)) {
-    return ['finance', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
+    return actor.dept_id === 'finance' || actor.dept_id === 'accounting';
   }
   return false;
 }
@@ -133,12 +126,123 @@ function canAttachAtStage(actor: ActorWithScope, wb: WbForCheck): boolean {
 
 function canRemoveAttachment(actor: ActorWithScope): boolean {
   if (hasPermission(actor, PERM.admin.system.bypass)) return true;
-  return actor.role_name === 'cfo' || actor.role_name === 'ceo' || actor.role_name === 'admin';
+  return hasPermission(actor, PERM.finance.expense.override)
+    || hasPermission(actor, PERM.finance.pr.override_approve);
 }
 const ApproveForm = z.object({
   waybillId: z.string().regex(/^WB-\d{4}-\d{6}$/),
   stage: z.string().min(1).max(64).optional(),
 });
+
+function expenseActor(actor: ActorWithScope): ExpenseActor {
+  return {
+    id: actor.id,
+    permissions: actor.permissions,
+    deptId: actor.dept_id,
+    departmentId: actor.dept_id,
+    level: actor.level,
+    rank: actor.level,
+    roleName: actor.role_name,
+  };
+}
+
+async function approveExpenseWaybill(actor: ActorWithScope, wb: WbForCheck): Promise<void> {
+  const ctx = await loadExpenseFlowContext(wb.id);
+  const decision = await authorizeExpenseStage(expenseActor(actor), ctx);
+  if (!decision.allow) throw new Error(decision.reason);
+  if (ctx.stage === 'payment' || ctx.stage === 'settlement') {
+    throw new Error(`${ctx.stage} requires its dedicated human confirmation action`);
+  }
+  if (ctx.stage === 'accounting_review') {
+    await assertExpenseClaim(actor.id, wb.id, 'accounting_review');
+    const draft = await _query<{ id: number }>(
+      `SELECT id FROM journal_entries
+        WHERE expense_id = $1 AND step = 'accrual' AND is_draft IS TRUE
+        ORDER BY id DESC LIMIT 1`,
+      [ctx.expenseId],
+    );
+    if (!draft.rows[0]) throw new Error('Ask AI or enter a balanced accrual draft before submitting review');
+    const lines = await _query<DraftGlLine>(
+      `SELECT account_code, debit::float8 AS debit, credit::float8 AS credit,
+              COALESCE(description, '') AS description
+         FROM ledger_lines WHERE journal_entry_id = $1 ORDER BY id`,
+      [draft.rows[0].id],
+    );
+    await validateJournalLines(lines.rows);
+    await _query(`UPDATE journal_entries SET prepared_by = $2 WHERE id = $1`, [draft.rows[0].id, actor.id]);
+  }
+  let journalId: number | null = null;
+  const next = nextExpenseStage(ctx.stage, ctx.amount);
+  if (!next || next === 'completed') throw new Error(`No approval transition from ${ctx.stage}`);
+  await withTransaction(async (q) => {
+    const locked = await q<{ current_stage: string }>(
+      `SELECT current_stage FROM waybills WHERE id = $1 FOR UPDATE`,
+      [wb.id],
+    );
+    if (locked.rows[0]?.current_stage !== ctx.stage) {
+      throw new Error('Expense stage changed; refresh and try again');
+    }
+    if (ctx.stage === 'accounting_approval') {
+      const finalized = await finalizeDraftJournal({
+        expenseId: ctx.expenseId,
+        actorId: actor.id,
+        step: 'accrual',
+        client: q as typeof _query,
+      });
+      if (!finalized) throw new Error('A reviewed and balanced accrual draft is required');
+      journalId = finalized.journalId;
+    }
+    await q(
+      `UPDATE expenses SET status = $1, journal_entry_id = COALESCE($2, journal_entry_id), updated_at = now()
+        WHERE id = $3`,
+      [next, journalId, ctx.expenseId],
+    );
+    await q(
+      `UPDATE waybills
+          SET current_stage = $1, current_owner_role = $1,
+              current_owner_user_id = NULL, updated_at = now()
+        WHERE id = $2 AND current_stage = $3`,
+      [next, wb.id, ctx.stage],
+    );
+    await q(
+      `UPDATE waybill_stage_claims
+          SET released_at = now(), released_by = $2, release_reason = 'stage completed'
+        WHERE waybill_id = $1 AND stage = $3 AND released_at IS NULL`,
+      [wb.id, actor.id, ctx.stage],
+    );
+    if (ctx.stage === 'accounting_approval' && next === 'payment') {
+      await recordEvent({
+        waybillId: wb.id,
+        kind: 'executive-skipped',
+        stageFrom: 'accounting_approval',
+        stageTo: 'payment',
+        actorId: actor.id,
+        actorRole: actor.role_name,
+        payload: { amount: ctx.amount, thresholdTHB: 200000 },
+        client: q as never,
+      });
+    }
+    await recordEvent({
+      waybillId: wb.id,
+      kind: ctx.stage === 'accounting_approval' ? 'posted-to-gl-accrual' : 'advanced',
+      stageFrom: ctx.stage,
+      stageTo: next,
+      actorId: actor.id,
+      actorRole: actor.role_name,
+      payload: { decision: 'approve', journalId },
+      client: q as never,
+    });
+  });
+  if (next === 'payment') {
+    const name = await _query<{ fullname: string }>(`SELECT fullname FROM users WHERE id = $1`, [actor.id]);
+    await ensureExpensePaymentDocument({
+      waybillId: wb.id,
+      actorId: actor.id,
+      actorRole: actor.role_name,
+      actorName: name.rows[0]?.fullname ?? actor.fullname,
+    });
+  }
+}
 
 export async function approveWaybillAction(formData: FormData): Promise<void> {
   const stageRaw = String(formData.get('stage') ?? '').trim();
@@ -166,6 +270,13 @@ export async function approveWaybillAction(formData: FormData): Promise<void> {
       revalidatePath(`/waybill/${parsed.waybillId}`);
       redirect(`/waybill/${parsed.waybillId}`);
     }
+  }
+
+  const isExpense = wb.origin === 'expense';
+  if (isExpense) {
+    await approveExpenseWaybill(actor, wb);
+    revalidatePath(`/waybill/${wb.id}`);
+    redirect(`/waybill/${wb.id}`);
   }
 
   if (!(await canActOnWaybillStage(actor, wb))) {
@@ -296,7 +407,11 @@ export async function rejectWaybillAction(formData: FormData): Promise<void> {
   if (!wb) throw new Error('Waybill not found');
 
   const actor = await actorForWaybill();
-  if (!canRejectWaybill(actor, wb)) {
+  if (wb.origin === 'expense') {
+    const flow = await loadExpenseFlowContext(wb.id);
+    const decision = await authorizeExpenseStage(expenseActor(actor), flow);
+    if (!decision.allow) throw new Error(decision.reason);
+  } else if (!canRejectWaybill(actor, wb)) {
     throw new Error('cannot reject at this stage');
   }
 
@@ -351,6 +466,12 @@ export async function rejectWaybillAction(formData: FormData): Promise<void> {
         WHERE id = $1`,
       [wb.id],
     );
+    await q(
+      `UPDATE waybill_stage_claims
+          SET released_at = now(), released_by = $2, release_reason = $3
+        WHERE waybill_id = $1 AND released_at IS NULL`,
+      [wb.id, actor.id, `rejected: ${parsed.reason}`],
+    );
     await recordEvent({
       waybillId: wb.id,
       kind: 'rejected',
@@ -395,7 +516,7 @@ export async function finalApproveWaybillAction(formData: FormData): Promise<voi
   const exp = expRes.rows[0];
 
   const totalAmount = Number(wb.total_amount ?? exp.total_amount ?? 0);
-  const needsCeoStages = totalAmount >= 200_000;
+  const needsCeoStages = totalAmount > 200_000;
   const nextStage = needsCeoStages ? 'disbursement_authorization' : 'awaiting_disbursement';
 
   await withTransaction(async (q) => {
@@ -556,9 +677,10 @@ export async function resubmitWaybillAction(formData: FormData): Promise<void> {
   }
 
   await withTransaction(async (q) => {
+    const resubmitStage = wb.origin === 'expense' ? 'department_approval' : 'submission';
     if (wb.origin === 'expense') {
       await q(
-        `UPDATE expenses SET status = 'submission',
+        `UPDATE expenses SET status = 'department_approval',
                             rejection_reason = NULL,
                             rejection_actor_id = NULL,
                             rejected_at = NULL,
@@ -578,18 +700,19 @@ export async function resubmitWaybillAction(formData: FormData): Promise<void> {
       );
     }
     await q(
-      `UPDATE waybills SET current_stage = 'submission',
+      `UPDATE waybills SET current_stage = $2,
                           status = 'open',
-                          current_owner_role = 'supervisor',
+                          current_owner_role = $2,
+                          current_owner_user_id = NULL,
                           updated_at = now()
         WHERE id = $1`,
-      [wb.id],
+      [wb.id, resubmitStage],
     );
     await recordEvent({
       waybillId: wb.id,
       kind: 'resubmitted',
       stageFrom: 'rejected',
-      stageTo: 'submission',
+      stageTo: resubmitStage,
       actorId: actor.id,
       actorRole: actor.role_name,
       payload: { origin: wb.origin, origin_id: wb.origin_id },
@@ -603,13 +726,11 @@ export async function resubmitWaybillAction(formData: FormData): Promise<void> {
 
 const ConfirmGlForm = z.object({
   waybillId: z.string().regex(/^WB-\d{4}-\d{6}$/),
-  expenseId: z.coerce.number().int().positive(),
 });
 
 export async function confirmGlRecordedAction(formData: FormData): Promise<void> {
   const parsed = ConfirmGlForm.parse({
     waybillId: String(formData.get('waybillId') ?? ''),
-    expenseId: String(formData.get('expenseId') ?? '0'),
   });
 
   const wb = await loadWaybill(parsed.waybillId);
@@ -617,53 +738,79 @@ export async function confirmGlRecordedAction(formData: FormData): Promise<void>
   if (wb.origin !== 'expense') {
     throw new Error(`confirm-gl only for expense origin (got ${wb.origin})`);
   }
-  if (wb.current_stage !== 'disbursed') {
-    throw new Error(
-      `GL can only be confirmed after disbursement (current: ${wb.current_stage})`,
-    );
+  if (wb.current_stage !== 'settlement') {
+    throw new Error(`Settlement GL can only be posted at settlement (current: ${wb.current_stage})`);
   }
 
   const actor = await actorForWaybill();
-  if (!canConfirmGl(actor, wb)) {
-    throw new Error('cannot confirm GL at this stage');
-  }
-
-  const postedRes = await _query<{ exists: boolean }>(
-    `SELECT EXISTS (
-       SELECT 1 FROM waybill_events
-        WHERE waybill_id = $1 AND kind = 'posted-to-gl'
-     ) AS exists`,
-    [wb.id],
-  );
-  if (!postedRes.rows[0]?.exists) {
-    throw new Error('No posted-to-gl event on this waybill yet');
-  }
+  const flow = await loadExpenseFlowContext(wb.id);
+  const decision = await authorizeExpenseStage(expenseActor(actor), flow, 'settlement');
+  if (!decision.allow) throw new Error(decision.reason);
+  await assertExpenseClaim(actor.id, wb.id, 'settlement');
 
   const expRes = await _query<{ gl_confirmed_at: string | null }>(
     `SELECT gl_confirmed_at FROM expenses WHERE id = $1`,
-    [parsed.expenseId],
+    [wb.origin_id],
   );
   if (expRes.rows.length === 0) throw new Error('Expense not found');
   if (expRes.rows[0].gl_confirmed_at != null) {
-    throw new Error('GL post already confirmed');
+    throw new Error('Settlement GL already posted');
   }
 
   await withTransaction(async (q) => {
+    const locked = await q<{ current_stage: string }>(
+      `SELECT current_stage FROM waybills WHERE id = $1 FOR UPDATE`,
+      [wb.id],
+    );
+    if (locked.rows[0]?.current_stage !== 'settlement') {
+      throw new Error('Expense stage changed; refresh and try again');
+    }
+    const finalized = await finalizeDraftJournal({
+      expenseId: wb.origin_id,
+      actorId: actor.id,
+      step: 'settlement',
+      client: q as typeof _query,
+    });
+    if (!finalized) throw new Error('A reviewed and balanced settlement draft is required');
     await q(
-      `UPDATE expenses SET gl_confirmed_at = now(),
+      `UPDATE expenses SET status = 'completed',
+                           gl_confirmed_at = now(),
                            gl_confirmed_by = $1,
                            updated_at = now()
         WHERE id = $2`,
-      [actor.id, parsed.expenseId],
+      [actor.id, wb.origin_id],
+    );
+    await q(
+      `UPDATE waybills
+          SET status = 'completed', current_stage = 'completed',
+              current_owner_role = NULL, current_owner_user_id = NULL, updated_at = now()
+        WHERE id = $1`,
+      [wb.id],
+    );
+    await q(
+      `UPDATE waybill_stage_claims
+          SET released_at = now(), released_by = $2, release_reason = 'stage completed'
+        WHERE waybill_id = $1 AND stage = 'settlement' AND released_at IS NULL`,
+      [wb.id, actor.id],
     );
     await recordEvent({
       waybillId: wb.id,
-      kind: 'gl-confirmed',
-      stageFrom: 'disbursed',
-      stageTo: 'disbursed',
+      kind: 'posted-to-gl-settlement',
+      stageFrom: 'settlement',
+      stageTo: 'completed',
       actorId: actor.id,
       actorRole: actor.role_name ?? 'finance',
-      payload: { expenseId: parsed.expenseId },
+      payload: { expenseId: wb.origin_id, journalId: finalized.journalId },
+      client: q as never,
+    });
+    await recordEvent({
+      waybillId: wb.id,
+      kind: 'gl-confirmed-settlement',
+      stageFrom: 'settlement',
+      stageTo: 'completed',
+      actorId: actor.id,
+      actorRole: actor.role_name,
+      payload: { journalId: finalized.journalId },
       client: q as never,
     });
   });
@@ -845,6 +992,52 @@ const RecomputeDraftGlForm = z.object({
   waybillId: z.string().regex(/^WB-\d{4}-\d{6}$/),
 });
 
+const ClaimExpenseForm = z.object({
+  waybillId: z.string().regex(/^WB-\d{4}-\d{6}$/),
+});
+
+export async function claimExpenseStageAction(formData: FormData): Promise<void> {
+  const parsed = ClaimExpenseForm.parse({ waybillId: String(formData.get('waybillId') ?? '') });
+  const actor = await actorForWaybill();
+  await claimExpenseStage(expenseActor(actor), parsed.waybillId);
+  revalidatePath(`/waybill/${parsed.waybillId}`);
+  redirect(`/waybill/${parsed.waybillId}`);
+}
+
+export async function releaseExpenseClaimAction(formData: FormData): Promise<void> {
+  const parsed = z.object({
+    waybillId: z.string().regex(/^WB-\d{4}-\d{6}$/),
+    stage: z.enum(['accounting_review', 'payment', 'settlement']),
+    reason: z.string().min(3).max(500),
+  }).parse({
+    waybillId: String(formData.get('waybillId') ?? ''),
+    stage: String(formData.get('stage') ?? ''),
+    reason: String(formData.get('reason') ?? '').trim(),
+  });
+  const actor = await actorForWaybill();
+  await releaseExpenseClaim(expenseActor(actor), parsed.waybillId, parsed.stage, parsed.reason);
+  revalidatePath(`/waybill/${parsed.waybillId}`);
+  redirect(`/waybill/${parsed.waybillId}`);
+}
+
+export async function reassignExpenseClaimAction(formData: FormData): Promise<void> {
+  const parsed = z.object({
+    waybillId: z.string().regex(/^WB-\d{4}-\d{6}$/),
+    stage: z.enum(['accounting_review', 'payment', 'settlement']),
+    targetUserId: z.coerce.number().int().positive(),
+    reason: z.string().min(3).max(500),
+  }).parse({
+    waybillId: String(formData.get('waybillId') ?? ''),
+    stage: String(formData.get('stage') ?? ''),
+    targetUserId: String(formData.get('targetUserId') ?? ''),
+    reason: String(formData.get('reason') ?? '').trim(),
+  });
+  const actor = await actorForWaybill();
+  await reassignExpenseClaim(expenseActor(actor), parsed.waybillId, parsed.stage, parsed.targetUserId, parsed.reason);
+  revalidatePath(`/waybill/${parsed.waybillId}`);
+  redirect(`/waybill/${parsed.waybillId}`);
+}
+
 export async function recomputeExpenseDraftGlAction(formData: FormData): Promise<void> {
   const parsed = RecomputeDraftGlForm.parse({
     waybillId: String(formData.get('waybillId') ?? ''),
@@ -856,9 +1049,13 @@ export async function recomputeExpenseDraftGlAction(formData: FormData): Promise
   }
 
   const actor = await actorForWaybill();
-  if (!canSaveProcurementAccrual(actor)) {
-    throw new Error('cannot recompute expense draft GL');
+  const flow = await loadExpenseFlowContext(wb.id);
+  if (flow.stage !== 'accounting_review' && flow.stage !== 'settlement') {
+    throw new Error('Expense GL drafts are available only during accounting review or settlement');
   }
+  const decision = await authorizeExpenseStage(expenseActor(actor), flow, flow.stage);
+  if (!decision.allow) throw new Error(decision.reason);
+  await assertExpenseClaim(actor.id, wb.id, flow.stage);
 
   const expRes = await _query<{ vendor_name: string | null }>(
     `SELECT vendor_name FROM expenses WHERE id = $1`,
@@ -866,10 +1063,61 @@ export async function recomputeExpenseDraftGlAction(formData: FormData): Promise
   );
   if (expRes.rows.length === 0) throw new Error('Expense not found');
 
+  const step = flow.stage === 'settlement' ? 'settlement' : 'accrual';
+  const ai = await aiInvoke('finance:rag', 'chat', {
+    actorId: actor.id,
+    temperature: 0,
+    systemPrompt: 'Draft a balanced Thai expense journal using only valid chart-of-accounts codes. Never post. Return a concise explanation of debit and credit choices.',
+    text: `${step} journal for EXP-${wb.origin_id}, payee ${expRes.rows[0].vendor_name ?? 'employee'}, amount THB ${flow.amount}`,
+  });
   await upsertDraftJournal({
     expenseId: wb.origin_id,
     vendorName: expRes.rows[0].vendor_name ?? '',
+    step,
+    preparedBy: actor.id,
+    aiSuggestion: ai.ok && ai.text
+      ? { text: ai.text, model: ai.modelName ?? null }
+      : { fallback: true, error: ai.error ?? 'AI unavailable or low confidence' },
+    aiConfidence: ai.ok && ai.text ? 0.7 : 0,
   });
   revalidatePath(`/waybill/${wb.id}`);
   redirect(`/waybill/${wb.id}`);
+}
+
+export async function saveExpenseDraftGlAction(formData: FormData): Promise<void> {
+  const parsed = z.object({
+    waybillId: z.string().regex(/^WB-\d{4}-\d{6}$/),
+    lineCount: z.coerce.number().int().min(2).max(50),
+  }).parse({
+    waybillId: String(formData.get('waybillId') ?? ''),
+    lineCount: String(formData.get('lineCount') ?? ''),
+  });
+  const wb = await loadWaybill(parsed.waybillId);
+  if (!wb || wb.origin !== 'expense') throw new Error('Expense waybill not found');
+  const actor = await actorForWaybill();
+  const flow = await loadExpenseFlowContext(wb.id);
+  if (flow.stage !== 'accounting_review' && flow.stage !== 'settlement') {
+    throw new Error('Draft journal editing is not available at this stage');
+  }
+  const decision = await authorizeExpenseStage(expenseActor(actor), flow, flow.stage);
+  if (!decision.allow) throw new Error(decision.reason);
+  await assertExpenseClaim(actor.id, wb.id, flow.stage);
+  const lines = Array.from({ length: parsed.lineCount }, (_, index) => ({
+    account_code: String(formData.get(`accountCode.${index}`) ?? '').trim(),
+    debit: Number(formData.get(`debit.${index}`) ?? 0),
+    credit: Number(formData.get(`credit.${index}`) ?? 0),
+    description: String(formData.get(`description.${index}`) ?? '').trim(),
+  }));
+  if (lines.some((line) => !line.account_code || !line.description
+    || !Number.isFinite(line.debit) || !Number.isFinite(line.credit))) {
+    throw new Error('Every GL line requires a valid account, amount, and description');
+  }
+  await saveDraftJournalLines({
+    expenseId: flow.expenseId,
+    step: flow.stage === 'settlement' ? 'settlement' : 'accrual',
+    actorId: actor.id,
+    lines,
+  });
+  revalidatePath(`/waybill/${wb.id}/gl`);
+  redirect(`/waybill/${wb.id}/gl`);
 }

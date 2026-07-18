@@ -164,7 +164,10 @@ export async function setUserPermanentPerms(input: UpsertUserPermsInput): Promis
 }> {
   const cur = await listActiveUserPerms(input.user_id);
   const before = new Set(cur.map((r) => r.permission_id));
-  const after = new Set(input.desired_perm_ids);
+  const after = new Set([
+    ...input.desired_perm_ids,
+    ...cur.filter((r) => r.permission_id.startsWith('user:dept:')).map((r) => r.permission_id),
+  ]);
   const added = [...after].filter((p) => !before.has(p));
   const removed = [...before].filter((p) => !after.has(p));
   if (removed.length > 0) {

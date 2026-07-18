@@ -55,6 +55,8 @@ export interface ParsedFields {
   bankBranch?: string;
   accountNumber?: string;
   accountName?: string;
+  payee?: string;
+  reference?: string;
 }
 
 export interface UploadValidation {
@@ -93,6 +95,6 @@ export interface SlipOcrOpts {
   kind: SlipKind;
   initialModels?: VisionModel[];
   currentUserId?: number;
-  onSlipReady?: (slipId: number, kind: SlipKind) => void;
+  onSlipReady?: (slipId: number, kind: SlipKind, parsed: ParsedFields) => void;
   onSlipDiscarded?: (slipId: number, kind: SlipKind) => void;
 }

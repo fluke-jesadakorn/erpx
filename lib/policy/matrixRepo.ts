@@ -4,22 +4,14 @@ import { query } from '../db';
 import { effectOf } from '../perm/grammar';
 
 export const SEED_PERSONA_IDS: readonly string[] = [
-  'ceo::1',
-  'cfo::2',
-  'finance::2',
-  'admin::2',
-  'it::2',
-  'manager::3',
-  'hr_manager::3',
-  'accounting_manager::3',
-  'sales_rep::3',
-  'supervisor::4',
-  'account_supervisor::4',
-  'sales_supervisor::2',
-  'officer::5',
-  'hr::5',
-  'account_officer::5',
-  'law::5',
+  'staff',
+  'officer',
+  'supervisor',
+  'manager',
+  'director',
+  'cfo',
+  'ceo',
+  'system_admin',
 ];
 
 export interface MatrixColumn {
@@ -38,6 +30,8 @@ export interface MatrixTarget {
   member_count: number;
   is_seed_persona: boolean;
   is_system: boolean;
+  role_kind: 'hierarchy' | 'system' | null;
+  rank: number | null;
 }
 
 export interface MatrixGrant {
@@ -60,29 +54,22 @@ export async function loadMatrixColumns(): Promise<MatrixColumn[]> {
 
 export async function loadMatrixTargets(): Promise<MatrixTarget[]> {
   const { rows } = await query<MatrixTarget>(
-    `WITH dept AS (
-      SELECT DISTINCT split_part(id, ':', 3) AS dept_id, true AS significance
-        FROM perm.permissions
-       WHERE id LIKE 'user:dept:%::allow'
-    ),
-    members AS (
-      SELECT split_part(permission_id, ':', 3) AS dept_id,
-             COUNT(*)::int AS count
-        FROM perm.user_permissions
-       WHERE permission_id LIKE 'user:dept:%::allow'
-         AND revoked_at IS NULL
-         AND (ends_at IS NULL OR ends_at > now())
-       GROUP BY 1
+    `WITH members AS (
+      SELECT department_id, COUNT(*)::int AS count
+        FROM perm.user_departments
+       GROUP BY department_id
     )
-    SELECT d.dept_id::text AS id,
+    SELECT d.id::text AS id,
            'department'::text AS kind,
-           initcap(d.dept_id)::text AS label,
-           d.significance,
+           d.display_name::text AS label,
+           true AS significance,
            COALESCE(m.count, 0) AS member_count,
            false AS is_seed_persona,
-           false AS is_system
-      FROM dept d
-      LEFT JOIN members m ON m.dept_id = d.dept_id
+           d.is_system,
+           NULL::text AS role_kind,
+           NULL::smallint AS rank
+      FROM perm.departments d
+      LEFT JOIN members m ON m.department_id = d.id
     UNION ALL
     SELECT r.id::text AS id,
            'role'::text AS kind,
@@ -90,15 +77,15 @@ export async function loadMatrixTargets(): Promise<MatrixTarget[]> {
            false AS significance,
            COALESCE(uc.count, 0)::int AS member_count,
            (r.id = ANY($1::text[])) AS is_seed_persona,
-           r.is_system
+           r.is_system,
+           r.kind AS role_kind,
+           r.rank
       FROM perm.roles r
       LEFT JOIN (
         SELECT role_id, COUNT(*)::int AS count
           FROM perm.user_roles GROUP BY role_id
       ) uc ON uc.role_id = r.id
-     WHERE r.is_system = false
-        OR r.id LIKE 'dept-%'
-        OR r.id = ANY($1::text[])
+     WHERE r.kind IN ('hierarchy', 'system')
     ORDER BY kind, id`,
     [SEED_PERSONA_IDS as unknown as string[]],
   );

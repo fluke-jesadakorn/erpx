@@ -46,6 +46,7 @@ const EMPTY_BANK: BookBankFields = {
 export function NewExpensePanel({ currentUserId, initialModels }: Props) {
   const locale = useSecondaryLocale();
   const [payment, setPayment] = useState<'cash' | 'credit_card' | 'transfer'>('cash');
+  const [payeeType, setPayeeType] = useState<'employee' | 'vendor'>('employee');
   const [bookBankSlipId, setBookBankSlipId] = useState<number | null>(null);
   const [bookBankFields, setBookBankFields] = useState<BookBankFields>(EMPTY_BANK);
   const [submitState, setSubmitState] = useState<SubmitState | null>(null);
@@ -123,6 +124,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
       overrides: {
         ...(parsed ?? {}),
         paymentMethod: needsBookBank ? 'transfer' : payment,
+        payeeType,
         ...(needsBookBank && bookBankSlipId
           ? { bookBankSlipId, bookBankFields }
           : {}),
@@ -406,6 +408,23 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
           ) : null
         }
       >
+        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-md border border-rule bg-paper-2/50 p-3">
+          <span className="mr-2 text-xs font-mono uppercase tracking-wider text-mute">Payee</span>
+          <button
+            type="button"
+            onClick={() => setPayeeType('employee')}
+            className={payeeType === 'employee' ? 'rounded-md border border-accent bg-accent-soft px-3 py-1.5 text-sm font-bold text-accent-strong' : 'rounded-md border border-rule px-3 py-1.5 text-sm text-mute'}
+          >
+            Employee reimbursement
+          </button>
+          <button
+            type="button"
+            onClick={() => setPayeeType('vendor')}
+            className={payeeType === 'vendor' ? 'rounded-md border border-accent bg-accent-soft px-3 py-1.5 text-sm font-bold text-accent-strong' : 'rounded-md border border-rule px-3 py-1.5 text-sm text-mute'}
+          >
+            Vendor payment
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div className="rounded-md border border-rule bg-paper-2/40 p-5 space-y-4">
             <header className="flex items-start justify-between gap-3 pb-3 border-b border-rule">

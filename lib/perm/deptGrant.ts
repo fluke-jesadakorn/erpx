@@ -29,15 +29,11 @@ export async function loadDeptPermissionBundles(): Promise<Map<string, Set<strin
 }
 
 export async function loadUserDeptIds(userId: number): Promise<string[]> {
-  const { rows } = await query<{ permission_id: string }>(
-    `SELECT permission_id FROM perm.user_permissions
-      WHERE user_id = $1
-        AND permission_id LIKE 'user:dept:%::allow'
-        AND revoked_at IS NULL
-        AND (ends_at IS NULL OR ends_at > now())`,
+  const { rows } = await query<{ department_id: string }>(
+    `SELECT department_id FROM perm.user_departments WHERE user_id = $1`,
     [userId],
   );
-  return rows.map((r) => r.permission_id.match(/^user:dept:([^:]+)::allow$/)?.[1] ?? '');
+  return rows.map((r) => r.department_id);
 }
 
 export function expandUserPermissions(

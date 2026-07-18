@@ -41,7 +41,7 @@ const BlacklistForm = z.object({
 export async function createCustomerAction(formData: FormData): Promise<{ ok: boolean; id?: number; error?: string }> {
   const actor = await loadActor();
   if (!actor) return { ok: false, error: 'unauthorized' };
-  if (!hasPermission(actor, 'customer:manage::allow')) {
+  if (!hasPermission(actor, 'finance:customer:manage::allow')) {
     return { ok: false, error: 'forbidden' };
   }
 
@@ -85,7 +85,7 @@ export async function createCustomerAction(formData: FormData): Promise<{ ok: bo
 export async function updateCustomerAction(formData: FormData): Promise<{ ok: boolean; error?: string }> {
   const actor = await loadActor();
   if (!actor) return { ok: false, error: 'unauthorized' };
-  if (!hasPermission(actor, 'customer:manage::allow')) {
+  if (!hasPermission(actor, 'finance:customer:manage::allow')) {
     return { ok: false, error: 'forbidden' };
   }
   const parsed = UpdateForm.safeParse({
@@ -117,7 +117,7 @@ export async function updateCustomerAction(formData: FormData): Promise<{ ok: bo
 export async function blacklistCustomerAction(formData: FormData): Promise<{ ok: boolean; error?: string }> {
   const actor = await loadActor();
   if (!actor) return { ok: false, error: 'unauthorized' };
-  if (!hasPermission(actor, 'customer:manage::allow')) {
+  if (!hasPermission(actor, 'finance:customer:manage::allow')) {
     return { ok: false, error: 'forbidden' };
   }
   const parsed = BlacklistForm.safeParse({

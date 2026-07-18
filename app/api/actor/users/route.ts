@@ -16,32 +16,21 @@ export async function GET() {
 
   const r = await query(
     `SELECT u.id, u.employee_code, u.fullname,
-            (SELECT split_part(up.permission_id, ':', 3) FROM perm.user_permissions up
-              WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS department,
-            (SELECT split_part(up.permission_id, ':', 3) FROM perm.user_permissions up
-              WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS dept_group_id,
-            (SELECT split_part(up.permission_id, ':', 3) FROM perm.user_permissions up
-              WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'
-                AND up.revoked_at IS NULL
-                AND (up.ends_at IS NULL OR up.ends_at > now())
-              ORDER BY up.permission_id LIMIT 1) AS dept_group_name,
+            d.department_id AS department,
+            d.department_id AS dept_group_id,
+            d.department_id AS dept_group_name,
             r.role_id, r.role_name,
             r.level AS level
        FROM users u
        LEFT JOIN LATERAL (
-         SELECT ur.role_id, split_part(ur.role_id, '::', 1) AS role_name,
-                split_part(ur.role_id, '::', 2)::int AS level
+         SELECT ur.role_id, ur.role_id AS role_name, pr.rank AS level
            FROM perm.user_roles ur
+           JOIN perm.roles pr ON pr.id = ur.role_id AND pr.kind = ur.role_kind
           WHERE ur.user_id = u.id
-          ORDER BY split_part(ur.role_id, '::', 2)::int ASC
+            AND ur.role_kind = 'hierarchy'
           LIMIT 1
        ) r ON true
+       LEFT JOIN perm.user_departments d ON d.user_id = u.id
       WHERE u.is_active = TRUE
       ORDER BY r.level ASC NULLS LAST, r.role_id ASC, u.id ASC`,
   );

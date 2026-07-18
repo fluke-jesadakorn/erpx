@@ -26,6 +26,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   );
   if (!session) redirect('/login');
 
+  if (!session.session.user.department || session.session.user.role === 'unconfigured') {
+    return (
+      <IntlProvider>
+        <main className="min-h-screen grid place-items-center bg-paper-1 p-6">
+          <section className="w-full max-w-lg rounded-xl border border-rule/50 bg-paper-2 p-8 text-center shadow-[var(--shadow-popover)]">
+            <p className="text-[11px] font-mono uppercase tracking-[0.16em] text-caution">Access not configured</p>
+            <h1 className="mt-3 text-2xl font-bold text-ink">Your account needs a department and role</h1>
+            <p className="mt-3 text-sm leading-6 text-mute">
+              You are signed in, but Folio access has not been assigned. Contact any active HR or IT member and provide employee ID {profile.employee_code}.
+            </p>
+          </section>
+        </main>
+      </IntlProvider>
+    );
+  }
+
   const canSeeGlLines = hasPermission(session.session, 'finance:gl:view::allow');
   const canPostAccrual = hasPermission(session.session, 'finance:gl:post::allow');
   const canPostSettlement = hasPermission(session.session, 'finance:gl:post::allow');
@@ -33,8 +49,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const canSettleExpense = hasPermission(session.session, PERM.finance.expense.settle);
   const canFinalApprove = hasPermission(session.session, PERM.finance.expense.approve);
   const canAttach = hasPermission(session.session, PERM.finance.expense.create);
-  const canRemoveAttachment = profile.role_name === 'cfo' || profile.role_name === 'ceo' || profile.role_name === 'admin';
-  const canRecall = profile.role_name === 'cfo' || profile.role_name === 'ceo' || profile.role_name === 'finance';
+  const canRemoveAttachment = hasPermission(session.session, PERM.admin.system.bypass);
+  const canRecall = hasPermission(session.session, PERM.finance.expense.override);
 
   const snapshot: ActorSnapshot = {
     id: profile.id,

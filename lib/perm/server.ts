@@ -74,3 +74,9 @@ export {
   type ScopeFilter,
   type ScopeKind,
 } from './scope';
+export {
+  setUserAccess,
+  AccessError,
+  type AccessActor,
+  type AccessInput,
+} from './access';

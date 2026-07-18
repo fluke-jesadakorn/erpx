@@ -5,7 +5,10 @@ export interface PermSession {
   user: {
     id: number;
     name: string;
-    role: string;            // role-id, e.g. 'manager::3'
+    role: string;
+    department?: string | null;
+    rank?: number | null;
+    systemRoles?: string[];
   };
   permissions: string[];     // full perm-id list including '::effect' suffix
 }

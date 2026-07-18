@@ -13,15 +13,12 @@ import { actorForWaybill, canConfirmGl, canSaveProcurementAccrual, type WbForChe
 
 function canPostGlAccrual(actor: ActorWithScope, wb: WbForCheck): boolean {
   return wb.current_stage === 'accounting_authorization'
-    && (hasPermission(actor, 'finance:gl:post::allow')
-      || (actor.role_name === 'accounting_manager'
-        && hasPermission(actor, 'finance:gl:post::allow')));
+    && hasPermission(actor, 'finance:gl:post::allow');
 }
 
 function canPostGlSettlement(actor: ActorWithScope, wb: WbForCheck): boolean {
   return wb.current_stage === 'disbursed'
-    && hasPermission(actor, 'finance:gl:post::allow')
-    && ['finance', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
+    && hasPermission(actor, 'finance:gl:post::allow');
 }
 
 const SaveProcurementAccrualForm = z.object({

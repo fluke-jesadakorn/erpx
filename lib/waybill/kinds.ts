@@ -5,6 +5,8 @@ export type WaybillAttachmentKind =
   | 'slip'
   | 'pr_doc'
   | 'po_doc'
+  | 'expense_voucher'
+  | 'payment_slip'
   | 'payment_receipt'
   | 'signoff_memo'
   | 'invoice'
@@ -29,6 +31,8 @@ export const WAYBILL_KINDS: Record<WaybillAttachmentKind, WaybillKindMeta> = {
   slip: meta('waybill.attachment.slip', '🧾'),
   pr_doc: meta('waybill.attachment.prDocument', '📄'),
   po_doc: meta('waybill.attachment.poDocument', '📎'),
+  expense_voucher: meta('waybill.attachment.expenseVoucher', '📄'),
+  payment_slip: meta('waybill.attachment.paymentSlip', '💸'),
   payment_receipt: meta('waybill.attachment.paymentReceipt', '💸'),
   signoff_memo: meta('waybill.attachment.signoffMemo', '🛡️'),
   invoice: meta('waybill.attachment.invoice', '🧮'),
@@ -39,7 +43,7 @@ export const WAYBILL_KINDS: Record<WaybillAttachmentKind, WaybillKindMeta> = {
 };
 
 export const WAYBILL_KIND_ORDER: WaybillAttachmentKind[] = [
-  'slip', 'pr_doc', 'po_doc', 'payment_receipt',
+  'slip', 'pr_doc', 'po_doc', 'expense_voucher', 'payment_slip', 'payment_receipt',
   'signoff_memo', 'invoice', 'wht_cert', 'photo', 'memo', 'other',
 ];
 
@@ -55,6 +59,12 @@ const CEO: WaybillAttachmentKind[] = ['signoff_memo'];
 const ALL: WaybillAttachmentKind[] = [...WAYBILL_KIND_ORDER];
 
 export const KINDS_ALLOWED_AT_STAGE: Record<string, WaybillAttachmentKind[]> = {
+  department_approval: MANAGER,
+  accounting_review: ACCOUNTANT,
+  accounting_approval: ACCT_MGR,
+  executive_approval: CFO,
+  payment: ['po_doc', 'expense_voucher', 'payment_slip', 'payment_receipt', 'photo', 'memo', 'other'],
+  settlement: ACCOUNTANT,
   submission: STAFF,
   dept_verification: SUPERVISOR,
   dept_authorization: MANAGER,

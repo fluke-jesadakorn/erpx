@@ -48,9 +48,12 @@ export async function POST(req: Request) {
     const managerRes = await query<{ line_user_id: string; name: string }>(
       `SELECT DISTINCT u.line_user_id, u.fullname AS name
          FROM folio.users u
-         JOIN perm.user_roles ur ON ur.user_id = u.id
+         JOIN perm.user_departments ud ON ud.user_id = u.id
+         JOIN perm.user_roles ur ON ur.user_id = u.id AND ur.role_kind = 'hierarchy'
+         JOIN perm.roles r ON r.id = ur.role_id AND r.kind = ur.role_kind
         WHERE u.line_user_id IS NOT NULL
-          AND (ur.role_id LIKE 'hr\\_%' ESCAPE '\\' OR ur.role_id = 'hr_manager::3')
+          AND ud.department_id = 'hr'
+        ORDER BY r.rank ASC, u.id
         LIMIT 1`,
       [],
     );

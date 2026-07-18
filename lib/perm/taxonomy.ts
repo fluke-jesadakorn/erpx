@@ -17,7 +17,8 @@ const allow = (d: string, s: string, v: string, q?: string) =>
 
 export const PERM = {
   rbac: {
-    role:   { read: allow('rbac', 'role', 'read'), assign: allow('rbac', 'role', 'assign') },
+    role:   { read: allow('rbac', 'role', 'read'), assign: allow('rbac', 'role', 'assign'), edit: allow('rbac', 'role', 'edit') },
+    department: { assign: allow('rbac', 'department', 'assign'), edit: allow('rbac', 'department', 'edit') },
     matrix: { view: allow('rbac', 'matrix', 'view'), edit: allow('rbac', 'matrix', 'edit') },
     audit:  { view: allow('rbac', 'audit', 'view') },
   },
@@ -59,6 +60,15 @@ export const PERM = {
       override: allow('finance', 'expense', 'override'),
       override_approve: allow('finance', 'expense', 'override_approve'),
       gl_confirm: allow('finance', 'expense', 'gl_confirm'),
+      submit: allow('finance', 'expense', 'submit'),
+      department_approve: allow('finance', 'expense', 'department_approve'),
+      accounting_prepare: allow('finance', 'expense', 'accounting_prepare'),
+      accounting_approve: allow('finance', 'expense', 'accounting_approve'),
+      executive_approve: allow('finance', 'expense', 'executive_approve'),
+      pay: allow('finance', 'expense', 'pay'),
+      settlement_post: allow('finance', 'expense', 'settlement_post'),
+      claim: allow('finance', 'expense', 'claim'),
+      claim_reassign: allow('finance', 'expense', 'claim_reassign'),
     },
     pr: {
       create: allow('finance', 'pr', 'create'),
@@ -99,6 +109,12 @@ export const PERM = {
     so_invoiced:                { act: allow('stage', 'so_invoiced', 'act') },
     so_paid:                    { act: allow('stage', 'so_paid', 'act') },
     final_authorization:        { act: allow('stage', 'final_authorization', 'act') },
+    department_approval:        { act: allow('stage', 'department_approval', 'act') },
+    accounting_review:          { act: allow('stage', 'accounting_review', 'act') },
+    accounting_approval:        { act: allow('stage', 'accounting_approval', 'act') },
+    executive_approval:         { act: allow('stage', 'executive_approval', 'act') },
+    payment:                     { act: allow('stage', 'payment', 'act') },
+    settlement:                  { act: allow('stage', 'settlement', 'act') },
   },
   tile: {
     inbox:           { view: allow('tile', 'inbox', 'view') },

@@ -16,19 +16,13 @@ import { actorForWaybill, type WbForCheck } from './_helpers';
 function canPostSalesGlStep(actor: ActorWithScope, wb: WbForCheck, stage: string): boolean {
   if (wb.current_stage !== stage) return false;
   if (hasPermission(actor, PERM.admin.system.bypass)) return true;
-  if (hasPermission(actor, 'finance:gl:post::allow')) {
-    return ['finance', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
-  }
-  return false;
+  return hasPermission(actor, 'finance:gl:post::allow');
 }
 
 function canConfirmSalesGl(actor: ActorWithScope, wb: WbForCheck): boolean {
   if (wb.origin !== 'so') return false;
   if (hasPermission(actor, PERM.admin.system.bypass)) return true;
-  if (hasPermission(actor, 'finance:gl:confirm::allow')) {
-    return ['finance', 'account_officer', 'account_supervisor', 'accounting_manager', 'cfo', 'ceo'].includes(actor.role_name);
-  }
-  return false;
+  return hasPermission(actor, 'finance:gl:confirm::allow');
 }
 
 const PostSalesGlForm = z.object({
@@ -292,8 +286,7 @@ export async function attachSalesPaymentSlipAction(
 
   const permOk =
     hasPermission(actor, PERM.stage.so_paid.act) ||
-    hasPermission(actor, PERM.admin.system.bypass) ||
-    ['finance', 'admin', 'cfo', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
+    hasPermission(actor, PERM.admin.system.bypass);
   if (!permOk) throw new Error('Forbidden at so_paid');
 
   const slipRes = await _query<{ id: number; status: string; uploaded_by: number }>(

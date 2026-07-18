@@ -21,6 +21,7 @@ type Props = {
   lang?: Locale;
   canFinalApprove?: boolean;
   canConfirmGl?: boolean;
+  canEditDraft?: boolean;
   isFinalApproval?: boolean;
   isDisbursed?: boolean;
   hasPostedToGl?: boolean;
@@ -173,6 +174,7 @@ export function WaybillGlSection(props: Props) {
           journal={props.journal as unknown as ExpenseJournalView}
           canFinalApprove={props.canFinalApprove ?? false}
           canConfirmGl={props.canConfirmGl ?? false}
+          canEditDraft={props.canEditDraft ?? false}
           isFinalApproval={props.isFinalApproval ?? false}
           isDisbursed={props.isDisbursed ?? false}
           actorCanSeeLines={props.actorCanSeeLines}

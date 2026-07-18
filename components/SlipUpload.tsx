@@ -4,7 +4,7 @@ import React, { forwardRef } from 'react';
 import type { VisionModel } from '@/ai/loadVisionModels';
 import { BookBankUpload } from './slips/BookBankUpload';
 import { ReceiptUpload } from './slips/ReceiptUpload';
-import type { BookBankFields, SlipUploadHandle, SubmitState } from './slips/types';
+import type { BookBankFields, ParsedFields, SlipUploadHandle, SubmitState } from './slips/types';
 
 export type {
   BookBankFields,
@@ -24,7 +24,7 @@ export interface SlipUploadProps {
     status: string;
     waybillId?: string;
   }) => void;
-  onSlipReady?: (slipId: number, kind: 'receipt' | 'book_bank') => void;
+  onSlipReady?: (slipId: number, kind: 'receipt' | 'book_bank', parsed: ParsedFields) => void;
   onSlipDiscarded?: (slipId: number, kind: 'receipt' | 'book_bank') => void;
   onPaymentChange?: (next: 'cash' | 'credit_card' | 'transfer') => void;
   currentUserId?: number;
@@ -48,7 +48,7 @@ export const SlipUpload = forwardRef<SlipUploadHandle, SlipUploadProps>(function
       <BookBankUpload
         ref={ref}
         {...rest}
-        onSlipReady={(id) => onSlipReady?.(id, 'book_bank')}
+        onSlipReady={(id, _kind, parsed) => onSlipReady?.(id, 'book_bank', parsed)}
         onSlipDiscarded={(id) => onSlipDiscarded?.(id, 'book_bank')}
       />
     );
@@ -57,7 +57,7 @@ export const SlipUpload = forwardRef<SlipUploadHandle, SlipUploadProps>(function
     <ReceiptUpload
       ref={ref}
       {...rest}
-      onSlipReady={(id) => onSlipReady?.(id, 'receipt')}
+      onSlipReady={(id, _kind, parsed) => onSlipReady?.(id, 'receipt', parsed)}
       onSlipDiscarded={(id) => onSlipDiscarded?.(id, 'receipt')}
     />
   );

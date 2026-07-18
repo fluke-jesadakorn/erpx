@@ -37,11 +37,15 @@ export function canManageResource(
 
 export function sessionDept(session: PermissionHolder): string | null {
   if (!session) return null;
+  const explicit = (session as { user?: { department?: string | null } }).user?.department;
+  if (explicit) return explicit;
   return parseDeptFromPerms((session as { permissions: string[] }).permissions ?? []);
 }
 
 export function sessionLevel(session: PermissionHolder): number {
   if (!session) return 10;
+  const rank = (session as { user?: { rank?: number | null } }).user?.rank;
+  if (typeof rank === 'number') return rank;
   const perms = (session as { permissions: string[] | null | undefined }).permissions ?? [];
   const role = (session as { user?: { role?: string } }).user?.role;
   if (role) {

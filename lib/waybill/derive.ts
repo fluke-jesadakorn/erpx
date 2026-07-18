@@ -43,6 +43,12 @@ export function bucketLabel(bucket: WaybillBucket, _lang: 'en' | 'th' | 'de' = '
 const STAGE_ROLE_LABEL: Record<string, string> = {
   draft: 'waybill.role.submitter',
   submission: 'waybill.role.submitter',
+  department_approval: 'waybill.role.departmentHead',
+  accounting_review: 'waybill.role.accounting',
+  accounting_approval: 'waybill.role.accountingHead',
+  executive_approval: 'waybill.role.cfoOrCeo',
+  payment: 'waybill.role.finance',
+  settlement: 'waybill.role.accounting',
   dept_verification: 'waybill.role.higherLevel',
   dept_authorization: 'waybill.role.higherLevel',
   accounting_verification: 'waybill.role.accountFinanceReviewer',
@@ -72,6 +78,9 @@ export function nextStageOf(
   const pips = pipsForDomain(domain);
   const idx = pips.findIndex((p) => p.key === current);
   if (idx < 0 || idx >= pips.length - 1) return null;
+  if (domain === 'expense' && current === 'accounting_approval' && (totalAmountTHB ?? 0) <= 200_000) {
+    return 'payment';
+  }
   return pips[idx + 1].key;
 }
 
@@ -94,6 +103,7 @@ export type PipState = 'passed' | 'active' | 'pending' | 'rejected' | 'skipped';
 export function isTerminalStage(stage: string): boolean {
   const canon = normalizeStage(stage) ?? stage;
   return canon === 'disbursed'
+    || canon === 'settlement'
     || canon === 'rejected'
     || canon === 'so_paid'
     || canon === 'gl_confirmed'

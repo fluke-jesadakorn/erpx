@@ -45,8 +45,7 @@ export const TilesClient: React.FC<Props> = ({ initialTiles, departments, canEdi
 
   const tileName = (tileId: string, fallback: string) => {
     const key = `tiles.tile.${tileId}.name`;
-    const translated = t(key);
-    return translated === key ? fallback : translated;
+    return t.has(key) ? t(key) : fallback;
   };
 
   const [edits, setEdits] = useState<Record<string, EditState>>(() => {

@@ -16,7 +16,7 @@ const QUALIFIERS = new Set(['self', 'dept', 'subtree', 'all', '*']);
 
 export const PERM_ID_REGEX =
   /^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*:[a-z][a-z0-9_]*(?::[a-z0-9_*-]+)?::(?:allow|deny)$/;
-export const ROLE_ID_REGEX = /^[a-z][a-z0-9_-]*::[1-9]\d?$/;
+export const ROLE_ID_REGEX = /^[a-z][a-z0-9_-]*(?:::[1-9]\d?)?$/;
 
 export const ADMIN_PERM = 'admin:system:bypass::allow';
 export const SYSTEM_PERMS = new Set<string>([ADMIN_PERM]);
@@ -33,6 +33,17 @@ export interface RoleParts {
   name: string;
   level: number;
 }
+
+const ROLE_RANKS: Record<string, number> = {
+  ceo: 1,
+  cfo: 2,
+  director: 3,
+  manager: 4,
+  supervisor: 5,
+  officer: 6,
+  staff: 7,
+  system_admin: 1,
+};
 
 export function parsePerm(id: string): PermParts | null {
   const idx = id.indexOf('::');
@@ -58,7 +69,10 @@ export function buildPerm(
 
 export function parseRoleId(id: string): RoleParts | null {
   const idx = id.indexOf('::');
-  if (idx < 0) return null;
+  if (idx < 0) {
+    const level = ROLE_RANKS[id];
+    return level ? { name: id, level } : null;
+  }
   const name = id.slice(0, idx);
   const levelStr = id.slice(idx + 2);
   if (!/^\d+$/.test(levelStr)) return null;
@@ -68,7 +82,7 @@ export function parseRoleId(id: string): RoleParts | null {
 }
 
 export function buildRoleId(name: string, level: number): string {
-  return `${name}::${level}`;
+  return ROLE_RANKS[name] === level ? name : `${name}::${level}`;
 }
 
 export function effectOf(id: string): Effect | null {
@@ -135,11 +149,15 @@ export function parseLevelFromRoles(roleIds: Iterable<string>): number {
 //   4. unqualified request matches a `:all` qualified grant
 export function matchPerm(sessionPerms: string[] | Set<string>, requested: string): boolean {
   const arr = Array.isArray(sessionPerms) ? sessionPerms : Array.from(sessionPerms);
-  if (arr.includes(ADMIN_PERM)) return true;
-  if (arr.includes(requested)) return true;
   const req = parsePerm(requested);
   if (!req) return false;
   const base = `${req.domain}:${req.subject}:${req.verb}`;
+  const denies = req.qualifier
+    ? [`${base}:${req.qualifier}::deny`, `${base}:all::deny`, `${base}::deny`]
+    : [`${base}::deny`, `${base}:all::deny`];
+  if (denies.some((p) => arr.includes(p))) return false;
+  if (arr.includes(ADMIN_PERM)) return true;
+  if (arr.includes(requested)) return true;
   if (req.qualifier && arr.includes(`${base}::allow`)) return true;
   if (!req.qualifier && arr.includes(`${base}:all::allow`)) return true;
   return false;
