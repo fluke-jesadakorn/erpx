@@ -50,6 +50,16 @@ const ROLE_ACCENT: Record<string, string> = {
   it:                  'from-paper-2/25 via-paper-3/15 to-paper/40 border-rule/40',
   hr:                  'from-accent via-accent-strong to-accent-strong border-accent',
   hr_manager:          'from-accent via-accent-strong to-accent-strong border-accent',
+  it_manager:          'from-info via-info-strong to-info-strong border-info',
+  it_supervisor:       'from-info via-info-strong to-info-strong border-info',
+  it_officer:          'from-info via-info-strong to-info-strong border-info',
+  hr_supervisor:       'from-accent via-accent-strong to-accent-strong border-accent',
+  hr_officer:          'from-accent via-accent-strong to-accent-strong border-accent',
+  accounting_supervisor: 'from-info via-info-strong to-info-strong border-info',
+  accounting_officer:  'from-info via-info-strong to-info-strong border-info',
+  finance_manager:     'from-accent via-accent-strong to-accent-strong border-accent',
+  finance_supervisor:  'from-accent via-accent-strong to-accent-strong border-accent',
+  finance_officer:     'from-accent via-accent-strong to-accent-strong border-accent',
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -71,6 +81,16 @@ const ROLE_LABEL: Record<string, string> = {
   it: 'IT Manager',
   hr: 'HR Officer',
   hr_manager: 'HR Manager',
+  it_manager: 'IT Manager',
+  it_supervisor: 'IT Supervisor',
+  it_officer: 'IT Officer',
+  hr_supervisor: 'HR Supervisor',
+  hr_officer: 'HR Officer',
+  accounting_supervisor: 'Accounting Supervisor',
+  accounting_officer: 'Accounting Officer',
+  finance_manager: 'Financial Manager',
+  finance_supervisor: 'Financial Supervisor',
+  finance_officer: 'Financial Officer',
 };
 
 const LEVEL_ORDER: StaffLevel[] = [1, 2, 3, 4, 5];

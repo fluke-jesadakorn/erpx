@@ -101,7 +101,7 @@ export async function PolicyAdmin({ targets, users, canEdit, canAssign, flash, v
         </div>
       ) : view === 'roles' ? (
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(280px,420px)_1fr] gap-4">
-          <CreateRoleForm canEdit={canEdit} />
+          <CreateRoleForm canEdit={canEdit} departments={sortedDepts} />
           <TargetList
             title="Roles"
             empty="No roles yet."
@@ -109,7 +109,7 @@ export async function PolicyAdmin({ targets, users, canEdit, canAssign, flash, v
             rows={sortedRoles.map((r) => ({
               id: r.id,
               label: r.label,
-              meta: `${r.role_kind ?? 'role'}${r.rank ? ` · rank ${r.rank}` : ''} · ${r.member_count} members`,
+              meta: `${r.department_id ?? 'unassigned'}${r.rank ? ` · rank ${r.rank}` : ''} · ${r.member_count} members`,
               kind: 'role',
               protected: r.is_seed_persona || r.is_system,
               action: deleteRoleAction,
@@ -175,7 +175,7 @@ function btnDanger(disabled = false) {
   ].join(' ');
 }
 
-async function CreateRoleForm({ canEdit }: { canEdit: boolean }) {
+async function CreateRoleForm({ canEdit, departments }: { canEdit: boolean; departments: MatrixTarget[] }) {
   const locale = await getSecondaryLocale();
   return (
     <form action={createRoleAction} className="rounded-md border border-rule/40 bg-paper-1/40 p-3 space-y-2.5">
@@ -188,10 +188,12 @@ async function CreateRoleForm({ canEdit }: { canEdit: boolean }) {
       <FieldShell label="display name">
         <input name="display_name" required placeholder="Regional supervisor" className={inputCls()} />
       </FieldShell>
-      <FieldShell label="kind">
-        <select name="kind" defaultValue="hierarchy" className={inputCls()}>
-          <option value="hierarchy">Hierarchy</option>
-          <option value="system">System</option>
+      <FieldShell label="department">
+        <select name="department_id" required defaultValue="" className={inputCls()}>
+          <option value="">— pick department —</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>{d.label}</option>
+          ))}
         </select>
       </FieldShell>
       <FieldShell label="rank (1–7)" hint="1 = highest authority; ignored for system roles">
@@ -262,8 +264,12 @@ async function AssignUserForm({
       <FieldShell label="hierarchy role">
         <select name="hierarchy_role_id" required className={inputCls()} defaultValue="">
           <option value="">— pick hierarchy role —</option>
-          {roles.filter((r) => r.role_kind === 'hierarchy').map((r) => (
-            <option key={r.id} value={r.id}>{r.label} · {r.id}</option>
+          {departments.map((d) => (
+            <optgroup key={d.id} label={d.label}>
+              {roles.filter((r) => r.role_kind === 'hierarchy' && r.department_id === d.id).map((r) => (
+                <option key={r.id} value={r.id}>{r.label} · {r.id}</option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </FieldShell>

@@ -38,14 +38,11 @@ export async function POST(req: Request) {
         [permId, `Department membership: ${label || idRaw}`],
       );
     }
-    const roleExists = await query<{ id: string }>(`SELECT id FROM perm.roles WHERE id = $1`, [idRaw]);
-    if (roleExists.rows.length === 0) {
-      await query(
-        `INSERT INTO perm.roles (id, display_name, description, is_system, sort_order)
-         VALUES ($1, $2, $3, false, 50)`,
-        [idRaw, label || idRaw, 'Department target'],
-      );
-    }
+    await query(
+      `INSERT INTO perm.departments (id, display_name, is_system)
+       VALUES ($1, $2, false)`,
+      [idRaw, label || idRaw],
+    );
     await query(
       `INSERT INTO perm.audit (kind, actor, target) VALUES ('policy.target.create', $1, $2)`,
       [actor, { kind, id: idRaw, label }],
@@ -54,21 +51,25 @@ export async function POST(req: Request) {
   }
 
   // role
-  const level = Number(body.level);
-  if (!Number.isFinite(level) || level < 1 || level > 10)
-    return NextResponse.json({ error: 'level must be 1-10' }, { status: 400 });
-  const roleId = `${idRaw}::${Math.floor(level)}`;
+  const level = Number(body.level ?? body.rank);
+  const departmentId = String(body.department_id ?? '').trim().toLowerCase();
+  if (!Number.isInteger(level) || level < 1 || level > 7)
+    return NextResponse.json({ error: 'rank must be 1-7' }, { status: 400 });
+  if (!/^[a-z][a-z0-9_-]{1,40}$/.test(departmentId))
+    return NextResponse.json({ error: 'department_id is required' }, { status: 400 });
+  const roleId = idRaw;
   const dup = await query<{ id: string }>(`SELECT id FROM perm.roles WHERE id = $1`, [roleId]);
   if (dup.rows.length > 0)
     return NextResponse.json({ error: `Role "${roleId}" already exists` }, { status: 409 });
   await query(
-    `INSERT INTO perm.roles (id, display_name, description, is_system, sort_order)
-     VALUES ($1, $2, $3, false, 200)`,
-    [roleId, label || roleId, 'Specific role target'],
+    `INSERT INTO perm.roles
+       (id, display_name, description, kind, rank, department_id, is_system, sort_order)
+     VALUES ($1, $2, $3, 'hierarchy', $4, $5, false, 200)`,
+    [roleId, label || roleId, 'Specific role target', level, departmentId],
   );
   await query(
     `INSERT INTO perm.audit (kind, actor, target) VALUES ('policy.target.create', $1, $2)`,
-    [actor, { kind, id: roleId, label }],
+    [actor, { kind, id: roleId, label, departmentId, level }],
   );
   return NextResponse.json({ ok: true, id: roleId, kind });
 }

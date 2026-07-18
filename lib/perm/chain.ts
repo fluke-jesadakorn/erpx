@@ -62,7 +62,7 @@ export interface ActorCtx {
 }
 
 async function findApprover(
-  roleName: string,
+  roleNames: readonly string[],
   deptId: string | null,
 ): Promise<{ user_id: number | null; level: number } | null> {
   const r = await query<{ user_id: number | null; level: number | null }>(
@@ -72,13 +72,21 @@ async function findApprover(
        JOIN perm.roles pr ON pr.id = ur.role_id AND pr.kind = 'hierarchy'
        JOIN users u ON u.id = ur.user_id
        LEFT JOIN perm.user_departments ud ON ud.user_id = u.id
-      WHERE ur.role_id = $1
+       CROSS JOIN LATERAL (
+         SELECT CASE
+           WHEN ur.role_id LIKE '%\\_manager' ESCAPE '\\' THEN 'manager'
+           WHEN ur.role_id LIKE '%\\_supervisor' ESCAPE '\\' THEN 'supervisor'
+           WHEN ur.role_id LIKE '%\\_officer' ESCAPE '\\' THEN 'officer'
+           ELSE ur.role_id
+         END AS family
+       ) rf
+      WHERE rf.family = ANY($1::text[])
         AND u.is_active IS NOT FALSE
         AND ($2::text IS NULL OR ud.department_id = $2)
-      GROUP BY ur.user_id
-      ORDER BY level ASC NULLS LAST
+      GROUP BY ur.user_id, rf.family
+      ORDER BY array_position($1::text[], rf.family), level ASC NULLS LAST
       LIMIT 1`,
-    [roleName, deptId],
+    [roleNames, deptId],
   );
   if (r.rows.length === 0) return null;
   const row = r.rows[0];
@@ -110,13 +118,14 @@ export async function resolveApprovalChain(
   }
 
   for (const stage of dynamicOrder) {
+    const roleNames = stageRoles(stage);
     const roleName = stagePrimaryRole(stage);
     if (!roleName) continue;
     let userId: number | null = null;
     let approverLevel = 5;
     const targetDept = stage === 'executive_approval' ? null : stageDepartment(stage) ?? ctx.submitterDeptId;
     if (targetDept || stage === 'executive_approval') {
-      const assignee = await findApprover(roleName, targetDept);
+      const assignee = await findApprover(roleNames, targetDept);
       userId = assignee?.user_id ?? null;
       approverLevel = assignee?.level ?? 5;
     }

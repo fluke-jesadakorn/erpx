@@ -4,14 +4,20 @@ import { query } from '../db';
 import { effectOf } from '../perm/grammar';
 
 export const SEED_PERSONA_IDS: readonly string[] = [
-  'staff',
-  'officer',
-  'supervisor',
-  'manager',
-  'director',
+  'it_manager',
+  'it_supervisor',
+  'it_officer',
+  'hr_manager',
+  'hr_supervisor',
+  'hr_officer',
+  'accounting_manager',
+  'accounting_supervisor',
+  'accounting_officer',
+  'finance_manager',
+  'finance_supervisor',
+  'finance_officer',
   'cfo',
   'ceo',
-  'system_admin',
 ];
 
 export interface MatrixColumn {
@@ -26,6 +32,7 @@ export interface MatrixTarget {
   id: string;
   kind: 'department' | 'role';
   label: string;
+  department_id: string | null;
   significance: boolean;
   member_count: number;
   is_seed_persona: boolean;
@@ -62,6 +69,7 @@ export async function loadMatrixTargets(): Promise<MatrixTarget[]> {
     SELECT d.id::text AS id,
            'department'::text AS kind,
            d.display_name::text AS label,
+           NULL::text AS department_id,
            true AS significance,
            COALESCE(m.count, 0) AS member_count,
            false AS is_seed_persona,
@@ -74,6 +82,7 @@ export async function loadMatrixTargets(): Promise<MatrixTarget[]> {
     SELECT r.id::text AS id,
            'role'::text AS kind,
            COALESCE(r.display_name, r.id)::text AS label,
+           r.department_id,
            false AS significance,
            COALESCE(uc.count, 0)::int AS member_count,
            (r.id = ANY($1::text[])) AS is_seed_persona,

@@ -28,7 +28,17 @@ export type DisplayRoleName =
   | 'finance'
   | 'sales_rep'
   | 'sales_supervisor'
-  | 'officer';
+  | 'officer'
+  | 'it_manager'
+  | 'it_supervisor'
+  | 'it_officer'
+  | 'hr_supervisor'
+  | 'hr_officer'
+  | 'accounting_supervisor'
+  | 'accounting_officer'
+  | 'finance_manager'
+  | 'finance_supervisor'
+  | 'finance_officer';
 
 export const ROLE_GLYPH: Record<DisplayRoleName, string> = {
   staff:               '🧑‍💼',
@@ -49,6 +59,16 @@ export const ROLE_GLYPH: Record<DisplayRoleName, string> = {
   officer:             '🪖',
   sales_rep:           '🛒',
   sales_supervisor:    '🛍️',
+  it_manager:          '💻',
+  it_supervisor:       '💻',
+  it_officer:          '💻',
+  hr_supervisor:       '🤝',
+  hr_officer:          '🤝',
+  accounting_supervisor: '📊',
+  accounting_officer:  '📋',
+  finance_manager:     '💰',
+  finance_supervisor:  '💰',
+  finance_officer:     '💰',
 };
 
 export const ROLE_ACCENT: Record<DisplayRoleName, string> = {
@@ -70,6 +90,16 @@ export const ROLE_ACCENT: Record<DisplayRoleName, string> = {
   officer:             'from-paper-2 to-paper-3',
   sales_rep:           'from-caution-soft to-caution-strong',
   sales_supervisor:    'from-caution-soft to-caution-strong',
+  it_manager:          'from-info-soft to-info-strong',
+  it_supervisor:       'from-info-soft to-info-strong',
+  it_officer:          'from-info-soft to-info-strong',
+  hr_supervisor:       'from-accent-soft to-accent-strong',
+  hr_officer:          'from-critical-soft to-critical-strong',
+  accounting_supervisor: 'from-accent-soft to-accent-strong',
+  accounting_officer:  'from-info-soft to-info-strong',
+  finance_manager:     'from-positive-soft to-positive-strong',
+  finance_supervisor:  'from-positive-soft to-positive-strong',
+  finance_officer:     'from-positive-soft to-positive-strong',
 };
 
 export const ROLE_LABEL: Record<DisplayRoleName, string> = {
@@ -91,6 +121,16 @@ export const ROLE_LABEL: Record<DisplayRoleName, string> = {
   hr_manager:          'HR Manager',
   sales_rep:           'Sales Representative',
   sales_supervisor:    'Sales Supervisor',
+  it_manager:          'IT Manager',
+  it_supervisor:       'IT Supervisor',
+  it_officer:          'IT Officer',
+  hr_supervisor:       'HR Supervisor',
+  hr_officer:          'HR Officer',
+  accounting_supervisor: 'Accounting Supervisor',
+  accounting_officer:  'Accounting Officer',
+  finance_manager:     'Financial Manager',
+  finance_supervisor:  'Financial Supervisor',
+  finance_officer:     'Financial Officer',
 };
 
 export const ROLE_LABEL_TH: Record<DisplayRoleName, string> = {
@@ -112,6 +152,16 @@ export const ROLE_LABEL_TH: Record<DisplayRoleName, string> = {
   officer:             'เจ้าหน้าที่ระดับปฏิบัติการ',
   sales_rep:           'เซลล์',
   sales_supervisor:    'หัวหน้าทีมขาย',
+  it_manager:          'ผู้จัดการฝ่ายเทคโนโลยีสารสนเทศ',
+  it_supervisor:       'หัวหน้างานฝ่ายเทคโนโลยีสารสนเทศ',
+  it_officer:          'เจ้าหน้าที่ฝ่ายเทคโนโลยีสารสนเทศ',
+  hr_supervisor:       'หัวหน้างานฝ่ายทรัพยากรบุคคล',
+  hr_officer:          'เจ้าหน้าที่ฝ่ายทรัพยากรบุคคล',
+  accounting_supervisor: 'หัวหน้างานฝ่ายบัญชี',
+  accounting_officer:  'เจ้าหน้าที่ฝ่ายบัญชี',
+  finance_manager:     'ผู้จัดการฝ่ายการเงิน',
+  finance_supervisor:  'หัวหน้างานฝ่ายการเงิน',
+  finance_officer:     'เจ้าหน้าที่ฝ่ายการเงิน',
 };
 
 export const ROLE_BADGE: Record<DisplayRoleName, string> = {
@@ -133,6 +183,16 @@ export const ROLE_BADGE: Record<DisplayRoleName, string> = {
   officer:             'bg-neutral-soft text-neutral-strong border-neutral/40',
   sales_rep:           'bg-caution-soft text-caution-strong border-caution/40',
   sales_supervisor:    'bg-caution-soft text-caution-strong border-caution/40',
+  it_manager:          'bg-info-soft text-info-strong border-info/40',
+  it_supervisor:       'bg-info-soft text-info-strong border-info/40',
+  it_officer:          'bg-info-soft text-info-strong border-info/40',
+  hr_supervisor:       'bg-accent-soft text-accent-strong border-accent/40',
+  hr_officer:          'bg-critical-soft text-critical-strong border-critical/40',
+  accounting_supervisor: 'bg-accent-soft text-accent-strong border-accent/40',
+  accounting_officer:  'bg-info-soft text-info-strong border-info/40',
+  finance_manager:     'bg-positive-soft text-positive-strong border-positive/40',
+  finance_supervisor:  'bg-positive-soft text-positive-strong border-positive/40',
+  finance_officer:     'bg-positive-soft text-positive-strong border-positive/40',
 };
 
 export const ROLE_RANK: Record<DisplayRoleName, number> = {
@@ -154,6 +214,16 @@ export const ROLE_RANK: Record<DisplayRoleName, number> = {
   officer:             5,
   sales_rep:           9,
   sales_supervisor:    8,
+  it_manager:          3,
+  it_supervisor:       4,
+  it_officer:          5,
+  hr_supervisor:       4,
+  hr_officer:          5,
+  accounting_supervisor: 4,
+  accounting_officer:  5,
+  finance_manager:     3,
+  finance_supervisor:  4,
+  finance_officer:     5,
 };
 
 export const ROLE_LEVEL: Record<DisplayRoleName, StaffLevel> = {
@@ -175,6 +245,16 @@ export const ROLE_LEVEL: Record<DisplayRoleName, StaffLevel> = {
   officer:             5,
   sales_rep:           5,
   sales_supervisor:    4,
+  it_manager:          3,
+  it_supervisor:       4,
+  it_officer:          5,
+  hr_supervisor:       4,
+  hr_officer:          5,
+  accounting_supervisor: 4,
+  accounting_officer:  5,
+  finance_manager:     3,
+  finance_supervisor:  4,
+  finance_officer:     5,
 };
 
 export const ROLE_DOMAIN: Record<DisplayRoleName, string> = {
@@ -196,6 +276,16 @@ export const ROLE_DOMAIN: Record<DisplayRoleName, string> = {
   officer:             'general',
   sales_rep:           'sales',
   sales_supervisor:    'sales',
+  it_manager:          'it',
+  it_supervisor:       'it',
+  it_officer:          'it',
+  hr_supervisor:       'hr',
+  hr_officer:          'hr',
+  accounting_supervisor: 'finance',
+  accounting_officer:  'finance',
+  finance_manager:     'finance',
+  finance_supervisor:  'finance',
+  finance_officer:     'finance',
 };
 
 export const STAFF_LEVEL_LABEL: Record<StaffLevel, string> = {
