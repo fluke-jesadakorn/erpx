@@ -6,7 +6,8 @@ import { z } from 'zod';
 import { query as _query } from '@/db';
 import { recordEvent } from '@/waybill/events';
 import { loadWaybill } from '@/waybill/queries';
-import { matchPerm } from '@/perm';
+import { hasPermission } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import type { ActorWithScope } from '@/server/guard';
 import { finalizeSalesDraft, upsertSalesDraftSettlement, loadDraftSalesJournal } from '@/finance/postSalesToGL';
 import { canActAtSalesRecording } from '@folio-lib/sales/coa';
@@ -14,8 +15,8 @@ import { actorForWaybill, type WbForCheck } from './_helpers';
 
 function canPostSalesGlStep(actor: ActorWithScope, wb: WbForCheck, stage: string): boolean {
   if (wb.current_stage !== stage) return false;
-  if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return true;
-  if (matchPerm(actor.permissions, 'finance:gl:post::allow')) {
+  if (hasPermission(actor, PERM.admin.system.bypass)) return true;
+  if (hasPermission(actor, 'finance:gl:post::allow')) {
     return ['finance', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
   }
   return false;
@@ -23,8 +24,8 @@ function canPostSalesGlStep(actor: ActorWithScope, wb: WbForCheck, stage: string
 
 function canConfirmSalesGl(actor: ActorWithScope, wb: WbForCheck): boolean {
   if (wb.origin !== 'so') return false;
-  if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return true;
-  if (matchPerm(actor.permissions, 'finance:gl:confirm::allow')) {
+  if (hasPermission(actor, PERM.admin.system.bypass)) return true;
+  if (hasPermission(actor, 'finance:gl:confirm::allow')) {
     return ['finance', 'account_officer', 'account_supervisor', 'accounting_manager', 'cfo', 'ceo'].includes(actor.role_name);
   }
   return false;
@@ -290,8 +291,8 @@ export async function attachSalesPaymentSlipAction(
   }
 
   const permOk =
-    matchPerm(actor.permissions, 'stage:so_paid:act::allow') ||
-    matchPerm(actor.permissions, 'admin:system:bypass::allow') ||
+    hasPermission(actor, PERM.stage.so_paid.act) ||
+    hasPermission(actor, PERM.admin.system.bypass) ||
     ['finance', 'admin', 'cfo', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
   if (!permOk) throw new Error('Forbidden at so_paid');
 

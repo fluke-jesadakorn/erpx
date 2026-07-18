@@ -1376,7 +1376,69 @@
       "reject": "Ablehnen",
       "rejectedReason": "Grund"
     },
-    "rejected": "Abgelehnt"
+    "rejected": "Abgelehnt",
+    "common": {
+      "backToDashboard": "Zurück zum HR-Dashboard",
+      "employeeCode": "Mitarbeiternummer",
+      "jobDescription": "Stellenbeschreibung",
+      "noJobDescription": "Keine Stellenbeschreibung vorhanden",
+      "leaveBalance": "Verbleibendes Urlaubskontingent",
+      "typeSick": "Krankheitsurlaub",
+      "typeAnnual": "Jahresurlaub",
+      "typePersonal": "Persönlicher Urlaub",
+      "statusApproved": "Genehmigt",
+      "statusRejected": "Abgelehnt",
+      "statusPending": "Genehmigung ausstehend",
+      "days": "Tage",
+      "to": "bis",
+      "reason": "Grund",
+      "noReason": "Nicht angegeben",
+      "rejectionReason": "Ablehnungsgrund",
+      "by": "Von",
+      "department": "Abteilung",
+      "position": "Position"
+    },
+    "directory": {
+      "title": "Mitarbeiterverzeichnis",
+      "searchPlaceholder": "Nach Name, Code oder Abteilung suchen...",
+      "empty": "Keine Mitarbeiter gefunden",
+      "selectOperator": "Bitte wählen Sie zuerst einen HR-Bearbeiter aus",
+      "reasonRequired": "Bitte geben Sie einen Grund für die Anpassung des Urlaubskontingents an",
+      "error": "Fehler: {error}",
+      "connectionError": "Verbindungsfehler: {error}",
+      "noSelectionTitle": "Kein Mitarbeiter ausgewählt",
+      "noSelectionBody": "Wählen Sie links einen Mitarbeiter aus, um Profil, Stellenbeschreibung und verbleibendes Urlaubskontingent anzuzeigen.",
+      "systemRole": "Systemrolle",
+      "adjustQuota": "Urlaubskontingent anpassen (HR)",
+      "editQuota": "Kontingent bearbeiten",
+      "cancel": "Abbrechen",
+      "quotaSuccess": "Urlaubskontingent erfolgreich aktualisiert!",
+      "lineNotified": "Eine Benachrichtigung wurde dem Mitarbeiter über LINE gesendet",
+      "previous": "Bisher",
+      "adjustmentReason": "Grund für die Anpassung",
+      "adjustmentPlaceholder": "Zum Beispiel jährliche Richtlinienänderung oder besonderer Zusatzanspruch...",
+      "saving": "Speichern...",
+      "saveAndNotify": "Speichern und Mitarbeiter benachrichtigen",
+      "editHint": "Klicken Sie auf \"Kontingent bearbeiten\", um den Urlaubsanspruch dieses Mitarbeiters anzupassen.",
+      "history": "Gesamter Verlauf der Urlaubsanträge",
+      "noHistory": "Dieser Mitarbeiter hat noch keine Urlaubsanträge."
+    },
+    "employeeDetail": {
+      "history": "Gesamter Urlaubsverlauf",
+      "noHistory": "Noch keine Urlaubsanträge."
+    },
+    "leaveDetail": {
+      "requestTitle": "Urlaubsantrag",
+      "employee": "Mitarbeiter",
+      "numberOfDays": "Anzahl der Tage",
+      "startDate": "Startdatum",
+      "endDate": "Enddatum",
+      "submittedDate": "Einreichungsdatum",
+      "approver": "Genehmiger",
+      "leaveReason": "Urlaubsgrund",
+      "rejectionReason": "Ablehnungsgrund",
+      "viewHistory": "Vollständigen Verlauf anzeigen für"
+    }
   },
   "ai": {
     "explain": {
@@ -1594,6 +1656,7 @@
   },
   "inbox": {
     "title": "Posteingang",
+    "subtitle": "{name} · {role} · {waiting} wartend · {watching} beobachtet",
     "filters": "Filter",
     "filterWaiting": "Wartend",
     "filterWatching": "Beobachten",
@@ -1627,7 +1690,13 @@
     "requestSending": "Wird gesendet…",
     "requestNote": "Die Genehmigung wird im Access-Requests-Posteingang erfasst. Ihre tatsächlichen Berechtigungen ändern sich erst, wenn Ihre Rolle von HR aktualisiert wurde. Dies benachrichtigt nur {target}.",
     "signInBody": "Bitte anmelden, um fortzufahren.",
-    "deniedHelp": "Bitte wechseln Sie zu einer Rolle mit Zugriff auf diesen Bereich oder wenden Sie sich an den Administrator, um zusätzliche Berechtigungen anzufordern."
+    "deniedHelp": "Bitte wechseln Sie zu einer Rolle mit Zugriff auf diesen Bereich oder wenden Sie sich an den Administrator, um zusätzliche Berechtigungen anzufordern.",
+    "targets": {
+      "hrManager": "Personalleiter",
+      "cfo": "Finanzvorstand",
+      "admin": "Administrator"
+    },
+    "not_foundSubtitle": "Keine Funktion für diese URL"
   },
   "tilesUi": {
     "caption": "{n} in dieser Gruppe",
@@ -1666,7 +1735,11 @@
     "submitter": "Einreicher:",
     "tabAll": "Alle offenen",
     "tabMine": "Meine",
-    "tabQueue": "Meine Warteschlange"
+    "tabQueue": "Meine Warteschlange",
+    "receipt": "Beleg",
+    "bookBank": "Bankbuch",
+    "fileOne": "Datei",
+    "fileMany": "Dateien"
   },
   "slip": {
     "title": "Beleg",
@@ -1695,14 +1768,34 @@
     "rag": "Law RAG",
     "admin": "Recht-Admin",
     "preview": "Vorschau",
+    "backToContracts": "Zurück zu Verträgen",
     "detail": {
       "title": "Vertrag",
       "tabPdf": "PDF-Vorschau",
       "tabChunks": "Chunks",
-      "tabMetadata": "Metadaten"
+      "tabChunksWithCount": "Chunks ({count})",
+      "tabMetadata": "Metadaten",
+      "tabsAriaLabel": "Vertragsdetail-Tabs",
+      "noPdfPreview": "Für diesen Vertrag ist keine MinIO-Vorschau verfügbar.",
+      "noChunks": "Dieser Vertrag hat noch keine indizierten Chunks.",
+      "chunkIndex": "Chunk {index}",
+      "tokenCount": "{count} Tokens"
+    },
+    "page": {
+      "title": "Rechtsdokumente",
+      "subtitle": "Vertragsregister, semantische Suche und LINE-Erfassung",
+      "adminLink": "Admin",
+      "uploadLink": "Hochladen"
     },
     "uploadTitle": "Vertrag hochladen",
+    "uploadCrumb": "Hochladen",
+    "uploadSubtitle": "Quelldatei in MinIO speichern und Text-Chunking mit bge-m3-Embeddings einreihen",
+    "uploadSubtitleShort": "Quelldatei in MinIO speichern",
     "adminTitle": "Rechts-Administration",
+    "adminSubtitle": "Registerstatus und letzte Erfassungsaktivität",
+    "adminCards": {
+      "contracts": "Verträge"
+    },
     "stats": {
       "total": "Gesamt",
       "ready": "Bereit",
@@ -1711,7 +1804,30 @@
     },
     "storage": "Speicher",
     "recentActivity": "Letzte Aktivitäten",
-    "noActivity": "Noch keine Aktivität"
+    "noActivity": "Noch keine Aktivität",
+    "metadata": {
+      "documentNumber": "Dokumentnummer",
+      "status": "Status",
+      "category": "Kategorie",
+      "source": "Quelle",
+      "mimeType": "MIME-Typ",
+      "size": "Größe",
+      "sizeBytes": "{bytes} Bytes",
+      "lineUser": "LINE-Benutzer",
+      "uploaded": "Hochgeladen",
+      "storageBucket": "Speicher-Bucket",
+      "storageKey": "Speicher-Schlüssel",
+      "notAssigned": "Nicht zugewiesen",
+      "uncategorized": "Nicht kategorisiert",
+      "unknown": "Unbekannt",
+      "notLinked": "Nicht verknüpft",
+      "notStored": "Nicht gespeichert"
+    },
+    "permission": {
+      "contractReadRequired": "law:contract:read erforderlich.",
+      "contractUploadRequired": "law:contract:upload erforderlich.",
+      "adminStatsRequired": "law:admin:stats erforderlich."
+    }
   },
   "breadcrumbs": {
     "home": "Start"

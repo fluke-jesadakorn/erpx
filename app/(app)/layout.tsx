@@ -1,8 +1,9 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { verifySession } from '@/server/sessionToken';
-import { matchPerm } from '@/perm/server';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import { loadActor } from '@/server/guard';
 import { LayOut } from '@/components/LayOut';
 import { ActorProvider, type ActorSnapshot } from '@/components/ActorProvider';
@@ -19,15 +20,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const profile = await loadActor();
   if (!profile) redirect('/login');
-  const perms = profile.permissions;
+  const h = await headers();
+  const session = await loadActivePermSession(
+    new Request('http://internal', { headers: h as unknown as HeadersInit }),
+  );
+  if (!session) redirect('/login');
 
-  const canSeeGlLines = matchPerm(perms, 'finance:gl:view::allow');
-  const canPostAccrual = matchPerm(perms, 'finance:gl:post::allow');
-  const canPostSettlement = matchPerm(perms, 'finance:gl:post::allow');
-  const canConfirmGl = matchPerm(perms, 'finance:gl:confirm::allow');
-  const canSettleExpense = matchPerm(perms, 'finance:expense:settle::allow');
-  const canFinalApprove = matchPerm(perms, 'finance:expense:approve::allow');
-  const canAttach = matchPerm(perms, 'finance:expense:create::allow');
+  const canSeeGlLines = hasPermission(session.session, 'finance:gl:view::allow');
+  const canPostAccrual = hasPermission(session.session, 'finance:gl:post::allow');
+  const canPostSettlement = hasPermission(session.session, 'finance:gl:post::allow');
+  const canConfirmGl = hasPermission(session.session, 'finance:gl:confirm::allow');
+  const canSettleExpense = hasPermission(session.session, PERM.finance.expense.settle);
+  const canFinalApprove = hasPermission(session.session, PERM.finance.expense.approve);
+  const canAttach = hasPermission(session.session, PERM.finance.expense.create);
   const canRemoveAttachment = profile.role_name === 'cfo' || profile.role_name === 'ceo' || profile.role_name === 'admin';
   const canRecall = profile.role_name === 'cfo' || profile.role_name === 'ceo' || profile.role_name === 'finance';
 

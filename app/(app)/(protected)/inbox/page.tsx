@@ -11,6 +11,8 @@ import { InboxList } from '@/components/inbox/InboxList';
 import { headers } from 'next/headers';
 import { loadActivePermSession, hasPermission, PERM } from '@/perm/server';
 import { NoPermissionView } from '@/components/NoPermissionView';
+import { getSecondaryLocale } from '@/server/locale';
+import { T } from '@/components/i18n/TServer';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,11 +32,15 @@ export default async function InboxPage({ searchParams }: Props) {
   const out = await loadActivePermSession(
     new Request('http://internal', { headers: h as unknown as HeadersInit }),
   );
+  const locale = await getSecondaryLocale();
   if (!out || !hasPermission(out.session, PERM.tile.inbox.view)) {
     return (
       <>
         <BreadcrumbSetter crumbs={[{ label: 'Hub', href: '/' }, { label: 'Inbox', href: '/inbox' }]} />
-        <PageLayout title="Inbox" subtitle={out?.session.user.name ?? undefined}>
+        <PageLayout
+          title={<T id="inbox.title" locale={locale} />}
+          subtitle={out?.session.user.name ?? undefined}
+        >
           <NoPermissionView
             kind="locked"
             actor={out ? (out.session.user as any) : null}
@@ -67,19 +73,29 @@ export default async function InboxPage({ searchParams }: Props) {
     all: items.length,
   };
 
-  const subtitle = `${actor.fullname} · ${actor.role_name} · ${waitingLen} waiting · ${watchingLen} watching`;
-
   return (
     <>
       <BreadcrumbSetter crumbs={tileCrumbs({ id: 'inbox', display_name: 'Inbox', sub_view: null, group_name: 'work' })} />
       <PageLayout
-        title="Inbox"
-        subtitle={subtitle}
+        title={<T id="inbox.title" locale={locale} />}
+        subtitle={
+          <T
+            id="inbox.subtitle"
+            locale={locale}
+            values={{
+              name: actor.fullname,
+              role: actor.role_name,
+              waiting: waitingLen,
+              watching: watchingLen,
+            }}
+          />
+        }
         category={{
           label: GROUP_LABEL.work.label,
           icon: GROUP_LABEL.work.icon,
           href: '/group/work',
         }}
+        width="wide"
       >
         <InboxFilters current={scope} counts={counts} />
         <InboxList scope={scope} items={items} />

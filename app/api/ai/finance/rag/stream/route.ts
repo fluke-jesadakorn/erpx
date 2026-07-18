@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
-  const guard = await apiGuard(req, { perm: 'finance:vendor:view::allow' });
+  const guard = await apiGuard(req, { perm: 'finance:expense:view_own::allow' });
   if (guard.response) return guard.response;
   const actor = guard.actor!;
   const body = await req.json().catch(() => ({}));

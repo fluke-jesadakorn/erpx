@@ -40,10 +40,10 @@ function leaveTypeThai(type: string): string {
 
 function statusBadge(status: string) {
   if (status === 'approved')
-    return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">อนุมัติแล้ว</span>;
+    return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-positive text-positive border border-positive/40">อนุมัติแล้ว</span>;
   if (status === 'rejected')
-    return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30">ปฏิเสธแล้ว</span>;
-  return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">รออนุมัติ</span>;
+    return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-critical text-critical border border-critical/40">ปฏิเสธแล้ว</span>;
+  return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-caution text-caution border border-caution/40">รออนุมัติ</span>;
 }
 
 function HRDashboardInner(props: Props) {
@@ -94,37 +94,37 @@ function HRDashboardInner(props: Props) {
   }, []);
 
   return (
-    <PageLayout className="max-w-7xl">
+    <PageLayout width="wide">
       {tooltipReq && (
         <div
-          className="fixed z-50 bg-slate-800 border border-slate-700 text-slate-100 text-xs px-3 py-2 rounded-xl shadow-2xl pointer-events-none max-w-xs"
+          className="fixed z-fixed bg-paper-2 border border-rule text-ink text-xs px-3 py-2 rounded-md shadow-2xl pointer-events-none max-w-xs"
           style={{ top: tooltipReq.y + 12, left: tooltipReq.x + 8 }}
         >
-          <div className="font-bold text-sm text-indigo-300">{tooltipReq.req.employee_name}</div>
-          <div className="mt-0.5 text-slate-400">{leaveTypeThai(tooltipReq.req.leave_type)}</div>
-          <div className="text-slate-500 mt-0.5 font-mono">{tooltipReq.req.start_date} → {tooltipReq.req.end_date}</div>
-          <div className="text-slate-300 font-bold mt-0.5">{tooltipReq.req.days} วัน</div>
+          <div className="font-bold text-sm text-accent">{tooltipReq.req.employee_name}</div>
+          <div className="mt-0.5 text-ink-2">{leaveTypeThai(tooltipReq.req.leave_type)}</div>
+          <div className="text-mute mt-0.5 font-mono">{tooltipReq.req.start_date} → {tooltipReq.req.end_date}</div>
+          <div className="text-ink-2 font-bold mt-0.5">{tooltipReq.req.days} วัน</div>
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-slate-800 pb-6 mb-8 gap-4">
+      <div className="panel-elevated mb-7 flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between sm:p-6">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+          <h1 className="page-title text-ink">
             HR Leave Management Portal
           </h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <p className="text-ink-2 text-sm mt-1">
             ระบบตรวจสอบสิทธิ์ สถิติการลา และพิจารณาอนุมัติคำขอหยุดงานสำหรับฝ่ายบุคคล
           </p>
         </div>
-        <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl shadow-lg shadow-indigo-950/20 self-start md:self-auto">
-          <span className="text-xs text-indigo-400 font-bold uppercase tracking-wider">สลับบัญชี HR:</span>
+        <div className="glass-input flex items-center gap-3 px-4 py-2.5 self-start md:self-auto">
+          <span className="text-xs text-accent font-bold uppercase tracking-wider">สลับบัญชี HR:</span>
           <select
             value={selectedHrId}
             onChange={(e) => setSelectedHrId(e.target.value)}
-            className="bg-transparent border-0 text-slate-200 text-sm font-semibold focus:ring-0 focus:outline-none cursor-pointer"
+            className="bg-transparent border-0 text-ink text-sm font-semibold focus:ring-0 focus:outline-none cursor-pointer"
           >
             {props.hrUsers.map(user => (
-              <option key={user.id} value={user.id} className="bg-slate-900 text-slate-200">
+              <option key={user.id} value={user.id} className="bg-paper text-ink">
                 {user.name} ({user.position})
               </option>
             ))}
@@ -132,7 +132,7 @@ function HRDashboardInner(props: Props) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 border-b border-slate-800 pb-3 mb-8">
+      <div className="glass-toolbar mb-7 flex flex-wrap gap-2 p-2">
         {(
           [
             { key: 'requests', label: '📋 รายการขอลาหยุด', count: requests.filter(r => r.status === 'pending').length },
@@ -149,8 +149,8 @@ function HRDashboardInner(props: Props) {
             }}
             className={`px-4 py-2 text-sm font-bold rounded-lg transition border cursor-pointer ${
               activeTab === t.key
-                ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-950/45'
-                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+                ? 'bg-accent-strong border-accent/40 text-ink shadow-lg shadow-accent/45'
+                : 'bg-paper border-rule text-ink-2 hover:text-ink'
             }`}
           >
             {t.label} {t.count > 0 ? `(${t.count} ${t.key === 'requests' ? 'รออนุมัติ' : 'คน'})` : ''}

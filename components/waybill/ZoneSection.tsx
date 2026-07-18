@@ -13,53 +13,53 @@ interface ToneClasses {
 
 const TONES: Record<ZoneTone, ToneClasses> = {
   cyan: {
-    border: 'border-l-cyan-400/60',
-    bg: 'bg-cyan-500/5',
-    icon: 'text-cyan-300',
-    label: 'text-cyan-300/90',
-    count: 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40',
+    border: 'border-l-info',
+    bg: 'bg-info-soft',
+    icon: 'text-info-strong',
+    label: 'text-info-strong',
+    count: 'bg-info text-paper border-info',
   },
   emerald: {
-    border: 'border-l-emerald-400/60',
-    bg: 'bg-emerald-500/5',
-    icon: 'text-emerald-300',
-    label: 'text-emerald-300/90',
-    count: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40',
+    border: 'border-l-positive',
+    bg: 'bg-positive-soft',
+    icon: 'text-positive-strong',
+    label: 'text-positive-strong',
+    count: 'bg-positive text-paper border-positive',
   },
   indigo: {
-    border: 'border-l-indigo-400/60',
-    bg: 'bg-indigo-500/5',
-    icon: 'text-indigo-300',
-    label: 'text-indigo-300/90',
-    count: 'bg-indigo-500/20 text-indigo-200 border-indigo-400/40',
+    border: 'border-l-accent',
+    bg: 'bg-accent-soft',
+    icon: 'text-accent-strong',
+    label: 'text-accent-strong',
+    count: 'bg-accent text-paper border-accent',
   },
   amber: {
-    border: 'border-l-amber-400/60',
-    bg: 'bg-amber-500/5',
-    icon: 'text-amber-300',
-    label: 'text-amber-300/90',
-    count: 'bg-amber-500/20 text-amber-200 border-amber-400/40',
+    border: 'border-l-caution',
+    bg: 'bg-caution-soft',
+    icon: 'text-caution-strong',
+    label: 'text-caution-strong',
+    count: 'bg-caution text-paper border-caution',
   },
   rose: {
-    border: 'border-l-rose-400/60',
-    bg: 'bg-rose-500/5',
-    icon: 'text-rose-300',
-    label: 'text-rose-300/90',
-    count: 'bg-rose-500/20 text-rose-200 border-rose-400/40',
+    border: 'border-l-critical',
+    bg: 'bg-critical-soft',
+    icon: 'text-critical-strong',
+    label: 'text-critical-strong',
+    count: 'bg-critical text-paper border-critical',
   },
   fuchsia: {
-    border: 'border-l-fuchsia-400/60',
-    bg: 'bg-fuchsia-500/5',
-    icon: 'text-fuchsia-300',
-    label: 'text-fuchsia-300/90',
-    count: 'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-400/40',
+    border: 'border-l-accent',
+    bg: 'bg-accent-soft',
+    icon: 'text-accent-strong',
+    label: 'text-accent-strong',
+    count: 'bg-accent text-paper border-accent',
   },
   slate: {
-    border: 'border-l-slate-500/60',
-    bg: 'bg-slate-500/5',
-    icon: 'text-slate-300',
-    label: 'text-slate-300/90',
-    count: 'bg-slate-700/40 text-slate-200 border-slate-600/60',
+    border: 'border-l-rule',
+    bg: 'bg-paper-2',
+    icon: 'text-ink-2',
+    label: 'text-ink-2',
+    count: 'bg-paper-3 text-ink border-rule',
   },
 };
 
@@ -90,7 +90,7 @@ export function ZoneSection({
   return (
     <section
       className={[
-        'relative rounded-xl border border-slate-800/70 border-l-4',
+        'relative rounded-md border border-rule/70 border-l-4',
         t.border,
         t.bg,
         dense ? 'p-3' : 'p-4',
@@ -113,7 +113,7 @@ export function ZoneSection({
           </span>
         )}
         {meta && (
-          <span className="ml-auto truncate text-xs font-mono text-slate-500">
+          <span className="ml-auto truncate text-xs font-mono text-mute">
             {meta}
           </span>
         )}

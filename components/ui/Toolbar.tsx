@@ -14,7 +14,7 @@ export function Toolbar({
   return (
     <div
       className={[
-        sticky ? 'sticky top-14 z-20' : '',
+        sticky ? 'sticky top-14 z-dropdown' : '',
         'border-b border-rule bg-paper-2 px-4 py-2.5 sm:px-6',
         className,
       ].join(' ')}

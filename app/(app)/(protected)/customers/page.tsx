@@ -6,6 +6,7 @@ import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { getSecondaryLocale } from '@/server/locale';
 import { T } from '@/components/i18n/TServer';
+import { Empty } from '@/components/ui/Empty';
 import { headers } from 'next/headers';
 import { loadActivePermSession, hasPermission } from '@/perm/server';
 import { NoPermissionView } from '@/components/NoPermissionView';
@@ -71,7 +72,7 @@ export default async function CustomersPage({ searchParams }: PageProps) {
 
   const searchPlaceholder = t('customers.searchPlaceholder');
   const searchButton = t('customers.searchButton');
-  const empty = t('customers.empty');
+  const emptyTitle = t('customers.empty');
 
   return (
     <>
@@ -91,19 +92,19 @@ export default async function CustomersPage({ searchParams }: PageProps) {
             name="q"
             defaultValue={q}
             placeholder={searchPlaceholder}
-            className="flex-1 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+            className="flex-1 rounded-lg bg-paper border border-rule px-3 py-2 text-sm text-ink placeholder-mute focus:outline-none focus:border-accent/40"
           />
           <button
             type="submit"
-            className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-sm font-mono text-cyan-200 hover:bg-cyan-500/20"
+            className="rounded-lg border border-info/40 bg-info px-4 py-2 text-sm font-mono text-info hover:bg-info"
           >
             {searchButton}
           </button>
         </form>
 
-        <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/60">
+        <div className="overflow-x-auto rounded-md border border-rule bg-paper-2/60">
           <table className="w-full text-sm">
-            <thead className="border-b border-slate-800 text-xs font-mono uppercase tracking-wider text-slate-500">
+            <thead className="border-b border-rule text-xs font-mono uppercase tracking-wider text-mute">
               <tr>
                 <th className="px-3 py-3 text-left"><T id="customers.colCode" locale={locale} /></th>
                 <th className="px-3 py-3 text-left"><T id="customers.colName" locale={locale} /></th>
@@ -118,24 +119,29 @@ export default async function CustomersPage({ searchParams }: PageProps) {
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-3 py-6 text-center text-slate-500">{empty}</td>
+                  <td colSpan={8}>
+                    <Empty
+                      title={emptyTitle}
+                      body={q ? 'Try a different search term.' : 'Customers will appear here once added.'}
+                    />
+                  </td>
                 </tr>
               ) : rows.map(({ customer: c, ar }) => (
-                <tr key={c.id} className="border-b border-slate-900 hover:bg-slate-900/40">
-                  <td className="px-3 py-2 font-mono text-cyan-300">
+                <tr key={c.id} className="border-b border-rule hover:bg-paper-2/40">
+                  <td className="px-3 py-2 font-mono text-info">
                     <a href={`/customers/${c.id}`} className="hover:underline">{c.code}</a>
                   </td>
-                  <td className="px-3 py-2 text-white">{c.name}{c.name_th ? <span className="ml-1 text-slate-500">({c.name_th})</span> : null}</td>
-                  <td className="px-3 py-2 text-right font-mono text-slate-300">{formatTHB(c.credit_limit_thb)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-amber-300">{formatTHB(ar?.outstanding_ar ?? 0)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-slate-300">{formatTHB(ar?.total_invoiced ?? 0)}</td>
-                  <td className="px-3 py-2 text-right font-mono text-emerald-300">{formatTHB(ar?.total_paid ?? 0)}</td>
+                  <td className="px-3 py-2 text-ink">{c.name}{c.name_th ? <span className="ml-1 text-mute">({c.name_th})</span> : null}</td>
+                  <td className="px-3 py-2 text-right font-mono text-ink-2">{formatTHB(c.credit_limit_thb)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-caution">{formatTHB(ar?.outstanding_ar ?? 0)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-ink-2">{formatTHB(ar?.total_invoiced ?? 0)}</td>
+                  <td className="px-3 py-2 text-right font-mono text-positive">{formatTHB(ar?.total_paid ?? 0)}</td>
                   <td className="px-3 py-2 text-center">
-                    {c.blacklist ? <span className="rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-xs font-mono text-rose-300"><T id="customers.statusBlacklist" locale={locale} /></span>
-                      : c.is_active ? <span className="rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-xs font-mono text-emerald-300"><T id="customers.statusActive" locale={locale} /></span>
-                        : <span className="rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 text-xs font-mono text-slate-400"><T id="customers.statusInactive" locale={locale} /></span>}
+                    {c.blacklist ? <span className="rounded-full border border-critical/40 bg-critical px-2 py-0.5 text-xs font-mono text-critical"><T id="customers.statusBlacklist" locale={locale} /></span>
+                      : c.is_active ? <span className="rounded-full border border-positive/40 bg-positive px-2 py-0.5 text-xs font-mono text-positive"><T id="customers.statusActive" locale={locale} /></span>
+                        : <span className="rounded-full border border-rule bg-paper-2 px-2 py-0.5 text-xs font-mono text-ink-2"><T id="customers.statusInactive" locale={locale} /></span>}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono text-slate-500">{ar?.so_count ?? 0}</td>
+                  <td className="px-3 py-2 text-right font-mono text-mute">{ar?.so_count ?? 0}</td>
                 </tr>
               ))}
             </tbody>

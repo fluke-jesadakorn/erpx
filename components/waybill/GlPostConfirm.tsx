@@ -50,7 +50,7 @@ export function ExpenseGlPostConfirm({
         <input type="hidden" name="waybillId" value={waybillId} />
         <button
           type="submit"
-          className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-sm font-mono text-cyan-200 hover:bg-cyan-500/30"
+          className="rounded-lg border border-info bg-info px-3 py-1.5 text-sm font-mono text-info-soft hover:bg-info"
         >
           ⟳ <T id="waybill.gl.recomputeDraft" locale={locale} />
         </button>
@@ -104,14 +104,14 @@ export function ExpenseGlPostConfirm({
   const meta: React.ReactNode[] = [];
   if (posted) {
     meta.push(
-      <p key="posted-by" className="rounded-md border border-emerald-500/40 bg-emerald-950/40 p-2 font-mono text-emerald-100">
-        <span className="text-emerald-300">posted_by:</span>{' '}
+      <p key="posted-by" className="rounded-md border border-positive bg-positive-soft p-2 font-mono text-positive-soft">
+        <span className="text-positive">posted_by:</span>{' '}
         {posted.finalized_by_name ?? '—'}{' '}
-        <span className="text-slate-500">#{posted.finalized_by ?? '—'}</span>
+        <span className="text-mute">#{posted.finalized_by ?? '—'}</span>
         {posted.finalized_at && (
           <>
-            <span className="mx-1 text-slate-700">·</span>
-            <span className="text-emerald-300/80">{fmtTs(posted.finalized_at, locale === 'de' ? 'en' as const : locale)}</span>
+            <span className="mx-1 text-mute">·</span>
+            <span className="text-positive">{fmtTs(posted.finalized_at, locale === 'de' ? 'en' as const : locale)}</span>
           </>
         )}
       </p>,
@@ -119,23 +119,23 @@ export function ExpenseGlPostConfirm({
   }
   if (posted_event) {
     meta.push(
-      <p key="posted-event" className="rounded-md border border-emerald-500/40 bg-emerald-950/40 p-2 font-mono text-emerald-100">
-        <span className="text-emerald-300">posted_event:</span>{' '}
+      <p key="posted-event" className="rounded-md border border-positive bg-positive-soft p-2 font-mono text-positive-soft">
+        <span className="text-positive">posted_event:</span>{' '}
         {posted_event.actor_name ?? '—'}{' '}
-        <span className="text-slate-500">#{posted_event.actor_id ?? '—'}</span>
-        <span className="mx-1 text-slate-700">·</span>
-        <span className="text-emerald-300/80">{fmtTs(posted_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
+        <span className="text-mute">#{posted_event.actor_id ?? '—'}</span>
+        <span className="mx-1 text-mute">·</span>
+        <span className="text-positive">{fmtTs(posted_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
       </p>,
     );
   }
   if (confirmed_event) {
     meta.push(
-      <p key="confirmed-event" className="rounded-md border border-cyan-500/40 bg-cyan-950/40 p-2 font-mono text-cyan-100 sm:col-span-2">
-        <span className="text-cyan-300">confirmed_event:</span>{' '}
+      <p key="confirmed-event" className="rounded-md border border-info bg-info-soft p-2 font-mono text-info-soft sm:col-span-2">
+        <span className="text-info">confirmed_event:</span>{' '}
         {confirmed_event.actor_name ?? '—'}{' '}
-        <span className="text-slate-500">#{confirmed_event.actor_id ?? '—'}</span>
-        <span className="mx-1 text-slate-700">·</span>
-        <span className="text-cyan-300/80">{fmtTs(confirmed_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
+        <span className="text-mute">#{confirmed_event.actor_id ?? '—'}</span>
+        <span className="mx-1 text-mute">·</span>
+        <span className="text-info">{fmtTs(confirmed_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
       </p>,
     );
   }
@@ -147,25 +147,25 @@ export function ExpenseGlPostConfirm({
       )}
 
       {empty && (
-        <p className="glass-panel rounded-md border p-3 text-sm italic text-slate-500">
+        <p className="bg-paper-2 border border-rule rounded-md border p-3 text-sm italic text-mute">
           <T id="waybill.gl.noJournalYet" locale={locale} />
         </p>
       )}
 
       {draft && (
-        <section className="space-y-2 rounded-xl border border-cyan-500/40 bg-cyan-950/15 p-3">
+        <section className="space-y-2 rounded-md border border-info bg-info-soft p-3">
           <header className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-cyan-200">
+              <span className="rounded-md border border-info bg-info px-2 py-0.5 text-sm font-mono font-bold uppercase text-info-soft">
                 📝 DRAFT
               </span>
-              <span className="font-mono text-sm text-slate-500">JE #{draft.journal_id}</span>
+              <span className="font-mono text-sm text-mute">JE #{draft.journal_id}</span>
             </div>
-            <span className="font-mono text-sm text-slate-500">
-              entry_date: <span className="text-cyan-300">{fmtDate(draft.entry_date)}</span>
+            <span className="font-mono text-sm text-mute">
+              entry_date: <span className="text-info">{fmtDate(draft.entry_date)}</span>
             </span>
           </header>
-          {draft.description && <p className="text-sm text-slate-300">{draft.description}</p>}
+          {draft.description && <p className="text-sm text-ink-2">{draft.description}</p>}
           <GlVisibilityGate
             actorCanSeeLines={actorCanSeeLines}
             totalDebit={totals.totalDebit}
@@ -179,19 +179,19 @@ export function ExpenseGlPostConfirm({
       )}
 
       {posted && (
-        <section className="space-y-2 rounded-xl border border-emerald-500/40 bg-emerald-950/15 p-3">
+        <section className="space-y-2 rounded-md border border-positive bg-positive-soft p-3">
           <header className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-emerald-200">
+              <span className="rounded-md border border-positive bg-positive px-2 py-0.5 text-sm font-mono font-bold uppercase text-positive-soft">
                 ✓ POSTED
               </span>
-              <span className="font-mono text-sm text-slate-500">JE #{posted.journal_id}</span>
+              <span className="font-mono text-sm text-mute">JE #{posted.journal_id}</span>
             </div>
-            <span className="font-mono text-sm text-slate-500">
-              entry_date: <span className="text-emerald-300">{fmtDate(posted.entry_date)}</span>
+            <span className="font-mono text-sm text-mute">
+              entry_date: <span className="text-positive">{fmtDate(posted.entry_date)}</span>
             </span>
           </header>
-          {posted.description && <p className="text-sm text-slate-300">{posted.description}</p>}
+          {posted.description && <p className="text-sm text-ink-2">{posted.description}</p>}
           <GlVisibilityGate
             actorCanSeeLines={actorCanSeeLines}
             totalDebit={totals.totalDebit}
@@ -242,7 +242,7 @@ export function ProcurementGlPostConfirm({
         <input type="hidden" name="waybillId" value={waybillId} />
         <button
           type="submit"
-          className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-sm font-mono text-cyan-200 hover:bg-cyan-500/30"
+          className="rounded-lg border border-info bg-info px-3 py-1.5 text-sm font-mono text-info-soft hover:bg-info"
         >
           ⟳ <T id="waybill.gl.resaveDraft" locale={locale} />
         </button>
@@ -258,7 +258,7 @@ export function ProcurementGlPostConfirm({
         <button
           type="submit"
           className={
-            'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold text-slate-950 shadow ' +
+            'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold text-ink shadow ' +
             (tone === 'amber'
               ? 'bg-caution text-ink hover:bg-caution-strong'
               : 'bg-positive text-paper hover:bg-positive-strong')
@@ -291,14 +291,14 @@ export function ProcurementGlPostConfirm({
   const meta: React.ReactNode[] = [];
   if (posted) {
     meta.push(
-      <p key="posted-by" className="rounded-md border border-emerald-500/40 bg-emerald-950/40 p-2 font-mono text-emerald-100">
-        <span className="text-emerald-300">posted_by:</span>{' '}
+      <p key="posted-by" className="rounded-md border border-positive bg-positive-soft p-2 font-mono text-positive-soft">
+        <span className="text-positive">posted_by:</span>{' '}
         {posted.finalized_by_name ?? '—'}{' '}
-        <span className="text-slate-500">#{posted.finalized_by ?? '—'}</span>
+        <span className="text-mute">#{posted.finalized_by ?? '—'}</span>
         {posted.finalized_at && (
           <>
-            <span className="mx-1 text-slate-700">·</span>
-            <span className="text-emerald-300/80">{fmtTs(posted.finalized_at, locale === 'de' ? 'en' as const : locale)}</span>
+            <span className="mx-1 text-mute">·</span>
+            <span className="text-positive">{fmtTs(posted.finalized_at, locale === 'de' ? 'en' as const : locale)}</span>
           </>
         )}
       </p>,
@@ -306,23 +306,23 @@ export function ProcurementGlPostConfirm({
   }
   if (posted_event) {
     meta.push(
-      <p key="posted-event" className="rounded-md border border-emerald-500/40 bg-emerald-950/40 p-2 font-mono text-emerald-100">
-        <span className="text-emerald-300">posted_event:</span>{' '}
+      <p key="posted-event" className="rounded-md border border-positive bg-positive-soft p-2 font-mono text-positive-soft">
+        <span className="text-positive">posted_event:</span>{' '}
         {posted_event.actor_name ?? '—'}{' '}
-        <span className="text-slate-500">#{posted_event.actor_id ?? '—'}</span>
-        <span className="mx-1 text-slate-700">·</span>
-        <span className="text-emerald-300/80">{fmtTs(posted_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
+        <span className="text-mute">#{posted_event.actor_id ?? '—'}</span>
+        <span className="mx-1 text-mute">·</span>
+        <span className="text-positive">{fmtTs(posted_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
       </p>,
     );
   }
   if (confirmed_event) {
     meta.push(
-      <p key="confirmed-event" className="rounded-md border border-cyan-500/40 bg-cyan-950/40 p-2 font-mono text-cyan-100 sm:col-span-2">
-        <span className="text-cyan-300">confirmed_event:</span>{' '}
+      <p key="confirmed-event" className="rounded-md border border-info bg-info-soft p-2 font-mono text-info-soft sm:col-span-2">
+        <span className="text-info">confirmed_event:</span>{' '}
         {confirmed_event.actor_name ?? '—'}{' '}
-        <span className="text-slate-500">#{confirmed_event.actor_id ?? '—'}</span>
-        <span className="mx-1 text-slate-700">·</span>
-        <span className="text-cyan-300/80">{fmtTs(confirmed_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
+        <span className="text-mute">#{confirmed_event.actor_id ?? '—'}</span>
+        <span className="mx-1 text-mute">·</span>
+        <span className="text-info">{fmtTs(confirmed_event.occurred_at, locale === 'de' ? 'en' as const : locale)}</span>
       </p>,
     );
   }
@@ -334,19 +334,19 @@ export function ProcurementGlPostConfirm({
       )}
 
       {draft && (
-        <section className="space-y-2 rounded-lg border border-cyan-500/40 bg-cyan-950/15 p-3">
+        <section className="space-y-2 rounded-lg border border-info bg-info-soft p-3">
           <header className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="rounded-md border border-cyan-400/40 bg-cyan-500/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-cyan-200">
+              <span className="rounded-md border border-info bg-info px-2 py-0.5 text-sm font-mono font-bold uppercase text-info-soft">
                 📝 DRAFT
               </span>
-              <span className="font-mono text-sm text-slate-500">JE #{draft.journal_id}</span>
+              <span className="font-mono text-sm text-mute">JE #{draft.journal_id}</span>
             </div>
-            <span className="font-mono text-sm text-slate-500">
-              entry_date: <span className="text-cyan-300">{fmtDate(draft.entry_date)}</span>
+            <span className="font-mono text-sm text-mute">
+              entry_date: <span className="text-info">{fmtDate(draft.entry_date)}</span>
             </span>
           </header>
-          {draft.description && <p className="text-sm text-slate-300">{draft.description}</p>}
+          {draft.description && <p className="text-sm text-ink-2">{draft.description}</p>}
           <GlVisibilityGate
             actorCanSeeLines={actorCanSeeLines}
             totalDebit={totals.totalDebit}
@@ -360,19 +360,19 @@ export function ProcurementGlPostConfirm({
       )}
 
       {posted && (
-        <section className="space-y-2 rounded-lg border border-emerald-500/40 bg-emerald-950/15 p-3">
+        <section className="space-y-2 rounded-lg border border-positive bg-positive-soft p-3">
           <header className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="rounded-md border border-emerald-400/40 bg-emerald-500/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-emerald-200">
+              <span className="rounded-md border border-positive bg-positive px-2 py-0.5 text-sm font-mono font-bold uppercase text-positive-soft">
                 ✓ POSTED
               </span>
-              <span className="font-mono text-sm text-slate-500">JE #{posted.journal_id}</span>
+              <span className="font-mono text-sm text-mute">JE #{posted.journal_id}</span>
             </div>
-            <span className="font-mono text-sm text-slate-500">
-              entry_date: <span className="text-emerald-300">{fmtDate(posted.entry_date)}</span>
+            <span className="font-mono text-sm text-mute">
+              entry_date: <span className="text-positive">{fmtDate(posted.entry_date)}</span>
             </span>
           </header>
-          {posted.description && <p className="text-sm text-slate-300">{posted.description}</p>}
+          {posted.description && <p className="text-sm text-ink-2">{posted.description}</p>}
           <GlVisibilityGate
             actorCanSeeLines={actorCanSeeLines}
             totalDebit={totals.totalDebit}

@@ -50,9 +50,9 @@
     "po": "PO",
     "procurement": "Procurement",
     "sales": "Sales orders",
-      "policy": "Policy",
-      "matrix": "Policy matrix",
-      "tiles": "Tile catalog",
+    "policy": "Policy",
+    "matrix": "Policy matrix",
+    "tiles": "Tile catalog",
     "people": "People",
     "audit": "Audit log",
     "customers": "Customers",
@@ -1374,7 +1374,69 @@
       "reject": "Reject",
       "rejectedReason": "Reason"
     },
-    "rejected": "Rejected"
+    "rejected": "Rejected",
+    "common": {
+      "backToDashboard": "Back to HR Dashboard",
+      "employeeCode": "Employee ID",
+      "jobDescription": "Job Description",
+      "noJobDescription": "No job description provided",
+      "leaveBalance": "Remaining leave allowance",
+      "typeSick": "Sick leave",
+      "typeAnnual": "Annual leave",
+      "typePersonal": "Personal leave",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "statusPending": "Pending approval",
+      "days": "days",
+      "to": "to",
+      "reason": "Reason",
+      "noReason": "Not specified",
+      "rejectionReason": "Rejection reason",
+      "by": "By",
+      "department": "Department",
+      "position": "Position"
+    },
+    "directory": {
+      "title": "Employee Directory",
+      "searchPlaceholder": "Search by name, code, or department...",
+      "empty": "No employees found",
+      "selectOperator": "Please select an HR operator first",
+      "reasonRequired": "Please specify a reason for adjusting the leave allowance",
+      "error": "Error: {error}",
+      "connectionError": "Connection error: {error}",
+      "noSelectionTitle": "No employee selected",
+      "noSelectionBody": "Select an employee from the left to view their profile, job description, and remaining leave allowance.",
+      "systemRole": "System role",
+      "adjustQuota": "Adjust leave allowance (HR)",
+      "editQuota": "Edit allowance",
+      "cancel": "Cancel",
+      "quotaSuccess": "Leave allowance updated successfully!",
+      "lineNotified": "A notification was sent to the employee via LINE",
+      "previous": "Previous",
+      "adjustmentReason": "Reason for adjustment",
+      "adjustmentPlaceholder": "For example, annual policy update or special additional entitlement...",
+      "saving": "Saving...",
+      "saveAndNotify": "Save and notify employee",
+      "editHint": "Click \"Edit allowance\" to adjust this employee's leave entitlement.",
+      "history": "All leave request history",
+      "noHistory": "This employee has no leave request history."
+    },
+    "employeeDetail": {
+      "history": "All leave history",
+      "noHistory": "No leave requests yet."
+    },
+    "leaveDetail": {
+      "requestTitle": "Leave request",
+      "employee": "Employee",
+      "numberOfDays": "Number of days",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "submittedDate": "Submitted date",
+      "approver": "Approver",
+      "leaveReason": "Leave reason",
+      "rejectionReason": "Rejection reason",
+      "viewHistory": "View full history for"
+    }
   },
   "ai": {
     "explain": {
@@ -1592,6 +1654,7 @@
   },
   "inbox": {
     "title": "Inbox",
+    "subtitle": "{name} · {role} · {waiting} waiting · {watching} watching",
     "filters": "Filters",
     "filterWaiting": "Waiting",
     "filterWatching": "Watching",
@@ -1625,7 +1688,13 @@
     "requestSending": "Sending…",
     "requestNote": "Approval is recorded in the Access Requests inbox; your actual permissions will not change until your role is updated by HR. This only notifies {target}.",
     "signInBody": "Sign in to continue.",
-    "deniedHelp": "Please switch to a role with access to this section or contact the administrator to request additional permissions."
+    "deniedHelp": "Please switch to a role with access to this section or contact the administrator to request additional permissions.",
+    "targets": {
+      "hrManager": "HR Manager",
+      "cfo": "CFO",
+      "admin": "Admin"
+    },
+    "not_foundSubtitle": "No feature matches this URL."
   },
   "tilesUi": {
     "caption": "{n} in this group",
@@ -1664,7 +1733,11 @@
     "submitter": "submitter:",
     "tabAll": "All open",
     "tabMine": "Mine",
-    "tabQueue": "My queue"
+    "tabQueue": "My queue",
+    "receipt": "Receipt",
+    "bookBank": "Book bank",
+    "fileOne": "file",
+    "fileMany": "files"
   },
   "slip": {
     "title": "Slip",
@@ -1693,14 +1766,34 @@
     "rag": "Law RAG",
     "admin": "Law admin",
     "preview": "Preview",
+    "backToContracts": "Back to contracts",
     "detail": {
       "title": "Contract",
       "tabPdf": "PDF preview",
       "tabChunks": "Chunks",
-      "tabMetadata": "Metadata"
+      "tabChunksWithCount": "Chunks ({count})",
+      "tabMetadata": "Metadata",
+      "tabsAriaLabel": "Contract detail tabs",
+      "noPdfPreview": "No MinIO preview is available for this contract.",
+      "noChunks": "This contract has no indexed chunks yet.",
+      "chunkIndex": "Chunk {index}",
+      "tokenCount": "{count} tokens"
+    },
+    "page": {
+      "title": "Law documents",
+      "subtitle": "Contract registry, semantic retrieval, and LINE ingestion",
+      "adminLink": "Admin",
+      "uploadLink": "Upload"
     },
     "uploadTitle": "Upload contract",
+    "uploadCrumb": "Upload",
+    "uploadSubtitle": "Store the source in MinIO and queue text chunking with bge-m3 embeddings",
+    "uploadSubtitleShort": "Store the source in MinIO",
     "adminTitle": "Law admin",
+    "adminSubtitle": "Registry health and recent ingestion activity",
+    "adminCards": {
+      "contracts": "Contracts"
+    },
     "stats": {
       "total": "Total",
       "ready": "Ready",
@@ -1709,7 +1802,30 @@
     },
     "storage": "Storage",
     "recentActivity": "Recent activity",
-    "noActivity": "No activity yet"
+    "noActivity": "No activity yet",
+    "metadata": {
+      "documentNumber": "Document number",
+      "status": "Status",
+      "category": "Category",
+      "source": "Source",
+      "mimeType": "MIME type",
+      "size": "Size",
+      "sizeBytes": "{bytes} bytes",
+      "lineUser": "LINE user",
+      "uploaded": "Uploaded",
+      "storageBucket": "Storage bucket",
+      "storageKey": "Storage key",
+      "notAssigned": "Not assigned",
+      "uncategorized": "Uncategorized",
+      "unknown": "Unknown",
+      "notLinked": "Not linked",
+      "notStored": "Not stored"
+    },
+    "permission": {
+      "contractReadRequired": "law:contract:read required.",
+      "contractUploadRequired": "law:contract:upload required.",
+      "adminStatsRequired": "law:admin:stats required."
+    }
   },
   "breadcrumbs": {
     "home": "Hub"

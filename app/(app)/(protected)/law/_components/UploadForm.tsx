@@ -31,7 +31,7 @@ export function UploadForm() {
   }
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-950/55 p-5">
+    <section className="rounded-md border border-rule bg-paper-2/55 p-5">
       <input
         ref={input}
         type="file"
@@ -52,31 +52,31 @@ export function UploadForm() {
           setDrag(false);
           setFile(event.dataTransfer.files?.[0] ?? null);
         }}
-        className={`flex min-h-64 w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 text-center transition-colors ${
+        className={`flex min-h-64 w-full flex-col items-center justify-center rounded-md border-2 border-dashed px-6 text-center transition-colors ${
           drag
-            ? 'border-cyan-400 bg-cyan-500/10'
-            : 'border-slate-700 bg-slate-900/35 hover:border-cyan-500/60 hover:bg-slate-900/60'
+            ? 'border-info/40 bg-info'
+            : 'border-rule bg-paper-2/35 hover:border-info/40 hover:bg-paper-2/60'
         }`}
       >
-        <span className="text-lg font-semibold text-slate-100">
+        <span className="text-lg font-semibold text-ink">
           {file ? file.name : 'Drop a contract here'}
         </span>
-        <span className="mt-2 text-sm text-slate-500">
+        <span className="mt-2 text-sm text-mute">
           {file
             ? `${(file.size / 1024 / 1024).toFixed(2)} MB · ${file.type || 'unknown type'}`
             : 'or click to browse PDF, DOCX, or text files'}
         </span>
       </button>
 
-      {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
+      {error && <p className="mt-3 text-sm text-critical">{error}</p>}
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        <p className="text-xs text-slate-500">Files are stored under law/contracts/ and indexed asynchronously.</p>
+        <p className="text-xs text-mute">Files are stored under law/contracts/ and indexed asynchronously.</p>
         <button
           type="button"
           onClick={upload}
           disabled={!file || busy}
-          className="rounded-xl border border-cyan-500/50 bg-cyan-500/15 px-4 py-2 text-sm font-medium text-cyan-100 hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-md border border-info/40 bg-info px-4 py-2 text-sm font-medium text-info hover:bg-info disabled:cursor-not-allowed disabled:opacity-40"
         >
           {busy ? 'Uploading' : 'Upload contract'}
         </button>

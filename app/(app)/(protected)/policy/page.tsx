@@ -100,7 +100,7 @@ export default async function PolicyPage({
         title={<T id="policy.title" locale={locale} />}
         subtitle={<T id="policy.subtitle" locale={locale} />}
         density="compact"
-        className="max-w-none"
+        width="full"
       >
         <PermissionMatrix
           columns={columns}

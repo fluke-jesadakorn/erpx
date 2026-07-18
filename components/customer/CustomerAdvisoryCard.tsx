@@ -4,9 +4,9 @@ import { T } from '@/components/i18n/TServer';
 import { getSecondaryLocale } from '@/server/locale';
 
 const SEVERITY_STYLE: Record<string, string> = {
-  ok: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
-  watch: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
-  critical: 'border-rose-500/40 bg-rose-500/10 text-rose-300',
+  ok: 'border-positive bg-positive text-positive',
+  watch: 'border-caution bg-caution text-caution',
+  critical: 'border-critical bg-critical text-critical',
 };
 
 const SEVERITY_LABEL: Record<string, string> = {
@@ -28,17 +28,17 @@ export async function CustomerAdvisoryCard({ customerId, lang = 'en' }: { custom
   const sevLabel = SEVERITY_LABEL[sev] ?? 'OK';
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4">
+    <section className="rounded-md border border-rule bg-paper-2/55 p-4">
       <div className="mb-2 flex items-center gap-2">
-        <h3 className="text-xs font-mono uppercase tracking-widest text-slate-400">
+        <h3 className="text-xs font-mono uppercase tracking-widest text-ink-2">
           <T id="customers.detailAdvisory" locale={locale} />
         </h3>
         <span className={`rounded-full border px-2 py-0.5 text-xs font-mono ${sevCls}`}>{sevLabel}</span>
-        <span className="ml-auto text-xs font-mono text-slate-500">
+        <span className="ml-auto text-xs font-mono text-mute">
           {new Date(advisory.computedAt).toISOString().slice(0, 16).replace('T', ' ')}
         </span>
       </div>
-      <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200">{advisory.advisory}</p>
+      <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{advisory.advisory}</p>
     </section>
   );
 }

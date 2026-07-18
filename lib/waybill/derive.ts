@@ -109,6 +109,7 @@ export function computePipState(
 ): PipState {
   if (currentStage === 'rejected' || status === 'rejected') return 'rejected';
   if (status === 'completed') {
+    if (pip.key === currentStage) return 'active';
     return pip.key === 'rejected' ? 'pending' : 'passed';
   }
   if (curIdx < 0) return pip.key === 'rejected' ? 'rejected' : 'pending';

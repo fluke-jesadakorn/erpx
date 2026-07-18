@@ -22,24 +22,24 @@ export function InlineActionForm({
   const action = kind === 'reject' ? rejectWaybillAction : finalRejectWaybillAction;
 
   return (
-    <section className="rounded-2xl border border-rose-500/50 bg-rose-950/30 p-5 shadow-lg shadow-rose-500/10">
+    <section className="rounded-md border border-critical bg-critical-soft p-5 shadow-lg shadow-critical">
       <header className="mb-3 flex flex-wrap items-center gap-2">
         <span
           aria-hidden
-          className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-rose-500/40 to-rose-700/40 text-lg ring-1 ring-rose-400/40"
+          className="grid h-9 w-9 place-items-center rounded-md bg-critical-soft text-lg ring-1 ring-critical"
         >
           ✗
         </span>
         <div className="flex flex-col">
-          <span className="text-base font-bold text-rose-100">
+          <span className="text-base font-bold text-critical-soft">
             <T id={kind === 'reject' ? 'waybill.actions.reasonFinal' : 'waybill.actions.reasonFinalLast'} />
           </span>
-          <span className="font-mono text-xs uppercase tracking-widest text-rose-300/70">
+          <span className="font-mono text-xs uppercase tracking-widest text-critical">
             <T id={kind === 'reject' ? 'waybill.actions.rejectSubtitle' : 'waybill.actions.finalRejectSubtitle'} />
             {' · '}
-            <span className="text-cyan-300">{waybillId}</span>
+            <span className="text-info">{waybillId}</span>
             {' · '}
-            <span className="text-rose-200">
+            <span className="text-critical-soft">
               <T id="waybill.attachment.stage" /> {stage}
             </span>
           </span>
@@ -48,21 +48,21 @@ export function InlineActionForm({
       <form action={action} className="space-y-3">
         <input type="hidden" name="waybillId" value={waybillId} />
         <input type="hidden" name="stage" value={stage} />
-        <label className="block text-sm font-medium text-rose-200">
+        <label className="block text-sm font-medium text-critical-soft">
           <T id="waybill.actions.reasonMin5" />
           <textarea
             name="reason"
             required
             minLength={5}
             autoFocus
-            className="mt-2 block w-full rounded-lg bg-slate-950 p-3 text-sm text-white ring-1 ring-rose-500/30 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-400/60"
+            className="mt-2 block w-full rounded-lg bg-paper p-3 text-sm text-ink ring-1 ring-critical placeholder:text-mute focus:outline-none focus:ring-2 focus:ring-critical"
             rows={4}
           />
         </label>
         <div className="flex flex-wrap gap-3">
           <button
             type="submit"
-            className="inline-flex items-center gap-2 rounded-xl bg-rose-500 px-5 py-2.5 text-sm font-bold text-slate-950 shadow-lg shadow-rose-500/30 transition hover:bg-rose-400"
+            className="inline-flex items-center gap-2 rounded-md bg-critical px-5 py-2.5 text-sm font-bold text-ink shadow-lg shadow-critical transition hover:bg-critical"
           >
             <span aria-hidden>✗</span>
             <span>
@@ -71,7 +71,7 @@ export function InlineActionForm({
           </button>
           <a
             href={`/waybill/${waybillId}`}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-5 py-2.5 text-sm text-slate-300 hover:border-slate-500"
+            className="inline-flex items-center gap-2 rounded-md border border-rule px-5 py-2.5 text-sm text-ink-2 hover:border-rule"
           >
             <T id="waybill.pip.cancel" />
           </a>

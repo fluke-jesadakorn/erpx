@@ -1,6 +1,8 @@
 import { Suspense } from 'react';
+import { headers } from 'next/headers';
 import { loadActor } from '@/server/guard';
-import { matchPerm } from '@/perm/server';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import { SignInPanel } from '@/components/SignInPanel';
 import { HomeTilesFetcher } from './(protected)/_components/HomeTilesFetcher';
 import { HomeTilesFallback } from './(protected)/_components/HomeTilesFallback';
@@ -8,14 +10,16 @@ import { HomeTilesFallback } from './(protected)/_components/HomeTilesFallback';
 export const dynamic = 'force-dynamic';
 
 export default async function TilesPage() {
+  const h = await headers();
+  const session = await loadActivePermSession(
+    new Request('http://internal', { headers: h as unknown as HeadersInit }),
+  );
   const actor = await loadActor();
-  if (!actor) {
+  if (!session || !actor) {
     return <SignInPanel />;
   }
 
-  const perms = actor.permissions ?? [];
-  const canViewPolicy = matchPerm(perms, 'rbac:matrix:view::allow');
-  const canViewExec = matchPerm(perms, 'tile:cockpit:view::allow');
+  const canViewExec = hasPermission(session.session, PERM.tile.cockpit.view);
   const canViewHub = true;
 
   return (
@@ -23,7 +27,6 @@ export default async function TilesPage() {
       <HomeTilesFetcher
         actor={actor as any}
         canViewHub={canViewHub}
-        canViewPolicy={canViewPolicy}
         canViewExec={canViewExec}
       />
     </Suspense>

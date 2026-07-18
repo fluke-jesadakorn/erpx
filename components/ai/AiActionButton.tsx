@@ -19,21 +19,21 @@ export interface AiActionButtonProps {
 }
 
 const TONE_BG: Record<NonNullable<AiActionButtonProps['tone']>, string> = {
-  indigo:  'bg-indigo-500/20 text-indigo-200 border-indigo-500/30 hover:bg-indigo-500/30',
-  amber:   'bg-amber-500/20 text-amber-200 border-amber-500/30 hover:bg-amber-500/30',
-  emerald: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/30 hover:bg-emerald-500/30',
-  cyan:    'bg-cyan-500/20 text-cyan-200 border-cyan-500/30 hover:bg-cyan-500/30',
-  purple:  'bg-purple-500/20 text-purple-200 border-purple-500/30 hover:bg-purple-500/30',
-  rose:    'bg-rose-500/20 text-rose-200 border-rose-500/30 hover:bg-rose-500/30',
+  indigo:  'bg-accent text-paper border-accent hover:bg-accent',
+  amber:   'bg-caution-soft text-caution-strong border border-caution border-caution hover:bg-caution',
+  emerald: 'bg-positive text-paper border-positive hover:bg-positive',
+  cyan:    'bg-info text-paper border-info hover:bg-info',
+  purple:  'bg-accent text-paper border-accent hover:bg-accent',
+  rose:    'bg-critical-soft text-critical-strong border border-critical border-critical hover:bg-critical',
 };
 
 const TONE_CARD: Record<NonNullable<AiActionButtonProps['tone']>, string> = {
-  indigo:  'border-indigo-500/30 bg-indigo-950/20 text-indigo-100',
-  amber:   'border-amber-500/30 bg-amber-950/20 text-amber-100',
-  emerald: 'border-emerald-500/30 bg-emerald-950/20 text-emerald-100',
-  cyan:    'border-cyan-500/30 bg-cyan-950/20 text-cyan-100',
-  purple:  'border-purple-500/30 bg-purple-950/20 text-purple-100',
-  rose:    'border-rose-500/30 bg-rose-950/20 text-rose-100',
+  indigo:  'border-accent bg-accent-strong text-accent-soft',
+  amber:   'border-caution bg-caution-strong text-caution-soft',
+  emerald: 'border-positive bg-positive-strong text-positive-soft',
+  cyan:    'border-info bg-info-strong text-info-soft',
+  purple:  'border-accent bg-accent-strong text-accent-soft',
+  rose:    'border-critical bg-critical-strong text-critical-soft',
 };
 
 export const AiActionButton: React.FC<AiActionButtonProps> = ({
@@ -122,12 +122,12 @@ export const AiActionButton: React.FC<AiActionButtonProps> = ({
       </button>
 
       {(text || error) && (
-        <div className={`rounded-2xl border p-3 ${TONE_CARD[tone]}`}>
+        <div className={`rounded-md border p-3 ${TONE_CARD[tone]}`}>
           <div className="flex items-center justify-between gap-2 mb-1.5">
             <div className="text-xs font-mono font-bold uppercase tracking-wider opacity-80">
               {resultTitle || sectionKey}
               {meta?.modelName && (
-                <span className="ml-2 px-1.5 py-0.5 rounded bg-black/30 text-xs font-mono normal-case">
+                <span className="ml-2 px-1.5 py-0.5 rounded bg-paper/30 text-xs font-mono normal-case">
                   {meta.modelName}{meta.latencyMs != null ? ` · ${meta.latencyMs}ms` : ''}
                 </span>
               )}
@@ -137,7 +137,7 @@ export const AiActionButton: React.FC<AiActionButtonProps> = ({
                 <button
                   type="button"
                   onClick={copy}
-                  className="text-xs px-2 py-0.5 rounded bg-black/30 hover:bg-black/50 font-mono"
+                  className="text-xs px-2 py-0.5 rounded bg-paper/30 hover:bg-paper/50 font-mono"
                 >
                   {copied ? '✓ Copied' : 'Copy'}
                 </button>
@@ -147,14 +147,14 @@ export const AiActionButton: React.FC<AiActionButtonProps> = ({
                 onClick={close}
                 aria-label="Close result"
                 title="Close"
-                className="text-xs w-5 h-5 inline-flex items-center justify-center rounded bg-black/30 hover:bg-rose-900/60 font-mono"
+                className="text-xs w-5 h-5 inline-flex items-center justify-center rounded bg-paper/30 hover:bg-critical-strong font-mono"
               >
                 ✕
               </button>
             </div>
           </div>
           {error ? (
-            <p className="text-sm text-rose-300 font-mono">✗ {error}</p>
+            <p className="text-sm text-critical font-mono">✗ {error}</p>
           ) : (
             <p className="text-xs whitespace-pre-wrap leading-relaxed font-sans">
               {text || resultPlaceholder}

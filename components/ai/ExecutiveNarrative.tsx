@@ -34,8 +34,8 @@ export const ExecutiveNarrative: React.FC<ExecutiveNarrativeProps> = ({ execRepo
     : `You write a 2-paragraph executive narrative summarizing the company financial position for a CFO cockpit. Paragraph 1 covers cash and liquidity. Paragraph 2 covers expenses, liabilities, and pipeline. Thai language, formal tone, no bullet points, no markdown. End each paragraph with a concrete number.`;
 
   return (
-    <div className="p-4 bg-slate-950/40 border border-slate-800/70 rounded-2xl">
-      <div className="text-xs font-mono font-bold uppercase text-slate-400 mb-3 tracking-wider flex items-center gap-2">
+    <div className="p-4 bg-paper-2/50 border border-rule/70 rounded-md">
+      <div className="text-xs font-mono font-bold uppercase text-ink-2 mb-3 tracking-wider flex items-center gap-2">
         <span>{glyph}</span> {isCEO ? 'CEO · Board Summary' : 'CFO · Executive Narrative'}
       </div>
       <AiActionButton

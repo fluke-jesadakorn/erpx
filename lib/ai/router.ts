@@ -20,6 +20,7 @@ export interface InvokeInput {
   images?: string[];                  // base64-encoded image data URIs (vision only)
   modelOverride?: string;             // force this exact model by name; bypasses assignment lookup
   lang?: 'en' | 'th' | 'de';          // secondary locale — for provider-level adaptation
+  actorId?: number;                   // caller id — accepted for log correlation, not used by router
 }
 
 export interface InvokeResult {

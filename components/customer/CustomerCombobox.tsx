@@ -89,7 +89,7 @@ export function CustomerCombobox({
     return () => {
       cancelled = true;
     };
-  }, [value]);
+  }, [value, selected]);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -177,7 +177,7 @@ export function CustomerCombobox({
   return (
     <div ref={rootRef} className={['relative w-full', className ?? ''].join(' ')}>
       {selected ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-info/40 bg-info-soft/40 px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-info/40 bg-info-soft/40 px-3 py-2">
           <span className="font-mono text-sm uppercase tracking-wider text-info-strong">
             {selected.code}
           </span>
@@ -222,7 +222,7 @@ export function CustomerCombobox({
 
       {open && !selected && query.trim().length >= 1 && (
         <ul
-          className="absolute left-0 right-0 top-full z-30 mt-1 max-h-80 overflow-auto rounded-xl glass-panel-heavy border border-rule shadow-modal"
+          className="absolute left-0 right-0 top-full z-sticky mt-1 max-h-80 overflow-auto rounded-md bg-paper-2 border border-rule shadow-modal"
           role="listbox"
         >
           {loading && (

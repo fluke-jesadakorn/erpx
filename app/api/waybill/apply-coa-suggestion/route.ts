@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { loadActivePermSession } from '@/perm/server';
-import { applyCoaSuggestionAction } from '@/app/actions/coa';
+import { applyCoaSuggestionCore } from '@/app/actions/coaCore';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'invalid input' }, { status: 400 });
   }
 
-  const result = await applyCoaSuggestionAction({
+  const result = await applyCoaSuggestionCore({
     itemId,
     code,
     normalSide,

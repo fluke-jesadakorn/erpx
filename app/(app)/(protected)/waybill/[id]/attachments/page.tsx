@@ -1,5 +1,6 @@
 import 'server-only';
 import { notFound, redirect } from 'next/navigation';
+import { Paperclip } from 'lucide-react';
 import { loadWaybillRailContext, loadAttachmentsForWaybill } from '@/waybill/queries';
 import { loadActor } from '@/server/guard';
 import { AttachmentRow } from '@/components/waybill/AttachmentRow';
@@ -9,7 +10,7 @@ import { crumbsForPath } from '@/components/breadcrumbs/routes';
 import { T } from '@/components/i18n/TServer';
 import { getSecondaryLocale } from '@/server/locale';
 import { OverviewShell } from '../_components/Overview';
-import { Panel, Badge, Icon, Empty } from '@/components/ui';
+import { Panel, Badge, Empty } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,13 +44,13 @@ export default async function WaybillAttachmentsPage({ params }: PageProps) {
         <OverviewShell waybillId={wb.id} active="attachments">
           {attachments.length === 0 ? (
             <Empty
-              icon="paperclip"
+              icon={Paperclip}
               title={<T id="waybill.timeline.no_documents_at_this_pip" />}
             />
           ) : (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-mute">
-                <Icon name="paperclip" size={12} aria-hidden />
+                <Paperclip size={12} aria-hidden />
                 <span>Total</span>
                 <Badge tone="neutral" size="sm">{attachments.length}</Badge>
                 <span>·</span>

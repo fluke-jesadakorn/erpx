@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { loadActivePermSession, hasPermission, PERM } from '@/perm/server';
-import { lintPolicy } from '@/policy/lint';
+import { lintPolicy, lintAst } from '@/policy/lint';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +11,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
   const body = await req.json().catch(() => null);
+  if (body && Object.prototype.hasOwnProperty.call(body, 'ast')) {
+    const lint = lintAst(body.ast, String(body.policyId ?? 'inline'), String(body.policyName ?? 'inline'));
+    return NextResponse.json({ ok: true, lint });
+  }
   const policyId = String(body?.policyId ?? '');
   if (!policyId) {
     return NextResponse.json({ ok: false, error: 'invalid policyId' }, { status: 400 });

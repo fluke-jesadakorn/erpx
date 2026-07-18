@@ -1,11 +1,31 @@
 import type { Metadata } from "next";
+import { Geist, Geist_Mono, Noto_Sans_Thai } from "next/font/google";
 import "./globals.css";
 import { GlobalLoading } from "@/components/ui/GlobalLoading";
 import { LangGate } from "@/components/lang/LangGate";
 import { IntlProvider } from "@/components/i18n/IntlProvider";
 import { SecondaryLocaleProvider } from "@/components/i18n/SecondaryLocaleProvider";
+import { ToastProvider } from "@/components/ui/Toast";
 
 export const dynamic = "force-dynamic";
+
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-geist-sans",
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+  display: "swap",
+});
+
+const notoThai = Noto_Sans_Thai({
+  subsets: ["thai"],
+  variable: "--font-noto-thai",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Folio - AI Accounting & Finance Portal",
@@ -18,7 +38,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="th" suppressHydrationWarning>
+    <html
+      lang="th"
+      className={`${geist.variable} ${geistMono.variable} ${notoThai.variable}`}
+      suppressHydrationWarning
+    >
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -29,12 +53,14 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased bg-slate-950 text-slate-50 min-h-screen font-sans">
+      <body className="min-h-screen text-ink font-sans antialiased">
         <SecondaryLocaleProvider>
           <IntlProvider>
-            {children}
-            <GlobalLoading />
-            <LangGate />
+            <ToastProvider>
+              {children}
+              <GlobalLoading />
+              <LangGate />
+            </ToastProvider>
           </IntlProvider>
         </SecondaryLocaleProvider>
       </body>

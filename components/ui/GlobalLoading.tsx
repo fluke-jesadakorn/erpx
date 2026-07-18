@@ -56,11 +56,11 @@ export const GlobalLoading: React.FC = () => {
       onMouseDown={swallow}
       onKeyDown={swallow}
       onTouchStart={swallow}
-      className="fixed inset-0 z-[60] bg-slate-950/40 backdrop-blur-sm flex items-center justify-center transition-opacity duration-150"
+      className="fixed inset-0 z-popover bg-paper-2/50 backdrop-blur-sm flex items-center justify-center transition-opacity duration-150"
     >
-      <div className="glass-panel rounded-2xl px-6 py-4 flex items-center gap-3 shadow-2xl">
+      <div className="bg-paper-2 border border-rule rounded-md px-6 py-4 flex items-center gap-3 shadow-2xl">
         <svg
-          className="animate-spin h-6 w-6 text-indigo-300 motion-reduce:animate-none"
+          className="animate-spin h-6 w-6 text-accent motion-reduce:animate-none"
           viewBox="0 0 24 24"
           fill="none"
           aria-hidden="true"
@@ -80,7 +80,7 @@ export const GlobalLoading: React.FC = () => {
             strokeLinecap="round"
           />
         </svg>
-        <span className="text-sm font-mono font-bold text-slate-200 uppercase tracking-wider">
+        <span className="text-sm font-mono font-bold text-ink uppercase tracking-wider">
           <T id="chrome.loading" hideSecondary />
         </span>
       </div>

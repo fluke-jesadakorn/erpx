@@ -1,10 +1,10 @@
 import { Tabs } from '@/components/ui';
-import { Icon, type IconName } from '@/components/icons';
+import { BookMarked, Gauge, History, Mail, Paperclip, type LucideIcon } from 'lucide-react';
 
 interface TabItem {
   value: string;
   label: string;
-  icon: IconName;
+  icon: LucideIcon;
   href: string;
 }
 
@@ -15,27 +15,30 @@ interface Props {
 
 export function WaybillTabs({ waybillId, active }: Props) {
   const items: TabItem[] = [
-    { value: 'overview',    label: 'Overview',    icon: 'gauge',    href: `/waybill/${waybillId}` },
-    { value: 'audit',       label: 'Audit',       icon: 'history',  href: `/waybill/${waybillId}/audit` },
-    { value: 'gl',          label: 'GL',          icon: 'wb-ledger', href: `/waybill/${waybillId}/gl` },
-    { value: 'attachments', label: 'Attachments', icon: 'paperclip', href: `/waybill/${waybillId}/attachments` },
-    { value: 'chat',        label: 'Chat',        icon: 'mail',     href: `/waybill/${waybillId}/chat` },
+    { value: 'overview',    label: 'Overview',    icon: Gauge,     href: `/waybill/${waybillId}` },
+    { value: 'audit',       label: 'Audit',       icon: History,   href: `/waybill/${waybillId}/audit` },
+    { value: 'gl',          label: 'GL',          icon: BookMarked, href: `/waybill/${waybillId}/gl` },
+    { value: 'attachments', label: 'Attachments', icon: Paperclip, href: `/waybill/${waybillId}/attachments` },
+    { value: 'chat',        label: 'Chat',        icon: Mail,      href: `/waybill/${waybillId}/chat` },
   ];
   return (
     <nav aria-label="Waybill sections" className="border-b border-rule">
       <Tabs
         variant="page"
         value={active}
-        items={items.map((i) => ({
-          value: i.value,
-          href: i.href,
-          label: (
-            <span className="inline-flex items-center gap-1.5">
-              <Icon name={i.icon} size={12} aria-hidden />
-              {i.label}
-            </span>
-          ),
-        }))}
+        items={items.map((i) => {
+          const IconCmp = i.icon;
+          return {
+            value: i.value,
+            href: i.href,
+            label: (
+              <span className="inline-flex items-center gap-1.5">
+                <IconCmp size={12} aria-hidden />
+                {i.label}
+              </span>
+            ),
+          };
+        })}
       />
     </nav>
   );

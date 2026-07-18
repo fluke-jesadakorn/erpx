@@ -300,9 +300,9 @@ export async function runOcrPipeline(
   let ocrText: string | undefined = undefined;
   if (mime.startsWith('image/')) {
     try {
-      const require = createRequire(`${process.cwd()}/`);
-      const visionBridge = require('lib/native/vision-ocr/index.js');
-      if (visionBridge.ocrAvailable()) {
+      const visionBridgePath = require('node:path').join(process.cwd(), 'lib/native/vision-ocr/index.js');
+      const visionBridge = (globalThis as any).require?.(visionBridgePath);
+      if (visionBridge?.ocrAvailable?.()) {
         const ocrResult = await visionBridge.ocrImageFile(outBuffer);
         if (ocrResult && ocrResult.ok && Array.isArray(ocrResult.lines) && ocrResult.lines.length > 0) {
           ocrText = ocrResult.lines.join('\n');

@@ -6,6 +6,7 @@ import { roleDisplay } from './ui';
 import { AiRecommendChip } from './AiRecommendChip';
 import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 import { T } from '@/components/i18n/T';
+import { CircleDot, Download } from 'lucide-react';
 
 interface Props {
   waybillId: string;
@@ -30,28 +31,6 @@ interface Props {
   canConfirmSalesGl?: boolean;
   actorRole: string | null;
 }
-
-const STAGE_GLYPHS: Record<string, string> = {
-  submission: '📤',
-  dept_verification: '🔎',
-  dept_authorization: '🪪',
-  accounting_verification: '🧮',
-  accounting_supervision: '🧮',
-  accounting_authorization: '🧮',
-  final_authorization: '🔒',
-  disbursement_authorization: '💳',
-  cfo_authorization: '👔',
-  ceo_authorization: '👑',
-  awaiting_disbursement: '💸',
-  disbursed: '✅',
-  rejected: '✗',
-  draft: '📝',
-  so_draft: '📝',
-  so_sales_review: '🛡️',
-  so_credit_check: '🔍',
-  so_invoiced: '🧾',
-  so_paid: '💰',
-};
 
 export function DecisionBar({
   waybillId,
@@ -103,27 +82,27 @@ export function DecisionBar({
     <aside
       role="region"
       aria-label="Decision bar"
-      className="sticky top-[calc(var(--navbar-h,56px)+12px)] z-30 -mx-1 rounded-2xl border border-cyan-500/40 bg-slate-950/95 p-3 shadow-2xl shadow-cyan-500/20 backdrop-blur"
+      className="panel-floating sticky top-[4.75rem] z-sticky -mx-1 border-info/40 p-3"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-cyan-300">
-            <span aria-hidden>{STAGE_GLYPHS[currentStage] ?? '⚙️'}</span>
+          <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-info">
+            <CircleDot size={13} aria-hidden />
             <span><T id="waybill.decisions.currentStage" /></span>
-            <span className="text-slate-600">·</span>
-            <span className="text-white">
+            <span className="text-mute">·</span>
+            <span className="text-ink">
               <T id={`waybill.stage.${toCamel(currentStage)}`} />
             </span>
-            <span className="text-slate-600">·</span>
-            <span className="text-slate-400">
+            <span className="text-mute">·</span>
+            <span className="text-ink-2">
               <T id="waybill.decisions.requires" />{' '}
-              <span className="font-bold text-cyan-200">{requiredRole}</span>
+              <span className="font-bold text-info-soft">{requiredRole}</span>
             </span>
           </div>
           {actorRole && (
-            <div className="text-xs font-mono text-slate-500">
+            <div className="text-xs font-mono text-mute">
               <T id="waybill.decisions.youAre" />{' '}
-              <span className="text-slate-300">{roleDisplay(actorRole, locale)}</span>
+              <span className="text-ink-2">{roleDisplay(actorRole, locale)}</span>
             </div>
           )}
         </div>
@@ -134,10 +113,10 @@ export function DecisionBar({
             target="_blank"
             rel="noopener"
             data-testid={`bar-step-pdf-${waybillId}`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-sm font-mono text-cyan-200 hover:bg-cyan-500/30"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-info/55 bg-info text-paper px-3 py-1.5 text-sm font-mono hover:bg-info-strong"
             title="Download step files (PR, PO, GL, payment slip) as one PDF"
           >
-            ⤓ <T id="waybill.stepPdf" />
+            <Download size={14} aria-hidden /> <T id="waybill.stepPdf" />
           </a>
           <AiRecommendChip
             waybillId={waybillId}
@@ -145,7 +124,7 @@ export function DecisionBar({
             currentStage={currentStage}
             vendorName={vendorName}
           />
-          <span className="hidden text-xs font-mono uppercase tracking-widest text-slate-500 sm:inline">
+          <span className="hidden text-xs font-mono uppercase tracking-widest text-mute sm:inline">
             <T id="waybill.decisions.approveRejectHint" />
           </span>
         </div>

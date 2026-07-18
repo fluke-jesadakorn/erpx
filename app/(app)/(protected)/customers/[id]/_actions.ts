@@ -2,7 +2,7 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { loadActor } from '@/server/guard';
-import { matchPerm } from '@/perm';
+import { hasPermission } from '@folio-lib/perm/server';
 import { createCustomer as serverCreate, updateCustomer as serverUpdate, blacklistCustomer as serverBlacklist } from '@/customer/queries';
 
 const CreateForm = z.object({
@@ -41,7 +41,7 @@ const BlacklistForm = z.object({
 export async function createCustomerAction(formData: FormData): Promise<{ ok: boolean; id?: number; error?: string }> {
   const actor = await loadActor();
   if (!actor) return { ok: false, error: 'unauthorized' };
-  if (!matchPerm(actor.permissions, 'customer:manage::allow')) {
+  if (!hasPermission(actor, 'customer:manage::allow')) {
     return { ok: false, error: 'forbidden' };
   }
 
@@ -85,7 +85,7 @@ export async function createCustomerAction(formData: FormData): Promise<{ ok: bo
 export async function updateCustomerAction(formData: FormData): Promise<{ ok: boolean; error?: string }> {
   const actor = await loadActor();
   if (!actor) return { ok: false, error: 'unauthorized' };
-  if (!matchPerm(actor.permissions, 'customer:manage::allow')) {
+  if (!hasPermission(actor, 'customer:manage::allow')) {
     return { ok: false, error: 'forbidden' };
   }
   const parsed = UpdateForm.safeParse({
@@ -117,7 +117,7 @@ export async function updateCustomerAction(formData: FormData): Promise<{ ok: bo
 export async function blacklistCustomerAction(formData: FormData): Promise<{ ok: boolean; error?: string }> {
   const actor = await loadActor();
   if (!actor) return { ok: false, error: 'unauthorized' };
-  if (!matchPerm(actor.permissions, 'customer:manage::allow')) {
+  if (!hasPermission(actor, 'customer:manage::allow')) {
     return { ok: false, error: 'forbidden' };
   }
   const parsed = BlacklistForm.safeParse({

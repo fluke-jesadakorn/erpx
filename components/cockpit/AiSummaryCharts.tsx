@@ -99,28 +99,28 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
   }
 
   return (
-    <section className="rounded-3xl border border-indigo-500/30 bg-slate-950/40 p-4 sm:p-6">
+    <section className="rounded-md border border-accent bg-paper-2/50 p-4 sm:p-6">
       <div className="flex items-center justify-between gap-3 mb-3">
-        <div className="text-xs font-mono font-bold uppercase text-indigo-300 tracking-wider">
+        <div className="text-xs font-mono font-bold uppercase text-accent tracking-wider">
           <T id="cockpit.aiSummaryHeader" />
         </div>
         <div className="flex items-center gap-2">
           {mode === 'loaded' && (
             <>
-              <span className="text-xs font-mono text-slate-500">
+              <span className="text-xs font-mono text-mute">
                 {meta.modelName ? `${meta.modelName}` : ''}{meta.latencyMs != null ? ` · ${meta.latencyMs}ms` : ''}
               </span>
               <button
                 type="button"
                 onClick={collapse}
-                className="rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold px-3 py-2"
+                className="rounded-md border border-rule bg-paper hover:bg-paper-2 text-ink-2 text-xs font-bold px-3 py-2"
               >
                 <T id="cockpit.collapse" />
               </button>
               <button
                 type="button"
                 onClick={generate}
-                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold px-4 py-2"
+                className="rounded-md bg-accent-strong hover:bg-accent disabled:opacity-50 text-ink text-xs font-bold px-4 py-2"
               >
                 <T id="cockpit.regenerate" />
               </button>
@@ -130,7 +130,7 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
             <button
               type="button"
               onClick={generate}
-              className="rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-xs font-bold px-4 py-2"
+              className="rounded-md bg-accent-strong hover:bg-accent disabled:opacity-50 text-ink text-xs font-bold px-4 py-2"
             >
               <T id="common.retry" />
             </button>
@@ -139,7 +139,7 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
             <button
               type="button"
               onClick={expand}
-              className="rounded-xl border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold px-3 py-2"
+              className="rounded-md border border-rule bg-paper hover:bg-paper-2 text-ink-2 text-xs font-bold px-3 py-2"
             >
               <T id="cockpit.expand" />
             </button>
@@ -151,7 +151,7 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
         <button
           type="button"
           onClick={generate}
-          className="w-full rounded-2xl border border-indigo-500/40 bg-indigo-950/30 hover:bg-indigo-900/40 text-indigo-200 text-sm font-bold py-8 flex items-center justify-center gap-2"
+          className="w-full rounded-md border border-accent bg-accent-strong hover:bg-accent-strong text-accent-soft text-sm font-bold py-8 flex items-center justify-center gap-2"
         >
           <span className="text-2xl">✨</span>
           <span>
@@ -161,14 +161,14 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
       )}
 
       {mode === 'idle' && collapsed && (
-        <div className="text-xs font-mono text-slate-500">
+        <div className="text-xs font-mono text-mute">
           <T id="cockpit.summaryHidden" />
         </div>
       )}
 
       {mode === 'loading' && (
-        <div className="flex items-center justify-center gap-3 py-12 text-slate-300">
-          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+        <div className="flex items-center justify-center gap-3 py-12 text-ink-2">
+          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
           <span className="text-xs font-mono">
             <T id="cockpit.thinking" />
           </span>
@@ -176,7 +176,7 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
       )}
 
       {mode === 'error' && (
-        <div className="rounded-xl border border-rose-500/40 bg-rose-950/30 p-4 text-rose-200 text-xs font-mono">
+        <div className="rounded-md border border-critical bg-critical-soft p-4 text-critical-soft text-xs font-mono">
           {error || <T id="ai.explain.failed" />}
         </div>
       )}
@@ -184,12 +184,12 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
       {mode === 'loaded' && (
         <div>
           {text && (
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 mb-4 text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">
+            <div className="rounded-md border border-rule bg-paper-2/60 p-4 mb-4 text-sm text-ink leading-relaxed whitespace-pre-wrap">
               {text}
             </div>
           )}
           {charts.length === 0 && (
-            <div className="text-xs font-mono text-slate-500">
+            <div className="text-xs font-mono text-mute">
               <T id="cockpit.noCharts" />
             </div>
           )}

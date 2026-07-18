@@ -2,6 +2,8 @@ import 'server-only';
 import { query } from '@/db';
 import { getCashflowStatement } from './cashflow';
 import type { CashflowStatement, CashflowUnavailable } from './cashflow';
+import { formatMoneyServer } from '@/components/i18n/formattersServer';
+import type { SecondaryLocale } from '@/components/i18n';
 
 export type ReportIntent =
   | 'cash_flow'
@@ -67,8 +69,12 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-function fmt(n: number): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmt(n: number, locale: SecondaryLocale): Promise<string> {
+  return formatMoneyServer(n, locale);
+}
+
+function localeOf(lang: 'en' | 'th' | 'de'): SecondaryLocale {
+  return lang === 'de' ? 'de' : 'th';
 }
 
 function assertDates(args: ResolveReportArgs): { from: string; to: string } {
@@ -108,33 +114,35 @@ export async function resolveReport(args: ResolveReportArgs): Promise<ReportResu
   }
 }
 
-function sectionFromRows(title: string, titleTh: string, columns: string[], rows: Array<{ code: string; name: string; amount: number; side: string }>, total?: number, totalLabel = 'Total'): ReportSection {
-  const data: Array<Array<string | number>> = rows.map(r => [r.code, r.name, fmt(r.amount), r.side]);
+async function sectionFromRows(locale: SecondaryLocale, title: string, titleTh: string, columns: string[], rows: Array<{ code: string; name: string; amount: number; side: string }>, total?: number, totalLabel = 'Total'): Promise<ReportSection> {
+  const data: Array<Array<string | number>> = await Promise.all(rows.map(async r => [r.code, r.name, await fmt(r.amount, locale), r.side]));
   return { title, titleTh, columns, rows: data, total, totalLabel };
 }
 
-function cashflowToReport(cf: CashflowStatement, lang: 'en' | 'th' | 'de', dates: { from: string; to: string }): ReportResult {
+async function cashflowToReport(cf: CashflowStatement, lang: 'en' | 'th' | 'de', dates: { from: string; to: string }): Promise<ReportResult> {
   const th = isThai(lang);
+  const locale = localeOf(lang);
   const netMovement = cf.operating.total + cf.investing.total + cf.financing.total;
   const sections: ReportSection[] = [];
-  const mk = (titleEn: string, titleTh: string, src: { rows: { account_code: string; account_name: string; amount: number }[]; total: number }) => sectionFromRows(
+  const mk = async (titleEn: string, titleTh: string, src: { rows: { account_code: string; account_name: string; amount: number }[]; total: number }) => sectionFromRows(
+    locale,
     titleEn, titleTh,
     th ? ['รหัส', 'บัญชี', 'จำนวน', 'ทิศทาง'] : ['Code', 'Account', 'Amount', 'Direction'],
     src.rows.map(r => ({ code: r.account_code, name: r.account_name, amount: r.amount, side: r.amount >= 0 ? (th ? 'เข้า' : 'in') : (th ? 'ออก' : 'out') })),
     src.total,
     th ? 'รวม' : 'Total',
   );
-  sections.push(mk('Operating', 'กิจกรรมดำเนินงาน', { rows: cf.operating.rows, total: cf.operating.total }));
-  sections.push(mk('Investing', 'กิจกรรมลงทุน', { rows: cf.investing.rows, total: cf.investing.total }));
-  sections.push(mk('Financing', 'กิจกรรมจัดหาเงิน', { rows: cf.financing.rows, total: cf.financing.total }));
+  sections.push(await mk('Operating', 'กิจกรรมดำเนินงาน', { rows: cf.operating.rows, total: cf.operating.total }));
+  sections.push(await mk('Investing', 'กิจกรรมลงทุน', { rows: cf.investing.rows, total: cf.investing.total }));
+  sections.push(await mk('Financing', 'กิจกรรมจัดหาเงิน', { rows: cf.financing.rows, total: cf.financing.total }));
   if (cf.non_cash.rows.length > 0) {
-    sections.push(mk('Non-cash', 'ไม่เป็นเงินสด', { rows: cf.non_cash.rows, total: cf.non_cash.total }));
+    sections.push(await mk('Non-cash', 'ไม่เป็นเงินสด', { rows: cf.non_cash.rows, total: cf.non_cash.total }));
   }
   if (cf.unclassified.rows.length > 0) {
     sections.push({
       title: 'Unclassified', titleTh: 'ยังไม่จัดประเภท',
       columns: th ? ['รหัส', 'บัญชี', 'จำนวน'] : ['Code', 'Account', 'Amount'],
-      rows: cf.unclassified.rows.map(r => [r.account_code, r.account_name, fmt(r.amount)]),
+      rows: await Promise.all(cf.unclassified.rows.map(async r => [r.account_code, r.account_name, await fmt(r.amount, locale)])),
       total: cf.unclassified.total,
       totalLabel: th ? 'รวม' : 'Total',
     });
@@ -156,11 +164,11 @@ function cashflowToReport(cf: CashflowStatement, lang: 'en' | 'th' | 'de', dates
     subtitle: `${dates.from} → ${dates.to}`,
     subtitleTh: `ช่วง ${dates.from} ถึง ${dates.to}`,
     period: { date_from: dates.from, date_to: dates.to },
-    kpis: [
-      { label: 'Opening cash', labelTh: 'เงินสดต้นงวด', value: fmt(cf.opening_balance), tone: 'neutral' },
-      { label: 'Net movement', labelTh: 'กระแสเงินสดสุทธิ', value: fmt(netMovement), tone: netMovement >= 0 ? 'positive' : 'negative' },
-      { label: 'Ending cash', labelTh: 'เงินสดปลายงวด', value: fmt(cf.ending_balance), tone: 'neutral' },
-    ],
+    kpis: await Promise.all([
+      { label: 'Opening cash', labelTh: 'เงินสดต้นงวด', value: await fmt(cf.opening_balance, locale), tone: 'neutral' as const },
+      { label: 'Net movement', labelTh: 'กระแสเงินสดสุทธิ', value: await fmt(netMovement, locale), tone: netMovement >= 0 ? ('positive' as const) : ('negative' as const) },
+      { label: 'Ending cash', labelTh: 'เงินสดปลายงวด', value: await fmt(cf.ending_balance, locale), tone: 'neutral' as const },
+    ]),
     sections,
     notes,
     source: {
@@ -174,6 +182,7 @@ function cashflowToReport(cf: CashflowStatement, lang: 'en' | 'th' | 'de', dates
 
 async function resolveTrialBalance(dates: { from: string; to: string }, lang: 'en' | 'th' | 'de'): Promise<ReportResult> {
   const th = isThai(lang);
+  const locale = localeOf(lang);
   const r = await query<{ code: string; name: string; account_type: string; period_debit: string | number; period_credit: string | number; net: string | number }>(
     `SELECT code, name, account_type, period_debit, period_credit, net
        FROM finance.v_trial_balance
@@ -200,15 +209,15 @@ async function resolveTrialBalance(dates: { from: string; to: string }, lang: 'e
     subtitleTh: `ช่วง ${dates.from} ถึง ${dates.to}`,
     period: { date_from: dates.from, date_to: dates.to },
     kpis: [
-      { label: 'Total debits', labelTh: 'รวมเดบิต', value: fmt(totalDebit), tone: 'neutral' },
-      { label: 'Total credits', labelTh: 'รวมเครดิต', value: fmt(totalCredit), tone: 'neutral' },
-      { label: 'Variance', labelTh: 'ส่วนต่าง', value: fmt(Math.abs(totalDebit - totalCredit)), tone: Math.abs(totalDebit - totalCredit) < 0.01 ? 'positive' : 'negative', hint: Math.abs(totalDebit - totalCredit) < 0.01 ? (th ? 'สมดุล' : 'Balanced') : (th ? 'ไม่สมดุล' : 'Out of balance') },
+      { label: 'Total debits', labelTh: 'รวมเดบิต', value: await fmt(totalDebit, locale), tone: 'neutral' },
+      { label: 'Total credits', labelTh: 'รวมเครดิต', value: await fmt(totalCredit, locale), tone: 'neutral' },
+      { label: 'Variance', labelTh: 'ส่วนต่าง', value: await fmt(Math.abs(totalDebit - totalCredit), locale), tone: Math.abs(totalDebit - totalCredit) < 0.01 ? 'positive' : 'negative', hint: Math.abs(totalDebit - totalCredit) < 0.01 ? (th ? 'สมดุล' : 'Balanced') : (th ? 'ไม่สมดุล' : 'Out of balance') },
     ],
     sections: [
       {
         title: 'Accounts', titleTh: 'บัญชี',
         columns: th ? ['รหัส', 'ชื่อ', 'เดบิต', 'เครดิต', 'คงเหลือ'] : ['Code', 'Name', 'Debit', 'Credit', 'Net'],
-        rows: combined.map(c => [c.code, c.name, fmt(c.debit), fmt(c.credit), fmt(c.net)]),
+        rows: await Promise.all(combined.map(async c => [c.code, c.name, await fmt(c.debit, locale), await fmt(c.credit, locale), await fmt(c.net, locale)])),
         total: totalDebit - totalCredit,
         totalLabel: th ? 'รวมสุทธิ' : 'Net total',
       },
@@ -222,6 +231,7 @@ async function resolveTrialBalance(dates: { from: string; to: string }, lang: 'e
 
 async function resolveIncomeStatement(dates: { from: string; to: string }, lang: 'en' | 'th' | 'de'): Promise<ReportResult> {
   const th = isThai(lang);
+  const locale = localeOf(lang);
   const r = await query<{ code: string; name: string; name_th: string; account_type: string; amount: string | number }>(
     `SELECT code, name, name_th, account_type, amount
        FROM finance.v_income_statement
@@ -242,22 +252,22 @@ async function resolveIncomeStatement(dates: { from: string; to: string }, lang:
     subtitleTh: `ช่วง ${dates.from} ถึง ${dates.to}`,
     period: { date_from: dates.from, date_to: dates.to },
     kpis: [
-      { label: 'Total revenue', labelTh: 'รายได้รวม', value: fmt(totalRevenue), tone: 'positive' },
-      { label: 'Total expense', labelTh: 'ค่าใช้จ่ายรวม', value: fmt(totalExpense), tone: 'negative' },
-      { label: 'Net income', labelTh: 'กำไรสุทธิ', value: fmt(netIncome), tone: netIncome >= 0 ? 'positive' : 'negative' },
+      { label: 'Total revenue', labelTh: 'รายได้รวม', value: await fmt(totalRevenue, locale), tone: 'positive' },
+      { label: 'Total expense', labelTh: 'ค่าใช้จ่ายรวม', value: await fmt(totalExpense, locale), tone: 'negative' },
+      { label: 'Net income', labelTh: 'กำไรสุทธิ', value: await fmt(netIncome, locale), tone: netIncome >= 0 ? 'positive' : 'negative' },
     ],
     sections: [
       {
         title: 'Revenue', titleTh: 'รายได้',
         columns: th ? ['รหัส', 'บัญชี', 'จำนวน'] : ['Code', 'Account', 'Amount'],
-        rows: revenue.map(x => [x.code, th ? x.name_th : x.name, fmt(num(x.amount))]),
+        rows: await Promise.all(revenue.map(async x => [x.code, th ? x.name_th : x.name, await fmt(num(x.amount), locale)])),
         total: totalRevenue,
         totalLabel: th ? 'รวมรายได้' : 'Total revenue',
       },
       {
         title: 'Expenses', titleTh: 'ค่าใช้จ่าย',
         columns: th ? ['รหัส', 'บัญชี', 'จำนวน'] : ['Code', 'Account', 'Amount'],
-        rows: expense.map(x => [x.code, th ? x.name_th : x.name, fmt(num(x.amount))]),
+        rows: await Promise.all(expense.map(async x => [x.code, th ? x.name_th : x.name, await fmt(num(x.amount), locale)])),
         total: totalExpense,
         totalLabel: th ? 'รวมค่าใช้จ่าย' : 'Total expenses',
       },
@@ -269,6 +279,7 @@ async function resolveIncomeStatement(dates: { from: string; to: string }, lang:
 
 async function resolveBalanceSheet(dates: { from: string; to: string }, lang: 'en' | 'th' | 'de'): Promise<ReportResult> {
   const th = isThai(lang);
+  const locale = localeOf(lang);
   const r = await query<{ code: string; name: string; name_th: string; account_type: string; balance: string | number }>(
     `SELECT code, name, name_th, account_type, balance
        FROM finance.v_balance_sheet
@@ -290,29 +301,29 @@ async function resolveBalanceSheet(dates: { from: string; to: string }, lang: 'e
     subtitleTh: `ช่วง ${dates.from} ถึง ${dates.to}`,
     period: { date_from: dates.from, date_to: dates.to },
     kpis: [
-      { label: 'Total assets', labelTh: 'สินทรัพย์รวม', value: fmt(totalAssets), tone: 'positive' },
-      { label: 'Total liabilities', labelTh: 'หนี้สินรวม', value: fmt(totalLiabilities), tone: 'negative' },
-      { label: 'Total equity', labelTh: 'ส่วนของผู้ถือหุ้น', value: fmt(totalEquity), tone: 'neutral' },
+      { label: 'Total assets', labelTh: 'สินทรัพย์รวม', value: await fmt(totalAssets, locale), tone: 'positive' },
+      { label: 'Total liabilities', labelTh: 'หนี้สินรวม', value: await fmt(totalLiabilities, locale), tone: 'negative' },
+      { label: 'Total equity', labelTh: 'ส่วนของผู้ถือหุ้น', value: await fmt(totalEquity, locale), tone: 'neutral' },
     ],
     sections: [
       {
         title: 'Assets', titleTh: 'สินทรัพย์',
         columns: th ? ['รหัส', 'บัญชี', 'คงเหลือ'] : ['Code', 'Account', 'Balance'],
-        rows: assets.map(x => [x.code, th ? x.name_th : x.name, fmt(num(x.balance))]),
+        rows: await Promise.all(assets.map(async x => [x.code, th ? x.name_th : x.name, await fmt(num(x.balance), locale)])),
         total: totalAssets,
         totalLabel: th ? 'รวมสินทรัพย์' : 'Total assets',
       },
       {
         title: 'Liabilities', titleTh: 'หนี้สิน',
         columns: th ? ['รหัส', 'บัญชี', 'คงเหลือ'] : ['Code', 'Account', 'Balance'],
-        rows: liabilities.map(x => [x.code, th ? x.name_th : x.name, fmt(num(x.balance))]),
+        rows: await Promise.all(liabilities.map(async x => [x.code, th ? x.name_th : x.name, await fmt(num(x.balance), locale)])),
         total: totalLiabilities,
         totalLabel: th ? 'รวมหนี้สิน' : 'Total liabilities',
       },
       {
         title: 'Equity', titleTh: 'ส่วนของผู้ถือหุ้น',
         columns: th ? ['รหัส', 'บัญชี', 'คงเหลือ'] : ['Code', 'Account', 'Balance'],
-        rows: equity.map(x => [x.code, th ? x.name_th : x.name, fmt(num(x.balance))]),
+        rows: await Promise.all(equity.map(async x => [x.code, th ? x.name_th : x.name, await fmt(num(x.balance), locale)])),
         total: totalEquity,
         totalLabel: th ? 'รวมส่วนผู้ถือหุ้น' : 'Total equity',
       },
@@ -324,6 +335,7 @@ async function resolveBalanceSheet(dates: { from: string; to: string }, lang: 'e
 
 async function resolvePeriodSummary(dates: { from: string; to: string }, lang: 'en' | 'th' | 'de'): Promise<ReportResult> {
   const th = isThai(lang);
+  const locale = localeOf(lang);
   const r = await query<{ journal_entry_id: number; entry_date: string; description: string; total_debit: string | number; total_credit: string | number }>(
     `SELECT journal_entry_id, entry_date, description, total_debit, total_credit
        FROM finance.v_period_summary
@@ -345,19 +357,19 @@ async function resolvePeriodSummary(dates: { from: string; to: string }, lang: '
     period: { date_from: dates.from, date_to: dates.to },
     kpis: [
       { label: 'Journal entries', labelTh: 'จำนวนรายการ', value: r.rows.length.toString(), tone: 'neutral' },
-      { label: 'Total debits', labelTh: 'รวมเดบิต', value: fmt(totalDebit), tone: 'neutral' },
-      { label: 'Total credits', labelTh: 'รวมเครดิต', value: fmt(totalCredit), tone: 'neutral' },
+      { label: 'Total debits', labelTh: 'รวมเดบิต', value: await fmt(totalDebit, locale), tone: 'neutral' },
+      { label: 'Total credits', labelTh: 'รวมเครดิต', value: await fmt(totalCredit, locale), tone: 'neutral' },
     ],
     sections: [
       {
         title: 'Entries', titleTh: 'รายการ',
         columns: th ? ['วันที่', 'รายละเอียด', 'เดบิต', 'เครดิต'] : ['Date', 'Description', 'Debit', 'Credit'],
-        rows: r.rows.map(x => [
+        rows: await Promise.all(r.rows.map(async x => [
           x.entry_date,
           x.description,
-          fmt(num(x.total_debit)),
-          fmt(num(x.total_credit)),
-        ]),
+          await fmt(num(x.total_debit), locale),
+          await fmt(num(x.total_credit), locale),
+        ])),
         totalLabel: th ? 'รวม' : 'Total',
         total: totalDebit,
       },

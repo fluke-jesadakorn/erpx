@@ -112,7 +112,7 @@ export function AttachmentUpload({ waybillId, stage }: Props) {
   return (
     <form
       onSubmit={(e) => void onUpload(e)}
-      className="rounded-2xl border-2 border-info/30 bg-info-soft/40 p-4 space-y-3"
+      className="rounded-md border-2 border-info/30 bg-info-soft/40 p-4 space-y-3"
     >
       <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-info-strong font-bold">
         <span>📤</span>

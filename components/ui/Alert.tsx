@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Icon, type IconName } from '@/components/icons';
+import { CheckCircle, CircleAlert, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react';
 import { Panel } from './Panel';
 
 export type AlertTone =
@@ -37,13 +37,13 @@ const TEXT: Record<AlertTone, string> = {
   accent: 'text-accent',
 };
 
-const ICON: Record<AlertTone, IconName> = {
-  positive: 'check-circle',
-  caution: 'alert',
-  critical: 'alert-circle',
-  info: 'info',
-  neutral: 'info',
-  accent: 'info',
+const ICON: Record<AlertTone, LucideIcon> = {
+  positive: CheckCircle,
+  caution: TriangleAlert,
+  critical: CircleAlert,
+  info: Info,
+  neutral: Info,
+  accent: Info,
 };
 
 export function Alert({
@@ -54,13 +54,14 @@ export function Alert({
   onDismiss,
   className = '',
 }: AlertProps) {
+  const ToneIcon = ICON[tone];
   return (
     <Panel
       padding="sm"
       className={['border-t-2', BORDER[tone], className].join(' ')}
     >
       <div role="alert" className="flex items-start gap-3">
-        <Icon name={ICON[tone]} size={18} className={['mt-0.5 shrink-0', TEXT[tone]].join(' ')} />
+        <ToneIcon size={18} className={['mt-0.5 shrink-0', TEXT[tone]].join(' ')} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <div className="text-sm font-semibold text-ink">{title}</div>
@@ -71,7 +72,7 @@ export function Alert({
                 aria-label="Dismiss"
                 className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-mute hover:bg-paper-3 hover:text-ink"
               >
-                <Icon name="x" size={14} />
+                <X size={14} />
               </button>
             )}
           </div>

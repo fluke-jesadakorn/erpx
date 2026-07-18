@@ -21,13 +21,13 @@ export async function NudgesLink() {
       href="/nudges"
       title={titleText}
       aria-label={ariaLabel}
-      className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-700 text-slate-400 transition-colors hover:border-cyan-500 hover:text-cyan-200"
+      className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rule text-ink-2 transition-colors hover:border-info hover:text-info"
     >
       <Bell className="h-4 w-4" aria-hidden />
       {count > 0 && (
         <span
           aria-hidden
-          className="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full border border-rose-500 bg-rose-500 px-1 text-[10px] font-mono leading-none text-white"
+          className="absolute -right-1 -top-1 inline-flex min-w-[1.1rem] items-center justify-center rounded-full border border-critical bg-critical px-1 text-[10px] font-mono leading-none text-ink"
         >
           {count > 9 ? '9+' : count}
         </span>

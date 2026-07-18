@@ -7,7 +7,8 @@ import { recordEvent } from '@/waybill/events';
 import { appendWaybillEvent } from '@/waybill/append';
 import { loadWaybill } from '@/waybill/queries';
 import { loadActor, type ActorWithScope } from '@/server/guard';
-import { matchPerm } from '@/perm';
+import { hasPermission } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import { STAGE_TO_PERM, stageRoles } from '@/perm';
 import {
   upsertSalesDraftVat,
@@ -49,9 +50,9 @@ async function requireActor(): Promise<ActorWithScope> {
 }
 
 function canActOnSalesStage(actor: ActorWithScope, stage: string): boolean {
-  if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return true;
+  if (hasPermission(actor, PERM.admin.system.bypass)) return true;
   const stagePerm = STAGE_TO_PERM[stage];
-  if (stagePerm && matchPerm(actor.permissions, stagePerm)) return true;
+  if (stagePerm && hasPermission(actor, stagePerm)) return true;
   const roles = stageRoles(stage);
   return roles.includes(actor.role_name);
 }
@@ -62,7 +63,7 @@ export async function submitSalesOrderAction(formData: FormData): Promise<void> 
   if (!wb || wb.origin !== 'so') throw new Error('Sales waybill not found');
 
   const actor = await requireActor();
-  if (!matchPerm(actor.permissions, 'finance:sales:submit::allow')) {
+  if (!hasPermission(actor, 'finance:sales:submit::allow')) {
     throw new Error('forbidden');
   }
   if (!canActOnSalesStage(actor, wb.current_stage)) {
@@ -118,7 +119,7 @@ export async function issueSalesInvoiceAction(formData: FormData): Promise<void>
   if (!wb || wb.origin !== 'so') throw new Error('Sales waybill not found');
 
   const actor = await requireActor();
-  if (!matchPerm(actor.permissions, 'finance:sales:invoice::allow')) {
+  if (!hasPermission(actor, 'finance:sales:invoice::allow')) {
     throw new Error('forbidden');
   }
   if (!canActOnSalesStage(actor, wb.current_stage)) {
@@ -256,7 +257,7 @@ export async function attachArReceiptAction(formData: FormData): Promise<void> {
   if (!wb || wb.origin !== 'so') throw new Error('Sales waybill not found');
 
   const actor = await requireActor();
-  if (!matchPerm(actor.permissions, 'finance:sales:settle::allow')) {
+  if (!hasPermission(actor, 'finance:sales:settle::allow')) {
     throw new Error('forbidden');
   }
   if (wb.current_stage === 'so_paid') {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, CircleDot, Circle, Sparkles } from 'lucide-react';
+import { Check, Sparkles } from 'lucide-react';
 import { T } from '@/components/i18n/T';
 
 type Tone = 'indigo' | 'cyan' | 'emerald' | 'amber' | 'slate' | 'accent';
@@ -138,12 +138,12 @@ export function StepCard({
 
   const accentRing =
     accent === 'your-turn'
-      ? 'border-cyan-400/70 shadow-[0_0_0_1px_rgba(6,182,212,0.25),0_16px_44px_-14px_rgba(6,182,212,0.4)]'
+      ? 'border-info shadow-[0_0_0_1px_rgba(6,182,212,0.25),0_16px_44px_-14px_rgba(6,182,212,0.4)]'
       : '';
 
   const accentOverlay =
     accent === 'your-turn'
-      ? 'before:absolute before:inset-0 before:rounded-2xl before:bg-[radial-gradient(ellipse_at_top_left,rgba(6,182,212,0.12),transparent_55%)] before:pointer-events-none'
+      ? 'before:absolute before:inset-0 before:rounded-md before:bg-[radial-gradient(ellipse_at_top_left,rgba(6,182,212,0.12),transparent_55%)] before:pointer-events-none'
       : '';
 
   const bodySurface = bodyTint
@@ -154,7 +154,7 @@ export function StepCard({
       : 'bg-paper-2'
     : flat
     ? 'bg-paper-2'
-    : 'glass-panel';
+    : 'bg-paper-2 border border-rule';
 
   const titleAttr =
     titleTh && typeof titleTh === 'string' ? `${title} · ${titleTh}` : undefined;
@@ -163,7 +163,7 @@ export function StepCard({
     <article
       id={cardId}
       className={[
-        'relative overflow-hidden rounded-2xl border transition-all duration-300 scroll-mt-28',
+        'relative overflow-hidden rounded-md border transition-all duration-300 scroll-mt-28',
         'backdrop-blur-sm',
         bodySurface,
         statusRing,

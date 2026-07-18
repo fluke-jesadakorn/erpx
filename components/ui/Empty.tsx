@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Icon, type IconName } from '@/components/icons';
+import { Inbox, type LucideIcon } from 'lucide-react';
 
 export interface EmptyAction {
   label: ReactNode;
@@ -9,26 +9,28 @@ export interface EmptyAction {
 }
 
 export interface EmptyProps {
-  icon?: IconName;
+  icon?: LucideIcon;
   title: ReactNode;
   body?: ReactNode;
   action?: EmptyAction;
   className?: string;
 }
 
-const ACTION = 'inline-flex h-9 items-center justify-center rounded-md border border-rule bg-paper-3 px-4 text-sm font-medium text-ink hover:bg-paper';
+const ACTION = 'glass-input inline-flex h-10 items-center justify-center px-4 text-sm font-medium text-ink transition-all hover:-translate-y-px hover:border-rule-strong';
 
 export function Empty({
-  icon = 'inbox',
+  icon: IconCmp = Inbox,
   title,
   body,
   action,
   className = '',
 }: EmptyProps) {
   return (
-    <div className={['mx-auto max-w-md p-10 text-center', className].join(' ')}>
-      <Icon name={icon} size={48} strokeWidth={1.5} className="mx-auto text-mute" />
-      <div className="mt-4 text-lg font-semibold text-ink">{title}</div>
+    <div className={['mx-auto max-w-md px-6 py-12 text-center', className].join(' ')}>
+      <span className="panel mx-auto flex h-16 w-16 items-center justify-center rounded-2xl text-accent">
+        <IconCmp size={28} strokeWidth={1.6} />
+      </span>
+      <div className="mt-5 text-lg font-semibold tracking-tight text-ink">{title}</div>
       {body && <div className="mt-2 text-sm text-ink-2">{body}</div>}
       {action && (
         <div className="mt-5">

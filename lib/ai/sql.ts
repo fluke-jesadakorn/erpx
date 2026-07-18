@@ -79,10 +79,11 @@ function validateSql(sql: string): { ok: boolean; reason?: string; cleanSql: str
       return { ok: false, reason: `table "${ref}" is not in the allow-list`, cleanSql: clean };
     }
   }
-  const colRefs = Array.from(clean.matchAll(/\b([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)/gi));
+  const colRefs = Array.from(clean.matchAll(/\b([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)\b/gi));
   for (const m of colRefs) {
     const t = m[1].toLowerCase();
     const c = m[2].toLowerCase();
+    if (ALLOWED_COLUMNS[`${t}.${c}`]) continue;
     const allowed = ALLOWED_COLUMNS[t];
     if (!allowed) {
       return { ok: false, reason: `column reference uses unknown table "${t}"`, cleanSql: clean };

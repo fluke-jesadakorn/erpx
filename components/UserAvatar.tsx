@@ -32,7 +32,7 @@ export function roleNameOf(role?: string | null): string {
 }
 
 export function roleAccent(role?: string): string {
-  return ROLE_ACCENT[roleNameOf(role) as DisplayRoleName] || 'from-slate-500 to-slate-700';
+  return ROLE_ACCENT[roleNameOf(role) as DisplayRoleName] || 'from-paper-2 to-paper-3';
 }
 
 export function roleGlyph(role?: string): string {
@@ -46,23 +46,15 @@ export function roleLabel(role?: string): string {
 }
 
 export function roleBadge(role?: string): string {
-  return ROLE_BADGE[roleNameOf(role) as DisplayRoleName] || 'bg-slate-500/15 text-slate-200 border-slate-500/40';
+  return ROLE_BADGE[roleNameOf(role) as DisplayRoleName] || 'bg-paper-2/15 text-ink border-rule/40';
 }
-
-const LEVEL_ACCENT: Record<string, string> = {
-  root:   'from-slate-500 to-slate-700',
-  junior: 'from-teal-500 to-cyan-700',
-  mid:    'from-sky-500 to-blue-700',
-  senior: 'from-amber-500 to-orange-700',
-  elite:  'from-rose-500 to-pink-700',
-};
 
 export function levelAccent(level?: number | null): string | null {
   if (typeof level !== 'number') return null;
   if (level === 1 || level === 2 || level === 3 || level === 4 || level === 5) {
     return staffLevelAccent(level);
   }
-  return 'from-slate-500 to-slate-700';
+  return 'from-paper-2 to-paper-3';
 }
 
 function initialsOf(name?: string): string {
@@ -101,10 +93,10 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
   return (
     <div
       className={[
-        'inline-flex items-center justify-center rounded-full bg-gradient-to-br text-white font-black font-mono shrink-0 select-none',
+        'inline-flex items-center justify-center rounded-full  text-ink font-black font-mono shrink-0 select-none',
         accent,
         SIZE[size],
-        ring ? 'ring-2 ring-offset-2 ring-offset-slate-950 ring-indigo-500/40' : '',
+        ring ? 'ring-2 ring-offset-2 ring-offset-paper ring-accent' : '',
         className,
       ].join(' ')}
       aria-label={fullname || 'user avatar'}

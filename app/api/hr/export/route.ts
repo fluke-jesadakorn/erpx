@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 interface LeaveExportRow {
   'รหัสพนักงาน': string;
   'ชื่อ-สกุล': string;
-  'แผนก': string;
+  'แผนก': string | null;
   'ตำแหน่ง': string;
   'ประเภทการลา': string;
   'วันเริ่ม': string;
@@ -25,29 +25,39 @@ export async function GET(req: Request) {
 
     let sql = `
       SELECT
-        e.employee_code      AS "รหัสพนักงาน",
-        e.name               AS "ชื่อ-สกุล",
-        e.department         AS "แผนก",
-        e.position           AS "ตำแหน่ง",
-        lr.leave_type        AS "ประเภทการลา",
-        lr.start_date::text  AS "วันเริ่ม",
-        lr.end_date::text    AS "วันสิ้นสุด",
-        lr.days::float       AS "จำนวนวัน",
-        lr.reason            AS "เหตุผล",
-        lr.status            AS "สถานะ",
-        appr.name            AS "อนุมัติโดย",
-        lr.created_at        AS "วันที่ส่งคำขอ"
-      FROM hr.leave_requests lr
-      JOIN hr.employees e ON lr.employee_id = e.id
-      LEFT JOIN hr.employees appr ON lr.approved_by = appr.id
+        u.employee_code      AS "รหัสพนักงาน",
+        u.fullname           AS "ชื่อ-สกุล",
+        u.dept_label         AS "แผนก",
+        u.position           AS "ตำแหน่ง",
+        hl.leave_type        AS "ประเภทการลา",
+        hl.start_date::text  AS "วันเริ่ม",
+        hl.end_date::text    AS "วันสิ้นสุด",
+        hl.days::float       AS "จำนวนวัน",
+        hl.reason            AS "เหตุผล",
+        CASE WHEN w.status = 'completed' THEN 'approved'
+             WHEN w.status = 'rejected'  THEN 'rejected'
+             ELSE 'pending' END AS "สถานะ",
+        appr.fullname        AS "อนุมัติโดย",
+        w.created_at         AS "วันที่ส่งคำขอ"
+      FROM folio.hr_leave hl
+      JOIN folio.waybills w  ON w.id = hl.waybill_id
+      JOIN folio.users    u  ON u.id = hl.employee_id
+      LEFT JOIN LATERAL (
+        SELECT actor_id FROM folio.waybill_events
+         WHERE waybill_id = hl.waybill_id
+           AND kind IN ('advanced','rejected')
+           AND actor_id IS NOT NULL
+         ORDER BY sequence ASC LIMIT 1
+      ) ev ON true
+      LEFT JOIN folio.users appr ON appr.id = ev.actor_id
     `;
 
     const params: string[] = [];
     if (month) {
-      sql += ` WHERE TO_CHAR(lr.created_at, 'YYYY-MM') = $1`;
+      sql += ` WHERE TO_CHAR(w.created_at, 'YYYY-MM') = $1`;
       params.push(month);
     }
-    sql += ` ORDER BY lr.created_at DESC`;
+    sql += ` ORDER BY w.created_at DESC`;
 
     const result = await query<LeaveExportRow>(sql, params);
     const rows = result.rows;

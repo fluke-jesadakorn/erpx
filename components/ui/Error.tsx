@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Icon } from '@/components/icons';
+import { CircleAlert } from 'lucide-react';
 import { Panel } from './Panel';
 
 export interface ErrorRetry {
@@ -23,7 +23,7 @@ export function Error({
   return (
     <Panel padding="none" className={['border-t-2 border-t-critical p-10', className].join(' ')}>
       <div className="mx-auto max-w-md text-center">
-        <Icon name="alert-circle" size={48} strokeWidth={1.5} className="mx-auto text-critical" />
+        <CircleAlert size={48} strokeWidth={1.5} className="mx-auto text-critical" />
         <div className="mt-4 text-lg font-semibold text-ink">{title}</div>
         {body && <div className="mt-2 text-sm text-ink-2">{body}</div>}
         {retry && (

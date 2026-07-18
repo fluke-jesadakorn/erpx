@@ -1,7 +1,8 @@
 import 'server-only';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { loadActor } from '@/server/guard';
-import { matchPerm } from '@/perm/server';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { NoPermissionView } from '@/components/NoPermissionView';
@@ -11,10 +12,14 @@ import { listSessions } from '@/chat/history';
 export const dynamic = 'force-dynamic';
 
 export default async function ChatPage() {
+  const h = await headers();
+  const session = await loadActivePermSession(
+    new Request('http://internal/chat', { headers: h as unknown as HeadersInit }),
+  );
   const actor = await loadActor();
-  if (!actor) redirect('/login');
+  if (!session || !actor) redirect('/login');
 
-  const allowed = matchPerm(actor.permissions, 'tile:chat:view::allow');
+  const allowed = hasPermission(session.session, 'tile:chat:view::allow');
 
   if (!allowed) {
     return (
@@ -53,6 +58,7 @@ export default async function ChatPage() {
         title="AI Chat"
         density="compact"
         contentClassName="mt-2"
+        width="full"
       >
         <FullChat initialSessions={sessions} />
       </PageLayout>

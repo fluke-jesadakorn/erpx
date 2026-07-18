@@ -4,7 +4,8 @@ import { apiGuard } from '@/server/apiGuard';
 import { loadWaybill } from '@/waybill/queries';
 import { recordEvent } from '@/waybill/events';
 import { withTransaction } from '@/db';
-import { matchPerm } from '@/perm';
+import { hasPermission } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
       if (input.draftWaybillId) {
         const wb = await loadWaybill(input.draftWaybillId);
         if (!wb || wb.origin !== 'so') throw new Error('not a sales waybill');
-        if (wb.submitter_id !== actor.id && !matchPerm(actor.permissions, 'admin:system:bypass::allow')) {
+        if (wb.submitter_id !== actor.id && !hasPermission(actor, PERM.admin.system.bypass)) {
           throw new Error('not your draft');
         }
         wbId = wb.id;

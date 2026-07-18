@@ -6,6 +6,8 @@ import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { ContractList } from './_components/ContractList';
 import { NoPermissionView } from '@/components/NoPermissionView';
+import { T } from '@/components/i18n/TServer';
+import { getSecondaryLocale } from '@/server/locale';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,13 +15,14 @@ export default async function LawPage() {
   const h = await headers();
   const req = new Request('http://internal/law', { headers: h as unknown as HeadersInit });
   const out = await loadActivePermSession(req);
+  const locale = await getSecondaryLocale();
 
   if (!out) {
     return (
       <>
-        <BreadcrumbSetter crumbs={[{ label: 'Folio', href: '/' }, { label: 'Law' }]} />
-        <PageLayout title="Law documents" subtitle="Contract registry">
-          <NoPermissionView kind="locked" actor={null} attemptedPath="/law" reason="Sign in to view this page." />
+        <BreadcrumbSetter crumbs={[{ label: 'Folio', href: '/' }, { label: <T id="law.title" locale={locale} /> }]} />
+        <PageLayout title={<T id="law.page.title" locale={locale} />} subtitle={<T id="law.page.subtitle" locale={locale} />}>
+          <NoPermissionView kind="locked" actor={null} attemptedPath="/law" reason={<T id="access.signInBody" locale={locale} />} />
         </PageLayout>
       </>
     );
@@ -28,13 +31,13 @@ export default async function LawPage() {
   if (!hasPermission(out.session, PERM.law.contract.read)) {
     return (
       <>
-        <BreadcrumbSetter crumbs={[{ label: 'Folio', href: '/' }, { label: 'Law' }]} />
-        <PageLayout title="Law documents" subtitle="Contract registry">
+        <BreadcrumbSetter crumbs={[{ label: 'Folio', href: '/' }, { label: <T id="law.title" locale={locale} /> }]} />
+        <PageLayout title={<T id="law.page.title" locale={locale} />} subtitle={<T id="law.page.subtitle" locale={locale} />}>
           <NoPermissionView
             kind="locked"
             actor={out.session.user as any}
             attemptedPath="/law"
-            reason="law:contract:read required."
+            reason={<T id="law.permission.contractReadRequired" locale={locale} />}
           />
         </PageLayout>
       </>
@@ -45,38 +48,43 @@ export default async function LawPage() {
     listContracts({ limit: 200 }),
     getContractStats(),
   ]);
-  const cards = [
-    ['Total', stats.total],
-    ['Ready', stats.ready],
-    ['Pending', stats.pending],
-    ['Failed', stats.failed],
-  ] as const;
 
   return (
     <>
-      <BreadcrumbSetter crumbs={[{ label: 'Folio', href: '/' }, { label: 'Law' }]} />
+      <BreadcrumbSetter crumbs={[{ label: 'Folio', href: '/' }, { label: <T id="law.title" locale={locale} /> }]} />
       <PageLayout
-        title="Law documents"
-        subtitle="Contract registry, semantic retrieval, and LINE ingestion"
-        category={{ label: 'Law', icon: 'scale', href: '/law' }}
+        title={<T id="law.page.title" locale={locale} />}
+        subtitle={<T id="law.page.subtitle" locale={locale} />}
+        category={{ label: <T id="law.title" locale={locale} />, icon: 'Scale', href: '/law' }}
+        width="wide"
         actions={
           <div className="flex gap-2">
-            <Link href="/law/admin" className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-300 hover:border-slate-500">
-              Admin
+            <Link href="/law/admin" className="rounded-lg border border-rule px-3 py-2 text-xs text-ink-2 hover:border-rule">
+              <T id="law.page.adminLink" locale={locale} />
             </Link>
-            <Link href="/law/upload" className="rounded-lg border border-cyan-500/50 bg-cyan-500/15 px-3 py-2 text-xs text-cyan-100 hover:bg-cyan-500/25">
-              Upload
+            <Link href="/law/upload" className="rounded-lg border border-info/40 bg-info px-3 py-2 text-xs text-info hover:bg-info">
+              <T id="law.page.uploadLink" locale={locale} />
             </Link>
           </div>
         }
       >
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {cards.map(([label, value]) => (
-            <section key={label} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4">
-              <p className="text-xs uppercase tracking-widest text-slate-500">{label}</p>
-              <p className="mt-2 text-3xl font-semibold text-slate-100">{value}</p>
-            </section>
-          ))}
+          <section className="panel p-4">
+            <p className="text-xs uppercase tracking-widest text-mute"><T id="law.stats.total" locale={locale} /></p>
+            <p className="mt-2 text-3xl font-semibold text-ink">{stats.total}</p>
+          </section>
+          <section className="panel p-4">
+            <p className="text-xs uppercase tracking-widest text-mute"><T id="law.stats.ready" locale={locale} /></p>
+            <p className="mt-2 text-3xl font-semibold text-ink">{stats.ready}</p>
+          </section>
+          <section className="panel p-4">
+            <p className="text-xs uppercase tracking-widest text-mute"><T id="law.stats.pending" locale={locale} /></p>
+            <p className="mt-2 text-3xl font-semibold text-ink">{stats.pending}</p>
+          </section>
+          <section className="panel p-4">
+            <p className="text-xs uppercase tracking-widest text-mute"><T id="law.stats.failed" locale={locale} /></p>
+            <p className="mt-2 text-3xl font-semibold text-ink">{stats.failed}</p>
+          </section>
         </div>
         <ContractList contracts={contracts} />
       </PageLayout>

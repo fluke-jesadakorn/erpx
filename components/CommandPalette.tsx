@@ -1,17 +1,18 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { createElement, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { type RoleName } from '@/org/display';
-import { type TileDef, tileHref } from './tile-config';
-import { roleGlyph } from './UserAvatar';
+import { type TileDef, tileHref, tileIcon } from './tile-config';
 import { T } from '@/components/i18n/T';
+import { Search, Sparkles, UserRound, Zap, type LucideIcon } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
 
 interface AiIntent {
   id: string;
   label: string;
   group: string;
-  glyph: string;
+  icon: LucideIcon;
   perform: () => void;
 }
 
@@ -20,7 +21,7 @@ export interface PaletteAction {
   label: string;
   hint?: string;
   group: string;
-  glyph?: string;
+  icon?: LucideIcon;
   perform: () => void;
 }
 
@@ -78,7 +79,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       label: t.display_name,
       hint: t.subtitle,
       group: 'Tiles',
-      glyph: t.icon,
+      icon: tileIcon(t),
       perform: () => onNavigate(tileHref(t.id)),
     }));
 
@@ -93,7 +94,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           label: `${u.fullname} · ${u.employee_code}`,
           hint: u.role_name,
           group: 'Switch Role',
-          glyph: roleGlyph(u.role_name),
+          icon: UserRound,
           perform: () => switchPersona(u.id),
         }))
       : q
@@ -102,7 +103,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             label: `${u.fullname} · ${u.employee_code}`,
             hint: u.role_name,
             group: 'Switch Role',
-            glyph: roleGlyph(u.role_name),
+            icon: UserRound,
             perform: () => switchPersona(u.id),
           }))
         : [];
@@ -153,9 +154,9 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           const href = TILE_HREFS[parsed.target];
           setAiIntent({
             id: 'ai:intent',
-            label: `✨ ${parsed.label || `Open ${parsed.target}`}`,
+            label: `AI · ${parsed.label || `Open ${parsed.target}`}`,
             group: 'AI Suggestion',
-            glyph: '✨',
+            icon: Sparkles,
             perform: () => onNavigate(href),
           });
         } else {
@@ -199,7 +200,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             id: top.tileId,
             label: `AI · ${top.tileId} (${Math.round(top.confidence * 100)}%)`,
             group: 'AI guess',
-            glyph: '✨',
+            icon: Sparkles,
             perform: () => {
               onNavigate(`/${top.tileId}`);
               setOpenCommand(false);
@@ -259,8 +260,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       setQuery('');
       setHighlight(0);
       setAiIntent(null);
-    } else {
-      setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [openCommand]);
 
@@ -293,27 +292,30 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   if (!openCommand) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center pt-[12vh] px-4 animate-fade-in">
+    <Modal
+      open={openCommand}
+      onClose={() => setOpenCommand(false)}
+      ariaLabel="Command palette"
+      width="xl"
+      bareHeader
+      hideCloseButton
+      initialFocusRef={inputRef}
+      panelClassName="max-h-[70vh]"
+      contentClassName="p-0 overflow-hidden"
+    >
       <div
-        className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
-        onClick={() => setOpenCommand(false)}
-        aria-hidden
-      />
-      <div
-        role="dialog"
-        aria-label="Command palette"
-        className="relative w-full max-w-xl glass-panel-heavy rounded-2xl shadow-2xl shadow-black border-indigo-500/30 flex flex-col max-h-[70vh] overflow-hidden"
+        className="flex max-h-[70vh] flex-col overflow-hidden"
       >
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-800/80">
-          <span className="text-indigo-400 text-lg">⌘</span>
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-rule/80">
+          <Search size={17} className="text-accent" aria-hidden />
           <input
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search tiles, features, or pages — type “as …” to switch user"
-            className="flex-1 bg-transparent outline-none text-sm text-white placeholder:text-slate-500"
+            className="flex-1 bg-transparent outline-none text-sm text-ink placeholder:text-mute"
           />
-          <kbd className="hidden sm:inline-flex text-xs font-mono px-1.5 py-0.5 rounded border border-slate-700 text-slate-400 bg-slate-900">
+          <kbd className="hidden sm:inline-flex text-xs font-mono px-1.5 py-0.5 rounded border border-rule text-ink-2 bg-paper">
             ESC
           </kbd>
         </div>
@@ -321,10 +323,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         <div className="flex-1 overflow-y-auto px-1.5 py-2">
           {finalList.length === 0 ? (
             <div className="px-3 py-12 text-center">
-              <div className="text-2xl mb-2">🔍</div>
-              <div className="text-xs text-slate-400">
+              <Search size={24} className="mx-auto mb-2 text-mute" aria-hidden />
+              <div className="text-xs text-ink-2">
                 {aiBusy
-                  ? <><span className="mr-1">✨</span><T id="command.askingAi" hideSecondary /></>
+                  ? <span className="inline-flex items-center gap-1.5"><Sparkles size={12} aria-hidden /><T id="command.askingAi" hideSecondary /></span>
                   : <T id="command.noMatch" hideSecondary values={{ query }} />}
               </div>
             </div>
@@ -332,7 +334,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             grouped.map(([group, items]) => {
               return (
                 <div key={group} className="px-1 mb-1">
-                  <div className="px-2 py-1 text-xs uppercase tracking-widest font-mono text-slate-500">
+                  <div className="px-2 py-1 text-xs uppercase tracking-widest font-mono text-mute">
                     {group === 'Tiles' ? <T id="command.groupTiles" hideSecondary />
                       : group === 'AI Suggestion' ? <T id="command.groupAiSuggestion" hideSecondary />
                       : group === 'AI guess' ? <T id="command.groupAiGuess" hideSecondary />
@@ -352,18 +354,18 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                           setOpenCommand(false);
                         }}
                         className={[
-                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all',
-                          focused ? 'bg-indigo-500/15 border border-indigo-500/40 text-white' : 'border border-transparent text-slate-200 hover:bg-slate-900/60',
+                          'w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-all',
+                          focused ? 'bg-accent border border-accent text-ink' : 'border border-transparent text-ink hover:bg-paper-2/60',
                         ].join(' ')}
                       >
-                        <span className="w-7 h-7 inline-flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800 text-base shrink-0">
-                          {a.glyph || '⚡'}
+                        <span className="w-7 h-7 inline-flex items-center justify-center rounded-lg bg-paper border border-rule text-accent shrink-0">
+                          {createElement(a.icon ?? Zap, { size: 14, 'aria-hidden': true })}
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{a.label}</div>
-                          {a.hint && <div className="text-xs text-slate-500 font-mono truncate">{a.hint}</div>}
+                          {a.hint && <div className="text-xs text-mute font-mono truncate">{a.hint}</div>}
                         </div>
-                        {focused && <span className="text-xs font-mono text-indigo-300 px-1.5 py-0.5 rounded border border-indigo-500/40">↵</span>}
+                        {focused && <span className="text-xs font-mono text-accent px-1.5 py-0.5 rounded border border-accent">↵</span>}
                       </button>
                     );
                   })}
@@ -373,10 +375,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           )}
         </div>
 
-        <div className="px-3 py-2 border-t border-slate-800/80 text-xs text-slate-500 font-mono flex items-center justify-between">
+        <div className="px-3 py-2 border-t border-rule/80 text-xs text-mute font-mono flex items-center justify-between">
           <span>
             <T id="command.matches" hideSecondary values={{ n: finalList.length }} />
-            {aiBusy && <span className="ml-2 text-indigo-300"><span className="mr-1">✨</span><T id="command.aiThinking" hideSecondary /></span>}
+            {aiBusy && <span className="ml-2 inline-flex items-center gap-1 text-accent"><Sparkles size={11} aria-hidden /><T id="command.aiThinking" hideSecondary /></span>}
           </span>
           <span className="flex items-center gap-2">
             <span><T id="command.keysSelect" hideSecondary /></span>
@@ -385,6 +387,6 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           </span>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };

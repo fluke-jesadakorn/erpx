@@ -10,9 +10,9 @@ import { recordAttachment, getAttachment } from '@/waybill/attachments';
 import { loadWaybill, domainOf, loadApproversByStage } from '@/waybill/queries';
 import { allowedKindsFor, type WaybillAttachmentKind } from '@/waybill/kinds';
 import { addWatcher, removeWatcher } from '@/waybill/watchers';
-import { reCallWaybillAction } from '@/waybill/recall';
-import { resolveNextStage } from '@/perm/server';
-import { matchPerm } from '@/perm';
+import { reCallWaybillAction } from '@/waybill/recall-action';
+import { hasPermission, resolveNextStage } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import { loadActor, type ActorWithScope } from '@/server/guard';
 import { ensureGlForExpense, ensurePoForExpense as ensurePoForExpenseWithClient } from '@/waybill/ensureArtifacts';
 import { ensurePoPdf } from '@/finance/poPdf';
@@ -26,11 +26,54 @@ import {
   type WbForCheck,
 } from './_helpers';
 
-function canActOnWaybillStage(actor: ActorWithScope, wb: WbForCheck): boolean {
-  if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return true;
+const DEPT_SCOPED_STAGES = new Set<string>([
+  'submission',
+  'dept_verification',
+  'dept_authorization',
+  'final_authorization',
+]);
+
+const CROSS_DEPT_STAGES = new Set<string>([
+  'accounting_verification',
+  'accounting_supervision',
+  'accounting_authorization',
+  'disbursement_authorization',
+  'cfo_authorization',
+  'ceo_authorization',
+  'gl_confirmed',
+]);
+
+async function submitterDeptId(wb: WbForCheck): Promise<string | null> {
+  if (!wb.submitter_id) return null;
+  const r = await _query<{ permission_id: string | null }>(
+    `SELECT permission_id FROM perm.user_permissions
+      WHERE user_id = $1
+        AND permission_id LIKE 'user:dept:%'
+        AND revoked_at IS NULL
+        AND (ends_at IS NULL OR ends_at > now())
+      ORDER BY permission_id LIMIT 1`,
+    [wb.submitter_id],
+  );
+  const pid = r.rows[0]?.permission_id;
+  if (!pid) return null;
+  return pid.replace(/^user:dept:/, '').replace(/::allow$/, '');
+}
+
+async function canActOnWaybillStage(actor: ActorWithScope, wb: WbForCheck): Promise<boolean> {
+  if (hasPermission(actor, PERM.admin.system.bypass)) return true;
   const stage = wb.current_stage;
-  if (matchPerm(actor.permissions, `stage:${stage}:act::allow`)) return true;
-  if (matchPerm(actor.permissions, `stage:${stage}:act:all::allow`)) return true;
+  const hasStageAll = actor.permissions.includes(`stage:${stage}:act:all::allow`);
+  if (hasStageAll) return true;
+  const hasStageScoped = actor.permissions.includes(`stage:${stage}:act::allow`)
+    || (!!actor.dept_id && actor.permissions.includes(`stage:${stage}:act:${actor.dept_id}::allow`));
+  if (hasStageScoped) {
+    if (CROSS_DEPT_STAGES.has(stage)) return true;
+    if (DEPT_SCOPED_STAGES.has(stage)) {
+      const submitterDept = await submitterDeptId(wb);
+      if (!actor.dept_id || actor.dept_id !== submitterDept) return false;
+    }
+    return true;
+  }
   if (actor.role_name === 'cfo' || actor.role_name === 'ceo' || actor.role_name === 'admin') {
     return true;
   }
@@ -46,28 +89,28 @@ function canActOnWaybillStage(actor: ActorWithScope, wb: WbForCheck): boolean {
   if (wb.origin === 'so' && stage === 'so_invoiced' && actor.role_name === 'account_officer') {
     return true;
   }
-  if (wb.origin === 'expense' || wb.origin === 'so') return false;
-  if (actor.id === wb.submitter_id && stage === 'submission' && matchPerm(actor.permissions, 'finance:expense:create::allow')) {
+  if (actor.id === wb.submitter_id && stage === 'submission' && hasPermission(actor, PERM.finance.expense.create)) {
     return true;
   }
+  if (wb.origin === 'expense' || wb.origin === 'so') return false;
   return false;
 }
 
 function canRecall(actor: ActorWithScope, wb: WbForCheck): boolean {
-  if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return true;
+  if (hasPermission(actor, PERM.admin.system.bypass)) return true;
   return ['cfo', 'ceo', 'finance', 'admin'].includes(actor.role_name) && !['disbursed', 'gl_confirmed', 'rejected'].includes(wb.current_stage);
 }
 
 function canRejectWaybill(actor: ActorWithScope, wb: WbForCheck): boolean {
   if (['disbursed', 'gl_confirmed', 'rejected'].includes(wb.current_stage)) return false;
-  if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return true;
+  if (hasPermission(actor, PERM.admin.system.bypass)) return true;
   return ['cfo', 'ceo', 'admin', 'finance', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
 }
 
 function canFinalApproveExpense(actor: ActorWithScope, wb: WbForCheck): boolean {
   if (!['accounting_authorization', 'final_authorization'].includes(wb.current_stage)) return false;
-  if (matchPerm(actor.permissions, 'finance:expense:approve::allow')) return true;
-  if (matchPerm(actor.permissions, 'finance:expense:settle::allow')) {
+  if (hasPermission(actor, PERM.finance.expense.approve)) return true;
+  if (hasPermission(actor, PERM.finance.expense.settle)) {
     return ['finance', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
   }
   return false;
@@ -76,20 +119,20 @@ function canFinalApproveExpense(actor: ActorWithScope, wb: WbForCheck): boolean 
 function canResubmit(actor: ActorWithScope, wb: WbForCheck): boolean {
   return actor.id === wb.submitter_id
     && wb.current_stage === 'rejected'
-    && matchPerm(actor.permissions, 'finance:expense:create::allow');
+    && hasPermission(actor, PERM.finance.expense.create);
 }
 
 function canAttachAtStage(actor: ActorWithScope, wb: WbForCheck): boolean {
   if (['disbursed', 'gl_confirmed', 'rejected'].includes(wb.current_stage)) return false;
-  if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return true;
-  if (matchPerm(actor.permissions, 'finance:waybill:attach::allow')) return true;
+  if (hasPermission(actor, PERM.admin.system.bypass)) return true;
+  if (hasPermission(actor, 'finance:waybill:attach::allow')) return true;
   return actor.id === wb.submitter_id
     && wb.current_stage === 'submission'
-    && matchPerm(actor.permissions, 'finance:expense:create::allow');
+    && hasPermission(actor, PERM.finance.expense.create);
 }
 
 function canRemoveAttachment(actor: ActorWithScope): boolean {
-  if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return true;
+  if (hasPermission(actor, PERM.admin.system.bypass)) return true;
   return actor.role_name === 'cfo' || actor.role_name === 'ceo' || actor.role_name === 'admin';
 }
 const ApproveForm = z.object({
@@ -125,7 +168,7 @@ export async function approveWaybillAction(formData: FormData): Promise<void> {
     }
   }
 
-  if (!canActOnWaybillStage(actor, wb)) {
+  if (!(await canActOnWaybillStage(actor, wb))) {
     throw new Error('cannot act at this stage');
   }
 
@@ -351,29 +394,39 @@ export async function finalApproveWaybillAction(formData: FormData): Promise<voi
   if (expRes.rows.length === 0) throw new Error('Expense not found');
   const exp = expRes.rows[0];
 
+  const totalAmount = Number(wb.total_amount ?? exp.total_amount ?? 0);
+  const needsCeoStages = totalAmount >= 200_000;
+  const nextStage = needsCeoStages ? 'disbursement_authorization' : 'awaiting_disbursement';
+
   await withTransaction(async (q) => {
     await q(
-      `UPDATE expenses SET status = 'awaiting_disbursement', updated_at = now() WHERE id = $1`,
-      [wb.origin_id],
+      `UPDATE expenses SET status = $1, updated_at = now() WHERE id = $2`,
+      [nextStage, wb.origin_id],
     );
     await q(
-      `UPDATE waybills SET current_stage = 'awaiting_disbursement',
+      `UPDATE waybills SET current_stage = $1,
                           current_owner_role = 'finance',
                           updated_at = now()
-        WHERE id = $1`,
-      [wb.id],
+        WHERE id = $2`,
+      [nextStage, wb.id],
     );
     await recordEvent({
       waybillId: wb.id,
       kind: 'advanced',
-      stageFrom: 'final_authorization',
-      stageTo: 'awaiting_disbursement',
+      stageFrom: 'accounting_authorization',
+      stageTo: nextStage,
       actorId: actor.id,
       actorRole: actor.role_name ?? 'finance',
-      payload: { decision: 'final-approve', gl_will_post: true },
+      payload: { decision: 'final-approve', gl_will_post: !needsCeoStages },
       client: q as never,
     });
   });
+
+  if (needsCeoStages) {
+    revalidatePath(`/waybill/${wb.id}`);
+    redirect(`/waybill/${wb.id}`);
+    return;
+  }
 
   let journalId: number;
   const draft = await finalizeDraftJournal({ expenseId: wb.origin_id, actorId: actor.id });
@@ -396,7 +449,7 @@ export async function finalApproveWaybillAction(formData: FormData): Promise<voi
   await recordEvent({
     waybillId: wb.id,
     kind: 'posted-to-gl',
-    stageFrom: 'final_authorization',
+    stageFrom: 'accounting_authorization',
     stageTo: 'awaiting_disbursement',
     actorId: actor.id,
     actorRole: actor.role_name ?? 'finance',
@@ -421,8 +474,8 @@ export async function finalRejectWaybillAction(formData: FormData): Promise<void
   const wb = await loadWaybill(parsed.waybillId);
   if (!wb) throw new Error('Waybill not found');
   if (wb.status !== 'open') throw new Error(`Waybill status is '${wb.status}', not open`);
-  if (wb.current_stage !== 'final_authorization') {
-    throw new Error(`final reject only at final_authorization (current: ${wb.current_stage})`);
+  if (wb.current_stage !== 'final_authorization' && wb.current_stage !== 'accounting_authorization') {
+    throw new Error(`final reject only at final_authorization/accounting_authorization (current: ${wb.current_stage})`);
   }
 
   const actor = await actorForWaybill();
@@ -472,7 +525,7 @@ export async function finalRejectWaybillAction(formData: FormData): Promise<void
     await recordEvent({
       waybillId: wb.id,
       kind: 'rejected',
-      stageFrom: 'final_authorization',
+      stageFrom: wb.current_stage,
       stageTo: 'rejected',
       actorId: actor.id,
       actorRole: actor.role_name ?? 'finance',

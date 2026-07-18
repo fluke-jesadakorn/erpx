@@ -137,7 +137,12 @@ export async function POST(req: Request) {
     }
 
     const hrRes = await query<{ name: string }>(
-      `SELECT name FROM hr.employees WHERE id = $1 AND role = 'hr'`,
+      `SELECT u.fullname AS name
+         FROM folio.users u
+         JOIN perm.user_roles ur ON ur.user_id = u.id
+        WHERE u.id = $1
+          AND (ur.role_id LIKE 'hr\\_%' ESCAPE '\\' OR ur.role_id = 'hr_manager::3')
+        LIMIT 1`,
       [hrId],
     );
     if (hrRes.rows.length === 0) {
@@ -149,7 +154,7 @@ export async function POST(req: Request) {
     const hrName = hrRes.rows[0].name;
 
     const empRes = await query<{ name: string; line_user_id: string | null }>(
-      `SELECT name, line_user_id FROM hr.employees WHERE id = $1`,
+      `SELECT fullname AS name, line_user_id FROM folio.users WHERE id = $1`,
       [employeeId],
     );
     if (empRes.rows.length === 0) {

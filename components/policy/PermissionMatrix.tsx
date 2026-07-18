@@ -2,7 +2,21 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Icon, type IconName } from '@/components/icons';
+import {
+  Building2,
+  Check,
+  ChevronDown,
+  CircleAlert,
+  Info,
+  Key,
+  LoaderCircle,
+  Search,
+  Shield,
+  User,
+  UserCheck,
+  Users,
+  type LucideIcon,
+} from 'lucide-react';
 
 interface AdminColumn {
   perm: string;
@@ -108,7 +122,7 @@ function SidebarBadge({ count, tone = 'neutral' }: { count?: number | string; to
 function PanelShell({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={[
-      'flex flex-col overflow-hidden rounded-2xl border-slate-800 bg-slate-950/60',
+      'flex flex-col overflow-hidden rounded-md border-rule bg-paper-2/60',
       className || '',
     ].join(' ')}>
       {children}
@@ -125,7 +139,7 @@ function PanelHeader({
   collapsed,
   onToggle,
 }: {
-  icon: IconName;
+  icon: LucideIcon;
   label: string;
   count?: number;
   tone: ToneKey;
@@ -134,10 +148,11 @@ function PanelHeader({
   onToggle?: () => void;
 }) {
   const t = TONE[tone];
+  const IconCmp = icon;
   return (
     <div className={['flex items-center gap-2.5 px-1 py-3'].join(' ')}>
       <span className={['flex h-6 w-6 shrink-0 items-center justify-center', t.text].join(' ')} aria-hidden>
-        <Icon name={icon} size={15} />
+        <IconCmp size={15} />
       </span>
       <span className="text-[12px] font-semibold uppercase tracking-[0.1em] text-mute">
         {label}
@@ -152,7 +167,7 @@ function PanelHeader({
           aria-label={collapsed ? `Expand ${label}` : `Collapse ${label}`}
           className={['flex h-6 w-6 items-center justify-center rounded-md border border-rule/40 hover:bg-paper-3/40 transition-colors', t.text].join(' ')}
         >
-          <Icon name="chevron-down" size={13} className={['transition-transform duration-200', collapsed ? '-rotate-90' : 'rotate-0'].join(' ')} />
+          <ChevronDown size={13} className={['transition-transform duration-200', collapsed ? '-rotate-90' : 'rotate-0'].join(' ')} />
         </button>
       ) : null}
     </div>
@@ -173,7 +188,7 @@ function SearchInput({
   return (
     <div className={['relative', disabled ? 'opacity-50' : ''].join(' ')}>
       <span aria-hidden className="absolute left-3 top-1/2 -translate-y-1/2 text-mute">
-        <Icon name="search" size={14} />
+        <Search size={14} />
       </span>
       <input
         value={value}
@@ -271,7 +286,7 @@ function CheckPill({ checked, onChange, disabled, tone }: { checked: boolean; on
         disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
       ].join(' ')}
     >
-      {checked ? <Icon name="check" size={14} /> : null}
+      {checked ? <Check size={14} /> : null}
     </button>
   );
 }
@@ -445,14 +460,14 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
       <main className="max-w-[1700px] mx-auto px-4 py-3 md:px-6 md:py-4 space-y-3">
         {error ? (
           <div className="flex items-center gap-2 px-3 py-2 border border-critical/45 bg-critical-soft/40 text-critical text-[12px] font-mono rounded-lg shadow-[var(--shadow-popover)]">
-            <Icon name="alert-circle" size={12} />
+            <CircleAlert size={12} />
             <span>{error}</span>
           </div>
         ) : null}
 
         {saving ? (
           <div className="flex items-center gap-2 px-3 py-2 border border-info/45 bg-info-soft/30 text-info text-[12px] font-mono rounded-lg shadow-[var(--shadow-popover)]">
-            <Icon name="loader" size={12} className="animate-spin" />
+            <LoaderCircle size={12} className="animate-spin" />
             <span>Saving…</span>
           </div>
         ) : null}
@@ -460,7 +475,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           <PanelShell>
             <PanelHeader
-              icon="users"
+              icon={Users}
               label="Users"
               tone="positive"
               count={users?.length ?? 0}
@@ -498,7 +513,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
                             tone="positive"
                             active={isActive}
                             dot
-                            left={<Icon name="user" size={13} />}
+                            left={<User size={13} />}
                             onClick={() => pickUser(u)}
                             center={
                               <span className="flex min-w-0 flex-col leading-snug">
@@ -519,7 +534,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
 
           <PanelShell>
             <PanelHeader
-              icon="building"
+              icon={Building2}
               label="Targets · roles · departments"
               tone="info"
               count={targets.length}
@@ -557,7 +572,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
                                 tone="info"
                                 active={isActive}
                                 dot
-                                left={<Icon name="building" size={13} />}
+                                left={<Building2 size={13} />}
                                 onClick={() => pickTarget(d)}
                                 center={
                                   <span className="flex min-w-0 flex-col leading-snug">
@@ -581,7 +596,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
                                 tone="accent"
                                 active={isActive}
                                 dot
-                                left={<Icon name="shield" size={13} />}
+                                left={<Shield size={13} />}
                                 onClick={() => pickTarget(r)}
                                 center={
                                   <span className="flex min-w-0 flex-col leading-snug">
@@ -604,7 +619,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
 
           <PanelShell>
             <PanelHeader
-              icon="key"
+              icon={Key}
               label="Permissions"
               tone="accent"
               count={activeTarget ? filteredColumns.length : columns.length}
@@ -614,7 +629,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
                 activeTarget ? (
                   <span className="flex items-center gap-1.5">
                     <span className="inline-flex items-center gap-1 px-1.5 py-0.5 border border-positive/40 bg-positive-soft/30 text-positive text-[11px] font-mono font-bold rounded-md">
-                      <Icon name="check" size={10} />
+                      <Check size={10} />
                       {targetPerms.size}
                     </span>
                     <span className="text-[11px] text-mute/70 uppercase tracking-[0.1em]">assigned</span>
@@ -660,7 +675,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
                             dot
                             onClick={() => canEdit && toggleTargetPerm(c.perm)}
                             locked={!canEdit}
-                            left={<Icon name="key" size={13} />}
+                            left={<Key size={13} />}
                             center={
                               <span className="flex min-w-0 flex-col leading-snug">
                                 <span className={['truncate text-[14px] transition-colors', isActive ? 'font-bold' : 'font-semibold'].join(' ')}>
@@ -679,7 +694,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
                               <span className="flex items-center gap-1.5">
                                 {userHas ? (
                                   <Pill tone="positive" size="xs">
-                                    <Icon name="user-check" size={10} />
+                                    <UserCheck size={10} />
                                     user
                                   </Pill>
                                 ) : null}
@@ -699,7 +714,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
 
         <footer className="flex items-center justify-between gap-2 px-3 py-2 text-[12px] text-mute/80 font-mono">
           <span className="flex items-center gap-2">
-            <Icon name="info" size={12} className="text-mute/70" />
+            <Info size={12} className="text-mute/70" />
             {users?.length ?? 0} users · {departmentTargets.length} departments · {roleTargets.length} roles · {columns.length} permissions
           </span>
           <span className="flex items-center gap-2">

@@ -45,9 +45,9 @@ export async function POST(req: Request) {
   const headerLocale = getSecondaryLocaleFromHeaders(req.headers);
   const lang: 'en' | 'th' | 'de' = headerLocale === 'de' ? 'de' : headerLocale === 'th' ? 'th' : 'en';
 
-  if (!waybillId || !eventKind || !fromStage || !toStage) {
+  if (!waybillId || !eventKind || !toStage) {
     return NextResponse.json(
-      { ok: false, error: 'waybillId, eventKind, fromStage, toStage are required' },
+      { ok: false, error: 'waybillId, eventKind, toStage are required' },
       { status: 400 },
     );
   }

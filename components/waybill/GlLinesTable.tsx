@@ -63,7 +63,7 @@ export async function LinesTable({
 
   if (lines.length === 0) {
     return (
-      <p className="glass-panel rounded-md border p-3 text-sm italic text-ink-2">
+      <p className="bg-paper-2 border border-rule rounded-md border p-3 text-sm italic text-ink-2">
         <T id="waybill.gl.noLines" locale={localeResolved} />
       </p>
     );
@@ -193,7 +193,7 @@ export async function GlLinesView({
   return (
     <div className="space-y-4">
       {draft && (
-        <section className="space-y-2 rounded-xl border border-info/40 bg-info-soft/40 p-3">
+        <section className="space-y-2 rounded-md border border-info/40 bg-info-soft/40 p-3">
           <header className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="rounded-md border border-info/50 bg-info/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-info-strong">
@@ -211,7 +211,7 @@ export async function GlLinesView({
       )}
 
       {posted && (
-        <section className="space-y-2 rounded-xl border border-positive/40 bg-positive-soft/40 p-3">
+        <section className="space-y-2 rounded-md border border-positive/40 bg-positive-soft/40 p-3">
           <header className="flex flex-wrap items-baseline justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="rounded-md border border-positive/50 bg-positive/15 px-2 py-0.5 text-sm font-mono font-bold uppercase text-positive-strong">

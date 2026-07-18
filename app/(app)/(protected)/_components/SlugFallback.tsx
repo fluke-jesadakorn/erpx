@@ -1,4 +1,4 @@
-import { HeaderSkeleton, KpiSkeleton, PanelSkeleton, SkeletonGrid } from '@/components/ui/Loading';
+import { HeaderSkeleton, KpiSkeleton, PanelSkeleton, SkeletonGrid } from '@/components/ui/Skeleton';
 
 export function SlugFallback() {
   return (

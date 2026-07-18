@@ -6,7 +6,7 @@ export interface EmployeeRow {
   employee_code: string;
   line_user_id: string | null;
   name: string;
-  department: string;
+  department: string | null;
   position: string;
   role: string;
   job_description: string;
@@ -39,11 +39,11 @@ export interface QuotaChange {
 }
 
 interface EmployeeDBRow {
-  id: string;
+  id: number;
   employee_code: string;
   line_user_id: string | null;
   name: string;
-  department: string;
+  department: string | null;
   position: string;
   role: string;
   job_description: string;
@@ -64,7 +64,7 @@ function num(v: number | string | null | undefined, d: number): number {
 
 function rowToEmployee(r: EmployeeDBRow): EmployeeRow {
   return {
-    id: r.id,
+    id: String(r.id),
     employee_code: r.employee_code,
     line_user_id: r.line_user_id,
     name: r.name,
@@ -82,45 +82,64 @@ function rowToEmployee(r: EmployeeDBRow): EmployeeRow {
   };
 }
 
+const USER_SELECT = `
+  SELECT u.id, u.employee_code, u.line_user_id,
+         u.fullname        AS name,
+         u.dept_label      AS department,
+         u.position,
+         COALESCE(u.position, '') AS job_description,
+         COALESCE((
+           SELECT ur.role_id FROM perm.user_roles ur
+            WHERE ur.user_id = u.id
+            ORDER BY (CASE WHEN ur.role_id LIKE '%::1' THEN 0
+                           WHEN ur.role_id LIKE '%::2' THEN 1
+                           WHEN ur.role_id LIKE '%::3' THEN 2
+                           WHEN ur.role_id LIKE '%::4' THEN 3
+                           WHEN ur.role_id LIKE '%::5' THEN 4
+                           ELSE 5 END), ur.granted_at ASC
+            LIMIT 1
+         ), 'staff') AS role,
+         u.quota_sick       AS total_sick_leave,
+         u.used_sick        AS used_sick_leave,
+         u.quota_annual     AS total_annual_leave,
+         u.used_annual      AS used_annual_leave,
+         u.quota_personal   AS total_personal_leave,
+         u.used_personal    AS used_personal_leave,
+         u.created_at::text
+    FROM folio.users u
+`;
+
 export async function listEmployees(): Promise<EmployeeRow[]> {
   const r = await query<EmployeeDBRow>(
-    `SELECT id, employee_code, line_user_id, name, department, position, role,
-            job_description,
-            total_sick_leave, used_sick_leave,
-            total_annual_leave, used_annual_leave,
-            total_personal_leave, used_personal_leave,
-            created_at
-       FROM hr.employees
-      ORDER BY name ASC`,
+    `${USER_SELECT} ORDER BY u.fullname ASC`,
   );
   return r.rows.map(rowToEmployee);
 }
 
 export async function listHRUsers(): Promise<HRUserOption[]> {
-  const r = await query<{
-    id: string;
-    employee_code: string;
-    name: string;
-    position: string;
-  }>(
-    `SELECT id, employee_code, name, position
-       FROM hr.employees
-      WHERE role = 'hr'
-      ORDER BY name ASC`,
+  const r = await query<EmployeeDBRow>(
+    `${USER_SELECT}
+      WHERE EXISTS (
+        SELECT 1 FROM perm.user_roles ur
+         WHERE ur.user_id = u.id
+           AND (ur.role_id LIKE 'hr\\_%' ESCAPE '\\' OR ur.role_id = 'hr_manager::3')
+      )
+      ORDER BY u.fullname ASC`,
   );
-  return r.rows;
+  return r.rows.map((row) => ({
+    id: String(row.id),
+    employee_code: row.employee_code,
+    name: row.name,
+    position: row.position,
+  }));
 }
 
 export async function getEmployee(id: string): Promise<EmployeeRow | null> {
+  const numericId = parseInt(id, 10);
+  if (!Number.isFinite(numericId)) return null;
   const r = await query<EmployeeDBRow>(
-    `SELECT id, employee_code, line_user_id, name, department, position, role,
-            job_description,
-            total_sick_leave, used_sick_leave,
-            total_annual_leave, used_annual_leave,
-            total_personal_leave, used_personal_leave,
-            created_at
-       FROM hr.employees WHERE id = $1`,
-    [id],
+    `${USER_SELECT} WHERE u.id = $1`,
+    [numericId],
   );
   if (r.rows.length === 0) return null;
   return rowToEmployee(r.rows[0]);
@@ -130,8 +149,10 @@ export async function updateQuota(
   employeeId: string,
   patch: QuotaPatch,
   _reason: string,
-  hrActorId: string,
+  _hrActorId: string,
 ): Promise<QuotaChange[]> {
+  const numericId = parseInt(employeeId, 10);
+  if (!Number.isFinite(numericId)) throw new Error('Invalid employee id');
   const existing = await getEmployee(employeeId);
   if (!existing) throw new Error('Employee not found');
 
@@ -143,16 +164,15 @@ export async function updateQuota(
   const clampedUsedPersonal = Math.min(existing.used_personal_leave, newPersonal);
 
   await query(
-    `UPDATE hr.employees
-        SET total_sick_leave     = $1,
-            used_sick_leave      = $2,
-            total_annual_leave   = $3,
-            used_annual_leave    = $4,
-            total_personal_leave = $5,
-            used_personal_leave  = $6,
-            updated_at           = NOW()
+    `UPDATE folio.users
+        SET quota_sick     = $1,
+            used_sick      = $2,
+            quota_annual   = $3,
+            used_annual    = $4,
+            quota_personal = $5,
+            used_personal  = $6
       WHERE id = $7`,
-    [newSick, clampedUsedSick, newAnnual, clampedUsedAnnual, newPersonal, clampedUsedPersonal, employeeId],
+    [newSick, clampedUsedSick, newAnnual, clampedUsedAnnual, newPersonal, clampedUsedPersonal, numericId],
   );
 
   const changes: QuotaChange[] = [];

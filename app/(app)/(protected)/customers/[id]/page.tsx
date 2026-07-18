@@ -103,8 +103,8 @@ export default async function CustomerDetailPage({ params }: PageProps) {
       >
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
-            <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-              <h3 className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-3">
+            <section className="rounded-md border border-rule bg-paper-2/60 p-4">
+              <h3 className="text-xs font-mono uppercase tracking-wider text-ink-2 mb-3">
                 <T id="customers.detailFields" locale={locale} />
               </h3>
               <UpdateCustomerForm customer={customer} />
@@ -112,8 +112,8 @@ export default async function CustomerDetailPage({ params }: PageProps) {
 
             <CustomerAdvisoryCard customerId={customerId} lang={locale} />
 
-            <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-              <h3 className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-3">
+            <section className="rounded-md border border-rule bg-paper-2/60 p-4">
+              <h3 className="text-xs font-mono uppercase tracking-wider text-ink-2 mb-3">
                 <T id="customers.detailArAging" locale={locale} />
               </h3>
               <CustomerArHistory
@@ -134,20 +134,20 @@ export default async function CustomerDetailPage({ params }: PageProps) {
               />
             </section>
 
-            <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-              <h3 className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-3">
+            <section className="rounded-md border border-rule bg-paper-2/60 p-4">
+              <h3 className="text-xs font-mono uppercase tracking-wider text-ink-2 mb-3">
                 <T id="customers.detailRecentSos" locale={locale} />
               </h3>
               <ul className="space-y-1">
                 {salesOrders.length === 0 ? (
-                  <li className="text-sm text-slate-500"><T id="customers.detailNoSos" locale={locale} /></li>
+                  <li className="text-sm text-mute"><T id="customers.detailNoSos" locale={locale} /></li>
                 ) : salesOrders.map((so) => (
                   <li key={so.id} className="flex items-center justify-between text-sm">
-                    <Link href={`/sales/SO-${so.so_number}`} className="font-mono text-cyan-300 hover:underline">
+                    <Link href={`/sales/SO-${so.so_number}`} className="font-mono text-info hover:underline">
                       {so.so_number}
                     </Link>
-                    <span className="font-mono text-slate-300">{formatTHB(parseFloat(so.total_amount))} THB</span>
-                    <span className="text-xs font-mono text-slate-500">{so.status}</span>
+                    <span className="font-mono text-ink-2">{formatTHB(parseFloat(so.total_amount))} THB</span>
+                    <span className="text-xs font-mono text-mute">{so.status}</span>
                   </li>
                 ))}
               </ul>
@@ -155,19 +155,19 @@ export default async function CustomerDetailPage({ params }: PageProps) {
           </div>
 
           <div className="space-y-6">
-            <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-              <h3 className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-3">
+            <section className="rounded-md border border-rule bg-paper-2/60 p-4">
+              <h3 className="text-xs font-mono uppercase tracking-wider text-ink-2 mb-3">
                 <T id="customers.detailContacts" locale={locale} />
               </h3>
               {contacts.length === 0 ? (
-                <p className="text-sm text-slate-500"><T id="customers.detailNoContacts" locale={locale} /></p>
+                <p className="text-sm text-mute"><T id="customers.detailNoContacts" locale={locale} /></p>
               ) : (
                 <ul className="space-y-2">
                   {contacts.map((c) => (
-                    <li key={c.id} className="rounded-xl border border-slate-800 bg-slate-900/40 p-2 text-sm">
-                      <div className="font-bold text-white">{c.fullname}</div>
-                      {c.role ? <div className="text-sm text-slate-400">{c.role}</div> : null}
-                      <div className="text-sm font-mono text-slate-500">
+                    <li key={c.id} className="rounded-md border border-rule bg-paper-2/40 p-2 text-sm">
+                      <div className="font-bold text-ink">{c.fullname}</div>
+                      {c.role ? <div className="text-sm text-ink-2">{c.role}</div> : null}
+                      <div className="text-sm font-mono text-mute">
                         {c.email ? <a href={`mailto:${c.email}`} className="hover:underline">{c.email}</a> : null}
                         {c.phone ? <span className="ml-2">{c.phone}</span> : null}
                       </div>

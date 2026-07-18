@@ -104,10 +104,10 @@ export const TilesClient: React.FC<Props> = ({ initialTiles, departments, canEdi
 
   return (
     <div className="space-y-3">
-      {error ? <div className="text-rose-300 text-xs">{error}</div> : null}
+      {error ? <div className="text-critical text-xs">{error}</div> : null}
       <table className="w-full text-sm border-separate border-spacing-y-1">
         <thead>
-          <tr className="text-xs uppercase tracking-wider text-slate-400">
+          <tr className="text-xs uppercase tracking-wider text-ink-2">
             <th className="text-left px-2 py-1">
               <T id="tiles.colTile" />
             </th>
@@ -125,13 +125,13 @@ export const TilesClient: React.FC<Props> = ({ initialTiles, departments, canEdi
             const dirty = isDirty(tt, edits[tt.id] || { view_perm_id: '' });
             const saving = savingId === tt.id;
             return (
-              <tr key={tt.id} className="bg-slate-900/50 border border-slate-700">
-                <td className="px-2 py-1.5 text-slate-100">{tileName(tt.id, tt.display_name)}</td>
-                <td className="px-2 py-1.5 text-slate-400 text-xs">{tt.group_name}</td>
+              <tr key={tt.id} className="bg-paper-2/50 border border-rule">
+                <td className="px-2 py-1.5 text-ink">{tileName(tt.id, tt.display_name)}</td>
+                <td className="px-2 py-1.5 text-ink-2 text-xs">{tt.group_name}</td>
                 <td className="px-2 py-1.5">
                   <input
                     type="text"
-                    className="w-full px-2 py-1 rounded bg-slate-950 border border-slate-700 text-xs font-mono text-slate-100"
+                    className="w-full px-2 py-1 rounded bg-paper border border-rule text-xs font-mono text-ink"
                     value={edits[tt.id]?.view_perm_id ?? ''}
                     onChange={(e) => setViewPerm(tt.id, e.target.value)}
                     disabled={!canEdit}
@@ -142,7 +142,7 @@ export const TilesClient: React.FC<Props> = ({ initialTiles, departments, canEdi
                     <div className="inline-flex gap-2">
                       <button
                         type="button"
-                        className="px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-xs disabled:opacity-40"
+                        className="px-2 py-1 rounded bg-paper-2 hover:bg-paper-2 text-xs disabled:opacity-40"
                         onClick={() => resetRow(tt.id)}
                         disabled={!dirty || saving}
                       >
@@ -150,7 +150,7 @@ export const TilesClient: React.FC<Props> = ({ initialTiles, departments, canEdi
                       </button>
                       <button
                         type="button"
-                        className="px-2 py-1 rounded bg-cyan-600 hover:bg-cyan-500 text-xs disabled:opacity-40"
+                        className="px-2 py-1 rounded bg-info-strong hover:bg-info text-xs disabled:opacity-40"
                         onClick={() => save(tt.id)}
                         disabled={!dirty || saving}
                       >
@@ -165,7 +165,7 @@ export const TilesClient: React.FC<Props> = ({ initialTiles, departments, canEdi
         </tbody>
       </table>
       {departments.length > 0 ? (
-        <details className="text-xs text-slate-400">
+        <details className="text-xs text-ink-2">
           <summary className="cursor-pointer">
             <T id="tiles.knownDepartments" values={{ n: departments.length }} />
           </summary>

@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react';
+import type { IconName } from '@/components/icon';
 import { GROUP_LABEL, type TileGroup, type TileWithMeta } from './tile-config';
 
 export interface Crumb {
   label: ReactNode;
   href?: string;
-  icon?: string;
+  icon?: IconName;
 }
 
-export const ROOT_CRUMB: Crumb = { label: 'Folio', href: '/', icon: '🌐' };
+export const ROOT_CRUMB: Crumb = { label: 'Folio', href: '/', icon: 'Globe' };
 
 export const groupCrumb = (group: TileGroup): Crumb => ({
   label: GROUP_LABEL[group].label.toUpperCase(),
@@ -37,9 +38,12 @@ export function buildCrumbs(spec: CrumbSpec): Crumb[] {
   return crumbs;
 }
 
-export function tileCrumbs(tile: Pick<TileWithMeta, 'id' | 'display_name' | 'sub_view' | 'group_name'>): Crumb[] {
+export function tileCrumbs(
+  tile: { id: string; display_name: string; sub_view: string | null; group_name?: string | null; group?: TileGroup },
+): Crumb[] {
+  const group = (tile.group ?? (tile.group_name as TileGroup | undefined)) as TileGroup;
   return buildCrumbs({
-    group: tile.group_name as TileGroup,
+    group,
     tile: { id: tile.id, display_name: tile.display_name, sub_view: tile.sub_view },
   });
 }

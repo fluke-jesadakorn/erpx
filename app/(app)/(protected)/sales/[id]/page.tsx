@@ -13,7 +13,8 @@ import {
 } from '@/waybill/queries';
 import { loadActor } from '@/server/guard';
 import { loadVisionModels } from '@/ai/loadVisionModels';
-import { loadActivePermSession, hasPermission, matchPerm, PERM } from '@/perm/server';
+import { hasPermission, loadActivePermSession, type PermSession } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import { STAGE_TO_PERM, stageRoles } from '@/perm';
 import { getSecondaryLocale } from '@/server/locale';
 import { pipsForDomain, pipIndex, domainForOrigin } from '@/waybill/derive';
@@ -45,10 +46,10 @@ function asString(v: string | string[] | undefined): string | null {
   return v ?? null;
 }
 
-function canActOnSalesStage(perms: string[], roleName: string, stage: string): boolean {
-  if (matchPerm(perms, 'admin:system:bypass::allow')) return true;
+function canActOnSalesStage(session: PermSession, roleName: string, stage: string): boolean {
+  if (hasPermission(session, PERM.admin.system.bypass)) return true;
   const stagePerm = STAGE_TO_PERM[stage];
-  if (stagePerm && matchPerm(perms, stagePerm)) return true;
+  if (stagePerm && hasPermission(session, stagePerm)) return true;
   const roles = stageRoles(stage);
   return roles.includes(roleName);
 }
@@ -121,19 +122,19 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
   }));
   const existingArSlipId = arSlipRes.rows[0]?.ar_slip_id ?? null;
 
-  const perms = actor.permissions;
   const actorRole = actor.role_name;
+  const session = permOut.session;
 
-  const actorCanSeeGlLines = matchPerm(perms, 'finance:gl:view::allow');
-  const canPostSalesGlVat = matchPerm(perms, 'finance:gl:post::allow');
-  const canPostSalesGlAccrual = matchPerm(perms, 'finance:gl:post::allow');
-  const canPostSalesGlSettlement = matchPerm(perms, 'finance:gl:post::allow');
-  const canConfirmSalesGl = matchPerm(perms, 'finance:gl:confirm::allow');
-  const canSettle = matchPerm(perms, 'finance:sales:settle::allow');
+  const actorCanSeeGlLines = hasPermission(session, 'finance:gl:view::allow');
+  const canPostSalesGlVat = hasPermission(session, 'finance:gl:post::allow');
+  const canPostSalesGlAccrual = hasPermission(session, 'finance:gl:post::allow');
+  const canPostSalesGlSettlement = hasPermission(session, 'finance:gl:post::allow');
+  const canConfirmSalesGl = hasPermission(session, 'finance:gl:confirm::allow');
+  const canSettle = hasPermission(session, 'finance:sales:settle::allow');
 
   const canRecordSalesPayment =
-    matchPerm(perms, 'admin:system:bypass::allow') ||
-    matchPerm(perms, 'finance:sales:settle::allow') ||
+    hasPermission(session, PERM.admin.system.bypass) ||
+    hasPermission(session, 'finance:sales:settle::allow') ||
     ['finance', 'account_officer', 'account_supervisor', 'accounting_manager', 'cfo', 'ceo'].includes(actorRole);
 
   const rejectionEvent = ctx.events.find((e) => e.kind === 'so-rejected') ?? null;
@@ -145,11 +146,11 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
   const stepsTotal = pipsAll.filter((p) => p.key !== 'rejected').length;
   const progressPct = wb.status === 'completed' ? 100
     : stepsTotal > 0 ? Math.round((stepsDone / stepsTotal) * 100) : 0;
-  const statusTone = wb.status === 'completed' ? { ring: 'from-emerald-500/50 to-cyan-500/40', chip: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/50', dot: 'bg-emerald-400', label: 'Completed' }
-    : wb.status === 'rejected' ? { ring: 'from-rose-500/60 to-rose-500/20', chip: 'bg-rose-500/15 text-rose-200 border-rose-400/50', dot: 'bg-rose-400', label: 'Rejected' }
-      : { ring: 'from-cyan-500/60 to-indigo-500/40', chip: 'bg-cyan-500/15 text-cyan-200 border-cyan-400/50', dot: 'bg-cyan-400 animate-pulse', label: 'In progress' };
+  const statusTone = wb.status === 'completed' ? { ring: 'from-positive/50 to-info/40', chip: 'bg-positive text-positive border-positive/40', dot: 'bg-positive', label: 'Completed' }
+    : wb.status === 'rejected' ? { ring: 'from-critical/60 to-critical/20', chip: 'bg-critical text-critical border-critical/40', dot: 'bg-critical', label: 'Rejected' }
+      : { ring: 'from-info/60 to-accent/40', chip: 'bg-info text-info border-info/40', dot: 'bg-info animate-pulse', label: 'In progress' };
 
-  const canAct = canActOnSalesStage(perms, actorRole, wb.current_stage);
+  const canAct = canActOnSalesStage(session, actorRole, wb.current_stage);
 
   return (
     <>
@@ -229,7 +230,7 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
 
           <Suspense fallback={<div className="space-y-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="h-48 animate-pulse rounded-2xl border border-slate-800/60 bg-slate-950/40" aria-hidden />
+              <div key={i} className="h-48 animate-pulse rounded-md border border-rule/60 bg-paper-2/50" aria-hidden />
             ))}
           </div>}>
             <WaybillStepCards
@@ -280,10 +281,10 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
 
           <section className="space-y-3">
             <header className="flex items-baseline justify-between">
-              <h2 className="text-sm font-mono uppercase tracking-widest text-slate-400">
+              <h2 className="text-sm font-mono uppercase tracking-widest text-ink-2">
                 Record to GL
               </h2>
-              <span className="text-xs font-mono text-slate-500">
+              <span className="text-xs font-mono text-mute">
                 stage · {wb.current_stage}
               </span>
             </header>

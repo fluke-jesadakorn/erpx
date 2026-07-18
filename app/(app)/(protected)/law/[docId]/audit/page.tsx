@@ -1,9 +1,10 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { History } from 'lucide-react';
 import { loadActivePermSession, hasPermission, PERM } from '@/perm/server';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
-import { trail } from '@/components/breadcrumbs';
+import { trail } from '@/components/breadcrumbs/routes';
 import { NoPermissionView } from '@/components/NoPermissionView';
 import { Tabs, Panel, Empty } from '@/components/ui';
 import { T } from '@/components/i18n/TServer';
@@ -61,7 +62,7 @@ export default async function LawAuditPage({ params }: Props) {
       <PageLayout
         title={contract.fileName}
         subtitle="Audit"
-        category={{ label: <T id="law.title" locale={locale} />, icon: 'scale', href: '/law' }}
+        category={{ label: <T id="law.title" locale={locale} />, icon: 'Scale', href: '/law' }}
       >
         <Tabs
           value="audit"
@@ -78,7 +79,7 @@ export default async function LawAuditPage({ params }: Props) {
         />
         <Panel>
           <Empty
-            icon="history"
+            icon={History}
             title="Audit trail"
             body="Contract-level audit events will surface here once the indexer is wired up."
           />

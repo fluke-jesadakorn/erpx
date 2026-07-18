@@ -1,9 +1,10 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { Users } from 'lucide-react';
 import { loadActivePermSession, hasPermission, PERM } from '@/perm/server';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
-import { trail } from '@/components/breadcrumbs';
+import { trail } from '@/components/breadcrumbs/routes';
 import { NoPermissionView } from '@/components/NoPermissionView';
 import { Tabs, Panel, Empty } from '@/components/ui';
 import { T } from '@/components/i18n/TServer';
@@ -62,7 +63,7 @@ export default async function LawPartiesPage({ params }: Props) {
       <PageLayout
         title={contract.fileName}
         subtitle="Parties"
-        category={{ label: <T id="law.title" locale={locale} />, icon: 'scale', href: '/law' }}
+        category={{ label: <T id="law.title" locale={locale} />, icon: 'Scale', href: '/law' }}
       >
         <Tabs
           value="parties"
@@ -80,7 +81,7 @@ export default async function LawPartiesPage({ params }: Props) {
         <Panel>
           <h2 className="text-sm font-semibold text-ink">Parties</h2>
           {parties.length === 0 ? (
-            <Empty icon="users" title="No party metadata" body="This contract has no party metadata recorded." />
+            <Empty icon={Users} title="No party metadata" body="This contract has no party metadata recorded." />
           ) : (
             <ul className="mt-6 divide-y divide-rule">
               {parties.map((party, index) => (

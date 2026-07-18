@@ -24,8 +24,8 @@ export function SparklineTrends({ cash, mtd }: SparklineTrendsProps) {
 
   if (data.length === 0) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
-        <p className="text-xs font-mono text-slate-500">
+      <div className="rounded-md border border-rule bg-paper-2/50 p-3">
+        <p className="text-xs font-mono text-mute">
           <T id="cockpit.sparklineEmpty" />
         </p>
       </div>
@@ -37,15 +37,15 @@ export function SparklineTrends({ cash, mtd }: SparklineTrendsProps) {
   const cashDelta = lastCash - firstCash;
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-3">
+    <div className="rounded-md border border-rule bg-paper-2/50 p-3">
       <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-mono text-slate-400">
+        <div className="text-xs font-mono text-ink-2">
           {data.length}{' '}
           <T id={data.length === 1 ? 'cockpit.sparklineDay' : 'cockpit.sparklineDays'} />{' '}
           · last {data.length - 1} delta
         </div>
         <div
-          className={`text-sm font-mono font-bold ${cashDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
+          className={`text-sm font-mono font-bold ${cashDelta >= 0 ? 'text-positive' : 'text-critical'}`}
         >
           {cashDelta >= 0 ? '↑' : '↓'} {Math.abs(cashDelta).toLocaleString()} THB
         </div>
@@ -88,13 +88,13 @@ export function SparklineTrends({ cash, mtd }: SparklineTrendsProps) {
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex items-center gap-4 mt-2 text-xs font-mono text-slate-400">
+      <div className="flex items-center gap-4 mt-2 text-xs font-mono text-ink-2">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-0.5 bg-indigo-400" />
+          <span className="inline-block w-3 h-0.5 bg-accent" />
           <T id="cockpit.cashActual" />
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-0.5 bg-pink-400" />
+          <span className="inline-block w-3 h-0.5 bg-accent" />
           <T id="cockpit.mtdExpenses" />
         </span>
       </div>

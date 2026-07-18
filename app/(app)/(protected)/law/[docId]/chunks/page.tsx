@@ -1,9 +1,10 @@
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { Layers } from 'lucide-react';
 import { loadActivePermSession, hasPermission, PERM } from '@/perm/server';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
-import { trail } from '@/components/breadcrumbs';
+import { trail } from '@/components/breadcrumbs/routes';
 import { NoPermissionView } from '@/components/NoPermissionView';
 import { Tabs, Panel, Empty } from '@/components/ui';
 import { T } from '@/components/i18n/TServer';
@@ -62,7 +63,7 @@ export default async function LawClausesPage({ params }: Props) {
       <PageLayout
         title={contract.fileName}
         subtitle="Clauses"
-        category={{ label: <T id="law.title" locale={locale} />, icon: 'scale', href: '/law' }}
+        category={{ label: <T id="law.title" locale={locale} />, icon: 'Scale', href: '/law' }}
       >
         <Tabs
           value="chunks"
@@ -78,7 +79,7 @@ export default async function LawClausesPage({ params }: Props) {
           ]}
         />
         {chunks.length === 0 ? (
-          <Empty icon="layers" title="No clauses" body="This contract has no indexed chunks yet." />
+          <Empty icon={Layers} title="No clauses" body="This contract has no indexed chunks yet." />
         ) : (
           <section className="space-y-4">
             {chunks.map((chunk) => (

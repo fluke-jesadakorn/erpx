@@ -55,8 +55,8 @@ export function TabsList({
   children,
 }: TabsListProps) {
   const base = variant === 'segmented'
-    ? 'inline-flex rounded-md border border-rule bg-paper-2 p-0.5'
-    : 'flex border-b border-rule';
+    ? 'glass-toolbar inline-flex p-1'
+    : 'flex border-b border-rule/80';
 
   return <div className={[base, className].join(' ')}>{children}</div>;
 }
@@ -79,10 +79,10 @@ export function TabsTrigger({
   children,
 }: TabsTriggerProps) {
   const segmented = [
-    'inline-flex h-8 items-center justify-center rounded px-3 text-sm font-medium transition-colors',
+    'inline-flex h-8 items-center justify-center rounded-md border px-3 text-sm font-medium transition-all duration-[var(--dur-base)]',
     active
-      ? 'border border-rule bg-paper-3 text-ink'
-      : 'border border-transparent text-ink-2 hover:text-ink',
+      ? 'border-rule-strong bg-paper-3/80 text-ink shadow-sm'
+      : 'border-transparent text-ink-2 hover:bg-paper-3/40 hover:text-ink',
   ].join(' ');
   const page = [
     '-mb-px inline-flex h-10 items-center border-b-2 px-3 text-sm font-medium transition-colors',

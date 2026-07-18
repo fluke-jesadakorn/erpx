@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { CheckCircle, CircleAlert, Info, TriangleAlert, X, type LucideIcon } from 'lucide-react';
 import { T } from '@/components/i18n/T';
 
 export type ToastKind = 'success' | 'error' | 'info' | 'warning';
@@ -21,11 +22,11 @@ interface ToastContextValue {
 
 const ToastCtx = createContext<ToastContextValue | null>(null);
 
-const TONE: Record<ToastKind, { bar: string; glyph: string; ring: string }> = {
-  success: { bar: 'bg-emerald-500', glyph: '✓', ring: 'border-emerald-500/30' },
-  error:   { bar: 'bg-rose-500',    glyph: '✗', ring: 'border-rose-500/40'    },
-  warning: { bar: 'bg-amber-500',   glyph: '⚠', ring: 'border-amber-500/40'   },
-  info:    { bar: 'bg-indigo-500',  glyph: 'ℹ', ring: 'border-indigo-500/40'  },
+const TONE: Record<ToastKind, { bar: string; icon: LucideIcon; ring: string; text: string }> = {
+  success: { bar: 'bg-positive', icon: CheckCircle, ring: 'border-positive/40', text: 'text-positive' },
+  error:   { bar: 'bg-critical', icon: CircleAlert, ring: 'border-critical/40', text: 'text-critical' },
+  warning: { bar: 'bg-caution', icon: TriangleAlert, ring: 'border-caution/40', text: 'text-caution' },
+  info:    { bar: 'bg-info', icon: Info, ring: 'border-info/40', text: 'text-info' },
 };
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -78,7 +79,7 @@ const ToastViewport: React.FC<{ toasts: Toast[]; dismiss: (id: number) => void }
     <div
       role="region"
       aria-label="Notifications"
-      className="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 max-w-sm w-[calc(100vw-2rem)] sm:w-96 pointer-events-none"
+      className="fixed bottom-4 right-4 z-toast flex flex-col gap-2 max-w-sm w-[calc(100vw-2rem)] sm:w-96 pointer-events-none"
     >
       {toasts.map((t) => (
         <ToastCard key={t.id} toast={t} onDismiss={() => dismiss(t.id)} />
@@ -89,6 +90,7 @@ const ToastViewport: React.FC<{ toasts: Toast[]; dismiss: (id: number) => void }
 
 const ToastCard: React.FC<{ toast: Toast; onDismiss: () => void }> = ({ toast, onDismiss }) => {
   const tone = TONE[toast.kind];
+  const ToneIcon = tone.icon;
   useEffect(() => {
     const tm = setTimeout(onDismiss, toast.durationMs);
     return () => clearTimeout(tm);
@@ -96,20 +98,20 @@ const ToastCard: React.FC<{ toast: Toast; onDismiss: () => void }> = ({ toast, o
   return (
     <div
       role={toast.kind === 'error' ? 'alert' : 'status'}
-      className={`pointer-events-auto glass-panel-heavy rounded-2xl border ${tone.ring} shadow-2xl shadow-black/40 overflow-hidden animate-fade-in`}
+      className={`panel-floating pointer-events-auto overflow-hidden ${tone.ring} animate-fade-scale`}
     >
       <div className="flex items-stretch">
         <div className={`w-1 ${tone.bar}`} aria-hidden />
         <div className="flex-1 p-3 min-w-0">
           <div className="flex items-start gap-2">
-            <span className="text-base leading-none mt-0.5">{tone.glyph}</span>
+            <ToneIcon size={17} className={`mt-0.5 shrink-0 ${tone.text}`} aria-hidden />
             <div className="flex-1 min-w-0">
               {toast.title && (
-                <div className="text-sm font-mono font-bold uppercase tracking-wider text-slate-200">
+                <div className="text-sm font-mono font-bold uppercase tracking-wider text-ink">
                   {toast.title}
                 </div>
               )}
-              <div className="text-xs text-slate-100 whitespace-pre-wrap font-sans leading-relaxed break-words">
+              <div className="text-xs text-ink whitespace-pre-wrap font-sans leading-relaxed break-words">
                 {toast.message}
               </div>
             </div>
@@ -117,9 +119,9 @@ const ToastCard: React.FC<{ toast: Toast; onDismiss: () => void }> = ({ toast, o
               type="button"
               onClick={onDismiss}
               aria-label="Dismiss"
-              className="text-slate-500 hover:text-white w-5 h-5 inline-flex items-center justify-center text-xs shrink-0"
+              className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-mute transition-colors hover:bg-paper-3/50 hover:text-ink"
             >
-              <span aria-hidden>✕</span>
+              <X size={13} aria-hidden />
               <span className="sr-only"><T id="common.close" hideSecondary /></span>
             </button>
           </div>

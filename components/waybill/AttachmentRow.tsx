@@ -38,23 +38,23 @@ export async function AttachmentRow({ waybillId, attachment }: AttachmentRowProp
   }
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+    <div className="flex flex-col gap-1.5 rounded-lg border border-rule bg-paper-2/50 p-3">
       <div className="flex items-start gap-3">
         <span aria-hidden className="text-2xl">{kindMeta.emoji}</span>
         <div className="flex-1 space-y-0.5">
           <div className="flex items-baseline justify-between gap-2">
             <a
               href={downloadHref}
-              className="break-all font-mono text-xs text-cyan-300 underline-offset-2 hover:underline"
+              className="break-all font-mono text-xs text-info underline-offset-2 hover:underline"
             >
               {attachment.filename}
             </a>
-            <span className="shrink-0 font-mono text-xs text-slate-500">
+            <span className="shrink-0 font-mono text-xs text-mute">
               {fmtSize(attachment.byte_size)}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-slate-400">
-            <span className="rounded bg-slate-800 px-1.5 py-0.5 text-slate-300">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-ink-2">
+            <span className="rounded bg-paper-2 px-1.5 py-0.5 text-ink-2">
               {attachment.kind}
             </span>
             <span>·</span>
@@ -65,14 +65,14 @@ export async function AttachmentRow({ waybillId, attachment }: AttachmentRowProp
             <span>{fmtTime(attachment.occurred_at)}</span>
           </div>
           {attachment.caption && (
-            <p className="text-xs italic text-slate-400">“{attachment.caption}”</p>
+            <p className="text-xs italic text-ink-2">“{attachment.caption}”</p>
           )}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 pl-9">
         <a
           href={downloadHref}
-          className="rounded bg-cyan-500/15 px-2 py-1 text-xs font-mono text-cyan-200 hover:bg-cyan-500/30"
+          className="rounded bg-info px-2 py-1 text-xs font-mono text-info-soft hover:bg-info"
         >
           ⤓ Download
         </a>
@@ -82,7 +82,7 @@ export async function AttachmentRow({ waybillId, attachment }: AttachmentRowProp
             <input type="hidden" name="attachmentId" value={attachment.id} />
             <button
               type="submit"
-              className="rounded bg-rose-500/10 px-2 py-1 text-xs font-mono text-rose-200 hover:bg-rose-500/30"
+              className="rounded bg-critical px-2 py-1 text-xs font-mono text-critical-soft hover:bg-critical"
             >
               ✕ Remove
             </button>

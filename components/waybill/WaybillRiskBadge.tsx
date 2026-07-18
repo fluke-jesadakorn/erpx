@@ -7,10 +7,10 @@ export async function WaybillRiskBadge({ waybillId }: { waybillId: string }) {
   const locale = await getSecondaryLocale();
   const score = await computeRiskScore(waybillId);
   const color =
-    score >= 80 ? 'border-rose-500/50 bg-rose-500/15 text-rose-200' :
-    score >= 50 ? 'border-orange-500/50 bg-orange-500/15 text-orange-200' :
-    score >= 20 ? 'border-amber-500/50 bg-amber-500/15 text-amber-200' :
-                  'border-slate-700 bg-slate-800 text-slate-400';
+    score >= 80 ? 'border-critical bg-critical-soft text-critical-strong border border-critical' :
+    score >= 50 ? 'border-caution bg-caution-soft text-caution-strong border border-caution' :
+    score >= 20 ? 'border-caution bg-caution-soft text-caution-strong border border-caution' :
+                  'border-rule bg-paper-2 text-ink-2';
 
   return (
     <span

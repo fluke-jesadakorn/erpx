@@ -197,17 +197,17 @@ export function WaybillStepCards({
           const tone = stateToTone(state, false);
           const borderTone =
             state === 'passed'
-              ? 'border-emerald-500/30'
+              ? 'border-positive'
               : 'border-rule';
           const bgTone =
             state === 'passed'
-              ? 'bg-emerald-500/5'
+              ? 'bg-positive'
               : 'bg-paper-2/50';
           return (
             <li
               key={pip.key}
               id={`pip-${pip.key}`}
-              className={`scroll-mt-24 flex items-center gap-3 rounded-2xl border px-4 py-2 ${borderTone} ${bgTone}`}
+              className={`scroll-mt-24 flex items-center gap-3 rounded-md border px-4 py-2 ${borderTone} ${bgTone}`}
               data-tone={tone}
               data-status={state}
             >
@@ -227,7 +227,7 @@ export function WaybillStepCards({
                 className={[
                   'ml-auto inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider',
                   state === 'passed'
-                    ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200'
+                    ? 'border-positive bg-positive text-paper'
                     : 'border-rule bg-paper-3 text-mute',
                 ].join(' ')}
               >
@@ -255,12 +255,12 @@ export function WaybillStepCards({
                     className={[
                       'rounded-full border px-2 py-0.5 text-xs font-mono font-bold uppercase tracking-wider',
                       state === 'passed'
-                        ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-200'
+                        ? 'border-positive bg-positive text-paper'
                         : state === 'active'
-                          ? 'border-slate-700 bg-slate-900/60 text-slate-400'
+                          ? 'border-rule bg-paper-2/60 text-ink-2'
                           : state === 'rejected'
-                            ? 'border-amber-500/50 bg-amber-500/15 text-amber-200'
-                            : 'border-slate-700 bg-slate-900/60 text-slate-400',
+                            ? 'border-caution bg-caution-soft text-caution-strong border border-caution'
+                            : 'border-rule bg-paper-2/60 text-ink-2',
                     ].join(' ')}
                   >
                     <T id={badgeTextKey} />

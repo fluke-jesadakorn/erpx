@@ -17,15 +17,19 @@ import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { NewExpensePanel } from '@/components/waybill/NewExpensePanel';
 import { ApproverChip } from '@/components/waybill/ApproverChip';
+import { ListRow } from '@/components/ui/ListRow';
+import { Empty } from '@/components/ui/Empty';
 import { query } from '@/db';
 import { stageRoles } from '@/waybill/derive';
 import { loadVisionModels } from '@/ai/loadVisionModels';
 import { T } from '@/components/i18n/TServer';
 import { getSecondaryLocale } from '@/server/locale';
+import { formatMoneyServer } from '@/components/i18n/formattersServer';
 import { headers } from 'next/headers';
 import { loadActivePermSession } from '@/perm/server';
 import { loadSlipsForExpenses } from '@/waybill/queries';
 import { ReceiptBankCard } from './_components/ReceiptBankCard';
+import { CheckCircle2, FilePenLine, Globe2, Inbox, Send } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -121,6 +125,11 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
   const draftEvents = activeDraft ? await loadWaybillEvents(activeDraft.waybill_id) : [];
   const draftEventCount = draftEvents.length;
   const tabHref = (s: string) => `/expense?scope=${s}`;
+  const formattedAmounts = await Promise.all(rows.map(r => formatMoneyServer(
+    r.total_amount ? parseFloat(r.total_amount) : null,
+    locale,
+    r.currency,
+  )));
 
   return (
     <>
@@ -133,21 +142,22 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
       <PageLayout
         title={<T id="expense.title" locale={locale} />}
         subtitle={<T id="expense.subtitle" locale={locale} values={{ role, scope }} />}
+        width="wide"
       >
-        <nav className="mb-4 flex flex-wrap gap-2 text-xs font-mono">
+        <nav className="glass-toolbar mb-5 flex flex-wrap gap-2 p-2 text-xs font-mono">
           <a
             href={tabHref('mine')}
             aria-current={scope === 'mine' ? 'page' : undefined}
             className={
               'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ' +
               (scope === 'mine'
-                ? 'border-cyan-500 bg-cyan-500/15 text-cyan-200'
-                : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200')
+                ? 'border-accent/45 bg-accent-soft text-accent'
+                : 'border-rule text-ink-2 hover:border-rule hover:text-ink')
             }
           >
-            <span aria-hidden>📤</span>
+            <Send size={13} aria-hidden />
             <T id="expense.tabMine" locale={locale} />
-            {rows.length > 0 && <span className="rounded-full bg-slate-800 px-1.5 text-xs">{rows.length}</span>}
+            {rows.length > 0 && <span className="rounded-full bg-paper-2 px-1.5 text-xs">{rows.length}</span>}
           </a>
           <a
             href={tabHref('queue')}
@@ -155,11 +165,11 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
             className={
               'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ' +
               (scope === 'queue'
-                ? 'border-cyan-500 bg-cyan-500/15 text-cyan-200'
-                : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200')
+                ? 'border-accent/45 bg-accent-soft text-accent'
+                : 'border-rule text-ink-2 hover:border-rule hover:text-ink')
             }
           >
-            <span aria-hidden>✅</span>
+            <CheckCircle2 size={13} aria-hidden />
             <T id="expense.tabQueue" locale={locale} />
           </a>
           <a
@@ -168,18 +178,18 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
             className={
               'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ' +
               (scope === 'all'
-                ? 'border-cyan-500 bg-cyan-500/15 text-cyan-200'
-                : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200')
+                ? 'border-accent/45 bg-accent-soft text-accent'
+                : 'border-rule text-ink-2 hover:border-rule hover:text-ink')
             }
           >
-            <span aria-hidden>🌐</span>
+            <Globe2 size={13} aria-hidden />
             <T id="expense.tabAll" locale={locale} />
           </a>
           <Link
             href="/inbox"
-            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 font-mono text-slate-400 transition-colors hover:border-slate-500 hover:text-slate-200"
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-rule px-3 py-1.5 font-mono text-ink-2 transition-colors hover:border-rule hover:text-ink"
           >
-            <span aria-hidden>📥</span>
+            <Inbox size={13} aria-hidden />
             <T id="nav.inbox" locale={locale} />
           </Link>
         </nav>
@@ -187,49 +197,49 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
         {scope === 'mine' && (
           <section
             aria-label="draft-status"
-            className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/55 px-4 py-3 text-xs"
+            className="panel mb-6 flex flex-wrap items-center gap-3 px-4 py-3 text-xs"
           >
-            <span aria-hidden className="text-base">📝</span>
-            <span className="font-bold text-slate-200">
+            <FilePenLine size={16} aria-hidden className="text-accent" />
+            <span className="font-bold text-ink">
               <T id="expense.draftMode" locale={locale} />
             </span>
             {activeDraft ? (
               <>
-                <span className="text-slate-500">·</span>
-                <span className="font-mono text-cyan-300">{activeDraft.waybill_id}</span>
+                <span className="text-mute">·</span>
+                <span className="font-mono text-info">{activeDraft.waybill_id}</span>
                 {activeDraft.vendor_name && (
                   <>
-                    <span className="text-slate-500">·</span>
-                    <span className="text-slate-300">{activeDraft.vendor_name}</span>
+                    <span className="text-mute">·</span>
+                    <span className="text-ink-2">{activeDraft.vendor_name}</span>
                   </>
                 )}
                 {activeDraft.total_amount && (
                   <>
-                    <span className="text-slate-500">·</span>
-                    <span className="font-mono text-emerald-300">
-                      {parseFloat(activeDraft.total_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB
+                    <span className="text-mute">·</span>
+                    <span className="font-mono text-positive">
+                      {await formatMoneyServer(activeDraft.total_amount, locale)}
                     </span>
                   </>
                 )}
-                <span className="text-slate-500">·</span>
-                <span className="text-slate-400">
+                <span className="text-mute">·</span>
+                <span className="text-ink-2">
                   <T id="expense.draftSaved" locale={locale} values={{ age: fmtAge(activeDraft.draft_updated_at ? activeDraft.draft_updated_at.toISOString() : null) }} />
                 </span>
-                <span className="text-slate-500">·</span>
-                <span className="text-slate-500">
+                <span className="text-mute">·</span>
+                <span className="text-mute">
                   <T id="expense.draftEvents" locale={locale} values={{ n: draftEventCount }} />
                 </span>
                 <a
                   href={`/waybill/${activeDraft.waybill_id}`}
-                  className="ml-auto rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 font-mono text-cyan-200 hover:bg-cyan-500/20"
+                  className="ml-auto rounded-lg border border-info/40 bg-info px-3 py-1.5 font-mono text-info hover:bg-info"
                 >
                   <T id="expense.openWaybill" locale={locale} />
                 </a>
               </>
             ) : (
               <>
-                <span className="text-slate-500">·</span>
-                <span className="text-slate-400">
+                <span className="text-mute">·</span>
+                <span className="text-ink-2">
                   <T id="expense.draftEmpty" locale={locale} />
                 </span>
               </>
@@ -249,19 +259,19 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
         {rows.length > 0 && (
           <>
             <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-slate-500">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-mute">
                 {scope === 'mine' ? (
                   <T id="expense.sectionMine" locale={locale} />
                 ) : (
                   <T id="expense.sectionOpen" locale={locale} values={{ n: rows.length }} />
                 )}
               </h2>
-              <span className="text-xs font-mono text-slate-500">
+              <span className="text-xs font-mono text-mute">
                 <T id="expense.clickToOpen" locale={locale} />
               </span>
             </div>
             <ul className="space-y-2">
-              {rows.map((row) => {
+              {rows.map((row, index) => {
                 const domain = row.origin === 'expense' ? 'expense' : 'procurement';
                 const amount = row.total_amount ? parseFloat(row.total_amount) : null;
                 const originLabel =
@@ -275,13 +285,13 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
                 const canAct = !!role && stageRoles(displayStage).includes(role);
                 const art = row.origin === 'expense' ? artifacts.get(row.origin_id) : null;
                 return (
-                  <li
+                  <ListRow
                     key={row.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4"
+                    className="flex-wrap justify-between"
                   >
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm text-cyan-300">{row.id}</span>
+                        <span className="font-mono text-sm text-info">{row.id}</span>
                         <WaybillChip
                           domain={domain}
                           currentStage={displayStage}
@@ -294,11 +304,11 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
                           />
                         )}
                       </div>
-                      <div className="text-sm text-slate-400">
+                      <div className="text-sm text-ink-2">
                         {originLabel} · {row.vendor_name ?? '—'} ·{' '}
-                        {(amount ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} {row.currency}
+                        {formattedAmounts[index]}
                       </div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-mono text-slate-500">
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-mono text-mute">
                         <span>
                           <T id="expense.submitter" locale={locale} /> {row.submitter_name ?? '—'}
                         </span>
@@ -306,17 +316,17 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
                           <T id="expense.ageHours" locale={locale} values={{ h: Math.max(0, Math.floor(row.age_hours)) }} />
                         </span>
                         {art?.pr_number && (
-                          <span className="text-cyan-300">
+                          <span className="text-info">
                             PR <Link href={`/pr/${art.pr_id}`} className="hover:underline">{art.pr_number}</Link>
                           </span>
                         )}
                         {art?.po_number && (
-                          <span className="text-cyan-300">
+                          <span className="text-info">
                             PO <Link href={`/po/${art.po_id}`} className="hover:underline">{art.po_number}</Link>
                           </span>
                         )}
                         {art?.jv_id != null && (
-                          <span className="text-emerald-300">GL #{art.jv_id}</span>
+                          <span className="text-positive">GL #{art.jv_id}</span>
                         )}
                       </div>
                     </div>
@@ -333,11 +343,11 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
                     )}
                     <a
                       href={`/waybill/${row.id}`}
-                      className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-mono text-cyan-200 hover:bg-cyan-500/20"
+                      className="rounded-lg border border-info/40 bg-info px-3 py-1.5 text-xs font-mono text-info hover:bg-info"
                     >
                       <T id="expense.openArrow" locale={locale} />
                     </a>
-                  </li>
+                  </ListRow>
                 );
               })}
             </ul>
@@ -345,9 +355,10 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
         )}
 
         {rows.length === 0 && scope !== 'mine' && (
-          <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 p-6 text-center text-sm text-slate-500">
-            <T id="expense.noWaybills" locale={locale} />
-          </div>
+          <Empty
+            title={<T id="expense.noWaybills" locale={locale} />}
+            body="Items will appear here once available."
+          />
         )}
       </PageLayout>
     </>

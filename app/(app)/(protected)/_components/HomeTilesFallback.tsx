@@ -1,4 +1,4 @@
-import { HeaderSkeleton, SkeletonGrid, TileSkeleton } from '@/components/ui/Loading';
+import { HeaderSkeleton, SkeletonGrid, TileSkeleton } from '@/components/ui/Skeleton';
 
 export function HomeTilesFallback() {
   return (

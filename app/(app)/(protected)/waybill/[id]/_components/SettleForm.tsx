@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { attachPaymentSlipAction } from '@/app/actions/expense';
 import { SlipUpload } from '@/components/SlipUpload';
 import type { VisionModel } from '@/ai/loadVisionModels';
@@ -11,11 +11,19 @@ interface Props {
   waybillId: string;
   expenseId: number;
   visionModels?: VisionModel[];
+  initialSlipId?: number;
 }
 
-export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels = [] }) => {
+export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels = [], initialSlipId }) => {
   const router = useRouter();
-  const [slipId, setSlipId] = useState<number | null>(null);
+  const search = useSearchParams();
+  const querySlip = Number(search?.get('slipId') ?? '');
+  const seed = Number.isFinite(initialSlipId) && (initialSlipId as number) > 0
+    ? (initialSlipId as number)
+    : Number.isFinite(querySlip) && querySlip > 0
+      ? querySlip
+      : null;
+  const [slipId, setSlipId] = useState<number | null>(seed);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [method, setMethod] = useState<'cash' | 'credit_card' | 'transfer'>('transfer');
@@ -49,16 +57,16 @@ export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels
   return (
     <form
       onSubmit={onSubmit}
-      className="space-y-3 rounded-2xl border border-cyan-500/40 bg-cyan-950/30 p-4"
+      className="space-y-3 rounded-md border border-info/40 bg-info-soft p-4"
     >
       <div>
-        <p className="text-xs text-cyan-100">
+        <p className="text-xs text-info">
            <T id="waybill.settle.markDisbursed" />
         </p>
       </div>
 
       <div>
-        <label className="block text-xs font-mono uppercase tracking-wider text-cyan-300/80">
+        <label className="block text-xs font-mono uppercase tracking-wider text-info">
            <T id="waybill.settle.paymentSlipRequired" />
         </label>
         <div className="mt-1">
@@ -71,14 +79,14 @@ export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels
           />
         </div>
         {slipId == null && (
-          <p className="mt-1 text-xs font-mono text-amber-300">
+          <p className="mt-1 text-xs font-mono text-caution">
              <T id="waybill.settle.uploadReceipt" />
           </p>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <label className="text-xs font-mono uppercase tracking-wider text-cyan-300/80">
+        <label className="text-xs font-mono uppercase tracking-wider text-info">
            <T id="waybill.settle.paymentMethod" />
         </label>
         <select
@@ -86,7 +94,7 @@ export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels
           value={method}
           onChange={(e) => setMethod(e.target.value as typeof method)}
           disabled={busy}
-          className="rounded-lg border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-white disabled:opacity-50"
+          className="rounded-lg border border-rule bg-paper px-2 py-1.5 text-xs text-ink disabled:opacity-50"
         >
            <option value="transfer"><T id="waybill.settle.bankTransfer" /></option>
            <option value="cash"><T id="waybill.settle.cash" /></option>
@@ -94,15 +102,16 @@ export const SettleForm: React.FC<Props> = ({ waybillId, expenseId, visionModels
         </select>
         <button
           type="submit"
+          data-testid="settle-submit"
           disabled={busy || slipId == null}
-          className="rounded-lg bg-cyan-400 px-4 py-1.5 text-xs font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
+          className="rounded-lg bg-info px-4 py-1.5 text-xs font-bold text-ink hover:bg-info disabled:opacity-50"
         >
            {busy ? <T id="waybill.settle.posting" /> : <T id="waybill.settle.confirmDisbursement" />}
         </button>
       </div>
 
       {error && (
-        <p className="rounded-md border border-rose-500/40 bg-rose-950/40 px-2 py-1 text-sm text-rose-200">
+        <p className="rounded-md border border-critical/40 bg-critical-strong px-2 py-1 text-sm text-critical">
            {error?.startsWith('waybill.settle.') ? <T id={error} /> : error}
         </p>
       )}

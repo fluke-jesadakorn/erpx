@@ -230,19 +230,19 @@ function SalesStep({
   }
 
   return (
-    <section className={'space-y-3 rounded-xl border ' + (tone === 'cyan'
+    <section className={'space-y-3 rounded-md border ' + (tone === 'cyan'
       ? 'border-info/40 bg-info-soft/40'
       : tone === 'amber'
         ? 'border-caution/40 bg-caution-soft/40'
         : 'border-positive/40 bg-positive-soft/40')}>
       <header className="flex flex-wrap items-baseline justify-between gap-3 px-4 py-3">
         <div className="flex items-center gap-3">
-          <span aria-hidden className="grid h-9 w-9 place-items-center rounded-xl bg-info-soft text-info text-lg ring-1 ring-info/40">
+          <span aria-hidden className="grid h-9 w-9 place-items-center rounded-md bg-info-soft text-info text-lg ring-1 ring-info/40">
             {emoji}
           </span>
           <div className="flex flex-col">
             <div className="flex items-center gap-2 text-base font-bold text-ink">
-              <span className="glass-panel rounded-md border px-1.5 py-0.5 font-mono text-sm uppercase tracking-widest text-ink-2">
+              <span className="bg-paper-2 border border-rule rounded-md border px-1.5 py-0.5 font-mono text-sm uppercase tracking-widest text-ink-2">
                 <T id="waybill.gl.stepLabel" values={{ n: stepNo }} locale={locale} />
               </span>
               <span>{title}</span>
@@ -257,7 +257,7 @@ function SalesStep({
 
       <div className={'space-y-3 border-t border-rule px-4 py-3 ' + (locked ? 'pointer-events-none opacity-60' : '')}>
         {blockedReason && (
-          <p className="glass-panel rounded-md border p-3 text-sm italic text-ink-2">{blockedReason}</p>
+          <p className="bg-paper-2 border border-rule rounded-md border p-3 text-sm italic text-ink-2">{blockedReason}</p>
         )}
 
         {draft && (

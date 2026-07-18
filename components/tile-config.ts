@@ -14,6 +14,42 @@
 //
 // Group values must match perm.tiles.group_name in the database.
 
+import {
+  BarChart3,
+  BookOpen,
+  Bot,
+  BriefcaseBusiness,
+  Building2,
+  CalendarDays,
+  ChartNoAxesCombined,
+  CircleGauge,
+  FileSearch,
+  FileText,
+  GitCompareArrows,
+  Inbox,
+  KeyRound,
+  Landmark,
+  LayoutDashboard,
+  MessageCircleMore,
+  Network,
+  PackageCheck,
+  ReceiptText,
+  Scale,
+  ScrollText,
+  Search,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  Target,
+  Upload,
+  UserRound,
+  UsersRound,
+  type LucideIcon,
+} from 'lucide-react';
+import type { IconName } from '@/components/icon';
+import { iconByName } from '@/components/icon';
+
 export type TileGroup =
   | 'work'
   | 'finance'
@@ -56,15 +92,67 @@ export function tileHref(id: string): string {
   return '/' + id;
 }
 
-export const GROUP_LABEL: Record<TileGroup, { label: string; icon: string; id: string }> = {
-  work:                   { label: 'Work',    icon: '🧰', id: 'tiles.group.work.label' },
-  finance:                { label: 'Finance', icon: '📒', id: 'tiles.group.finance.label' },
-  people:                 { label: 'People',  icon: '👥', id: 'tiles.group.people.label' },
-  legal:                  { label: 'Legal',   icon: '⚖️', id: 'tiles.group.legal.label' },
-  exec:                   { label: 'Exec',    icon: '👑', id: 'tiles.group.exec.label' },
-  admin:                  { label: 'Admin',   icon: '⚙️', id: 'tiles.group.admin.label' },
-  self:                   { label: 'Self',    icon: '👤', id: 'tiles.group.self.label' },
+export const GROUP_LABEL: Record<TileGroup, { label: string; icon: IconName; id: string }> = {
+  work:                   { label: 'Work',    icon: 'Briefcase', id: 'tiles.group.work.label' },
+  finance:                { label: 'Finance', icon: 'BookOpen',  id: 'tiles.group.finance.label' },
+  people:                 { label: 'People',  icon: 'Users',     id: 'tiles.group.people.label' },
+  legal:                  { label: 'Legal',   icon: 'Scale',     id: 'tiles.group.legal.label' },
+  exec:                   { label: 'Exec',    icon: 'Crown',     id: 'tiles.group.exec.label' },
+  admin:                  { label: 'Admin',   icon: 'Settings',  id: 'tiles.group.admin.label' },
+  self:                   { label: 'Self',    icon: 'User',      id: 'tiles.group.self.label' },
 };
+
+export function groupIcon(group: TileGroup): LucideIcon {
+  return iconByName(GROUP_LABEL[group].icon);
+}
+
+const TILE_ICON: Record<string, LucideIcon> = {
+  executive: ChartNoAxesCombined,
+  inbox: Inbox,
+  expense: ReceiptText,
+  chat: MessageCircleMore,
+  'sql-quick': Search,
+  pr: FileText,
+  po: PackageCheck,
+  me_leave: CalendarDays,
+  sales: BriefcaseBusiness,
+  customers: UserRound,
+  'search-coa': FileSearch,
+  reconciliation: GitCompareArrows,
+  ledger: Landmark,
+  hr: UsersRound,
+  hr_employees: UserRound,
+  hr_leave: CalendarDays,
+  law: Scale,
+  law_admin: BookOpen,
+  law_upload: Upload,
+  cockpit: CircleGauge,
+  summary: BarChart3,
+  policy: Target,
+  'org-chart': Network,
+  roles: ShieldCheck,
+  'tile-gates': SlidersHorizontal,
+  directory: UsersRound,
+  audit: ScrollText,
+  departments: Building2,
+  'access-requests': KeyRound,
+  settings: Settings,
+  hook: Bot,
+};
+
+const GROUP_ICON: Record<TileGroup, LucideIcon> = {
+  work: Sparkles,
+  finance: Landmark,
+  people: UsersRound,
+  legal: Scale,
+  exec: LayoutDashboard,
+  admin: Settings,
+  self: UserRound,
+};
+
+export function tileIcon(tile: Pick<TileDef, 'id' | 'group'>): LucideIcon {
+  return TILE_ICON[tile.id] ?? GROUP_ICON[tile.group] ?? LayoutDashboard;
+}
 
 export const GROUP_ORDER: TileGroup[] = [
   'work',
@@ -126,18 +214,13 @@ export function tileAccentToTone(accent: string | null | undefined): {
   text: string;
 } {
   const cls = (accent || '').toLowerCase();
-  if (cls.includes('rose') || cls.includes('pink')) return { leftRule: 'border-l-rose-500',     bar: 'bg-rose-500',     border: 'border-rose-500/40',  text: 'text-rose-200' };
-  if (cls.includes('purple') || cls.includes('fuchsia')) return { leftRule: 'border-l-purple-500', bar: 'bg-purple-500',   border: 'border-purple-500/40', text: 'text-purple-200' };
-  if (cls.includes('amber') || cls.includes('yellow')) return { leftRule: 'border-l-amber-500',  bar: 'bg-amber-500',    border: 'border-amber-500/40', text: 'text-amber-200' };
-  if (cls.includes('cyan')  || cls.includes('sky'))    return { leftRule: 'border-l-cyan-500',   bar: 'bg-cyan-500',     border: 'border-cyan-500/40',  text: 'text-cyan-200' };
-  if (cls.includes('indigo')|| cls.includes('violet')) return { leftRule: 'border-l-indigo-500', bar: 'bg-indigo-500',   border: 'border-indigo-500/40', text: 'text-indigo-200' };
-  if (cls.includes('green') || cls.includes('emerald'))return { leftRule: 'border-l-emerald-500',bar: 'bg-emerald-500',  border: 'border-emerald-500/40',text: 'text-emerald-200' };
-  return { leftRule: 'border-l-slate-500', bar: 'bg-slate-500', border: 'border-slate-500/40', text: 'text-slate-200' };
-}
-
-export function tileIconFromEmoji(emoji: string | null | undefined): string {
-  if (!emoji) return 'square';
-  return 'square';
+  if (cls.includes('rose') || cls.includes('pink')) return { leftRule: 'border-l-critical', bar: 'bg-critical', border: 'border-critical/40', text: 'text-critical' };
+  if (cls.includes('purple') || cls.includes('fuchsia')) return { leftRule: 'border-l-accent', bar: 'bg-accent-soft', border: 'border-accent/40', text: 'text-accent' };
+  if (cls.includes('amber') || cls.includes('yellow')) return { leftRule: 'border-l-caution', bar: 'bg-caution', border: 'border-caution/40', text: 'text-caution' };
+  if (cls.includes('cyan')  || cls.includes('sky'))    return { leftRule: 'border-l-info',    bar: 'bg-info',    border: 'border-info/40',    text: 'text-info' };
+  if (cls.includes('indigo')|| cls.includes('violet')) return { leftRule: 'border-l-accent',  bar: 'bg-accent',  border: 'border-accent/40',  text: 'text-accent' };
+  if (cls.includes('green') || cls.includes('emerald'))return { leftRule: 'border-l-positive',bar: 'bg-positive', border: 'border-positive/40',text: 'text-positive' };
+  return { leftRule: 'border-l-rule', bar: 'bg-paper-2', border: 'border-rule/40', text: 'text-ink' };
 }
 
 export interface TileRow {
@@ -164,6 +247,7 @@ export function tileFromRow(t: TileRow): TileWithMeta {
     icon: t.icon,
     accent: t.accent,
     group: t.group_name as TileGroup,
+    group_name: t.group_name,
     sub_view: t.sub_view,
     href: t.href,
     module_id: t.module_id ?? `tile:${t.id}`,

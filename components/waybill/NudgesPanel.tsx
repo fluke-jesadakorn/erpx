@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { T } from '@/components/i18n/T';
+import { Empty } from '@/components/ui/Empty';
 
 interface Nudge {
   waybill_id: string;
@@ -49,34 +50,35 @@ export function NudgesPanel({ initial, lang }: Props) {
   return (
     <section>
       <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-xs font-mono uppercase tracking-widest text-slate-500">
+        <h2 className="text-xs font-mono uppercase tracking-widest text-mute">
           <T id="waybill.nudges.title" />
         </h2>
         <button
           type="button"
           onClick={onGenerate}
           disabled={busy}
-          className="ml-auto rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-mono text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50"
+          className="ml-auto rounded-lg border border-info bg-info px-3 py-1.5 text-xs font-mono text-info-soft hover:bg-info disabled:opacity-50"
         >
           {busy ? <T id="waybill.export.generating" /> : <T id="waybill.nudges.generateBtn" />}
         </button>
       </div>
-      {message && <div className="mb-3 rounded border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-300">{message}</div>}
+      {message && <div className="mb-3 rounded border border-rule bg-paper px-3 py-2 text-xs text-ink-2">{message}</div>}
       {nudges.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 p-6 text-center text-sm text-slate-500">
-          <T id="waybill.nudges.noStaleQueues" />
-        </div>
+        <Empty
+          title={<T id="waybill.nudges.noStaleQueues" />}
+          body="Generate nudges to surface stale waybills."
+        />
       ) : (
         <ul className="space-y-2">
           {nudges.map((n, i) => (
-            <li key={`${n.waybill_id}-${n.stage}-${i}`} className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-              <div className="mb-1 flex items-center gap-2 text-xs font-mono text-slate-500">
-                <a href={`/waybill/${n.waybill_id}`} className="text-cyan-300 hover:underline">{n.waybill_id}</a>
+            <li key={`${n.waybill_id}-${n.stage}-${i}`} className="rounded-md border border-rule bg-paper-2/60 p-4">
+              <div className="mb-1 flex items-center gap-2 text-xs font-mono text-mute">
+                <a href={`/waybill/${n.waybill_id}`} className="text-info hover:underline">{n.waybill_id}</a>
                 <span>·</span>
                 <span>{n.stage}</span>
                 <span className="ml-auto">{new Date(n.sent_at).toISOString().slice(0, 16).replace('T', ' ')}</span>
               </div>
-              <p className="text-sm text-slate-200">{n.hint}</p>
+              <p className="text-sm text-ink">{n.hint}</p>
             </li>
           ))}
         </ul>

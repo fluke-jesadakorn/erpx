@@ -149,27 +149,27 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
   const execReport = execR.success ? execR.report ?? null : null;
 
   return (
-    <section className="glass-panel rounded-3xl border-purple-500/30 bg-gradient-to-br from-purple-950/30 via-slate-950 to-indigo-950/30 p-6 sm:p-8 shadow-2xl">
+    <section className="bg-paper-2 border border-rule rounded-md border-accent  from-accent-strong via-paper to-accent-strong p-6 sm:p-8 shadow-2xl">
       <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
           <span className="text-3xl">👑</span>
           <div>
-            <div className="text-xs font-mono font-black uppercase text-purple-300 tracking-wider">
+            <div className="text-xs font-mono font-black uppercase text-accent tracking-wider">
               <T id="cockpit.todaysBriefHeading" values={{ audience: audience.toUpperCase() }} locale={locale} />
             </div>
-            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-white tracking-tight">
+            <h2 className="text-xl sm:text-2xl md:text-3xl font-black text-ink tracking-tight">
               <T id="cockpit.todaysBriefGreeting" values={{ name: actor.fullname }} locale={locale} />
             </h2>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
-          <span className="text-xs font-mono text-slate-400">
+          <span className="text-xs font-mono text-ink-2">
             <T id="cockpit.todaysBriefLastUpdated" locale={locale} />{' '}
             {timeOfDay(new Date(brief.generatedAt))}
           </span>
           <Link
             href="/cockpit"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-500/20 px-3 py-1.5 text-sm font-bold text-purple-200 hover:bg-purple-500/30 transition-all"
+            className="inline-flex items-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-sm font-bold text-accent-soft hover:bg-accent transition-all"
           >
             <span>↻</span>
             <span>
@@ -188,113 +188,113 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 2xl:gap-6 mb-6">
-        <div className="rounded-2xl border border-indigo-500/30 bg-indigo-950/20 p-4">
-          <div className="text-xs font-mono uppercase tracking-wider text-indigo-300 mb-1">
+        <div className="rounded-md border border-accent bg-accent-soft p-4">
+          <div className="text-xs font-mono uppercase tracking-wider text-accent mb-1">
             <T id="cockpit.kpiCashPosition" locale={locale} />
           </div>
-          <div className="text-xl sm:text-2xl lg:text-3xl font-black text-white font-mono">
+          <div className="text-xl sm:text-2xl lg:text-3xl font-black text-ink font-mono">
             {formatTHB(brief.kpis.totalCash)}
           </div>
-          <div className="text-xs text-slate-500 font-mono">
+          <div className="text-xs text-mute font-mono">
             <T id="cockpit.kpiCashSub" locale={locale} />
           </div>
         </div>
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4">
-          <div className="text-xs font-mono uppercase tracking-wider text-amber-300 mb-1">
+        <div className="rounded-md border border-caution bg-caution-soft p-4">
+          <div className="text-xs font-mono uppercase tracking-wider text-caution mb-1">
             <T id="cockpit.kpiUnpaidLiabilities" locale={locale} />
           </div>
-          <div className="text-xl sm:text-2xl lg:text-3xl font-black text-white font-mono">
+          <div className="text-xl sm:text-2xl lg:text-3xl font-black text-ink font-mono">
             {formatTHB(brief.kpis.outstandingLiabilities)}
           </div>
-          <div className="text-xs text-slate-500 font-mono">
+          <div className="text-xs text-mute font-mono">
             <T id="cockpit.kpiUnpaidSub" locale={locale} />
           </div>
         </div>
-        <div className="rounded-2xl border border-purple-500/30 bg-purple-950/20 p-4">
-          <div className="text-xs font-mono uppercase tracking-wider text-purple-300 mb-1">
+        <div className="rounded-md border border-accent bg-accent-soft p-4">
+          <div className="text-xs font-mono uppercase tracking-wider text-accent mb-1">
             <T id="cockpit.kpiMtdExpenses" locale={locale} />
           </div>
-          <div className="text-xl sm:text-2xl lg:text-3xl font-black text-white font-mono">
+          <div className="text-xl sm:text-2xl lg:text-3xl font-black text-ink font-mono">
             {formatTHB(brief.kpis.mtdExpenses)}
           </div>
-          <div className="text-xs text-slate-500 font-mono">
+          <div className="text-xs text-mute font-mono">
             <T id="cockpit.kpiMtdExpensesSub" locale={locale} />
           </div>
         </div>
-        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4">
-          <div className="text-xs font-mono uppercase tracking-wider text-emerald-300 mb-1">
+        <div className="rounded-md border border-positive bg-positive-soft p-4">
+          <div className="text-xs font-mono uppercase tracking-wider text-positive mb-1">
             <T id="cockpit.kpiNetIncome" locale={locale} />
           </div>
           <div
-            className={`text-xl sm:text-2xl lg:text-3xl font-black font-mono ${brief.kpis.netIncome >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}
+            className={`text-xl sm:text-2xl lg:text-3xl font-black font-mono ${brief.kpis.netIncome >= 0 ? 'text-positive' : 'text-critical'}`}
           >
             {formatTHB(brief.kpis.netIncome)}
           </div>
-          <div className="text-xs text-slate-500 font-mono">
+          <div className="text-xs text-mute font-mono">
             <T id="cockpit.kpiNetIncomeSub" locale={locale} />
           </div>
         </div>
-        <div className="rounded-2xl border border-fuchsia-500/30 bg-fuchsia-950/20 p-4">
-          <div className="text-xs font-mono uppercase tracking-wider text-fuchsia-300 mb-1">
+        <div className="rounded-md border border-accent bg-accent-soft p-4">
+          <div className="text-xs font-mono uppercase tracking-wider text-accent mb-1">
             <T id="cockpit.kpiMtdSalesRevenue" locale={locale} />
           </div>
-          <div className="text-xl sm:text-2xl lg:text-3xl font-black text-white font-mono">
+          <div className="text-xl sm:text-2xl lg:text-3xl font-black text-ink font-mono">
             {formatTHB(brief.kpis.salesRevenueMtd ?? 0)}
           </div>
-          <div className="text-xs text-slate-500 font-mono">
+          <div className="text-xs text-mute font-mono">
             <T id="cockpit.kpiMtdSalesRevenueSub" locale={locale} />
           </div>
         </div>
-        <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-4">
-          <div className="text-xs font-mono uppercase tracking-wider text-cyan-300 mb-1">
+        <div className="rounded-md border border-info bg-info-soft p-4">
+          <div className="text-xs font-mono uppercase tracking-wider text-info mb-1">
             <T id="cockpit.kpiOpenSalesOrders" locale={locale} />
           </div>
-          <div className="text-xl sm:text-2xl lg:text-3xl font-black text-white font-mono">
+          <div className="text-xl sm:text-2xl lg:text-3xl font-black text-ink font-mono">
             {brief.kpis.openSalesOrders ?? 0}
           </div>
-          <div className="text-xs text-slate-500 font-mono">
+          <div className="text-xs text-mute font-mono">
             <T id="cockpit.kpiOpenSalesOrdersSub" locale={locale} />
           </div>
         </div>
       </div>
 
       <div className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4">
+        <div className="rounded-md border border-caution bg-caution-soft p-4">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs font-mono uppercase tracking-wider text-amber-300">
+            <div className="text-xs font-mono uppercase tracking-wider text-caution">
               <T id="cockpit.arAgingHeading" locale={locale} />
             </div>
-            <div className="text-xs font-mono text-slate-500">
+            <div className="text-xs font-mono text-mute">
               {brief.arAging?.length ?? 0}{' '}
               <T id="cockpit.bucketCount" locale={locale} />
             </div>
           </div>
           <div className="space-y-1.5 mt-2">
             {(brief.arAging ?? []).length === 0 && (
-              <p className="text-xs font-mono text-slate-500">
+              <p className="text-xs font-mono text-mute">
                 <T id="cockpit.arNoOverdue" locale={locale} />
               </p>
             )}
             {(brief.arAging ?? []).map((b: { bucket: string; amount_thb: number; so_count: number }) => {
               const tone =
                 b.bucket === '0-30'
-                  ? 'text-emerald-300'
+                  ? 'text-positive'
                   : b.bucket === '31-60'
-                  ? 'text-cyan-300'
+                  ? 'text-info'
                   : b.bucket === '61-90'
-                  ? 'text-amber-300'
-                  : 'text-rose-300';
+                  ? 'text-caution'
+                  : 'text-critical';
               return (
                 <div
                   key={b.bucket}
                   className="flex items-center justify-between text-xs font-mono"
                 >
-                  <span className="text-slate-400">
+                  <span className="text-ink-2">
                     {b.bucket}{' '}
                     <T id="cockpit.daysUnit" locale={locale} />
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="text-slate-500">
+                    <span className="text-mute">
                       {b.so_count ?? 0} <T id="cockpit.sosUnit" locale={locale} />
                     </span>
                     <span className={`font-bold tabular-nums ${tone}`}>
@@ -305,27 +305,27 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
               );
             })}
           </div>
-          <div className="mt-2 pt-2 border-t border-amber-900/30 flex items-center justify-between text-xs font-mono">
-            <span className="text-rose-300">
+          <div className="mt-2 pt-2 border-t border-caution-strong flex items-center justify-between text-xs font-mono">
+            <span className="text-critical">
               <T id="cockpit.totalOverdue" locale={locale} />
             </span>
-            <span className="text-rose-200 font-bold tabular-nums">
+            <span className="text-critical-soft font-bold tabular-nums">
               {formatTHB(brief.kpis.overdueArAmount ?? 0)}
             </span>
           </div>
         </div>
-        <div className="rounded-2xl border border-fuchsia-500/30 bg-fuchsia-950/20 p-4">
+        <div className="rounded-md border border-accent bg-accent-soft p-4">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-xs font-mono uppercase tracking-wider text-fuchsia-300">
+            <div className="text-xs font-mono uppercase tracking-wider text-accent">
               <T id="cockpit.salesRolling7Day" locale={locale} />
             </div>
-            <div className="text-xs font-mono text-slate-500">
+            <div className="text-xs font-mono text-mute">
               {salesTrend.length}{' '}
               <T id={salesTrend.length === 1 ? 'cockpit.sparklineDay' : 'cockpit.sparklineDays'} locale={locale} />
             </div>
           </div>
           {salesTrend.length === 0 ? (
-            <p className="text-xs font-mono text-slate-500">
+            <p className="text-xs font-mono text-mute">
               <T id="cockpit.noRevenue" locale={locale} />
             </p>
           ) : (
@@ -335,16 +335,16 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
                 const h = Math.max(4, Math.round((d.total / max) * 80));
                 return (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-xs font-mono text-slate-400 tabular-nums">
+                    <span className="text-xs font-mono text-ink-2 tabular-nums">
                       {(d.total / 1000).toFixed(0)}k
                     </span>
                     <div
-                      className="w-full rounded-t bg-gradient-to-b from-fuchsia-400 to-cyan-500/60"
+                      className="w-full rounded-t  from-accent to-info"
                       style={{ height: `${h}px` }}
                       aria-hidden
                       title={`${d.day} · ${formatTHB(d.total)} THB`}
                     />
-                    <span className="text-xs font-mono text-slate-500">
+                    <span className="text-xs font-mono text-mute">
                       {d.day.slice(5)}
                     </span>
                   </div>
@@ -360,7 +360,7 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
       </div>
 
       <div className="mb-6">
-        <div className="text-xs font-mono font-bold uppercase text-slate-400 tracking-wider mb-2">
+        <div className="text-xs font-mono font-bold uppercase text-ink-2 tracking-wider mb-2">
           <T id="cockpit.trend7Day" locale={locale} />
         </div>
         <SparklineTrends cash={brief.kpis.cashTrend} mtd={brief.kpis.mtdTrend} />
@@ -371,31 +371,31 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-        <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+        <div className="lg:col-span-2 rounded-md border border-rule bg-paper-2/50 p-4">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-xs font-mono font-bold uppercase text-slate-400 tracking-wider">
+            <div className="text-xs font-mono font-bold uppercase text-ink-2 tracking-wider">
               <T id="cockpit.deptBudgetBurn" locale={locale} />
             </div>
-            <div className="text-xs font-mono text-slate-500">
+            <div className="text-xs font-mono text-mute">
               {brief.deptBudgets.filter((d: { is_over_threshold: boolean }) => d.is_over_threshold).length}{' '}
               <T id="cockpit.over90" locale={locale} />
             </div>
           </div>
           <DeptBudgetStrip />
         </div>
-        <div className="min-w-0 rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+        <div className="min-w-0 rounded-md border border-rule bg-paper-2/50 p-4">
           <div className="flex items-center justify-between mb-3">
-            <div className="text-xs font-mono font-bold uppercase text-rose-300 tracking-wider">
+            <div className="text-xs font-mono font-bold uppercase text-critical tracking-wider">
               <T id="cockpit.stuckAnomalies" locale={locale} />
             </div>
-            <div className="text-xs font-mono text-slate-500">
+            <div className="text-xs font-mono text-mute">
               {brief.stuckCount}{' '}
               <T id="cockpit.stuckOver24h" locale={locale} />
             </div>
           </div>
           <div className="space-y-2">
             {stuck.length === 0 ? (
-              <p className="text-xs font-mono text-slate-500">
+              <p className="text-xs font-mono text-mute">
                 <T id="cockpit.noStuck" locale={locale} />
               </p>
             ) : (
@@ -403,13 +403,13 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
                 <Link
                   key={s.waybill_id}
                   href={`/waybill/${s.waybill_id}`}
-                  className="block min-w-0 rounded-xl border border-amber-500/30 bg-amber-950/20 px-3 py-2 hover:bg-amber-950/40 transition-all"
+                  className="block min-w-0 rounded-md border border-caution bg-caution-strong px-3 py-2 hover:bg-caution-strong transition-all"
                 >
                   <div className="flex items-center justify-between text-sm font-mono gap-2 min-w-0">
-                    <span className="text-amber-200 font-bold truncate min-w-0">{s.waybill_id}</span>
-                    <span className="text-amber-300 flex-shrink-0 whitespace-nowrap">{formatTHB(Number(s.total_amount))} THB</span>
+                    <span className="text-caution-soft font-bold truncate min-w-0">{s.waybill_id}</span>
+                    <span className="text-caution flex-shrink-0 whitespace-nowrap">{formatTHB(Number(s.total_amount))} THB</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs text-slate-400 mt-0.5 gap-2 min-w-0">
+                  <div className="flex items-center justify-between text-xs text-ink-2 mt-0.5 gap-2 min-w-0">
                     <span className="truncate min-w-0">{s.vendor_name}</span>
                     <span className="flex-shrink-0 whitespace-nowrap">{Number(s.age_hours).toFixed(0)}{' '}
                       <T id="cockpit.hoursOld" locale={locale} />
@@ -419,38 +419,38 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
               ))
             )}
             {anomalies.length > 0 && (
-              <div className="pt-2 mt-2 border-t border-slate-900 space-y-1.5">
+              <div className="pt-2 mt-2 border-t border-rule space-y-1.5">
                 {anomalies.map((a: AnomalyRow) => (
                   <div
                     key={a.id}
-                    className="rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-300"
+                    className="rounded-md border border-rule bg-paper-2/60 px-3 py-2 text-sm text-ink-2"
                   >
-                    <span className="font-mono text-xs text-slate-500 mr-1">#{a.id}</span>
+                    <span className="font-mono text-xs text-mute mr-1">#{a.id}</span>
                     {a.message}
                   </div>
                 ))}
               </div>
             )}
             {stuckSales.length > 0 && (
-              <div className="pt-2 mt-2 border-t border-slate-900 space-y-1.5">
-                <div className="text-xs font-mono font-bold uppercase tracking-wider text-fuchsia-300">
+              <div className="pt-2 mt-2 border-t border-rule space-y-1.5">
+                <div className="text-xs font-mono font-bold uppercase tracking-wider text-accent">
                   🛒 <T id="hr.cockpit.stuckSales" locale={locale} />
                 </div>
                 {stuckSales.map((s: StuckSalesRow) => (
                   <Link
                     key={s.waybill_id}
                     href={`/waybill/${s.waybill_id}`}
-                    className="block min-w-0 rounded-xl border border-fuchsia-500/30 bg-fuchsia-950/20 px-3 py-2 hover:bg-fuchsia-950/40 transition-all"
+                    className="block min-w-0 rounded-md border border-accent bg-accent-strong px-3 py-2 hover:bg-accent-strong transition-all"
                   >
                     <div className="flex items-center justify-between text-sm font-mono gap-2 min-w-0">
-                      <span className="text-fuchsia-200 font-bold truncate min-w-0">
+                      <span className="text-accent-soft font-bold truncate min-w-0">
                         {s.waybill_id}
                       </span>
-                      <span className="text-fuchsia-300 flex-shrink-0 whitespace-nowrap">
+                      <span className="text-accent flex-shrink-0 whitespace-nowrap">
                         {formatTHB(Number(s.total_amount))} THB
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-slate-400 mt-0.5 gap-2 min-w-0">
+                    <div className="flex items-center justify-between text-xs text-ink-2 mt-0.5 gap-2 min-w-0">
                       <span className="truncate min-w-0">
                         {s.customer_code ? `${s.customer_code} · ` : ''}
                         {s.customer_name ?? '—'}

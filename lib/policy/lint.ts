@@ -1,6 +1,7 @@
 import 'server-only';
 import { query } from '../db';
 import { aiInvoke } from '@/ai/router';
+import { PERM_ID_REGEX } from '../perm/grammar';
 import { STAGE_ORDER } from '../perm/stages';
 
 export interface PolicyLintFinding {
@@ -26,6 +27,47 @@ function safeParse(s: string): { findings: PolicyLintFinding[] } | null {
   try { return JSON.parse(m[0]); } catch { return null; }
 }
 
+export function lintAst(ast: unknown, policyId = 'inline', policyName = 'inline'): PolicyLintResult {
+  const findings: PolicyLintFinding[] = [];
+  if (ast == null || typeof ast !== 'object' || Array.isArray(ast)) {
+    findings.push({ code: 'ast.not_object', severity: 'error', message: 'ast must be a JSON object' });
+    return { policyId, policyName, findings, generatedAt: new Date().toISOString() };
+  }
+  const astObj = ast as Record<string, unknown>;
+  const rulesRaw = astObj.rules;
+  if (!Array.isArray(rulesRaw)) {
+    findings.push({ code: 'ast.rules_missing', severity: 'error', message: 'ast.rules must be an array' });
+    return { policyId, policyName, findings, generatedAt: new Date().toISOString() };
+  }
+  const seen = new Set<string>();
+  for (let i = 0; i < rulesRaw.length; i++) {
+    const r = rulesRaw[i];
+    if (r == null || typeof r !== 'object' || Array.isArray(r)) {
+      findings.push({ code: 'ast.rule_not_object', severity: 'error', message: `rules[${i}] must be an object` });
+      continue;
+    }
+    const allow = (r as { allow?: unknown }).allow;
+    if (typeof allow !== 'string') {
+      findings.push({ code: 'ast.rule.allow_missing', severity: 'error', message: `rules[${i}].allow must be a string` });
+    } else if (!PERM_ID_REGEX.test(allow)) {
+      findings.push({ code: 'ast.rule.allow_invalid', severity: 'error', message: `rules[${i}].allow "${allow}" is not a valid perm id` });
+    } else {
+      if (seen.has(allow)) {
+        findings.push({ code: 'ast.rule.allow_dup', severity: 'warning', message: `duplicate allow "${allow}"` });
+      }
+      seen.add(allow);
+    }
+    const when = (r as { when?: unknown }).when;
+    if (when != null && typeof when !== 'string') {
+      findings.push({ code: 'ast.rule.when_type', severity: 'warning', message: `rules[${i}].when must be a string expression` });
+    }
+  }
+  if (rulesRaw.length === 0) {
+    findings.push({ code: 'ast.rules_empty', severity: 'info', message: 'no rules defined' });
+  }
+  return { policyId, policyName, findings, generatedAt: new Date().toISOString() };
+}
+
 export async function lintPolicy(policyId: string): Promise<PolicyLintResult | null> {
   const r = await query<{ id: string; name: string; ast: unknown }>(
     `SELECT id, name, ast FROM perm.policies WHERE id = $1 AND enabled = TRUE`,
@@ -40,7 +82,7 @@ export async function lintPolicy(policyId: string): Promise<PolicyLintResult | n
     temperature: 0.1,
     maxTokens: 800,
   });
-  if (!resp.ok || !resp.text) return null;
+  if (!resp.ok || !resp.text) return lintAst(policy.ast, policy.id, policy.name);
 
   const parsed = safeParse(resp.text);
   const findings = Array.isArray(parsed?.findings)

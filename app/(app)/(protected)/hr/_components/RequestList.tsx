@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import type { LeaveRequestRow, LeaveStats, DeptStat } from '@/hr/server';
 import { useHRContext } from './HRContext';
+import { Empty } from '@/components/ui/Empty';
+import { Modal, useToast } from '@/components/ui';
 
 interface Props {
   requests: LeaveRequestRow[];
@@ -15,6 +17,11 @@ interface Props {
   onSelectEmployee: (id: string) => void;
   onExport: (period: 'this-month' | 'last-month' | 'all') => void;
   onRefresh: () => Promise<void>;
+}
+
+interface RejectState {
+  requestId: string;
+  reason: string;
 }
 
 export function RequestList({
@@ -30,24 +37,12 @@ export function RequestList({
   onRefresh,
 }: Props) {
   const { selectedHrId } = useHRContext();
+  const toast = useToast();
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [rejecting, setRejecting] = useState<RejectState | null>(null);
 
-  const handleDecision = async (requestId: string, action: 'approve' | 'reject') => {
-    if (!selectedHrId) {
-      alert('โปรดเลือกผู้ใช้ HR ที่จะอนุมัติงานก่อน');
-      return;
-    }
-    let rejectReason = '';
-    if (action === 'reject') {
-      const reasonInput = prompt('โปรดระบุเหตุผลในการปฏิเสธคำขอลางานนี้ (จำเป็น):');
-      if (reasonInput === null) return;
-      if (!reasonInput.trim()) {
-        alert('จำเป็นต้องระบุเหตุผลในการปฏิเสธคำขอลา');
-        return;
-      }
-      rejectReason = reasonInput.trim();
-    }
+  const submitDecision = async (requestId: string, action: 'approve' | 'reject', reason: string) => {
     try {
       setSubmittingId(requestId);
       const res = await fetch('/api/hr/leave', {
@@ -57,50 +52,74 @@ export function RequestList({
           requestId,
           action,
           hrId: selectedHrId,
-          rejectReason: action === 'reject' ? rejectReason : undefined,
+          rejectReason: action === 'reject' ? reason : undefined,
         }),
       });
       const data = await res.json();
       if (data.success) {
         await onRefresh();
+        toast.success(action === 'approve' ? 'อนุมัติคำขอลาเรียบร้อย' : 'ปฏิเสธคำขอลาเรียบร้อย');
       } else {
-        alert('เกิดข้อผิดพลาด: ' + data.error);
+        toast.error('เกิดข้อผิดพลาด: ' + data.error);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + msg);
+      toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + msg);
     } finally {
       setSubmittingId(null);
     }
   };
 
+  const handleDecision = async (requestId: string, action: 'approve' | 'reject') => {
+    if (!selectedHrId) {
+      toast.warning('โปรดเลือกผู้ใช้ HR ที่จะอนุมัติงานก่อน');
+      return;
+    }
+    if (action === 'reject') {
+      setRejecting({ requestId, reason: '' });
+      return;
+    }
+    await submitDecision(requestId, action, '');
+  };
+
+  const submitReject = async () => {
+    if (!rejecting) return;
+    if (!rejecting.reason.trim()) {
+      toast.warning('จำเป็นต้องระบุเหตุผลในการปฏิเสธคำขอลา');
+      return;
+    }
+    const { requestId, reason } = rejecting;
+    setRejecting(null);
+    await submitDecision(requestId, 'reject', reason.trim());
+  };
+
   return (
     <>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <div className="bg-slate-900/60 backdrop-blur-md border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
-          <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">คำขอลาทั้งหมด</span>
-          <span className="text-3xl font-black text-slate-100 mt-2">{stats.total}</span>
+        <div className="bg-paper-2/60 backdrop-blur-md border border-rule p-5 rounded-md flex flex-col justify-between">
+          <span className="text-ink-2 text-xs font-bold uppercase tracking-wider">คำขอลาทั้งหมด</span>
+          <span className="text-3xl font-black text-ink mt-2">{stats.total}</span>
         </div>
-        <div className="bg-amber-500/10 border border-amber-500/20 p-5 rounded-2xl flex flex-col justify-between">
-          <span className="text-amber-400 text-xs font-bold uppercase tracking-wider">รออนุมัติ</span>
-          <span className="text-3xl font-black text-amber-300 mt-2">{stats.pending}</span>
+        <div className="bg-caution border border-caution/40 p-5 rounded-md flex flex-col justify-between">
+          <span className="text-caution text-xs font-bold uppercase tracking-wider">รออนุมัติ</span>
+          <span className="text-3xl font-black text-caution mt-2">{stats.pending}</span>
         </div>
-        <div className="bg-emerald-500/10 border border-emerald-500/20 p-5 rounded-2xl flex flex-col justify-between">
-          <span className="text-emerald-400 text-xs font-bold uppercase tracking-wider">อนุมัติแล้ว</span>
-          <span className="text-3xl font-black text-emerald-300 mt-2">{stats.approved}</span>
+        <div className="bg-positive border border-positive/40 p-5 rounded-md flex flex-col justify-between">
+          <span className="text-positive text-xs font-bold uppercase tracking-wider">อนุมัติแล้ว</span>
+          <span className="text-3xl font-black text-positive mt-2">{stats.approved}</span>
         </div>
-        <div className="bg-rose-500/10 border border-rose-500/20 p-5 rounded-2xl flex flex-col justify-between">
-          <span className="text-rose-400 text-xs font-bold uppercase tracking-wider">ปฏิเสธแล้ว</span>
-          <span className="text-3xl font-black text-rose-300 mt-2">{stats.rejected}</span>
+        <div className="bg-critical border border-critical/40 p-5 rounded-md flex flex-col justify-between">
+          <span className="text-critical text-xs font-bold uppercase tracking-wider">ปฏิเสธแล้ว</span>
+          <span className="text-3xl font-black text-critical mt-2">{stats.rejected}</span>
         </div>
       </div>
 
-      <div className="bg-slate-900/40 border border-slate-800 p-6 rounded-2xl">
-        <h2 className="text-lg font-bold text-slate-200 mb-4 flex items-center gap-2">
+      <div className="bg-paper-2/40 border border-rule p-6 rounded-md">
+        <h2 className="text-lg font-bold text-ink mb-4 flex items-center gap-2">
           📊 สถิติวันลาสะสมตามแผนก (เฉพาะที่อนุมัติแล้ว)
         </h2>
         {deptStats.length === 0 ? (
-          <p className="text-slate-500 text-sm italic">ยังไม่มีข้อมูลวันลาที่ได้รับการอนุมัติ</p>
+          <p className="text-mute text-sm italic">ยังไม่มีข้อมูลวันลาที่ได้รับการอนุมัติ</p>
         ) : (
           <div className="space-y-4">
             {deptStats.map((dept) => {
@@ -108,12 +127,12 @@ export function RequestList({
               return (
                 <div key={dept.department} className="space-y-1.5">
                   <div className="flex justify-between text-sm">
-                    <span className="font-semibold text-slate-300">{dept.department}</span>
-                    <span className="text-indigo-400 font-bold">{dept.total_days} วัน</span>
+                    <span className="font-semibold text-ink-2">{dept.department}</span>
+                    <span className="text-accent font-bold">{dept.total_days} วัน</span>
                   </div>
-                  <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                  <div className="h-2.5 w-full bg-paper-2 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-full transition-all duration-500"
+                      className="h-full  from-accent via-accent to-accent rounded-full transition-all duration-500"
                       style={{ width: `${pct}%` }}
                     />
                   </div>
@@ -124,36 +143,36 @@ export function RequestList({
         )}
       </div>
 
-      <div className="bg-slate-900/30 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-        <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50 flex justify-between items-center gap-3">
-          <h2 className="text-lg font-bold text-slate-200">
+      <div className="bg-paper-2/30 border border-rule rounded-md overflow-hidden shadow-2xl">
+        <div className="px-6 py-4 border-b border-rule bg-paper-2/50 flex justify-between items-center gap-3">
+          <h2 className="text-lg font-bold text-ink">
             📋 รายการขอลาหยุดทั้งหมด
           </h2>
           <div className="flex items-center gap-2">
             <div className="relative">
               <button
                 onClick={() => setShowExportMenu((v) => !v)}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-700/70 hover:bg-emerald-700 border border-emerald-600/30 text-white transition cursor-pointer flex items-center gap-1.5"
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-positive-strong hover:bg-positive-strong border border-positive/60 text-ink transition cursor-pointer flex items-center gap-1.5"
               >
                 ⬇️ ส่งออก CSV
               </button>
               {showExportMenu && (
-                <div className="absolute right-0 top-full mt-1.5 z-30 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl overflow-hidden min-w-[180px]">
+                <div className="absolute right-0 top-full mt-1.5 z-sticky bg-paper-2 border border-rule rounded-md shadow-2xl overflow-hidden min-w-[180px]">
                   <button
                     onClick={() => { setShowExportMenu(false); onExport('this-month'); }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition cursor-pointer"
+                    className="w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-paper-2 transition cursor-pointer"
                   >
                     เดือนนี้ ({currentMonthLabel})
                   </button>
                   <button
                     onClick={() => { setShowExportMenu(false); onExport('last-month'); }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition cursor-pointer"
+                    className="w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-paper-2 transition cursor-pointer"
                   >
                     เดือนที่แล้ว
                   </button>
                   <button
                     onClick={() => { setShowExportMenu(false); onExport('all'); }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-slate-200 hover:bg-slate-700 transition cursor-pointer border-t border-slate-700"
+                    className="w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-paper-2 transition cursor-pointer border-t border-rule"
                   >
                     ทั้งหมด
                   </button>
@@ -162,7 +181,7 @@ export function RequestList({
             </div>
             <button
               onClick={onRefresh}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600/80 hover:bg-indigo-600 border border-indigo-500/20 text-white transition cursor-pointer"
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-accent-strong hover:bg-accent-strong border border-accent/40 text-ink transition cursor-pointer"
             >
               โหลดข้อมูลใหม่
             </button>
@@ -172,7 +191,7 @@ export function RequestList({
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-950/50 text-slate-400 text-xs font-bold uppercase tracking-wider border-b border-slate-800">
+              <tr className="bg-paper-2/50 text-ink-2 text-xs font-bold uppercase tracking-wider border-b border-rule">
                 <th className="px-6 py-4">พนักงาน / แผนก</th>
                 <th className="px-6 py-4">ประเภทการลา</th>
                 <th className="px-6 py-4">ระยะเวลาที่ลา</th>
@@ -182,39 +201,42 @@ export function RequestList({
                 <th className="px-6 py-4 text-right">ดำเนินการ</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 text-sm">
+            <tbody className="divide-y divide-rule text-sm">
               {requests.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-10 text-center text-slate-500 italic">
-                    ยังไม่มีประวัติการส่งคำขอลาหยุดงาน
+                  <td colSpan={7} className="px-6">
+                    <Empty
+                      title="ยังไม่มีประวัติการส่งคำขอลาหยุดงาน"
+                      body="คำขอลาใหม่จะปรากฏที่นี่เมื่อพนักงานส่งคำขอ"
+                    />
                   </td>
                 </tr>
               ) : (
                 requests.map((req) => (
-                  <tr key={req.id} className="hover:bg-slate-900/20 transition-colors">
+                  <tr key={req.id} className="hover:bg-paper-2/20 transition-colors">
                     <td className="px-6 py-4">
                       <button
-                        onClick={() => onSelectEmployee(req.employee_id)}
-                        className="font-bold text-indigo-400 hover:text-indigo-300 hover:underline text-left focus:outline-none cursor-pointer"
+                        onClick={() => onSelectEmployee(String(req.employee_id))}
+                        className="font-bold text-accent hover:text-accent hover:underline text-left focus:outline-none cursor-pointer"
                       >
                         {req.employee_name}
                       </button>
-                      <div className="text-xs text-slate-400 mt-0.5">{req.employee_code} • {req.department}</div>
+                      <div className="text-xs text-ink-2 mt-0.5">{req.employee_code} • {req.department}</div>
                     </td>
-                    <td className="px-6 py-4 font-medium text-slate-300">{leaveTypeThai(req.leave_type)}</td>
-                    <td className="px-6 py-4 text-slate-300 font-mono text-xs">{req.start_date} ถึง {req.end_date}</td>
-                    <td className="px-6 py-4 text-slate-200 font-bold">{req.days} วัน</td>
-                    <td className="px-6 py-4 text-slate-400 italic max-w-xs truncate" title={req.reason || ''}>
+                    <td className="px-6 py-4 font-medium text-ink-2">{leaveTypeThai(req.leave_type)}</td>
+                    <td className="px-6 py-4 text-ink-2 font-mono text-xs">{req.start_date} ถึง {req.end_date}</td>
+                    <td className="px-6 py-4 text-ink font-bold">{req.days} วัน</td>
+                    <td className="px-6 py-4 text-ink-2 italic max-w-xs truncate" title={req.reason || ''}>
                       {req.reason || 'ไม่ได้ระบุเหตุผล'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1 items-start">
                         {statusBadge(req.status)}
                         {req.approved_by_name && (
-                          <span className="text-[10px] text-slate-500">โดย: {req.approved_by_name}</span>
+                          <span className="text-[10px] text-mute">โดย: {req.approved_by_name}</span>
                         )}
                         {req.status === 'rejected' && req.reject_reason && (
-                          <span className="text-[10px] text-rose-400 mt-1 max-w-[150px] break-words">
+                          <span className="text-[10px] text-critical mt-1 max-w-[150px] break-words">
                             เหตุผล: {req.reject_reason}
                           </span>
                         )}
@@ -226,20 +248,20 @@ export function RequestList({
                           <button
                             onClick={() => handleDecision(req.id, 'approve')}
                             disabled={submittingId !== null}
-                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600/80 hover:bg-emerald-600 border border-emerald-500/20 text-white disabled:opacity-40 transition cursor-pointer"
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-positive-strong hover:bg-positive-strong border border-positive/40 text-ink disabled:opacity-40 transition cursor-pointer"
                           >
                             อนุมัติ
                           </button>
                           <button
                             onClick={() => handleDecision(req.id, 'reject')}
                             disabled={submittingId !== null}
-                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-600/80 hover:bg-rose-600 border border-rose-500/20 text-white disabled:opacity-40 transition cursor-pointer"
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-critical-strong hover:bg-critical-strong border border-critical/40 text-ink disabled:opacity-40 transition cursor-pointer"
                           >
                             ปฏิเสธ
                           </button>
                         </div>
                       ) : (
-                        <span className="text-xs text-slate-500 italic">เสร็จสิ้นแล้ว</span>
+                        <span className="text-xs text-mute italic">เสร็จสิ้นแล้ว</span>
                       )}
                     </td>
                   </tr>
@@ -249,6 +271,44 @@ export function RequestList({
           </table>
         </div>
       </div>
+
+      <Modal
+        open={rejecting !== null}
+        onClose={() => (submittingId !== null ? null : setRejecting(null))}
+        title="ปฏิเสธคำขอลา"
+        subtitle="โปรดระบุเหตุผลในการปฏิเสธคำขอลางานนี้ (จำเป็น)"
+        tone="rose"
+        width="md"
+        footer={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRejecting(null)}
+              disabled={submittingId !== null}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-paper-2 hover:bg-paper-2 border border-rule text-ink-2 disabled:opacity-40 transition cursor-pointer"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              onClick={submitReject}
+              disabled={submittingId !== null}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-critical-strong hover:bg-critical-strong border border-critical/40 text-ink disabled:opacity-40 transition cursor-pointer"
+            >
+              ส่งการปฏิเสธ
+            </button>
+          </div>
+        }
+      >
+        <textarea
+          rows={4}
+          autoFocus
+          value={rejecting?.reason ?? ''}
+          onChange={(e) => setRejecting((prev) => (prev ? { ...prev, reason: e.target.value } : prev))}
+          placeholder="ระบุเหตุผลในการปฏิเสธ..."
+          className="w-full bg-paper border border-rule rounded-md px-3 py-2 text-sm text-ink placeholder-mute focus:outline-none focus:border-critical/40 focus:ring-1 focus:ring-critical/40 transition resize-none"
+        />
+      </Modal>
     </>
   );
 }

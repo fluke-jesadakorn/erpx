@@ -88,8 +88,8 @@ export function SqlQuickPanel() {
   }
 
   return (
-    <section className="mb-6 rounded-2xl border border-cyan-700/30 bg-cyan-950/20 p-4">
-      <header className="mb-3 flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-cyan-300">
+    <section className="mb-6 rounded-md border border-info-strong bg-info-soft p-4">
+      <header className="mb-3 flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-info">
         <span aria-hidden>🔍</span>
         <span>Quick SQL · read-only</span>
       </header>
@@ -100,7 +100,7 @@ export function SqlQuickPanel() {
             type="button"
             onClick={() => run(p)}
             disabled={busy}
-            className="rounded-full border border-cyan-700/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-mono text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50"
+            className="rounded-full border border-info-strong bg-info px-3 py-1.5 text-xs font-mono text-info-soft hover:bg-info disabled:opacity-50"
           >
             <span aria-hidden className="mr-1">
               {p.icon}
@@ -112,9 +112,9 @@ export function SqlQuickPanel() {
       <div className="mt-4 space-y-3">
         {results.map((r, i) => (
           <div key={i}>
-            <div className="mb-1 text-xs font-mono text-slate-400">{r.label}</div>
+            <div className="mb-1 text-xs font-mono text-ink-2">{r.label}</div>
             {r.error && (
-              <div className="rounded border border-rose-700/40 bg-rose-950/30 p-2 text-xs text-rose-300">
+              <div className="rounded border border-critical-strong bg-critical-soft p-2 text-xs text-critical">
                 ⚠️ {r.error}
               </div>
             )}
@@ -128,7 +128,7 @@ export function SqlQuickPanel() {
               />
             )}
             {r.data && !r.data.ok && (
-              <div className="rounded border border-amber-700/40 bg-amber-950/30 p-2 text-xs text-amber-300">
+              <div className="rounded border border-caution-strong bg-caution-soft p-2 text-xs text-caution">
                 {r.data.error || 'AI could not generate SQL'}
               </div>
             )}

@@ -18,12 +18,15 @@ import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { NewSalesPanel } from '@/components/waybill/NewSalesPanel';
 import { ApproverChip } from '@/components/waybill/ApproverChip';
+import { ListRow } from '@/components/ui/ListRow';
+import { Empty } from '@/components/ui/Empty';
 import { stageRoles } from '@/waybill/derive';
 import { getSecondaryLocale } from '@/server/locale';
 import { T } from '@/components/i18n/TServer';
 import { getTranslations } from 'next-intl/server';
 import { headers } from 'next/headers';
-import { loadActivePermSession, hasPermission } from '@/perm/server';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import { NoPermissionView } from '@/components/NoPermissionView';
 
 export const dynamic = 'force-dynamic';
@@ -82,7 +85,7 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
   );
   const locale = await getSecondaryLocale();
   const t = await getTranslations();
-  if (!out || !hasPermission(out.session, 'tile:sales:view::allow')) {
+  if (!out || !hasPermission(out.session, PERM.tile.sales.view)) {
     return (
       <>
         <BreadcrumbSetter
@@ -159,13 +162,13 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
             className={
               'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ' +
               (scope === 'mine'
-                ? 'border-cyan-500 bg-cyan-500/15 text-cyan-200'
-                : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200')
+                ? 'border-info/40 bg-info text-info'
+                : 'border-rule text-ink-2 hover:border-rule hover:text-ink')
             }
           >
             <span aria-hidden>📤</span>
             <span><T id="sales.tabMine" locale={locale} /></span>
-            {rows.length > 0 && <span className="rounded-full bg-slate-800 px-1.5 text-xs">{rows.length}</span>}
+            {rows.length > 0 && <span className="rounded-full bg-paper-2 px-1.5 text-xs">{rows.length}</span>}
           </a>
           <a
             href={tabHref('queue')}
@@ -173,8 +176,8 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
             className={
               'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ' +
               (scope === 'queue'
-                ? 'border-cyan-500 bg-cyan-500/15 text-cyan-200'
-                : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200')
+                ? 'border-info/40 bg-info text-info'
+                : 'border-rule text-ink-2 hover:border-rule hover:text-ink')
             }
           >
             <span aria-hidden>✅</span>
@@ -186,8 +189,8 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
             className={
               'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ' +
               (scope === 'all'
-                ? 'border-cyan-500 bg-cyan-500/15 text-cyan-200'
-                : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200')
+                ? 'border-info/40 bg-info text-info'
+                : 'border-rule text-ink-2 hover:border-rule hover:text-ink')
             }
           >
             <span aria-hidden>🌐</span>
@@ -195,7 +198,7 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
           </a>
           <Link
             href="/customers"
-            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 font-mono text-slate-400 transition-colors hover:border-slate-500 hover:text-slate-200"
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-rule px-3 py-1.5 font-mono text-ink-2 transition-colors hover:border-rule hover:text-ink"
           >
             <span aria-hidden>🏢</span>
             <span><T id="sales.tabCustomers" locale={locale} /></span>
@@ -205,43 +208,43 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
         {scope === 'mine' && (
           <section
             aria-label="draft-status"
-            className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/55 px-4 py-3 text-xs"
+            className="mb-6 flex flex-wrap items-center gap-3 rounded-md border border-rule bg-paper-2/55 px-4 py-3 text-xs"
           >
             <span aria-hidden className="text-base">📝</span>
-            <span className="font-bold text-slate-200"><T id="sales.draftTitle" locale={locale} /></span>
+            <span className="font-bold text-ink"><T id="sales.draftTitle" locale={locale} /></span>
             {activeDraft ? (
               <>
-                <span className="text-slate-500">·</span>
-                <span className="font-mono text-cyan-300">{activeDraft.so_number}</span>
-                <span className="text-slate-500">·</span>
-                <span className="text-slate-300">{activeDraft.customer_name ?? '—'}</span>
+                <span className="text-mute">·</span>
+                <span className="font-mono text-info">{activeDraft.so_number}</span>
+                <span className="text-mute">·</span>
+                <span className="text-ink-2">{activeDraft.customer_name ?? '—'}</span>
                 {activeDraft.total_amount && (
                   <>
-                    <span className="text-slate-500">·</span>
-                    <span className="font-mono text-emerald-300">
+                    <span className="text-mute">·</span>
+                    <span className="font-mono text-positive">
                       {parseFloat(activeDraft.total_amount).toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB
                     </span>
                   </>
                 )}
-                <span className="text-slate-500">·</span>
-                <span className="text-slate-400">
+                <span className="text-mute">·</span>
+                <span className="text-ink-2">
                   <T id="sales.draftSaved" locale={locale} values={{ age: fmtAge(activeDraft.draft_updated_at ? activeDraft.draft_updated_at.toISOString() : null) }} />
                 </span>
-                <span className="text-slate-500">·</span>
-                <span className="text-slate-500">
+                <span className="text-mute">·</span>
+                <span className="text-mute">
                   <T id="sales.draftEvents" locale={locale} values={{ n: draftEventCount }} />
                 </span>
                 <a
                   href={`/waybill/${activeDraft.waybill_id}`}
-                  className="ml-auto rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 font-mono text-cyan-200 hover:bg-cyan-500/20"
+                  className="ml-auto rounded-lg border border-info/40 bg-info px-3 py-1.5 font-mono text-info hover:bg-info"
                 >
                   <T id="sales.draftOpen" locale={locale} />
                 </a>
               </>
             ) : (
               <>
-                <span className="text-slate-500">·</span>
-                <span className="text-slate-400"><T id="sales.draftEmpty" locale={locale} /></span>
+                <span className="text-mute">·</span>
+                <span className="text-ink-2"><T id="sales.draftEmpty" locale={locale} /></span>
               </>
             )}
           </section>
@@ -271,12 +274,12 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
         {salesRows.length > 0 && (
           <>
             <div className="mb-3 flex items-baseline justify-between">
-              <h2 className="text-xs font-mono uppercase tracking-widest text-slate-500">
+              <h2 className="text-xs font-mono uppercase tracking-widest text-mute">
                 {scope === 'mine'
                   ? <T id="sales.sectionMine" locale={locale} />
                   : <T id="sales.sectionOpen" locale={locale} values={{ n: salesRows.length }} />}
               </h2>
-              <span className="text-xs font-mono text-slate-500">
+              <span className="text-xs font-mono text-mute">
                 <T id="sales.rowClick" locale={locale} />
               </span>
             </div>
@@ -288,13 +291,13 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
                 const canAct = !!role && stageRoles(displayStage).includes(role);
                 const chip = chips.get(row.origin_id);
                 return (
-                  <li
+                  <ListRow
                     key={row.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4"
+                    className="flex-wrap justify-between rounded-md border border-rule bg-paper-2/60 hover:bg-paper-2/40"
                   >
                     <div className="min-w-0 flex-1 space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm text-cyan-300">{row.id}</span>
+                        <span className="font-mono text-sm text-info">{row.id}</span>
                         <WaybillChip
                           domain="sales"
                           currentStage={displayStage}
@@ -307,11 +310,11 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
                           />
                         )}
                       </div>
-                      <div className="text-sm text-slate-400">
+                      <div className="text-sm text-ink-2">
                         {chip?.so_number ?? `SO-${row.origin_id}`} · {chip?.customer_name ?? '—'} ·{' '}
                         {(amount ?? 0).toLocaleString('th-TH', { minimumFractionDigits: 2 })} {row.currency}
                       </div>
-                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-mono text-slate-500">
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs font-mono text-mute">
                         <span>
                           <T id="sales.rowSubmitter" locale={locale} values={{ name: row.submitter_name ?? '—' }} />
                         </span>
@@ -327,11 +330,11 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
                     </div>
                     <a
                       href={`/waybill/${row.id}`}
-                      className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-mono text-cyan-200 hover:bg-cyan-500/20"
+                      className="rounded-lg border border-info/40 bg-info px-3 py-1.5 text-xs font-mono text-info hover:bg-info"
                     >
                       <T id="sales.rowOpen" locale={locale} />
                     </a>
-                  </li>
+                  </ListRow>
                 );
               })}
             </ul>
@@ -339,9 +342,10 @@ export default async function SalesInboxPage({ searchParams }: PageProps) {
         )}
 
         {salesRows.length === 0 && scope !== 'mine' && (
-          <div className="rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 p-6 text-center text-sm text-slate-500">
-            <T id="sales.sectionEmpty" locale={locale} />
-          </div>
+          <Empty
+            title={<T id="sales.sectionEmpty" locale={locale} />}
+            body="Items will appear here once available."
+          />
         )}
       </PageLayout>
     </>

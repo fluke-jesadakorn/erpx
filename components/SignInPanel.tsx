@@ -6,6 +6,18 @@ import { useToast } from '@/components/ui/Toast';
 import { T } from '@/components/i18n/T';
 import { ROLE_RANK, ROLE_LEVEL, type DisplayRoleName, type StaffLevel } from '@/org/display';
 import { useTranslations } from 'next-intl';
+import {
+  ArrowRight,
+  Crown,
+  LoaderCircle,
+  Search,
+  ShieldCheck,
+  Telescope,
+  UserRound,
+  UsersRound,
+  type LucideIcon,
+} from 'lucide-react';
+import { Input } from '@/components/ui/Input';
 
 interface SeedUser {
   id: number;
@@ -20,24 +32,24 @@ interface SeedUser {
 }
 
 const ROLE_ACCENT: Record<string, string> = {
-  staff:               'from-emerald-500/25 via-emerald-700/15 to-emerald-900/40 border-emerald-500/30',
-  officer:             'from-emerald-500/25 via-emerald-700/15 to-emerald-900/40 border-emerald-500/30',
-  sales_rep:           'from-emerald-500/25 via-emerald-700/15 to-emerald-900/40 border-emerald-500/30',
-  accountant:          'from-cyan-500/25 via-cyan-700/15 to-cyan-900/40 border-cyan-500/30',
-  account_officer:     'from-cyan-500/25 via-cyan-700/15 to-cyan-900/40 border-cyan-500/30',
-  account_supervisor:  'from-cyan-500/25 via-cyan-700/15 to-cyan-900/40 border-cyan-500/30',
-  accounting_manager:  'from-cyan-500/25 via-cyan-700/15 to-cyan-900/40 border-cyan-500/30',
-  supervisor:          'from-amber-400/25 via-amber-700/15 to-amber-900/40 border-amber-500/40',
-  sales_supervisor:    'from-cyan-500/25 via-cyan-700/15 to-cyan-900/40 border-cyan-500/30',
-  head_of_department:  'from-amber-400/25 via-amber-700/15 to-amber-900/40 border-amber-500/40',
-  manager:             'from-amber-400/25 via-amber-700/15 to-amber-900/40 border-amber-500/40',
-  admin:               'from-purple-500/25 via-purple-700/15 to-purple-900/40 border-purple-500/30',
-  cfo:                 'from-purple-500/25 via-purple-700/15 to-purple-900/40 border-purple-500/30',
-  finance:             'from-purple-500/25 via-purple-700/15 to-purple-900/40 border-purple-500/30',
-  ceo:                 'from-rose-500/25 via-rose-700/15 to-rose-900/40 border-rose-500/40',
-  it:                  'from-slate-500/25 via-slate-700/15 to-slate-900/40 border-slate-500/40',
-  hr:                  'from-indigo-500/25 via-indigo-700/15 to-indigo-900/40 border-indigo-500/30',
-  hr_manager:          'from-indigo-500/25 via-indigo-700/15 to-indigo-900/40 border-indigo-500/30',
+  staff:               'from-positive via-positive-strong to-positive-strong border-positive',
+  officer:             'from-positive via-positive-strong to-positive-strong border-positive',
+  sales_rep:           'from-positive via-positive-strong to-positive-strong border-positive',
+  accountant:          'from-info via-info-strong to-info-strong border-info',
+  account_officer:     'from-info via-info-strong to-info-strong border-info',
+  account_supervisor:  'from-info via-info-strong to-info-strong border-info',
+  accounting_manager:  'from-info via-info-strong to-info-strong border-info',
+  supervisor:          'from-caution via-caution-strong to-caution-strong border-caution',
+  sales_supervisor:    'from-info via-info-strong to-info-strong border-info',
+  head_of_department:  'from-caution via-caution-strong to-caution-strong border-caution',
+  manager:             'from-caution via-caution-strong to-caution-strong border-caution',
+  admin:               'from-accent via-accent-strong to-accent-strong border-accent',
+  cfo:                 'from-accent via-accent-strong to-accent-strong border-accent',
+  finance:             'from-accent via-accent-strong to-accent-strong border-accent',
+  ceo:                 'from-critical via-critical-strong to-critical-strong border-critical',
+  it:                  'from-paper-2/25 via-paper-3/15 to-paper/40 border-rule/40',
+  hr:                  'from-accent via-accent-strong to-accent-strong border-accent',
+  hr_manager:          'from-accent via-accent-strong to-accent-strong border-accent',
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -63,20 +75,20 @@ const ROLE_LABEL: Record<string, string> = {
 
 const LEVEL_ORDER: StaffLevel[] = [1, 2, 3, 4, 5];
 
-const LEVEL_GLYPH: Record<StaffLevel, string> = {
-  1: '👑',
-  2: '🛡️',
-  3: '🧭',
-  4: '👥',
-  5: '📋',
+const LEVEL_GLYPH: Record<StaffLevel, LucideIcon> = {
+  1: Crown,
+  2: ShieldCheck,
+  3: Telescope,
+  4: UsersRound,
+  5: UserRound,
 };
 
 const LEVEL_ACCENT: Record<StaffLevel, string> = {
-  1: 'bg-rose-500/10 text-rose-200 border-rose-500/30',
-  2: 'bg-purple-500/10 text-purple-200 border-purple-500/30',
-  3: 'bg-amber-500/10 text-amber-200 border-amber-500/30',
-  4: 'bg-cyan-500/10 text-cyan-200 border-cyan-500/30',
-  5: 'bg-emerald-500/10 text-emerald-200 border-emerald-500/30',
+  1: 'bg-critical-soft text-critical-strong border border-critical border-critical',
+  2: 'bg-accent text-paper border-accent',
+  3: 'bg-caution-soft text-caution-strong border border-caution border-caution',
+  4: 'bg-info text-paper border-info',
+  5: 'bg-positive text-paper border-positive',
 };
 
 function staffLevelOf(u: SeedUser): StaffLevel {
@@ -96,6 +108,7 @@ export const SignInPanel: React.FC<{ next?: string }> = ({ next: _next = '/' } =
   const [busyId, setBusyId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -120,6 +133,11 @@ export const SignInPanel: React.FC<{ next?: string }> = ({ next: _next = '/' } =
   const levelBuckets = React.useMemo(() => {
     const buckets: Record<StaffLevel, SeedUser[]> = { 1: [], 2: [], 3: [], 4: [], 5: [] };
     for (const u of users) {
+      const haystack = [u.fullname, u.employee_code, u.role_name, ROLE_LABEL[u.role_id], u.department, u.dept_group_name]
+        .filter(Boolean)
+        .join(' ')
+        .toLocaleLowerCase();
+      if (query.trim() && !haystack.includes(query.trim().toLocaleLowerCase())) continue;
       const lv = staffLevelOf(u);
       buckets[lv].push(u);
     }
@@ -132,7 +150,7 @@ export const SignInPanel: React.FC<{ next?: string }> = ({ next: _next = '/' } =
       });
     }
     return buckets;
-  }, [users]);
+  }, [query, users]);
 
   async function signIn(user: SeedUser) {
     if (pinRequired && !pin.trim()) {
@@ -161,26 +179,45 @@ export const SignInPanel: React.FC<{ next?: string }> = ({ next: _next = '/' } =
   }
 
   return (
-    <div className="min-h-screen relative text-slate-100 selection:bg-indigo-500 selection:text-white pb-16">
-      <div className="absolute top-10 left-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none z-0" />
-      <div className="absolute top-60 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl pointer-events-none z-0" />
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative z-10">
-        <div className="mb-8">
-          <h1 className="text-2xl font-black tracking-tight text-white">Folio</h1>
-          <p className="text-sm text-slate-400 mt-1">
-            <T id="signIn.subtitle" hideSecondary />
-          </p>
-        </div>
+    <div className="app-shell relative min-h-screen overflow-hidden px-4 py-6 text-ink selection:bg-accent selection:text-ink sm:px-6 sm:py-10">
+      <div aria-hidden className="absolute left-[8%] top-[-14rem] h-[34rem] w-[34rem] rounded-full bg-accent-soft/50 blur-3xl" />
+      <div aria-hidden className="absolute bottom-[-16rem] right-[4%] h-[32rem] w-[32rem] rounded-full bg-info-soft/35 blur-3xl" />
+      <main className="relative z-10 mx-auto w-full max-w-6xl">
+        <section className="panel-elevated grid min-h-[calc(100vh-5rem)] overflow-hidden lg:grid-cols-[0.78fr_1.22fr]">
+          <div className="relative flex min-h-[18rem] flex-col justify-between overflow-hidden border-b border-rule p-6 sm:p-8 lg:min-h-0 lg:border-b-0 lg:border-r">
+            <div aria-hidden className="absolute inset-0 bg-[linear-gradient(color-mix(in_oklab,var(--rule)_28%,transparent)_1px,transparent_1px),linear-gradient(90deg,color-mix(in_oklab,var(--rule)_28%,transparent)_1px,transparent_1px)] bg-[size:34px_34px] [mask-image:linear-gradient(to_bottom,black,transparent)]" />
+            <div className="relative">
+              <div className="inline-flex items-center gap-2.5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl border border-accent/35 bg-accent-soft/70 font-display text-sm font-semibold text-accent shadow-inner">F</span>
+                <span className="font-display text-xl font-semibold tracking-[-0.04em]">Folio</span>
+              </div>
+            </div>
+            <div className="relative max-w-md">
+              <span className="glass-chip inline-flex px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.15em] text-accent">Executive crystal workspace</span>
+              <h1 className="mt-4 font-display text-3xl font-semibold leading-tight tracking-[-0.04em] sm:text-4xl">Choose your secure workspace.</h1>
+              <p className="mt-3 text-sm leading-relaxed text-ink-2"><T id="signIn.subtitle" hideSecondary /></p>
+            </div>
+            <p className="relative mt-6 max-w-sm text-xs leading-relaxed text-mute"><T id="signIn.productionNote" hideSecondary /></p>
+          </div>
+
+          <div className="flex min-w-0 flex-col p-4 sm:p-6 lg:p-8">
+            <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-medium uppercase tracking-[0.15em] text-accent">Identity access</p>
+                <h2 className="mt-1 font-display text-xl font-semibold tracking-tight">Select persona</h2>
+              </div>
+              {!loading && !error && <span className="glass-chip px-2.5 py-1 text-xs text-mute">{users.length} profiles</span>}
+            </div>
 
         {loading && (
-          <div className="glass-panel rounded-2xl p-6 text-sm text-slate-400"><T id="signIn.loadingUsers" hideSecondary /></div>
+          <div className="panel flex items-center justify-center gap-2 p-10 text-sm text-ink-2"><LoaderCircle size={16} className="animate-spin" aria-hidden /><T id="signIn.loadingUsers" hideSecondary /></div>
         )}
         {error && (
-          <div className="glass-panel rounded-2xl p-6 border-rose-500/30">
-            <div className="text-sm text-rose-300 font-mono">
+          <div className="panel border-critical/50 p-6">
+            <div className="text-sm text-critical font-mono">
               <T id="signIn.loadFailed" hideSecondary values={{ error }} />
             </div>
-            <p className="text-xs text-slate-500 mt-2">
+            <p className="text-xs text-mute mt-2">
               <T id="signIn.runSeedHint" hideSecondary />
             </p>
           </div>
@@ -188,10 +225,20 @@ export const SignInPanel: React.FC<{ next?: string }> = ({ next: _next = '/' } =
 
         {!loading && !error && (
           <>
+            <div className="relative mb-4">
+              <Search size={16} aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 text-mute" />
+              <Input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search name, role, department, or code"
+                aria-label="Search personas"
+                className="pl-10"
+              />
+            </div>
             {pinRequired && (
-              <div className="glass-panel rounded-2xl p-4 border-amber-500/30 mb-6">
+              <div className="panel mb-4 border-caution/45 p-4">
                 <label className="block">
-                  <span className="text-xs font-mono uppercase tracking-wider text-slate-400">
+                  <span className="text-xs font-mono uppercase tracking-wider text-ink-2">
                     <T id="signIn.devActorPin" hideSecondary />
                   </span>
                   <input
@@ -199,23 +246,24 @@ export const SignInPanel: React.FC<{ next?: string }> = ({ next: _next = '/' } =
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
                     placeholder={t('signIn.pinPlaceholder')}
-                    className="mt-1 w-full rounded-xl bg-slate-950/70 border border-slate-800 px-3 py-2 text-[13px] text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-amber-500/60"
+                    className="glass-input mt-2 w-full px-3 py-2 text-[13px] text-ink placeholder:text-mute"
                   />
                 </label>
               </div>
             )}
 
-            <div className="space-y-10">
+            <div className="max-h-[58vh] space-y-5 overflow-y-auto pr-1 lg:max-h-[calc(100vh-20rem)]">
               {LEVEL_ORDER.map((lv) => {
                 const groupUsers = levelBuckets[lv];
                 if (groupUsers.length === 0) return null;
+                const LevelIcon = LEVEL_GLYPH[lv];
                 return (
-                  <div key={lv} className="space-y-4">
-                    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono font-bold uppercase tracking-wider ${LEVEL_ACCENT[lv]}`}>
-                      <span>{LEVEL_GLYPH[lv]}</span>
+                  <div key={lv} className="space-y-2.5">
+                    <div className={`inline-flex items-center gap-2 rounded-lg border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.13em] ${LEVEL_ACCENT[lv]}`}>
+                      <LevelIcon size={12} aria-hidden />
                       <span><T id={`persona.level.${lv}`} hideSecondary /></span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {groupUsers.map((u) => {
                         const tone = ROLE_ACCENT[u.role_id] || ROLE_ACCENT.staff;
                         return (
@@ -224,24 +272,24 @@ export const SignInPanel: React.FC<{ next?: string }> = ({ next: _next = '/' } =
                             type="button"
                             disabled={busyId !== null}
                             onClick={() => signIn(u)}
-                            className={`group relative rounded-2xl border bg-gradient-to-br p-4 text-left transition-all hover:scale-[1.015] hover:shadow-lg hover:shadow-black/40 disabled:opacity-50 disabled:cursor-wait ${tone}`}
+                            className={`panel-interactive group relative min-w-0 rounded-xl border p-3 text-left disabled:cursor-wait disabled:opacity-50 ${tone}`}
                           >
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
-                                <div className="text-base font-black text-white truncate">{u.fullname}</div>
-                                <div className="text-xs font-mono text-slate-400 mt-0.5">
+                                <div className="text-base font-black text-ink truncate">{u.fullname}</div>
+                                <div className="text-xs font-mono text-ink-2 mt-0.5">
                                   {u.employee_code} · {u.dept_group_name ?? u.department ?? '—'}
                                 </div>
                               </div>
-                              <span className="text-xs font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-950/60 border border-slate-700 text-slate-200 shrink-0">
+                              <span className="text-xs font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-paper-2/60 border border-rule text-ink shrink-0">
                                 {ROLE_LABEL[u.role_id] || u.role_name}
                               </span>
                             </div>
                             <div className="mt-3 flex items-center justify-between">
-                              <span className="text-xs text-slate-500 font-mono">
+                              <span className="text-xs text-mute font-mono">
                                 {busyId === u.id ? <T id="signIn.signingIn" hideSecondary /> : <T id="signIn.clickToSignIn" hideSecondary />}
                               </span>
-                              <span className="text-slate-400 text-xs group-hover:text-white">→</span>
+                              {busyId === u.id ? <LoaderCircle size={14} className="animate-spin text-accent" aria-hidden /> : <ArrowRight size={14} className="text-mute transition-transform group-hover:translate-x-px group-hover:text-ink" aria-hidden />}
                             </div>
                           </button>
                         );
@@ -252,11 +300,13 @@ export const SignInPanel: React.FC<{ next?: string }> = ({ next: _next = '/' } =
               })}
             </div>
 
-            <div className="mt-8 text-xs font-mono text-slate-500 leading-relaxed">
-              <T id="signIn.productionNote" hideSecondary />
-            </div>
+            {LEVEL_ORDER.every((lv) => levelBuckets[lv].length === 0) && (
+              <div className="panel p-8 text-center text-sm text-mute">No personas match “{query}”.</div>
+            )}
           </>
         )}
+          </div>
+        </section>
       </main>
     </div>
   );

@@ -9,7 +9,8 @@ import {
   rejectLeaveWaybill,
 } from '@/hr/waybill';
 import { loadActor, type ActorWithScope } from '@/server/guard';
-import { matchPerm } from '@/perm';
+import { hasPermission } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 
 const ApproveForm = z.object({
   waybillId: z.string().regex(/^WB-\d{4}-\d{6}$/),
@@ -53,9 +54,9 @@ export async function rejectLeaveAction(formData: FormData): Promise<void> {
   const actor = await requireActor();
 
   if (
-    !matchPerm(actor.permissions, `stage:hr_review:act::allow`)
-    && !matchPerm(actor.permissions, `stage:hr_authorization:act::allow`)
-    && !matchPerm(actor.permissions, 'admin:system:bypass::allow')
+    !hasPermission(actor, `stage:hr_review:act::allow`)
+    && !hasPermission(actor, `stage:hr_authorization:act::allow`)
+    && !hasPermission(actor, PERM.admin.system.bypass)
   ) {
     throw new Error('forbidden');
   }

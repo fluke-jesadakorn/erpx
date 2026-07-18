@@ -5,7 +5,7 @@ import { askFinance, searchVendors } from '@/finance/rag';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  const guard = await apiGuard(req, { perm: 'tile:cockpit:view::allow' });
+  const guard = await apiGuard(req, { perm: 'finance:expense:view_own::allow' });
   if (guard.response) return guard.response;
 
   let body: any = {};

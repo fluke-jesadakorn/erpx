@@ -82,8 +82,8 @@ export function GroupHub({ actor, group, users, prs, tiles, accessByTile, greeti
         )}
 
         {actor && tiles.length === 0 && (
-          <div className="flex justify-center items-center py-10 glass-panel rounded-2xl border-slate-800">
-            <span className="text-sm text-slate-400 font-sans">
+          <div className="flex justify-center items-center py-10 bg-paper-2 border border-rule rounded-md border-rule">
+            <span className="text-sm text-ink-2 font-sans">
               No tiles in {GROUP_LABEL[group].label}.
             </span>
           </div>

@@ -9,16 +9,17 @@ import {
   type TileGroup,
   GROUP_LABEL,
   GROUP_ORDER,
+  groupIcon,
   targetLabel,
 } from './tile-config';
 import {
   evaluateTileOptimistic,
-  tileAccessFromBatchResult,
   type TileAccess,
 } from './tileAccess';
 import { applyOrder, clearGroupOrder, hasGroupOrder, loadOrder, type TileOrderMap } from '@/tileOrder';
 import { matchPerm } from '@/perm';
 import { T } from '@/components/i18n/T';
+import { LayoutGrid, LoaderCircle } from 'lucide-react';
 
 interface TileHubProps {
   currentUser: any;
@@ -37,7 +38,7 @@ export const TileHub: React.FC<TileHubProps> = ({
   onSelectTile,
   accessByTile,
 }) => {
-  const userPerms: string[] = currentUser?.permissions ?? [];
+  const userPerms = useMemo(() => currentUser?.permissions ?? [], [currentUser?.permissions]);
   const userId = currentUser?.id ?? -1;
 
   const [selfFetched, setSelfFetched] = useState<TileDef[] | null>(tilesProp ? null : null);
@@ -135,8 +136,8 @@ export const TileHub: React.FC<TileHubProps> = ({
 
   if (tiles === null || tiles === undefined) {
     return (
-      <div className="glass-panel rounded-2xl border border-slate-800 p-8 text-center text-slate-500 font-mono text-xs">
-        ⏳ <T id="chrome.loadingTiles" />
+      <div className="panel flex items-center justify-center gap-2 p-8 text-center text-xs text-mute">
+        <LoaderCircle size={15} className="animate-spin" aria-hidden /> <T id="chrome.loadingTiles" />
       </div>
     );
   }
@@ -145,9 +146,9 @@ export const TileHub: React.FC<TileHubProps> = ({
     <TileTooltipProvider>
       <div className="mb-8 animate-fade-in space-y-6">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-base">🗂</span>
-          <h3 className="text-sm font-black uppercase tracking-wider text-slate-100"><T id="hub.yourTiles" hideSecondary /></h3>
-          <span className="text-xs font-mono text-slate-500">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rule bg-paper-2/65 text-accent"><LayoutGrid size={15} aria-hidden /></span>
+          <h3 className="text-sm font-black uppercase tracking-wider text-ink"><T id="hub.yourTiles" hideSecondary /></h3>
+          <span className="text-xs font-mono text-mute">
             <T id="hub.tilesCount" hideSecondary values={{ open: openCount, locked: lockedCount }} />
           </span>
         </div>
@@ -182,24 +183,25 @@ const Section: React.FC<SectionProps> = ({
   actorId, currentUser, onOrderChange, onResetGroup,
 }) => {
   return (
-    <section className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-950/60 to-slate-950 p-4 space-y-4">
+    <section className="panel space-y-6 p-4 sm:p-5">
       {GROUP_ORDER.map((group) => {
         const items = byGroup[group] ?? [];
         if (items.length === 0) return null;
         const custom = hasGroupOrder(userOrder, group);
         const orderKey = (userOrder[group] ?? []).join('|') || '__default__';
+        const GroupIcon = groupIcon(group);
         return (
           <div key={group} className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <span aria-hidden className="text-sm">{GROUP_LABEL[group].icon}</span>
-              <span className="text-xs font-mono font-bold uppercase tracking-widest text-slate-500">
+              <GroupIcon size={14} aria-hidden className="text-mute" />
+              <span className="text-xs font-mono font-bold uppercase tracking-widest text-mute">
                 <T id={GROUP_LABEL[group].id} hideSecondary />
               </span>
               {custom ? (
                 <button
                   type="button"
                   onClick={() => onResetGroup(group)}
-                  className="ml-auto text-xs font-mono uppercase tracking-widest text-slate-500 hover:text-amber-400 px-2 py-0.5 rounded border border-transparent hover:border-slate-700 transition-colors"
+                  className="ml-auto text-xs font-mono uppercase tracking-widest text-mute hover:text-caution px-2 py-0.5 rounded border border-transparent hover:border-rule transition-colors"
                   title="Reset to default order (open tiles left, locked tiles right)"
                 >
                   <T id="hub.resetOrder" hideSecondary />

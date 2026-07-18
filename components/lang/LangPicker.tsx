@@ -8,6 +8,7 @@ import {
   LOCALE_META,
   type SecondaryLocale,
 } from '@/i18n/config';
+import { Check, ChevronDown } from 'lucide-react';
 
 export const LANG_STORAGE_KEY = STORAGE_KEY;
 export { LANG_EVENT };
@@ -63,7 +64,7 @@ function LangList({ current, onPick, className }: ListProps) {
   return (
     <div
       className={[
-        'glass-panel-heavy rounded-xl border border-glass-border-strong shadow-xl shadow-black/40 overflow-hidden',
+        'bg-paper-2 rounded-md border border-rule-strong shadow-xl shadow-black/40 overflow-hidden',
         className ?? '',
       ].join(' ')}
     >
@@ -83,7 +84,7 @@ function LangList({ current, onPick, className }: ListProps) {
                   'w-full flex items-center gap-2.5 px-3 py-2 text-left transition-colors',
                   selected
                     ? 'bg-accent/15 text-ink'
-                    : 'text-ink-2 hover:bg-surface-glass-strong hover:text-ink',
+                    : 'text-ink-2 hover:bg-paper-3 hover:text-ink',
                 ].join(' ')}
               >
                 <span
@@ -100,7 +101,7 @@ function LangList({ current, onPick, className }: ListProps) {
                   {meta.code}
                 </span>
                 {selected ? (
-                  <span aria-hidden className="text-accent text-xs">✓</span>
+                  <Check size={13} aria-hidden className="text-accent" />
                 ) : null}
               </button>
             </li>
@@ -189,7 +190,7 @@ export function LangPickerTrigger({ className }: TriggerProps) {
           'font-mono uppercase tracking-wider text-ink-2',
           open
             ? 'border-accent bg-accent/10 text-ink ring-2 ring-accent/25'
-            : 'border-glass-border bg-surface-glass-heavy hover:border-glass-border-strong hover:bg-surface-glass-strong hover:text-ink',
+            : 'border-rule bg-paper-2 hover:border-rule-strong hover:bg-paper-3 hover:text-ink',
           className ?? '',
         ].join(' ')}
       >
@@ -201,22 +202,11 @@ export function LangPickerTrigger({ className }: TriggerProps) {
           {meta.flag}
         </span>
         <span className="text-[11px] font-bold">{meta.code}</span>
-        <svg
-          aria-hidden
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          className={['h-3 w-3 transition-transform', open ? 'rotate-180' : ''].join(' ')}
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z"
-            clipRule="evenodd"
-          />
-        </svg>
+        <ChevronDown aria-hidden size={12} className={['transition-transform', open ? 'rotate-180' : ''].join(' ')} />
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-full mt-2 z-[400]">
+        <div className="absolute right-0 top-full mt-2 z-toast">
           <LangPicker
             open={open}
             onPick={setLang}

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/db';
 import { loadActor } from '@/server/guard';
-import { matchPerm } from '@/perm/server';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,11 +11,12 @@ const RATE_LIMIT_MS = 60 * 60 * 1000;
 
 export async function GET(req: NextRequest) {
   const actor = await loadActor();
-  if (!actor) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const session = await loadActivePermSession(req);
+  if (!actor || !session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') ?? undefined;
 
-  const canListAll = matchPerm(actor.permissions, 'access_request:request:list::allow');
+  const canListAll = hasPermission(session.session, PERM.access_request.request.list);
   let where = '';
   const params: any[] = [];
   if (canListAll) {

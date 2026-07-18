@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import path from "node:path";
 import createNextIntlPlugin from 'next-intl/plugin';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n.ts');
@@ -24,14 +23,8 @@ const nextConfig: NextConfig = {
     ];
   },
   serverExternalPackages: ["lib/native/vision-ocr"],
-  turbopack: {
-    resolveAlias: {
-      '@folio-lib': path.resolve(__dirname, "lib"),
-      '@/components': path.resolve(__dirname, "components"),
-      '@/app': path.resolve(__dirname, "app"),
-      '@/i18n': path.resolve(__dirname, "src/i18n"),
-      '@': path.resolve(__dirname, "lib"),
-    },
+  outputFileTracingExcludes: {
+    "*": ["./lib/native/vision-ocr/**", "./lib/slips/ocr_lib/**"],
   },
 };
 

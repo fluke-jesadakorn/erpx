@@ -17,10 +17,10 @@ export function ChatTrigger({
       onClick={onToggle}
       title={tooltipLabel}
       aria-label={tooltipLabel}
-      className={`fixed bottom-4 right-4 z-40 rounded-full border px-4 py-2 text-sm font-mono shadow-xl transition-colors ${
+      className={`fixed bottom-4 right-4 z-sticky rounded-full border px-4 py-2 text-sm font-mono shadow-xl transition-colors ${
         open
-          ? 'bg-indigo-600 border-indigo-400 text-white'
-          : 'bg-slate-900 border-indigo-500/40 text-indigo-200 hover:bg-slate-800'
+          ? 'bg-accent-strong border-accent text-ink'
+          : 'bg-paper border-accent text-accent-soft hover:bg-paper-2'
       }`}
     >
       {pillLabel}

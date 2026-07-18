@@ -50,6 +50,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const u = await query<{
     id: number; fullname: string; employee_code: string; department: string | null;
+    dept_perm: string | null; role_id: string | null;
   }>(
     `SELECT u.id, u.fullname, u.employee_code,
        (SELECT up.permission_id FROM perm.user_permissions up

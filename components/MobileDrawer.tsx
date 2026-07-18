@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, type ReactNode } from 'react';
-import { Icon } from '@/components/icons';
+import { Menu, Search } from 'lucide-react';
 
 interface MobileDrawerProps {
   open: boolean;
@@ -24,6 +24,8 @@ export function MobileDrawer({ open, onClose, children }: MobileDrawerProps) {
 
   useEffect(() => {
     if (!open) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     previous.current = document.activeElement as HTMLElement | null;
     const frame = window.requestAnimationFrame(() => {
       const first = ref.current?.querySelector<HTMLElement>(FOCUSABLE);
@@ -59,6 +61,7 @@ export function MobileDrawer({ open, onClose, children }: MobileDrawerProps) {
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = overflow;
       previous.current?.focus();
     };
   }, [open, onClose]);
@@ -66,8 +69,8 @@ export function MobileDrawer({ open, onClose, children }: MobileDrawerProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} aria-hidden />
+    <div className="fixed inset-0 z-modal">
+      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onClose} aria-hidden />
       <div
         ref={ref}
         role="dialog"
@@ -75,7 +78,7 @@ export function MobileDrawer({ open, onClose, children }: MobileDrawerProps) {
         aria-label="Navigation"
         tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
-        className="absolute inset-y-0 left-0 z-50 flex w-72 max-w-[80vw] flex-col border-r border-rule bg-paper-2 shadow-modal animate-slide-in-left"
+        className="panel-floating absolute inset-y-3 left-3 z-modal flex w-72 max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-2xl animate-slide-in-left"
       >
         {children}
       </div>
@@ -90,11 +93,11 @@ export function MobileMenuButton({ className = '' }: { className?: string }) {
       aria-label="Open navigation"
       onClick={() => window.dispatchEvent(new Event('folio:open-sidebar'))}
       className={[
-        'inline-flex h-9 w-9 items-center justify-center rounded-md text-ink-2 hover:bg-paper-3 hover:text-ink',
+        'inline-flex h-9 w-9 items-center justify-center rounded-lg text-ink-2 transition-colors hover:bg-paper-3/55 hover:text-ink',
         className,
       ].join(' ')}
     >
-      <Icon name="menu" size={20} />
+      <Menu size={20} />
     </button>
   );
 }
@@ -106,11 +109,11 @@ export function SearchButton({ className = '' }: { className?: string }) {
       aria-label="Search"
       onClick={() => window.dispatchEvent(new Event('folio:open-command'))}
       className={[
-        'inline-flex h-9 w-9 items-center justify-center rounded-md border border-rule bg-paper-2 text-ink-2 hover:border-rule-strong hover:bg-paper-3 hover:text-ink',
+        'glass-input inline-flex h-9 w-9 items-center justify-center text-ink-2 hover:border-rule-strong hover:text-ink',
         className,
       ].join(' ')}
     >
-      <Icon name="search" size={16} />
+      <Search size={16} />
     </button>
   );
 }

@@ -1,8 +1,10 @@
 import 'server-only';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import { Briefcase, Calendar, CircleAlert, type LucideIcon } from 'lucide-react';
 import { loadActor } from '@/server/guard';
-import { matchPerm } from '@/perm/server';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
 import { getEmployeeQuota, listLeave, type LeaveType } from '@/hr/server';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
@@ -11,15 +13,14 @@ import { NoPermissionView } from '@/components/NoPermissionView';
 import { T } from '@/components/i18n/TServer';
 import { getSecondaryLocale } from '@/server/locale';
 import { LeaveRequestForm } from './LeaveRequestForm';
-import { Panel, Badge, Icon } from '@/components/ui';
-import type { IconName } from '@/components/icons';
+import { Panel, Badge, ListRow, Empty } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
-const LEAVE_META: Record<LeaveType, { icon: IconName; labelId: string; tone: 'positive' | 'info' | 'caution' }> = {
-  sick:     { icon: 'alert-circle', labelId: 'me.leave.typeSick',     tone: 'positive' },
-  annual:   { icon: 'calendar',     labelId: 'me.leave.typeAnnual',   tone: 'info' },
-  personal: { icon: 'briefcase',    labelId: 'me.leave.typePersonal', tone: 'caution' },
+const LEAVE_META: Record<LeaveType, { icon: LucideIcon; labelId: string; tone: 'positive' | 'info' | 'caution' }> = {
+  sick:     { icon: CircleAlert, labelId: 'me.leave.typeSick',     tone: 'positive' },
+  annual:   { icon: Calendar,    labelId: 'me.leave.typeAnnual',   tone: 'info' },
+  personal: { icon: Briefcase,   labelId: 'me.leave.typePersonal', tone: 'caution' },
 };
 
 interface StatusView {
@@ -38,11 +39,15 @@ function statusView(status: string): StatusView {
 }
 
 export default async function MyLeavePage() {
+  const h = await headers();
+  const session = await loadActivePermSession(
+    new Request('http://internal/me/leave', { headers: h as unknown as HeadersInit }),
+  );
   const actor = await loadActor();
-  if (!actor) redirect('/login');
+  if (!session || !actor) redirect('/login');
 
   const locale = await getSecondaryLocale();
-  const allowed = matchPerm(actor.permissions, 'tile:me_leave:view::allow');
+  const allowed = hasPermission(session.session, 'tile:me_leave:view::allow');
 
   if (!allowed) {
     return (
@@ -132,18 +137,19 @@ export default async function MyLeavePage() {
               <T id="me.leave.historyTitle" locale={locale} />
             </h2>
             {history.length === 0 ? (
-              <p className="text-sm italic text-mute">
-                <T id="me.leave.historyEmpty" locale={locale} />
-              </p>
+              <Empty
+                title={<T id="me.leave.historyEmpty" locale={locale} />}
+                body="Submitted leave requests will appear here."
+              />
             ) : (
-              <ul className="divide-y divide-rule">
-                {history.map((row) => {
-                  const meta = LEAVE_META[row.leave_type] ?? LEAVE_META.annual;
+              <ul>
+                {history.map((row: any) => {
+                  const meta: { icon: LucideIcon; labelId: string; tone: 'positive' | 'info' | 'caution' } = LEAVE_META[row.leave_type as LeaveType] ?? LEAVE_META.annual;
                   const sv = statusView(row.status);
                   const d = typeof row.days === 'string' ? parseFloat(row.days) : row.days;
                   return (
-                    <li key={row.waybill_id} className="flex items-center gap-3 py-3">
-                      <Icon name={meta.icon} size={20} className="shrink-0 text-mute" />
+                    <ListRow key={row.waybill_id}>
+                      <meta.icon size={20} className="shrink-0 text-mute" />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-baseline gap-2">
                           <T id={meta.labelId} locale={locale} />
@@ -165,7 +171,7 @@ export default async function MyLeavePage() {
                       >
                         <T id="me.leave.viewDetail" locale={locale} />
                       </Link>
-                    </li>
+                    </ListRow>
                   );
                 })}
               </ul>
@@ -180,7 +186,7 @@ export default async function MyLeavePage() {
 function QuotaCard({
   locale,
   labelId,
-  icon,
+  icon: IconCmp,
   tone,
   total,
   used,
@@ -188,7 +194,7 @@ function QuotaCard({
 }: {
   locale: 'th' | 'de';
   labelId: string;
-  icon: IconName;
+  icon: LucideIcon;
   tone: 'positive' | 'info' | 'caution';
   total: number;
   used: number;
@@ -200,7 +206,7 @@ function QuotaCard({
     <div className="space-y-2 rounded-md border border-rule bg-paper-2 p-3.5">
       <div className="flex items-center justify-between gap-2 text-sm">
         <span className="flex items-center gap-1.5 font-semibold text-ink-2">
-          <Icon name={icon} size={15} className="text-mute" />
+          <IconCmp size={15} className="text-mute" />
           <T id={labelId} locale={locale} />
         </span>
         <span className="font-mono text-ink-2">

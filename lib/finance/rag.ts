@@ -93,7 +93,9 @@ export async function searchVendors(args: {
   const filters: string[] = ['ve.embedding IS NOT NULL'];
   const params: unknown[] = [vec];
   if (ctx.whereSql) {
-    filters.push(ctx.whereSql.replace(/^AND\s+/i, ''));
+    const base = ctx.whereSql.replace(/^AND\s+/i, '');
+    const renumbered = base.replace(/\$(\d+)/g, (_, n) => `$${parseInt(n, 10) + params.length}`);
+    filters.push(renumbered);
     params.push(...ctx.params);
   }
   if (args.dateFrom) { params.push(args.dateFrom); filters.push(`ve.transaction_date >= $${params.length}`); }

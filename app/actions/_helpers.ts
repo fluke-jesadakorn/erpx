@@ -1,6 +1,6 @@
 import { loadActor, type ActorWithScope } from '@/server/guard';
-import { matchPerm } from '@/perm';
-import type { StageName, ActorCtx, ResolverCtx } from '@/perm/server';
+import { hasPermission, type StageName, type ActorCtx, type ResolverCtx } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import { query } from '@/db';
 
 export interface WbForCheck {
@@ -19,12 +19,12 @@ export async function actorForWaybill(): Promise<ActorWithScope> {
 
 export function canConfirmGl(actor: ActorWithScope, wb: WbForCheck): boolean {
   return wb.current_stage === 'disbursed'
-    && matchPerm(actor.permissions, 'finance:gl:confirm::allow');
+    && hasPermission(actor, 'finance:gl:confirm::allow');
 }
 
 export function canSaveProcurementAccrual(actor: ActorWithScope): boolean {
-  if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return true;
-  if (matchPerm(actor.permissions, 'finance:pr:edit::allow')) return true;
+  if (hasPermission(actor, PERM.admin.system.bypass)) return true;
+  if (hasPermission(actor, 'finance:pr:edit::allow')) return true;
   return ['finance', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
 }
 export async function fetchActorCtx(userId: number): Promise<ActorCtx> {

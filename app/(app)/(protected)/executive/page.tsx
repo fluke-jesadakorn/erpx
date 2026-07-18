@@ -1,6 +1,9 @@
 import 'server-only';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { loadActor } from '@/server/guard';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { NoPermissionView } from '@/components/NoPermissionView';
@@ -11,29 +14,31 @@ import { getSecondaryLocale } from '@/server/locale';
 export const dynamic = 'force-dynamic';
 
 export default async function ExecutivePage() {
+  const h = await headers();
+  const session = await loadActivePermSession(
+    new Request('http://internal/executive', { headers: h as unknown as HeadersInit }),
+  );
   const actor = await loadActor();
-  if (!actor) redirect('/login');
+  if (!session || !actor) redirect('/login');
   const locale = await getSecondaryLocale();
 
-  const perms = actor.permissions ?? [];
-  const canView =
-    perms.includes('tile:executive:view::allow') ||
-    perms.includes('finance:report:executive::allow') ||
-    perms.includes('admin:system:bypass::allow');
+  const canView = hasPermission(session.session, 'tile:executive:view::allow')
+    || hasPermission(session.session, PERM.finance.report.executive);
 
   if (!canView) {
     return (
       <>
         <BreadcrumbSetter
           crumbs={[
-            { label: 'Folio', href: '/', icon: 'home' },
+            { label: 'Folio', href: '/', icon: 'Home' },
             { label: <T id="executive.title" locale={locale} /> },
           ]}
         />
         <PageLayout
           title={<T id="executive.title" locale={locale} />}
           subtitle={<T id="executive.subtitle" locale={locale} />}
-          category={{ label: <T id="executive.title" locale={locale} />, icon: 'star', href: '/executive' }}
+          category={{ label: <T id="executive.title" locale={locale} />, icon: 'Star', href: '/executive' }}
+          width="wide"
         >
           <NoPermissionView
             kind="locked"
@@ -50,14 +55,15 @@ export default async function ExecutivePage() {
     <>
       <BreadcrumbSetter
         crumbs={[
-          { label: 'Folio', href: '/', icon: 'home' },
+          { label: 'Folio', href: '/', icon: 'Home' },
           { label: <T id="executive.title" locale={locale} /> },
         ]}
       />
       <PageLayout
         title={<T id="executive.title" locale={locale} />}
         subtitle={`${actor.fullname} · ${actor.role_name}`}
-        category={{ label: <T id="executive.title" locale={locale} />, icon: 'star', href: '/executive' }}
+        category={{ label: <T id="executive.title" locale={locale} />, icon: 'Star', href: '/executive' }}
+        width="wide"
       >
         <TodaysBrief actor={actor as any} />
       </PageLayout>

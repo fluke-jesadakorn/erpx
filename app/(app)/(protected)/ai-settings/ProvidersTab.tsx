@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Server } from 'lucide-react';
 import { T } from '@/components/i18n/T';
-import { Alert, Badge, Empty, Panel, Status, type BadgeTone } from '@/components/ui';
+import { Alert, Badge, Empty, Modal, Panel, Status, useToast, type BadgeTone } from '@/components/ui';
 
 interface ProviderRow {
   id: number;
@@ -71,10 +72,12 @@ function healthMeta(health?: ProviderHealth): { label: string; tone: BadgeTone }
 
 export function ProvidersTab({ initialProviders, health, canEdit, canCreate, canDelete, canTest }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const healthById = new Map(health.map((item) => [item.provider_id, item]));
   const [edits, setEdits] = useState<Record<number, EditState>>(() => Object.fromEntries(initialProviders.map((provider) => [provider.id, editState(provider)])));
   const [saving, setSaving] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [testing, setTesting] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -109,30 +112,39 @@ export function ProvidersTab({ initialProviders, health, canEdit, canCreate, can
       if (edit.api_key.trim()) body.api_key = edit.api_key.trim();
       const { updateProvider } = await import('@/app/actions/ai');
       await updateProvider(id, body);
-      setInfo(`Provider #${id} saved.`);
+      const msg = `Provider #${id} saved.`;
+      setInfo(msg);
+      toast.success(msg);
       setEdits((current) => ({ ...current, [id]: { ...current[id], api_key: '' } }));
       startTransition(() => router.refresh());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Save failed');
+      const msg = cause instanceof Error ? cause.message : 'Save failed';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(null);
     }
   };
 
   const remove = async (id: number) => {
-    if (!canDelete || !window.confirm(`Delete provider #${id}?`)) return;
     setDeleting(id);
+    setDeletingId(id);
     setError(null);
     setInfo(null);
     try {
       const { deleteProvider } = await import('@/app/actions/ai');
       await deleteProvider(id);
-      setInfo(`Provider #${id} deleted.`);
+      const msg = `Provider #${id} deleted.`;
+      setInfo(msg);
+      toast.success(msg);
       startTransition(() => router.refresh());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Delete failed');
+      const msg = cause instanceof Error ? cause.message : 'Delete failed';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setDeleting(null);
+      setDeletingId(null);
     }
   };
 
@@ -144,9 +156,13 @@ export function ProvidersTab({ initialProviders, health, canEdit, canCreate, can
     try {
       const { testProvider } = await import('@/app/actions/ai');
       const result = await testProvider(id);
-      setInfo(`#${id}: ${result.modelCount} model(s) visible at ${result.baseUrl} (${result.latencyMs}ms)`);
+      const msg = `#${id}: ${result.modelCount} model(s) visible at ${result.baseUrl} (${result.latencyMs}ms)`;
+      setInfo(msg);
+      toast.info(msg);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Test failed');
+      const msg = cause instanceof Error ? cause.message : 'Test failed';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setTesting(null);
     }
@@ -163,12 +179,16 @@ export function ProvidersTab({ initialProviders, health, canEdit, canCreate, can
     try {
       const { createProvider } = await import('@/app/actions/ai');
       await createProvider(draft);
-      setInfo(`Provider '${draft.name}' created.`);
+      const msg = `Provider '${draft.name}' created.`;
+      setInfo(msg);
+      toast.success(msg);
       setDraft(EMPTY);
       setShowCreate(false);
       startTransition(() => router.refresh());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Create failed');
+      const msg = cause instanceof Error ? cause.message : 'Create failed';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setCreating(false);
     }
@@ -196,7 +216,7 @@ export function ProvidersTab({ initialProviders, health, canEdit, canCreate, can
       </div>
 
       {initialProviders.length === 0 ? (
-        <Empty icon="server" title={<T id="aiSettings.empty" />} />
+        <Empty icon={Server} title={<T id="aiSettings.empty" />} />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -215,7 +235,7 @@ export function ProvidersTab({ initialProviders, health, canEdit, canCreate, can
                     <td className="min-w-56 px-3 py-3"><input className={[INPUT, 'font-mono'].join(' ')} value={edit.base_url} onChange={(event) => update(provider.id, { base_url: event.target.value })} disabled={!canEdit || busy} /><label className="mt-2 inline-flex items-center gap-2 text-xs text-mute"><input type="checkbox" checked={edit.enabled} onChange={(event) => update(provider.id, { enabled: event.target.checked })} disabled={!canEdit || busy} /><T id="aiSettings.fieldEnabled" /></label></td>
                     <td className="min-w-40 px-3 py-3"><Status tone={edit.api_key ? 'caution' : provider.has_api_key ? 'positive' : 'neutral'} size="sm">{edit.api_key ? <T id="aiSettings.keyPending" /> : provider.has_api_key ? <T id="aiSettings.keyEncrypted" /> : <T id="aiSettings.keyNone" />}</Status><input type="password" className={[INPUT, 'mt-2 font-mono'].join(' ')} value={edit.api_key} placeholder={provider.has_api_key ? 'leave blank to keep' : 'enter key'} onChange={(event) => update(provider.id, { api_key: event.target.value })} disabled={!canEdit || busy} /></td>
                     <td className="min-w-40 px-3 py-3"><input className={INPUT} value={edit.notes} onChange={(event) => update(provider.id, { notes: event.target.value })} disabled={!canEdit || busy} /></td>
-                    <td className="px-3 py-3 text-right"><div className="inline-flex flex-col items-end gap-1">{canTest && <button type="button" className="h-8 rounded-md border border-rule bg-paper px-2 text-xs text-ink-2 hover:bg-paper-3 disabled:opacity-40" onClick={() => test(provider.id)} disabled={testing === provider.id || busy}>{testing === provider.id ? <T id="aiSettings.testing" /> : <T id="aiSettings.test" />}</button>}{canEdit && <div className="inline-flex gap-1"><button type="button" className="h-8 rounded-md border border-rule bg-paper px-2 text-xs text-ink-2 hover:bg-paper-3 disabled:opacity-40" onClick={() => reset(provider.id)} disabled={!changed || busy}><T id="common.cancel" /></button><button type="button" className="h-8 rounded-md bg-accent px-2 text-xs text-accent-ink hover:bg-accent-strong disabled:opacity-40" onClick={() => save(provider.id)} disabled={!changed || busy}>{saving === provider.id ? <T id="common.saving" /> : <T id="common.save" />}</button></div>}{canDelete && !provider.preset && <button type="button" className="h-8 rounded-md bg-critical px-2 text-xs text-paper hover:bg-critical-strong disabled:opacity-40" onClick={() => remove(provider.id)} disabled={busy}>{deleting === provider.id ? <T id="aiSettings.deleting" /> : <T id="common.delete" />}</button>}</div></td>
+                    <td className="px-3 py-3 text-right"><div className="inline-flex flex-col items-end gap-1">{canTest && <button type="button" className="h-8 rounded-md border border-rule bg-paper px-2 text-xs text-ink-2 hover:bg-paper-3 disabled:opacity-40" onClick={() => test(provider.id)} disabled={testing === provider.id || busy}>{testing === provider.id ? <T id="aiSettings.testing" /> : <T id="aiSettings.test" />}</button>}{canEdit && <div className="inline-flex gap-1"><button type="button" className="h-8 rounded-md border border-rule bg-paper px-2 text-xs text-ink-2 hover:bg-paper-3 disabled:opacity-40" onClick={() => reset(provider.id)} disabled={!changed || busy}><T id="common.cancel" /></button><button type="button" className="h-8 rounded-md bg-accent px-2 text-xs text-accent-ink hover:bg-accent-strong disabled:opacity-40" onClick={() => save(provider.id)} disabled={!changed || busy}>{saving === provider.id ? <T id="common.saving" /> : <T id="common.save" />}</button></div>}{canDelete && !provider.preset && <button type="button" className="h-8 rounded-md bg-critical px-2 text-xs text-paper hover:bg-critical-strong disabled:opacity-40" onClick={() => setDeletingId(provider.id)} disabled={busy}>{deleting === provider.id ? <T id="aiSettings.deleting" /> : <T id="common.delete" />}</button>}</div></td>
                   </tr>
                 );
               })}
@@ -223,6 +243,39 @@ export function ProvidersTab({ initialProviders, health, canEdit, canCreate, can
           </table>
         </div>
       )}
+
+      <Modal
+        open={deletingId !== null && !initialProviders.find((p) => p.id === deletingId)?.preset}
+        onClose={() => (deleting !== null ? null : setDeletingId(null))}
+        title="Delete provider"
+        subtitle={`Delete provider #${deletingId}?`}
+        tone="rose"
+        width="md"
+        footer={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setDeletingId(null)}
+              disabled={deleting !== null}
+              className="rounded-lg border border-rule px-3 py-1.5 text-xs text-ink-2 hover:bg-paper-2 disabled:opacity-50"
+            >
+              <T id="common.cancel" />
+            </button>
+            <button
+              type="button"
+              onClick={() => deletingId !== null && remove(deletingId)}
+              disabled={deleting !== null}
+              className="rounded-lg bg-critical px-3 py-1.5 text-xs text-paper hover:bg-critical-strong disabled:opacity-50"
+            >
+              {deleting !== null ? <T id="aiSettings.deleting" /> : <T id="common.delete" />}
+            </button>
+          </div>
+        }
+      >
+        <p className="text-sm text-ink-2">
+          This will remove the provider, its models and its assignments.
+        </p>
+      </Modal>
     </Panel>
   );
 }

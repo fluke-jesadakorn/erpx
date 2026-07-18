@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/db';
 import { loadActor } from '@/server/guard';
-import { matchPerm, parseDeptFromPerms } from '@/perm/server';
+import { hasPermission, loadActivePermSession, parseDeptFromPerms } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
   const actor = await loadActor();
-  if (!actor) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  if (!matchPerm(actor.permissions, 'tile:departments:view::allow')) {
+  const session = await loadActivePermSession(req);
+  if (!actor || !session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!hasPermission(session.session, PERM.tile.departments.view)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
@@ -33,12 +35,13 @@ export async function GET(_req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const actor = await loadActor();
-  if (!actor) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const session = await loadActivePermSession(req);
+  if (!actor || !session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const body = await req.json();
   if (!body.dept_group_id) {
     return NextResponse.json({ error: 'dept_group_id is required' }, { status: 400 });
   }
-  if (!matchPerm(actor.permissions, 'org:dept:assign_head::allow')) {
+  if (!hasPermission(session.session, PERM.org.dept.assign_head)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
   await query(

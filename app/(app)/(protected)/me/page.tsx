@@ -1,5 +1,5 @@
 import { loadActor } from '@/server/guard';
-import { matchPerm, hasPermission, loadActivePermSession } from '@/perm/server';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
 import { headers } from 'next/headers';
 import Link from 'next/link';
 import { PageLayout } from '@/components/PageLayout';
@@ -8,6 +8,7 @@ import { crumbsForPath } from '@/components/breadcrumbs/routes';
 import { NoPermissionView } from '@/components/NoPermissionView';
 import { query } from '@/db';
 import { Panel, Badge, Avatar, Empty } from '@/components/ui';
+import { ListRow } from '@/components/ui/ListRow';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,7 +47,7 @@ export default async function MePage() {
     );
   }
 
-  const allowed = matchPerm(out.session.permissions, 'profile:self:read::allow');
+  const allowed = hasPermission(out.session, 'tile:me_leave:view::allow');
   if (!allowed) {
     return (
       <>
@@ -56,7 +57,7 @@ export default async function MePage() {
             kind="locked"
             actor={out.session.user as never}
             attemptedPath="/me"
-            reason="profile:self:read required."
+            reason="tile:me_leave:view required."
           />
         </PageLayout>
       </>
@@ -124,14 +125,14 @@ export default async function MePage() {
           <Panel>
             <h2 className="text-sm font-semibold text-ink">Permissions</h2>
             <p className="mt-1 text-sm text-ink-2">Self-service capabilities currently active for your account.</p>
-            <ul className="mt-4 space-y-4">
+            <ul className="mt-4">
               {PERMS.map((p) => {
-                const has = matchPerm(out.session.permissions, `${p.id}::allow`);
+                const has = hasPermission(out.session, `${p.id}::allow`);
                 return (
-                  <li key={p.id} className="flex items-center justify-between rounded-md border border-rule bg-paper-2 px-3 py-2 text-sm">
+                  <ListRow key={p.id} className="justify-between text-sm">
                     <span className="font-mono text-xs text-ink-2">{p.id}</span>
                     <Badge tone={has ? p.tone : 'neutral'}>{has ? 'allowed' : 'denied'}</Badge>
-                  </li>
+                  </ListRow>
                 );
               })}
             </ul>

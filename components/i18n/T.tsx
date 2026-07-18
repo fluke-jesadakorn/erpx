@@ -24,9 +24,9 @@ interface BaseProps {
 }
 
 const VARIANT_SECONDARY: Record<Variant, string> = {
-  inline:  'ml-1.5 text-sm font-normal text-slate-400',
-  compact: 'ml-1.5 text-xs font-normal text-slate-400',
-  stacked: 'block mt-0.5 text-sm font-normal text-slate-400 leading-snug',
+  inline:  'ml-1.5 text-sm font-normal text-ink-2',
+  compact: 'ml-1.5 text-xs font-normal text-ink-2',
+  stacked: 'block mt-0.5 text-sm font-normal text-ink-2 leading-snug',
 };
 
 const INLINE_SEP = ' · ';

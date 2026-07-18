@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Icon, type IconName } from '@/components/icons';
+import { Monitor, Moon, Sun, type LucideIcon } from 'lucide-react';
 import { T } from '@/components/i18n/T';
 import { getStoredTheme, resolveTheme, setStoredTheme, type ThemeMode } from '@/theme';
 
-const OPTIONS: Array<{ mode: ThemeMode; icon: IconName; labelId: string; ariaLabelId: string }> = [
-  { mode: 'light',  icon: 'sun',     labelId: 'theme.option.light',  ariaLabelId: 'theme.option.lightAria' },
-  { mode: 'dark',   icon: 'moon',    labelId: 'theme.option.dark',   ariaLabelId: 'theme.option.darkAria' },
-  { mode: 'system', icon: 'monitor', labelId: 'theme.option.system', ariaLabelId: 'theme.option.systemAria' },
+const OPTIONS: Array<{ mode: ThemeMode; icon: LucideIcon; labelId: string; ariaLabelId: string }> = [
+  { mode: 'light',  icon: Sun,     labelId: 'theme.option.light',  ariaLabelId: 'theme.option.lightAria' },
+  { mode: 'dark',   icon: Moon,    labelId: 'theme.option.dark',   ariaLabelId: 'theme.option.darkAria' },
+  { mode: 'system', icon: Monitor, labelId: 'theme.option.system', ariaLabelId: 'theme.option.systemAria' },
 ];
 
 export const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => {
@@ -38,23 +38,27 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => 
     return (
       <div
         role="radiogroup" aria-label="Color theme"
-        className={['flex items-center gap-0.5 rounded-lg border h-9 p-0.5 border-glass-border bg-surface-glass-heavy', className || ''].join(' ')}
+        className={['flex items-center gap-0.5 rounded-lg border h-9 p-0.5 border-rule bg-paper-2', className || ''].join(' ')}
       >
 
-        {OPTIONS.map((o) => (
-          <span key={o.mode} className="inline-flex items-center justify-center w-6 h-6 rounded-sm" aria-hidden>
-            <Icon name={o.icon} size={14} />
-          </span>
-        ))}
+        {OPTIONS.map((o) => {
+          const IconCmp = o.icon;
+          return (
+            <span key={o.mode} className="inline-flex items-center justify-center w-6 h-6 rounded-sm" aria-hidden>
+              <IconCmp size={14} />
+            </span>
+          );
+        })}
       </div>
     );
   }
 
   return (
     <div role="radiogroup" aria-label="Color theme"
-      className={['border border-glass-border bg-surface-glass-heavy flex items-center gap-0.5 rounded-lg h-9 p-0.5', className || ''].join(' ')}>
+      className={['border border-rule bg-paper-2 flex items-center gap-0.5 rounded-lg h-9 p-0.5', className || ''].join(' ')}>
       {OPTIONS.map((o) => {
         const active = o.mode === mode;
+        const IconCmp = o.icon;
         return (
           <button
             key={o.mode}
@@ -68,10 +72,10 @@ export const ThemeToggle: React.FC<{ className?: string }> = ({ className }) => 
               'inline-flex items-center justify-center w-6 h-6 rounded-md border-0 transition-all',
               active
                 ? 'bg-accent/25 text-accent shadow-[inset_0_0_0_1px_rgba(132,179,147,0.45)]'
-                : 'text-mute hover:text-ink-2 hover:bg-surface-glass-strong',
+                : 'text-mute hover:text-ink-2 hover:bg-paper-3',
             ].join(' ')}
           >
-            <Icon name={o.icon} size={14} />
+            <IconCmp size={14} />
           </button>
         );
       })}
@@ -109,17 +113,20 @@ export const ThemeGate: React.FC = () => {
   if (!visible) return null;
   return (
     <div role="dialog" aria-label="Choose a color theme"
-      className="glass-panel fixed bottom-4 right-4 z-[300] max-w-xs w-[calc(100vw-2rem)] rounded-sm p-4 animate-fade-in">
+      className="bg-paper-2 border border-rule fixed bottom-4 right-4 z-toast max-w-xs w-[calc(100vw-2rem)] rounded-sm p-4 animate-fade-in">
       <div className="font-display text-base text-ink mb-1"><T id="theme.gateTitle" hideSecondary /></div>
       <p className="text-xs text-mute mb-3 leading-relaxed font-sans"><T id="theme.gateSubtitle" hideSecondary /></p>
       <div className="grid grid-cols-3 gap-1.5">
-        {OPTIONS.map((o) => (
-          <button key={o.mode} type="button" onClick={() => choose(o.mode)}
-            className="flex flex-col items-center gap-1 py-2 rounded-sm border border-rule text-mute hover:text-ink-2 hover:border-accent transition-colors">
-            <Icon name={o.icon} size={18} />
-            <span className="text-sm font-mono uppercase tracking-wider"><T id={o.labelId} hideSecondary /></span>
-          </button>
-        ))}
+        {OPTIONS.map((o) => {
+          const IconCmp = o.icon;
+          return (
+            <button key={o.mode} type="button" onClick={() => choose(o.mode)}
+              className="flex flex-col items-center gap-1 py-2 rounded-sm border border-rule text-mute hover:text-ink-2 hover:border-accent transition-colors">
+              <IconCmp size={18} />
+              <span className="text-sm font-mono uppercase tracking-wider"><T id={o.labelId} hideSecondary /></span>
+            </button>
+          );
+        })}
       </div>
       <button type="button" onClick={() => { markThemeGateShown(); setVisible(false); }}
         className="mt-3 text-sm font-mono uppercase tracking-wider text-mute hover:text-ink-2">

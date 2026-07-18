@@ -6,21 +6,21 @@ import { z } from 'zod';
 import { query as _query } from '@/db';
 import { recordEvent } from '@/waybill/events';
 import { loadWaybill } from '@/waybill/queries';
-import { matchPerm } from '@/perm';
+import { hasPermission } from '@folio-lib/perm/server';
 import type { ActorWithScope } from '@/server/guard';
 import { upsertProcurementDraftAccrual, finalizeProcurementDraft } from '@/finance/postProcurementToGL';
 import { actorForWaybill, canConfirmGl, canSaveProcurementAccrual, type WbForCheck } from './_helpers';
 
 function canPostGlAccrual(actor: ActorWithScope, wb: WbForCheck): boolean {
   return wb.current_stage === 'accounting_authorization'
-    && (matchPerm(actor.permissions, 'finance:gl:post::allow')
+    && (hasPermission(actor, 'finance:gl:post::allow')
       || (actor.role_name === 'accounting_manager'
-        && matchPerm(actor.permissions, 'finance:gl:post::allow')));
+        && hasPermission(actor, 'finance:gl:post::allow')));
 }
 
 function canPostGlSettlement(actor: ActorWithScope, wb: WbForCheck): boolean {
   return wb.current_stage === 'disbursed'
-    && matchPerm(actor.permissions, 'finance:gl:post::allow')
+    && hasPermission(actor, 'finance:gl:post::allow')
     && ['finance', 'account_officer', 'account_supervisor', 'accounting_manager'].includes(actor.role_name);
 }
 

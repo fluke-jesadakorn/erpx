@@ -31,14 +31,14 @@ type State =
 
 function decisionTone(d: 'approve' | 'reject'): string {
   return d === 'approve'
-    ? 'border-emerald-500/40 bg-emerald-950/30 text-emerald-100'
-    : 'border-rose-500/40 bg-rose-950/30 text-rose-100';
+    ? 'border-positive bg-positive-strong text-positive-soft'
+    : 'border-critical bg-critical-strong text-critical-soft';
 }
 
 function confidenceBarTone(c: number): string {
-  if (c >= 0.7) return 'bg-emerald-400';
-  if (c >= 0.4) return 'bg-amber-400';
-  return 'bg-rose-400';
+  if (c >= 0.7) return 'bg-positive';
+  if (c >= 0.4) return 'bg-caution';
+  return 'bg-critical';
 }
 
 function clamp01(n: number): number {
@@ -102,7 +102,7 @@ export function AiRecommendChip({
 
   if (state.kind === 'loading') {
     return (
-      <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/60 bg-slate-900/40 px-2.5 py-1 font-mono text-xs text-slate-400">
+      <div className="inline-flex items-center gap-1.5 rounded-lg border border-rule/60 bg-paper-2/40 px-2.5 py-1 font-mono text-xs text-ink-2">
         <span aria-hidden>🤖</span>
         <T id="waybill.ai.thinkingLoading" />
       </div>
@@ -111,7 +111,7 @@ export function AiRecommendChip({
 
   if (state.kind === 'error') {
     return (
-      <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/60 bg-slate-900/40 px-2.5 py-1 font-mono text-xs text-slate-400">
+      <div className="inline-flex items-center gap-1.5 rounded-lg border border-rule/60 bg-paper-2/40 px-2.5 py-1 font-mono text-xs text-ink-2">
         <span aria-hidden>🤖</span>
         <T id="waybill.ai.unavailable" />
       </div>
@@ -141,7 +141,7 @@ export function AiRecommendChip({
       </div>
 
       <div className="flex items-center gap-1.5">
-        <div className="h-1 w-24 overflow-hidden rounded-full bg-black/40">
+        <div className="h-1 w-24 overflow-hidden rounded-full bg-paper-3/40">
           <div
             className={`h-full ${barTone}`}
             style={{ width: `${pct}%` }}

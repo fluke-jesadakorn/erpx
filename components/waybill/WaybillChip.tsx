@@ -12,11 +12,11 @@ interface Props {
 }
 
 const STATE_STYLES = {
-  passed:  'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
-  active:  'border-cyan-500 bg-cyan-500/15 text-cyan-200',
-  pending: 'border-slate-700 bg-slate-800/50 text-slate-400',
-  rejected:'border-rose-500/40 bg-rose-500/10 text-rose-300',
-  skipped: 'border-slate-800 bg-slate-900/40 text-slate-600',
+  passed:  'border-positive bg-positive text-positive',
+  active:  'border-info bg-info text-paper',
+  pending: 'border-rule bg-paper-2/50 text-ink-2',
+  rejected:'border-critical bg-critical text-critical',
+  skipped: 'border-rule bg-paper-2/40 text-mute',
 };
 
 export function WaybillChip({
@@ -54,7 +54,7 @@ export function WaybillChip({
       aria-label={pip ? pip.label : 'waybill.chip.waybillTitle'}
     >
       <span aria-hidden>{pip?.emoji ?? '📦'}</span>
-      <T id={pip?.label ?? (isRejected ? 'waybill.stage.rejected' : currentStage)} />
+      <T id={pip?.label ?? (isRejected ? 'waybill.stage.rejected' : `waybill.stage.${currentStage}`)} />
       {!isClosed && idx >= 0 && (
         <span className="ml-1 opacity-60">
           {idx + 1}/{totalActive}

@@ -31,7 +31,7 @@ export async function PipDocuments({ waybillId, pipKey, locale }: Props) {
       }
       tone="indigo"
     >
-      <div className="divide-y divide-slate-800/40">
+      <div className="divide-y divide-rule">
         {pipAttachments.map((a) => (
           <AttachmentRow key={a.id} waybillId={waybillId} attachment={a} />
         ))}

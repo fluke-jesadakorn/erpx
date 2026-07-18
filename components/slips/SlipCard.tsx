@@ -57,7 +57,7 @@ export function ModelCard({
       onClick={() => onSelect(m.name)}
       disabled={disabled}
       data-testid={testId}
-      className={`w-full h-full text-left rounded-xl border p-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-positive/40 ${
+      className={`w-full h-full text-left rounded-md border p-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-positive/40 ${
         selected
           ? 'border-positive/60 bg-positive-soft'
           : 'border-rule bg-paper-3/40 hover:border-rule-strong hover:bg-paper-3/70'

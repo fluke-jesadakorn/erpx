@@ -1,10 +1,8 @@
 'use client';
 
 import { useFormatter } from 'next-intl';
-import { useSecondaryLocale } from './SecondaryLocaleProvider';
 
 export function useFormatMoney() {
-  const locale = useSecondaryLocale();
   const fmt = useFormatter();
   return (amount: number | string | null | undefined, currency = 'THB'): string => {
     if (amount == null) return '—';

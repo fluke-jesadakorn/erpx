@@ -33,7 +33,7 @@ export function PerTileChat({
   tileId,
   sectionKey,
   displayName,
-  expenseDraftId,
+  expenseDraftId: _expenseDraftId,
 }: PerTileChatProps) {
   const locale = useSecondaryLocale();
   const [open, setOpen] = useState(false);
@@ -120,14 +120,14 @@ export function PerTileChat({
   function renderMessage(msg: ChatMessage, idx: number) {
     const isUser = msg.role === 'user';
     const bubbleCls = isUser
-      ? 'bg-indigo-600/20 border-indigo-500/30'
-      : 'bg-slate-900 border-slate-700';
+      ? 'bg-accent-strong border-accent'
+      : 'bg-paper border-rule';
     const align = isUser ? 'ml-auto items-end' : 'mr-auto items-start';
 
     if (isUser) {
       return (
         <div key={idx} className={`flex flex-col ${align} max-w-[85%]`}>
-          <div className={`rounded-2xl px-3 py-2 border ${bubbleCls} text-sm text-white whitespace-pre-wrap break-words`}>
+          <div className={`rounded-md px-3 py-2 border ${bubbleCls} text-sm text-ink whitespace-pre-wrap break-words`}>
             {msg.content}
           </div>
         </div>
@@ -139,7 +139,7 @@ export function PerTileChat({
 
     return (
       <div key={idx} className={`flex flex-col ${align} max-w-[92%]`}>
-        <div className={`rounded-2xl px-3 py-2 border ${bubbleCls} text-sm text-white break-words`}>
+        <div className={`rounded-md px-3 py-2 border ${bubbleCls} text-sm text-ink break-words`}>
           {plain && <div className="whitespace-pre-wrap">{plain}</div>}
           {charts.map((c: ChartSpec, ci: number) => (
             <React.Fragment key={ci}>
@@ -152,7 +152,7 @@ export function PerTileChat({
             </React.Fragment>
           ))}
           {tileId === 'expense' && extracts.length > 0 && (
-            <div className="mt-2 text-xs font-mono text-amber-300/80">
+            <div className="mt-2 text-xs font-mono text-caution">
               (legacy extract fields — submit slip OCR instead)
             </div>
           )}
@@ -161,12 +161,12 @@ export function PerTileChat({
           <button
             type="button"
             onClick={() => navigator.clipboard?.writeText(msg.content)}
-            className="text-xs font-mono uppercase tracking-wider text-slate-500 hover:text-slate-300"
+            className="text-xs font-mono uppercase tracking-wider text-mute hover:text-ink-2"
           >
             <T id="chat.copy" />
           </button>
           {(msg.modelName || msg.latencyMs != null) && (
-            <span className="text-xs font-mono text-slate-500">
+            <span className="text-xs font-mono text-mute">
               {msg.modelName ? msg.modelName : ''}
               {msg.latencyMs != null ? ` · ${msg.latencyMs}ms` : ''}
             </span>
@@ -181,37 +181,37 @@ export function PerTileChat({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-4 right-4 z-40 rounded-full bg-slate-900 border border-indigo-500/40 text-indigo-200 text-sm font-mono px-4 py-2 shadow-xl hover:bg-slate-800"
+        className="fixed bottom-4 right-4 z-sticky rounded-full bg-paper border border-accent text-accent-soft text-sm font-mono px-4 py-2 shadow-xl hover:bg-paper-2"
         title={`Open AI chat for ${displayName || tileId}`}
       >
         <T id="chat.label" values={{ tile: tileId }} />
       </button>
 
       {open && (
-        <aside className="fixed right-0 top-0 bottom-0 w-full max-w-md z-50 bg-slate-950/95 backdrop-blur-md shadow-2xl border-l border-slate-800 overflow-y-auto flex flex-col text-slate-100">
-          <header className="flex items-center justify-between px-4 py-3 border-b border-slate-800 sticky top-0 bg-slate-950/95 backdrop-blur-md z-10">
+        <aside className="fixed right-0 top-0 bottom-0 w-full max-w-md z-fixed bg-paper-2/95 backdrop-blur-md shadow-2xl border-l border-rule overflow-y-auto flex flex-col text-ink">
+          <header className="flex items-center justify-between px-4 py-3 border-b border-rule sticky top-0 bg-paper-2/95 backdrop-blur-md z-10">
             <div className="text-sm font-mono">
               <T id="chat.header" values={{ tile: tileId }} />
-              {displayName ? <span className="text-slate-500"> · {displayName}</span> : null}
+              {displayName ? <span className="text-mute"> · {displayName}</span> : null}
             </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="text-slate-400 hover:text-white text-lg w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800"
+              className="text-ink-2 hover:text-ink text-lg w-8 h-8 flex items-center justify-center rounded-full hover:bg-paper-2"
               aria-label="close"
             >
               ✕
             </button>
           </header>
 
-          <div className="px-3 py-2 border-b border-slate-800 flex gap-2 overflow-x-auto whitespace-nowrap">
+          <div className="px-3 py-2 border-b border-rule flex gap-2 overflow-x-auto whitespace-nowrap">
             {prompts.map((p, i) => (
               <button
                 key={i}
                 type="button"
                 onClick={() => send(p.prompt)}
                 disabled={busy}
-                className="text-xs px-3 py-1.5 rounded-full bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-50 shrink-0"
+                className="text-xs px-3 py-1.5 rounded-full bg-paper-2 text-ink hover:bg-paper-2 disabled:opacity-50 shrink-0"
               >
                 {p.icon} {(p as any)[`label_${locale}`] ?? p.label}
               </button>
@@ -220,20 +220,20 @@ export function PerTileChat({
 
           <div ref={scroller} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
             {messages.length === 0 && (
-              <div className="text-center text-xs text-slate-500 py-12 font-mono">
+              <div className="text-center text-xs text-mute py-12 font-mono">
                 <T id="chat.empty" values={{ tile: displayName || tileId }} />
               </div>
             )}
             {messages.map(renderMessage)}
             {busy && (
               <div className="flex justify-start">
-                <div className="rounded-2xl px-3 py-2 border bg-rose-950/30 border-rose-700/50 text-xs text-rose-200 font-mono animate-pulse">
+                <div className="rounded-md px-3 py-2 border bg-critical-strong border-critical-strong text-xs text-critical-soft font-mono animate-pulse">
                   <T id="chat.thinking" />
                 </div>
               </div>
             )}
             {error && (
-              <div className="rounded-2xl px-3 py-2 border bg-rose-950/30 border-rose-700/50 text-xs text-rose-200 font-mono">
+              <div className="rounded-md px-3 py-2 border bg-critical-strong border-critical-strong text-xs text-critical-soft font-mono">
                 🤖 <T id="chat.aiUnavailable" values={{ error: error ?? 'unknown' }} />
               </div>
             )}
@@ -244,7 +244,7 @@ export function PerTileChat({
               e.preventDefault();
               send(input);
             }}
-            className="px-3 py-3 border-t border-slate-800 flex gap-2 bg-slate-950/95"
+            className="px-3 py-3 border-t border-rule flex gap-2 bg-paper-2/95"
           >
             <input
               type="text"
@@ -252,12 +252,12 @@ export function PerTileChat({
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask anything…"
               disabled={busy}
-              className="flex-1 rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+              className="flex-1 rounded-lg bg-paper border border-rule px-3 py-2 text-sm text-ink placeholder-mute focus:outline-none focus:border-accent disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={busy || !input.trim()}
-              className="rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium px-4"
+              className="rounded-lg bg-accent-strong hover:bg-accent disabled:opacity-50 text-ink text-sm font-medium px-4"
             >
               ➤
             </button>

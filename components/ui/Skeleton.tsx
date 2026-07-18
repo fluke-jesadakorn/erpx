@@ -16,7 +16,7 @@ const ROUND: Record<SkeletonRounded, string> = {
 };
 
 export function Skeleton({ className = '', rounded = 'sm' }: SkeletonProps) {
-  return <div aria-hidden className={['animate-shimmer bg-paper-3', ROUND[rounded], className].join(' ')} />;
+  return <div aria-hidden className={['animate-shimmer', ROUND[rounded], className].join(' ')} />;
 }
 
 export function PanelSkeleton({ rows = 3, className = '' }: { rows?: number; className?: string }) {

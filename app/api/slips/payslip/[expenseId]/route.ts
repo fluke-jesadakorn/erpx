@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/db';
 import { loadActor } from '@/server/guard';
-import { canManageResource, hasPermission, ADMIN_PERM } from '@/perm/auth-client';
+import { hasPermission, ADMIN_PERM } from '@/perm/auth-client';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

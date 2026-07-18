@@ -13,20 +13,20 @@ export async function CockpitAiNarrative({ actorId }: { actorId: number }) {
   const locale = await getSecondaryLocale();
 
   return (
-    <section className="rounded-2xl border border-indigo-500/30 bg-indigo-950/30 p-5">
-      <h3 className="mb-3 text-xs font-mono uppercase tracking-widest text-indigo-300">
+    <section className="rounded-md border border-accent bg-accent-soft p-5">
+      <h3 className="mb-3 text-xs font-mono uppercase tracking-widest text-accent">
         <T id="cockpit.narrative" locale={locale} />
       </h3>
       {cfo && (
         <div className="mb-4">
-          <div className="mb-1 text-xs font-mono text-slate-500">CFO</div>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200">{cfo}</p>
+          <div className="mb-1 text-xs font-mono text-mute">CFO</div>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{cfo}</p>
         </div>
       )}
       {ceo && (
         <div>
-          <div className="mb-1 text-xs font-mono text-slate-500">CEO</div>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200">{ceo}</p>
+          <div className="mb-1 text-xs font-mono text-mute">CEO</div>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{ceo}</p>
         </div>
       )}
     </section>

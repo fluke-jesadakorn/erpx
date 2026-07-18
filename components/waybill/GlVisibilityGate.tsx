@@ -27,31 +27,31 @@ export function GlVisibilityGate({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-800/60 bg-slate-950/40 p-2 font-mono text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-rule/60 bg-paper-2/50 p-2 font-mono text-sm">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-slate-500">
+          <span className="text-mute">
             <T id="waybill.gl.totalDebit" />
-            <span className="ml-1 font-bold text-emerald-200">{fmt(totalDebit, '').trim()}</span>
+            <span className="ml-1 font-bold text-positive-soft">{fmt(totalDebit, '').trim()}</span>
           </span>
-          <span className="text-slate-500">
+          <span className="text-mute">
             <T id="waybill.gl.totalCredit" />
-            <span className="ml-1 font-bold text-amber-200">{fmt(totalCredit, '').trim()}</span>
+            <span className="ml-1 font-bold text-caution-soft">{fmt(totalCredit, '').trim()}</span>
           </span>
-          <span className="text-slate-500">
+          <span className="text-mute">
             <T id="waybill.gl.glLinesN" />
-            <span className="ml-1 font-bold text-cyan-300">{lineCount}</span>
+            <span className="ml-1 font-bold text-info">{lineCount}</span>
           </span>
         </div>
         <div className="flex items-center gap-2">
           {balanced ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-emerald-200">
+            <span className="inline-flex items-center gap-1 rounded-full border border-positive bg-positive px-2 py-0.5 text-positive-soft">
               <span aria-hidden>✓</span>
               <span>
                 <T id="waybill.gl.balanced" />
               </span>
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-rose-200">
+            <span className="inline-flex items-center gap-1 rounded-full border border-critical bg-critical px-2 py-0.5 text-critical-soft">
               <span aria-hidden>⚠</span>
               <span>
                 <T id="waybill.gl.unbalanced" />
@@ -62,7 +62,7 @@ export function GlVisibilityGate({
             type="button"
             onClick={() => setShow((v) => !v)}
             aria-expanded={show}
-            className="rounded-md border border-slate-700 bg-slate-900/60 px-2 py-0.5 text-xs font-mono uppercase tracking-wider text-slate-300 hover:bg-slate-800"
+            className="rounded-md border border-rule bg-paper-2/60 px-2 py-0.5 text-xs font-mono uppercase tracking-wider text-ink-2 hover:bg-paper-2"
           >
             <T id={show ? 'waybill.gl.hideLines' : 'waybill.gl.showLines'} />
           </button>

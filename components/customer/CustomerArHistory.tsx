@@ -66,7 +66,7 @@ export function CustomerArHistory({
   return (
     <section
       aria-label="AR history"
-      className="rounded-2xl border border-rule bg-paper-3/60 p-4"
+      className="rounded-md border border-rule bg-paper-3/60 p-4"
     >
       <header className="mb-3 flex items-center justify-between gap-2">
         <div className="text-xs font-mono uppercase tracking-widest text-ink-2">
@@ -102,7 +102,7 @@ export function CustomerArHistory({
             <li
               key={key}
               className={[
-                'flex items-center gap-3 rounded-xl border px-3 py-2',
+                'flex items-center gap-3 rounded-md border px-3 py-2',
                 b
                   ? BUCKET_TONE_BG[key] ?? 'border-rule bg-paper-3 text-ink-2'
                   : 'border-rule bg-paper-2 text-mute',
@@ -140,7 +140,7 @@ export function CustomerArHistory({
       </ul>
 
       <footer className="mt-3 grid grid-cols-2 gap-2 text-xs font-mono">
-        <div className="rounded-xl border border-rule bg-paper-3 px-3 py-2">
+        <div className="rounded-md border border-rule bg-paper-3 px-3 py-2">
           <div className="text-ink-2 uppercase tracking-wider">
             <T id="customers.arOutstanding" />
           </div>
@@ -148,7 +148,7 @@ export function CustomerArHistory({
             {formatTHB(outstanding)} THB
           </div>
         </div>
-        <div className="rounded-xl border border-rule bg-paper-3 px-3 py-2">
+        <div className="rounded-md border border-rule bg-paper-3 px-3 py-2">
           <div className="text-ink-2 uppercase tracking-wider">
             <T id="customers.arUtilization" />
           </div>

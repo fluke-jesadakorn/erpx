@@ -62,12 +62,12 @@ export function TodaysBriefPinnedCharts() {
   if (charts.length === 0) return null;
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
+    <section className="rounded-md border border-rule bg-paper-2/50 p-4">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-xs font-mono font-bold uppercase text-slate-400 tracking-wider">
+        <div className="text-xs font-mono font-bold uppercase text-ink-2 tracking-wider">
           📌 <T id="cockpit.pinnedCharts" />
         </div>
-        <div className="text-xs font-mono text-slate-500">
+        <div className="text-xs font-mono text-mute">
           {charts.length}{' '}
           <T id={charts.length === 1 ? 'cockpit.pinnedChartOne' : 'cockpit.pinnedCharts'} />
         </div>
@@ -76,13 +76,13 @@ export function TodaysBriefPinnedCharts() {
         {charts.map((chart) => (
           <div
             key={chart.id}
-            className="min-w-0 rounded-2xl border border-slate-800 bg-slate-950/60 p-3"
+            className="min-w-0 rounded-md border border-rule bg-paper-2/60 p-3"
           >
             <div className="flex items-center justify-between mb-2">
-              <div className="text-sm font-mono font-bold text-slate-200">
+              <div className="text-sm font-mono font-bold text-ink">
                 {chart.title}
               </div>
-              <div className="text-xs font-mono text-slate-500">
+              <div className="text-xs font-mono text-mute">
                 {chart.kind === 'line' ? '📈' : '📊'}
               </div>
             </div>

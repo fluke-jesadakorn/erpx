@@ -129,7 +129,7 @@ export function ModelSelect({
               transform: pos.placement === 'up' ? 'translateY(-100%)' : undefined,
               zIndex: 1000,
             }}
-            className="rounded-xl bg-paper-2 border border-rule-strong shadow-popover animate-fade-scale"
+            className="rounded-md bg-paper-2 border border-rule-strong shadow-popover animate-fade-scale"
           >
             <div className="p-2 space-y-2">
               <div className="relative">

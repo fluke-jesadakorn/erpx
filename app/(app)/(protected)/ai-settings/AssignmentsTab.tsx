@@ -2,8 +2,9 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { Layers } from 'lucide-react';
 import { T } from '@/components/i18n/T';
-import { Alert, Badge, Empty, Panel, Status } from '@/components/ui';
+import { Alert, Badge, Empty, Modal, Panel, Status, useToast } from '@/components/ui';
 
 interface AssignmentRow {
   id: number;
@@ -38,11 +39,13 @@ const INPUT = 'h-9 rounded-md border border-rule bg-paper px-2 text-xs text-ink 
 
 export function AssignmentsTab({ initialAssignments, providers, models, canCreate, canEdit, canDelete }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [draft, setDraft] = useState<Draft>({ section_key: '', task_type: 'chat', provider_id: providers[0]?.id ? String(providers[0].id) : '', model_id: '', priority: 100 });
+  const [deletingAssignment, setDeletingAssignment] = useState<AssignmentRow | null>(null);
   const [, startTransition] = useTransition();
 
   const update = async (id: number, patch: Record<string, unknown>, message: string) => {
@@ -52,27 +55,34 @@ export function AssignmentsTab({ initialAssignments, providers, models, canCreat
       const { updateAssignment } = await import('@/app/actions/ai');
       await updateAssignment(id, patch);
       setInfo(message);
+      toast.success(message);
       startTransition(() => router.refresh());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'update failed');
+      const msg = cause instanceof Error ? cause.message : 'update failed';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusyId(null);
     }
   };
 
   const remove = async (assignment: AssignmentRow) => {
-    if (!canDelete || !window.confirm(`Delete assignment #${assignment.id}?`)) return;
     setBusyId(assignment.id);
     setError(null);
     try {
       const { deleteAssignment } = await import('@/app/actions/ai');
       await deleteAssignment(assignment.id);
-      setInfo(`Assignment #${assignment.id} deleted.`);
+      const msg = `Assignment #${assignment.id} deleted.`;
+      setInfo(msg);
+      toast.success(msg);
       startTransition(() => router.refresh());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'delete failed');
+      const msg = cause instanceof Error ? cause.message : 'delete failed';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setBusyId(null);
+      setDeletingAssignment(null);
     }
   };
 
@@ -85,12 +95,16 @@ export function AssignmentsTab({ initialAssignments, providers, models, canCreat
     try {
       const { createAssignment } = await import('@/app/actions/ai');
       await createAssignment({ section_key: draft.section_key, task_type: draft.task_type, provider_id: Number(draft.provider_id), model_id: Number(draft.model_id), priority: draft.priority });
-      setInfo(`Assignment for ${draft.section_key} created.`);
+      const msg = `Assignment for ${draft.section_key} created.`;
+      setInfo(msg);
+      toast.success(msg);
       setShowCreate(false);
       setDraft((current) => ({ ...current, section_key: '' }));
       startTransition(() => router.refresh());
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'create failed');
+      const msg = cause instanceof Error ? cause.message : 'create failed';
+      setError(msg);
+      toast.error(msg);
     }
   };
 
@@ -116,7 +130,7 @@ export function AssignmentsTab({ initialAssignments, providers, models, canCreat
         )}
       </div>
       {initialAssignments.length === 0 ? (
-        <Empty icon="layers" title={<T id="aiSettings.noAssignments" />} />
+        <Empty icon={Layers} title={<T id="aiSettings.noAssignments" />} />
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -131,7 +145,7 @@ export function AssignmentsTab({ initialAssignments, providers, models, canCreat
                     <td className="px-4 py-3"><select disabled={!canEdit || busy} value={assignment.provider_id ?? ''} onChange={(event) => update(assignment.id, { provider_id: event.target.value ? Number(event.target.value) : null }, `Assignment #${assignment.id} provider updated.`)} className={['w-full', INPUT].join(' ')}><option value="">— none —</option>{providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}</select></td>
                     <td className="px-4 py-3"><select disabled={!canEdit || busy} value={assignment.model_id ?? ''} onChange={(event) => update(assignment.id, { model_id: event.target.value ? Number(event.target.value) : null }, `Assignment #${assignment.id} model updated.`)} className={['w-full', INPUT].join(' ')}><option value="">— none —</option>{models.filter((model) => !assignment.provider_id || model.provider_id === assignment.provider_id).map((model) => <option key={model.id} value={model.id}>{model.name}</option>)}</select></td>
                     <td className="px-4 py-3 font-mono text-xs tabular-nums text-mute">{assignment.priority}</td>
-                    <td className="px-4 py-3 text-right"><div className="inline-flex items-center gap-1"><Status tone={assignment.enabled ? 'positive' : 'neutral'} size="sm">{assignment.enabled ? 'enabled' : 'disabled'}</Status>{canEdit && <button type="button" className="h-8 rounded-md border border-rule bg-paper px-2 text-xs text-ink-2 hover:bg-paper-3 disabled:opacity-40" onClick={() => update(assignment.id, { enabled: !assignment.enabled }, `#${assignment.id} ${!assignment.enabled ? 'enabled' : 'disabled'}.`)} disabled={busy}><T id={assignment.enabled ? 'aiSettings.disable' : 'aiSettings.enable'} /></button>}{canDelete && <button type="button" className="h-8 rounded-md bg-critical px-2 text-xs text-paper hover:bg-critical-strong disabled:opacity-40" onClick={() => remove(assignment)} disabled={busy}><T id="aiSettings.delete" /></button>}</div></td>
+                    <td className="px-4 py-3 text-right"><div className="inline-flex items-center gap-1"><Status tone={assignment.enabled ? 'positive' : 'neutral'} size="sm">{assignment.enabled ? 'enabled' : 'disabled'}</Status>{canEdit && <button type="button" className="h-8 rounded-md border border-rule bg-paper px-2 text-xs text-ink-2 hover:bg-paper-3 disabled:opacity-40" onClick={() => update(assignment.id, { enabled: !assignment.enabled }, `#${assignment.id} ${!assignment.enabled ? 'enabled' : 'disabled'}.`)} disabled={busy}><T id={assignment.enabled ? 'aiSettings.disable' : 'aiSettings.enable'} /></button>}{canDelete && <button type="button" className="h-8 rounded-md bg-critical px-2 text-xs text-paper hover:bg-critical-strong disabled:opacity-40" onClick={() => setDeletingAssignment(assignment)} disabled={busy}><T id="aiSettings.delete" /></button>}</div></td>
                   </tr>
                 );
               })}
@@ -139,6 +153,39 @@ export function AssignmentsTab({ initialAssignments, providers, models, canCreat
           </table>
         </div>
       )}
+
+      <Modal
+        open={deletingAssignment !== null}
+        onClose={() => (busyId !== null ? null : setDeletingAssignment(null))}
+        title="Delete assignment"
+        subtitle={`Delete assignment #${deletingAssignment?.id}?`}
+        tone="rose"
+        width="md"
+        footer={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setDeletingAssignment(null)}
+              disabled={busyId !== null}
+              className="rounded-lg border border-rule px-3 py-1.5 text-xs text-ink-2 hover:bg-paper-2 disabled:opacity-50"
+            >
+              <T id="common.cancel" />
+            </button>
+            <button
+              type="button"
+              onClick={() => deletingAssignment && remove(deletingAssignment)}
+              disabled={busyId !== null}
+              className="rounded-lg bg-critical px-3 py-1.5 text-xs text-paper hover:bg-critical-strong disabled:opacity-50"
+            >
+              {busyId !== null ? <T id="aiSettings.deleting" /> : <T id="common.delete" />}
+            </button>
+          </div>
+        }
+      >
+        <p className="text-sm text-ink-2">
+          Section <span className="font-mono text-ink">{deletingAssignment?.section_key}</span> will be unbound from any model.
+        </p>
+      </Modal>
     </Panel>
   );
 }

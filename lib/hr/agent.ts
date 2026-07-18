@@ -137,7 +137,7 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
     const { submitLeave } = await import('./leave');
     try {
       const result = await submitLeave({
-        employeeId: String(args.employee_id),
+        employeeId: Number(args.employee_id),
         leaveType: String(args.leave_type) as 'sick' | 'annual' | 'personal',
         startDate: String(args.start_date),
         endDate: String(args.end_date),

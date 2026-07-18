@@ -1376,7 +1376,69 @@
       "reject": "ปฏิเสธ",
       "rejectedReason": "เหตุผล"
     },
-    "rejected": "ปฏิเสธ"
+    "rejected": "ปฏิเสธ",
+    "common": {
+      "backToDashboard": "กลับไปแดชบอร์ด HR",
+      "employeeCode": "รหัสพนักงาน",
+      "jobDescription": "ขอบข่ายหน้าที่งาน",
+      "noJobDescription": "ไม่มีรายละเอียดขอบข่ายหน้าที่งานระบุไว้",
+      "leaveBalance": "สิทธิ์วันลาคงเหลือ",
+      "typeSick": "ลาป่วย",
+      "typeAnnual": "ลาพักร้อน",
+      "typePersonal": "ลากิจ",
+      "statusApproved": "อนุมัติแล้ว",
+      "statusRejected": "ปฏิเสธแล้ว",
+      "statusPending": "รออนุมัติ",
+      "days": "วัน",
+      "to": "ถึง",
+      "reason": "เหตุผล",
+      "noReason": "ไม่ได้ระบุ",
+      "rejectionReason": "เหตุผลปฏิเสธ",
+      "by": "โดย",
+      "department": "แผนก",
+      "position": "ตำแหน่ง"
+    },
+    "directory": {
+      "title": "รายชื่อพนักงาน",
+      "searchPlaceholder": "ค้นหาชื่อ รหัส หรือแผนก...",
+      "empty": "ไม่พบข้อมูลพนักงาน",
+      "selectOperator": "โปรดเลือก HR ผู้ดำเนินการก่อน",
+      "reasonRequired": "กรุณาระบุเหตุผลในการปรับสิทธิ์วันลา",
+      "error": "เกิดข้อผิดพลาด: {error}",
+      "connectionError": "เกิดข้อผิดพลาดในการเชื่อมต่อ: {error}",
+      "noSelectionTitle": "ยังไม่ได้เลือกพนักงาน",
+      "noSelectionBody": "โปรดเลือกรายชื่อพนักงานจากแถบซ้ายมือเพื่อดูข้อมูลส่วนตัว ขอบข่ายหน้าที่งาน และสิทธิ์วันลาคงเหลือ",
+      "systemRole": "บทบาทระบบ",
+      "adjustQuota": "ปรับโควตาวันลา (HR)",
+      "editQuota": "แก้ไขโควตา",
+      "cancel": "ยกเลิก",
+      "quotaSuccess": "ปรับโควตาสำเร็จแล้ว!",
+      "lineNotified": "แจ้งเตือนถูกส่งไปยัง LINE ของพนักงานแล้ว",
+      "previous": "เดิม",
+      "adjustmentReason": "เหตุผลในการปรับ",
+      "adjustmentPlaceholder": "เช่น ปรับตามนโยบายใหม่ประจำปี หรือพนักงานได้รับสิทธิ์เพิ่มพิเศษ...",
+      "saving": "กำลังบันทึก...",
+      "saveAndNotify": "บันทึกและแจ้งเตือนพนักงาน",
+      "editHint": "คลิก \"แก้ไขโควตา\" เพื่อปรับสิทธิ์วันลาสำหรับพนักงานคนนี้",
+      "history": "ประวัติการยื่นใบลาทั้งหมด",
+      "noHistory": "พนักงานคนนี้ยังไม่มีประวัติการส่งใบลาหยุดงาน"
+    },
+    "employeeDetail": {
+      "history": "ประวัติการลาทั้งหมด",
+      "noHistory": "ยังไม่มีประวัติการส่งใบลาหยุดงาน"
+    },
+    "leaveDetail": {
+      "requestTitle": "คำขอลาหยุดงาน",
+      "employee": "พนักงาน",
+      "numberOfDays": "จำนวนวัน",
+      "startDate": "วันที่เริ่ม",
+      "endDate": "วันที่สิ้นสุด",
+      "submittedDate": "วันที่ส่งคำขอ",
+      "approver": "ผู้อนุมัติ",
+      "leaveReason": "เหตุผลการลา",
+      "rejectionReason": "เหตุผลการปฏิเสธ",
+      "viewHistory": "ดูประวัติทั้งหมดของ"
+    }
   },
   "ai": {
     "explain": {
@@ -1594,6 +1656,7 @@
   },
   "inbox": {
     "title": "กล่องขาเข้า",
+    "subtitle": "{name} · {role} · รอ {waiting} รายการ · ติดตาม {watching} รายการ",
     "filters": "ตัวกรอง",
     "filterWaiting": "รอ",
     "filterWatching": "เฝ้าดู",
@@ -1627,7 +1690,13 @@
     "requestSending": "กำลังส่ง…",
     "requestNote": "คำขอจะถูกบันทึกในกล่องขาเข้า Access Requests · สิทธิ์จริงของคุณจะไม่เปลี่ยนจนกว่า HR จะอัปเดตบทบาทของคุณ · การแจ้งนี้เป็นการแจ้ง {target} เท่านั้น",
     "signInBody": "กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ",
-    "deniedHelp": "กรุณาสลับไปยังบทบาทที่เข้าถึงส่วนนี้ได้ หรือติดต่อผู้ดูแลเพื่อขอสิทธิ์เพิ่ม"
+    "deniedHelp": "กรุณาสลับไปยังบทบาทที่เข้าถึงส่วนนี้ได้ หรือติดต่อผู้ดูแลเพื่อขอสิทธิ์เพิ่ม",
+    "targets": {
+      "hrManager": "ผู้จัดการฝ่ายบุคคล",
+      "cfo": "ประธานเจ้าหน้าที่บริหารด้านการเงิน",
+      "admin": "ผู้ดูแลระบบ"
+    },
+    "not_foundSubtitle": "ไม่พบฟีเจอร์ที่ตรงกับ URL นี้"
   },
   "tilesUi": {
     "caption": "{n} ในกลุ่มนี้",
@@ -1666,7 +1735,11 @@
     "submitter": "ผู้ส่ง:",
     "tabAll": "ทั้งหมดที่เปิดอยู่",
     "tabMine": "ของฉัน",
-    "tabQueue": "งานรอฉัน"
+    "tabQueue": "งานรอฉัน",
+    "receipt": "ใบเสร็จ",
+    "bookBank": "สมุดบัญชีธนาคาร",
+    "fileOne": "ไฟล์",
+    "fileMany": "ไฟล์"
   },
   "slip": {
     "title": "สลิป",
@@ -1695,14 +1768,34 @@
     "rag": "Law RAG",
     "admin": "ผู้ดูแลกฎหมาย",
     "preview": "ตัวอย่าง",
+    "backToContracts": "กลับไปที่สัญญา",
     "detail": {
       "title": "สัญญา",
       "tabPdf": "ดูตัวอย่าง PDF",
       "tabChunks": "ส่วนย่อย",
-      "tabMetadata": "ข้อมูลเมตา"
+      "tabChunksWithCount": "ส่วนย่อย ({count})",
+      "tabMetadata": "ข้อมูลเมตา",
+      "tabsAriaLabel": "แท็บรายละเอียดสัญญา",
+      "noPdfPreview": "ไม่มีตัวอย่างจาก MinIO สำหรับสัญญานี้",
+      "noChunks": "สัญญานี้ยังไม่มีส่วนย่อยที่จัดทำดัชนี",
+      "chunkIndex": "ส่วนย่อยที่ {index}",
+      "tokenCount": "{count} โทเคน"
+    },
+    "page": {
+      "title": "เอกสารกฎหมาย",
+      "subtitle": "ทะเบียนสัญญา การค้นหาเชิงความหมาย และการนำเข้าจาก LINE",
+      "adminLink": "ผู้ดูแล",
+      "uploadLink": "อัปโหลด"
     },
     "uploadTitle": "อัปโหลดสัญญา",
+    "uploadCrumb": "อัปโหลด",
+    "uploadSubtitle": "จัดเก็บไฟล์ต้นฉบับใน MinIO และจัดคิวตัดข้อความด้วย bge-m3 embeddings",
+    "uploadSubtitleShort": "จัดเก็บไฟล์ต้นฉบับใน MinIO",
     "adminTitle": "ผู้ดูแลกฎหมาย",
+    "adminSubtitle": "สถานะทะเบียนและกิจกรรมการนำเข้าล่าสุด",
+    "adminCards": {
+      "contracts": "สัญญา"
+    },
     "stats": {
       "total": "ทั้งหมด",
       "ready": "พร้อม",
@@ -1711,7 +1804,30 @@
     },
     "storage": "พื้นที่จัดเก็บ",
     "recentActivity": "กิจกรรมล่าสุด",
-    "noActivity": "ยังไม่มีกิจกรรม"
+    "noActivity": "ยังไม่มีกิจกรรม",
+    "metadata": {
+      "documentNumber": "เลขที่เอกสาร",
+      "status": "สถานะ",
+      "category": "หมวดหมู่",
+      "source": "แหล่งที่มา",
+      "mimeType": "ประเภท MIME",
+      "size": "ขนาด",
+      "sizeBytes": "{bytes} ไบต์",
+      "lineUser": "ผู้ใช้ LINE",
+      "uploaded": "อัปโหลดเมื่อ",
+      "storageBucket": "บัคเก็ตจัดเก็บ",
+      "storageKey": "คีย์จัดเก็บ",
+      "notAssigned": "ยังไม่ระบุ",
+      "uncategorized": "ไม่มีหมวดหมู่",
+      "unknown": "ไม่ทราบ",
+      "notLinked": "ยังไม่เชื่อมโยง",
+      "notStored": "ยังไม่จัดเก็บ"
+    },
+    "permission": {
+      "contractReadRequired": "ต้องการสิทธิ์ law:contract:read",
+      "contractUploadRequired": "ต้องการสิทธิ์ law:contract:upload",
+      "adminStatsRequired": "ต้องการสิทธิ์ law:admin:stats"
+    }
   },
   "breadcrumbs": {
     "home": "หน้าหลัก"

@@ -46,25 +46,25 @@ export function ChatPanel({
         aria-label="backdrop"
         tabIndex={-1}
         onClick={onClose}
-        className="fixed inset-0 z-40 bg-black/30"
+        className="fixed inset-0 z-sticky bg-paper/30"
       />
-      <aside className="fixed right-0 top-0 bottom-0 z-50 flex w-full max-w-md flex-col border-l border-slate-800 bg-slate-950/95 backdrop-blur-md shadow-2xl text-slate-100">
-        <header className="flex items-center gap-2 border-b border-slate-800 px-3 py-2 text-sm">
-          <span className="font-mono text-indigo-300">
+      <aside className="fixed right-0 top-0 bottom-0 z-fixed flex w-full max-w-md flex-col border-l border-rule bg-paper-2/95 backdrop-blur-md shadow-2xl text-ink">
+        <header className="flex items-center gap-2 border-b border-rule px-3 py-2 text-sm">
+          <span className="font-mono text-accent">
             <T id="chat.global.titleWith" values={{ scope: scope.displayName }} />
           </span>
           <span className="ml-auto" />
           <input
             value={cs.model}
             onChange={(e) => cs.setModel(e.target.value)}
-            className="w-24 rounded border border-slate-700 bg-slate-900 px-2 py-1 font-mono text-xs text-slate-200"
+            className="w-24 rounded border border-rule bg-paper px-2 py-1 font-mono text-xs text-ink"
             title="model"
             aria-label="model"
           />
           <select
             value={cs.thinking}
             onChange={(e) => cs.setThinking(e.target.value as 'low' | 'medium' | 'high')}
-            className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200"
+            className="rounded border border-rule bg-paper px-2 py-1 text-xs text-ink"
             aria-label="thinking"
           >
             <option value="low">low</option>
@@ -74,7 +74,7 @@ export function ChatPanel({
           <button
             type="button"
             onClick={() => setShowSessions((s) => !s)}
-            className="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800"
+            className="rounded border border-rule px-2 py-1 text-xs text-ink-2 hover:bg-paper-2"
             title="sessions"
           >
             ☰
@@ -83,7 +83,7 @@ export function ChatPanel({
             type="button"
             onClick={onClose}
             aria-label="close"
-            className="text-slate-400 hover:text-white text-lg w-8 h-8 inline-flex items-center justify-center rounded-full hover:bg-slate-800"
+            className="text-ink-2 hover:text-ink text-lg w-8 h-8 inline-flex items-center justify-center rounded-full hover:bg-paper-2"
           >
             ✕
           </button>
@@ -103,7 +103,7 @@ export function ChatPanel({
           </div>
         ) : (
           <>
-            <div className="border-b border-slate-800 px-3 py-2">
+            <div className="border-b border-rule px-3 py-2">
               <div className="flex gap-2 overflow-x-auto whitespace-nowrap">
                 {scope.quickPrompts.map((p, i) => (
                   <button
@@ -111,7 +111,7 @@ export function ChatPanel({
                     type="button"
                     disabled={cs.pending}
                     onClick={() => void cs.send(p.prompt)}
-                    className="shrink-0 rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-200 hover:bg-slate-700 disabled:opacity-50"
+                    className="shrink-0 rounded-full bg-paper-2 px-3 py-1 text-xs text-ink hover:bg-paper-2 disabled:opacity-50"
                     title={p.prompt}
                   >
                     <span aria-hidden className="mr-1">{p.icon}</span>
@@ -123,7 +123,7 @@ export function ChatPanel({
 
             <div ref={scroller} className="flex-1 space-y-2 overflow-y-auto px-3 py-3">
               {cs.messages.length === 0 && !cs.pending && (
-                <div className="py-12 text-center text-xs text-slate-500 font-mono">
+                <div className="py-12 text-center text-xs text-mute font-mono">
                   <T id="chat.global.empty" />
                 </div>
               )}
@@ -151,19 +151,19 @@ export function ChatPanel({
               )}
             </div>
 
-            <form onSubmit={onSubmit} className="border-t border-slate-800 px-3 py-2 flex gap-2">
+            <form onSubmit={onSubmit} className="border-t border-rule px-3 py-2 flex gap-2">
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={cs.sessionId ? '' : `Ask anything… (${scope.displayName})`}
                 disabled={cs.pending}
-                className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none disabled:opacity-50"
+                className="flex-1 rounded-lg border border-rule bg-paper px-3 py-2 text-sm text-ink placeholder-mute focus:border-accent focus:outline-none disabled:opacity-50"
               />
               {cs.pending ? (
                 <button
                   type="button"
                   onClick={cs.abort}
-                  className="rounded-lg bg-rose-600 px-4 text-sm text-white hover:bg-rose-500"
+                  className="rounded-lg bg-critical-strong px-4 text-sm text-ink hover:bg-critical"
                 >
                   <T id="chat.global.stop" />
                 </button>
@@ -171,7 +171,7 @@ export function ChatPanel({
                 <button
                   type="submit"
                   disabled={!input.trim()}
-                  className="rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                  className="rounded-lg bg-accent-strong px-4 text-sm font-medium text-ink hover:bg-accent disabled:opacity-50"
                 >
                   ➤
                 </button>

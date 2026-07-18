@@ -209,54 +209,54 @@ export function toneForPip(state: PipState): PipTone {
   switch (state) {
     case 'passed':
       return {
-        card: 'border-emerald-500/40 bg-emerald-950/30 text-emerald-100',
-        bullet: 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)] text-emerald-200',
-        badge: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40',
+        card: 'border-positive bg-positive-strong text-positive-soft',
+        bullet: 'bg-positive shadow-[0_0_10px_rgba(52,211,153,0.7)] text-positive-soft',
+        badge: 'bg-positive text-paper border border-positive',
         badgeText: 'Done',
-        title: 'text-emerald-200',
-        sectionHead: 'text-emerald-300/80',
-        dot: 'bg-emerald-400 text-emerald-100',
+        title: 'text-positive-soft',
+        sectionHead: 'text-positive',
+        dot: 'bg-positive text-paper',
       };
     case 'active':
       return {
-        card: 'border-cyan-400/80 bg-cyan-950/40 text-white ring-2 ring-cyan-400/70 shadow-lg shadow-cyan-500/20',
-        bullet: 'bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.9)] animate-pulse text-cyan-100',
-        badge: 'bg-cyan-400 text-slate-950 border border-cyan-300',
+        card: 'border-info bg-info-strong text-ink ring-2 ring-info shadow-lg shadow-info',
+        bullet: 'bg-info shadow-[0_0_14px_rgba(34,211,238,0.9)] animate-pulse text-info-soft',
+        badge: 'bg-info text-ink border border-info',
         badgeText: 'Active',
-        title: 'text-cyan-200',
-        sectionHead: 'text-cyan-300/80',
-        dot: 'bg-cyan-400 text-cyan-100',
+        title: 'text-info-soft',
+        sectionHead: 'text-info',
+        dot: 'bg-info text-paper',
       };
     case 'skipped':
       return {
-        card: 'border-slate-900 bg-slate-950/40 text-slate-700 opacity-60',
-        bullet: 'bg-slate-800 text-slate-600',
-        badge: 'bg-slate-800 text-slate-600 border border-slate-700',
+        card: 'border-rule bg-paper-2/50 text-mute opacity-60',
+        bullet: 'bg-paper-2 text-mute',
+        badge: 'bg-paper-2 text-mute border border-rule',
         badgeText: 'Optional',
-        title: 'text-slate-700',
-        sectionHead: 'text-slate-700',
-        dot: 'bg-slate-800 text-slate-600',
+        title: 'text-mute',
+        sectionHead: 'text-mute',
+        dot: 'bg-paper-2 text-mute',
       };
     case 'rejected':
       return {
-        card: 'border-rose-500/60 bg-rose-950/40 text-rose-100 ring-2 ring-rose-500/50',
-        bullet: 'bg-rose-400 text-rose-100 shadow-[0_0_10px_rgba(244,63,94,0.7)]',
-        badge: 'bg-rose-500/20 text-rose-200 border border-rose-400/40',
+        card: 'border-critical bg-critical-strong text-critical-soft ring-2 ring-critical',
+        bullet: 'bg-critical-soft text-critical-strong border border-critical shadow-[0_0_10px_rgba(244,63,94,0.7)]',
+        badge: 'bg-critical-soft text-critical-strong border border-critical border border-critical',
         badgeText: 'Rejected',
-        title: 'text-rose-200',
-        sectionHead: 'text-rose-300/80',
-        dot: 'bg-rose-400 text-rose-100',
+        title: 'text-critical-soft',
+        sectionHead: 'text-critical',
+        dot: 'bg-critical-soft text-critical-strong border border-critical',
       };
     case 'pending':
     default:
       return {
-        card: 'border-slate-800/60 bg-slate-950/40 text-slate-400',
-        bullet: 'bg-slate-700 text-slate-500',
-        badge: 'bg-slate-800 text-slate-500 border border-slate-700',
+        card: 'border-rule/60 bg-paper-2/50 text-ink-2',
+        bullet: 'bg-paper-2 text-mute',
+        badge: 'bg-paper-2 text-mute border border-rule',
         badgeText: 'Pending',
-        title: 'text-slate-400',
-        sectionHead: 'text-slate-500',
-        dot: 'bg-slate-700 text-slate-500',
+        title: 'text-ink-2',
+        sectionHead: 'text-mute',
+        dot: 'bg-paper-2 text-mute',
       };
   }
 }
@@ -269,17 +269,17 @@ export function initialsOf(name: string | null | undefined): string {
 
 export function roleAccent(roleId: string | null | undefined): string {
   const map: Record<string, string> = {
-    supervisor: 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40',
-    manager: 'bg-cyan-500/20 text-cyan-200 border-cyan-400/40',
-    account_officer: 'bg-indigo-500/20 text-indigo-200 border-indigo-400/40',
-    account_supervisor: 'bg-indigo-500/20 text-indigo-200 border-indigo-400/40',
-    accounting_manager: 'bg-indigo-500/20 text-indigo-200 border-indigo-400/40',
-    finance: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/40',
-    cfo: 'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-400/40',
-    ceo: 'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-400/40',
-    admin: 'bg-slate-500/20 text-slate-200 border-slate-400/40',
+    supervisor: 'bg-info text-paper border-info',
+    manager: 'bg-info text-paper border-info',
+    account_officer: 'bg-accent text-paper border-accent',
+    account_supervisor: 'bg-accent text-paper border-accent',
+    accounting_manager: 'bg-accent text-paper border-accent',
+    finance: 'bg-positive text-paper border-positive',
+    cfo: 'bg-accent text-paper border-accent',
+    ceo: 'bg-accent text-paper border-accent',
+    admin: 'bg-paper-2/20 text-ink border-rule/40',
   };
-  return map[roleId ?? ''] ?? 'bg-slate-700/40 text-slate-300 border-slate-600';
+  return map[roleId ?? ''] ?? 'bg-paper-2/40 text-ink-2 border-rule';
 }
 
 export function fmtMoney(n: string | number | null, currency = 'THB'): string {
@@ -304,19 +304,19 @@ export function fmtSize(n: number): string {
 
 export function statusPill(status: string, lang: 'th' | 'de' | 'en'): React.ReactElement {
   const map: Record<string, { tone: string; en: string; th: string; de: string }> = {
-    draft: { tone: 'bg-slate-700/40 text-slate-300 border-slate-600', en: 'draft', th: 'ร่าง', de: 'Entwurf' },
-    submission: { tone: 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40', en: 'submission', th: 'ยื่นเรื่อง', de: 'Einreichung' },
-    dept_verification: { tone: 'bg-amber-500/15 text-amber-200 border-amber-500/40', en: 'dept verification', th: 'ตรวจสอบแผนก', de: 'Abteilungsprüfung' },
-    dept_authorization: { tone: 'bg-amber-500/15 text-amber-200 border-amber-500/40', en: 'dept authorization', th: 'อนุมัติแผนก', de: 'Abteilungsfreigabe' },
-    accounting_verification: { tone: 'bg-indigo-500/15 text-indigo-200 border-indigo-500/40', en: 'accounting verification', th: 'บัญชีตรวจ', de: 'Buchhaltungsprüfung' },
-    accounting_authorization: { tone: 'bg-indigo-500/15 text-indigo-200 border-indigo-500/40', en: 'accounting authorization', th: 'บัญชีอนุมัติ', de: 'Buchhaltungsfreigabe' },
-    awaiting_disbursement: { tone: 'bg-cyan-500/15 text-cyan-200 border-cyan-500/40', en: 'awaiting disbursement', th: 'พร้อมจ่าย', de: 'Auszahlung anstehend' },
-    disbursed: { tone: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/40', en: 'disbursed', th: 'จ่ายแล้ว', de: 'ausgezahlt' },
-    rejected: { tone: 'bg-rose-500/15 text-rose-200 border-rose-500/40', en: 'rejected', th: 'ปฏิเสธ', de: 'abgelehnt' },
-    completed: { tone: 'bg-emerald-500/20 text-emerald-200 border-emerald-500/40', en: 'completed', th: 'เสร็จสิ้น', de: 'abgeschlossen' },
-    open: { tone: 'bg-cyan-500/20 text-cyan-200 border-cyan-500/40', en: 'open', th: 'ดำเนินการ', de: 'offen' },
+    draft: { tone: 'bg-paper-2/40 text-ink-2 border-rule', en: 'draft', th: 'ร่าง', de: 'Entwurf' },
+    submission: { tone: 'bg-info text-paper border-info', en: 'submission', th: 'ยื่นเรื่อง', de: 'Einreichung' },
+    dept_verification: { tone: 'bg-caution-soft text-caution-strong border border-caution border-caution', en: 'dept verification', th: 'ตรวจสอบแผนก', de: 'Abteilungsprüfung' },
+    dept_authorization: { tone: 'bg-caution-soft text-caution-strong border border-caution border-caution', en: 'dept authorization', th: 'อนุมัติแผนก', de: 'Abteilungsfreigabe' },
+    accounting_verification: { tone: 'bg-accent text-paper border-accent', en: 'accounting verification', th: 'บัญชีตรวจ', de: 'Buchhaltungsprüfung' },
+    accounting_authorization: { tone: 'bg-accent text-paper border-accent', en: 'accounting authorization', th: 'บัญชีอนุมัติ', de: 'Buchhaltungsfreigabe' },
+    awaiting_disbursement: { tone: 'bg-info text-paper border-info', en: 'awaiting disbursement', th: 'พร้อมจ่าย', de: 'Auszahlung anstehend' },
+    disbursed: { tone: 'bg-positive text-paper border-positive', en: 'disbursed', th: 'จ่ายแล้ว', de: 'ausgezahlt' },
+    rejected: { tone: 'bg-critical-soft text-critical-strong border border-critical border-critical', en: 'rejected', th: 'ปฏิเสธ', de: 'abgelehnt' },
+    completed: { tone: 'bg-positive text-paper border-positive', en: 'completed', th: 'เสร็จสิ้น', de: 'abgeschlossen' },
+    open: { tone: 'bg-info text-paper border-info', en: 'open', th: 'ดำเนินการ', de: 'offen' },
   };
-  const m = map[status] ?? { tone: 'bg-slate-700/40 text-slate-300 border-slate-600', en: status, th: status, de: status };
+  const m = map[status] ?? { tone: 'bg-paper-2/40 text-ink-2 border-rule', en: status, th: status, de: status };
   const locale: SecondaryLocale = lang === 'de' ? 'de' : 'th';
   return (
     <span className={`rounded-full border px-2 py-0.5 text-xs font-mono font-bold uppercase ${m.tone}`}>

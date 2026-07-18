@@ -2,7 +2,20 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Icon, type IconName } from '@/components/icons';
+import {
+  ArrowDownUp,
+  ArrowRight,
+  Building2,
+  Check,
+  ChevronDown,
+  Filter,
+  Gauge,
+  Search,
+  Shield,
+  Users,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { T } from '@/components/i18n/T';
 import { UserAvatar, roleGlyph, roleLabel, roleBadge, type StaffLevel } from './UserAvatar';
 import { ROLE_RANK, ROLE_LEVEL as ROLE_LEVEL_DISPLAY, type DisplayRoleName } from '@/org/display';
@@ -14,10 +27,10 @@ type SortBy = 'level' | 'name' | 'role';
 const LS_GROUP = 'folio.persona.groupby';
 const LS_SORT = 'folio.persona.sortby';
 
-const GROUP_OPTIONS: { key: GroupBy; id: string; icon: IconName }[] = [
-  { key: 'department', id: 'persona.groupDept', icon: 'building' },
-  { key: 'level',      id: 'persona.groupLevel', icon: 'gauge' },
-  { key: 'role',       id: 'persona.groupRole',  icon: 'shield' },
+const GROUP_OPTIONS: { key: GroupBy; id: string; icon: LucideIcon }[] = [
+  { key: 'department', id: 'persona.groupDept', icon: Building2 },
+  { key: 'level',      id: 'persona.groupLevel', icon: Gauge },
+  { key: 'role',       id: 'persona.groupRole',  icon: Shield },
 ];
 const SORT_OPTIONS: { key: SortBy; id: string }[] = [
   { key: 'level', id: 'persona.sortLevel' },
@@ -217,8 +230,8 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
         className={[
           'flex h-10 min-w-0 items-center gap-2 rounded-lg border pl-1.5 pr-2.5 transition-all cursor-pointer',
           open
-            ? 'border-accent bg-surface-glass-strong ring-2 ring-accent/20'
-            : 'border-glass-border bg-surface-glass-heavy hover:border-glass-border-strong hover:bg-surface-glass-strong',
+            ? 'border-accent bg-paper-3 ring-2 ring-accent/20'
+            : 'border-rule bg-paper-2 hover:border-rule-strong hover:bg-paper-3',
         ].join(' ')}
       >
         <UserAvatar
@@ -245,7 +258,7 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
           style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}
           aria-hidden
         >
-          <Icon name="chevron-down" size={14} />
+          <ChevronDown size={14} />
         </span>
       </button>
 
@@ -253,46 +266,46 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
       {open && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-slate-950/75 backdrop-blur-sm"
+            className="fixed inset-0 z-sticky bg-paper-2/75 backdrop-blur-sm"
             onClick={() => setOpen(false)}
             aria-hidden
           />
           <div
             role="menu"
-            className="absolute right-0 mt-2 w-[30rem] max-w-[94vw] glass-panel-heavy rounded-2xl shadow-modal z-50 animate-fade-scale flex flex-col max-h-[min(78vh,680px)] overflow-hidden"
+            className="absolute right-0 mt-2 w-[30rem] max-w-[94vw] bg-paper-2 rounded-md shadow-modal z-fixed animate-fade-scale flex flex-col max-h-[min(78vh,680px)] overflow-hidden"
           >
             {/* ── Header ─────────────────────────────────────────── */}
-            <div className="relative px-4 pt-4 pb-3 border-b border-slate-800/80">
+            <div className="relative px-4 pt-4 pb-3 border-b border-rule/80">
               <div className="flex items-center gap-2">
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500/30 to-purple-500/20 border border-indigo-400/40 text-indigo-200">
-                  <Icon name="users" size={14} />
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg  from-accent to-accent border border-accent text-accent-soft">
+                  <Users size={14} />
                 </span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-mono font-bold uppercase tracking-widest text-slate-300 leading-tight">
+                  <div className="text-xs font-mono font-bold uppercase tracking-widest text-ink-2 leading-tight">
                     <T id="persona.title" />
                   </div>
-                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mt-0.5 truncate">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-mute mt-0.5 truncate">
                     {currentUser?.fullname || 'Anonymous'}
                   </div>
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-md border border-slate-700 bg-slate-900/70 px-1.5 py-1 text-[10px] font-mono font-bold text-slate-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-2/70 px-1.5 py-1 text-[10px] font-mono font-bold text-ink-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-positive animate-pulse" />
                   {flat.length}/{users.length}
                 </span>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
                   aria-label="Close"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-800 bg-slate-900/60 text-slate-400 hover:text-white hover:border-slate-700 transition-colors"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-rule bg-paper-2/60 text-ink-2 hover:text-ink hover:border-rule transition-colors"
                 >
-                  <Icon name="x" size={12} />
+                  <X size={12} />
                 </button>
               </div>
             </div>
 
             {/* ── Controls ──────────────────────────────────────── */}
-            <div className="px-4 py-3 border-b border-slate-800/80 space-y-2.5">
-              <ControlRow labelId="persona.group" icon="filter">
+            <div className="px-4 py-3 border-b border-rule/80 space-y-2.5">
+              <ControlRow labelId="persona.group" icon={Filter}>
                 {GROUP_OPTIONS.map((opt) => {
                   const active = groupBy === opt.key;
                   return (
@@ -306,7 +319,7 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                   );
                 })}
               </ControlRow>
-              <ControlRow labelId="persona.sort" icon="sort">
+              <ControlRow labelId="persona.sort" icon={ArrowDownUp}>
                 {SORT_OPTIONS.map((opt) => {
                   const active = sortBy === opt.key;
                   return (
@@ -322,26 +335,26 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
             </div>
 
             {/* ── Search ────────────────────────────────────────── */}
-            <div className="px-4 py-3 border-b border-slate-800/80">
+            <div className="px-4 py-3 border-b border-rule/80">
               <label className="relative block">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500 pointer-events-none">
-                  <Icon name="search" size={14} />
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-mute pointer-events-none">
+                  <Search size={14} />
                 </span>
                 <input
                   autoFocus
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search by name, code, or role…"
-                  className="w-full pl-9 pr-9 py-2.5 rounded-xl glass-input text-sm text-white placeholder:text-slate-500 focus:outline-none"
+                  className="w-full pl-9 pr-9 py-2.5 rounded-md bg-paper-2 border border-rule text-sm text-ink placeholder:text-mute focus:outline-none"
                 />
                 {query && (
                   <button
                     type="button"
                     onClick={() => setQuery('')}
                     aria-label="Clear search"
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-500 hover:text-white transition-colors"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-mute hover:text-ink transition-colors"
                   >
-                    <Icon name="x" size={12} />
+                  <X size={12} />
                   </button>
                 )}
               </label>
@@ -351,10 +364,10 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
             <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
               {grouped.length === 0 ? (
                 <div className="px-4 py-12 text-center">
-                  <div className="mx-auto mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-800 bg-slate-900/60 text-slate-500">
-                    <Icon name="search" size={16} />
+                  <div className="mx-auto mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-rule bg-paper-2/60 text-mute">
+                    <Search size={16} />
                   </div>
-                  <div className="text-xs text-slate-400 font-mono">
+                  <div className="text-xs text-ink-2 font-mono">
                     <T id="persona.noMatch" values={{ query }} />
                   </div>
                 </div>
@@ -388,15 +401,15 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                     <div key={gKey} className={gi > 0 ? 'mt-2' : ''}>
                       <div className="mx-2 mb-1.5 px-2 pt-1 pb-1 flex items-center gap-2">
                         <span className="text-sm leading-none opacity-90">{gMeta.icon}</span>
-                        <span className="text-[10px] uppercase tracking-widest font-mono font-bold text-slate-300">
+                        <span className="text-[10px] uppercase tracking-widest font-mono font-bold text-ink-2">
                           {gMeta.tone === 'level'
                             ? <T id={`persona.level.${Number(gKey.replace(/^P/, ''))}`} />
                             : <T id={gMeta.label} />}
                         </span>
-                        <span className="ml-auto inline-flex items-center gap-1 rounded-md border border-slate-800 bg-slate-900/70 px-1.5 py-0.5 text-[9px] font-mono font-bold text-slate-400">
-                          <span className="text-slate-500">{gMeta.code}</span>
-                          <span className="text-slate-600">·</span>
-                          <span className="text-slate-300">{arr.length}</span>
+                        <span className="ml-auto inline-flex items-center gap-1 rounded-md border border-rule bg-paper-2/70 px-1.5 py-0.5 text-[9px] font-mono font-bold text-ink-2">
+                          <span className="text-mute">{gMeta.code}</span>
+                          <span className="text-mute">·</span>
+                          <span className="text-ink-2">{arr.length}</span>
                         </span>
                       </div>
                       <div className="space-y-1">
@@ -414,17 +427,17 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                               onClick={() => selectUser(u)}
                               onMouseEnter={() => setHighlight(idx)}
                               className={[
-                                'group relative w-full flex items-center gap-3 pl-3 pr-2.5 py-2 rounded-xl text-left transition-all overflow-hidden',
+                                'group relative w-full flex items-center gap-3 pl-3 pr-2.5 py-2 rounded-md text-left transition-all overflow-hidden',
                                 focused
-                                  ? 'bg-slate-900/80 ring-1 ring-inset ring-slate-700/80'
-                                  : 'ring-1 ring-inset ring-transparent hover:bg-slate-900/50',
-                                selected ? 'ring-indigo-400/70' : '',
+                                  ? 'bg-paper-2/80 ring-1 ring-inset ring-rule/80'
+                                  : 'ring-1 ring-inset ring-transparent hover:bg-paper-2/50',
+                                selected ? 'ring-accent' : '',
                               ].join(' ')}
                             >
                               {selected && (
                                 <span
                                   aria-hidden
-                                  className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-gradient-to-b from-indigo-400 to-purple-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]"
+                                  className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full  from-accent to-accent shadow-[0_0_8px_rgba(99,102,241,0.6)]"
                                 />
                               )}
                               <UserAvatar
@@ -438,13 +451,13 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                                 <div className="flex items-center gap-1.5">
                                   <span className={[
                                     'text-[13px] font-semibold truncate',
-                                    selected ? 'text-white' : 'text-slate-100',
+                                    selected ? 'text-ink' : 'text-ink',
                                   ].join(' ')}>
                                     {u.fullname}
                                   </span>
                                   {selected && (
-                                    <span className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold uppercase tracking-wider text-emerald-300">
-                                      <Icon name="check" size={9} />
+                                    <span className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold uppercase tracking-wider text-positive">
+                                      <Check size={9} />
                                     </span>
                                   )}
                                 </div>
@@ -457,10 +470,10 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                                   >
                                     {positionLabel(roleKey, u.department ?? null)}
                                   </span>
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border border-slate-700 bg-slate-800/60 text-slate-300">
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border border-rule bg-paper-2/60 text-ink-2">
                                     P{staffLevelOf(u)}
                                   </span>
-                                  <span className="text-[10px] text-slate-500 font-mono tabular-nums">
+                                  <span className="text-[10px] text-mute font-mono tabular-nums">
                                     {u.employee_code}
                                   </span>
                                 </div>
@@ -479,8 +492,8 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
             </div>
 
             {/* ── Footer ────────────────────────────────────────── */}
-            <div className="px-4 py-2.5 border-t border-slate-800/80 bg-slate-950/40 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 text-[10px] font-mono text-slate-500">
+            <div className="px-4 py-2.5 border-t border-rule/80 bg-paper-2/50 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 text-[10px] font-mono text-mute">
                 <Kbd>↑</Kbd>
                 <Kbd>↓</Kbd>
                 <span className="ml-0.5 mr-1.5">select</span>
@@ -500,9 +513,9 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                 <button
                   type="button"
                   onClick={signOut}
-                  className="inline-flex items-center gap-1 rounded-md border border-rose-500/40 bg-rose-500/10 px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider text-rose-200 hover:bg-rose-500/20 hover:border-rose-400/60 transition-colors"
+                  className="inline-flex items-center gap-1 rounded-md border border-critical bg-critical px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider text-critical-soft hover:bg-critical hover:border-critical transition-colors"
                 >
-                  <Icon name="arrow-right" size={10} />
+                  <ArrowRight size={10} />
                   <T id="chrome.signOut" />
                 </button>
               </div>
@@ -515,22 +528,22 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
 };
 
 const Kbd: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <kbd className="inline-flex min-w-[1.25rem] h-[1.125rem] items-center justify-center rounded border border-slate-700 bg-slate-900/80 px-1 text-[9px] font-mono font-bold text-slate-300 shadow-[inset_0_-1px_0_rgba(0,0,0,0.4)]">
+  <kbd className="inline-flex min-w-[1.25rem] h-[1.125rem] items-center justify-center rounded border border-rule bg-paper-2/80 px-1 text-[9px] font-mono font-bold text-ink-2 shadow-[inset_0_-1px_0_rgba(0,0,0,0.4)]">
     {children}
   </kbd>
 );
 
 const ControlRow: React.FC<{
   labelId: string;
-  icon: IconName;
+  icon: LucideIcon;
   children: React.ReactNode;
-}> = ({ labelId, icon, children }) => (
+}> = ({ labelId, icon: IconCmp, children }) => (
   <div className="flex items-center gap-2">
-    <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-slate-500 shrink-0 w-16">
-      <Icon name={icon} size={10} />
+    <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-mute shrink-0 w-16">
+      <IconCmp size={10} />
       <T id={labelId} />
     </span>
-    <div className="flex items-center gap-1 p-0.5 rounded-lg border border-slate-800 bg-slate-950/60 flex-1 min-w-0">
+    <div className="flex items-center gap-1 p-0.5 rounded-lg border border-rule bg-paper-2/60 flex-1 min-w-0">
       {children}
     </div>
   </div>
@@ -540,19 +553,19 @@ const SegPill: React.FC<{
   active: boolean;
   onClick: () => void;
   label: React.ReactNode;
-  icon?: IconName;
-}> = ({ active, onClick, label, icon }) => (
+  icon?: LucideIcon;
+}> = ({ active, onClick, label, icon: IconCmp }) => (
   <button
     type="button"
     onClick={onClick}
     className={[
       'flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-mono font-bold uppercase tracking-wider transition-all',
       active
-        ? 'bg-gradient-to-b from-indigo-500/40 to-purple-500/30 text-white border border-indigo-400/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_12px_rgba(99,102,241,0.25)]'
-        : 'text-slate-400 border border-transparent hover:text-slate-100 hover:bg-slate-900/60',
+        ? ' from-accent to-accent text-ink border border-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_12px_rgba(99,102,241,0.25)]'
+        : 'text-ink-2 border border-transparent hover:text-ink hover:bg-paper-2/60',
     ].join(' ')}
   >
-    {icon && <Icon name={icon} size={11} />}
+    {IconCmp && <IconCmp size={11} />}
     {label}
   </button>
 );

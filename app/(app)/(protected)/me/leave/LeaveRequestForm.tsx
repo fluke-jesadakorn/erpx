@@ -1,15 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Briefcase, Calendar, CircleAlert, Send, type LucideIcon } from 'lucide-react';
 import { T } from '@/components/i18n/T';
 import { submitMyLeaveAction } from './_actions';
-import { Icon } from '@/components/icons';
-import type { IconName } from '@/components/icons';
 
-const TYPE_OPTIONS: ReadonlyArray<{ value: 'sick' | 'annual' | 'personal'; labelId: string; icon: IconName }> = [
-  { value: 'sick', labelId: 'me.leave.typeSick', icon: 'alert-circle' },
-  { value: 'annual', labelId: 'me.leave.typeAnnual', icon: 'calendar' },
-  { value: 'personal', labelId: 'me.leave.typePersonal', icon: 'briefcase' },
+const TYPE_OPTIONS: ReadonlyArray<{ value: 'sick' | 'annual' | 'personal'; labelId: string; icon: LucideIcon }> = [
+  { value: 'sick', labelId: 'me.leave.typeSick', icon: CircleAlert },
+  { value: 'annual', labelId: 'me.leave.typeAnnual', icon: Calendar },
+  { value: 'personal', labelId: 'me.leave.typePersonal', icon: Briefcase },
 ];
 
 function calcDays(start: string, end: string): number {
@@ -98,7 +97,7 @@ export function LeaveRequestForm() {
           disabled={!days}
           className="inline-flex items-center gap-2 rounded-md border border-accent/40 bg-accent px-4 py-2 text-sm font-medium text-accent-ink disabled:cursor-not-allowed disabled:opacity-40 hover:bg-accent-strong"
         >
-          <Icon name="send" size={15} />
+          <Send size={15} />
           <T id="me.leave.formSubmit" />
         </button>
       </div>

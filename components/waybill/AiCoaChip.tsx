@@ -43,21 +43,21 @@ function similarityTone(s: number): {
 } {
   if (s >= 0.7) {
     return {
-      row: 'border-emerald-500/40 bg-emerald-950/30 text-emerald-100',
-      bar: 'bg-emerald-400',
+      row: 'border-positive bg-positive-strong text-positive-soft',
+      bar: 'bg-positive',
       glyph: '✓',
     };
   }
   if (s >= 0.4) {
     return {
-      row: 'border-amber-500/40 bg-amber-950/30 text-amber-100',
-      bar: 'bg-amber-400',
+      row: 'border-caution bg-caution-strong text-caution-soft',
+      bar: 'bg-caution',
       glyph: '~',
     };
   }
   return {
-    row: 'border-rose-500/40 bg-rose-950/30 text-rose-100',
-    bar: 'bg-rose-400',
+    row: 'border-critical bg-critical-strong text-critical-soft',
+    bar: 'bg-critical',
     glyph: '!',
   };
 }
@@ -160,7 +160,7 @@ export function AiCoaChip({
       <span
         role="status"
         aria-live="polite"
-        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-950/30 px-2.5 py-1.5 font-mono text-xs text-emerald-100"
+        className="inline-flex items-center gap-1.5 rounded-lg border border-positive bg-positive-strong px-2.5 py-1.5 font-mono text-xs text-positive-soft"
         title={`${currentCode} (${pct}% confidence)`}
       >
         <span aria-hidden className="font-bold">✓</span>
@@ -173,7 +173,7 @@ export function AiCoaChip({
 
   if (state.kind === 'idle') {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/60 bg-slate-900/40 px-2.5 py-1 font-mono text-xs text-slate-400">
+      <span className="inline-flex items-center gap-1.5 rounded-lg border border-rule/60 bg-paper-2/40 px-2.5 py-1 font-mono text-xs text-ink-2">
         <span aria-hidden>🪙</span>
         <span className="uppercase tracking-wider">COA · pending description</span>
       </span>
@@ -182,7 +182,7 @@ export function AiCoaChip({
 
   if (state.kind === 'loading') {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/60 bg-slate-900/40 px-2.5 py-1 font-mono text-xs text-slate-400">
+      <span className="inline-flex items-center gap-1.5 rounded-lg border border-rule/60 bg-paper-2/40 px-2.5 py-1 font-mono text-xs text-ink-2">
         <span aria-hidden>🪙</span>
         <span className="uppercase tracking-wider">COA · matching…</span>
       </span>
@@ -191,7 +191,7 @@ export function AiCoaChip({
 
   if (state.kind === 'error') {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/60 bg-slate-900/40 px-2.5 py-1 font-mono text-xs text-slate-400">
+      <span className="inline-flex items-center gap-1.5 rounded-lg border border-rule/60 bg-paper-2/40 px-2.5 py-1 font-mono text-xs text-ink-2">
         <span aria-hidden>🪙</span>
         <span className="uppercase tracking-wider">COA · unavailable</span>
       </span>
@@ -200,7 +200,7 @@ export function AiCoaChip({
 
   if (state.suggestions.length === 0) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700/60 bg-slate-900/40 px-2.5 py-1 font-mono text-xs text-slate-400">
+      <span className="inline-flex items-center gap-1.5 rounded-lg border border-rule/60 bg-paper-2/40 px-2.5 py-1 font-mono text-xs text-ink-2">
         <span aria-hidden>🪙</span>
         <span className="uppercase tracking-wider">COA · no matches</span>
       </span>
@@ -245,15 +245,15 @@ export function AiCoaChip({
     <div
       role="region"
       aria-label="AI chart-of-account suggestions"
-      className="inline-flex max-w-md flex-col gap-1.5 rounded-2xl border border-slate-700/60 bg-slate-950/70 p-2 font-mono text-xs"
+      className="inline-flex max-w-md flex-col gap-1.5 rounded-md border border-rule/60 bg-paper-2/70 p-2 font-mono text-xs"
     >
-      <div className="flex items-center gap-2 px-1 text-slate-400">
+      <div className="flex items-center gap-2 px-1 text-ink-2">
         <span aria-hidden>🪙</span>
-        <span className="font-bold uppercase tracking-wider text-slate-300">AI COA</span>
+        <span className="font-bold uppercase tracking-wider text-ink-2">AI COA</span>
         <span className="opacity-60">·</span>
         <span className="uppercase tracking-widest opacity-70">top matches</span>
         {currentCode && !hasHighConfidenceExisting && (
-          <span className="ml-auto rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10px] uppercase tracking-widest text-slate-400">
+          <span className="ml-auto rounded-full border border-rule bg-paper px-2 py-0.5 text-[10px] uppercase tracking-widest text-ink-2">
             current: {currentCode}
           </span>
         )}
@@ -277,7 +277,7 @@ export function AiCoaChip({
               <span className="opacity-70">·</span>
               <span className="uppercase tracking-widest opacity-80">{s.normal_side}</span>
               <div className="ml-1 flex w-20 items-center gap-1.5">
-                <div className="h-1 flex-1 overflow-hidden rounded-full bg-black/40">
+                <div className="h-1 flex-1 overflow-hidden rounded-full bg-paper-3/40">
                   <div className={`h-full ${tone.bar}`} style={{ width: `${pct}%` }} aria-label={`similarity ${pct}%`} />
                 </div>
                 <span className="w-9 text-right font-bold">{pct}%</span>
@@ -286,7 +286,7 @@ export function AiCoaChip({
                 type="button"
                 onClick={() => void onApply(s)}
                 disabled={applyingCode !== null}
-                className="ml-auto rounded-md border border-cyan-500/40 bg-cyan-500/15 px-2 py-0.5 font-bold uppercase tracking-wider text-cyan-200 hover:bg-cyan-500/30 disabled:opacity-50"
+                className="ml-auto rounded-md border border-info bg-info px-2 py-0.5 font-bold uppercase tracking-wider text-info-soft hover:bg-info disabled:opacity-50"
               >
                 {applyingCode === s.code ? '…' : 'Apply'}
               </button>
@@ -296,7 +296,7 @@ export function AiCoaChip({
       </ul>
 
       {applyError && (
-        <div className="rounded border border-rose-500/50 bg-rose-950/40 px-2 py-1 text-rose-200">
+        <div className="rounded border border-critical bg-critical-strong px-2 py-1 text-critical-soft">
           {applyError}
         </div>
       )}

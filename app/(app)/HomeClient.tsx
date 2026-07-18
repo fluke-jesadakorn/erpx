@@ -103,8 +103,8 @@ export function HomeClient({ users, currentUser, expenses: _expenses, policies: 
         )}
 
         {!currentUser && (
-          <div className="flex justify-center items-center py-10 glass-panel rounded-2xl border-indigo-500/20">
-            <span className="ml-3 text-xs font-mono text-slate-300">
+          <div className="flex justify-center items-center py-10 bg-paper-2 border border-rule rounded-md border-accent/40">
+            <span className="ml-3 text-xs font-mono text-ink-2">
                <T id="chrome.noUserSession" />
             </span>
           </div>
@@ -120,8 +120,8 @@ export function HomeClient({ users, currentUser, expenses: _expenses, policies: 
         )}
 
 {currentUser && tilesLoaded && visibleTiles.length === 0 && (
-          <div className="flex justify-center items-center py-10 glass-panel rounded-2xl border border-slate-800">
-             <span className="text-sm text-slate-400 font-sans"><T id="chrome.noTiles" /></span>
+          <div className="flex justify-center items-center py-10 bg-paper-2 border border-rule rounded-md border border-rule">
+             <span className="text-sm text-ink-2 font-sans"><T id="chrome.noTiles" /></span>
           </div>
         )}
       </PageLayout>

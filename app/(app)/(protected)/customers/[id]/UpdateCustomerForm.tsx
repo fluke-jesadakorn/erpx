@@ -48,7 +48,7 @@ export function UpdateCustomerForm({ customer }: { customer: CustomerRow }) {
         <button
           type="submit"
           disabled={busy}
-          className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-xs font-mono text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-50"
+          className="rounded-lg border border-info/40 bg-info px-3 py-1.5 text-xs font-mono text-info hover:bg-info disabled:opacity-50"
         >
           <T id="customers.formSave" />
         </button>
@@ -56,11 +56,11 @@ export function UpdateCustomerForm({ customer }: { customer: CustomerRow }) {
           type="button"
           onClick={toggleBlacklist}
           disabled={busy}
-          className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-xs font-mono text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
+          className="rounded-lg border border-critical/40 bg-critical px-3 py-1.5 text-xs font-mono text-critical hover:bg-critical disabled:opacity-50"
         >
           <T id={customer.blacklist ? 'customers.formUnblock' : 'customers.formBlacklist'} />
         </button>
-        {msg ? <span className="text-sm font-mono text-slate-400">{msg}</span> : null}
+        {msg ? <span className="text-sm font-mono text-ink-2">{msg}</span> : null}
       </div>
     </form>
   );
@@ -78,14 +78,14 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="text-xs font-mono uppercase tracking-wider text-slate-500">{label}</span>
+      <span className="text-xs font-mono uppercase tracking-wider text-mute">{label}</span>
       {multiline ? (
         <textarea
           name={name}
           defaultValue={defaultValue}
           rows={2}
           required={required}
-          className="mt-1 block w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+          className="mt-1 block w-full rounded-lg bg-paper border border-rule px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent/40"
         />
       ) : (
         <input
@@ -93,7 +93,7 @@ function Field({
           type={type}
           defaultValue={defaultValue}
           required={required}
-          className="mt-1 block w-full rounded-lg bg-slate-900 border border-slate-700 px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+          className="mt-1 block w-full rounded-lg bg-paper border border-rule px-3 py-2 text-sm text-ink focus:outline-none focus:border-accent/40"
         />
       )}
     </label>

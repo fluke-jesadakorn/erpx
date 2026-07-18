@@ -28,7 +28,7 @@ export function ChartRenderer({ spec }: { spec: ChartSpec }) {
 
   if (!mounted) {
     return (
-      <div className="text-xs text-slate-500 font-mono py-2">
+      <div className="text-xs text-mute font-mono py-2">
         <T id="chat.chart.rendering" />
       </div>
     );
@@ -70,9 +70,9 @@ export function ChartRenderer({ spec }: { spec: ChartSpec }) {
         : v;
 
   return (
-    <div className="my-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+    <div className="my-2 rounded-md border border-rule bg-paper-2/60 p-3">
       {spec.title && (
-        <div className="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2">
+        <div className="text-xs font-mono uppercase tracking-wider text-ink-2 mb-2">
           {spec.title}
         </div>
       )}

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Icon, type IconName } from '@/components/icons';
+import { iconByName } from '@/components/icon';
 import { subscribeBreadcrumbs, getBreadcrumbs } from '@/components/breadcrumbs/BreadcrumbSetter';
 import type { Crumb } from '@/components/breadcrumbs';
 
@@ -22,10 +22,10 @@ export function TopbarCrumbs() {
     <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm text-mute">
       {safe.map((crumb, index) => {
         const last = index === safe.length - 1;
-        const iconName = (crumb.icon ?? null) as IconName | null;
+        const IconCmp = crumb.icon ? iconByName(crumb.icon) : null;
         const content = (
           <span className={['inline-flex min-w-0 items-center gap-1.5 truncate', last ? 'text-ink' : ''].join(' ')}>
-            {iconName && <Icon name={iconName} size={11} />}
+            {IconCmp && <IconCmp size={11} />}
             <span className="truncate">{crumb.label}</span>
           </span>
         );

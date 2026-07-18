@@ -8,8 +8,8 @@ import { recordEvent } from '@/waybill/events';
 import { loadWaybill } from '@/waybill/queries';
 import { requireActionFor } from '@/server/requireActionFor';
 import { loadActor, type ActorWithScope } from '@/server/guard';
-import { matchPerm } from '@/perm';
-import { PERM, resolveApprovalChain, type StageName, type ResolverCtx } from '@/perm/server';
+import { hasPermission, resolveApprovalChain, type StageName, type ResolverCtx } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import {
   finalizeDraftJournal,
   upsertDraftJournal,
@@ -36,7 +36,7 @@ async function semanticCoaMatch(description: string): Promise<{ code: string | n
 
 function canSettleExpense(actor: ActorWithScope, wb: WbForCheck): boolean {
   return wb.current_stage === 'awaiting_disbursement'
-    && matchPerm(actor.permissions, 'finance:expense:settle::allow');
+    && hasPermission(actor, PERM.finance.expense.settle);
 }
 export async function submitExpenseFromSlip(args: {
   slipId: number;
@@ -48,6 +48,9 @@ export async function submitExpenseFromSlip(args: {
     createdTo?: string;
     createdToAddress?: string;
     transactionDate?: string;
+    subtotal?: number;
+    vatAmount?: number;
+    totalAmount?: number;
     paymentMethod?: string;
     bookBankSlipId?: number;
     bookBankFields?: {
@@ -113,9 +116,9 @@ export async function submitExpenseFromSlip(args: {
     const createdTo = args.overrides?.createdTo || parsed.createdTo || '';
     const createdToAddress = args.overrides?.createdToAddress || parsed.createdToAddress || '';
     const txnDate = args.overrides?.transactionDate || parsed.transactionDate || new Date().toISOString().split('T')[0];
-    const subtotal = Number(parsed.subtotal ?? 0);
-    const vatAmount = Number(parsed.vatAmount ?? 0);
-    const totalAmount = Number(parsed.totalAmount ?? subtotal + vatAmount);
+    const subtotal = Number(args.overrides?.subtotal ?? parsed.subtotal ?? 0);
+    const vatAmount = Number(args.overrides?.vatAmount ?? parsed.vatAmount ?? 0);
+    const totalAmount = Number(args.overrides?.totalAmount ?? parsed.totalAmount ?? subtotal + vatAmount);
     const paymentMethod = args.overrides?.paymentMethod || parsed.paymentMethod || 'cash';
     const isCorrupted = !!parsed.isCorrupted;
     const correctionNotes = parsed.correctionNotes || '';

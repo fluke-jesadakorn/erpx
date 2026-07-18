@@ -29,25 +29,25 @@ export function ApproverAvatar({ user, size = 'md' }: Props) {
         <div className="min-w-[180px] space-y-1">
           <div className="flex items-center gap-2">
             <span
-              className={`grid ${dim} shrink-0 place-items-center rounded-full font-bold ring-1 ring-slate-700/60 ${accent}`}
+              className={`grid ${dim} shrink-0 place-items-center rounded-full font-bold ring-1 ring-rule/60 ${accent}`}
             >
               {initialsOf(user.fullname)}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-bold leading-tight text-slate-50">
+              <div className="text-[13px] font-bold leading-tight text-ink">
                 {user.fullname}
               </div>
-              <div className="text-xs font-mono uppercase tracking-wider text-slate-400">
+              <div className="text-xs font-mono uppercase tracking-wider text-ink-2">
                 #{user.user_id}
               </div>
             </div>
           </div>
-          <div className="border-t border-slate-700/60 pt-1.5">
-            <div className="text-sm leading-tight text-slate-200">
+          <div className="border-t border-rule/60 pt-1.5">
+            <div className="text-sm leading-tight text-ink">
               {positionLine}
             </div>
             {levelLabel && (
-              <div className="mt-1 inline-flex items-center rounded-full border border-slate-700/60 bg-slate-800/60 px-1.5 py-0.5 text-xs font-mono uppercase tracking-widest text-slate-300">
+              <div className="mt-1 inline-flex items-center rounded-full border border-rule/60 bg-paper-2/60 px-1.5 py-0.5 text-xs font-mono uppercase tracking-widest text-ink-2">
                 {levelLabel}
               </div>
             )}
@@ -58,7 +58,7 @@ export function ApproverAvatar({ user, size = 'md' }: Props) {
       <span
         tabIndex={0}
         aria-label={`${user.fullname} · ${positionLine}`}
-        className={`grid ${dim} cursor-default shrink-0 place-items-center rounded-full font-bold ring-2 ring-slate-950 transition hover:ring-slate-700 focus:outline-none focus:ring-slate-700 ${accent}`}
+        className={`grid ${dim} cursor-default shrink-0 place-items-center rounded-full font-bold ring-2 ring-paper transition hover:ring-rule-strong focus:outline-none focus:ring-rule-strong ${accent}`}
       >
         {initialsOf(user.fullname)}
       </span>

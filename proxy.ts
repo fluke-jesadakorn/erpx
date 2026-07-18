@@ -8,6 +8,7 @@ import { SESSION_COOKIE, verifySession } from '@/server/sessionToken';
 
 const PUBLIC_PATHS = [
   '/login',
+  '/forbidden',
 ];
 
 const PUBLIC_API = [

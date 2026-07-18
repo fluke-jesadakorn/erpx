@@ -26,6 +26,7 @@ import { CustomerCombobox, type CustomerComboboxOption } from '@/components/cust
 import { CustomerArHistory, type CustomerArBucket } from '@/components/customer/CustomerArHistory';
 import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 import { T } from '@/components/i18n/T';
+import { Modal } from '@/components/ui';
 import { NewWaybillPanel } from './NewWaybillPanel';
 import { SalesExtractPanel, type ExtractedDraft } from './SalesExtractPanel';
 
@@ -173,6 +174,7 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
   const [autosavePending, setAutosavePending] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState<boolean>(false);
   const [arBuckets, setArBuckets] = useState<CustomerArBucket[] | null>(
     initialDraft?.arBuckets ?? null,
   );
@@ -420,7 +422,6 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
 
   async function handleDiscard() {
     if (!draftWaybillId) return;
-    if (!confirm(tKey('sales.panel.discard_confirm'))) return;
     try {
       const fd = new FormData();
       fd.set('waybillId', draftWaybillId);
@@ -518,7 +519,7 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
       readyToSubmit={canSubmitAll}
       submitting={submitting}
       onSubmit={handleSubmit}
-      onDiscard={handleDiscard}
+      onDiscard={() => setConfirmDiscard(true)}
       hint={hint}
       draftWaybillId={draftWaybillId}
       headerExtra={
@@ -547,7 +548,7 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
       }
       stickyActionBar={
         <div
-          className="sticky bottom-2 z-10 -mx-5 sm:-mx-7 px-5 sm:px-7 py-4 glass-panel-heavy rounded-2xl border border-rule"
+          className="sticky bottom-2 z-10 -mx-5 sm:-mx-7 px-5 sm:px-7 py-4 bg-paper-2 rounded-md border border-rule"
           data-testid="sales-sticky-bar"
         >
           <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:gap-5">
@@ -620,7 +621,7 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
                 }
                 data-testid="sales-sticky-submit"
                 className={[
-                  'shrink-0 inline-flex items-center justify-center gap-2 rounded-xl border w-12 h-12 transition-all duration-200',
+                  'shrink-0 inline-flex items-center justify-center gap-2 rounded-md border w-12 h-12 transition-all duration-200',
                   'disabled:opacity-50 disabled:cursor-not-allowed',
                   submitting
                     ? 'bg-rule-strong text-ink-2 border-rule-strong'
@@ -809,7 +810,7 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
             const showQtyErr = fieldErr(`${it.key}-qty`, it.qty <= 0);
             return (
               <div key={it.key} className="space-y-1">
-                <div className="grid grid-cols-12 gap-2 items-center rounded-xl border border-rule bg-paper-3 px-2 py-2">
+                <div className="grid grid-cols-12 gap-2 items-center rounded-md border border-rule bg-paper-3 px-2 py-2">
                   <input
                     type="text"
                     value={it.description}
@@ -991,6 +992,44 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
           {submitError}
         </p>
       )}
+
+      <Modal
+        open={confirmDiscard}
+        onClose={() => setConfirmDiscard(false)}
+        title={tKey('sales.panel.discard_confirm')}
+        tone="rose"
+        width="md"
+        footer={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setConfirmDiscard(false)}
+              className="rounded-md border border-rule bg-paper-2 px-3 py-1.5 text-xs font-mono text-ink-2 hover:bg-paper-3 transition-colors"
+            >
+              <T id="common.cancel" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfirmDiscard(false);
+                void handleDiscard();
+              }}
+              className="rounded-md bg-critical px-3 py-1.5 text-xs font-mono text-paper-2 hover:bg-critical-strong transition-colors"
+            >
+              <T id="common.delete" />
+            </button>
+          </div>
+        }
+      >
+        <p className="text-sm text-ink-2">
+          {draftWaybillId && (
+            <>
+              <span className="font-mono text-ink">{draftWaybillId}</span> ·{' '}
+            </>
+          )}
+          The draft will be removed from the server.
+        </p>
+      </Modal>
     </NewWaybillPanel>
   );
 }

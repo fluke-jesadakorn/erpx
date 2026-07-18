@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/db';
 import { loadActor } from '@/server/guard';
-import { matchPerm, parseRoleId } from '@/perm/server';
+import { hasPermission, loadActivePermSession, parseRoleId } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 
 export async function GET(req: NextRequest) {
   const actor = await loadActor();
-  if (!actor) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  if (!matchPerm(actor.permissions, 'user:directory:read::allow')) {
+  const session = await loadActivePermSession(req);
+  if (!actor || !session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!hasPermission(session.session, PERM.user.directory.read)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
   const { searchParams } = new URL(req.url);
@@ -73,8 +75,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const actor = await loadActor();
-  if (!actor) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  if (!matchPerm(actor.permissions, 'user:profile:create::allow')) {
+  const session = await loadActivePermSession(req);
+  if (!actor || !session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!hasPermission(session.session, PERM.user.profile.create)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
   const body = await req.json();

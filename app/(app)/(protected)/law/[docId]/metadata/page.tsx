@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { loadActivePermSession, hasPermission, PERM } from '@/perm/server';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
-import { trail } from '@/components/breadcrumbs';
+import { trail } from '@/components/breadcrumbs/routes';
 import { NoPermissionView } from '@/components/NoPermissionView';
 import { Tabs, Panel } from '@/components/ui';
 import { T } from '@/components/i18n/TServer';
@@ -74,7 +74,7 @@ export default async function LawMetadataPage({ params }: Props) {
       <PageLayout
         title={contract.fileName}
         subtitle="Metadata"
-        category={{ label: <T id="law.title" locale={locale} />, icon: 'scale', href: '/law' }}
+        category={{ label: <T id="law.title" locale={locale} />, icon: 'Scale', href: '/law' }}
       >
         <Tabs
           value="metadata"

@@ -74,13 +74,13 @@ export function NewWaybillPanel({
 
   return (
     <section
-      className="relative mb-8 overflow-hidden rounded-3xl glass-panel-heavy"
+      className="relative mb-8 overflow-hidden rounded-md bg-paper-2"
       aria-label={domain === 'expense' ? 'New expense claim' : 'New sales order'}
     >
       <header className="relative grid grid-cols-1 md:grid-cols-[auto_minmax(0,1fr)_auto] gap-5 md:gap-6 px-5 sm:px-7 py-5 sm:py-7 border-b border-rule">
         <div
           className={
-            'hidden md:flex shrink-0 w-14 h-14 rounded-2xl items-center justify-center border ' +
+            'hidden md:flex shrink-0 w-14 h-14 rounded-md items-center justify-center border ' +
             (domain === 'expense'
               ? 'bg-accent-soft text-accent border-accent/30'
               : 'bg-info-soft text-info border-info/30')
@@ -163,7 +163,7 @@ export function NewWaybillPanel({
               disabled={!readyToSubmit}
               data-testid="panel-submit-all"
               className={
-                'w-full py-3 rounded-xl text-sm font-bold font-mono inline-flex items-center justify-center gap-2 transition-colors duration-200 border ' +
+                'w-full py-3 rounded-md text-sm font-bold font-mono inline-flex items-center justify-center gap-2 transition-colors duration-200 border ' +
                 'disabled:opacity-50 disabled:cursor-not-allowed ' +
                 (submitting
                   ? 'bg-rule-strong text-ink-2 border-rule-strong'

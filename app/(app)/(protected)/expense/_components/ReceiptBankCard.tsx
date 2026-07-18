@@ -97,7 +97,7 @@ export async function ReceiptBankCard({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <div className="rounded-xl border border-rule bg-paper-3/55 px-3.5 py-3 space-y-1.5">
+      <div className="rounded-md border border-rule bg-paper-3/55 px-3.5 py-3 space-y-1.5">
         <RailHeader Icon={Receipt} labelId="expense.receipt" status={null} />
         <p className="text-sm font-semibold text-ink truncate">
           {vendorName ?? <span className="text-mute italic font-normal">—</span>}
@@ -114,7 +114,7 @@ export async function ReceiptBankCard({
         </div>
       </div>
 
-      <div className="rounded-xl border border-rule bg-paper-3/55 px-3.5 py-3 space-y-1.5">
+      <div className="rounded-md border border-rule bg-paper-3/55 px-3.5 py-3 space-y-1.5">
         <RailHeader
           Icon={Landmark}
           labelId="expense.bookBank"

@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listHookEvents } from '@/hook/persist';
 import { loadActor } from '@/server/guard';
-import { matchPerm } from '@/perm';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const actor = await loadActor();
-  if (!actor) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  const allowed = matchPerm(actor.permissions, "hook:event:view::allow");
+  const session = await loadActivePermSession(req);
+  if (!actor || !session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const allowed = hasPermission(session.session, PERM.hook.event.view);
   if (!allowed) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
 
   const { searchParams } = new URL(req.url);

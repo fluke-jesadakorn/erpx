@@ -76,7 +76,7 @@ label: <T id={groupLabelId(tile.group)} locale={locale} />,
   if (!tileRow || !tile) {
     return (
       <PageLayout title={<T id="hr.audit" locale={locale} />} subtitle={<T id="audit.subtitle" locale={locale} />}>
-        <div className="text-rose-400 text-sm">
+        <div className="text-critical text-sm">
           <T id="audit.notConfigured" locale={locale} />
         </div>
       </PageLayout>
@@ -95,7 +95,7 @@ label: <T id={groupLabelId(tile.group)} locale={locale} />,
           href: `/group/${tile.group}`,
         }}
       >
-        <div className="text-slate-400 text-sm p-4">
+        <div className="text-ink-2 text-sm p-4">
           <T id="audit.feedHelp" locale={locale} values={{}} />
         </div>
       </PageLayout>

@@ -69,13 +69,13 @@ export interface ReceiptUploadProps {
 }
 
 const INPUT_CLS =
-  'glass-panel w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-ink-2/60 font-medium';
+  'bg-paper-2 border border-rule w-full rounded-md hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-ink-2/60 font-medium';
 
 const NUMBER_CLS =
-  'glass-panel w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink font-sans tabular-nums text-right focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-ink-2/60 font-medium';
+  'bg-paper-2 border border-rule w-full rounded-md hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink font-sans tabular-nums text-right focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-ink-2/60 font-medium';
 
 const TABLE_INPUT_CLS =
-  'glass-panel w-full focus:border-rule-strong rounded px-2 py-1 text-sm text-ink focus:outline-none';
+  'bg-paper-2 border border-rule w-full focus:border-rule-strong rounded px-2 py-1 text-sm text-ink focus:outline-none';
 
 export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
   function ReceiptUpload(
@@ -162,6 +162,9 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
         createdTo: createdTo || undefined,
         createdToAddress: createdToAddress || undefined,
         transactionDate: date || undefined,
+        subtotal: subN,
+        vatAmount: vatN,
+        totalAmount: totalN,
         paymentMethod: payment,
         items,
       };
@@ -314,7 +317,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 )}
               </button>
             ) : (
-              <div className="w-full h-32 sm:h-44 rounded-xl flex items-center justify-center border border-rule bg-paper-3">
+              <div className="w-full h-32 sm:h-44 rounded-md flex items-center justify-center border border-rule bg-paper-3">
                 <FileSpreadsheet className="size-12 text-ink-2" strokeWidth={1.2} aria-hidden />
               </div>
             )}
@@ -572,7 +575,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                             onPaymentChange?.(v);
                           }}
                           disabled={disabled || ocr.extractionState === 'running'}
-                          className="w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed font-medium border border-rule bg-paper-2"
+                          className="w-full rounded-md hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed font-medium border border-rule bg-paper-2"
                           title="Payment method"
                         >
                           <option value="cash">Cash</option>
@@ -625,7 +628,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
 
               {ocr.pendingFile && ocr.extractionState === 'done' && !hideSubmitButton && (
                 <div
-                  className={`rounded-xl border p-3 space-y-1 ${
+                  className={`rounded-md border p-3 space-y-1 ${
                     canConfirm
                       ? 'border-positive/50 bg-positive-soft'
                       : 'border-rule-strong bg-paper-3/40'
@@ -669,7 +672,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                           : 'Disabled · ปิดอยู่'
                       }
                       data-testid="slip-confirm"
-                      className={`w-12 h-12 inline-flex items-center justify-center gap-2 rounded-xl border text-sm font-sans tabular-nums font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      className={`w-12 h-12 inline-flex items-center justify-center gap-2 rounded-md border text-sm font-sans tabular-nums font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
                         ocr.phase === 'confirming'
                           ? 'bg-rule-strong text-ink-2 border-rule-strong'
                           : canConfirm
@@ -693,7 +696,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
               )}
 
               {ocr.pendingFile && ocr.extractionState === 'done' && (
-                <div className="rounded-xl overflow-hidden border border-rule bg-paper-3/40">
+                <div className="rounded-md overflow-hidden border border-rule bg-paper-3/40">
                   <details className="group" open>
                     <summary
                       className="flex items-center justify-between px-3 py-2 border-b border-rule cursor-pointer select-none hover:bg-paper-3/60 transition-colors [&::-webkit-details-marker]:hidden"
@@ -923,7 +926,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   }
                   title="Open in expense workflow"
                   aria-label="Open in expense workflow"
-                  className="text-info-strong hover:text-info inline-flex items-center justify-center gap-1.5 w-9 h-9 rounded-lg border border-info/30 glass-tint-info hover:shadow-popover transition-colors"
+                  className="text-info-strong hover:text-info inline-flex items-center justify-center gap-1.5 w-9 h-9 rounded-lg border border-info/30 bg-info-soft border border-info/40 hover:shadow-popover transition-colors"
                 >
                   <LinkIcon className="size-4" strokeWidth={2} aria-hidden />
                 </Link>
@@ -978,7 +981,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
             width="2xl"
             hideCloseButton={false}
           >
-            <div className="glass-panel flex items-center justify-center rounded-xl p-1">
+            <div className="bg-paper-2 border border-rule flex items-center justify-center rounded-md p-1">
               <img
                 src={ocr.preview}
                 alt="preview enlarged"

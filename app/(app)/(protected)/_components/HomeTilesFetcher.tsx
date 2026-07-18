@@ -18,11 +18,10 @@ interface Props {
     [k: string]: unknown;
   };
   canViewHub: boolean;
-  canViewPolicy: boolean;
   canViewExec: boolean;
 }
 
-export async function HomeTilesFetcher({ actor, canViewHub, canViewPolicy, canViewExec }: Props) {
+export async function HomeTilesFetcher({ actor, canViewHub, canViewExec }: Props) {
   const [{ users = [], expenses = [] }, prsRes, execRes] = await Promise.all([
     getDashboardData(),
     listPurchaseRequisitions(actor.id),

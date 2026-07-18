@@ -32,8 +32,8 @@ function approverNames(approvers: ApproverRow[]): string[] {
   return approvers.slice(0, 3).map((a) => a.fullname);
 }
 
-const FINAL_APPROVAL_BG = 'border-fuchsia-500/30 bg-fuchsia-950/30';
-const FINAL_APPROVAL_TEXT = 'text-fuchsia-200';
+const FINAL_APPROVAL_BG = 'border-accent bg-accent-strong';
+const FINAL_APPROVAL_TEXT = 'text-accent-strong';
 
 interface Props {
   waybillId: string;
@@ -100,27 +100,27 @@ export function PipActionPrompt({
   const localeSafe: SecondaryLocale = locale ?? 'th';
   if (isRejection) {
     return (
-      <section className="space-y-3 border-t border-rose-500/30 pt-4">
-        <div className="text-xs font-mono uppercase tracking-widest text-rose-200/80">
+      <section className="space-y-3 border-t border-critical pt-4">
+        <div className="text-xs font-mono uppercase tracking-widest text-critical-strong">
           ✗ <T id="waybill.timeline.rejectedBy" locale={localeSafe} />
         </div>
         {rejectionActor ? (
-          <div className="rounded-lg border border-rose-500/40 bg-rose-950/30 p-3 text-sm text-rose-100">
+          <div className="rounded-lg border border-critical bg-critical-soft p-3 text-sm text-critical-strong">
             <span className="font-mono">
               {rejectionActor.fullname}
-              <span className="ml-1 text-rose-300/80">#{rejectionActor.user_id}</span>
+              <span className="ml-1 text-critical">#{rejectionActor.user_id}</span>
             </span>
             {rejectionActor.role && (
-              <span className="ml-2 text-rose-300/80">
+              <span className="ml-2 text-critical">
                 ({roleDisplayBi(rejectionActor.role, localeSafe)})
               </span>
             )}
             {rejectionReason && (
-              <p className="mt-2 italic text-rose-100">&ldquo;{rejectionReason}&rdquo;</p>
+              <p className="mt-2 italic text-critical-strong">&ldquo;{rejectionReason}&rdquo;</p>
             )}
           </div>
         ) : (
-          <p className="text-sm text-rose-100">
+          <p className="text-sm text-critical-strong">
             <T id="waybill.timeline.noRejection" locale={localeSafe} />
           </p>
         )}
@@ -132,14 +132,14 @@ export function PipActionPrompt({
           title={<T id="waybill.pip.originalApprovers" locale={localeSafe} /> as unknown as string}
         />
         {isSubmitter && (
-          <form action={resubmitWaybillAction} className="rounded-2xl border border-amber-500/50 bg-amber-950/30 p-5">
+          <form action={resubmitWaybillAction} className="rounded-md border border-caution bg-caution-soft p-5">
             <input type="hidden" name="waybillId" value={waybillId} />
-            <p className="text-sm text-amber-100">
+            <p className="text-sm text-caution-strong">
               <T id="waybill.pip.resubmitPrompt" locale={localeSafe} />
             </p>
             <button
               type="submit"
-              className="mt-4 rounded-xl bg-amber-400 px-5 py-3 text-base font-bold text-slate-950 shadow-lg shadow-amber-500/30 transition hover:bg-amber-300"
+              className="mt-4 rounded-md bg-caution px-5 py-3 text-base font-bold text-paper shadow-lg shadow-caution transition hover:bg-caution"
             >
               ↩ <T id="waybill.pip.resubmit" locale={localeSafe} />
             </button>
@@ -156,41 +156,41 @@ export function PipActionPrompt({
         <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs font-mono uppercase tracking-widest">
           <span className={FINAL_APPROVAL_TEXT}>
             🔒 <T id="waybill.timeline.finalAuthorization" locale={localeSafe} />
-            <span className="ml-2 text-slate-400">
+            <span className="ml-2 text-ink-2">
               <T id="waybill.timeline.currentStage" locale={localeSafe} />
             </span>
           </span>
-          <span className="rounded-md border border-fuchsia-400/40 bg-fuchsia-500/15 px-2 py-0.5 text-fuchsia-200">
+          <span className="rounded-md border border-accent bg-accent px-2 py-0.5 text-accent-strong">
             <T id="waybill.timeline.approveGlPost" locale={localeSafe} />
           </span>
         </div>
         {canAttach && <AttachmentUpload waybillId={waybillId} stage={pipKey} />}
         {showFinalRejectForm && (
-          <form action={finalRejectWaybillAction} className="rounded-2xl border border-rose-500/50 bg-rose-950/30 p-5">
+          <form action={finalRejectWaybillAction} className="rounded-md border border-critical bg-critical-soft p-5">
             <input type="hidden" name="waybillId" value={waybillId} />
-            <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-rose-400/40 bg-rose-500/10 px-2 py-1 text-xs font-mono uppercase tracking-widest text-rose-200">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-critical bg-critical px-2 py-1 text-xs font-mono uppercase tracking-widest text-critical-strong">
               🔒 <T id="waybill.pip.finalRejectNoGlPost" locale={localeSafe} />
             </div>
-            <label className="block text-sm font-medium text-rose-200">
+            <label className="block text-sm font-medium text-critical-strong">
               <T id="waybill.actions.reasonMin5" locale={localeSafe} />
               <textarea
                 name="reason"
                 required
                 minLength={5}
-                className="mt-2 block w-full rounded-lg bg-slate-950 p-3 text-sm text-white ring-1 ring-rose-500/30 focus:outline-none focus:ring-2 focus:ring-rose-400/60"
+                className="mt-2 block w-full rounded-lg bg-paper p-3 text-sm text-ink ring-1 ring-critical focus:outline-none focus:ring-2 focus:ring-critical"
                 rows={3}
               />
             </label>
             <div className="mt-4 flex gap-3">
               <button
                 type="submit"
-                className="rounded-xl bg-rose-500 px-5 py-3 text-base font-bold text-slate-950 shadow-lg shadow-rose-500/30 transition hover:bg-rose-400"
+                className="rounded-md bg-critical px-5 py-3 text-base font-bold text-paper shadow-lg shadow-critical transition hover:bg-critical"
               >
                 ✗ <T id="waybill.pip.confirmFinalReject" locale={localeSafe} />
               </button>
               <a
                 href={`/waybill/${waybillId}`}
-                className="rounded-xl border border-slate-700 px-5 py-3 text-base text-slate-300 hover:border-slate-500"
+                className="rounded-md border border-rule px-5 py-3 text-base text-ink-2 hover:border-rule"
               >
                 <T id="waybill.pip.cancel" locale={localeSafe} />
               </a>
@@ -203,13 +203,13 @@ export function PipActionPrompt({
             <button
               type="submit"
               data-testid={`panel-final-approve-${waybillId}`}
-              className="group inline-flex w-full flex-col items-center justify-center gap-1 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 px-5 py-5 text-lg font-bold text-slate-950 shadow-xl shadow-emerald-500/40 transition hover:from-emerald-300 hover:to-cyan-400 hover:shadow-emerald-500/50"
+              className="group inline-flex w-full flex-col items-center justify-center gap-1 rounded-md bg-positive px-5 py-5 text-lg font-bold text-paper shadow-xl shadow-positive transition hover:bg-positive-strong hover:shadow-positive-strong"
             >
               <span className="flex items-center gap-2">
                 <span aria-hidden className="text-2xl">✓</span>
                 <span><T id="waybill.pip.finalApprove" locale={localeSafe} /></span>
               </span>
-              <span className="text-xs font-mono uppercase tracking-widest text-emerald-950/70 group-hover:text-emerald-950">
+              <span className="text-xs font-mono uppercase tracking-widest text-positive-strong group-hover:text-positive-strong">
                 <T id="waybill.pip.finalApprovePostsGl" locale={localeSafe} />
               </span>
             </button>
@@ -218,13 +218,13 @@ export function PipActionPrompt({
             <Link
               href={`/waybill/${waybillId}?action=final-reject&stage=${pipKey}`}
               data-testid={`panel-final-reject-${waybillId}`}
-              className="group inline-flex flex-col items-center justify-center gap-1 rounded-2xl bg-gradient-to-br from-rose-400 to-rose-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-xl shadow-rose-500/40 transition hover:from-rose-300 hover:to-rose-500 hover:shadow-rose-500/50"
+              className="group inline-flex flex-col items-center justify-center gap-1 rounded-md bg-critical px-5 py-5 text-lg font-bold text-paper shadow-xl shadow-critical transition hover:bg-critical-strong hover:shadow-critical-strong"
             >
               <span className="flex items-center gap-2">
                 <span aria-hidden className="text-2xl">✗</span>
                 <span><T id="waybill.pip.finalReject" locale={localeSafe} /></span>
               </span>
-              <span className="text-xs font-mono uppercase tracking-widest text-rose-950/70 group-hover:text-rose-950">
+              <span className="text-xs font-mono uppercase tracking-widest text-critical-strong group-hover:text-critical-strong">
                 <T id="waybill.timeline.finalRejectNoGl" locale={localeSafe} />
               </span>
             </Link>
@@ -243,17 +243,17 @@ export function PipActionPrompt({
 
   if (isCurrentStage && isDisbursed && canConfirmGl) {
     return (
-      <section className="space-y-3 border-t border-emerald-500/30 pt-4">
-        <div className="text-xs font-mono uppercase tracking-widest text-emerald-300">
+      <section className="space-y-3 border-t border-positive pt-4">
+        <div className="text-xs font-mono uppercase tracking-widest text-positive">
           ✅ <T id="waybill.timeline.confirmGlRecorded" locale={localeSafe} />
-          <span className="ml-2 text-slate-400">
+          <span className="ml-2 text-ink-2">
             <T id="waybill.timeline.currentStage" locale={localeSafe} />
           </span>
         </div>
         {originId != null ? (
           <form
             action={confirmGlRecordedAction}
-            className="rounded-xl border border-amber-500/50 bg-amber-950/30 p-4 text-sm text-amber-100"
+            className="rounded-md border border-caution bg-caution-soft p-4 text-sm text-caution-strong"
           >
             <input type="hidden" name="waybillId" value={waybillId} />
             <input type="hidden" name="expenseId" value={originId} />
@@ -263,14 +263,14 @@ export function PipActionPrompt({
             <button
               type="submit"
               data-testid={`panel-gl-confirm-${waybillId}`}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 px-5 py-5 text-lg font-bold text-slate-950 shadow-lg shadow-amber-500/40 transition hover:from-amber-300 hover:to-amber-400 hover:shadow-amber-500/50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-caution px-5 py-5 text-lg font-bold text-paper shadow-lg shadow-caution transition hover:bg-caution-strong hover:shadow-caution-strong"
             >
               <span aria-hidden className="text-2xl">✓</span>
               <span><T id="waybill.timeline.confirmGlRecorded" locale={localeSafe} /></span>
             </button>
           </form>
         ) : (
-          <p className="text-sm font-mono text-slate-400">
+          <p className="text-sm font-mono text-ink-2">
             <T id="waybill.timeline.waitingGlPost" locale={localeSafe} />
           </p>
         )}
@@ -287,17 +287,17 @@ export function PipActionPrompt({
 
   if (isCurrentStage && isAwaitingDisbursement && canSettle) {
     return (
-      <section className="space-y-3 border-t border-cyan-500/30 pt-4">
-        <div className="text-xs font-mono uppercase tracking-widest text-cyan-300">
+      <section className="space-y-3 border-t border-info pt-4">
+        <div className="text-xs font-mono uppercase tracking-widest text-info">
           💸 <T id="waybill.timeline.disbursementStep" locale={localeSafe} />
-          <span className="ml-2 text-slate-400">
+          <span className="ml-2 text-ink-2">
             <T id="waybill.timeline.currentStage" locale={localeSafe} />
           </span>
         </div>
         {originId != null ? (
           <SettleForm waybillId={waybillId} expenseId={originId} visionModels={visionModels} />
         ) : (
-          <p className="text-sm font-mono text-slate-400">
+          <p className="text-sm font-mono text-ink-2">
             no expenseId available to settle
           </p>
         )}
@@ -319,34 +319,34 @@ export function PipActionPrompt({
     const nextStageEn = nextStage ? pipStageLabel(nextStage, domain, 'en') : null;
     const eligibleNames = approverNames(approvers);
     return (
-      <section className="space-y-7 rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-950/35 via-slate-950/40 to-slate-950/30 p-6 shadow-[0_0_0_1px_rgba(6,182,212,0.12),0_8px_28px_-10px_rgba(6,182,212,0.3)]">
+      <section className="space-y-7 rounded-md border border-info bg-info-soft p-6">
         <div className="flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-widest">
-          <span aria-hidden className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-300">
+          <span aria-hidden className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-info text-paper">
             ⚡
           </span>
-          <span className="text-cyan-200">
+          <span className="text-info-strong">
             <T id="waybill.timeline.actingNow" locale={localeSafe} />
           </span>
-          <span className="text-slate-600">·</span>
-          <span className="text-slate-400">
+          <span className="text-mute">·</span>
+          <span className="text-ink-2">
             <T id="waybill.timeline.currentStage" locale={localeSafe} />
           </span>
-          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-500/15 px-2 py-0.5 font-mono font-bold uppercase tracking-widest text-cyan-200">
-            <span className="text-cyan-300/80">role:</span>
-             <span className="text-cyan-100"><T id={roleText} locale={localeSafe} /></span>
+          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-info bg-info px-2 py-0.5 font-mono font-bold uppercase tracking-widest text-info-strong">
+            <span className="text-info">role:</span>
+             <span className="text-info-strong"><T id={roleText} locale={localeSafe} /></span>
           </span>
         </div>
         {eligibleNames.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-cyan-500/20 bg-cyan-950/20 px-3 py-2 text-sm text-cyan-100">
-            <span aria-hidden className="text-cyan-300">👤</span>
-            <span className="font-mono uppercase tracking-widest text-cyan-300/80">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-info bg-info-strong px-3 py-2 text-sm text-info-strong">
+            <span aria-hidden className="text-info">👤</span>
+            <span className="font-mono uppercase tracking-widest text-info">
               <T id="waybill.pip.eligibleApprovers" locale={localeSafe} />
             </span>
-            <span className="text-slate-500">·</span>
-            <span className="text-cyan-50">
+            <span className="text-mute">·</span>
+            <span className="text-info-strong">
               {eligibleNames.join(', ')}
               {approvers.length > eligibleNames.length && (
-                <span className="text-slate-400">
+                <span className="text-ink-2">
                   {' '}
                   +{approvers.length - eligibleNames.length} more
                 </span>
@@ -356,29 +356,29 @@ export function PipActionPrompt({
         )}
         {canAttach && <AttachmentUpload waybillId={waybillId} stage={pipKey} />}
         {showRejectForm && (
-          <form action={rejectWaybillAction} className="rounded-2xl border border-rose-500/40 bg-rose-950/30 p-5">
+          <form action={rejectWaybillAction} className="rounded-md border border-critical bg-critical-soft p-5">
             <input type="hidden" name="waybillId" value={waybillId} />
             <input type="hidden" name="stage" value={pipKey} />
-            <label className="block text-sm font-medium text-rose-200">
+            <label className="block text-sm font-medium text-critical-strong">
               <T id="waybill.actions.reasonMin5" locale={localeSafe} />
               <textarea
                 name="reason"
                 required
                 minLength={5}
-                className="mt-2 block w-full rounded-lg bg-slate-950 p-3 text-sm text-white ring-1 ring-rose-500/30 focus:outline-none focus:ring-2 focus:ring-rose-400/60"
+                className="mt-2 block w-full rounded-lg bg-paper p-3 text-sm text-ink ring-1 ring-critical focus:outline-none focus:ring-2 focus:ring-critical"
                 rows={3}
               />
             </label>
             <div className="mt-4 flex gap-3">
               <button
                 type="submit"
-                className="rounded-xl bg-rose-500 px-5 py-3 text-base font-bold text-slate-950 shadow-lg shadow-rose-500/30 transition hover:bg-rose-400"
+                className="rounded-md bg-critical px-5 py-3 text-base font-bold text-paper shadow-lg shadow-critical transition hover:bg-critical"
               >
                 ✗ <T id="waybill.pip.confirmReject" locale={localeSafe} />
               </button>
               <a
                 href={`/waybill/${waybillId}`}
-                className="rounded-xl border border-slate-700 px-5 py-3 text-base text-slate-300 hover:border-slate-500"
+                className="rounded-md border border-rule px-5 py-3 text-base text-ink-2 hover:border-rule"
               >
                 <T id="waybill.pip.cancel" locale={localeSafe} />
               </a>
@@ -392,20 +392,20 @@ export function PipActionPrompt({
             <button
               type="submit"
               data-testid={`panel-approve-${pipKey}`}
-              className="group relative inline-flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-300 via-cyan-400 to-cyan-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-[0_10px_28px_-8px_rgba(6,182,212,0.6),inset_0_1px_0_rgba(255,255,255,0.45)] transition hover:from-cyan-200 hover:via-cyan-300 hover:to-cyan-500 hover:shadow-[0_12px_32px_-8px_rgba(6,182,212,0.75),inset_0_1px_0_rgba(255,255,255,0.55)]"
+              className="group relative inline-flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-md bg-info px-5 py-5 text-lg font-bold text-ink shadow-popover transition hover:bg-info-strong"
             >
               <span className="flex items-center gap-2">
                 <span aria-hidden className="text-2xl leading-none">✓</span>
                 <span><T id="waybill.timeline.approve" locale={localeSafe} /></span>
               </span>
               {nextStageEn ? (
-                <span className="inline-flex items-center gap-1 text-xs font-mono uppercase tracking-widest text-cyan-950/80 group-hover:text-cyan-950">
+                <span className="inline-flex items-center gap-1 text-xs font-mono uppercase tracking-widest text-info-strong group-hover:text-info-strong">
                   <span><T id="waybill.pip.advanceTo" locale={localeSafe} /></span>
-                  <span className="text-cyan-950/90">{nextStageEn.emoji}</span>
-                   <span className="text-cyan-950/90"><T id={nextStageEn.label} locale={localeSafe} /></span>
+                  <span className="text-info-strong">{nextStageEn.emoji}</span>
+                   <span className="text-info-strong"><T id={nextStageEn.label} locale={localeSafe} /></span>
                 </span>
               ) : (
-                <span className="text-xs font-mono uppercase tracking-widest text-cyan-950/80 group-hover:text-cyan-950">
+                <span className="text-xs font-mono uppercase tracking-widest text-info-strong group-hover:text-info-strong">
                   <T id="waybill.pip.closeThisStep" locale={localeSafe} />
                 </span>
               )}
@@ -415,14 +415,14 @@ export function PipActionPrompt({
             <Link
               href={`/waybill/${waybillId}?action=reject&stage=${pipKey}`}
               data-testid={`panel-reject-${pipKey}`}
-              className="group inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-700/80 bg-slate-900/60 px-4 py-4 text-sm font-bold text-slate-300 shadow-inner transition hover:border-rose-500/40 hover:bg-rose-950/20 hover:text-rose-200"
+              className="group inline-flex items-center justify-center gap-2 rounded-md border border-rule/80 bg-paper-2/60 px-4 py-4 text-sm font-bold text-ink-2 shadow-inner transition hover:border-critical hover:bg-critical-strong hover:text-critical-strong"
             >
               <span aria-hidden className="text-lg leading-none">✗</span>
               <span><T id="waybill.timeline.reject" locale={localeSafe} /></span>
             </Link>
           )}
         </div>
-        <div className="mt-2 border-t border-cyan-500/15 pt-5">
+        <div className="mt-2 border-t border-info pt-5">
           <ApproversList
             approvers={approvers}
             locale={localeSafe}
@@ -442,38 +442,38 @@ export function PipActionPrompt({
       : <T id="waybill.timeline.completedBy" locale={localeSafe} />;
     const formattedDate = actor ? formatDateServer(actor.occurred_at, localeSafe) : null;
     return (
-      <section className="space-y-3 border-t border-emerald-500/30 pt-4">
-        <div className="text-xs font-mono uppercase tracking-widest text-emerald-200/80">
+      <section className="space-y-3 border-t border-positive pt-4">
+        <div className="text-xs font-mono uppercase tracking-widest text-positive-strong">
           ✓ {label}
         </div>
         {actor ? (
-          <div className="flex items-center gap-3 rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-3 text-sm text-emerald-100">
+          <div className="flex items-center gap-3 rounded-lg border border-positive bg-positive-soft p-3 text-sm text-positive-strong">
             <span
               aria-hidden
-              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500/20 text-xs font-bold uppercase text-emerald-100"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-positive bg-positive text-xs font-bold uppercase text-positive-strong"
             >
               {initialsOf(actor.fullname)}
             </span>
             <div className="min-w-0 flex-1">
-              <div className="truncate font-semibold text-emerald-50">
+              <div className="truncate font-semibold text-positive-strong">
                 {actor.fullname || `#${actor.user_id}`}
-                <span className="ml-1 text-emerald-300/80">#{actor.user_id}</span>
+                <span className="ml-1 text-positive">#{actor.user_id}</span>
               </div>
-                <div className="mt-0.5 text-xs font-mono uppercase tracking-widest text-emerald-300/80">
+                <div className="mt-0.5 text-xs font-mono uppercase tracking-widest text-positive">
                 {actor.role_name
                   ? roleDisplayBi(actor.role_name, localeSafe)
                   : '—'}
-                <span className="mx-1 text-emerald-700">·</span>
-                <span className="text-emerald-300/70 normal-case tracking-normal">
+                <span className="mx-1 text-positive-strong">·</span>
+                <span className="text-positive normal-case tracking-normal">
                   #{actor.sequence} {eventKindLabelBi(actor.kind, localeSafe)}
                 </span>
-                <span className="mx-1 text-emerald-700">·</span>
-                <span className="text-emerald-300/70">{formattedDate}</span>
+                <span className="mx-1 text-positive-strong">·</span>
+                <span className="text-positive">{formattedDate}</span>
               </div>
             </div>
           </div>
         ) : (
-          <p className="text-sm text-emerald-100">
+          <p className="text-sm text-positive-strong">
             <T id="waybill.timeline.noEventAtPip" locale={localeSafe} />
           </p>
         )}
@@ -492,7 +492,7 @@ export function PipActionPrompt({
             <button
               type="submit"
               data-testid={`panel-recall-${pipKey}`}
-              className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 bg-amber-950/40 px-3 py-1.5 text-xs font-mono font-bold text-amber-200 transition hover:bg-amber-500/20"
+              className="inline-flex items-center gap-1.5 rounded-md border border-caution bg-caution-strong px-3 py-1.5 text-xs font-mono font-bold text-caution-strong transition hover:bg-caution"
               title="Pull the waybill back to this stage for re-review"
             >
               <span aria-hidden>↩</span>

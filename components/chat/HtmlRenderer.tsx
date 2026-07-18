@@ -15,7 +15,7 @@ export function HtmlRenderer({ html }: { html: string }) {
   );
   return (
     <div
-      className="folio-html my-2 overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm text-slate-100"
+      className="folio-html my-2 overflow-x-auto rounded-md border border-rule bg-paper-2/60 p-4 text-sm text-ink"
       dangerouslySetInnerHTML={{ __html: safe }}
     />
   );

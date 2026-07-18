@@ -49,26 +49,26 @@ export function WaybillReviewHint({ waybillId, lang = 'en', stage, label }: Prop
   };
 
   return (
-    <section className="rounded-2xl border border-teal-500/30 bg-teal-950/15 p-4">
+    <section className="rounded-md border border-info bg-info-soft p-4">
       <div className="mb-2 flex items-center gap-2">
-        <h3 className="text-xs font-mono uppercase tracking-widest text-teal-300">{label}</h3>
+        <h3 className="text-xs font-mono uppercase tracking-widest text-info-strong">{label}</h3>
         <button
           type="button"
           onClick={onAsk}
           disabled={busy}
-          className="ml-auto rounded-lg border border-teal-500/40 bg-teal-500/10 px-3 py-1 text-xs font-mono text-teal-200 hover:bg-teal-500/20 disabled:opacity-50"
+          className="ml-auto rounded-lg border border-info bg-info px-3 py-1 text-xs font-mono text-paper hover:bg-info disabled:opacity-50"
         >
           {busy ? <T id="waybill.review.thinking" /> : hint ? <T id="waybill.review.refresh" /> : <T id="waybill.review.generate" />}
         </button>
       </div>
-      {error && <div className="rounded border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{error}</div>}
+      {error && <div className="rounded border border-critical bg-critical-soft px-3 py-2 text-xs text-critical-strong">{error}</div>}
       {!error && !hint && (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-mute">
           <T id="waybill.review.placeholder" />
         </p>
       )}
       {hint && (
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200">{hint.hint}</p>
+        <p className="whitespace-pre-wrap text-sm leading-relaxed text-ink">{hint.hint}</p>
       )}
     </section>
   );

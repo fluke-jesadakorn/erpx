@@ -4,12 +4,13 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Icon, type IconName } from '@/components/icons';
+import { ChevronDown, ChevronUp, Lock, type LucideIcon } from 'lucide-react';
 import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 import { matchSidebar, SIDEBAR_GROUPS, type SidebarLabel, type SidebarLink, type SidebarSection } from './sidebar-config';
 import { MobileDrawer } from './MobileDrawer';
 import thDict from '../messages/th.json';
 import deDict from '../messages/de.json';
+import { matchPerm } from '@/perm';
 
 type Dict = Record<string, unknown>;
 
@@ -64,7 +65,7 @@ export function SidebarBadge({ count, tone = 'neutral', locked }: SidebarBadgePr
   if (locked) {
     return (
       <span className="ml-auto inline-flex h-4 w-4 items-center justify-center rounded-md border border-rule bg-paper-3 text-mute">
-        <Icon name="lock" size={9} />
+        <Lock size={9} />
       </span>
     );
   }
@@ -80,7 +81,7 @@ export function SidebarBadge({ count, tone = 'neutral', locked }: SidebarBadgePr
 }
 
 export interface SidebarItemProps {
-  icon: IconName;
+  icon: LucideIcon;
   label: React.ReactNode;
   href: string;
   active?: boolean;
@@ -89,7 +90,7 @@ export interface SidebarItemProps {
   tone?: GroupTone;
 }
 
-function NavRow({ icon, label, href, active, locked, badge, tone = GROUP_TONE.home }: SidebarItemProps) {
+function NavRow({ icon: IconCmp, label, href, active, locked, badge, tone = GROUP_TONE.home }: SidebarItemProps) {
   const base = 'group relative flex min-h-10 items-stretch gap-3 rounded-lg border border-transparent pl-3.5 pr-3 py-1.5 transition-all duration-200';
   const state = active
     ? `${tone.border} ${tone.active} text-ink shadow-[var(--shadow-panel)]`
@@ -112,13 +113,13 @@ function NavRow({ icon, label, href, active, locked, badge, tone = GROUP_TONE.ho
           tone.text,
         ].join(' ')}
       >
-        <Icon name={icon} size={14} />
+        <IconCmp size={14} />
       </span>
       <span className="flex min-w-0 flex-1 items-center text-left">
         {label}
       </span>
       {locked ? (
-        <Icon name="lock" size={11} className="self-center text-mute/70" />
+        <Lock size={11} className="self-center text-mute/70" />
       ) : (
         badge
       )}
@@ -170,7 +171,7 @@ function itemBadge(item: SidebarLink) {
 }
 
 export interface SidebarProps {
-  currentUser?: { fullname?: string | null; role_name?: string | null } | null;
+  currentUser?: { fullname?: string | null; role_name?: string | null; permissions?: string[] } | null;
 }
 
 function initials(name: string) {
@@ -261,6 +262,7 @@ function SectionGroup({
 }) {
   const sectionActive = section.items.some((item) => matchSidebar(pathname, item, search));
   const tone = GROUP_TONE[section.key] || GROUP_TONE.home;
+  const SectionIcon = section.icon;
 
   if (section.items.length === 1) {
     const item = section.items[0];
@@ -299,7 +301,7 @@ function SectionGroup({
             tone.text,
           ].join(' ')}
         >
-          <Icon name={section.icon} size={15} />
+          <SectionIcon size={15} />
         </span>
         <span className="min-w-0 flex-1 text-[13px] font-semibold uppercase tracking-[0.1em] transition-opacity group-hover:opacity-100">
           <BilingualLabel label={section.label} active={sectionActive} section activeTone={tone.text} />
@@ -308,8 +310,7 @@ function SectionGroup({
           {forceOpen && (
             <span aria-hidden className={['h-1.5 w-1.5 rounded-full', tone.dot].join(' ')} title="Active section" />
           )}
-          <Icon
-            name="chevron-down"
+          <ChevronDown
             size={12}
             className={[
               'transition-transform duration-200',
@@ -351,6 +352,18 @@ function SidebarBody({ currentUser }: SidebarProps) {
   const search = params ? `?${params.toString()}` : '';
   const name = currentUser?.fullname || '';
   const role = currentUser?.role_name || '';
+  const groups = React.useMemo(
+    () => {
+      const perms = currentUser?.permissions ?? [];
+      return SIDEBAR_GROUPS
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => !item.perms?.length || item.perms.some((perm) => matchPerm(perms, perm))),
+        }))
+        .filter((section) => section.items.length > 0);
+    },
+    [currentUser?.permissions],
+  );
   const { map, toggle, collapseAll, expandAll, hydrated } = useCollapsedGroups();
   const allCollapsed = hydrated && SIDEBAR_GROUPS.every((s) => map[s.key]);
 
@@ -361,7 +374,7 @@ function SidebarBody({ currentUser }: SidebarProps) {
         aria-label="Primary navigation"
       >
         <div className="space-y-1.5 divide-y divide-rule/60">
-          {SIDEBAR_GROUPS.map((section, idx) => (
+          {groups.map((section, idx) => (
             <div key={section.key} className={idx === 0 ? '' : 'pt-2'}>
               <SectionGroup
                 section={section}
@@ -382,20 +395,20 @@ function SidebarBody({ currentUser }: SidebarProps) {
           aria-label={allCollapsed ? 'Expand all sections' : 'Collapse all sections'}
           className="group flex w-full items-center justify-center gap-2 rounded-lg border border-accent/25 bg-accent-soft/15 py-1.5 text-[10px] font-medium uppercase tracking-[0.1em] text-accent-strong transition-colors hover:border-accent/50 hover:bg-accent-soft/35 hover:text-accent-strong"
         >
-          <Icon
-            name={allCollapsed ? 'chevron-down' : 'chevron-up'}
-            size={11}
-            className="transition-transform group-hover:scale-110"
-          />
+          {allCollapsed ? (
+            <ChevronDown size={11} className="transition-transform group-hover:scale-110" />
+          ) : (
+            <ChevronUp size={11} className="transition-transform group-hover:scale-110" />
+          )}
           <span>{allCollapsed ? 'Expand all' : 'Collapse all'}</span>
         </button>
       </div>
 
       {currentUser && (
-        <div className="mx-3 mb-3 mt-1 rounded-2xl border border-positive/30 bg-positive-soft/20 p-3 shadow-[var(--shadow-panel)]">
+        <div className="mx-3 mb-3 mt-1 rounded-md border border-positive/30 bg-positive-soft/20 p-3 shadow-[var(--shadow-panel)]">
           <div className="flex items-center gap-2.5">
             <div className="relative shrink-0">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-rule bg-gradient-to-br from-accent-soft to-paper-3 text-xs font-semibold text-accent">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-rule  from-accent-soft to-paper-3 text-xs font-semibold text-accent">
                 {initials(name)}
               </div>
               <span aria-hidden className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-paper bg-positive" />
@@ -427,11 +440,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentUser }) => {
   return (
     <>
       <aside
-        className="sticky top-14 hidden h-[calc(100vh-3.5rem)] w-64 shrink-0 flex-col border-r border-rule bg-paper-2/80 backdrop-blur supports-[backdrop-filter]:bg-paper-2/70 lg:flex"
-        style={{
-          backgroundImage:
-            'radial-gradient(ellipse 110% 28% at 10% 0%, color-mix(in oklab, var(--ambient-1) 32%, transparent) 0%, transparent 72%), radial-gradient(ellipse 90% 30% at 100% 38%, color-mix(in oklab, var(--ambient-2) 24%, transparent) 0%, transparent 72%), linear-gradient(180deg, color-mix(in oklab, var(--paper-2) 92%, var(--paper)) 0%, var(--paper-2) 100%)',
-        }}
+        className="panel-floating sticky top-16 ml-3 hidden h-[calc(100vh-5rem)] w-64 shrink-0 flex-col overflow-hidden rounded-2xl lg:flex"
       >
         <SidebarBody currentUser={currentUser} />
       </aside>

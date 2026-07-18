@@ -30,28 +30,28 @@ interface Props {
 }
 
 const KIND_META: Record<ArtifactKind, { emoji: string; tone: string }> = {
-  pr:             { emoji: '📄', tone: 'border-cyan-500/40 bg-cyan-950/20' },
-  po:             { emoji: '📦', tone: 'border-amber-500/40 bg-amber-950/20' },
-  'gl-accrual':   { emoji: '📒', tone: 'border-cyan-500/40 bg-cyan-950/15' },
-  'gl-settlement':{ emoji: '📒', tone: 'border-amber-500/40 bg-amber-950/15' },
-  paySlip:        { emoji: '💳', tone: 'border-emerald-500/40 bg-emerald-950/20' },
+  pr:             { emoji: '📄', tone: 'border-info bg-info-strong' },
+  po:             { emoji: '📦', tone: 'border-caution bg-caution-strong' },
+  'gl-accrual':   { emoji: '📒', tone: 'border-info bg-info-strong' },
+  'gl-settlement':{ emoji: '📒', tone: 'border-caution bg-caution-strong' },
+  paySlip:        { emoji: '💳', tone: 'border-positive bg-positive-strong' },
 };
 
 function StatusPill({ status }: { status: string | null }) {
   const map: Record<string, string> = {
-    draft: 'bg-slate-700 text-slate-200 border-slate-600',
-    submission: 'bg-cyan-500/15 text-cyan-200 border-cyan-400/50',
-    accounting_authorization: 'bg-amber-500/15 text-amber-200 border-amber-400/50',
-    cfo_authorization: 'bg-amber-500/15 text-amber-200 border-amber-400/50',
-    awaiting_disbursement: 'bg-indigo-500/15 text-indigo-200 border-indigo-400/50',
-    finalized: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/50',
-    issued: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/50',
-    settled: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/50',
-    confirmed: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/50',
-    approved: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/50',
-    rejected: 'bg-rose-500/15 text-rose-200 border-rose-400/50',
+    draft: 'bg-paper-2 text-ink border-rule',
+    submission: 'bg-info text-paper border-info',
+    accounting_authorization: 'bg-caution-soft text-caution-strong border border-caution border-caution',
+    cfo_authorization: 'bg-caution-soft text-caution-strong border border-caution border-caution',
+    awaiting_disbursement: 'bg-accent text-paper border-accent',
+    finalized: 'bg-positive text-paper border-positive',
+    issued: 'bg-positive text-paper border-positive',
+    settled: 'bg-positive text-paper border-positive',
+    confirmed: 'bg-positive text-paper border-positive',
+    approved: 'bg-positive text-paper border-positive',
+    rejected: 'bg-critical-soft text-critical-strong border border-critical border-critical',
   };
-  const cls = map[status ?? ''] ?? 'bg-slate-700 text-slate-200 border-slate-600';
+  const cls = map[status ?? ''] ?? 'bg-paper-2 text-ink border-rule';
   return (
     <span className={`rounded-full border px-2 py-0.5 text-xs font-mono uppercase tracking-wider ${cls}`}>
       {status ?? '—'}
@@ -83,32 +83,32 @@ async function LinesInline({
     >
       <table className="w-full min-w-[420px] border-collapse text-sm">
         <thead>
-          <tr className="text-left font-mono text-xs uppercase tracking-widest text-slate-500">
-            <th className="border-b border-slate-800/60 px-2 py-1">
+          <tr className="text-left font-mono text-xs uppercase tracking-widest text-mute">
+            <th className="border-b border-rule/60 px-2 py-1">
               <T id="waybill.gl.code" locale={locale} />
             </th>
-            <th className="border-b border-slate-800/60 px-2 py-1">
+            <th className="border-b border-rule/60 px-2 py-1">
               <T id="waybill.gl.account" locale={locale} />
             </th>
-            <th className="border-b border-slate-800/60 px-2 py-1 text-right">
+            <th className="border-b border-rule/60 px-2 py-1 text-right">
               <T id="waybill.gl.debit" locale={locale} />
             </th>
-            <th className="border-b border-slate-800/60 px-2 py-1 text-right">
+            <th className="border-b border-rule/60 px-2 py-1 text-right">
               <T id="waybill.gl.credit" locale={locale} />
             </th>
           </tr>
         </thead>
         <tbody>
           {lines.map((l, i) => (
-            <tr key={i} className="align-top font-mono text-slate-300">
-              <td className="border-b border-slate-800/40 px-2 py-1 text-cyan-300">{l.account_code}</td>
-              <td className="border-b border-slate-800/40 px-2 py-1 text-slate-200">
+            <tr key={i} className="align-top font-mono text-ink-2">
+              <td className="border-b border-rule/40 px-2 py-1 text-info">{l.account_code}</td>
+              <td className="border-b border-rule/40 px-2 py-1 text-ink">
                 {locale === 'th' ? l.account_name_th ?? l.account_name ?? '—' : l.account_name ?? l.account_name_th ?? '—'}
               </td>
-              <td className="border-b border-slate-800/40 px-2 py-1 text-right text-emerald-200 tabular-nums">
+              <td className="border-b border-rule/40 px-2 py-1 text-right text-positive-soft tabular-nums">
                 {l.debit > 0 ? fmtNum(l.debit) : ''}
               </td>
-              <td className="border-b border-slate-800/40 px-2 py-1 text-right text-amber-200 tabular-nums">
+              <td className="border-b border-rule/40 px-2 py-1 text-right text-caution-soft tabular-nums">
                 {l.credit > 0 ? fmtNum(l.credit) : ''}
               </td>
             </tr>
@@ -138,21 +138,21 @@ export async function PipArtifactPanel({
     ? await formatDateServer(artifact.finalizedAt, localeSafe)
     : null;
   return (
-    <div className={`rounded-2xl border p-4 ${meta.tone}`}>
+    <div className={`rounded-md border p-4 ${meta.tone}`}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <span aria-hidden className="text-lg leading-none">{meta.emoji}</span>
-          <span className="text-sm font-bold text-white">
+          <span className="text-sm font-bold text-ink">
             <T id={`waybill.pip.${kind === 'paySlip' ? 'paymentSlip' : kind === 'pr' ? 'openPr' : kind === 'po' ? 'openPo' : kind === 'gl-accrual' ? 'glBeforePay' : 'glAfterPay'}`} locale={localeSafe} />
           </span>
         </div>
         <StatusPill status={artifact?.status ?? null} />
       </div>
-      <div className="mt-2 font-mono text-base text-cyan-200">
+      <div className="mt-2 font-mono text-base text-info-soft">
         {artifact?.id ?? '—'}
       </div>
       {artifact?.finalizedAt && (
-        <div className="mt-1 text-xs font-mono text-slate-500">
+        <div className="mt-1 text-xs font-mono text-mute">
           finalized: {finalizedDateLabel}
           {artifact.finalizedByName ? ` · ${artifact.finalizedByName}` : ''}
         </div>
@@ -170,7 +170,7 @@ export async function PipArtifactPanel({
         {artifact?.href && (
           <a
             href={artifact.href}
-            className="rounded-lg border border-cyan-500/40 bg-cyan-500/10 px-3 py-1.5 text-sm font-mono text-cyan-200 hover:bg-cyan-500/30"
+            className="rounded-lg border border-info bg-info px-3 py-1.5 text-sm font-mono text-info-soft hover:bg-info"
           >
             Open full →
           </a>
@@ -179,7 +179,7 @@ export async function PipArtifactPanel({
           <a
             href={artifact.href}
             download
-            className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-sm font-mono text-amber-200 hover:bg-amber-500/30"
+            className="rounded-lg border border-caution bg-caution px-3 py-1.5 text-sm font-mono text-caution-soft hover:bg-caution"
           >
             Download PO ↓
           </a>
@@ -193,14 +193,14 @@ export async function PipArtifactPanel({
             <input type="hidden" name="waybillId" value={_waybillId} />
             <button
               type="submit"
-              className="rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 px-3 py-1.5 text-sm font-bold text-slate-950 shadow shadow-emerald-500/30 hover:from-emerald-300"
+              className="rounded-lg bg-positive px-3 py-1.5 text-sm font-bold text-ink shadow shadow-positive hover:bg-positive-strong"
             >
               ✓ {approveLabel}
             </button>
           </form>
         )}
         {disabledReason && (
-          <span className="rounded-full border border-slate-700 bg-slate-900/60 px-2.5 py-1 text-xs font-mono text-slate-400">
+          <span className="rounded-full border border-rule bg-paper-2/60 px-2.5 py-1 text-xs font-mono text-ink-2">
             {disabledReason}
           </span>
         )}

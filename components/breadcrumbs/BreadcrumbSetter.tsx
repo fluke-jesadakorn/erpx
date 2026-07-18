@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import type { ReactNode } from 'react';
 import type { Crumb } from '../breadcrumbs';
 
 interface Props {
@@ -14,6 +13,13 @@ let current: Crumb[] = [];
 export function setBreadcrumbs(c: Crumb[]) {
   current = Array.isArray(c) ? c : [];
   subscribers.forEach((fn) => fn(current));
+}
+
+export function subscribeBreadcrumbs(fn: (c: Crumb[]) => void): () => void {
+  subscribers.add(fn);
+  return () => {
+    subscribers.delete(fn);
+  };
 }
 
 export function clearBreadcrumbs() {

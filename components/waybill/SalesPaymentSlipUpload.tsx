@@ -54,10 +54,10 @@ export interface SalesPaymentSlipUploadProps {
 }
 
 const INPUT_CLS =
-  'w-full rounded-xl border border-rule bg-paper px-3.5 py-2.5 pr-9 text-xs text-ink transition-colors hover:bg-paper-3 focus:border-positive focus:ring-2 focus:ring-positive/20 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-mute font-medium';
+  'w-full rounded-md border border-rule bg-paper px-3.5 py-2.5 pr-9 text-xs text-ink transition-colors hover:bg-paper-3 focus:border-positive focus:ring-2 focus:ring-positive/20 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-mute font-medium';
 
 const NUMBER_CLS =
-  'w-full rounded-xl border border-rule bg-paper px-3.5 py-2.5 pr-9 text-xs text-ink font-mono text-right transition-colors hover:bg-paper-3 focus:border-positive focus:ring-2 focus:ring-positive/20 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-mute font-medium';
+  'w-full rounded-md border border-rule bg-paper px-3.5 py-2.5 pr-9 text-xs text-ink font-mono text-right transition-colors hover:bg-paper-3 focus:border-positive focus:ring-2 focus:ring-positive/20 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 placeholder:text-mute font-medium';
 
 function t(key: string, locale: 'en' | 'th' | undefined): string {
   const th: Record<string, string> = {
@@ -198,7 +198,7 @@ export const SalesPaymentSlipUpload = forwardRef<
 
   if (hasExisting) {
     return (
-      <div className="space-y-3 rounded-xl border border-positive/30 bg-positive-soft/30 p-3.5">
+      <div className="space-y-3 rounded-md border border-positive/30 bg-positive-soft/30 p-3.5">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="px-2 py-0.5 rounded-full text-xs font-mono inline-flex items-center gap-1 bg-positive-soft text-positive border border-positive/40">
             <CircleCheck className="size-3" strokeWidth={2.5} aria-hidden />
@@ -258,7 +258,7 @@ export const SalesPaymentSlipUpload = forwardRef<
                 ocr.onDrop(e);
               }}
               onClick={() => ocr.inputRef.current?.click()}
-              className={`shrink-0 w-full h-32 sm:h-44 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+              className={`shrink-0 w-full h-32 sm:h-44 rounded-md border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors ${
                 dragOver
                   ? 'border-positive'
                   : 'border-rule-strong bg-paper-3/40 hover:border-positive/50'
@@ -279,14 +279,14 @@ export const SalesPaymentSlipUpload = forwardRef<
               type="button"
               onClick={() => ocr.setZoomOpen(true)}
               disabled={ocr.extractionState === 'running'}
-              className="relative shrink-0 group rounded-xl hover:border-positive/50 transition-colors disabled:cursor-default disabled:hover:border-rule border border-rule bg-paper-3"
+              className="relative shrink-0 group rounded-md hover:border-positive/50 transition-colors disabled:cursor-default disabled:hover:border-rule border border-rule bg-paper-3"
               title={ocr.extractionState === 'running' ? '' : 'Click to enlarge'}
               data-testid="sales-payment-preview-zoom"
             >
               <img
                 src={ocr.preview}
                 alt="preview"
-                className={`object-contain rounded-xl ${
+                className={`object-contain rounded-md ${
                   ocr.extractionState === 'running' ? 'w-32 h-40' : 'w-40 h-52'
                 }`}
               />
@@ -301,7 +301,7 @@ export const SalesPaymentSlipUpload = forwardRef<
             </button>
           ) : (
             <div
-              className={`shrink-0 rounded-xl flex items-center justify-center border border-rule bg-paper-3 ${
+              className={`shrink-0 rounded-md flex items-center justify-center border border-rule bg-paper-3 ${
                 ocr.extractionState === 'running' ? 'w-32 h-40' : 'w-40 h-52'
               }`}
             >
@@ -424,7 +424,7 @@ export const SalesPaymentSlipUpload = forwardRef<
         {ocr.phase !== 'confirmed' && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="sm:col-span-2 rounded-xl p-3.5 space-y-3 border-2 border-caution/30 bg-caution-soft/40">
+              <div className="sm:col-span-2 rounded-md p-3.5 space-y-3 border-2 border-caution/30 bg-caution-soft/40">
                 <SectionHeader
                   icon={<User className="size-4" strokeWidth={2.5} aria-hidden />}
                   label="Payer (customer)"
@@ -478,7 +478,7 @@ export const SalesPaymentSlipUpload = forwardRef<
                 </div>
               </div>
 
-              <div className="sm:col-span-2 rounded-xl p-3.5 space-y-3 border-2 border-info/30 bg-info-soft/40">
+              <div className="sm:col-span-2 rounded-md p-3.5 space-y-3 border-2 border-info/30 bg-info-soft/40">
                 <SectionHeader
                   icon={<Building2 className="size-4" strokeWidth={2.5} aria-hidden />}
                   label="Receiver (us)"
@@ -553,7 +553,7 @@ export const SalesPaymentSlipUpload = forwardRef<
                 </div>
               </div>
 
-              <div className="sm:col-span-2 rounded-xl p-3.5 space-y-3 border-2 border-positive/30 bg-positive-soft/40">
+              <div className="sm:col-span-2 rounded-md p-3.5 space-y-3 border-2 border-positive/30 bg-positive-soft/40">
                 <SectionHeader
                   icon={<Calendar className="size-4" strokeWidth={2.5} aria-hidden />}
                   label="Transaction"
@@ -593,7 +593,7 @@ export const SalesPaymentSlipUpload = forwardRef<
             </div>
 
             <div
-              className={`rounded-xl border p-3 space-y-1 ${
+              className={`rounded-md border p-3 space-y-1 ${
                 canConfirm
                   ? 'border-positive/50 bg-positive-soft'
                   : 'border-rule-strong bg-paper-3/40'
@@ -628,7 +628,7 @@ export const SalesPaymentSlipUpload = forwardRef<
                   disabled={!canConfirm || confirming}
                   title={t('confirm', locale)}
                   data-testid="sales-payment-confirm"
-                  className={`w-12 h-12 inline-flex items-center justify-center gap-2 rounded-xl border text-sm font-mono font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`w-12 h-12 inline-flex items-center justify-center gap-2 rounded-md border text-sm font-mono font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${
                     confirming
                       ? 'bg-rule-strong text-ink-2 border-rule-strong'
                       : canConfirm
@@ -706,7 +706,7 @@ export const SalesPaymentSlipUpload = forwardRef<
         )}
 
         {ocr.phase === 'confirmed' && ocr.slipId != null && (
-          <div className="rounded-xl border border-positive/40 p-3 space-y-1 bg-positive-soft inline-flex items-center gap-2">
+          <div className="rounded-md border border-positive/40 p-3 space-y-1 bg-positive-soft inline-flex items-center gap-2">
             <CircleCheck className="size-4 text-positive" strokeWidth={2.5} aria-hidden />
             <span className="text-xs font-mono text-positive inline-flex items-center gap-1">
               {t('attachedOk', locale)} · SLIP-{ocr.slipId} · SO-{soId}
@@ -725,7 +725,7 @@ export const SalesPaymentSlipUpload = forwardRef<
           width="2xl"
           hideCloseButton={false}
         >
-          <div className="flex items-center justify-center rounded-xl p-1 border border-rule bg-paper-2">
+          <div className="flex items-center justify-center rounded-md p-1 border border-rule bg-paper-2">
             <img
               src={ocr.preview}
               alt="preview enlarged"

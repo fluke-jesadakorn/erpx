@@ -34,7 +34,7 @@ export function ReportRenderer({ report }: { report: ReportResult }) {
         <div className="flex flex-wrap gap-1"><Badge tone="positive">posted-only</Badge><Badge tone="accent">drafts excluded</Badge><Badge tone={report.source.classification_complete ? 'positive' : 'caution'}>classification {report.source.classification_complete ? 'verified' : 'pending'}</Badge><Badge tone={report.source.opening_balance_verified ? 'positive' : 'caution'}>opening {report.source.opening_balance_verified ? 'verified' : 'pending'}</Badge></div>
       </header>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {report.kpis.map((kpi, i) => <Kpi key={i} title={th ? kpi.labelTh : kpi.label} value={<Status dot={false} tone={kpi.tone === 'positive' ? 'positive' : kpi.tone === 'negative' ? 'critical' : 'neutral'} className="text-2xl tabular-nums">{kpi.value}</Status>} delta={kpi.hint ? { value: kpi.hint, tone: 'neutral' } : undefined} />)}
+        {report.kpis.map((kpi, i) => <Kpi key={i} label={th ? kpi.labelTh : kpi.label} value={<Status dot={false} tone={kpi.tone === 'positive' ? 'positive' : kpi.tone === 'negative' ? 'critical' : 'neutral'} className="text-2xl tabular-nums">{kpi.value}</Status>} caption={kpi.hint} />)}
       </div>
       {report.sections.map((section, i) => <SectionTable key={i} section={section} lang={report.lang} />)}
       {report.notes.length > 0 && <Alert tone="caution" title="Report notes" className="mt-4"><div className="space-y-1">{report.notes.map((note, i) => <div key={i}>{note}</div>)}</div></Alert>}

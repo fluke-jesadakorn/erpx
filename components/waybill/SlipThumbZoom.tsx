@@ -43,14 +43,14 @@ export function SlipThumbZoom({ href, alt, title, subtitle, className, imgClassN
         title={title ?? 'Click to enlarge · คลิกเพื่อขยาย'}
         aria-label={title ?? 'Enlarge image'}
         className={
-          'relative group shrink-0 overflow-hidden rounded-lg border border-slate-700/70 bg-slate-950/60 hover:border-emerald-500/50 transition-colors cursor-zoom-in ' +
+          'relative group shrink-0 overflow-hidden rounded-lg border border-rule/70 bg-paper-2/60 hover:border-positive transition-colors cursor-zoom-in ' +
           (className ?? 'h-16 w-12')
         }
       >
         <img src={href} alt={alt} className={'h-full w-full object-cover ' + (imgClassName ?? '')} />
         <span
           aria-hidden
-          className="absolute bottom-1 right-1 grid place-items-center w-5 h-5 rounded-full bg-slate-950/85 ring-1 ring-slate-700/80 text-xs text-slate-100 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute bottom-1 right-1 grid place-items-center w-5 h-5 rounded-full bg-paper-2/85 ring-1 ring-rule/80 text-xs text-ink opacity-0 group-hover:opacity-100 transition-opacity"
         >
           🔍
         </span>
@@ -61,7 +61,7 @@ export function SlipThumbZoom({ href, alt, title, subtitle, className, imgClassN
           aria-modal="true"
           aria-label={title ?? alt}
           onClick={() => setOpen(false)}
-          className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-toast flex items-center justify-center p-4 bg-paper-2/85 backdrop-blur-sm animate-fade-in"
         >
           <button
             type="button"
@@ -70,7 +70,7 @@ export function SlipThumbZoom({ href, alt, title, subtitle, className, imgClassN
               setOpen(false);
             }}
             aria-label={<T id="waybill.slip.close" /> as unknown as string}
-            className="absolute top-4 right-4 w-9 h-9 inline-flex items-center justify-center rounded-lg bg-slate-900/80 ring-1 ring-slate-700 text-slate-200 hover:text-white hover:bg-slate-800 text-sm"
+            className="absolute top-4 right-4 w-9 h-9 inline-flex items-center justify-center rounded-lg bg-paper-2/80 ring-1 ring-rule text-ink hover:text-ink hover:bg-paper-2 text-sm"
           >
             ✕
           </button>
@@ -80,11 +80,11 @@ export function SlipThumbZoom({ href, alt, title, subtitle, className, imgClassN
           >
             {title && (
               <div className="mb-2 flex items-baseline justify-between gap-3 px-1">
-                <h3 className="text-sm font-bold text-white truncate">{title}</h3>
-                {subtitle && <span className="text-sm font-mono text-slate-400 shrink-0">{subtitle}</span>}
+                <h3 className="text-sm font-bold text-ink truncate">{title}</h3>
+                {subtitle && <span className="text-sm font-mono text-ink-2 shrink-0">{subtitle}</span>}
               </div>
             )}
-            <div className="flex items-center justify-center bg-slate-950 rounded-2xl border border-slate-800 p-2 shadow-2xl shadow-black">
+            <div className="flex items-center justify-center bg-paper rounded-md border border-rule p-2 shadow-modal">
               <img
                 src={href}
                 alt={alt}

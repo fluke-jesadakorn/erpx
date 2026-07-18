@@ -1,5 +1,6 @@
 import React, { Suspense } from 'react';
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
 import { CircleAlert } from 'lucide-react';
 import {
@@ -10,8 +11,10 @@ import {
   loadWaybillEvents,
 } from '@/waybill/queries';
 import { loadActor } from '@/server/guard';
+import { query } from '@/db';
 import { loadVisionModels } from '@/ai/loadVisionModels';
-import { matchPerm } from '@/perm/server';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import { getSecondaryLocale } from '@/server/locale';
 import { pipsForDomain, pipIndex, domainForOrigin } from '@/waybill/derive';
 import { verifyEventChain } from '@/waybill/events';
@@ -56,6 +59,11 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
 
   const actor = await loadActor();
   if (!actor) redirect('/login');
+  const h = await headers();
+  const session = await loadActivePermSession(
+    new Request(`http://internal/waybill/${id}`, { headers: h as unknown as HeadersInit }),
+  );
+  if (!session) redirect('/login');
 
   const ctx = await loadWaybillRailContext(id);
   if (!ctx) notFound();
@@ -75,29 +83,70 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
     verifyEventChain(wb.id),
   ]);
 
-  const perms = actor.permissions;
   const stage = wb.current_stage;
-  const actorCanSeeGlLines = matchPerm(perms, 'finance:gl:view::allow');
-  const canAct = matchPerm(perms, `stage:${stage}:act::allow`)
-    || matchPerm(perms, `stage:${stage}:act:all::allow`)
-    || matchPerm(perms, 'admin:system:bypass::allow');
-  const canAttach = matchPerm(perms, 'finance:waybill:attach::allow')
-    || (actor.id === wb.submitter_id && stage === 'submission' && matchPerm(perms, 'finance:expense:create::allow'));
+  const perms = session.session.permissions;
+  const actorCanSeeGlLines = hasPermission(session.session, 'finance:gl:view::allow');
+  const isCrossDeptUiStage = [
+    'accounting_verification',
+    'accounting_supervision',
+    'accounting_authorization',
+    'disbursement_authorization',
+    'cfo_authorization',
+    'ceo_authorization',
+  ].includes(stage);
+  const isDeptScopedUiStage = [
+    'submission',
+    'dept_verification',
+    'dept_authorization',
+    'final_authorization',
+  ].includes(stage);
+  let sameDeptAsSubmitter = true;
+  if (isDeptScopedUiStage && wb.submitter_id) {
+    const submitterDeptRes = await query<{ permission_id: string | null }>(
+      `SELECT permission_id FROM perm.user_permissions
+        WHERE user_id = $1
+          AND permission_id LIKE 'user:dept:%'
+          AND revoked_at IS NULL
+          AND (ends_at IS NULL OR ends_at > now())
+        ORDER BY permission_id LIMIT 1`,
+      [wb.submitter_id],
+    );
+    const pid = submitterDeptRes.rows[0]?.permission_id ?? null;
+    const submitterDept = pid
+      ? pid.replace(/^user:dept:/, '').replace(/::allow$/, '')
+      : null;
+    sameDeptAsSubmitter = !!actor.dept_id && actor.dept_id === submitterDept;
+  }
+  const hasStageAll = perms.includes(`stage:${stage}:act:all::allow`);
+  const hasStageScoped = perms.includes(`stage:${stage}:act::allow`)
+    || (!!actor.dept_id && perms.includes(`stage:${stage}:act:${actor.dept_id}::allow`));
+  const submitterFallback = actor.id === wb.submitter_id
+    && stage === 'submission'
+    && hasPermission(session.session, PERM.finance.expense.create);
+  const canAct = hasPermission(session.session, PERM.admin.system.bypass)
+    || hasStageAll
+    || (hasStageScoped && (isCrossDeptUiStage || sameDeptAsSubmitter))
+    || submitterFallback
+    || actor.role_name === 'cfo'
+    || actor.role_name === 'ceo'
+    || actor.role_name === 'admin';
+  const canAttach = hasPermission(session.session, 'finance:waybill:attach::allow')
+    || (actor.id === wb.submitter_id && stage === 'submission' && hasPermission(session.session, PERM.finance.expense.create));
   const canSettle = stage === 'awaiting_disbursement'
-    && matchPerm(perms, 'finance:expense:settle::allow');
+    && hasPermission(session.session, PERM.finance.expense.settle);
   const canFinalApprove = isFinalApproveStage(stage)
-    && matchPerm(perms, 'finance:expense:approve::allow');
+    && hasPermission(session.session, PERM.finance.expense.approve);
   const canConfirmGl = stage === 'disbursed'
-    && matchPerm(perms, 'finance:gl:confirm::allow');
+    && hasPermission(session.session, 'finance:gl:confirm::allow');
   const canReCall = !['disbursed', 'rejected'].includes(stage)
     && isRecallRole(actor.role_name);
-  const canSaveAccrual = matchPerm(perms, 'finance:pr:edit::allow');
+  const canSaveAccrual = hasPermission(session.session, 'finance:pr:edit::allow');
   const canPostAccrual = stage === 'accounting_authorization'
-    && matchPerm(perms, 'finance:gl:post::allow');
+    && hasPermission(session.session, 'finance:gl:post::allow');
   const canPostSettlement = stage === 'disbursed'
-    && matchPerm(perms, 'finance:gl:post::allow');
+    && hasPermission(session.session, 'finance:gl:post::allow');
   const canReject = !['disbursed', 'gl_confirmed', 'rejected'].includes(stage)
-    && (matchPerm(perms, 'admin:system:bypass::allow')
+    && (hasPermission(session.session, PERM.admin.system.bypass)
       || actor.role_name === 'cfo'
       || actor.role_name === 'ceo'
       || actor.role_name === 'admin'
@@ -133,10 +182,10 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
       : stepsTotal > 0 ? Math.round((stepsDone / stepsTotal) * 100) : 0;
 
   const statusTone = wb.status === 'completed'
-     ? { ring: 'from-emerald-500/50 to-cyan-500/40', chip: 'glass-tint-positive text-positive border-emerald-400/50', dot: 'bg-emerald-400', label: <T id="waybill.status.completed" locale={locale} /> }
+     ? { ring: 'from-positive/50 to-info/40', chip: 'bg-positive-soft border border-positive/40 text-positive border-positive/40', dot: 'bg-positive', label: <T id="waybill.status.completed" locale={locale} /> }
      : wb.status === 'rejected'
-       ? { ring: 'from-rose-500/60 to-rose-500/20', chip: 'glass-tint-critical text-critical border-rose-400/50', dot: 'bg-rose-400', label: <T id="waybill.status.rejected" locale={locale} /> }
-       : { ring: 'from-cyan-500/60 to-indigo-500/40', chip: 'glass-tint-info text-info border-cyan-400/50', dot: 'bg-cyan-400 animate-pulse', label: <T id="waybill.status.inProgress" locale={locale} /> };
+       ? { ring: 'from-critical/60 to-critical/20', chip: 'bg-critical-soft border border-critical/40 text-critical border-critical/40', dot: 'bg-critical', label: <T id="waybill.status.rejected" locale={locale} /> }
+       : { ring: 'from-info/60 to-accent/40', chip: 'bg-info-soft border border-info/40 text-info border-info/40', dot: 'bg-info animate-pulse', label: <T id="waybill.status.inProgress" locale={locale} /> };
 
   return (
     <>
@@ -148,6 +197,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
         ]}
       />
       <PageLayout
+        width="wide"
         actions={
           <ExportPdfButton
             waybillId={wb.id}
@@ -176,7 +226,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
               role="alert"
               aria-label="Rejection summary"
               data-testid="waybill-rejection-banner"
-              className="rounded-2xl border border-critical/50 bg-critical-soft/40 px-4 py-3 flex flex-wrap items-start gap-3"
+              className="panel flex flex-wrap items-start gap-3 border-critical/50 bg-critical-soft/40 px-4 py-3"
             >
               <CircleAlert className="size-5 shrink-0 text-critical mt-0.5" aria-hidden strokeWidth={2.5} />
               <div className="min-w-0 flex-1">
@@ -237,6 +287,10 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             <InlineActionForm kind="reject" waybillId={wb.id} stage={wb.current_stage} locale={locale} />
           )}
 
+          {action === 'final-reject' && canReject && !isRejected && wb.status === 'open' && (
+            <InlineActionForm kind="final-reject" waybillId={wb.id} stage={wb.current_stage} locale={locale} />
+          )}
+
           <WaybillTimelineBigPicture
             waybillId={wb.id}
             domain={domainForOrigin(wb.origin)}
@@ -259,7 +313,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
           />
 
           {expensePicture && (
- <Suspense fallback={<div className="h-24 animate-pulse border glass-panel" aria-hidden />}>
+ <Suspense fallback={<div className="panel h-24 animate-pulse" aria-hidden />}>
               <WaybillExpenseCollapsible
                 data={expensePicture}
                 waybillId={wb.id}
@@ -273,7 +327,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             <Suspense fallback={
             <div className="space-y-4">
               {Array.from({ length: 3 }).map((_, i) => (
- <div key={i} className="h-48 animate-pulse border glass-panel" aria-hidden />
+ <div key={i} className="panel h-48 animate-pulse" aria-hidden />
               ))}
             </div>
           }>

@@ -1,5 +1,6 @@
 import 'server-only';
 export * from './index';
+import type { LeaveType } from './leave';
 export type {
   EmployeeRow,
   HRUserOption,
@@ -16,3 +17,11 @@ export type {
   DecideResult,
   ListLeaveFilter,
 } from './leave';
+export type { LeaveHistoryRow } from './leave';
+export {
+  listLeave,
+} from './leave';
+export {
+  getEmployeeQuota,
+  updateEmployeeQuota,
+} from './waybill';

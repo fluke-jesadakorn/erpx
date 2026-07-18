@@ -45,7 +45,7 @@ export interface BookBankUploadProps {
 }
 
 const INPUT_CLS =
-  'glass-panel w-full rounded-xl hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-mute font-medium';
+  'bg-paper-2 border border-rule w-full rounded-md hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed placeholder-mute font-medium';
 
 export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
   function BookBankUpload(
@@ -172,7 +172,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                 )}
               </button>
             ) : (
-              <div className="w-full h-32 sm:h-44 rounded-xl flex items-center justify-center border border-rule bg-paper-3">
+              <div className="w-full h-32 sm:h-44 rounded-md flex items-center justify-center border border-rule bg-paper-3">
                 <FileSpreadsheet className="size-12 text-ink-2" strokeWidth={1.2} aria-hidden />
               </div>
             )}
@@ -376,7 +376,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
           {ocr.pendingFile && ocr.extractionState === 'done' && (
             <div
               title={`Book bank attached · SLIP-${ocr.slipId} · links when receipt submits`}
-              className="glass-panel rounded-lg border border-positive/40 bg-positive-soft/30 p-3 flex items-center gap-2"
+              className="bg-paper-2 border border-rule rounded-lg border border-positive/40 bg-positive-soft/30 p-3 flex items-center gap-2"
             >
               <CircleCheck className="size-4 text-positive" strokeWidth={2.5} aria-hidden />
               <span className="text-xs font-sans tabular-nums text-positive inline-flex items-center gap-1">
@@ -452,7 +452,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
             width="2xl"
             hideCloseButton={false}
           >
-            <div className="flex items-center justify-center rounded-xl p-1 border border-rule bg-paper-2">
+            <div className="flex items-center justify-center rounded-md p-1 border border-rule bg-paper-2">
               <img
                 src={ocr.preview}
                 alt="preview enlarged"

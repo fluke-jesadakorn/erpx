@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import type { InboxScope } from '@/waybill/queries';
 import { T } from '@/components/i18n/T';
+import { Bell, Layers3, Zap, type LucideIcon } from 'lucide-react';
+import { createElement } from 'react';
 
 interface Props {
   current: InboxScope;
@@ -11,16 +13,16 @@ interface Props {
 interface PillSpec {
   scope: InboxScope;
   href: string;
-  icon: string;
+  icon: LucideIcon;
   labelId: string;
   count?: number;
 }
 
 export function InboxFilters({ current, counts, lang: _lang = 'en' }: Props) {
   const specs: Array<Omit<PillSpec, 'count'>> = [
-    { scope: 'waiting',  href: '/inbox?scope=waiting',  icon: '⚡', labelId: 'inbox.filterWaiting' },
-    { scope: 'watching', href: '/inbox?scope=watching', icon: '🔔', labelId: 'inbox.filterWatching' },
-    { scope: 'all',      href: '/inbox?scope=all',      icon: '🗂',  labelId: 'inbox.filterAll' },
+    { scope: 'waiting',  href: '/inbox?scope=waiting',  icon: Zap, labelId: 'inbox.filterWaiting' },
+    { scope: 'watching', href: '/inbox?scope=watching', icon: Bell, labelId: 'inbox.filterWatching' },
+    { scope: 'all',      href: '/inbox?scope=all',      icon: Layers3, labelId: 'inbox.filterAll' },
   ];
   const pills: PillSpec[] = specs.map((p) => {
     const c = counts?.[p.scope];
@@ -30,7 +32,7 @@ export function InboxFilters({ current, counts, lang: _lang = 'en' }: Props) {
   return (
     <nav
       aria-label="Inbox scope"
-      className="mb-4 flex flex-wrap gap-2 text-xs font-mono"
+      className="glass-toolbar mb-5 flex flex-wrap gap-2 p-2 text-xs font-mono"
     >
       {pills.map((p) => {
         const isCurrent = p.scope === current;
@@ -42,19 +44,19 @@ export function InboxFilters({ current, counts, lang: _lang = 'en' }: Props) {
             className={
               'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ' +
               (isCurrent
-                ? 'border-cyan-500 bg-cyan-500/15 text-cyan-200'
-                : 'border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200')
+                ? 'border-info bg-info-soft text-info'
+                : 'border-rule text-ink-2 hover:border-rule hover:text-ink')
             }
           >
-            <span aria-hidden>{p.icon}</span>
+            {createElement(p.icon, { size: 13, 'aria-hidden': true })}
             <span><T id={p.labelId} /></span>
             {typeof p.count === 'number' && (
               <span
                 className={
                   'rounded-full px-1.5 py-0.5 text-xs ' +
                   (isCurrent
-                    ? 'bg-cyan-500/30 text-cyan-100'
-                    : 'bg-slate-800 text-slate-400')
+                    ? 'bg-info/30 text-info-strong'
+                    : 'bg-paper-2 text-ink-2')
                 }
               >
                 {p.count}

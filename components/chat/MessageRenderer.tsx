@@ -30,7 +30,7 @@ export function MessageRenderer({
   const isUser = role === 'user';
   if (isUser) {
     return (
-      <div className="ml-auto max-w-[85%] rounded-2xl border border-indigo-500/30 bg-indigo-600/20 px-3 py-2 text-sm text-white whitespace-pre-wrap break-words">
+      <div className="ml-auto max-w-[85%] rounded-md border border-accent bg-accent-strong px-3 py-2 text-sm text-ink whitespace-pre-wrap break-words">
         {content}
       </div>
     );
@@ -39,13 +39,13 @@ export function MessageRenderer({
   return (
     <div className="mr-auto max-w-[92%]">
       {pending ? (
-        <div className="rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-400 font-mono animate-pulse">
+        <div className="rounded-md border border-rule bg-paper px-3 py-2 text-xs text-ink-2 font-mono animate-pulse">
           ⏳ <T id="chat.thinking" />
         </div>
       ) : (
         <>
           {content && !hasBlocks && (
-            <div className="rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 whitespace-pre-wrap break-words">
+            <div className="rounded-md border border-rule bg-paper px-3 py-2 text-sm text-ink whitespace-pre-wrap break-words">
               {content}
             </div>
           )}
@@ -61,7 +61,7 @@ export function MessageRenderer({
         </>
       )}
       {!pending && (modelName || latencyMs != null) && (
-        <div className="mt-1 px-1 text-xs font-mono text-slate-500">
+        <div className="mt-1 px-1 text-xs font-mono text-mute">
           {modelName ?? ''}
           {latencyMs != null ? ` · ${latencyMs}ms` : ''}
         </div>

@@ -12,8 +12,8 @@ export function LangGate() {
   if (!open) return null;
   return (
     <>
-      <div className="fixed inset-0 z-[399] bg-ink/55 backdrop-blur-sm animate-fade-in" aria-hidden />
-      <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 animate-fade-in">
+      <div className="fixed inset-0 z-toast bg-ink/55 backdrop-blur-sm animate-fade-in" aria-hidden />
+      <div className="fixed inset-0 z-toast flex items-center justify-center p-4 animate-fade-in">
         <LangPicker
           open={open}
           onPick={(lang) => {

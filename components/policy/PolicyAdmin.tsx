@@ -72,7 +72,7 @@ export async function PolicyAdmin({ targets, users, canEdit, canAssign, flash }:
   const sortedUsers = [...users].sort((a, b) => a.fullname.localeCompare(b.fullname));
 
   return (
-    <section className="rounded-2xl border border-rule/40 bg-paper-2/30 p-4 md:p-5 space-y-5">
+    <section className="rounded-md border border-rule/40 bg-paper-2/30 p-4 md:p-5 space-y-5">
       <header className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-[15px] font-bold text-ink">
@@ -171,7 +171,7 @@ function btnDanger(disabled = false) {
 async function CreateRoleForm({ canEdit }: { canEdit: boolean }) {
   const locale = await getSecondaryLocale();
   return (
-    <form action={createRoleAction} className="rounded-xl border border-rule/40 bg-paper-1/40 p-3 space-y-2.5">
+    <form action={createRoleAction} className="rounded-md border border-rule/40 bg-paper-1/40 p-3 space-y-2.5">
       <h3 className="text-[12px] font-bold uppercase tracking-[0.1em] text-mute">
         <T id="policy.admin.createRole" locale={locale} hideSecondary />
       </h3>
@@ -194,7 +194,7 @@ async function CreateRoleForm({ canEdit }: { canEdit: boolean }) {
 async function CreateDepartmentForm({ canEdit }: { canEdit: boolean }) {
   const locale = await getSecondaryLocale();
   return (
-    <form action={createDepartmentAction} className="rounded-xl border border-rule/40 bg-paper-1/40 p-3 space-y-2.5">
+    <form action={createDepartmentAction} className="rounded-md border border-rule/40 bg-paper-1/40 p-3 space-y-2.5">
       <h3 className="text-[12px] font-bold uppercase tracking-[0.1em] text-mute">
         <T id="policy.admin.createDepartment" locale={locale} hideSecondary />
       </h3>
@@ -224,7 +224,7 @@ async function AssignUserForm({
 }) {
   const locale = await getSecondaryLocale();
   return (
-    <form action={assignUserAction} className="rounded-xl border border-rule/40 bg-paper-1/40 p-3 space-y-2.5">
+    <form action={assignUserAction} className="rounded-md border border-rule/40 bg-paper-1/40 p-3 space-y-2.5">
       <h3 className="text-[12px] font-bold uppercase tracking-[0.1em] text-mute">
         <T id="policy.admin.assignUser" locale={locale} hideSecondary />
       </h3>
@@ -281,7 +281,7 @@ function TargetList({
   canDelete: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-rule/40 bg-paper-1/40 p-3">
+    <div className="rounded-md border border-rule/40 bg-paper-1/40 p-3">
       <header className="flex items-center justify-between mb-2">
         <h3 className="text-[12px] font-bold uppercase tracking-[0.1em] text-mute">{title}</h3>
         <Badge tone="neutral">{rows.length}</Badge>

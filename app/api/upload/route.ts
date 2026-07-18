@@ -36,16 +36,52 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+const ALLOWED_MIME = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+  'image/bmp',
+  'image/tiff',
+  'image/svg+xml',
+  'application/pdf',
+]);
+
+function isAllowedMime(mime: string): boolean {
+  const m = mime.toLowerCase();
+  if (ALLOWED_MIME.has(m)) return true;
+  return false;
+}
+
 export async function POST(req: Request) {
   const guard = await apiGuard(req, { perm: 'finance:expense:create::allow' });
   if (guard.response) return guard.response;
   const actor = guard.actor;
   if (!actor) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 
+  const contentLength = Number(req.headers.get('content-length') || '0');
+  if (contentLength > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: 'payload_too_large', detail: `max ${MAX_UPLOAD_BYTES} bytes`, maxBytes: MAX_UPLOAD_BYTES },
+      { status: 413 },
+    );
+  }
+
   const form = await req.formData();
   const file = form.get('file');
   if (!file || typeof file === 'string') {
     return NextResponse.json({ error: 'file is required' }, { status: 400 });
+  }
+
+  const declaredMime = (file.type || 'application/octet-stream').toLowerCase();
+  if (!isAllowedMime(declaredMime)) {
+    return NextResponse.json(
+      { error: 'unsupported_mime_type', detail: `got ${declaredMime}`, allowed: [...ALLOWED_MIME] },
+      { status: 400 },
+    );
   }
 
   const rawKind = String(form.get('kind') || 'receipt').toLowerCase();
@@ -77,7 +113,13 @@ export async function POST(req: Request) {
 
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
-  const mime = file.type || 'application/octet-stream';
+  if (buffer.length > MAX_UPLOAD_BYTES) {
+    return NextResponse.json(
+      { error: 'payload_too_large', detail: `max ${MAX_UPLOAD_BYTES} bytes`, maxBytes: MAX_UPLOAD_BYTES },
+      { status: 413 },
+    );
+  }
+  const mime = declaredMime;
   const originalName = file.name || 'slip';
   const key = makeKey(originalName);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Icon } from '@/components/icons';
+import { Bell } from 'lucide-react';
 import { NotificationPanel, type NotificationItem } from './NotificationPanel';
 
 interface NotificationBellClientProps {
@@ -150,11 +150,11 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
           type="button"
           aria-label="Notifications"
           onClick={() => setOpen((v) => !v)}
-          className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-glass-border bg-surface-glass-heavy text-ink-2 transition-colors hover:border-glass-border-strong hover:bg-surface-glass-strong hover:text-ink"
+          className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rule bg-paper-2 text-ink-2 transition-colors hover:border-rule-strong hover:bg-paper-3 hover:text-ink"
         >
-          <Icon name="bell" size={16} />
+          <Bell size={16} />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold font-mono text-white">
+            <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold font-mono text-ink">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
@@ -162,7 +162,7 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
       )}
 
       {hideButton && unreadCount > 0 && (
-        <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold font-mono text-white">
+        <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold font-mono text-ink">
           {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       )}

@@ -1,24 +1,24 @@
 import React from 'react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
+import { Briefcase, Calendar, CircleAlert, FileText, type LucideIcon } from 'lucide-react';
 import { loadActivePermSession, hasPermission, PERM } from '@/perm/server';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { crumbsForPath } from '@/components/breadcrumbs/routes';
-import { NoPermissionView } from '@/components/NoPermissionView';
 import { T } from '@/components/i18n/TServer';
 import { getSecondaryLocale } from '@/server/locale';
 import { listLeaveRequests } from '@/hr/server';
 import type { LeaveRequestRow, LeaveStatus } from '@/hr/server';
-import { Badge, Icon, Panel } from '@/components/ui';
-import type { IconName } from '@/components/icons';
+import { Badge, Panel } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
-const TYPE_ICON: Record<string, IconName> = {
-  sick: 'alert-circle',
-  annual: 'calendar',
-  personal: 'briefcase',
+const TYPE_ICON: Record<string, LucideIcon> = {
+  sick: CircleAlert,
+  annual: Calendar,
+  personal: Briefcase,
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -46,30 +46,11 @@ export default async function HRLeavePage() {
   const locale = await getSecondaryLocale();
 
   if (!out) {
-    return (
-      <>
-        <BreadcrumbSetter crumbs={crumbsForPath('/hr/leave', locale)} />
-        <PageLayout title={<T id="hr.leave.title" locale={locale} />}>
-          <NoPermissionView kind="locked" actor={null} attemptedPath="/hr/leave" reason="Sign in to view this page." />
-        </PageLayout>
-      </>
-    );
+    redirect('/login');
   }
 
   if (!hasPermission(out.session, PERM.hr.leave.read)) {
-    return (
-      <>
-        <BreadcrumbSetter crumbs={crumbsForPath('/hr/leave', locale)} />
-        <PageLayout title={<T id="hr.leave.title" locale={locale} />}>
-          <NoPermissionView
-            kind="locked"
-            actor={out.session.user as never}
-            attemptedPath="/hr/leave"
-            reason="hr:leave:read required."
-          />
-        </PageLayout>
-      </>
-    );
+    redirect('/forbidden?path=/hr/leave&reason=hr:leave:read');
   }
 
   const requests = await listLeaveRequests();
@@ -113,7 +94,7 @@ export default async function HRLeavePage() {
               ) : (
                 <ul className="space-y-4">
                   {g.rows.map((r) => {
-                     const icon = TYPE_ICON[r.leave_type] ?? 'file';
+                     const IconCmp = TYPE_ICON[r.leave_type] ?? FileText;
                      const typeKey = TYPE_LABEL[r.leave_type] ?? 'hr.leave.typeOther';
                     return (
                       <li key={r.id}>
@@ -124,7 +105,7 @@ export default async function HRLeavePage() {
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="min-w-0 flex-1 space-y-1">
                               <div className="flex flex-wrap items-center gap-2">
-                                 <Icon name={icon} size={17} className="text-accent" />
+                                 <IconCmp size={17} className="text-accent" />
                                  <span className="font-semibold text-ink">{r.employee_name}</span>
                                  <span className="text-xs font-mono text-mute">· {r.employee_code}</span>
                               </div>

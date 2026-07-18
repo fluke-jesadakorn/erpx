@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Icon } from '@/components/icons';
+import { Check, UserCheck, Zap } from 'lucide-react';
 import type { WaybillEventRow } from '@/waybill/events';
 import type { WaybillAttachmentRow } from '@/waybill/attachments';
 import type {
@@ -239,9 +239,9 @@ export function WaybillRail({
                 ].join(' ')}
               >
                 {isPassed ? (
-                  <Icon name="check" size={12} className="text-paper-2" strokeWidth={3} />
+                  <Check size={12} className="text-paper-2" strokeWidth={3} />
                 ) : isActive && hasAnyPerm ? (
-                  <Icon name="zap" size={12} className="text-paper-2" strokeWidth={3} />
+                  <Zap size={12} className="text-paper-2" strokeWidth={3} />
                 ) : null}
               </span>
               {idx < pips.length - 1 && (
@@ -257,7 +257,7 @@ export function WaybillRail({
 
             <div
               className={[
-                'flex flex-col gap-2 rounded-xl border border-rule bg-paper-2 p-4',
+                'flex flex-col gap-2 rounded-md border border-rule bg-paper-2 p-4',
                 dimmed ? 'opacity-60' : '',
               ].join(' ')}
             >
@@ -296,7 +296,7 @@ export function WaybillRail({
 
               {(isPassed || (isActive && hasAnyPerm)) && lastActor && (
                 <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-mute">
-                  <Icon name="user-check" size={12} aria-hidden />
+                  <UserCheck size={12} aria-hidden />
                   <span>
                     {lastActor.fullname || `#${lastActor.user_id}`}
                     {' · '}
@@ -330,13 +330,13 @@ export function WaybillRail({
               {pip.key === 'so_paid' && canRecordSalesPayment && isCurrentStage && (
                 <form
                   action={recordSalesPaymentAction}
-                  className="mt-2 rounded-xl border border-emerald-500/40 bg-emerald-950/25 p-3"
+                  className="mt-2 rounded-md border border-positive bg-positive-soft p-3"
                 >
                   <input type="hidden" name="waybillId" value={waybillId} />
                   <button
                     type="submit"
                     data-testid={`panel-record-sales-payment-${waybillId}`}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-br from-emerald-400 to-cyan-500 px-4 py-2.5 text-sm font-mono font-bold text-slate-950 shadow-md shadow-emerald-500/30 transition hover:from-emerald-300 hover:to-cyan-400"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-positive px-4 py-2.5 text-sm font-mono font-bold text-ink shadow-md shadow-positive transition hover:bg-positive-strong"
                   >
                     <span aria-hidden>💰</span>
                     <span>Record to GL · บันทึก GL</span>

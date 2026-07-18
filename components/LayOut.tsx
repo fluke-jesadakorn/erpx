@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Crumbs, type Crumb } from '@/components/ui/Crumbs';
 import { loadActor } from '@/server/guard';
 import { getDashboardData } from '@/dashboard/queries';
+import { MobileBottomNav } from './MobileBottomNav';
 
 interface LayOutProps {
   children: ReactNode;
@@ -18,13 +19,13 @@ export async function LayOut({ children, crumbs }: LayOutProps) {
   const users = (data.users || []) as any[];
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="app-shell flex min-h-screen flex-col">
       <Topbar users={users} currentUser={actor as any} />
       <div className="flex flex-1 min-h-0">
         <Sidebar currentUser={actor as any} />
-        <main className="flex-1 min-w-0 flex flex-col">
+        <main className="flex min-w-0 flex-1 flex-col pb-24 md:pb-0">
           {crumbs && crumbs.length > 0 && (
-              <div className="glass-panel-heavy rounded-none px-4 sm:px-6 pt-3 pb-1 border-b border-rule">
+              <div className="bg-paper-2 rounded-none px-4 sm:px-6 pt-3 pb-1 border-b border-rule">
               <Crumbs crumbs={crumbs} />
             </div>
           )}
@@ -33,6 +34,7 @@ export async function LayOut({ children, crumbs }: LayOutProps) {
           </div>
         </main>
       </div>
+      <MobileBottomNav />
     </div>
   );
 }

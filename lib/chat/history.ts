@@ -166,8 +166,8 @@ export interface AppendMessageInput {
   role: 'user' | 'assistant' | 'system';
   content: string;
   blocks?: ChatBlocks;
-  modelName?: string;
-  latencyMs?: number;
+  modelName?: string | null;
+  latencyMs?: number | null;
 }
 
 export async function appendMessage(
@@ -199,4 +199,12 @@ export async function appendMessage(
     );
     return mapMessage(r.rows[0]);
   });
+}
+
+export async function maybeAutoRename(
+  _userId: number,
+  _sessionId: string,
+  _triggerContent: string,
+): Promise<string | null> {
+  return null;
 }

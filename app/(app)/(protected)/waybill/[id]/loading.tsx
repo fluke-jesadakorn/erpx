@@ -2,7 +2,7 @@ import {
   HeaderSkeleton,
   PanelSkeleton,
   SkeletonGrid,
-} from '@/components/ui/Loading';
+} from '@/components/ui/Skeleton';
 
 export default function Loading() {
   return (

@@ -35,21 +35,24 @@ export async function POST(req: Request) {
       reason: string;
       created_at: string;
     }>(
-      `SELECT lr.leave_type, lr.start_date::text, lr.end_date::text, lr.days, lr.reason, lr.created_at::text
-         FROM hr.leave_requests lr
-        WHERE lr.employee_id = $1 AND lr.status = 'pending'
-        ORDER BY lr.created_at DESC LIMIT 1`,
+      `SELECT hl.leave_type, hl.start_date::text, hl.end_date::text,
+              hl.days::float AS days, hl.reason, w.created_at::text
+         FROM folio.hr_leave hl
+         JOIN folio.waybills w ON w.id = hl.waybill_id
+        WHERE hl.employee_id = $1 AND w.status = 'open'
+        ORDER BY w.created_at DESC LIMIT 1`,
       [employeeId],
     );
     const leave = leaveRes.rows[0];
 
     const managerRes = await query<{ line_user_id: string; name: string }>(
-      `SELECT line_user_id, name FROM hr.employees
-        WHERE ((role = 'manager' AND department = $1) OR role = 'hr')
-          AND line_user_id IS NOT NULL
-        ORDER BY (role = 'manager' AND department = $1) DESC
+      `SELECT DISTINCT u.line_user_id, u.fullname AS name
+         FROM folio.users u
+         JOIN perm.user_roles ur ON ur.user_id = u.id
+        WHERE u.line_user_id IS NOT NULL
+          AND (ur.role_id LIKE 'hr\\_%' ESCAPE '\\' OR ur.role_id = 'hr_manager::3')
         LIMIT 1`,
-      [department],
+      [],
     );
     if (managerRes.rows.length === 0) {
       return NextResponse.json({ success: false, error: 'No manager/HR found to notify' });

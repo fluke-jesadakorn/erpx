@@ -19,8 +19,8 @@ export async function WaybillAnomalyBadge({ flagged }: Props) {
 
   const severity = f.flags.some(x => x.severity === 'error') ? 'error' : 'warning';
   const color = severity === 'error'
-    ? 'border-rose-500/50 bg-rose-500/15 text-rose-200'
-    : 'border-amber-500/50 bg-amber-500/15 text-amber-200';
+    ? 'border-critical bg-critical-soft text-critical-strong border border-critical'
+    : 'border-caution bg-caution-soft text-caution-strong border border-caution';
 
   return (
     <details className={`inline-flex flex-col rounded-full border ${color}`}>
@@ -30,16 +30,16 @@ export async function WaybillAnomalyBadge({ flagged }: Props) {
           <T id="waybill.anomaly.label" values={{ n: f.flags.length }} locale={locale} />
         </span>
       </summary>
-      <div className="mt-1 rounded border border-slate-800 bg-slate-950 p-2 text-xs">
+      <div className="mt-1 rounded border border-rule bg-paper p-2 text-xs">
         <ul className="space-y-1">
           {f.flags.map((flag, i) => (
             <li key={i} className="flex items-start gap-2">
               <span className={`inline-flex shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wide ${
-                flag.severity === 'error' ? 'border-rose-500/40 bg-rose-500/10 text-rose-300' :
-                                              'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                flag.severity === 'error' ? 'border-critical bg-critical text-critical' :
+                                              'border-caution bg-caution text-caution'
               }`}>{flag.severity}</span>
-              <span className="font-mono text-slate-500">{flag.code}</span>
-              <span className="text-slate-200">{flag.message}</span>
+              <span className="font-mono text-mute">{flag.code}</span>
+              <span className="text-ink">{flag.message}</span>
             </li>
           ))}
         </ul>

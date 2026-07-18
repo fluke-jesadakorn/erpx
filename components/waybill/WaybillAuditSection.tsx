@@ -26,32 +26,32 @@ export async function WaybillAuditSection({
   const localeSafe: SecondaryLocale = locale ?? 'th';
 
   return (
-    <details className="group rounded-2xl border border-slate-800/60 bg-slate-950/40">
+    <details className="group rounded-md border border-rule/60 bg-paper-2/50">
       <summary className="cursor-pointer list-none px-4 py-3 [&::-webkit-details-marker]:hidden">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <span aria-hidden className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-slate-700/50 to-slate-800/50 text-lg ring-1 ring-slate-700">
+            <span aria-hidden className="grid h-9 w-9 place-items-center rounded-md bg-paper-2 text-lg ring-1 ring-rule">
               📜
             </span>
             <div className="flex flex-col">
-              <span className="text-base font-bold text-white">
+              <span className="text-base font-bold text-ink">
                 <T id="waybill.audit.logTitle" locale={localeSafe} /> ({events.length})
               </span>
-              <span className="font-mono text-xs uppercase tracking-widest text-slate-500">
+              <span className="font-mono text-xs uppercase tracking-widest text-mute">
                 <T id="waybill.audit.appendOnly" locale={localeSafe} />
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {integrity.ok ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-xs font-mono font-bold uppercase text-emerald-200">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-positive bg-positive px-2.5 py-1 text-xs font-mono font-bold uppercase text-positive-soft">
                 <span aria-hidden>✓</span>
                 <span>
                   <T id="waybill.audit.hmacVerified" locale={localeSafe} />
                 </span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/50 bg-rose-500/15 px-2.5 py-1 text-xs font-mono font-bold uppercase text-rose-200">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-critical bg-critical px-2.5 py-1 text-xs font-mono font-bold uppercase text-critical-soft">
                 <span aria-hidden>⚠</span>
                 <span>
                   <T id="waybill.audit.integrityFailed" locale={localeSafe} />
@@ -59,44 +59,44 @@ export async function WaybillAuditSection({
                 </span>
               </span>
             )}
-            <span className="font-mono text-xs uppercase tracking-wider text-slate-500 group-open:hidden">
+            <span className="font-mono text-xs uppercase tracking-wider text-mute group-open:hidden">
               ▶
             </span>
-            <span className="font-mono text-xs uppercase tracking-wider text-slate-500 hidden group-open:inline">
+            <span className="font-mono text-xs uppercase tracking-wider text-mute hidden group-open:inline">
               ▼
             </span>
           </div>
         </div>
       </summary>
 
-      <div className="border-t border-slate-800/60 px-4 py-4">
-<p className="font-mono text-xs uppercase tracking-widest text-slate-500">
-          waybill: <span className="text-cyan-400">{waybillId}</span> ·{' '}
+      <div className="border-t border-rule/60 px-4 py-4">
+<p className="font-mono text-xs uppercase tracking-widest text-mute">
+          waybill: <span className="text-info">{waybillId}</span> ·{' '}
           <T id="waybill.audit.eventsTotal" locale={localeSafe} hideSecondary /> {integrity.total}
         </p>
         {events.length === 0 ? (
-          <p className="mt-3 text-sm italic text-slate-500">
+          <p className="mt-3 text-sm italic text-mute">
             <T id="waybill.audit.noEvents" locale={localeSafe} hideSecondary />
           </p>
         ) : (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[640px] border-collapse text-xs">
               <thead>
-                <tr className="text-left font-mono text-xs uppercase tracking-widest text-slate-500">
-                  <th className="border-b border-slate-800 px-2 py-1.5">#</th>
-                  <th className="border-b border-slate-800 px-2 py-1.5">
+                <tr className="text-left font-mono text-xs uppercase tracking-widest text-mute">
+                  <th className="border-b border-rule px-2 py-1.5">#</th>
+                  <th className="border-b border-rule px-2 py-1.5">
                     <T id="waybill.audit.kind" locale={localeSafe} hideSecondary />
                   </th>
-                  <th className="border-b border-slate-800 px-2 py-1.5">
+                  <th className="border-b border-rule px-2 py-1.5">
                     <T id="waybill.audit.fromTo" locale={localeSafe} hideSecondary />
                   </th>
-                  <th className="border-b border-slate-800 px-2 py-1.5">
+                  <th className="border-b border-rule px-2 py-1.5">
                     <T id="waybill.audit.actor" locale={localeSafe} hideSecondary />
                   </th>
-                  <th className="border-b border-slate-800 px-2 py-1.5">
+                  <th className="border-b border-rule px-2 py-1.5">
                     <T id="waybill.audit.at" locale={localeSafe} hideSecondary />
                   </th>
-                  <th className="border-b border-slate-800 px-2 py-1.5">
+                  <th className="border-b border-rule px-2 py-1.5">
                     <T id="waybill.audit.payload" locale={localeSafe} hideSecondary />
                   </th>
                 </tr>
@@ -105,11 +105,11 @@ export async function WaybillAuditSection({
                 {events.map((e) => {
                   const occurredAt = formatDateServer(e.occurred_at, localeSafe);
                   return (
-                    <tr key={e.id} className="align-top font-mono text-slate-300">
-                      <td className="border-b border-slate-800/40 px-2 py-2 font-bold text-cyan-300">
+                    <tr key={e.id} className="align-top font-mono text-ink-2">
+                      <td className="border-b border-rule/40 px-2 py-2 font-bold text-info">
                         {e.sequence}
                       </td>
-                      <td className="border-b border-slate-800/40 px-2 py-2 font-bold text-white">
+                      <td className="border-b border-rule/40 px-2 py-2 font-bold text-ink">
                         <div className="flex items-center gap-2">
                           <span>{eventKindLabel(e.kind, localeSafe)}</span>
                           <EventExplainButton
@@ -122,36 +122,36 @@ export async function WaybillAuditSection({
                           />
                         </div>
                       </td>
-                      <td className="border-b border-slate-800/40 px-2 py-2 text-slate-400">
-                        {e.stage_from ?? '—'} → <span className="text-cyan-300">{e.stage_to ?? '—'}</span>
+                      <td className="border-b border-rule/40 px-2 py-2 text-ink-2">
+                        {e.stage_from ?? '—'} → <span className="text-info">{e.stage_to ?? '—'}</span>
                       </td>
-                      <td className="border-b border-slate-800/40 px-2 py-2 text-slate-500">
+                      <td className="border-b border-rule/40 px-2 py-2 text-mute">
                         {e.actor_id != null ? (
                           <>
-                            <span className="text-slate-300">
+                            <span className="text-ink-2">
                               {roleDisplay(e.actor_role, localeSafe)}
                             </span>{' '}
-                            <span className="text-slate-500">#{e.actor_id}</span>
+                            <span className="text-mute">#{e.actor_id}</span>
                           </>
                         ) : (
-                          <span className="text-slate-600">—</span>
+                          <span className="text-mute">—</span>
                         )}
                       </td>
-                      <td className="border-b border-slate-800/40 px-2 py-2 text-slate-500">
+                      <td className="border-b border-rule/40 px-2 py-2 text-mute">
                         {occurredAt}
                       </td>
-                      <td className="border-b border-slate-800/40 px-2 py-2">
+                      <td className="border-b border-rule/40 px-2 py-2">
                         {e.payload ? (
                           <details>
-                            <summary className="cursor-pointer text-cyan-300 hover:text-cyan-200">
+                            <summary className="cursor-pointer text-info hover:text-info-soft">
                               <T id="waybill.audit.expand" locale={localeSafe} hideSecondary />
                             </summary>
-                            <pre className="mt-1 max-w-md max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-slate-950 p-2 text-xs text-slate-300">
+                            <pre className="mt-1 max-w-md max-h-48 overflow-auto whitespace-pre-wrap break-all rounded bg-paper p-2 text-xs text-ink-2">
                               {payloadStringify(e.payload)}
                             </pre>
                           </details>
                         ) : (
-                          <span className="text-slate-600">—</span>
+                          <span className="text-mute">—</span>
                         )}
                       </td>
                     </tr>

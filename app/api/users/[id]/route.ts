@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/db';
 import { loadActor } from '@/server/guard';
-import { matchPerm, parseRoleId } from '@/perm/server';
+import { hasPermission, loadActivePermSession, parseRoleId } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -52,11 +53,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const actor = await loadActor();
-  if (!actor) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const session = await loadActivePermSession(req);
+  if (!actor || !session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { id } = await ctx.params;
   const body = await req.json();
 
-  if (!matchPerm(actor.permissions, 'user:profile:update::allow')) {
+  if (!hasPermission(session.session, PERM.user.profile.update)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 
@@ -95,14 +97,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const actor = await loadActor();
-  if (!actor) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  const session = await loadActivePermSession(req);
+  if (!actor || !session) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const { id } = await ctx.params;
   if (Number(id) === actor.id) {
     return NextResponse.json({ error: 'You cannot remove your own account' }, { status: 400 });
   }
-  if (!matchPerm(actor.permissions, 'user:profile:delete::allow')) {
+  if (!hasPermission(session.session, PERM.user.profile.delete)) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 });
   }
 

@@ -39,7 +39,7 @@ type Props = {
 
 function DraftChip() {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/40 bg-cyan-500/15 px-2.5 py-1 text-sm font-mono font-bold uppercase text-cyan-200">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-info bg-info px-2.5 py-1 text-sm font-mono font-bold uppercase text-info-soft">
       <span aria-hidden>📝</span>
       <span>DRAFT</span>
     </span>
@@ -55,7 +55,7 @@ function ProcurementBodyInlineBadges({ j, locale }: { j: ProcurementJournalView;
     <>
       {j.accrual.draft && <DraftChip />}
       {j.settlement.draft && (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-sm font-mono font-bold uppercase text-amber-200">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-caution bg-caution px-2.5 py-1 text-sm font-mono font-bold uppercase text-caution-soft">
           <span aria-hidden>💳</span>
           <span>
             <T id="waybill.gl.settleDraftBadge" locale={locale} />
@@ -63,7 +63,7 @@ function ProcurementBodyInlineBadges({ j, locale }: { j: ProcurementJournalView;
         </span>
       )}
       {j.settlement.posted && (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-sm font-mono font-bold uppercase text-amber-200">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-caution bg-caution px-2.5 py-1 text-sm font-mono font-bold uppercase text-caution-soft">
           <span aria-hidden>💳</span>
           <span>
             <T id="waybill.gl.settlePostedBadge" locale={locale} />
@@ -79,7 +79,7 @@ function SalesBodyInlineBadges({ j, locale }: { j: SalesJournalView; locale: Loc
     <>
       {j.vat.draft && <DraftChip />}
       {j.accrual.draft && (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-sm font-mono font-bold uppercase text-emerald-200">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-positive bg-positive px-2.5 py-1 text-sm font-mono font-bold uppercase text-positive-soft">
           <span aria-hidden>📒</span>
           <span>
             <T id="waybill.gl.accrualDraftBadge" locale={locale} />
@@ -87,7 +87,7 @@ function SalesBodyInlineBadges({ j, locale }: { j: SalesJournalView; locale: Loc
         </span>
       )}
       {j.accrual.posted && (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-sm font-mono font-bold uppercase text-emerald-200">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-positive bg-positive px-2.5 py-1 text-sm font-mono font-bold uppercase text-positive-soft">
           <span aria-hidden>📒</span>
           <span>
             <T id="waybill.gl.accrualPostedBadge" locale={locale} />
@@ -95,7 +95,7 @@ function SalesBodyInlineBadges({ j, locale }: { j: SalesJournalView; locale: Loc
         </span>
       )}
       {j.settlement.draft && (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-sm font-mono font-bold uppercase text-amber-200">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-caution bg-caution px-2.5 py-1 text-sm font-mono font-bold uppercase text-caution-soft">
           <span aria-hidden>💳</span>
           <span>
             <T id="waybill.gl.settleDraftBadge" locale={locale} />
@@ -103,7 +103,7 @@ function SalesBodyInlineBadges({ j, locale }: { j: SalesJournalView; locale: Loc
         </span>
       )}
       {j.settlement.posted && (
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-sm font-mono font-bold uppercase text-amber-200">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-caution bg-caution px-2.5 py-1 text-sm font-mono font-bold uppercase text-caution-soft">
           <span aria-hidden>💳</span>
           <span>
             <T id="waybill.gl.settlePostedBadge" locale={locale} />
@@ -133,20 +133,20 @@ export function WaybillGlSection(props: Props) {
       : <T id="waybill.gl.subE3" locale={locale} />;
 
   return (
-    <details className="glass-panel group rounded-2xl border" open>
+    <details className="bg-paper-2 border border-rule group rounded-md border" open>
       <summary className="cursor-pointer list-none px-4 py-3 [&::-webkit-details-marker]:hidden">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span
               aria-hidden
-              className="grid h-9 w-9 place-items-center rounded-xl bg-info-soft text-info text-lg ring-1 ring-info/40"
+              className="grid h-9 w-9 place-items-center rounded-md bg-info-soft text-info text-lg ring-1 ring-info/40"
             >
               📒
             </span>
             <div className="flex flex-col">
-              <span className="text-base font-bold text-white">{title}</span>
-              <span className="font-mono text-sm uppercase tracking-widest text-slate-500">
-                {subtitle} · <span className="text-cyan-300">{props.waybillId}</span>
+              <span className="text-base font-bold text-ink">{title}</span>
+              <span className="font-mono text-sm uppercase tracking-widest text-mute">
+                {subtitle} · <span className="text-info">{props.waybillId}</span>
               </span>
             </div>
           </div>
@@ -161,8 +161,8 @@ export function WaybillGlSection(props: Props) {
                 locale={locale}
               />
             )}
-            <span className="font-mono text-sm uppercase tracking-wider text-slate-500 group-open:hidden">▶</span>
-            <span className="font-mono text-sm uppercase tracking-wider text-slate-500 hidden group-open:inline">▼</span>
+            <span className="font-mono text-sm uppercase tracking-wider text-mute group-open:hidden">▶</span>
+            <span className="font-mono text-sm uppercase tracking-wider text-mute hidden group-open:inline">▼</span>
           </div>
         </div>
       </summary>

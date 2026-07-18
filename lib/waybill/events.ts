@@ -49,8 +49,9 @@ export interface RecordEventInput {
   actorId?: number | null;
   actorRole?: string | null;
   payload?: Record<string, unknown> | null;
-  /** When provided, the event is recorded in this client's transaction. */
-  client?: { query: typeof query };
+  /** When provided, the event is recorded in this client's transaction.
+   *  Accepts either a callable query function or an object exposing `.query`. */
+  client?: { query: typeof query } | typeof query;
 }
 
 export interface WaybillEventRow {
@@ -119,7 +120,8 @@ export async function recordEvent(input: RecordEventInput): Promise<WaybillEvent
   };
 
   if (input.client) {
-    return run(input.client.query as typeof query);
+    const fn = typeof input.client === 'function' ? input.client : input.client.query;
+    return run(fn as typeof query);
   }
   return withTransaction(run);
 }

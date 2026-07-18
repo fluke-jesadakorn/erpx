@@ -39,10 +39,10 @@ export function ApproversList({
   void _currentUserId;
 
   const gradientText = {
-    cyan: 'from-cyan-200 to-indigo-200',
-    emerald: 'from-emerald-200 to-cyan-200',
-    rose: 'from-rose-200 to-rose-100',
-    indigo: 'from-indigo-200 to-violet-200',
+    cyan: 'text-info',
+    emerald: 'text-positive',
+    rose: 'text-critical',
+    indigo: 'text-info',
   }[tone];
 
   const headerTone = {
@@ -76,7 +76,7 @@ export function ApproversList({
         <ApproverStack approvers={approvers} />
         <div className="min-w-0 flex-1 text-xs leading-tight text-mute">
           <p>
-            <span className={`bg-gradient-to-r bg-clip-text font-semibold text-transparent ${gradientText}`}>
+            <span className={`font-semibold ${gradientText}`}>
               {first?.fullname}
             </span>
             {second && (

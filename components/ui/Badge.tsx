@@ -17,12 +17,12 @@ export interface BadgeProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'child
 }
 
 const TONE: Record<BadgeTone, string> = {
-  positive: 'bg-positive-soft text-positive border-positive/40',
-  caution: 'bg-caution-soft text-caution border-caution/40',
-  critical: 'bg-critical-soft text-critical border-critical/40',
-  info: 'bg-info-soft text-info border-info/40',
-  neutral: 'bg-paper-3 text-ink-2 border-rule',
-  accent: 'bg-accent-soft text-accent border-accent/40',
+  positive: 'bg-positive-soft/75 text-positive border-positive/35',
+  caution: 'bg-caution-soft/75 text-caution border-caution/35',
+  critical: 'bg-critical-soft/75 text-critical border-critical/35',
+  info: 'bg-info-soft/75 text-info border-info/35',
+  neutral: 'bg-paper-3/65 text-ink-2 border-rule',
+  accent: 'bg-accent-soft/75 text-accent border-accent/35',
 };
 
 const DOT: Record<BadgeTone, string> = {
@@ -51,7 +51,7 @@ export function Badge({
     <span
       {...rest}
       className={[
-        'inline-flex items-center gap-1.5 rounded-full border font-medium tabular-nums whitespace-nowrap',
+        'glass-chip inline-flex items-center gap-1.5 border font-medium tabular-nums whitespace-nowrap',
         SIZE[size],
         TONE[tone],
         className,

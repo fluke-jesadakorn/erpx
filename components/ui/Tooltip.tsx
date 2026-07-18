@@ -28,7 +28,7 @@ export function TooltipContent({
       <RT.Content
         sideOffset={sideOffset}
         className={[
-          'z-[100] max-w-56 rounded-md border border-rule bg-paper px-2 py-1 text-xs text-ink-2 shadow-popover',
+          'panel-floating z-popover max-w-64 px-3 py-2 text-xs leading-relaxed text-ink-2',
           className,
         ].join(' ')}
         {...props}

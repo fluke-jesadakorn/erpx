@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { LoaderCircle, Mail, Send } from 'lucide-react';
 import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
-import { Panel, Badge, Icon } from '@/components/ui';
+import { Panel, Badge } from '@/components/ui';
 
 interface Props {
   waybillId: string;
@@ -60,7 +61,7 @@ export function WaybillChat({ waybillId }: Props) {
     <Panel padding="none" className="flex h-[60vh] flex-col overflow-hidden">
       <header className="border-b border-rule px-5 py-3">
         <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-mute">
-          <Icon name="mail" size={12} aria-hidden />
+          <Mail size={12} aria-hidden />
           <span>Thread</span>
           <Badge tone="neutral" size="sm">{messages.length}</Badge>
           <span className="ml-auto">scope: <span className="text-accent">waybill:{waybillId}</span></span>
@@ -76,7 +77,7 @@ export function WaybillChat({ waybillId }: Props) {
           <div
             key={m.id}
             className={[
-              'rounded-xl border px-3 py-2 text-sm',
+              'rounded-md border px-3 py-2 text-sm',
               m.role === 'user'
                 ? 'ml-12 border-accent/40 bg-accent-soft text-ink'
                 : 'mr-12 border-rule bg-paper-2 text-ink',
@@ -110,7 +111,7 @@ export function WaybillChat({ waybillId }: Props) {
             disabled={busy || !input.trim()}
             className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-bold text-paper-2 border border-accent hover:bg-accent-strong disabled:opacity-50 transition-colors"
           >
-            {busy ? <Icon name="loader" size={12} className="animate-spin" aria-hidden /> : <Icon name="send" size={12} aria-hidden />}
+            {busy ? <LoaderCircle size={12} className="animate-spin" aria-hidden /> : <Send size={12} aria-hidden />}
             Send
           </button>
         </div>

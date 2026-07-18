@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { ChevronRight } from 'lucide-react';
 import type { UiNode, UiTabs, UiAccordion, UiButton, UiTable, UiMetric, UiNote, UiCard, UiStack, UiGrid, UiHeading, UiText, UiRoot } from '@folio-lib/ai/safeUiContract';
 import { resolveAction } from '@folio-lib/chat/safeUiActions';
-import { Alert, Icon, Kpi, Panel, Tabs } from '@/components/ui';
+import { Alert, Kpi, Panel, Tabs } from '@/components/ui';
 
 function action(value: string | undefined, onAction?: (name: string, payload?: Record<string, unknown>) => void) {
   return (event: React.MouseEvent) => {
@@ -50,7 +51,7 @@ function TextView({ node }: { node: UiText }) {
 }
 
 function MetricView({ node }: { node: UiMetric }) {
-  return <Kpi title={node.label} value={node.value} delta={node.hint ? { value: node.hint, tone: node.tone === 'positive' ? 'positive' : node.tone === 'negative' ? 'critical' : 'neutral' } : undefined} />;
+  return <Kpi label={node.label} value={node.value} caption={node.hint} />;
 }
 
 function TableView({ node }: { node: UiTable }) {
@@ -65,7 +66,7 @@ function TabsView({ node, onAction }: { node: UiTabs; onAction?: (name: string, 
 
 function AccordionView({ node, onAction }: { node: UiAccordion; onAction?: (name: string, payload?: Record<string, unknown>) => void }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  return <Panel padding="none" className="divide-y divide-rule overflow-hidden">{node.items.map((item) => <div key={item.id}><button type="button" onClick={() => setOpen((value) => ({ ...value, [item.id]: !value[item.id] }))} className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-ink hover:bg-paper-3" aria-expanded={!!open[item.id]}><span>{item.title}</span><Icon name="chevron-right" size={14} className={open[item.id] ? 'rotate-90' : ''} /></button>{open[item.id] && <div className="space-y-2 px-3 pb-3">{item.children.map((child, i) => <NodeRenderer key={i} node={child} onAction={onAction} />)}</div>}</div>)}</Panel>;
+  return <Panel padding="none" className="divide-y divide-rule overflow-hidden">{node.items.map((item) => <div key={item.id}><button type="button" onClick={() => setOpen((value) => ({ ...value, [item.id]: !value[item.id] }))} className="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-ink hover:bg-paper-3" aria-expanded={!!open[item.id]}><span>{item.title}</span><ChevronRight size={14} className={open[item.id] ? 'rotate-90' : ''} /></button>{open[item.id] && <div className="space-y-2 px-3 pb-3">{item.children.map((child, i) => <NodeRenderer key={i} node={child} onAction={onAction} />)}</div>}</div>)}</Panel>;
 }
 
 function ButtonView({ node, onAction }: { node: UiButton; onAction?: (name: string, payload?: Record<string, unknown>) => void }) {

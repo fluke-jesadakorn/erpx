@@ -120,13 +120,13 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
     const r = await submitExpenseFromSlip({
       slipId: receiptSlipId,
       actorId: currentUserId,
-      overrides: needsBookBank && bookBankSlipId
-        ? {
-            paymentMethod: 'transfer',
-            bookBankSlipId,
-            bookBankFields,
-          }
-        : { paymentMethod: payment },
+      overrides: {
+        ...(parsed ?? {}),
+        paymentMethod: needsBookBank ? 'transfer' : payment,
+        ...(needsBookBank && bookBankSlipId
+          ? { bookBankSlipId, bookBankFields }
+          : {}),
+      },
     });
     setSubmitting(false);
     if (!r.success) {
@@ -204,7 +204,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
       }
       stickyActionBar={
         <div
-          className="sticky bottom-2 z-10 -mx-5 sm:-mx-7 px-5 sm:px-7 py-4 glass-panel-heavy rounded-xl border border-rule border-l-4 border-l-accent/60 shadow-popover"
+          className="sticky bottom-2 z-10 -mx-5 sm:-mx-7 px-5 sm:px-7 py-4 bg-paper-2 rounded-md border border-rule border-l-4 border-l-accent/60 shadow-popover"
           data-testid="expense-sticky-bar"
         >
           <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:gap-5">
@@ -407,7 +407,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
         }
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="rounded-xl border border-rule bg-paper-2/40 p-5 space-y-4">
+          <div className="rounded-md border border-rule bg-paper-2/40 p-5 space-y-4">
             <header className="flex items-start justify-between gap-3 pb-3 border-b border-rule">
               <div className="flex items-center gap-2.5 min-w-0">
                 <Receipt className="size-5 text-accent shrink-0" aria-hidden strokeWidth={2} />
@@ -451,7 +451,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
             />
           </div>
 
-          <div className="rounded-xl border border-rule bg-paper-2/40 p-5 space-y-4">
+          <div className="rounded-md border border-rule bg-paper-2/40 p-5 space-y-4">
             <header className="flex items-start justify-between gap-3 pb-3 border-b border-rule">
               <div className="flex items-center gap-2.5 min-w-0">
                 <Landmark className="size-5 text-accent shrink-0" aria-hidden strokeWidth={2} />

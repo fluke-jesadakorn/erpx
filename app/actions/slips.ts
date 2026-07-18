@@ -1,6 +1,6 @@
 'use server';
 
-import { query } from '@/db';
+import { query, withTransaction } from '@/db';
 import { remove as removeFromStorage } from '@/slips/storage';
 import { revalidatePath } from 'next/cache';
 
@@ -40,27 +40,13 @@ export async function discardSlip(args: { slipId: number; actorId: number }) {
       lockedExpenseId = slip.expense_id;
     }
 
-    await query('BEGIN');
-    try {
+    await withTransaction(async (q) => {
+      await q(`DELETE FROM slips WHERE id = $1`, [args.slipId]);
       if (lockedExpenseId) {
-        await query(`DELETE FROM expense_items WHERE expense_id = $1`, [lockedExpenseId]);
-        await query(`DELETE FROM expenses WHERE id = $1`, [lockedExpenseId]);
+        await q(`DELETE FROM expense_items WHERE expense_id = $1`, [lockedExpenseId]);
+        await q(`DELETE FROM expenses WHERE id = $1`, [lockedExpenseId]);
       }
-
-      await query(
-        `UPDATE slips
-            SET expense_id = NULL, pr_id = NULL, po_id = NULL,
-                status = 'pending', discarded_at = CURRENT_TIMESTAMP,
-                discarded_by = $2
-          WHERE id = $1`,
-        [args.slipId, args.actorId],
-      );
-      await query(`DELETE FROM slips WHERE id = $1`, [args.slipId]);
-      await query('COMMIT');
-    } catch (e) {
-      await query('ROLLBACK');
-      throw e;
-    }
+    });
 
     try {
       await removeFromStorage(slip.file_path);

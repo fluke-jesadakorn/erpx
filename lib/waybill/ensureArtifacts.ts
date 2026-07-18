@@ -120,8 +120,6 @@ export async function ensureGlForExpense(
   await client(
     `UPDATE expenses
         SET journal_entry_id = $1,
-            gl_confirmed_at = COALESCE(gl_confirmed_at, now()),
-            gl_confirmed_by = COALESCE(gl_confirmed_by, $2),
             updated_at = now()
       WHERE id = $3`,
     [finalized.journalId, actorId, expenseId],

@@ -44,7 +44,7 @@ export function Status({
   return (
     <span
       className={[
-        'inline-flex items-center gap-1.5 font-medium',
+        'inline-flex items-center gap-1.5 font-medium tracking-[-0.01em]',
         size === 'sm' ? 'text-xs' : 'text-sm',
         TEXT[tone],
         className,
@@ -54,7 +54,7 @@ export function Status({
         <span
           aria-hidden
           className={[
-            'rounded-full',
+            'rounded-full ring-2 ring-current/15',
             size === 'sm' ? 'h-1.5 w-1.5' : 'h-2 w-2',
             DOT[tone],
           ].join(' ')}

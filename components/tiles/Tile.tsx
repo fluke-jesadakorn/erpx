@@ -11,15 +11,17 @@ import thDict from '../../messages/th.json';
 import deDict from '../../messages/de.json';
 import enDict from '../../messages/en.json';
 import type { SecondaryLocale } from '@/i18n/config';
+import { ArrowUpRight, Check, Lock, Mail } from 'lucide-react';
+import { tileIcon } from '../tile-config';
 
 const accentMap: Record<string, { bg: string; bar: string; text: string; glow: string; ring: string }> = {
-  emerald: { bg: 'from-emerald-500/25 via-emerald-700/15 to-emerald-900/40', bar: 'bg-emerald-400', text: 'text-emerald-300', glow: 'shadow-emerald-500/40', ring: 'ring-emerald-400/40' },
-  indigo:  { bg: 'from-indigo-500/25 via-indigo-700/15 to-indigo-900/40',   bar: 'bg-indigo-400',  text: 'text-indigo-300',  glow: 'shadow-indigo-500/40', ring: 'ring-indigo-400/40' },
-  amber:   { bg: 'from-amber-400/25 via-amber-700/15 to-amber-900/40',     bar: 'bg-amber-400',   text: 'text-amber-300',   glow: 'shadow-amber-500/40', ring: 'ring-amber-400/40' },
-  purple:  { bg: 'from-purple-500/25 via-purple-700/15 to-purple-900/40',   bar: 'bg-purple-400',  text: 'text-purple-300',  glow: 'shadow-purple-500/40', ring: 'ring-purple-400/40' },
-  rose:    { bg: 'from-rose-500/25 via-rose-700/15 to-rose-900/40',         bar: 'bg-rose-400',    text: 'text-rose-300',    glow: 'shadow-rose-500/40', ring: 'ring-rose-400/40' },
-  cyan:    { bg: 'from-cyan-500/25 via-cyan-700/15 to-cyan-900/40',         bar: 'bg-cyan-400',    text: 'text-cyan-300',    glow: 'shadow-cyan-500/40', ring: 'ring-cyan-400/40' },
-  slate:   { bg: 'from-slate-500/25 via-slate-700/15 to-slate-900/40',      bar: 'bg-slate-400',   text: 'text-slate-300',   glow: 'shadow-slate-500/40', ring: 'ring-slate-400/40' },
+  emerald: { bg: 'bg-positive-soft', bar: 'bg-positive', text: 'text-positive', glow: 'shadow-positive', ring: 'ring-positive' },
+  indigo:  { bg: 'bg-accent-soft',   bar: 'bg-accent',   text: 'text-accent',   glow: 'shadow-accent',   ring: 'ring-accent' },
+  amber:   { bg: 'bg-caution-soft',  bar: 'bg-caution',  text: 'text-caution',  glow: 'shadow-caution',  ring: 'ring-caution' },
+  purple:  { bg: 'bg-accent-soft',   bar: 'bg-accent',   text: 'text-accent',   glow: 'shadow-accent',   ring: 'ring-accent' },
+  rose:    { bg: 'bg-critical-soft', bar: 'bg-critical', text: 'text-critical', glow: 'shadow-critical', ring: 'ring-critical' },
+  cyan:    { bg: 'bg-info-soft',     bar: 'bg-info',     text: 'text-info',     glow: 'shadow-info',     ring: 'ring-info' },
+  slate:   { bg: 'bg-paper-2',       bar: 'bg-paper-3',  text: 'text-ink-2',    glow: 'shadow-paper-3',  ring: 'ring-rule' },
 };
 
 const SEC: Record<SecondaryLocale, Record<string, unknown>> = {
@@ -85,14 +87,14 @@ function TileText({
         <span className={nameClass}>
           {nameEn}
           {secName ? (
-            <span className="ml-1 text-xs font-normal text-slate-400">· {secName}</span>
+            <span className="ml-1 text-xs font-normal text-ink-2">· {secName}</span>
           ) : null}
         </span>
         {subEn ? (
           <p className={subClass}>
             {subEn}
             {secSub ? (
-              <span className="ml-1 text-xs font-normal text-slate-500">· {secSub}</span>
+              <span className="ml-1 text-xs font-normal text-mute">· {secSub}</span>
             ) : null}
           </p>
         ) : null}
@@ -105,14 +107,14 @@ function TileText({
       <span className={nameClass}>
         <span className="block break-words">{nameEn}</span>
         {secName ? (
-          <span className="block mt-1 text-xs font-normal text-slate-400 break-words">{secName}</span>
+          <span className="block mt-1 text-xs font-normal text-ink-2 break-words">{secName}</span>
         ) : null}
       </span>
       {subEn ? (
         <p className={subClass}>
           <span className="block break-words">{subEn}</span>
           {secSub ? (
-            <span className="block mt-1 text-xs font-normal text-slate-500 break-words">{secSub}</span>
+            <span className="block mt-1 text-xs font-normal text-mute break-words">{secSub}</span>
           ) : null}
         </p>
       ) : null}
@@ -144,42 +146,45 @@ export const Tile: React.FC<TileProps> = ({
       />
 
       {active && !locked && (
-        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-20">
+        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-dropdown">
           <span className={`w-1.5 h-1.5 rounded-full ${c.bar} shadow-[0_0_8px_currentColor] animate-pulse`} />
         </div>
       )}
 
       {locked && (
-        <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full bg-slate-900/80 border border-slate-700/80 px-1.5 py-0.5 text-xs font-mono uppercase tracking-wider text-slate-300 z-20">
-          🔒 <span><T id="tiles.locked" hideSecondary /></span>
+        <div className="glass-chip absolute right-3 top-3 z-dropdown inline-flex items-center gap-1 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-ink-2">
+          <Lock size={11} aria-hidden /> <span><T id="tiles.locked" hideSecondary /></span>
         </div>
       )}
 
-      <div className={`absolute -right-6 -bottom-8 text-[120px] leading-none select-none pointer-events-none ${locked ? 'opacity-[0.03]' : 'opacity-[0.05]'}`}>
-        {tile.icon}
-      </div>
+      {React.createElement(tileIcon(tile), {
+        'aria-hidden': true,
+        className: `absolute -bottom-7 -right-6 h-32 w-32 select-none stroke-[0.7] ${locked ? 'opacity-[0.025]' : 'opacity-[0.05]'}`,
+      })}
 
       {active && !locked && (
-        <div className={`absolute inset-0 rounded-2xl pointer-events-none ${c.bg}`} />
+        <div className={`absolute inset-0 rounded-md pointer-events-none ${c.bg}`} />
       )}
 
       {!locked && (
         <div
           aria-hidden
-          className="absolute inset-y-0 -left-1/3 w-1/3 bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 group-hover:animate-shine-sweep"
+          className="absolute inset-y-0 -left-1/3 w-1/3 bg-paper-2 pointer-events-none opacity-0 group-hover:opacity-30"
         />
       )}
 
       <div className="relative z-10 flex flex-col h-full">
-        <div className="flex items-start justify-between gap-2">
-          <span className={`text-[52px] drop-shadow-lg leading-none ${locked ? 'grayscale opacity-60' : ''}`}>{tile.icon}</span>
+        <div className="flex items-start justify-between gap-3">
+          <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border border-rule bg-paper-2/65 shadow-inner ${c.text} ${locked ? 'opacity-55' : ''}`}>
+            {React.createElement(tileIcon(tile), { size: 21, 'aria-hidden': true })}
+          </span>
           {tile.count !== undefined && (
             <div className={`flex flex-col items-end ${live && !locked ? '' : 'opacity-70'}`}>
-              <span className={`font-black font-mono leading-none ${locked ? 'text-slate-500' : c.text} text-3xl`}>
+              <span className={`font-black font-mono leading-none ${locked ? 'text-mute' : c.text} text-3xl`}>
                 {typeof tile.count === 'number' && live ? tile.count.toLocaleString() : tile.count}
               </span>
               {tile.countLabel && (
-                <span className="text-xs text-slate-500 font-mono uppercase tracking-wider mt-0.5 text-right max-w-[80px] leading-tight">
+                <span className="text-xs text-mute font-mono uppercase tracking-wider mt-0.5 text-right max-w-[80px] leading-tight">
                   {tile.countLabel}
                 </span>
               )}
@@ -188,20 +193,20 @@ export const Tile: React.FC<TileProps> = ({
         </div>
 
         <div className="mt-auto pt-3">
-          <h3 className={`font-black leading-tight text-[14px] ${locked ? 'text-slate-400' : 'text-white'}`}>
+          <h3 className={`font-black leading-tight text-[14px] ${locked ? 'text-ink-2' : 'text-ink'}`}>
             <TileText
               tileId={tile.id}
               fallbackEn={tile.display_name}
               fallbackSub={tile.subtitle}
               nameClass=""
-              subClass="mt-1.5 font-sans leading-snug text-xs text-slate-400"
+              subClass="mt-1.5 font-sans leading-snug text-xs text-ink-2"
               stack
             />
           </h3>
           {hasMeta && viewPermId && (
             <div className="mt-2 flex flex-wrap items-center gap-1">
-              <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider ${locked ? 'bg-slate-900/70 text-slate-500 border-slate-800' : 'bg-slate-900/70 text-slate-300 border-slate-700/70'}`}>
-                <span aria-hidden>{locked ? '🔒' : '✓'}</span>
+              <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider ${locked ? 'bg-paper-2/70 text-mute border-rule' : 'bg-paper-2/70 text-ink-2 border-rule/70'}`}>
+                {locked ? <Lock size={10} aria-hidden /> : <Check size={10} aria-hidden />}
                 <span className="truncate max-w-[220px]">{locked ? <T id="tiles.locked" hideSecondary /> : <T id="tiles.open" hideSecondary />}</span>
               </span>
             </div>
@@ -212,35 +217,32 @@ export const Tile: React.FC<TileProps> = ({
   );
 
   const className = [
-    'group relative rounded-2xl overflow-hidden text-left block w-full',
-    'bg-gradient-to-br',
-    c.bg,
-    'min-h-[280px] p-5',
+    'panel-interactive group relative block h-full min-h-[190px] w-full overflow-hidden rounded-2xl p-4 text-left',
     locked
-      ? `opacity-50 grayscale saturate-50 ring-1 ring-slate-800/60 border border-slate-800/80 cursor-not-allowed`
+      ? `opacity-50 grayscale saturate-50 ring-1 ring-rule/60 border border-rule/80 cursor-not-allowed`
       : active
-        ? `ring-2 ${c.ring} shadow-xl ${c.glow} scale-[1.015]`
-        : 'ring-1 ring-slate-800/60 hover:ring-slate-600 hover:scale-[1.02] hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/50 border border-slate-800/80',
+        ? `ring-2 ${c.ring} shadow-xl ${c.glow}`
+        : 'ring-1 ring-rule/50 hover:ring-rule-strong hover:-translate-y-px',
     'transition-all duration-200',
   ].join(' ');
 
   const tooltipBody = (
     <div className="space-y-1.5">
-      <div className="text-sm font-mono text-slate-100">
+      <div className="text-sm font-mono text-ink">
         <TileText
           tileId={tile.id}
           fallbackEn={reason || tile.display_name}
-          nameClass="font-mono text-slate-100"
+          nameClass="font-mono text-ink"
         />
       </div>
       {viewPermId && (
-        <div className="text-xs font-mono text-slate-400">
-          <span className="text-slate-500"><T id="tilesUi.permLabel" hideSecondary />:</span> {viewPermId}
+        <div className="text-xs font-mono text-ink-2">
+          <span className="text-mute"><T id="tilesUi.permLabel" hideSecondary />:</span> {viewPermId}
         </div>
       )}
       {requiredRoles && requiredRoles.length > 0 && (
-        <div className="text-xs font-mono text-slate-400">
-          <span className="text-slate-500"><T id="tilesUi.rolesWithAccess" hideSecondary />: </span>
+        <div className="text-xs font-mono text-ink-2">
+          <span className="text-mute"><T id="tilesUi.rolesWithAccess" hideSecondary />: </span>
           {requiredRoles.join(', ')}
         </div>
       )}
@@ -253,9 +255,9 @@ export const Tile: React.FC<TileProps> = ({
             setRequestOpen(true);
             onRequestAccess?.();
           }}
-          className="mt-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-xs font-mono uppercase tracking-wider text-cyan-100 hover:bg-cyan-500/30"
+          className="mt-1 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-info border border-info text-xs font-mono uppercase tracking-wider text-info-soft hover:bg-info"
         >
-          ✉ <T id="tilesUi.request" hideSecondary />
+          <Mail size={12} aria-hidden /> <T id="tilesUi.request" hideSecondary />
         </button>
       )}
     </div>
@@ -287,6 +289,7 @@ export const Tile: React.FC<TileProps> = ({
       <TileTooltip content={tooltipBody}>
         <Link href={href} onClick={onClick} className={className}>
           {content}
+          <ArrowUpRight aria-hidden size={14} className="absolute bottom-4 right-4 z-10 text-mute transition-colors group-hover:text-ink" />
         </Link>
       </TileTooltip>
     );

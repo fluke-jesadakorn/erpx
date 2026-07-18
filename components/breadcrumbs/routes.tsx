@@ -48,7 +48,7 @@ const ROUTES: Route[] = [
   },
   {
     test: (p) => p === '/chat',
-    build: (locale, _path) => [homeCrumbFor(locale), { label: lbl('nav.chat', locale), href: '/chat', icon: 'message-circle' }],
+    build: (locale, _path) => [homeCrumbFor(locale), { label: lbl('nav.chat', locale), href: '/chat', icon: 'MessageCircle' }],
   },
   {
     test: (p) => p === '/nudges',
@@ -234,7 +234,7 @@ function homeCrumbFor(locale: SecondaryLocale): Crumb {
   return {
     label: <T id="breadcrumbs.home" locale={locale} />,
     href: '/',
-    icon: 'home',
+    icon: 'Home',
   };
 }
 
@@ -248,4 +248,11 @@ export function crumbsForPath(
     if (route.test(path)) return route.build(locale, path, ctx);
   }
   return [homeCrumbFor(locale)];
+}
+
+export function trail(
+  locale: SecondaryLocale,
+  ...crumbs: Crumb[]
+): Crumb[] {
+  return [homeCrumbFor(locale), ...crumbs];
 }

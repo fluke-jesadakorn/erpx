@@ -18,9 +18,9 @@ export interface DeptBudgetStripProps {
 }
 
 function barClass(pct: number): string {
-  if (pct > 100) return 'bg-gradient-to-r from-rose-600 to-rose-700';
-  if (pct > 90) return 'bg-gradient-to-r from-amber-500 to-rose-500';
-  return 'bg-gradient-to-r from-indigo-500 to-purple-500';
+  if (pct > 100) return ' from-critical-strong to-critical-strong';
+  if (pct > 90) return ' from-caution to-critical';
+  return ' from-accent to-accent';
 }
 
 function currentYearMonth(): { year: number; month: number } {
@@ -65,8 +65,8 @@ export async function DeptBudgetStrip({
 
    if (rows.length === 0) {
     return (
-      <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-4">
-        <p className="text-xs font-mono text-slate-500">
+      <div className="rounded-md border border-rule bg-paper-2/50 p-4">
+        <p className="text-xs font-mono text-mute">
           <T id="cockpit.deptBudgetEmpty" locale={locale} />
         </p>
       </div>
@@ -81,16 +81,16 @@ export async function DeptBudgetStrip({
         return (
           <div key={row.dept_id} className="space-y-1">
             <div className="flex items-center justify-between gap-3 text-xs">
-              <span className="font-bold text-slate-200">
+              <span className="font-bold text-ink">
                  <T id={key} locale={locale} />
                 {row.is_over_threshold && <span className="ml-1.5">🚨</span>}
               </span>
-              <span className="font-mono text-slate-400 flex-shrink-0 whitespace-nowrap ml-2">
+              <span className="font-mono text-ink-2 flex-shrink-0 whitespace-nowrap ml-2">
                 {row.mtd_spend.toLocaleString()} / {row.monthly_budget.toLocaleString()} THB
-                <span className="ml-2 text-xs text-slate-500">({row.pct_used.toFixed(1)}%)</span>
+                <span className="ml-2 text-xs text-mute">({row.pct_used.toFixed(1)}%)</span>
               </span>
             </div>
-            <div className="w-full h-2 rounded-full bg-slate-950 border border-slate-900 overflow-hidden">
+            <div className="w-full h-2 rounded-full bg-paper border border-rule overflow-hidden">
               <div
                 className={`h-full rounded-full ${barClass(row.pct_used)} transition-all duration-700`}
                 style={{ width: `${pct}%` }}

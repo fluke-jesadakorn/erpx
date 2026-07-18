@@ -1,8 +1,11 @@
 import 'server-only';
+import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
+import { BookMarked } from 'lucide-react';
 import { loadWaybillRailContext } from '@/waybill/queries';
 import { loadActor } from '@/server/guard';
-import { matchPerm } from '@/perm/server';
+import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
+import { PERM } from '@folio-lib/perm/taxonomy';
 import { loadJournalForWaybill } from '@/waybill/queries';
 import { WaybillGlSection } from '@/components/waybill/WaybillGlSection';
 import { PageLayout } from '@/components/PageLayout';
@@ -22,19 +25,23 @@ export default async function WaybillGlPage({ params }: PageProps) {
   const { id } = await params;
   const actor = await loadActor();
   if (!actor) redirect('/login');
+  const h = await headers();
+  const session = await loadActivePermSession(
+    new Request(`http://internal/waybill/${id}/gl`, { headers: h as unknown as HeadersInit }),
+  );
+  if (!session) redirect('/login');
 
   const ctx = await loadWaybillRailContext(id);
   if (!ctx) notFound();
   const wb = ctx.waybill;
   const locale = await getSecondaryLocale();
 
-  const perms = actor.permissions;
-  const actorCanSeeGlLines = matchPerm(perms, 'finance:gl:view::allow');
+  const actorCanSeeGlLines = hasPermission(session.session, 'finance:gl:view::allow');
   const stage = wb.current_stage;
   const canFinalApprove = stage === 'accounting_review'
-    && matchPerm(perms, 'finance:expense:approve::allow');
+    && hasPermission(session.session, PERM.finance.expense.approve);
   const canConfirmGl = stage === 'disbursed'
-    && matchPerm(perms, 'finance:gl:confirm::allow');
+    && hasPermission(session.session, 'finance:gl:confirm::allow');
 
   const journal = await loadJournalForWaybill(wb.id);
 
@@ -59,7 +66,7 @@ export default async function WaybillGlPage({ params }: PageProps) {
               isDisbursed={stage === 'disbursed'}
             />
           ) : (
-            <Empty icon="wb-ledger" title="No GL journal available for this waybill yet." />
+            <Empty icon={BookMarked} title="No GL journal available for this waybill yet." />
           )}
         </OverviewShell>
       </PageLayout>

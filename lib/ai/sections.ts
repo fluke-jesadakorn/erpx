@@ -152,6 +152,27 @@ export const SECTION_CATALOG: Section[] = [
     task: 'chat',
     description: 'General-purpose AI assistant. Renders charts, HTML reports, and runs read-only SQL via [SQL] blocks.',
   },
+  {
+    key: 'events:explain',
+    label: 'Waybill event explainer',
+    labelTh: 'อธิบายเหตุการณ์เวย์บิล',
+    task: 'chat',
+    description: 'Explains a single waybill event (kind + from/to stage) in plain language for the actor.',
+  },
+  {
+    key: 'law:rag',
+    label: 'Law RAG answer',
+    labelTh: 'ตอบคำถามกฎหมาย (RAG)',
+    task: 'chat',
+    description: 'Answers law-document questions using only the retrieved chunk context.',
+  },
+  {
+    key: 'law:contracts',
+    label: 'Law contract embedder',
+    labelTh: 'ฝังข้อความสัญญา',
+    task: 'embed',
+    description: 'Embedding model used to vectorize contract chunks for similarity search.',
+  },
 ];
 
 export type SectionKey = (typeof SECTION_CATALOG)[number]['key'];

@@ -61,42 +61,42 @@ function toneForState(state: PipState) {
   switch (state) {
     case 'passed':
       return {
-        card: 'border-emerald-500/50 glass-tint-positive text-positive',
-        bullet: 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.7)] text-positive',
-        badge: 'glass-tint-positive text-positive border glass-tint-positive',
+        card: 'border-positive bg-positive-soft border border-positive/40 text-positive',
+        bullet: 'bg-positive shadow-[0_0_12px_rgba(52,211,153,0.7)] text-positive',
+        badge: 'bg-positive-soft border border-positive/40 text-positive border bg-positive-soft border border-positive/40',
         title: 'text-positive',
         sectionHead: 'text-positive/80',
       };
     case 'active':
       return {
-        card: 'border-cyan-400/80 bg-cyan-950/40 text-ink ring-2 ring-cyan-400/70',
-        bullet: 'bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.9)] animate-pulse text-info',
-        badge: 'bg-cyan-400 text-slate-950 border border-cyan-300',
+        card: 'border-info bg-info-strong text-ink ring-2 ring-info',
+        bullet: 'bg-info shadow-[0_0_14px_rgba(34,211,238,0.9)] animate-pulse text-info',
+        badge: 'bg-info text-ink border border-info',
         title: 'text-info',
         sectionHead: 'text-info/80',
       };
     case 'skipped':
       return {
- card: 'border-slate-900 glass-panel text-[var(--text-ghost)] opacity-60',
- bullet: 'glass-panel text-[var(--text-faint)]',
- badge: 'glass-panel text-[var(--text-faint)] border ',
+ card: 'border-rule bg-paper-2 border border-rule text-[var(--text-ghost)] opacity-60',
+ bullet: 'bg-paper-2 border border-rule text-[var(--text-faint)]',
+ badge: 'bg-paper-2 border border-rule text-[var(--text-faint)] border ',
         title: 'text-[var(--text-ghost)]',
         sectionHead: 'text-[var(--text-ghost)]',
       };
     case 'rejected':
       return {
-        card: 'border-rose-500/70 glass-tint-critical text-critical ring-2 ring-rose-500/50',
-        bullet: 'bg-rose-400 text-critical shadow-[0_0_10px_rgba(244,63,94,0.7)]',
-        badge: 'bg-rose-500/25 text-critical border border-rose-400/50',
+        card: 'border-critical bg-critical-soft border border-critical/40 text-critical ring-2 ring-critical',
+        bullet: 'bg-critical text-critical shadow-[0_0_10px_rgba(244,63,94,0.7)]',
+        badge: 'bg-critical text-critical border border-critical',
         title: 'text-critical',
         sectionHead: 'text-critical/80',
       };
     case 'pending':
     default:
       return {
- card: ' glass-panel text-mute',
+ card: ' bg-paper-2 border border-rule text-mute',
         bullet: 'bg-paper-3 text-[var(--text-faint)]',
- badge: 'glass-panel text-[var(--text-faint)] border ',
+ badge: 'bg-paper-2 border border-rule text-[var(--text-faint)] border ',
         title: 'text-mute',
         sectionHead: 'text-[var(--text-faint)]',
       };
@@ -146,7 +146,7 @@ export function WaybillTimelineBigPicture({
     >
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span aria-hidden className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-cyan-500/30 to-indigo-500/30 text-lg ring-1 ring-cyan-400/40">
+          <span aria-hidden className="grid h-9 w-9 place-items-center rounded-md bg-info-soft text-lg ring-1 ring-info">
             🚦
           </span>
           <div className="flex flex-col">
@@ -158,7 +158,7 @@ export function WaybillTimelineBigPicture({
             </span>
           </div>
         </div>
- <span className="rounded-full border glass-panel px-3 py-1 text-xs font-mono text-mute">
+ <span className="rounded-full border bg-paper-2 border border-rule px-3 py-1 text-xs font-mono text-mute">
            {isRejected ? (
              <T id="waybill.timeline.closed_rejected" />
            ) : (
@@ -173,8 +173,8 @@ export function WaybillTimelineBigPicture({
       <div className="flex items-stretch gap-5">
         <div className="relative flex w-8 shrink-0 flex-col items-center pt-2 pb-2">
           <span aria-hidden className="z-10 mb-1 text-lg leading-none text-info drop-shadow-[0_0_8px_rgba(34,211,238,0.7)]">▲</span>
-          <span className="z-10 h-1 w-4 rounded bg-cyan-400" />
-          <div className="relative z-0 h-full w-1 flex-1 rounded-full bg-gradient-to-b from-cyan-400 via-indigo-500/60 to-slate-800" />
+          <span className="z-10 h-1 w-4 rounded bg-info" />
+          <div className="relative z-0 h-full w-1 flex-1 rounded-full bg-info" />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-4">
@@ -284,7 +284,7 @@ function StepCard({
     return (
       <article
         id={`pip-${pip.key}`}
-        className={'scroll-mt-24 flex items-center gap-3 rounded-2xl border px-4 py-2.5 transition ' + tone.card}
+        className={'scroll-mt-24 flex items-center gap-3 rounded-md border px-4 py-2.5 transition ' + tone.card}
         aria-label={`${pip.label} · ${roleText}`}
       >
         <span className="text-xl leading-none" aria-hidden>{pip.emoji}</span>
@@ -317,7 +317,7 @@ function StepCard({
   return (
     <article
       id={`pip-${pip.key}`}
-      className={'scroll-mt-24 rounded-2xl border p-4 transition ' + tone.card}
+      className={'scroll-mt-24 rounded-md border p-4 transition ' + tone.card}
       aria-label={`${pip.label} · ${roleText}`}
     >
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -339,22 +339,22 @@ function StepCard({
         >
            <T id={PIP_BADGE_EN[state]} />
         </span>
- <span className=" border glass-panel px-2 py-0.5 text-xs uppercase tracking-wider text-mute">
+ <span className=" border bg-paper-2 border border-rule px-2 py-0.5 text-xs uppercase tracking-wider text-mute">
            <T id={bucketKind} />
         </span>
         {roleText && (
-          <span className="inline-flex items-center gap-1 rounded-full border glass-tint-info glass-tint-info px-2 py-0.5 text-xs font-bold uppercase tracking-widest text-info">
+          <span className="inline-flex items-center gap-1 rounded-full border bg-info-soft border border-info/40 bg-info-soft border border-info/40 px-2 py-0.5 text-xs font-bold uppercase tracking-widest text-info">
              <T id="waybill.pip.role" />
              <span className="text-info"><T id={roleText} /></span>
           </span>
         )}
         {paysBefore && (
-          <span className="inline-flex items-center gap-1 rounded-md border glass-tint-caution glass-tint-caution px-2 py-0.5 text-xs font-mono text-caution">
+          <span className="inline-flex items-center gap-1 rounded-md border bg-caution-soft border border-caution/40 bg-caution-soft border border-caution/40 px-2 py-0.5 text-xs font-mono text-caution">
             🧾 <T id="waybill.timeline.pre_paid_slip" />
           </span>
         )}
         {thirdParty && (
-          <span className="inline-flex items-center gap-1 rounded-md border glass-tint-info glass-tint-info px-2 py-0.5 text-xs font-mono text-info">
+          <span className="inline-flex items-center gap-1 rounded-md border bg-info-soft border border-info/40 bg-info-soft border border-info/40 px-2 py-0.5 text-xs font-mono text-info">
             💸 <T id="waybill.timeline.pays_3rd_party" />
           </span>
         )}
@@ -483,7 +483,7 @@ function ActionPromptBlock({
     const reason =
       (rejectionEvent?.payload as { reason?: string } | null)?.reason ?? null;
     return (
-      <section className="space-y-2 border-t glass-tint-critical pt-4 text-sm">
+      <section className="space-y-2 border-t bg-critical-soft border border-critical/40 pt-4 text-sm">
         <div className="text-xs uppercase tracking-widest text-critical/80">
           ✗ {<T id="waybill.timeline.rejected_by" />}
         </div>
@@ -509,7 +509,7 @@ function ActionPromptBlock({
 
   if (isPassed) {
     return (
-      <section className="space-y-2 border-t glass-tint-positive pt-4 text-sm">
+      <section className="space-y-2 border-t bg-positive-soft border border-positive/40 pt-4 text-sm">
         <div className="text-xs uppercase tracking-widest text-positive/80">
           ✓ {<T id="waybill.timeline.completed_by" />}
         </div>
@@ -533,10 +533,10 @@ function ActionPromptBlock({
   if (isCurrentStage) {
     const isDisbursement = pipKey === 'awaiting_disbursement';
     const isDisbursed = pipKey === 'disbursed';
-    const isFinalApproval = pipKey === 'final_authorization';
+    const isFinalApproval = pipKey === 'final_authorization' || pipKey === 'accounting_authorization';
     if (isFinalApproval) {
       return (
-        <section className="space-y-3 border-t border-fuchsia-500/30 pt-4 text-sm">
+        <section className="space-y-3 border-t border-accent pt-4 text-sm">
           <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs uppercase tracking-widest text-accent">
             <span>
               🔒 {<T id="waybill.timeline.final_authorization" />}
@@ -544,7 +544,7 @@ function ActionPromptBlock({
                 {<T id="waybill.timeline.current_stage" />}
               </span>
             </span>
-            <span className="rounded-md border border-fuchsia-400/40 bg-fuchsia-500/15 px-2 py-0.5 text-accent">
+            <span className="rounded-md border border-accent bg-accent px-2 py-0.5 text-accent">
               {<T id="waybill.timeline.approve_gl_post_reject_no_gl" />}
             </span>
           </div>
@@ -558,27 +558,27 @@ function ActionPromptBlock({
                 <button
                   type="submit"
                   data-testid={`big-final-approve-${waybillId}`}
-                  className="group inline-flex w-full flex-col items-center justify-center gap-1 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 px-5 py-5 text-lg font-bold text-slate-950 shadow-popover shadow-emerald-500/40 transition hover:from-emerald-300 hover:to-cyan-400 hover:shadow-emerald-500/50"
+                  className="group inline-flex w-full flex-col items-center justify-center gap-1 rounded-md bg-positive px-5 py-5 text-lg font-bold text-ink shadow-popover shadow-positive transition hover:bg-positive-strong hover:shadow-positive-strong"
                 >
                   <span className="flex items-center gap-2">
                     <span aria-hidden className="text-2xl">✓</span>
                     <span>{<T id="waybill.timeline.final_approve" />}</span>
                   </span>
-                  <span className="text-xs uppercase tracking-widest text-emerald-950/70 group-hover:text-emerald-950">
+                  <span className="text-xs uppercase tracking-widest text-positive-strong group-hover:text-positive-strong">
                     {<T id="waybill.timeline.posts_to_gl" />}
                   </span>
                 </button>
               </form>
               <Link
-                href={`/waybill/${waybillId}?action=final-reject&stage=final_authorization`}
+                href={`/waybill/${waybillId}?action=final-reject&stage=${pipKey}`}
                 data-testid={`big-final-reject-${waybillId}`}
-                className="group inline-flex flex-col items-center justify-center gap-1 rounded-2xl bg-gradient-to-br from-rose-400 to-rose-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-popover shadow-rose-500/40 transition hover:from-rose-300 hover:to-rose-500 hover:shadow-rose-500/50"
+                className="group inline-flex flex-col items-center justify-center gap-1 rounded-md bg-critical px-5 py-5 text-lg font-bold text-ink shadow-popover shadow-critical transition hover:bg-critical-strong hover:shadow-critical-strong"
               >
                 <span className="flex items-center gap-2">
                   <span aria-hidden className="text-2xl">✗</span>
                   <span>{<T id="waybill.timeline.final_reject" />}</span>
                 </span>
-                <span className="text-xs uppercase tracking-widest text-rose-950/70 group-hover:text-rose-950">
+                <span className="text-xs uppercase tracking-widest text-critical-strong group-hover:text-critical-strong">
                   {<T id="waybill.timeline.no_gl_post" />}
                 </span>
               </Link>
@@ -604,7 +604,7 @@ function ActionPromptBlock({
         .filter((e) => e.kind === 'gl-confirmed')
         .sort((a, b) => b.sequence - a.sequence)[0];
       return (
-        <section className="space-y-3 border-t glass-tint-positive pt-4 text-sm">
+        <section className="space-y-3 border-t bg-positive-soft border border-positive/40 pt-4 text-sm">
           <div className="text-xs uppercase tracking-widest text-positive">
             ✅ {<T id="waybill.timeline.confirm_gl_recorded" />}
             <span className="ml-2 text-mute">
@@ -612,7 +612,7 @@ function ActionPromptBlock({
             </span>
           </div>
           {glConfirmed && confirmEvent ? (
-            <div className="rounded-xl border glass-tint-positive glass-tint-positive p-3 text-sm text-positive">
+            <div className="rounded-md border bg-positive-soft border border-positive/40 bg-positive-soft border border-positive/40 p-3 text-sm text-positive">
               <div className="font-mono">
                 ✓ {<T id="waybill.timeline.confirmed_by" />}{' '}
                 {roleDisplay(confirmEvent.actor_role, locale)} #{confirmEvent.actor_id ?? '—'}
@@ -622,7 +622,7 @@ function ActionPromptBlock({
           ) : canConfirmGl && originId != null ? (
             <form
               action={confirmGlRecordedAction}
-              className="rounded-xl border border-amber-500/50 bg-amber-950/30 p-4 text-sm text-caution"
+              className="rounded-md border border-caution bg-caution-soft p-4 text-sm text-caution"
             >
               <input type="hidden" name="waybillId" value={waybillId} />
               <input type="hidden" name="expenseId" value={originId} />
@@ -634,7 +634,7 @@ function ActionPromptBlock({
               <button
                 type="submit"
                 data-testid={`gl-confirm-${waybillId}`}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-amber-400 to-amber-500 px-5 py-5 text-lg font-bold text-slate-950 shadow-popover shadow-amber-500/40 transition hover:from-amber-300 hover:to-amber-400 hover:shadow-amber-500/50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-caution px-5 py-5 text-lg font-bold text-ink shadow-popover shadow-caution transition hover:bg-caution-strong hover:shadow-caution-strong"
               >
                 <span aria-hidden className="text-2xl">✓</span>
                 <span>{<T id="waybill.timeline.confirm_gl_recorded" />}</span>
@@ -658,7 +658,7 @@ function ActionPromptBlock({
     }
     if (isDisbursement && canSettle && originId != null) {
       return (
-        <section className="space-y-3 border-t glass-tint-info pt-4 text-sm">
+        <section className="space-y-3 border-t bg-info-soft border border-info/40 pt-4 text-sm">
           <div className="text-xs uppercase tracking-widest text-info">
             💸 {<T id="waybill.timeline.disbursement_step" />}
             <span className="ml-2 text-mute">
@@ -676,7 +676,7 @@ function ActionPromptBlock({
       );
     }
     return (
-      <section className="space-y-3 border-t glass-tint-info pt-4 text-sm">
+      <section className="space-y-3 border-t bg-info-soft border border-info/40 pt-4 text-sm">
         <div className="text-xs uppercase tracking-widest text-info">
           ⚡ {<T id="waybill.timeline.acting_now" />}
           <span className="ml-2 text-mute">
@@ -693,7 +693,7 @@ function ActionPromptBlock({
               <button
                 type="submit"
                 data-testid={`big-approve-${pipKey}`}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-popover shadow-emerald-500/40 transition hover:from-emerald-300 hover:to-emerald-500 hover:shadow-emerald-500/50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-positive px-5 py-5 text-lg font-bold text-ink shadow-popover shadow-positive transition hover:bg-positive-strong hover:shadow-positive-strong"
               >
                 <span aria-hidden className="text-2xl">✓</span>
                 <span>{<T id="waybill.timeline.approve" />}</span>
@@ -702,7 +702,7 @@ function ActionPromptBlock({
             <Link
               href={`/waybill/${waybillId}?action=reject&stage=${pipKey}`}
               data-testid={`big-reject-${pipKey}`}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-rose-400 to-rose-600 px-5 py-5 text-lg font-bold text-slate-950 shadow-popover shadow-rose-500/40 transition hover:from-rose-300 hover:to-rose-500 hover:shadow-rose-500/50"
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-critical px-5 py-5 text-lg font-bold text-ink shadow-popover shadow-critical transition hover:bg-critical-strong hover:shadow-critical-strong"
             >
               <span aria-hidden className="text-2xl">✗</span>
               <span>{<T id="waybill.timeline.reject" />}</span>
@@ -727,7 +727,7 @@ function ActionPromptBlock({
 
   if (isPending) {
     return (
-      <section className="space-y-3 border-t glass-tint-info pt-4 text-sm">
+      <section className="space-y-3 border-t bg-info-soft border border-info/40 pt-4 text-sm">
         <div className="text-xs uppercase tracking-widest text-info">
           🪜 {<T id="waybill.timeline.acting_next" />}
           <span className="ml-2 text-mute">
@@ -736,7 +736,7 @@ function ActionPromptBlock({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {roleText && (
-            <span className="inline-flex items-center gap-1 rounded-md border glass-tint-info glass-tint-info px-2 py-1 text-xs font-mono text-info">
+            <span className="inline-flex items-center gap-1 rounded-md border bg-info-soft border border-info/40 bg-info-soft border border-info/40 px-2 py-1 text-xs font-mono text-info">
               {<T id="waybill.timeline.will_act_as" />}{' '}
                <span className="font-bold text-info"><T id={roleText} /></span>
             </span>
@@ -757,7 +757,7 @@ function ActionPromptBlock({
                 return (
                   <li
                     key={k}
- className="flex items-center gap-2 border glass-panel px-2.5 py-1 text-xs"
+ className="flex items-center gap-2 border bg-paper-2 border border-rule px-2.5 py-1 text-xs"
                   >
                     <span aria-hidden className="text-base">{meta.emoji}</span>
                     <span className="font-mono text-info">{k}</span>
