@@ -4,7 +4,7 @@ import { hasPermission, ADMIN_PERM } from '../perm/auth-client';
 import { matchPerm } from '../perm/grammar';
 
 const RECALL_PERM = 'finance:waybill:recall::allow';
-const RECALL_ROLES = new Set(['cfo', 'ceo', 'admin', 'finance']);
+const RECALL_ROLES = new Set(['cfo', 'ceo', 'finance_manager']);
 
 export async function canActorReCall(actorRole: string | null): Promise<boolean> {
   const out = await loadActivePermSessionFromEnv();

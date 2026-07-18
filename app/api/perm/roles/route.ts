@@ -29,11 +29,17 @@ export async function GET(req: Request) {
       description: string | null;
       kind: 'hierarchy' | 'system';
       rank: number | null;
+      department_id: string | null;
+      department_name: string | null;
       is_system: boolean;
       sort_order: number;
     }>(
-      `SELECT id, display_name, description, kind, rank, is_system, sort_order
-         FROM perm.roles ORDER BY kind, rank NULLS LAST, sort_order, id`,
+      `SELECT r.id, r.display_name, r.description, r.kind, r.rank,
+              r.department_id, d.display_name AS department_name,
+              r.is_system, r.sort_order
+         FROM perm.roles r
+         LEFT JOIN perm.departments d ON d.id = r.department_id
+        ORDER BY r.kind, r.department_id NULLS LAST, r.rank NULLS LAST, r.sort_order, r.id`,
     ),
     query<{ role_id: string; permission_id: string }>(
       `SELECT role_id, permission_id FROM perm.role_permissions`,
@@ -72,6 +78,7 @@ export async function POST(req: Request) {
   const description = body.description == null ? null : String(body.description);
   const kind = body.kind === 'system' ? 'system' : 'hierarchy';
   const rank = kind === 'hierarchy' ? Number(body.rank ?? body.level) : null;
+  const departmentId = kind === 'hierarchy' ? String(body.department_id ?? '').trim().toLowerCase() : null;
   const allow = Array.isArray(body.allow)
     ? body.allow.filter((value): value is string => typeof value === 'string')
     : [];
@@ -81,14 +88,17 @@ export async function POST(req: Request) {
   if (kind === 'hierarchy' && (!Number.isInteger(rank) || Number(rank) < 1 || Number(rank) > 7)) {
     return NextResponse.json({ error: 'Hierarchy rank must be an integer from 1 to 7' }, { status: 400 });
   }
+  if (kind === 'hierarchy' && !/^[a-z][a-z0-9_-]{1,40}$/.test(departmentId ?? '')) {
+    return NextResponse.json({ error: 'Hierarchy roles require a valid department' }, { status: 400 });
+  }
 
   try {
     await withTransaction(async (q) => {
       await q(
         `INSERT INTO perm.roles
-           (id, display_name, description, kind, rank, is_system, sort_order)
-         VALUES ($1, $2, $3, $4, $5, false, 1000)`,
-        [id, displayName, description, kind, rank],
+           (id, display_name, description, kind, rank, department_id, is_system, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, false, 1000)`,
+        [id, displayName, description, kind, rank, departmentId],
       );
       if (allow.length) {
         await q(
@@ -102,7 +112,7 @@ export async function POST(req: Request) {
       await q(
         `INSERT INTO perm.audit (kind, actor, target)
          VALUES ('role.create', $1, $2)`,
-        [`user:${out.session.user.id}`, { after: { id, displayName, description, kind, rank, allow } }],
+        [`user:${out.session.user.id}`, { after: { id, displayName, description, kind, rank, departmentId, allow } }],
       );
     });
     return NextResponse.json({ ok: true, id }, { status: 201 });

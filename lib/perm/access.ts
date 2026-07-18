@@ -78,11 +78,14 @@ export async function setUserAccess(
     );
     if (!dept.rows[0]) throw new AccessError('Unknown department');
 
-    const hierarchy = await q<{ id: string }>(
-      `SELECT id FROM perm.roles WHERE id = $1 AND kind = 'hierarchy'`,
+    const hierarchy = await q<{ id: string; department_id: string }>(
+      `SELECT id, department_id FROM perm.roles WHERE id = $1 AND kind = 'hierarchy'`,
       [input.hierarchyRoleId],
     );
     if (!hierarchy.rows[0]) throw new AccessError('Unknown hierarchy role');
+    if (hierarchy.rows[0].department_id !== input.departmentId) {
+      throw new AccessError('Hierarchy role does not belong to the selected department');
+    }
 
     if (systemRoleIds.length) {
       const systems = await q<{ id: string }>(

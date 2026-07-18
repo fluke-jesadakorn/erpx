@@ -77,9 +77,9 @@ export async function POST(req: NextRequest) {
           SELECT 1 FROM perm.user_roles ur
           LEFT JOIN perm.user_departments ud ON ud.user_id = ur.user_id
            WHERE ur.user_id = u.id
-             AND (($1 = 'hr_manager' AND ud.department_id = 'hr' AND ur.role_kind = 'hierarchy')
+             AND (($1 = 'hr_manager' AND ur.role_id = 'hr_manager' AND ur.role_kind = 'hierarchy')
                OR ($1 = 'cfo' AND ur.role_id = 'cfo' AND ur.role_kind = 'hierarchy')
-               OR ($1 = 'admin' AND ur.role_id = 'system_admin' AND ur.role_kind = 'system'))
+               OR ($1 = 'admin' AND ur.role_id = 'it_manager' AND ur.role_kind = 'hierarchy'))
         )
       ORDER BY CASE WHEN $1 = 'hr_manager' THEN (
         SELECT r.rank FROM perm.user_roles h

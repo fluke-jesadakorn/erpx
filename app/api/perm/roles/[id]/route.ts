@@ -36,9 +36,16 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     description: string | null;
     kind: 'hierarchy' | 'system';
     rank: number | null;
+    department_id: string | null;
+    department_name: string | null;
     is_system: boolean;
     sort_order: number;
-  }>(`SELECT id, display_name, description, kind, rank, is_system, sort_order FROM perm.roles WHERE id = $1`, [id]);
+  }>(`SELECT r.id, r.display_name, r.description, r.kind, r.rank,
+             r.department_id, d.display_name AS department_name,
+             r.is_system, r.sort_order
+        FROM perm.roles r
+        LEFT JOIN perm.departments d ON d.id = r.department_id
+       WHERE r.id = $1`, [id]);
   if (!role.rows[0]) return NextResponse.json({ error: 'role not found' }, { status: 404 });
   const [grants, members] = await Promise.all([
     query<{ permission_id: string }>(
@@ -70,9 +77,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     display_name: string;
     description: string | null;
     rank: number | null;
+    department_id: string | null;
     kind: 'hierarchy' | 'system';
     is_system: boolean;
-  }>(`SELECT display_name, description, rank, kind, is_system FROM perm.roles WHERE id = $1`, [id]);
+  }>(`SELECT display_name, description, rank, department_id, kind, is_system FROM perm.roles WHERE id = $1`, [id]);
   if (!current.rows[0]) return NextResponse.json({ error: 'role not found' }, { status: 404 });
   if (current.rows[0].is_system) {
     return NextResponse.json({ error: 'Canonical role definitions are protected' }, { status: 403 });
@@ -83,17 +91,28 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const rank = current.rows[0].kind === 'hierarchy'
     ? Number(body.rank ?? current.rows[0].rank)
     : null;
-  if (!displayName || (current.rows[0].kind === 'hierarchy' && (!Number.isInteger(rank) || Number(rank) < 1 || Number(rank) > 7))) {
+  const departmentId = current.rows[0].kind === 'hierarchy'
+    ? String(body.department_id ?? current.rows[0].department_id ?? '').trim().toLowerCase()
+    : null;
+  if (
+    !displayName ||
+    (current.rows[0].kind === 'hierarchy' && (
+      !Number.isInteger(rank) || Number(rank) < 1 || Number(rank) > 7 ||
+      !/^[a-z][a-z0-9_-]{1,40}$/.test(departmentId ?? '')
+    ))
+  ) {
     return NextResponse.json({ error: 'Invalid role update' }, { status: 400 });
   }
   await withTransaction(async (q) => {
     await q(
-      `UPDATE perm.roles SET display_name = $2, description = $3, rank = $4, updated_at = now() WHERE id = $1`,
-      [id, displayName, description, rank],
+      `UPDATE perm.roles
+          SET display_name = $2, description = $3, rank = $4, department_id = $5, updated_at = now()
+        WHERE id = $1`,
+      [id, displayName, description, rank, departmentId],
     );
     await q(
       `INSERT INTO perm.audit (kind, actor, target) VALUES ('role.update', $1, $2)`,
-      [`user:${auth.out.session.user.id}`, { id, before: current.rows[0], after: { displayName, description, rank } }],
+      [`user:${auth.out.session.user.id}`, { id, before: current.rows[0], after: { displayName, description, rank, departmentId } }],
     );
   });
   return NextResponse.json({ ok: true });

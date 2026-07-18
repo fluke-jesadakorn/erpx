@@ -37,6 +37,18 @@ export interface RoleParts {
 const ROLE_RANKS: Record<string, number> = {
   ceo: 1,
   cfo: 2,
+  it_manager: 3,
+  hr_manager: 3,
+  accounting_manager: 3,
+  finance_manager: 3,
+  it_supervisor: 4,
+  hr_supervisor: 4,
+  accounting_supervisor: 4,
+  finance_supervisor: 4,
+  it_officer: 5,
+  hr_officer: 5,
+  accounting_officer: 5,
+  finance_officer: 5,
   director: 3,
   manager: 4,
   supervisor: 5,
@@ -103,7 +115,11 @@ export function isDeny(id: string): boolean {
 
 export function roleNameOf(roleId: string): string {
   const idx = roleId.indexOf('::');
-  return idx > 0 ? roleId.slice(0, idx) : roleId;
+  const name = idx > 0 ? roleId.slice(0, idx) : roleId;
+  if (name.endsWith('_manager')) return 'manager';
+  if (name.endsWith('_supervisor')) return 'supervisor';
+  if (name.endsWith('_officer')) return 'officer';
+  return name;
 }
 
 export function levelOf(roleId: string): number | null {

@@ -41,21 +41,22 @@ export async function createRoleAction(formData: FormData) {
   if (!out) redirect('/policy?error=forbidden');
   const id = String(formData.get('name') ?? '').trim().toLowerCase();
   const displayName = String(formData.get('display_name') ?? '').trim();
-  const kind = formData.get('kind') === 'system' ? 'system' : 'hierarchy';
-  const rank = kind === 'hierarchy' ? Number(formData.get('rank') ?? 7) : null;
-  if (!validId(id) || !displayName || (kind === 'hierarchy' && (!Number.isInteger(rank) || Number(rank) < 1 || Number(rank) > 7))) {
+  const departmentId = String(formData.get('department_id') ?? '').trim().toLowerCase();
+  const rank = Number(formData.get('rank') ?? 5);
+  if (!validId(id) || !displayName || !validId(departmentId) || !Number.isInteger(rank) || rank < 1 || rank > 7) {
     redirect('/policy?error=invalid_role');
   }
   try {
     await withTransaction(async (q) => {
       await q(
-        `INSERT INTO perm.roles (id, display_name, description, kind, rank, is_system, sort_order)
-         VALUES ($1, $2, 'Custom role', $3, $4, false, 1000)`,
-        [id, displayName, kind, rank],
+        `INSERT INTO perm.roles
+           (id, display_name, description, kind, rank, department_id, is_system, sort_order)
+         VALUES ($1, $2, 'Custom role', 'hierarchy', $3, $4, false, 1000)`,
+        [id, displayName, rank, departmentId],
       );
       await q(
         `INSERT INTO perm.audit (kind, actor, target) VALUES ('role.create', $1, $2)`,
-        [`user:${out.session.user.id}`, { after: { id, displayName, kind, rank } }],
+        [`user:${out.session.user.id}`, { after: { id, displayName, kind: 'hierarchy', rank, departmentId } }],
       );
     });
   } catch {
