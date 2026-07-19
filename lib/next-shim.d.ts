@@ -22,7 +22,7 @@ declare module 'next/server' {
     geo?: { city?: string; country?: string };
     ip?: string | null;
   }
-  export class NextResponse<T = unknown> extends Response {
+  export class NextResponse<_T = unknown> extends Response {
     constructor(body?: BodyInit | null, init?: ResponseInit);
     static json<T>(data: T, init?: ResponseInit | number): NextResponse<T>;
     static redirect(url: string | URL, status?: number): NextResponse;

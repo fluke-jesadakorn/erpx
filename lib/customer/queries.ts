@@ -319,7 +319,7 @@ export interface CustomerAdvisory {
 
 export async function getCustomerAdvisory(
   customerId: number,
-  opts?: { lang?: 'en' | 'th' | 'de' }
+  opts?: { lang?: 'en' | 'th' | 'de'; actorId?: number }
 ): Promise<CustomerAdvisory | null> {
   const lang = opts?.lang ?? 'en';
   const hist = await getCustomerArHistory(customerId);
@@ -337,7 +337,7 @@ export async function getCustomerAdvisory(
     }),
     temperature: 0.1,
     maxTokens: 300,
-  });
+  }, { actorId: opts?.actorId });
   if (!r.ok || !r.text) return null;
 
   const advisory = r.text.trim();

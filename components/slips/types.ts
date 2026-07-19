@@ -25,6 +25,7 @@ export interface SubmitState {
   visible: boolean;
   canConfirm: boolean;
   confirming: boolean;
+  extractionState: ExtractionState;
   pendingFile: boolean;
   isBookBank: boolean;
   error: string | null;
@@ -35,6 +36,7 @@ export interface SubmitState {
 
 export interface SlipUploadHandle {
   submit: () => Promise<void>;
+  extract?: () => void;
 }
 
 export interface ParsedFields {
@@ -93,6 +95,7 @@ export interface ItemRow {
 
 export interface SlipOcrOpts {
   kind: SlipKind;
+  evidenceOnly?: boolean;
   initialModels?: VisionModel[];
   currentUserId?: number;
   onSlipReady?: (slipId: number, kind: SlipKind, parsed: ParsedFields) => void;

@@ -16,6 +16,7 @@
 
 import 'server-only';
 import { query, withTransaction } from '../db';
+import { loadPostingActor, postJournalInTransaction, type FinanceQuery } from './journals';
 
 export type ProcurementOrigin = 'pr' | 'po';
 export type ProcurementStep = 'accrual' | 'settlement';
@@ -34,7 +35,6 @@ export interface ProcurementGlResult {
   lines: ProcurementGlLine[];
 }
 
-const ACCRUAL_FALLBACK_CODES = ['110500', '210100'];
 const SETTLEMENT_FALLBACK_CODES = ['210100', '110200'];
 
 async function loadCoaNames(codes: string[]): Promise<Map<string, { name: string | null; name_th: string | null }>> {
@@ -228,15 +228,119 @@ export async function finalizeProcurementDraft(args: {
   actorId: number;
 }): Promise<{ journalId: number } | null> {
   return withTransaction(async (q) => {
-    const r = await q<{ id: number; step: string; pr_id: number | null; po_id: number | null }>(
-      `SELECT id, step, pr_id, po_id
-         FROM journal_entries
-        WHERE id = $1 AND is_draft = TRUE
-        LIMIT 1`,
+    const r = await q<{
+      id: number;
+      step: ProcurementStep;
+      pr_id: number | null;
+      po_id: number | null;
+      description: string;
+      branch_id: string;
+      currency: string;
+      fx_rate: string;
+      vendor_name: string | null;
+      vendor_id: string | null;
+      total: string;
+      document_date: string;
+      waybill_id: string | null;
+    }>(
+      `SELECT j.id, j.step, j.pr_id, j.po_id, j.description,
+              coalesce(po.branch_id, (SELECT id FROM finance.branches WHERE code = 'HQ'))::text AS branch_id,
+              coalesce(po.currency, pr.currency, 'THB')::text AS currency,
+              coalesce(po.fx_rate, 1)::text AS fx_rate,
+              coalesce(po.vendor_name, pr.vendor_name) AS vendor_name,
+              po.vendor_id::text,
+              coalesce(po.total_amount, pr.total_estimate, 0)::text AS total,
+              coalesce(po.issued_at::date, pr.created_at::date, current_date)::text AS document_date,
+              w.id AS waybill_id
+         FROM journal_entries j
+         LEFT JOIN purchase_orders po ON po.id = j.po_id
+         LEFT JOIN purchase_requisitions pr ON pr.id = coalesce(j.pr_id, po.pr_id)
+         LEFT JOIN waybills w ON (w.origin = CASE WHEN j.po_id IS NOT NULL THEN 'po' ELSE 'pr' END AND w.origin_id = coalesce(j.po_id, j.pr_id))
+        WHERE j.id = $1 AND j.is_draft = TRUE
+        LIMIT 1 FOR UPDATE OF j`,
       [args.journalId],
     );
     const draft = r.rows[0];
     if (!draft) return null;
+    const origin: ProcurementOrigin = draft.po_id ? 'po' : 'pr';
+    const originId = draft.po_id ?? draft.pr_id;
+    if (!originId) throw new Error('Procurement source is missing');
+    const actor = await loadPostingActor(q as FinanceQuery, args.actorId);
+    const fx = draft.currency.trim() === 'THB' ? 1 : Number(draft.fx_rate);
+    const postingDate = new Date().toISOString().slice(0, 10);
+    const lines = await q<ProcurementGlLine>(
+      `SELECT account_code, debit::float8 AS debit, credit::float8 AS credit,
+              coalesce(description, '') AS description
+         FROM ledger_lines WHERE journal_entry_id = $1 ORDER BY id`,
+      [draft.id],
+    );
+    const official = await postJournalInTransaction(q as FinanceQuery, {
+      postingDate,
+      documentDate: draft.step === 'accrual' ? draft.document_date : postingDate,
+      description: `${origin.toUpperCase()}-${originId} ${draft.step}`,
+      currencyCode: draft.currency.trim(),
+      fxRate: fx,
+      sourceType: origin,
+      sourceId: String(originId),
+      sourceEventKey: `procurement:${origin}:${originId}:${draft.step}:v1`,
+      branchId: Number(draft.branch_id),
+      waybillId: draft.waybill_id,
+      lines: lines.rows.map((line) => ({
+        accountCode: line.account_code,
+        description: line.description,
+        debitThb: Math.round(line.debit * fx * 100) / 100,
+        creditThb: Math.round(line.credit * fx * 100) / 100,
+        foreignAmount: line.debit > 0 ? line.debit : -line.credit,
+        currencyCode: draft.currency.trim(),
+        branchId: Number(draft.branch_id),
+        vendorId: draft.vendor_id ? Number(draft.vendor_id) : null,
+        waybillId: draft.waybill_id,
+        sourceDocumentType: draft.step === 'accrual' ? 'vendor_invoice' : 'payment',
+        sourceDocumentId: `${origin.toUpperCase()}-${originId}`,
+      })),
+    }, actor);
+    if (draft.step === 'accrual') {
+      let vendorId = draft.vendor_id ? Number(draft.vendor_id) : null;
+      if (!vendorId) {
+        const vendor = await q<{ id: string }>(
+          `INSERT INTO finance.vendors(code, name)
+           VALUES ($1,$2)
+           ON CONFLICT (code) DO UPDATE SET name = excluded.name
+           RETURNING id::text`,
+          [`${origin.toUpperCase()}-${originId}`, draft.vendor_name ?? `Vendor ${origin.toUpperCase()}-${originId}`],
+        );
+        vendorId = Number(vendor.rows[0].id);
+        if (draft.po_id) await q(`UPDATE purchase_orders SET vendor_id = $2 WHERE id = $1`, [draft.po_id, vendorId]);
+      }
+      const total = Number(draft.total);
+      const totalThb = Math.round(total * fx * 100) / 100;
+      await q(
+        `INSERT INTO finance.ap_documents
+           (vendor_id, branch_id, document_no, document_type, source_type, source_id,
+            document_date, due_date, currency_code, fx_rate, original_foreign,
+            open_foreign, original_thb, open_thb, journal_id)
+         VALUES ($1,$2,$3,'vendor_invoice',$4,$5,$6,$6,$7,$8,$9,$9,$10,$10,$11)
+         ON CONFLICT (vendor_id, document_no) DO NOTHING`,
+        [vendorId, Number(draft.branch_id), `${origin.toUpperCase()}-${originId}`, origin, String(originId), draft.document_date, draft.currency.trim(), fx, total, totalThb, official.id],
+      );
+    } else {
+      const ap = await q<{ id: string; open_foreign: string; open_thb: string }>(
+        `SELECT id::text, open_foreign::text, open_thb::text
+           FROM finance.ap_documents
+          WHERE source_type = $1 AND source_id = $2 AND status IN ('open','partially_paid')
+          ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+        [origin, String(originId)],
+      );
+      if (ap.rows[0]) {
+        await q(
+          `INSERT INTO finance.ap_allocations
+             (ap_document_id, allocation_date, foreign_amount, functional_amount, journal_id, allocated_by)
+           VALUES ($1,current_date,$2,$3,$4,$5)`,
+          [Number(ap.rows[0].id), Number(ap.rows[0].open_foreign), Number(ap.rows[0].open_thb), official.id, args.actorId],
+        );
+        await q(`UPDATE finance.ap_documents SET open_foreign = 0, open_thb = 0, status = 'paid' WHERE id = $1`, [Number(ap.rows[0].id)]);
+      }
+    }
     await q(
       `UPDATE journal_entries
           SET is_draft = FALSE,
@@ -245,7 +349,7 @@ export async function finalizeProcurementDraft(args: {
         WHERE id = $2`,
       [args.actorId, draft.id],
     );
-    return { journalId: draft.id };
+    return { journalId: official.id };
   });
 }
 

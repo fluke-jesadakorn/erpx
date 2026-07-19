@@ -12,6 +12,34 @@ export interface Section {
 }
 
 export const SECTION_CATALOG: Section[] = [
+  ...(['global', 'hub', 'expense', 'sales', 'customers', 'pr', 'po', 'cockpit', 'executive', 'ledger', 'policy', 'tiles', 'audit', 'ai-settings', 'hr', 'law', 'org', 'inbox', 'waybill'] as const).map((zone) => ({
+    key: `chat:${zone}`,
+    label: `${zone} contextual chat`,
+    labelTh: `${zone} contextual chat`,
+    task: 'chat' as const,
+    description: `Contextual AI chat for the ${zone} zone.`,
+  })),
+  {
+    key: 'hr:classify-intent', label: 'HR intent classifier', labelTh: 'จำแนกคำขอ HR', task: 'chat',
+  },
+  {
+    key: 'customer:credit-check', label: 'Customer credit check', labelTh: 'ตรวจเครดิตลูกค้า', task: 'chat',
+  },
+  {
+    key: 'am:recommend', label: 'Approval recommendation', labelTh: 'แนะนำการอนุมัติ', task: 'chat',
+  },
+  {
+    key: 'manager:approve', label: 'Manager approval helper', labelTh: 'ผู้ช่วยอนุมัติผู้จัดการ', task: 'chat',
+  },
+  {
+    key: 'waybill:assist', label: 'Waybill assistant', labelTh: 'ผู้ช่วยเวย์บิล', task: 'chat',
+  },
+  {
+    key: 'waybill:settle', label: 'Waybill settlement vision', labelTh: 'ตรวจเอกสารชำระเวย์บิล', task: 'vision',
+  },
+  {
+    key: 'staff-test:accountant-reviewer', label: 'Accountant reviewer test', labelTh: 'ทดสอบผู้ช่วยบัญชี', task: 'chat',
+  },
   {
     key: 'staff:ocr',
     label: 'Receipt OCR',

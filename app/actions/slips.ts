@@ -3,9 +3,12 @@
 import { query, withTransaction } from '@/db';
 import { remove as removeFromStorage } from '@/slips/storage';
 import { revalidatePath } from 'next/cache';
+import { loadActor } from '@/server/guard';
 
-export async function discardSlip(args: { slipId: number; actorId: number }) {
+export async function discardSlip(args: { slipId: number }) {
   try {
+    const actor = await loadActor();
+    if (!actor) return { success: false, error: 'Unauthorized' };
     const slipRes = await query(
       `SELECT id, uploaded_by, status, expense_id, pr_id, po_id, file_path
          FROM slips WHERE id = $1`,
@@ -16,7 +19,7 @@ export async function discardSlip(args: { slipId: number; actorId: number }) {
     }
     const slip = slipRes.rows[0];
 
-    if (slip.uploaded_by !== args.actorId) {
+    if (slip.uploaded_by !== actor.id) {
       return { success: false, error: 'Only the uploader can remove this slip' };
     }
 
@@ -63,7 +66,7 @@ export async function discardSlip(args: { slipId: number; actorId: number }) {
   }
 }
 
-export async function getSlipLockState(args: { slipId: number; actorId: number }): Promise<{
+export async function getSlipLockState(args: { slipId: number }): Promise<{
   exists: boolean;
   status: string | null;
   isUploader: boolean;
@@ -79,6 +82,8 @@ export async function getSlipLockState(args: { slipId: number; actorId: number }
     locked: false,
     reason: null,
   };
+  const actor = await loadActor();
+  if (!actor) return empty;
   const slipRes = await query(
     `SELECT id, uploaded_by, status, expense_id
        FROM slips WHERE id = $1`,
@@ -86,7 +91,7 @@ export async function getSlipLockState(args: { slipId: number; actorId: number }
   );
   if (slipRes.rows.length === 0) return empty;
   const slip = slipRes.rows[0];
-  const isUploader = slip.uploaded_by === args.actorId;
+  const isUploader = slip.uploaded_by === actor.id;
 
   let approvedOrRejected = false;
   if (slip.expense_id) {

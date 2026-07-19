@@ -15,7 +15,8 @@ export async function GET(req: NextRequest) {
   const dateFrom = String(searchParams.get('date_from') ?? '').trim();
   const dateTo = String(searchParams.get('date_to') ?? '').trim();
   const lang = (searchParams.get('lang') ?? 'en') as 'en' | 'th' | 'de';
-  return runResolve(intent, dateFrom, dateTo, lang);
+  const branchId = Number(searchParams.get('branch_id') ?? 0) || null;
+  return runResolve(intent, dateFrom, dateTo, lang, branchId);
 }
 
 export async function POST(req: NextRequest) {
@@ -26,10 +27,11 @@ export async function POST(req: NextRequest) {
   const dateFrom = String(body?.date_from ?? '').trim();
   const dateTo = String(body?.date_to ?? '').trim();
   const lang = (body?.lang ?? 'en') as 'en' | 'th' | 'de';
-  return runResolve(intent, dateFrom, dateTo, lang);
+  const branchId = Number(body?.branch_id ?? 0) || null;
+  return runResolve(intent, dateFrom, dateTo, lang, branchId);
 }
 
-function runResolve(intent: string, dateFrom: string, dateTo: string, lang: 'en' | 'th' | 'de') {
+function runResolve(intent: string, dateFrom: string, dateTo: string, lang: 'en' | 'th' | 'de', branchId: number | null) {
   if (!SUPPORTED.has(intent)) {
     return NextResponse.json({ ok: false, error: `unsupported intent: ${intent}` }, { status: 400 });
   }
@@ -41,5 +43,6 @@ function runResolve(intent: string, dateFrom: string, dateTo: string, lang: 'en'
     dateFrom,
     dateTo,
     lang,
+    branchId,
   }).then((r) => NextResponse.json({ ok: true, report: r }));
 }

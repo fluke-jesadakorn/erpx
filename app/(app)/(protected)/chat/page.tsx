@@ -57,7 +57,8 @@ export default async function ChatPage() {
       <PageLayout
         title="AI Chat"
         density="compact"
-        contentClassName="mt-2"
+        className="h-full flex flex-col"
+        contentClassName="flex-1 min-h-0 flex flex-col"
         width="full"
       >
         <FullChat initialSessions={sessions} />

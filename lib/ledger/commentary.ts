@@ -15,6 +15,7 @@ export async function generateCommentary(args: {
   accountCode: string;
   lang?: 'en' | 'th' | 'de';
   periodLabel?: string;
+  actorId?: number;
 }): Promise<LedgerLineCommentary | null> {
   const lang = args.lang ?? 'en';
 
@@ -56,7 +57,7 @@ export async function generateCommentary(args: {
     }),
     temperature: 0.2,
     maxTokens: 500,
-  });
+  }, { actorId: args.actorId });
 
   if (!r.ok || !r.text) return null;
 

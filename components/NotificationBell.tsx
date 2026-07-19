@@ -1,5 +1,6 @@
 import React from 'react';
-import { listRecentNotifications, listUserNotifications, listUnreadCount } from '@/notifications/queries';
+import { listUserNotifications, listUnreadCount } from '@/notifications/queries';
+import { reconcileOpenActionsForUser } from '@/notifications/waybill';
 import { NotificationBellClient } from '@/components/ai/NotificationBellClient';
 import { NotificationDigestCard } from './ai/NotificationDigestCard';
 
@@ -14,27 +15,22 @@ export async function NotificationBell({
 }: NotificationBellProps = {}) {
   const { loadActor } = await import('@/server/guard');
   const actor = await loadActor();
+  if (!actor) return null;
+  await reconcileOpenActionsForUser(actor.id);
 
-  const items = actor
-    ? await listUserNotifications(actor.id, 15)
-    : await listRecentNotifications(15);
-  const unread = actor ? await listUnreadCount(actor.id) : items.length;
+  const [items, unread] = await Promise.all([
+    listUserNotifications(actor.id, 15, { view: 'all' }),
+    listUnreadCount(actor.id),
+  ]);
 
   return (
     <div className="flex items-center gap-2">
       <NotificationDigestCard />
       <NotificationBellClient
-        initialItems={items.map((it: any) => ({
-          id: it.id,
-          type: it.type,
-          message: it.message,
-          createdAt: it.createdAt,
-          severityClass: it.severityClass,
-          readAt: it.readAt ?? null,
-        }))}
+        initialItems={items}
         unread={unread}
         hideButton={!!hideButton}
-        scoped={!!actor}
+        scoped
       />
     </div>
   );

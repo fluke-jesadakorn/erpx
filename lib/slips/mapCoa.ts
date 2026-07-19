@@ -1,6 +1,6 @@
 import 'server-only';
 import { getSemanticSuggestions } from '../waybill/queries';
-import { getLearnedMapping, recordLearning } from './learned';
+import { getLearnedMapping } from './learned';
 
 export interface ItemCoaMap {
   description: string;

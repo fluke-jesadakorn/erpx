@@ -15,7 +15,6 @@ export interface Policy {
   id: string;
   name: string;
   description?: string | null;
-  action: string;
   enabled: boolean;
   ast: { rules: PolicyRule[] };
 }
@@ -46,11 +45,10 @@ async function loadPolicies(): Promise<Map<string, Policy>> {
     id: string;
     name: string;
     description: string | null;
-    action: string;
     enabled: boolean;
     ast: Policy['ast'];
   }>(
-    `SELECT id, name, description, action, enabled, ast
+    `SELECT id, name, description, enabled, ast
        FROM perm.policies
       WHERE enabled IS NOT FALSE`,
   );
@@ -60,7 +58,6 @@ async function loadPolicies(): Promise<Map<string, Policy>> {
       id: r.id,
       name: r.name,
       description: r.description,
-      action: r.action,
       enabled: r.enabled,
       ast: r.ast ?? { rules: [] },
     });
@@ -180,7 +177,7 @@ export async function evaluateAction(
 ): Promise<Decision> {
   const policies = await loadPolicies();
   for (const p of policies.values()) {
-    if (p.action !== actionKey) continue;
+    if (p.id !== actionKey) continue;
     const d = await evaluatePolicy(p.id, actor, ctx);
     if (d.allow) return d;
   }

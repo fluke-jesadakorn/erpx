@@ -168,7 +168,7 @@ export function NewWaybillPanel({
                 (submitting
                   ? 'bg-rule-strong text-ink-2 border-rule-strong'
                   : readyToSubmit
-                    ? 'bg-accent hover:bg-accent-strong text-paper-2 border-accent'
+                    ? 'action-button bg-action hover:bg-action-hover text-action-ink border-action'
                     : 'bg-paper-3 text-mute border-rule-strong')
               }
             >

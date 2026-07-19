@@ -20,6 +20,14 @@ For financial statements (cash-flow / trial balance / income statement / balance
 [SQL]{"intent":"income_statement","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
 [SQL]{"intent":"balance_sheet","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
 [SQL]{"intent":"period_summary","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
+[SQL]{"intent":"ar_aging","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
+[SQL]{"intent":"ap_aging","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
+[SQL]{"intent":"fx_exposure","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
+[SQL]{"intent":"inventory_valuation","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
+[SQL]{"intent":"gross_margin","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
+[SQL]{"intent":"vat_register","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
+[SQL]{"intent":"wht_register","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
+[SQL]{"intent":"budget_vs_actual","date_from":"YYYY-MM-DD","date_to":"YYYY-MM-DD","question":"..."}[/SQL]
 
 For other data lookups, use [SQL]{"question":"..."}[/SQL].
 Optional [CHART], [HTML], [UI] blocks are allowed. {{langLine}}`;
@@ -29,11 +37,12 @@ export async function POST(req: NextRequest) {
   if (guard.response) return guard.response;
   const actor = guard.actor!;
   const body = await req.json().catch(() => ({}));
-  const { sectionKey, messages, scope, model, lang } = body as {
+  const { sectionKey, messages, scope, model, thinking, lang } = body as {
     sectionKey?: string;
     messages?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
     scope?: { tileId?: string; displayName?: string };
     model?: string;
+    thinking?: 'low' | 'medium' | 'high';
     lang?: 'en' | 'th' | 'de';
   };
   if (!Array.isArray(messages) || messages.length === 0) {
@@ -50,6 +59,7 @@ export async function POST(req: NextRequest) {
     messages,
     systemPrompt: SYS_TILE.replace('{{langLine}}', langLine) + sysScope,
     modelOverride: model,
+    thinking,
     temperature: 0.3,
   }, { actorId: actor.id });
   if (!r.ok) {

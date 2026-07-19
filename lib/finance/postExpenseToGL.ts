@@ -1,5 +1,6 @@
 import 'server-only';
 import { query, withTransaction } from '../db';
+import { loadPostingActor, postJournalInTransaction, type FinanceQuery } from './journals';
 
 export interface GlPostResult {
   journalId: number;
@@ -57,8 +58,11 @@ export async function buildAccrualLines(expenseId: number): Promise<DraftGlLine[
     account_name: string | null;
     account_name_th: string | null;
   }>(
-    `SELECT i.amount, i.mapped_account_code, i.description,
-            c.name AS account_name, c.name_th AS account_name_th
+    `SELECT i.amount,
+            CASE WHEN c.account_type = 'expense' THEN i.mapped_account_code END AS mapped_account_code,
+            i.description,
+            CASE WHEN c.account_type = 'expense' THEN c.name END AS account_name,
+            CASE WHEN c.account_type = 'expense' THEN c.name_th END AS account_name_th
        FROM expense_items i
        LEFT JOIN chart_of_accounts c ON c.code = i.mapped_account_code
       WHERE i.expense_id = $1 ORDER BY i.id`,
@@ -275,6 +279,106 @@ export async function finalizeDraftJournal(args: {
     [journal.rows[0].id],
   );
   await validateJournalLines(rows.rows, q);
+  const context = await q<{
+    transaction_date: string | null;
+    vendor_name: string | null;
+    total_amount: string;
+    currency_code: string;
+    fx_rate: string;
+    branch_id: string;
+    department_id: string | null;
+    vendor_id: string | null;
+    submitter_id: number | null;
+    payee_type: 'employee' | 'vendor';
+    invoice_number: string | null;
+    waybill_id: string | null;
+  }>(
+    `SELECT e.transaction_date::text, e.vendor_name, e.total_amount::text,
+            e.currency_code, e.fx_rate::text,
+            COALESCE(e.branch_id, (SELECT id FROM finance.branches WHERE active ORDER BY id LIMIT 1))::text AS branch_id,
+            e.department_id,
+            e.vendor_id::text, e.submitter_id, e.payee_type, e.invoice_number,
+            w.id AS waybill_id
+       FROM expenses e
+       LEFT JOIN waybills w ON w.origin = 'expense' AND w.origin_id = e.id
+      WHERE e.id = $1 FOR UPDATE OF e`,
+    [args.expenseId],
+  );
+  const exp = context.rows[0];
+  if (!exp) throw new JournalValidationError(['Expense not found']);
+  const actor = await loadPostingActor(q as FinanceQuery, args.actorId);
+  const fx = exp.currency_code.trim() === 'THB' ? 1 : Number(exp.fx_rate);
+  const postingDate = new Date().toISOString().slice(0, 10);
+  const documentDate = step === 'accrual' ? exp.transaction_date ?? postingDate : postingDate;
+  const official = await postJournalInTransaction(q as FinanceQuery, {
+    postingDate,
+    documentDate,
+    description: `${step === 'accrual' ? 'Expense accrual' : 'Expense payment'} EXP-${args.expenseId}`,
+    currencyCode: exp.currency_code.trim(),
+    fxRate: fx,
+    sourceType: 'expense',
+    sourceId: String(args.expenseId),
+    sourceEventKey: `expense:${args.expenseId}:${step}:v1`,
+    branchId: Number(exp.branch_id),
+    waybillId: exp.waybill_id,
+    lines: rows.rows.map((line) => ({
+      accountCode: line.account_code,
+      description: line.description,
+      debitThb: Math.round(line.debit * fx * 100) / 100,
+      creditThb: Math.round(line.credit * fx * 100) / 100,
+      foreignAmount: line.debit > 0 ? line.debit : -line.credit,
+      currencyCode: exp.currency_code.trim(),
+      branchId: Number(exp.branch_id),
+      departmentId: exp.department_id,
+      vendorId: exp.vendor_id ? Number(exp.vendor_id) : null,
+      employeeId: exp.payee_type === 'employee' ? exp.submitter_id : null,
+      waybillId: exp.waybill_id,
+      sourceDocumentType: step === 'accrual' ? 'expense' : 'payment',
+      sourceDocumentId: String(args.expenseId),
+    })),
+  }, actor);
+  if (step === 'accrual') {
+    let vendorId = exp.vendor_id ? Number(exp.vendor_id) : null;
+    if (exp.payee_type === 'vendor' && !vendorId) {
+      const vendor = await q<{ id: string }>(
+        `INSERT INTO finance.vendors(code, name)
+         VALUES ($1,$2)
+         ON CONFLICT (code) DO UPDATE SET name = excluded.name
+         RETURNING id::text`,
+        [`EXP-${args.expenseId}`, exp.vendor_name ?? `Vendor EXP-${args.expenseId}`],
+      );
+      vendorId = Number(vendor.rows[0].id);
+      await q(`UPDATE expenses SET vendor_id = $2 WHERE id = $1`, [args.expenseId, vendorId]);
+    }
+    const total = Number(exp.total_amount);
+    const totalThb = Math.round(total * fx * 100) / 100;
+    await q(
+      `INSERT INTO finance.ap_documents
+         (vendor_id, employee_id, branch_id, document_no, document_type,
+          source_type, source_id, document_date, due_date, currency_code,
+          fx_rate, original_foreign, open_foreign, original_thb, open_thb, journal_id)
+       VALUES ($1,$2,$3,$4,$5,'expense',$6,$7,$7,$8,$9,$10,$10,$11,$11,$12)
+       ON CONFLICT (vendor_id, document_no) DO NOTHING`,
+      [vendorId, exp.payee_type === 'employee' ? exp.submitter_id : null, Number(exp.branch_id), exp.invoice_number ?? `EXP-${args.expenseId}`, exp.payee_type === 'employee' ? 'employee_expense' : 'vendor_invoice', String(args.expenseId), documentDate, exp.currency_code.trim(), fx, total, totalThb, official.id],
+    );
+  } else {
+    const ap = await q<{ id: string; open_foreign: string; open_thb: string }>(
+      `SELECT id::text, open_foreign::text, open_thb::text
+         FROM finance.ap_documents
+        WHERE source_type = 'expense' AND source_id = $1 AND status IN ('open','partially_paid')
+        ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+      [String(args.expenseId)],
+    );
+    if (ap.rows[0]) {
+      await q(
+        `INSERT INTO finance.ap_allocations
+           (ap_document_id, allocation_date, foreign_amount, functional_amount, journal_id, allocated_by)
+         VALUES ($1,$2,$3,$4,$5,$6)`,
+        [Number(ap.rows[0].id), postingDate, Number(ap.rows[0].open_foreign), Number(ap.rows[0].open_thb), official.id, args.actorId],
+      );
+      await q(`UPDATE finance.ap_documents SET open_foreign = 0, open_thb = 0, status = 'paid' WHERE id = $1`, [Number(ap.rows[0].id)]);
+    }
+  }
   await q(
     `UPDATE journal_entries
         SET is_draft = FALSE,

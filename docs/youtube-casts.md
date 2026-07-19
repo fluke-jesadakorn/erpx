@@ -85,7 +85,5 @@ Auto-handled by FK: `notifications.user_id` (CASCADE), `domain_events.actor_id` 
 psql -h localhost -U contract -d folio_db -c "DROP DATABASE folio_db;"
 createdb -h localhost -U contract folio_db
 psql -h localhost -U contract -d folio_db -f /tmp/pre-youtube-cull.sql
-# Re-run all migrations + cull inverse:
-#   db/init.sql, db/add_v2.sql, ..., db/perm/*.sql
-# Skip db/cull_youtube_casts.sql
+# Reinitialize only a fresh database with db/setup.sh.
 ```

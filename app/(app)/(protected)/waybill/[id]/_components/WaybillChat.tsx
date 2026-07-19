@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { LoaderCircle, Mail, Send } from 'lucide-react';
 import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 import { Panel, Badge } from '@/components/ui';
+import { AiModelControl } from '@/components/ai/AiModelControl';
 
 interface Props {
   waybillId: string;
@@ -21,6 +22,8 @@ export function WaybillChat({ waybillId }: Props) {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const [modelName, setModelName] = useState('');
+  const [thinkLevel, setThinkLevel] = useState<'auto' | 'low' | 'medium' | 'high'>('auto');
   const scroller = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -41,9 +44,12 @@ export function WaybillChat({ waybillId }: Props) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           scope: 'tile',
+          sectionKey: 'chat:waybill',
           tileId: `waybill:${waybillId}`,
           displayName: `Waybill ${waybillId}`,
-          message: trimmed,
+          messages: [...messages, userMsg].map((message) => ({ role: message.role, content: message.text })),
+          model: modelName || undefined,
+          thinking: thinkLevel,
           locale,
         }),
       });
@@ -65,6 +71,13 @@ export function WaybillChat({ waybillId }: Props) {
           <span>Thread</span>
           <Badge tone="neutral" size="sm">{messages.length}</Badge>
           <span className="ml-auto">scope: <span className="text-accent">waybill:{waybillId}</span></span>
+          <AiModelControl
+            sectionKey="chat:waybill"
+            modelName={modelName}
+            thinkLevel={thinkLevel}
+            onChange={(model) => setModelName(model.name)}
+            onThinkChange={setThinkLevel}
+          />
         </div>
       </header>
       <div ref={scroller} className="flex-1 space-y-2 overflow-y-auto px-5 py-4">

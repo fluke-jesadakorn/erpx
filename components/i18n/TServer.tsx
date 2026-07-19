@@ -46,6 +46,11 @@ function lookup(dict: Record<string, unknown>, path: string): string | undefined
   return typeof cur === 'string' ? cur : undefined;
 }
 
+function replaceValues(text: string | undefined, values?: Record<string, string | number>): string | undefined {
+  if (!text || !values) return text;
+  return text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? `{${key}}`));
+}
+
 export async function T({
   id,
   values,
@@ -59,7 +64,9 @@ export async function T({
 }: BaseProps) {
   const t = await getTranslations();
   const primary = t(id, values as Record<string, string | number>);
-  const secondary = !hideSecondary ? lookup(SECONDARY_DICTS[locale], id) : undefined;
+  const secondary = !hideSecondary
+    ? replaceValues(lookup(SECONDARY_DICTS[locale], id), values)
+    : undefined;
 
   const Tag = (as ?? 'span') as React.ElementType;
   const basePrimaryCls =

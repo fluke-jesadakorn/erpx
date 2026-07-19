@@ -37,6 +37,8 @@ export async function streamSse(
           const err = {
             message: e?.message || 'AI stream failed',
             statusCode: e?.statusCode ?? e?.response?.status ?? undefined,
+            provider: e?.providerName ?? null,
+            model: e?.modelName ?? req.input.modelOverride ?? null,
             upstreamCode: e?.upstreamCode ?? e?.response?.data?.error?.code ?? null,
             upstreamMessage: e?.upstreamMessage ?? e?.response?.data?.error?.message ?? null,
           };
@@ -51,6 +53,8 @@ export async function streamSse(
     const err = {
       message: e?.message || 'AI stream failed',
       statusCode: e?.statusCode ?? undefined,
+      provider: e?.providerName ?? null,
+      model: e?.modelName ?? req.input.modelOverride ?? null,
       upstreamCode: e?.upstreamCode ?? null,
       upstreamMessage: e?.upstreamMessage ?? null,
     };

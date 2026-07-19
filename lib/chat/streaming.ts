@@ -5,9 +5,10 @@ export interface StreamChatMessage {
 
 export interface StreamChatRequest {
   messages: StreamChatMessage[];
+  sectionKey?: string;
   sessionId?: string;
   model?: string;
-  thinking?: 'low' | 'medium' | 'high';
+  thinking?: 'auto' | 'low' | 'medium' | 'high';
   lang?: 'en' | 'th' | 'de';
   scope?: { tileId?: string; displayName?: string; hint?: string };
 }

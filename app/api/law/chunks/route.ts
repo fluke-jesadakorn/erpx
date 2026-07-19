@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { apiGuard } from '@/server/apiGuard';
+import { PERM } from '@/perm/taxonomy';
 import { listChunks } from '@/law/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-  const guard = await apiGuard(req);
+  const guard = await apiGuard(req, { perm: PERM.law.chunk.read });
   if (guard.response) return guard.response;
   const url = new URL(req.url);
   const id = url.searchParams.get('contractId') || url.searchParams.get('id');

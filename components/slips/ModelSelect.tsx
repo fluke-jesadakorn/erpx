@@ -151,7 +151,9 @@ export function ModelSelect({
               >
                 {filtered.length === 0 ? (
                   <div className="col-span-full text-xs text-mute italic px-3 py-6 text-center">
-                    No models match.
+                    {models.length === 0
+                      ? 'No whitelisted vision models are available. Ask IT to enable a vision model and configure its provider.'
+                      : 'No models match.'}
                   </div>
                 ) : (
                   filtered.map((m) => (

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { apiGuard } from '@/server/apiGuard';
+import { PERM } from '@/perm/taxonomy';
 import { config } from '@/config';
 import { query } from '@/db';
 import { put } from '@/slips/storage';
@@ -60,7 +61,7 @@ async function indexFile(
 }
 
 export async function POST(req: Request) {
-  const guard = await apiGuard(req);
+  const guard = await apiGuard(req, { perm: PERM.law.contract.upload });
   if (guard.response) return guard.response;
   const form = await req.formData();
   const file = form.get('file');

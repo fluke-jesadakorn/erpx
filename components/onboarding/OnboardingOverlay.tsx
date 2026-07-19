@@ -123,7 +123,7 @@ export const OnboardingOverlay: React.FC = () => {
 
         {step === 0 && (
           <div className="space-y-3">
-            <h3 className="text-base font-bold text-accent-soft"><T id="onboarding.s1.heading" hideSecondary /></h3>
+            <h3 className="text-base font-bold text-accent"><T id="onboarding.s1.heading" hideSecondary /></h3>
             <p className="text-xs text-ink-2 leading-relaxed">
               <T id="onboarding.s1.body" hideSecondary />
             </p>
@@ -141,13 +141,13 @@ export const OnboardingOverlay: React.FC = () => {
                 </div>
               ))}
             </div>
-            <p className="text-sm text-accent-soft italic"><T id={rcId} hideSecondary /></p>
+            <p className="text-sm text-accent italic"><T id={rcId} hideSecondary /></p>
           </div>
         )}
 
         {step === 1 && (
           <div className="space-y-3">
-            <h3 className="text-base font-bold text-accent-soft"><T id="onboarding.s2.heading" hideSecondary /></h3>
+            <h3 className="text-base font-bold text-accent"><T id="onboarding.s2.heading" hideSecondary /></h3>
             <p className="text-xs text-ink-2 leading-relaxed">
               <T id="onboarding.s2.body" hideSecondary />
             </p>
@@ -182,13 +182,13 @@ export const OnboardingOverlay: React.FC = () => {
 
         {step === 2 && (
           <div className="space-y-3">
-            <h3 className="text-base font-bold text-accent-soft"><T id="onboarding.s3.heading" hideSecondary /></h3>
+            <h3 className="text-base font-bold text-accent"><T id="onboarding.s3.heading" hideSecondary /></h3>
             <p className="text-xs text-ink-2 leading-relaxed">
               <T id="onboarding.s3.body" hideSecondary />
             </p>
             <div className="rounded-md border border-dashed border-positive bg-positive p-4 text-center">
               <div className="text-2xl mb-1">📸</div>
-              <p className="text-sm text-positive-soft font-mono"><T id="onboarding.s3.dropHere" hideSecondary /></p>
+              <p className="text-sm text-paper font-mono"><T id="onboarding.s3.dropHere" hideSecondary /></p>
               <p className="text-xs text-ink-2 mt-1"><T id="onboarding.s3.flow" hideSecondary /></p>
             </div>
             <div className="rounded-lg border border-rule bg-paper-2/50 p-2.5 text-sm text-ink-2 leading-relaxed">
@@ -203,7 +203,7 @@ export const OnboardingOverlay: React.FC = () => {
 
         {step === 3 && (
           <div className="space-y-3">
-            <h3 className="text-base font-bold text-accent-soft"><T id="onboarding.s4.heading" hideSecondary /></h3>
+            <h3 className="text-base font-bold text-accent"><T id="onboarding.s4.heading" hideSecondary /></h3>
             <p className="text-xs text-ink-2 leading-relaxed">
               <T id="onboarding.s4.body" hideSecondary />
             </p>
@@ -215,7 +215,7 @@ export const OnboardingOverlay: React.FC = () => {
               </div>
               <div className="mt-2 space-y-1">
                 <div className="rounded-md bg-accent border border-accent px-2.5 py-1.5 flex items-center justify-between">
-                  <span className="text-sm text-accent-soft"><T id="onboarding.s4.goCockpit" hideSecondary /></span>
+                  <span className="text-sm text-paper"><T id="onboarding.s4.goCockpit" hideSecondary /></span>
                   <span className="text-xs font-mono text-accent">↵</span>
                 </div>
                 <div className="rounded-md px-2.5 py-1.5 flex items-center justify-between">

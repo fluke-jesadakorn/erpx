@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { claimNextJob, markDone, markFailed } from '@/law/queue';
 import { runIndexingJob } from '@/law/chunks';
+import { isTrustedWorkerRequest } from '@/server/internalAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function POST(_req: NextRequest) {
+export async function POST(req: NextRequest) {
+  if (!isTrustedWorkerRequest(req)) {
+    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+  }
   const job = await claimNextJob();
   if (!job) return NextResponse.json({ ok: true, processed: 0 });
 

@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, suggestions: [] });
   }
 
-  const out = await getSemanticSuggestions(description);
+  const out = await getSemanticSuggestions(description, session.decoded.user.id);
   if (!out || out.success === false) {
     return NextResponse.json({
       success: false,

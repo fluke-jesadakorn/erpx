@@ -19,6 +19,8 @@ const STATE_STYLES = {
   skipped: 'border-rule bg-paper-2/40 text-mute',
 };
 
+const stageKey = (stage: string) => stage.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+
 export function WaybillChip({
   domain,
   currentStage,
@@ -40,7 +42,7 @@ export function WaybillChip({
   let state: 'passed' | 'active' | 'pending' | 'rejected' | 'skipped' = 'pending';
   if (isRejected) state = 'rejected';
   else if (isClosed) state = 'passed';
-  else if (currentStage === currentStage && idx >= 0) state = 'active';
+  else if (idx >= 0) state = 'active';
 
   const sizeClass =
     size === 'sm' ? 'px-2 py-0.5 text-xs' :
@@ -54,7 +56,7 @@ export function WaybillChip({
       aria-label={pip ? pip.label : 'waybill.chip.waybillTitle'}
     >
       <span aria-hidden>{pip?.emoji ?? '📦'}</span>
-      <T id={pip?.label ?? (isRejected ? 'waybill.stage.rejected' : `waybill.stage.${currentStage}`)} />
+      <T id={pip?.label ?? (isRejected ? 'waybill.stage.rejected' : `waybill.stage.${stageKey(currentStage)}`)} />
       {!isClosed && idx >= 0 && (
         <span className="ml-1 opacity-60">
           {idx + 1}/{totalActive}

@@ -32,8 +32,7 @@ function approverNames(approvers: ApproverRow[]): string[] {
   return approvers.slice(0, 3).map((a) => a.fullname);
 }
 
-const FINAL_APPROVAL_BG = 'border-accent bg-accent-strong';
-const FINAL_APPROVAL_TEXT = 'text-accent-strong';
+const FINAL_APPROVAL_BG = 'rounded-2xl border border-accent/50 bg-paper-2 p-4 shadow-panel';
 
 interface Props {
   waybillId: string;
@@ -151,22 +150,50 @@ export function PipActionPrompt({
 
   if (isCurrentStage && isFinalApproval && canFinalApprove) {
     const showFinalRejectForm = action === 'final-reject' && actionStage === pipKey;
+    const approveAction = pipKey === 'accounting_approval'
+      ? approveWaybillAction
+      : finalApproveWaybillAction;
+    const rejectAction = pipKey === 'accounting_approval'
+      ? rejectWaybillAction
+      : finalRejectWaybillAction;
     return (
-      <section className={'space-y-3 border-t pt-4 ' + FINAL_APPROVAL_BG}>
-        <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs font-mono uppercase tracking-widest">
-          <span className={FINAL_APPROVAL_TEXT}>
-            🔒 <T id="waybill.timeline.finalAuthorization" locale={localeSafe} />
-            <span className="ml-2 text-ink-2">
-              <T id="waybill.timeline.currentStage" locale={localeSafe} />
-            </span>
-          </span>
-          <span className="rounded-md border border-accent bg-accent px-2 py-0.5 text-accent-strong">
-            <T id="waybill.timeline.approveGlPost" locale={localeSafe} />
-          </span>
+      <section className={'space-y-4 ' + FINAL_APPROVAL_BG}>
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(15rem,24rem)] sm:items-start">
+          <div className="min-w-0 space-y-2">
+            <div className="flex min-w-0 items-start gap-2">
+              <span aria-hidden className="shrink-0 text-base leading-5">🔒</span>
+              <T
+                id="waybill.timeline.finalAuthorization"
+                locale={localeSafe}
+                variant="stacked"
+                className="min-w-0"
+                primaryClassName="block font-mono text-xs font-semibold uppercase tracking-[0.12em] text-accent"
+                secondaryClassName="mt-1 block font-sans text-sm font-normal leading-snug text-ink-2"
+              />
+            </div>
+            <div className="pl-7">
+              <T
+                id="waybill.timeline.currentStage"
+                locale={localeSafe}
+                variant="stacked"
+                primaryClassName="block font-mono text-xs font-semibold uppercase tracking-[0.12em] text-mute"
+                secondaryClassName="mt-1 block font-sans text-sm font-normal leading-snug text-mute"
+              />
+            </div>
+          </div>
+          <div className="min-w-0 rounded-xl border border-accent/30 bg-accent-soft px-3 py-2">
+            <T
+              id="waybill.timeline.approveGlPost"
+              locale={localeSafe}
+              variant="stacked"
+              primaryClassName="block font-mono text-xs font-semibold uppercase tracking-[0.08em] text-accent"
+              secondaryClassName="mt-1 block font-sans text-sm font-normal leading-snug text-ink-2"
+            />
+          </div>
         </div>
         {canAttach && <AttachmentUpload waybillId={waybillId} stage={pipKey} />}
         {showFinalRejectForm && (
-          <form action={finalRejectWaybillAction} className="rounded-md border border-critical bg-critical-soft p-5">
+          <form action={rejectAction} className="rounded-md border border-critical bg-critical-soft p-5">
             <input type="hidden" name="waybillId" value={waybillId} />
             <div className="mb-3 inline-flex items-center gap-2 rounded-md border border-critical bg-critical px-2 py-1 text-xs font-mono uppercase tracking-widest text-critical-strong">
               🔒 <T id="waybill.pip.finalRejectNoGlPost" locale={localeSafe} />
@@ -198,35 +225,59 @@ export function PipActionPrompt({
           </form>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
-          <form action={finalApproveWaybillAction}>
+          <form action={approveAction}>
             <input type="hidden" name="waybillId" value={waybillId} />
             <button
               type="submit"
-              data-testid={`panel-final-approve-${waybillId}`}
-              className="group inline-flex w-full flex-col items-center justify-center gap-1 rounded-md bg-positive px-5 py-5 text-lg font-bold text-paper shadow-xl shadow-positive transition hover:bg-positive-strong hover:shadow-positive-strong"
+              data-testid={`big-final-approve-${waybillId}`}
+              className="group inline-flex min-h-28 w-full min-w-0 flex-col items-center justify-center gap-3 rounded-xl bg-positive px-4 py-4 text-paper shadow-lg shadow-positive/25 transition hover:bg-positive-strong hover:shadow-positive-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-positive focus-visible:ring-offset-2 focus-visible:ring-offset-paper-2"
             >
-              <span className="flex items-center gap-2">
-                <span aria-hidden className="text-2xl">✓</span>
-                <span><T id="waybill.pip.finalApprove" locale={localeSafe} /></span>
+              <span className="flex min-w-0 items-center gap-3">
+                <span aria-hidden className="shrink-0 text-2xl leading-none">✓</span>
+                <T
+                  id="waybill.pip.finalApprove"
+                  locale={localeSafe}
+                  variant="stacked"
+                  className="min-w-0 text-center"
+                  primaryClassName="block text-base font-semibold leading-tight text-paper sm:text-lg"
+                  secondaryClassName="mt-1 block font-sans text-sm font-normal leading-snug text-paper"
+                />
               </span>
-              <span className="text-xs font-mono uppercase tracking-widest text-positive-strong group-hover:text-positive-strong">
-                <T id="waybill.pip.finalApprovePostsGl" locale={localeSafe} />
-              </span>
+              <T
+                id="waybill.pip.finalApprovePostsGl"
+                locale={localeSafe}
+                variant="stacked"
+                className="min-w-0 text-center"
+                primaryClassName="block font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-paper"
+                secondaryClassName="mt-1 block font-sans text-xs font-normal leading-snug text-paper"
+              />
             </button>
           </form>
           {!showFinalRejectForm && (
             <Link
               href={`/waybill/${waybillId}?action=final-reject&stage=${pipKey}`}
-              data-testid={`panel-final-reject-${waybillId}`}
-              className="group inline-flex flex-col items-center justify-center gap-1 rounded-md bg-critical px-5 py-5 text-lg font-bold text-paper shadow-xl shadow-critical transition hover:bg-critical-strong hover:shadow-critical-strong"
+              data-testid={`big-final-reject-${waybillId}`}
+              className="group inline-flex min-h-28 w-full min-w-0 flex-col items-center justify-center gap-3 rounded-xl bg-critical px-4 py-4 text-paper shadow-lg shadow-critical/25 transition hover:bg-critical-strong hover:shadow-critical-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-critical focus-visible:ring-offset-2 focus-visible:ring-offset-paper-2"
             >
-              <span className="flex items-center gap-2">
-                <span aria-hidden className="text-2xl">✗</span>
-                <span><T id="waybill.pip.finalReject" locale={localeSafe} /></span>
+              <span className="flex min-w-0 items-center gap-3">
+                <span aria-hidden className="shrink-0 text-2xl leading-none">✗</span>
+                <T
+                  id="waybill.pip.finalReject"
+                  locale={localeSafe}
+                  variant="stacked"
+                  className="min-w-0 text-center"
+                  primaryClassName="block text-base font-semibold leading-tight text-paper sm:text-lg"
+                  secondaryClassName="mt-1 block font-sans text-sm font-normal leading-snug text-paper"
+                />
               </span>
-              <span className="text-xs font-mono uppercase tracking-widest text-critical-strong group-hover:text-critical-strong">
-                <T id="waybill.timeline.finalRejectNoGl" locale={localeSafe} />
-              </span>
+              <T
+                id="waybill.timeline.finalRejectNoGl"
+                locale={localeSafe}
+                variant="stacked"
+                className="min-w-0 text-center"
+                primaryClassName="block font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-paper"
+                secondaryClassName="mt-1 block font-sans text-xs font-normal leading-snug text-paper"
+              />
             </Link>
           )}
         </div>
@@ -262,7 +313,7 @@ export function PipActionPrompt({
             </p>
             <button
               type="submit"
-              data-testid={`panel-gl-confirm-${waybillId}`}
+              data-testid={`gl-confirm-${waybillId}`}
               className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-caution px-5 py-5 text-lg font-bold text-paper shadow-lg shadow-caution transition hover:bg-caution-strong hover:shadow-caution-strong"
             >
               <span aria-hidden className="text-2xl">✓</span>
@@ -312,6 +363,26 @@ export function PipActionPrompt({
     );
   }
 
+  if (isCurrentStage && !canAct && !canFinalApprove && !canSettle && !canConfirmGl) {
+    return (
+      <section className="space-y-3 rounded-lg border border-rule bg-paper-2/70 p-4">
+        <div className="text-xs font-mono uppercase tracking-widest text-mute">
+          <T id="waybill.timeline.currentStage" locale={localeSafe} />
+        </div>
+        <p className="text-sm leading-relaxed text-ink-2">
+          <T id="waybill.pip.locked" locale={localeSafe} />
+        </p>
+        <ApproversList
+          approvers={approvers}
+          locale={localeSafe}
+          tone="indigo"
+          currentUserId={null}
+          title={<T id="waybill.approver.approvers" locale={localeSafe} hideSecondary /> as unknown as string}
+        />
+      </section>
+    );
+  }
+
   if (isCurrentStage && canAct) {
     const roleText = stageRoleLabel(pipKey, localeSafe);
     const showRejectForm = action === 'reject' && actionStage === pipKey;
@@ -319,7 +390,7 @@ export function PipActionPrompt({
     const nextStageEn = nextStage ? pipStageLabel(nextStage, domain, 'en') : null;
     const eligibleNames = approverNames(approvers);
     return (
-      <section className="space-y-7 rounded-md border border-info bg-info-soft p-6">
+      <section className="space-y-5 rounded-md border border-info bg-info-soft p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2 text-xs font-mono uppercase tracking-widest">
           <span aria-hidden className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-info text-paper">
             ⚡
@@ -331,8 +402,8 @@ export function PipActionPrompt({
           <span className="text-ink-2">
             <T id="waybill.timeline.currentStage" locale={localeSafe} />
           </span>
-          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-info bg-info px-2 py-0.5 font-mono font-bold uppercase tracking-widest text-info-strong">
-            <span className="text-info">role:</span>
+          <span className="ml-auto inline-flex max-w-full items-center gap-1.5 rounded-full border border-info bg-info px-2 py-0.5 font-mono font-bold uppercase tracking-widest text-info-strong">
+            <span className="shrink-0 text-info">role:</span>
              <span className="text-info-strong"><T id={roleText} locale={localeSafe} /></span>
           </span>
         </div>
@@ -385,14 +456,14 @@ export function PipActionPrompt({
             </div>
           </form>
         )}
-        <div className="grid gap-3 sm:grid-cols-[2.2fr_1fr]">
+        <div className="grid gap-3 sm:grid-cols-2">
           <form action={approveWaybillAction}>
             <input type="hidden" name="waybillId" value={waybillId} />
             <input type="hidden" name="stage" value={pipKey} />
             <button
               type="submit"
-              data-testid={`panel-approve-${pipKey}`}
-              className="group relative inline-flex w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-md bg-info px-5 py-5 text-lg font-bold text-ink shadow-popover transition hover:bg-info-strong"
+              data-testid={`big-approve-${pipKey}`}
+              className="group relative inline-flex min-h-16 w-full flex-col items-center justify-center gap-1.5 overflow-hidden rounded-md bg-info px-4 py-4 text-base font-bold text-ink shadow-popover transition hover:bg-info-strong"
             >
               <span className="flex items-center gap-2">
                 <span aria-hidden className="text-2xl leading-none">✓</span>
@@ -414,8 +485,8 @@ export function PipActionPrompt({
           {!showRejectForm && (
             <Link
               href={`/waybill/${waybillId}?action=reject&stage=${pipKey}`}
-              data-testid={`panel-reject-${pipKey}`}
-              className="group inline-flex items-center justify-center gap-2 rounded-md border border-rule/80 bg-paper-2/60 px-4 py-4 text-sm font-bold text-ink-2 shadow-inner transition hover:border-critical hover:bg-critical-strong hover:text-critical-strong"
+              data-testid={`big-reject-${pipKey}`}
+              className="group inline-flex min-h-16 items-center justify-center gap-2 rounded-md border border-rule/80 bg-paper-2/60 px-3 py-4 text-sm font-bold text-ink-2 shadow-inner transition hover:border-critical hover:bg-critical-strong hover:text-critical-strong"
             >
               <span aria-hidden className="text-lg leading-none">✗</span>
               <span><T id="waybill.timeline.reject" locale={localeSafe} /></span>

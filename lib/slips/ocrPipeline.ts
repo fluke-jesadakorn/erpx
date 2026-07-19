@@ -15,7 +15,7 @@
 //      still fails so downstream UI badges the slip as needing review.
 
 import sharp from 'sharp';
-import { createRequire } from 'node:module';
+import path from 'node:path';
 import { invoke } from '@/ai/router';
 import { getVisionChain } from '../ai/visionChain';
 import {
@@ -195,6 +195,7 @@ Example — Thai supplier invoice:
 
 export interface OcrPipelineOpts {
   modelName?: string;
+  actorId?: number;
   kind?: OcrKind;
   /** Skip the validation-gate retry pass even if first attempt fails validation. */
   skipRetryOnValidationFail?: boolean;
@@ -300,7 +301,7 @@ export async function runOcrPipeline(
   let ocrText: string | undefined = undefined;
   if (mime.startsWith('image/')) {
     try {
-      const visionBridgePath = require('node:path').join(process.cwd(), 'lib/native/vision-ocr/index.js');
+      const visionBridgePath = path.join(process.cwd(), 'lib/native/vision-ocr/index.js');
       const visionBridge = (globalThis as any).require?.(visionBridgePath);
       if (visionBridge?.ocrAvailable?.()) {
         const ocrResult = await visionBridge.ocrImageFile(outBuffer);
@@ -341,6 +342,7 @@ export async function runOcrPipeline(
         maxTokens: 4000,
         modelOverride: modelName,
       },
+      { actorId: opts.actorId },
     );
     if (!r.ok || !r.text) {
       if (i === 0) {
@@ -352,11 +354,17 @@ export async function runOcrPipeline(
         const authHint = r.statusCode === 401 || r.statusCode === 403
           ? ` — check that the provider's API key is valid (model "${model}")${upstreamHint}`
           : '';
+        const providerHint = r.providerName
+          ? `AI provider ${r.providerName} failed for model "${model}"`
+          : `Vision model "${model}" failed`;
         const err: Error & { statusCode?: number; upstreamCode?: number; upstreamMessage?: string } =
-          new Error(`${r.error || 'Vision call failed'}${authHint}`);
+          new Error(`${providerHint}: ${r.error || 'Vision call failed'}${authHint}`);
         err.statusCode = r.statusCode ?? undefined;
         err.upstreamCode = r.upstreamCode ?? undefined;
         err.upstreamMessage = r.upstreamMessage ?? undefined;
+        (err as Error & { providerName?: string; providerUnavailable?: boolean; modelName?: string }).providerName = r.providerName;
+        (err as Error & { providerName?: string; providerUnavailable?: boolean; modelName?: string }).providerUnavailable = r.providerUnavailable;
+        (err as Error & { providerName?: string; providerUnavailable?: boolean; modelName?: string }).modelName = r.modelName || modelName;
         throw err;
       }
       continue;
@@ -370,7 +378,7 @@ export async function runOcrPipeline(
       continue;
     }
     const validation = validateForKind(parsed, kind);
-    attempts.push({ modelName, parsed, validation, latencyMs: Date.now() - t0 });
+    attempts.push({ modelName: r.modelName || modelName, parsed, validation, latencyMs: Date.now() - t0 });
     if (validation.ok) break;
     if (
       !RETRY_ENABLED ||
@@ -391,8 +399,8 @@ export async function runOcrPipeline(
   }));
   scored.sort((x, y) => y.score - x.score);
   const best = scored[0];
-  let parsed = best.parsed;
-  let validation = best.validation;
+  const parsed = best.parsed;
+  const validation = best.validation;
   const retried = attempts.length > 1;
 
   if (!validation.ok) stampValidationOnParsed(parsed, kind, validation);

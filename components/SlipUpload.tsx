@@ -35,6 +35,7 @@ export interface SlipUploadProps {
   hideSubmitButton?: boolean;
   onSubmitStateChange?: (state: SubmitState) => void;
   draftWaybillId?: string | null;
+  evidenceOnly?: boolean;
   onDraftStarted?: (info: { waybillId: string; expenseId: number }) => void;
 }
 

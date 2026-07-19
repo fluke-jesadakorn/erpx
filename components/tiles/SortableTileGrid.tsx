@@ -31,6 +31,7 @@ interface SortableTileGridProps {
   actorId?: number;
   targetLabel: (t: any) => string;
   currentUser: any;
+  disabled?: boolean;
   onOrderChange?: (group: string, nextIds: string[]) => void;
 }
 
@@ -41,6 +42,7 @@ function SortableTile({
   onSelect,
   actorId,
   targetLabel,
+  disabled,
 }: {
   tile: TileWithMeta;
   access: TileAccess;
@@ -48,6 +50,7 @@ function SortableTile({
   onSelect: (t: any) => void;
   actorId?: number;
   targetLabel: (t: any) => string;
+  disabled?: boolean;
 }) {
   const {
     attributes,
@@ -56,18 +59,24 @@ function SortableTile({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: tile.id });
+  } = useSortable({ id: tile.id, disabled });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.55 : 1,
     zIndex: isDragging ? 10 : undefined,
-    touchAction: 'none',
+    touchAction: disabled ? 'auto' : 'none',
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="h-full w-full min-w-0">
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...(disabled ? {} : attributes)}
+      {...(disabled ? {} : listeners)}
+      className="h-full w-full min-w-0"
+    >
       <Tile
         tile={tile}
         active={active}
@@ -91,6 +100,7 @@ export const SortableTileGrid: React.FC<SortableTileGridProps> = ({
   actorId,
   targetLabel,
   currentUser,
+  disabled = false,
   onOrderChange,
 }) => {
   const sensors = useSensors(
@@ -106,6 +116,7 @@ export const SortableTileGrid: React.FC<SortableTileGridProps> = ({
   const ids = useMemo(() => list.map((i) => i.tile.id), [list]);
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (disabled) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const oldIndex = ids.indexOf(String(active.id));
@@ -122,7 +133,7 @@ export const SortableTileGrid: React.FC<SortableTileGridProps> = ({
   return (
     <DndContext id={dndId} sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={ids} strategy={rectSortingStrategy}>
-        <div className="grid auto-rows-[210px] grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid auto-rows-[190px] grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {list.map(({ tile, access }, idx) => (
             <div
               key={tile.id}
@@ -136,6 +147,7 @@ export const SortableTileGrid: React.FC<SortableTileGridProps> = ({
                 onSelect={onSelectTile}
                 actorId={actorId}
                 targetLabel={targetLabel}
+                disabled={disabled}
               />
             </div>
           ))}

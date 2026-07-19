@@ -604,12 +604,20 @@ function ActionPromptBlock({
         .filter((e) => e.kind === 'gl-confirmed')
         .sort((a, b) => b.sequence - a.sequence)[0];
       return (
-        <section className="space-y-3 border-t bg-positive-soft border border-positive/40 pt-4 text-sm">
-          <div className="text-xs uppercase tracking-widest text-positive">
-            ✅ {<T id="waybill.timeline.confirm_gl_recorded" />}
-            <span className="ml-2 text-mute">
-              {<T id="waybill.timeline.current_stage" />}
-            </span>
+        <section className="space-y-4 rounded-xl border border-positive/40 bg-positive-soft/60 p-4 text-sm sm:p-5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs uppercase tracking-widest text-positive-strong">
+            <span aria-hidden>✅</span>
+            <T
+              id="waybill.timeline.confirm_gl_recorded"
+              primaryClassName="font-semibold text-positive-strong"
+              secondaryClassName="ml-1.5 text-xs font-normal text-ink-2"
+            />
+            <span className="text-ink-2">·</span>
+            <T
+              id="waybill.timeline.current_stage"
+              primaryClassName="font-normal text-ink-2"
+              secondaryClassName="ml-1.5 text-xs font-normal text-ink-2"
+            />
           </div>
           {glConfirmed && confirmEvent ? (
             <div className="rounded-md border bg-positive-soft border border-positive/40 bg-positive-soft border border-positive/40 p-3 text-sm text-positive">
@@ -620,25 +628,30 @@ function ActionPromptBlock({
               <div className="mt-1 font-mono text-positive">{formatDateServer(confirmEvent.occurred_at, locale)}</div>
             </div>
           ) : canConfirmGl && originId != null ? (
-            <form
-              action={confirmGlRecordedAction}
-              className="rounded-md border border-caution bg-caution-soft p-4 text-sm text-caution"
-            >
+            <form action={confirmGlRecordedAction} className="rounded-xl border border-caution/70 bg-caution-soft/80 p-4 text-sm sm:p-5">
               <input type="hidden" name="waybillId" value={waybillId} />
               <input type="hidden" name="expenseId" value={originId} />
-              <p className="mb-3 font-mono">
-                {locale=== 'th'
-                  ? 'บัญชีแล้ว — เจ้าหน้าที่บัญชี/การเงินท่านใดกดยืนยันก็ได้'
-                  : 'GL posted — any accounting/finance officer can click to confirm.'}
-              </p>
-              <button
-                type="submit"
-                data-testid={`gl-confirm-${waybillId}`}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-caution px-5 py-5 text-lg font-bold text-ink shadow-popover shadow-caution transition hover:bg-caution-strong hover:shadow-caution-strong"
-              >
-                <span aria-hidden className="text-2xl">✓</span>
-                <span>{<T id="waybill.timeline.confirm_gl_recorded" />}</span>
-              </button>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <T
+                  id="waybill.timeline.glPostedPrompt"
+                  variant="stacked"
+                  primaryClassName="block text-sm font-semibold leading-6 text-ink"
+                  secondaryClassName="mt-1 block text-sm font-normal leading-6 text-ink-2"
+                />
+                <button
+                  type="submit"
+                  data-testid={`gl-confirm-${waybillId}`}
+                  className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-caution px-4 py-3 text-base font-bold text-action-ink shadow-popover shadow-caution transition hover:bg-caution-strong hover:shadow-caution-strong sm:w-auto sm:min-w-56"
+                >
+                  <span aria-hidden className="text-xl">✓</span>
+                  <T
+                    id="waybill.timeline.confirm_gl_recorded"
+                    variant="stacked"
+                    primaryClassName="block font-bold leading-tight text-action-ink"
+                    secondaryClassName="mt-1 block text-xs font-medium leading-tight text-action-ink"
+                  />
+                </button>
+              </div>
             </form>
           ) : (
             <p className="text-sm font-mono text-mute">
@@ -780,4 +793,3 @@ function ActionPromptBlock({
 
   return null;
 }
-

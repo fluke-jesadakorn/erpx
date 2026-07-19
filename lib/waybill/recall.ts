@@ -1,6 +1,6 @@
 import 'server-only';
 import { loadActivePermSession } from '../perm/auth';
-import { hasPermission, ADMIN_PERM } from '../perm/auth-client';
+import { ADMIN_PERM } from '../perm/auth-client';
 import { matchPerm } from '../perm/grammar';
 
 const RECALL_PERM = 'finance:waybill:recall::allow';

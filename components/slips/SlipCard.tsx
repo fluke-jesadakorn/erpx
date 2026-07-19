@@ -38,6 +38,12 @@ export function Stars({ value }: { value: number | null }) {
   );
 }
 
+function formatContextWindow(value: number | null): string | null {
+  if (!value || value < 1) return null;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M ctx`;
+  return `${Math.round(value / 1000)}K ctx`;
+}
+
 export function ModelCard({
   m,
   selected,
@@ -76,6 +82,21 @@ export function ModelCard({
             {m.provider_name && (
               <span className="px-1.5 py-0.5 rounded text-[10px] font-mono text-ink-2 bg-paper-3 border border-rule shrink-0">
                 {m.provider_name}
+              </span>
+            )}
+            {m.is_free && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold text-positive-strong bg-positive-soft border border-positive/40 shrink-0">
+                FREE
+              </span>
+            )}
+            {m.capabilities.includes('vision') && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono text-info-strong bg-info/10 border border-info/40 shrink-0">
+                VISION
+              </span>
+            )}
+            {formatContextWindow(m.context_window) && (
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono text-ink-2 bg-paper-3 border border-rule shrink-0">
+                {formatContextWindow(m.context_window)}
               </span>
             )}
           </div>

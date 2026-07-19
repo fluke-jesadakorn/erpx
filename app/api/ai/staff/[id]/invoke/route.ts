@@ -3,6 +3,8 @@ import { query } from '@/db';
 import { invoke } from '@/ai/router';
 import { apiGuard } from '@/server/apiGuard';
 import { PERM } from '@/perm';
+import { VISION_MODELS_CACHE_TAG } from '@/ai/loadVisionModels';
+import { revalidateTag } from 'next/cache';
 
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -39,6 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
      ON CONFLICT (section_key, task_type, priority) DO NOTHING`,
     [sectionKey, body.task || 'chat', staff.p_id, staff.m_id, staff.id, JSON.stringify(body.params || {}), 50],
   );
+  revalidateTag(VISION_MODELS_CACHE_TAG, 'max');
 
   const result = await invoke(
     sectionKey,
@@ -50,7 +53,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       temperature: body.temperature,
       maxTokens: body.maxTokens,
     },
-    { staffId: staff.id },
+    { staffId: staff.id, actorId: guard.actor?.id },
   );
   return NextResponse.json({ ok: true, result, sectionKey });
 }

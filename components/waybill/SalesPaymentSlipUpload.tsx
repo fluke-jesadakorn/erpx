@@ -384,7 +384,7 @@ export const SalesPaymentSlipUpload = forwardRef<
           )}
         </div>
 
-        {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
+        {ocr.pendingFile && ocr.extractionState !== 'running' && (
           <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-rule">
             <ModelSelect
               models={ocr.visionModels}
@@ -394,6 +394,9 @@ export const SalesPaymentSlipUpload = forwardRef<
               buttonTestId="sales-payment-vision-model-trigger"
               testId="sales-payment-vision-model-popover"
             />
+            {ocr.visionModels.length === 0 && (
+              <span className="text-xs text-caution-strong">No vision models configured by IT.</span>
+            )}
             {ocr.extractionState === 'pending' && (
               <button
                 type="button"

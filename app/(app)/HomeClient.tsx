@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CommandPalette } from '@/components/CommandPalette';
 import { TileHub } from '@/components/TileHub';
@@ -8,7 +8,7 @@ import { HubHero } from '@/components/HubHero';
 import { AccessDenied } from '@/components/AccessDenied';
 import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
-import { type TileDef, tileHref, tileFromRow } from '@/components/tile-config';
+import { type TileDef, tileHref } from '@/components/tile-config';
 import { evaluateTileOptimistic, type TileAccess } from '@/components/tileAccess';
 import { ROOT_CRUMB } from '@/components/breadcrumbs';
 import type { GreetingKey } from '@/hero';
@@ -27,28 +27,21 @@ interface HomeClientProps {
   greetingKey?: GreetingKey;
 }
 
-export function HomeClient({ users, currentUser, expenses: _expenses, policies: _policies, prs, execReport: _execReport, canViewHub, greetingKey }: HomeClientProps) {
+export function HomeClient({
+  users,
+  currentUser,
+  expenses: _expenses,
+  policies: _policies,
+  prs,
+  execReport: _execReport,
+  canViewHub,
+  tiles = [],
+  accessByTile = {},
+  greetingKey,
+}: HomeClientProps) {
   const router = useRouter();
 
   const [openCommand, setOpenCommand] = useState(false);
-  const [tiles, setTiles] = useState<TileDef[]>([]);
-  const [tilesLoaded, setTilesLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/tiles')
-      .then((r) => r.json())
-      .then((data: { tiles: any[] }) => {
-        if (cancelled) return;
-        setTiles((data.tiles ?? []).map((t) => tileFromRow(t)));
-      })
-      .catch(() => {
-        if (!cancelled) setTiles([]);
-      })
-      .finally(() => { if (!cancelled) setTilesLoaded(true); });
-    return () => { cancelled = true; };
-  }, []);
-
   const visibleTiles = tiles;
 
   const handleSelectTile = (t: any) => {
@@ -86,17 +79,17 @@ export function HomeClient({ users, currentUser, expenses: _expenses, policies: 
       />
 
       <PageLayout
-        title={<T id="nav.home" />}
-        subtitle={currentUser ? <T id="hub.catalogSubtitle" values={{ n: tiles.length }} /> : <T id="chrome.signInRequired" />}
+        width="wide"
+        contentClassName="space-y-8"
       >
-        {currentUser && tilesLoaded && visibleTiles.length > 0 && (
-          <div className="mb-8">
+        {currentUser && visibleTiles.length > 0 && (
+          <div>
             <HubHero
               actor={currentUser}
               tiles={visibleTiles as any}
               pendingPrs={prs as any[]}
               initialGreetingKey={greetingKey}
-              isLocked={(t) => evaluateTileOptimistic(t, currentUser).state === 'locked'}
+              isLocked={(t) => (accessByTile[t.id] ?? evaluateTileOptimistic(t, currentUser)).state === 'locked'}
               onOpenCommand={handleOpenCommand}
             />
           </div>
@@ -110,16 +103,17 @@ export function HomeClient({ users, currentUser, expenses: _expenses, policies: 
           </div>
         )}
 
-        {currentUser && tilesLoaded && visibleTiles.length > 0 && (
+        {currentUser && visibleTiles.length > 0 && (
           <TileHub
             currentUser={currentUser}
             tiles={visibleTiles}
+            accessByTile={accessByTile}
             activeTileId=""
             onSelectTile={handleSelectTile}
           />
         )}
 
-{currentUser && tilesLoaded && visibleTiles.length === 0 && (
+        {currentUser && visibleTiles.length === 0 && (
           <div className="flex justify-center items-center py-10 bg-paper-2 border border-rule rounded-md border border-rule">
              <span className="text-sm text-ink-2 font-sans"><T id="chrome.noTiles" /></span>
           </div>

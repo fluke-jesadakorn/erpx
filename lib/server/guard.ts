@@ -6,6 +6,7 @@
 import 'server-only';
 import { query } from '../db';
 import { verifySession, type SessionPayload } from './sessionToken';
+import { validateActiveSession } from './sessionStore';
 import { matchPerm, parseRoleId } from '../perm/grammar';
 import { getActorScope, type ActorScope } from '../perm/scope';
 import { loadDeptPermissionBundles, expandUserPermissions } from '../perm/deptGrant';
@@ -120,7 +121,7 @@ export async function loadActorRaw(): Promise<SessionActor | null> {
            ) t
        ), ARRAY[]::text[]) AS permissions
       FROM users u
-     WHERE u.id = $1`,
+     WHERE u.id = $1 AND u.is_active IS TRUE`,
     [payload.sub],
   );
   const row = res.rows[0];
@@ -152,7 +153,8 @@ export async function requireActor(): Promise<ActorWithScope> {
 
 export async function currentSession(): Promise<SessionPayload | null> {
   const token = await currentToken();
-  return verifySession(token);
+  const payload = await verifySession(token);
+  return payload ? validateActiveSession(payload) : null;
 }
 
 async function currentToken(): Promise<string | null> {

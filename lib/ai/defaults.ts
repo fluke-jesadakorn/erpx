@@ -1,4 +1,7 @@
-export const DEFAULT_CHAT_MODEL = 'MiniMax-M3';
+export const DEFAULT_OPENROUTER_MODEL = 'openrouter/free';
+export const DEFAULT_CHAT_MODEL = DEFAULT_OPENROUTER_MODEL;
+
+export type ChatThinkingLevel = 'auto' | 'low' | 'medium' | 'high';
 
 export interface ThinkingParams {
   temperature: number;

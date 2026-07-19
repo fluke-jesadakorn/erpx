@@ -5,10 +5,6 @@ import { revalidatePath } from 'next/cache';
 import { listSessions, loadSession, createSession, deleteSession, renameSession, appendMessage, maybeAutoRename } from './history';
 import { suggestTitle, isPlaceholderTitle } from './titleGenerator';
 
-function ok<T>(data: T) {
-  return { ok: true as const, data };
-}
-
 export async function listChatSessions() {
   const { loadActor } = await import('@folio-lib/server/guard');
   const actor = await loadActor();

@@ -1,6 +1,5 @@
 import 'server-only';
 export * from './index';
-import type { LeaveType } from './leave';
 export type {
   EmployeeRow,
   HRUserOption,

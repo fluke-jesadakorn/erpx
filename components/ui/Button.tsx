@@ -12,11 +12,11 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 }
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: 'border border-accent/70 bg-accent text-paper shadow-[0_10px_28px_-14px_color-mix(in_oklab,var(--accent)_80%,transparent)] hover:bg-accent-strong',
+  primary: 'action-button border border-action/70 bg-action text-action-ink shadow-[0_10px_28px_-14px_color-mix(in_oklab,var(--action-bg)_80%,transparent)] hover:bg-action-hover',
   secondary: 'glass-input text-ink hover:bg-paper-3/70',
   ghost: 'border border-transparent bg-transparent text-ink-2 hover:border-rule hover:bg-paper-3/45 hover:text-ink',
-  critical: 'border border-critical/70 bg-critical text-paper shadow-[0_10px_28px_-16px_color-mix(in_oklab,var(--critical)_70%,transparent)] hover:bg-critical-strong',
-  positive: 'border border-positive/70 bg-positive text-paper shadow-[0_10px_28px_-16px_color-mix(in_oklab,var(--positive)_70%,transparent)] hover:bg-positive-strong',
+  critical: 'action-button border border-critical/70 bg-critical text-action-ink shadow-[0_10px_28px_-16px_color-mix(in_oklab,var(--critical)_70%,transparent)] hover:bg-critical-strong',
+  positive: 'action-button border border-positive/70 bg-positive text-action-ink shadow-[0_10px_28px_-16px_color-mix(in_oklab,var(--positive)_70%,transparent)] hover:bg-positive-strong',
 };
 
 const SIZE: Record<ButtonSize, string> = {

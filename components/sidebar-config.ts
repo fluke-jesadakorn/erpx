@@ -1,4 +1,6 @@
 import {
+  ArrowDownUp,
+  BookOpen,
   Building2,
   Gauge,
   Home,
@@ -75,6 +77,12 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
       { key: 'expense', label: { id: 'sidebar.labels.expense' }, icon: Receipt, href: '/expense', perms: ['tile:expense:view::allow'] },
       { key: 'pr',      label: { id: 'sidebar.labels.pr' },      icon: Package, href: '/pr', perms: ['tile:pr:view::allow'] },
       { key: 'po',      label: { id: 'sidebar.labels.po' },      icon: Truck,   href: '/po', perms: ['tile:po:view::allow'] },
+      { key: 'accounting', label: 'Accounting', icon: Gauge, href: '/accounting', perms: ['finance:journal:prepare::allow', 'finance:journal:approve::allow'] },
+      { key: 'ledger', label: 'Ledger', icon: BookOpen, href: '/ledger', perms: ['finance:ledger:view::allow', 'finance:gl:view::allow'] },
+      { key: 'inventory', label: 'Inventory', icon: Package, href: '/inventory', perms: ['inventory:stock:view::allow'] },
+      { key: 'reconciliation', label: 'Reconciliation', icon: ArrowDownUp, href: '/reconciliation', perms: ['finance:bank:import::allow', 'finance:bank:match::allow'] },
+      { key: 'reports', label: 'Reports', icon: Gauge, href: '/reports', perms: ['finance:report:view::allow', 'finance:cashflow:read::allow'] },
+      { key: 'budgets', label: 'Budgets', icon: LayoutGrid, href: '/budgets', perms: ['finance:budget:view::allow', 'finance:budget:manage::allow'] },
     ],
   },
   {
@@ -93,7 +101,7 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
       { key: 'policy', label: { id: 'sidebar.labels.policy' }, icon: ShieldCheck, href: '/policy', perms: ['rbac:matrix:view::allow'] },
       { key: 'tiles',  label: { id: 'sidebar.labels.tiles' },  icon: LayoutGrid,  href: '/tiles', perms: ['rbac:matrix:view::allow'] },
       { key: 'design-system', label: 'Design system', icon: Palette, href: '/design-system', perms: ['admin:system:bypass::allow'] },
-      { key: 'settings', label: 'Settings', icon: Settings, href: '/settings', perms: ['tile:settings:view::allow'] },
+      { key: 'settings', label: 'Settings', icon: Settings, href: '/ai-settings', perms: ['tile:settings:view::allow'] },
     ],
   },
   {
@@ -113,7 +121,6 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
     icon: Star,
     items: [
       { key: 'overview', label: { id: 'sidebar.labels.executive' }, icon: Star, href: '/executive', perms: ['tile:executive:view::allow', 'finance:report:executive::allow'] },
-      { key: 'cockpit', label: 'Cockpit', icon: Gauge, href: '/cockpit', perms: ['tile:cockpit:view::allow'] },
     ],
   },
 ];

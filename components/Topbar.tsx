@@ -4,7 +4,6 @@ import { LangPickerTrigger } from '@/components/lang/LangPicker';
 import { ThemeToggle } from '@/components/theme';
 import { PersonaMenu } from './PersonaMenu';
 import { NotificationBell } from './NotificationBell';
-import { NudgesLink } from './NudgesLink';
 import { MobileMenuButton, SearchButton } from './MobileDrawer';
 import { TopbarCrumbs } from './TopbarCrumbs';
 
@@ -42,8 +41,7 @@ export const Topbar: React.FC<TopbarProps> = ({ users, currentUser }) => {
       <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
         <SearchButton className="hidden sm:inline-flex" />
         <LangPickerTrigger />
-        <ThemeToggle />
-        <NudgesLink />
+        <div className="hidden sm:block"><ThemeToggle /></div>
         <NotificationBell />
         {currentUser && <PersonaMenu users={users} currentUser={currentUser} />}
       </div>

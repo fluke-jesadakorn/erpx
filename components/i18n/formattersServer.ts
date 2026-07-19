@@ -1,11 +1,11 @@
 import 'server-only';
 import { SECONDARY_BCP47, type SecondaryLocale } from '@/i18n/config';
 
-export async function formatMoneyServer(
+export function formatMoneyServer(
   amount: number | string | null | undefined,
   locale: SecondaryLocale = 'th',
   currency = 'THB',
-): Promise<string> {
+): string {
   if (amount == null) return '—';
   const n = typeof amount === 'string' ? parseFloat(amount) : amount;
   if (!Number.isFinite(n)) return String(amount);
@@ -16,10 +16,10 @@ export async function formatMoneyServer(
   return `${num} ${currency}`;
 }
 
-export async function formatDateServer(
+export function formatDateServer(
   d: Date | string | null | undefined,
   locale: SecondaryLocale = 'th',
-): Promise<string> {
+): string {
   if (!d) return '—';
   const date = typeof d === 'string' ? new Date(d) : d;
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '—';
@@ -32,10 +32,10 @@ export async function formatDateServer(
   }).format(date);
 }
 
-export async function formatDateShortServer(
+export function formatDateShortServer(
   d: Date | string | null | undefined,
   locale: SecondaryLocale = 'th',
-): Promise<string> {
+): string {
   if (!d) return '—';
   const date = typeof d === 'string' ? new Date(d) : d;
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '—';

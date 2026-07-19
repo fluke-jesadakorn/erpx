@@ -1,7 +1,7 @@
 import { invokeStream } from '@/ai/router';
 import { NextRequest, NextResponse } from 'next/server';
 import { apiGuard } from '@/server/apiGuard';
-import { DEFAULT_CHAT_MODEL, DEFAULT_THINKING, THINKING_PRESETS } from '@/ai/defaults';
+import { DEFAULT_CHAT_MODEL, THINKING_PRESETS, type ChatThinkingLevel } from '@/ai/defaults';
 import { parseChartBlocks } from '@/components/chat/chartContract';
 import { parseHtmlBlocks } from '@/ai/htmlContract';
 import { parseSqlBlocks } from '@/ai/sqlContract';
@@ -20,11 +20,13 @@ Schema you can query (real allow-list, run via [SQL]):
 - Leave: folio.hr_leave (employee_id → folio.users.id)
 - Expense: folio.expenses, folio.expense_items, folio.slips
 - Customers/sales: folio.customers, folio.sales_orders, folio.so_items
-- Procurement: folio.purchase_requisitions, folio.purchase_orders, folio.waybills, folio.waybill_events
-- Books: finance.chart_of_accounts, finance.journal_entries, finance.ledger_lines
+- Procurement: folio.purchase_requisitions, folio.purchase_orders, folio.po_items, folio.waybills, folio.waybill_events
+- Posted accounting: finance.accounts, finance.journals, finance.journal_lines, finance.v_posted_lines
+- Subledgers/banking: finance.ar_documents, finance.ap_documents, finance.commercial_documents, finance.bank_transactions, finance.bank_match_groups
+- Planning/operations: finance.budgets, finance.budget_lines, finance.v_fx_exposure, inventory.products, inventory.warehouses, inventory.lots, inventory.v_valuation, inventory.stock_movements
 There is NO 'hr' schema. Org roles/level live in perm.roles + perm.user_roles — never invent 'hr.*'.
 
-Who-questions about a person/role: JOIN folio.users u ON perm.user_roles ur ON ur.user_id = u.id JOIN perm.roles r ON r.id = ur.role_id AND r.kind = ur.role_kind.
+Who-questions about a person/role: join folio.users u to perm.user_roles ur on ur.user_id = u.id, then join perm.roles r on r.id = ur.role_id and r.kind = ur.role_kind.
 Example — "who is CEO": SELECT u.id, u.employee_code, u.fullname, u.position, r.id AS role_id, r.display_name FROM folio.users u JOIN perm.user_roles ur ON ur.user_id = u.id JOIN perm.roles r ON r.id = ur.role_id AND r.kind = ur.role_kind WHERE r.id = 'ceo';
 Do not invent or guess — when a [SQL] block is used, the system renders the result table and you summarize it in 1-2 short sentences.
 
@@ -48,11 +50,12 @@ export async function POST(req: NextRequest) {
   if (guard.response) return guard.response;
   const actor = guard.actor!;
   const body = await req.json().catch(() => ({}));
-  const { messages, sessionId, model, thinking, lang, scope } = body as {
+  const { messages, sessionId, sectionKey, model, thinking, lang, scope } = body as {
     messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
     sessionId?: string;
+    sectionKey?: string;
     model?: string;
-    thinking?: 'low' | 'medium' | 'high';
+    thinking?: ChatThinkingLevel;
     lang?: 'en' | 'th' | 'de';
     scope?: { tileId?: string; displayName?: string };
   };
@@ -60,8 +63,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'messages required' }, { status: 400 });
   }
 
-  const modelName = model || DEFAULT_CHAT_MODEL;
-  const t = THINKING_PRESETS[thinking ?? 'high'] ?? DEFAULT_THINKING;
+  const modelName = model || '';
+  const t = thinking && thinking !== 'auto' ? THINKING_PRESETS[thinking] : null;
   const langLine = lang === 'th'
     ? 'ตอบเป็นภาษาไทย'
     : lang === 'de'
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
     : '';
   const systemPrompt = `${SYS_BASE}${sysScope}\n\n${langLine}`;
 
-  const sid = sessionId || (await createSession(actor.id, deriveTitle(messages), modelName)).id;
+  const sid = sessionId || (await createSession(actor.id, deriveTitle(messages), modelName || DEFAULT_CHAT_MODEL)).id;
 
   const lastUser = messages[messages.length - 1];
   if (lastUser?.role === 'user') {
@@ -88,15 +91,15 @@ export async function POST(req: NextRequest) {
       };
       const t0 = Date.now();
       let full = '';
-      let usedModel = modelName;
+      let usedModel = modelName || 'IT default';
       let attemptedFallback = false;
-      const tryStream = async (m: string) => {
-        const it = invokeStream('chat:full', 'chat', {
+      const tryStream = async (m?: string) => {
+        const it = invokeStream(sectionKey || 'chat:global', 'chat', {
           messages,
           systemPrompt,
-          modelOverride: m,
-          temperature: t.temperature,
-          maxTokens: t.maxTokens,
+          modelOverride: m || undefined,
+          thinking: thinking === 'auto' ? undefined : thinking,
+          ...(t ? { temperature: t.temperature, maxTokens: t.maxTokens } : {}),
         }, { actorId: actor.id });
         for await (const chunk of it) {
           full += chunk;
@@ -108,7 +111,7 @@ export async function POST(req: NextRequest) {
           await tryStream(modelName);
         } catch (e: any) {
           const msg = e?.message ?? String(e);
-          if (modelName === 'MiniMax-M3' && /401|auth|unauthor/i.test(msg)) {
+          if (modelName && /401|auth|unauthor/i.test(msg)) {
             attemptedFallback = true;
             full = '';
             usedModel = 'qwen2.5:7b';
@@ -124,7 +127,10 @@ export async function POST(req: NextRequest) {
         const { plain: afterSql, asks: sqlAsks } = parseSqlBlocks(afterHtml);
         const resolvedSqls: any[] = [];
         for (const ask of sqlAsks) {
-          const r = await askSql({ question: ask.question, lang: lang ?? 'en' });
+          const question = scope?.tileId && lastUser?.role === 'user'
+            ? lastUser.content
+            : ask.question;
+          const r = await askSql({ question, lang: lang ?? 'en' });
           if (r) resolvedSqls.push(r);
         }
 

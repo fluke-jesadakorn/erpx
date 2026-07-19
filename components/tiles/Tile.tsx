@@ -11,7 +11,7 @@ import thDict from '../../messages/th.json';
 import deDict from '../../messages/de.json';
 import enDict from '../../messages/en.json';
 import type { SecondaryLocale } from '@/i18n/config';
-import { ArrowUpRight, Check, Lock, Mail } from 'lucide-react';
+import { ArrowUpRight, Lock, Mail } from 'lucide-react';
 import { tileIcon } from '../tile-config';
 
 const accentMap: Record<string, { bg: string; bar: string; text: string; glow: string; ring: string }> = {
@@ -134,7 +134,6 @@ export const Tile: React.FC<TileProps> = ({
   const [requestOpen, setRequestOpen] = useState(false);
 
   const viewPermId = tile.access_meta?.viewPermId ?? tile.view_perm_id ?? null;
-  const hasMeta = !!viewPermId;
 
   const content = (
     <>
@@ -159,11 +158,11 @@ export const Tile: React.FC<TileProps> = ({
 
       {React.createElement(tileIcon(tile), {
         'aria-hidden': true,
-        className: `absolute -bottom-7 -right-6 h-32 w-32 select-none stroke-[0.7] ${locked ? 'opacity-[0.025]' : 'opacity-[0.05]'}`,
+        className: `absolute -bottom-7 -right-5 h-28 w-28 select-none stroke-[0.7] ${locked ? 'opacity-[0.035]' : 'opacity-[0.055]'}`,
       })}
 
       {active && !locked && (
-        <div className={`absolute inset-0 rounded-md pointer-events-none ${c.bg}`} />
+        <div className={`pointer-events-none absolute inset-0 rounded-2xl ${c.bg}`} />
       )}
 
       {!locked && (
@@ -175,8 +174,8 @@ export const Tile: React.FC<TileProps> = ({
 
       <div className="relative z-10 flex flex-col h-full">
         <div className="flex items-start justify-between gap-3">
-          <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border border-rule bg-paper-2/65 shadow-inner ${c.text} ${locked ? 'opacity-55' : ''}`}>
-            {React.createElement(tileIcon(tile), { size: 21, 'aria-hidden': true })}
+          <span className={`inline-flex h-10 w-10 items-center justify-center rounded-xl border border-rule bg-paper-2/60 shadow-inner ${c.text} ${locked ? 'opacity-60' : ''}`}>
+            {React.createElement(tileIcon(tile), { size: 19, 'aria-hidden': true })}
           </span>
           {tile.count !== undefined && (
             <div className={`flex flex-col items-end ${live && !locked ? '' : 'opacity-70'}`}>
@@ -192,24 +191,20 @@ export const Tile: React.FC<TileProps> = ({
           )}
         </div>
 
-        <div className="mt-auto pt-3">
-          <h3 className={`font-black leading-tight text-[14px] ${locked ? 'text-ink-2' : 'text-ink'}`}>
-            <TileText
-              tileId={tile.id}
-              fallbackEn={tile.display_name}
-              fallbackSub={tile.subtitle}
-              nameClass=""
-              subClass="mt-1.5 font-sans leading-snug text-xs text-ink-2"
-              stack
-            />
-          </h3>
-          {hasMeta && viewPermId && (
-            <div className="mt-2 flex flex-wrap items-center gap-1">
-              <span className={`inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider ${locked ? 'bg-paper-2/70 text-mute border-rule' : 'bg-paper-2/70 text-ink-2 border-rule/70'}`}>
-                {locked ? <Lock size={10} aria-hidden /> : <Check size={10} aria-hidden />}
-                <span className="truncate max-w-[220px]">{locked ? <T id="tiles.locked" hideSecondary /> : <T id="tiles.open" hideSecondary />}</span>
-              </span>
-            </div>
+        <div className="mt-auto min-w-0 pt-3">
+          <TileText
+            tileId={tile.id}
+            fallbackEn={tile.display_name}
+            fallbackSub={tile.subtitle}
+            nameClass={`block text-[14px] font-semibold leading-tight ${locked ? 'text-ink-2' : 'text-ink'}`}
+            subClass="mt-1.5 line-clamp-2 font-sans text-xs leading-relaxed text-mute"
+            stack
+          />
+          {locked && (
+            <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-medium text-info">
+              <Mail size={11} aria-hidden />
+              <T id="tilesUi.request" hideSecondary />
+            </span>
           )}
         </div>
       </div>
@@ -217,9 +212,9 @@ export const Tile: React.FC<TileProps> = ({
   );
 
   const className = [
-    'panel-interactive group relative block h-full min-h-[190px] w-full overflow-hidden rounded-2xl p-4 text-left',
+    'panel-interactive group relative block h-full min-h-[180px] w-full overflow-hidden rounded-2xl p-4 text-left',
     locked
-      ? `opacity-50 grayscale saturate-50 ring-1 ring-rule/60 border border-rule/80 cursor-not-allowed`
+      ? `cursor-pointer opacity-70 saturate-50 ring-1 ring-rule/60 border border-rule/80 hover:opacity-100`
       : active
         ? `ring-2 ${c.ring} shadow-xl ${c.glow}`
         : 'ring-1 ring-rule/50 hover:ring-rule-strong hover:-translate-y-px',
@@ -267,7 +262,14 @@ export const Tile: React.FC<TileProps> = ({
     return (
       <>
         <TileTooltip content={tooltipBody}>
-          <button type="button" aria-disabled className={className}>
+          <button
+            type="button"
+            onClick={() => {
+              setRequestOpen(true);
+              onRequestAccess?.();
+            }}
+            className={className}
+          >
             {content}
           </button>
         </TileTooltip>

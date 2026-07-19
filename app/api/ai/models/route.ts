@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { query } from '@/db';
 import { apiGuard } from '@/server/apiGuard';
 import { PERM } from '@/perm';
+import { VISION_MODELS_CACHE_TAG } from '@/ai/loadVisionModels';
+import { revalidateTag } from 'next/cache';
 
 
 export async function GET(req: Request) {
@@ -21,6 +23,6 @@ export async function POST(req: Request) {
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
     [body.name, body.provider_id, body.capabilities || [], body.context_window || null, body.enabled !== false, JSON.stringify(body.defaults_json || {})],
   );
+  revalidateTag(VISION_MODELS_CACHE_TAG, 'max');
   return NextResponse.json({ id: r.rows[0].id, ok: true });
 }
-

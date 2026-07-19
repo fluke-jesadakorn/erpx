@@ -6,6 +6,7 @@
 import 'server-only';
 import { createHmac } from 'node:crypto';
 import { query, withTransaction } from '../db';
+import { notifyWaybillEvent } from '../notifications/waybill';
 
 export type WaybillEventKind =
   | 'created'
@@ -25,6 +26,7 @@ export type WaybillEventKind =
   | 'superseded'
   | 'so-submitted'
   | 'so-reviewed'
+  | 'so-dept-approved'
   | 'so-credit-checked'
   | 'so-auto-approved'
   | 'so-invoiced'
@@ -121,7 +123,17 @@ export async function recordEvent(input: RecordEventInput): Promise<WaybillEvent
         payloadJson,
       ],
     );
-    return r.rows[0];
+    const event = r.rows[0];
+    await notifyWaybillEvent(q, {
+      id: event.id,
+      waybillId: event.waybill_id,
+      kind: event.kind,
+      stageFrom: event.stage_from,
+      stageTo: event.stage_to,
+      actorId: event.actor_id,
+      payload: event.payload ?? {},
+    });
+    return event;
   };
 
   if (input.client) {

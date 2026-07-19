@@ -79,13 +79,13 @@ function parseProductHint(text: string): string {
   return '';
 }
 
-export async function extractSoFromText(text: string, lang: 'en' | 'th' | 'de' = 'en'): Promise<ExtractedSo | null> {
+export async function extractSoFromText(text: string, lang: 'en' | 'th' | 'de' = 'en', actorId?: number): Promise<ExtractedSo | null> {
   const r = await aiInvoke('sales:extract', 'chat', {
     systemPrompt: renderLocaleAwarePrompt(salesExtractPrompt, lang),
     text,
     temperature: 0.1,
     maxTokens: 2000,
-  });
+  }, { actorId });
   if (!r.ok || !r.text) return null;
 
   const parsed = safeParse(r.text);

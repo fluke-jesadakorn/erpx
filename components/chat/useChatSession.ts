@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { streamChat } from '@/chat/streaming';
 import type { ChatSession, ChatMessage, ChatBlocks, SqlResolved } from '@/chat/history';
 import type { ChartSpec } from '@/components/chat/chartContract';
-import { DEFAULT_CHAT_MODEL, type ThinkingParams } from '@/ai/defaults';
+import { DEFAULT_CHAT_MODEL, type ChatThinkingLevel } from '@/ai/defaults';
 import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 
 const SS_KEY = 'folio.chat.global.sessionId';
@@ -21,8 +21,8 @@ export interface UseChatSession {
   messages: ChatMessage[];
   model: string;
   setModel: (m: string) => void;
-  thinking: ThinkingParams['reasoning_effort'];
-  setThinking: (t: ThinkingParams['reasoning_effort']) => void;
+  thinking: ChatThinkingLevel;
+  setThinking: (t: ChatThinkingLevel) => void;
   pending: boolean;
   streamingContent: string;
   streamingBlocks: { charts: ChartSpec[]; htmls: string[]; sqls: SqlResolved[] };
@@ -39,8 +39,8 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [model, setModelState] = useState<string>(DEFAULT_CHAT_MODEL);
-  const [thinking, setThinkingState] = useState<ThinkingParams['reasoning_effort']>('high');
+  const [model, setModelState] = useState<string>('');
+  const [thinking, setThinkingState] = useState<ChatThinkingLevel>('auto');
   const [pending, setPending] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingBlocks, setStreamingBlocks] = useState({ charts: [] as ChartSpec[], htmls: [] as string[], sqls: [] as SqlResolved[] });
@@ -52,7 +52,7 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
       const m = localStorage.getItem(MODEL_KEY);
       if (m) setModelState(m);
       const t = localStorage.getItem(THINK_KEY);
-      if (t === 'low' || t === 'medium' || t === 'high') setThinkingState(t);
+      if (t === 'auto' || t === 'low' || t === 'medium' || t === 'high') setThinkingState(t);
     } catch {}
   }, []);
 
@@ -60,7 +60,7 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
     setModelState(m);
     try { localStorage.setItem(MODEL_KEY, m); } catch {}
   }, []);
-  const setThinking = useCallback((t: ThinkingParams['reasoning_effort']) => {
+  const setThinking = useCallback((t: ChatThinkingLevel) => {
     setThinkingState(t);
     try { localStorage.setItem(THINK_KEY, t); } catch {}
   }, []);
@@ -146,6 +146,7 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
         {
           messages: [...history, { role: 'user' as const, content }],
           sessionId: sid,
+          sectionKey: input.sectionKey ?? 'chat:global',
           model,
           thinking,
           lang: locale,
@@ -202,7 +203,7 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
       setPending(false);
       abortRef.current = null;
     }
-  }, [pending, messages, model, thinking, locale, ensureSession, appendContent, resetContent, refreshSessions, input.scope]);
+  }, [pending, messages, model, thinking, locale, ensureSession, appendContent, resetContent, refreshSessions, input.scope, input.sectionKey]);
 
   const newSession = useCallback(async () => {
     try { localStorage.removeItem(SS_KEY); } catch {}

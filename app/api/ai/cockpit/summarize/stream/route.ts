@@ -43,8 +43,10 @@ export async function POST(req: NextRequest) {
         send('error', {
           message: e?.message ?? String(e),
           statusCode: e?.statusCode ?? e?.response?.status ?? undefined,
-          upstreamCode: e?.response?.data?.error?.code ?? null,
-          upstreamMessage: e?.response?.data?.error?.message ?? null,
+          provider: e?.providerName ?? null,
+          model: e?.modelName ?? model ?? null,
+          upstreamCode: e?.upstreamCode ?? e?.response?.data?.error?.code ?? null,
+          upstreamMessage: e?.upstreamMessage ?? e?.response?.data?.error?.message ?? null,
         });
         controller.close();
       }

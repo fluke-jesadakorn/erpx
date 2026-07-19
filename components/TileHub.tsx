@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { TileTooltipProvider } from './TileTooltip';
 import { SortableTileGrid } from './tiles/SortableTileGrid';
 import {
@@ -19,7 +20,7 @@ import {
 import { applyOrder, clearGroupOrder, hasGroupOrder, loadOrder, type TileOrderMap } from '@/tileOrder';
 import { matchPerm } from '@/perm';
 import { T } from '@/components/i18n/T';
-import { LayoutGrid, LoaderCircle } from 'lucide-react';
+import { CheckCircle2, LayoutGrid, LoaderCircle, Lock, Search, type LucideIcon } from 'lucide-react';
 
 interface TileHubProps {
   currentUser: any;
@@ -30,6 +31,7 @@ interface TileHubProps {
 }
 
 type Annotated = { tile: TileWithMeta; access: TileAccess };
+type CatalogFilter = 'available' | 'all' | 'locked';
 
 export const TileHub: React.FC<TileHubProps> = ({
   currentUser,
@@ -38,11 +40,14 @@ export const TileHub: React.FC<TileHubProps> = ({
   onSelectTile,
   accessByTile,
 }) => {
+  const t = useTranslations();
   const userPerms = useMemo(() => currentUser?.permissions ?? [], [currentUser?.permissions]);
   const userId = currentUser?.id ?? -1;
 
   const [selfFetched, setSelfFetched] = useState<TileDef[] | null>(tilesProp ? null : null);
   const [userOrder, setUserOrder] = useState<TileOrderMap>({});
+  const [filter, setFilter] = useState<CatalogFilter>('available');
+  const [query, setQuery] = useState('');
 
   const tiles = tilesProp ?? selfFetched;
 
@@ -113,12 +118,23 @@ export const TileHub: React.FC<TileHubProps> = ({
     return { openCount: open, lockedCount: locked };
   }, [annotated]);
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return annotated.filter(({ tile, access }) => {
+      if (filter === 'available' && access.state === 'locked') return false;
+      if (filter === 'locked' && access.state !== 'locked') return false;
+      if (!q) return true;
+      return [tile.display_name, tile.subtitle, tile.id, tile.group]
+        .some((value) => String(value ?? '').toLowerCase().includes(q));
+    });
+  }, [annotated, filter, query]);
+
   const byGroup = useMemo(() => {
     const map = Object.fromEntries(GROUP_ORDER.map((g) => [g, [] as Annotated[]])) as Record<TileGroup, Annotated[]>;
-    for (const it of annotated) map[it.tile.group]?.push(it);
+    for (const it of filtered) map[it.tile.group]?.push(it);
     for (const g of GROUP_ORDER) map[g] = applyOrder(map[g], g, userOrder);
     return map;
-  }, [annotated, userOrder]);
+  }, [filtered, userOrder]);
 
   const handleOrderChange = (group: string, _nextIds: string[]) => {
     setUserOrder((prev) => ({ ...prev, [group]: _nextIds }));
@@ -145,27 +161,120 @@ export const TileHub: React.FC<TileHubProps> = ({
   return (
     <TileTooltipProvider>
       <div className="mb-8 animate-fade-in space-y-6">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rule bg-paper-2/65 text-accent"><LayoutGrid size={15} aria-hidden /></span>
-          <h3 className="text-sm font-black uppercase tracking-wider text-ink"><T id="hub.yourTiles" hideSecondary /></h3>
-          <span className="text-xs font-mono text-mute">
-            <T id="hub.tilesCount" hideSecondary values={{ open: openCount, locked: lockedCount }} />
-          </span>
+        <div className="panel flex flex-col gap-5 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/25 bg-accent-soft/45 text-accent">
+              <LayoutGrid size={18} aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <h2 className="section-title text-ink"><T id="hub.catalogTitle" hideSecondary /></h2>
+              <p className="mt-1 text-sm text-mute"><T id="hub.catalogDescription" hideSecondary /></p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label className="glass-input flex h-10 min-w-0 items-center gap-2 px-3 sm:w-56">
+              <Search size={15} className="shrink-0 text-mute" aria-hidden />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t('hub.searchApps')}
+                aria-label={t('hub.searchApps')}
+                className="min-w-0 flex-1 bg-transparent text-sm text-ink placeholder:text-mute"
+              />
+            </label>
+            <div className="flex h-10 shrink-0 items-center rounded-xl border border-rule bg-paper/35 p-1" aria-label={t('hub.catalogFilter')}>
+              <FilterButton
+                active={filter === 'available'}
+                icon={CheckCircle2}
+                label={<T id="hub.filterAvailable" hideSecondary />}
+                ariaLabel={`${t('hub.filterAvailable')} (${openCount})`}
+                count={openCount}
+                onClick={() => setFilter('available')}
+              />
+              <FilterButton
+                active={filter === 'all'}
+                icon={LayoutGrid}
+                label={<T id="hub.filterAll" hideSecondary />}
+                ariaLabel={`${t('hub.filterAll')} (${annotated.length})`}
+                count={annotated.length}
+                onClick={() => setFilter('all')}
+              />
+              <FilterButton
+                active={filter === 'locked'}
+                icon={Lock}
+                label={<T id="hub.filterLocked" hideSecondary />}
+                ariaLabel={`${t('hub.filterLocked')} (${lockedCount})`}
+                count={lockedCount}
+                onClick={() => setFilter('locked')}
+              />
+            </div>
+          </div>
         </div>
-        <Section
-          byGroup={byGroup}
-          userOrder={userOrder}
-          activeTileId={activeTileId}
-          onSelectTile={onSelectTile}
-          actorId={currentUser?.id}
-          currentUser={currentUser}
-          onOrderChange={handleOrderChange}
-          onResetGroup={handleResetGroup}
-        />
+
+        {filtered.length > 0 ? (
+          <Section
+            byGroup={byGroup}
+            userOrder={userOrder}
+            activeTileId={activeTileId}
+            onSelectTile={onSelectTile}
+            actorId={currentUser?.id}
+            currentUser={currentUser}
+            disableSort={filter !== 'all' || query.trim().length > 0}
+            onOrderChange={handleOrderChange}
+            onResetGroup={handleResetGroup}
+          />
+        ) : (
+          <div className="panel grid min-h-48 place-items-center p-8 text-center">
+            <div>
+              <span className="mx-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-rule bg-paper-2/50 text-mute">
+                <Search size={18} aria-hidden />
+              </span>
+              <p className="mt-3 text-sm font-semibold text-ink"><T id="hub.noApps" hideSecondary /></p>
+              <button
+                type="button"
+                onClick={() => { setQuery(''); setFilter('available'); }}
+                className="mt-2 text-xs font-medium text-accent hover:text-accent-strong"
+              >
+                <T id="hub.clearFilters" hideSecondary />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </TileTooltipProvider>
   );
 };
+
+function FilterButton({
+  active,
+  icon: Icon,
+  label,
+  ariaLabel,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  icon: LucideIcon;
+  label: React.ReactNode;
+  ariaLabel: string;
+  count: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      aria-pressed={active}
+      className={`inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-xs font-medium transition-colors ${active ? 'bg-paper-3 text-ink shadow-sm' : 'text-mute hover:text-ink'}`}
+    >
+      <Icon size={13} aria-hidden />
+      <span className="hidden sm:inline">{label}</span>
+      <span className={`font-mono text-[10px] ${active ? 'text-accent' : 'text-mute'}`}>{count}</span>
+    </button>
+  );
+}
 
 interface SectionProps {
   byGroup: Record<TileGroup, Annotated[]>;
@@ -174,16 +283,17 @@ interface SectionProps {
   onSelectTile: (t: any) => void;
   actorId?: number;
   currentUser: any;
+  disableSort: boolean;
   onOrderChange: (group: string, ids: string[]) => void;
   onResetGroup: (group: string) => void;
 }
 
 const Section: React.FC<SectionProps> = ({
   byGroup, userOrder, activeTileId, onSelectTile,
-  actorId, currentUser, onOrderChange, onResetGroup,
+  actorId, currentUser, disableSort, onOrderChange, onResetGroup,
 }) => {
   return (
-    <section className="panel space-y-6 p-4 sm:p-5">
+    <section className="space-y-8">
       {GROUP_ORDER.map((group) => {
         const items = byGroup[group] ?? [];
         if (items.length === 0) return null;
@@ -191,12 +301,15 @@ const Section: React.FC<SectionProps> = ({
         const orderKey = (userOrder[group] ?? []).join('|') || '__default__';
         const GroupIcon = groupIcon(group);
         return (
-          <div key={group} className="space-y-2">
-            <div className="flex items-center gap-1.5">
-              <GroupIcon size={14} aria-hidden className="text-mute" />
-              <span className="text-xs font-mono font-bold uppercase tracking-widest text-mute">
+          <div key={group} className="space-y-3">
+            <div className="flex items-center gap-2 border-b border-rule/70 pb-2.5">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-rule bg-paper-2/45 text-mute">
+                <GroupIcon size={13} aria-hidden />
+              </span>
+              <span className="text-xs font-semibold uppercase tracking-[0.13em] text-ink-2">
                 <T id={GROUP_LABEL[group].id} hideSecondary />
               </span>
+              <span className="font-mono text-[10px] text-mute">{items.length}</span>
               {custom ? (
                 <button
                   type="button"
@@ -217,6 +330,7 @@ const Section: React.FC<SectionProps> = ({
               actorId={actorId}
               targetLabel={targetLabel}
               currentUser={currentUser}
+              disabled={disableSort}
               onOrderChange={onOrderChange}
             />
           </div>

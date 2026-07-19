@@ -129,8 +129,8 @@ export function parseDate(text: string, baseDate?: string | null): string | null
   const ymd = effective.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
   if (ymd) {
     let y = parseInt(ymd[1], 10);
-    let m = parseInt(ymd[2], 10) - 1;
-    let d = parseInt(ymd[3], 10);
+    const m = parseInt(ymd[2], 10) - 1;
+    const d = parseInt(ymd[3], 10);
     if (y >= 2400) y -= 543;
     const obj = new Date(y, m, d);
     if (!isNaN(obj.getTime())) return formatDate(obj);
@@ -138,8 +138,8 @@ export function parseDate(text: string, baseDate?: string | null): string | null
 
   const dmy = effective.match(/^(\d{1,2})[-/ ](\d{1,2})[-/ ](\d{4})$/);
   if (dmy) {
-    let d = parseInt(dmy[1], 10);
-    let m = parseInt(dmy[2], 10) - 1;
+    const d = parseInt(dmy[1], 10);
+    const m = parseInt(dmy[2], 10) - 1;
     let y = parseInt(dmy[3], 10);
     if (y >= 2400) y -= 543;
     const obj = new Date(y, m, d);
@@ -157,8 +157,8 @@ export function parseDate(text: string, baseDate?: string | null): string | null
   const digits = effective.match(/\d+/g);
   if (digits) {
     if (digits.length === 3) {
-      let d = parseInt(digits[0], 10);
-      let m = parseInt(digits[1], 10) - 1;
+      const d = parseInt(digits[0], 10);
+      const m = parseInt(digits[1], 10) - 1;
       let y = parseInt(digits[2], 10);
       if (y < 100) y += 2000;
       if (y >= 2400) y -= 543;
@@ -167,7 +167,7 @@ export function parseDate(text: string, baseDate?: string | null): string | null
     } else if (digits.length === 2) {
       const d = parseInt(digits[0], 10);
       let m = parseInt(digits[1], 10) - 1;
-      let y = currentYear;
+      const y = currentYear;
       if (monthIdx !== -1) m = monthIdx - 1;
       const obj = new Date(y, m, d);
       if (!isNaN(obj.getTime())) return formatDate(obj);
@@ -520,7 +520,7 @@ export function transition(input: TransitionInput): TransitionResult {
       return {
         responseType: 'execute_sql',
         replyMessages: textReply(
-          `✅ ส่งคำขอลาหยุดเรียบร้อยแล้ว!\n\n📋 รายละเอียดคำขอ:\n- ประเภท: ${nextTd.leave_type_thai}\n- ระยะเวลา: ${nextTd.start_date} ถึง ${nextTd.end_date} (${nextTd.days} วัน)\n- เหตุผล: ${nextTd.reason}\n- 🏥 ใบรับรองแพทย์: ${certNote}\n\nคำขอของคุณได้รับการบันทึกเข้าระบบแล้ว`,
+          `✅ ส่งคำขอลาหยุดเรียบร้อยแล้ว!\n\n📋 รายละเอียดคำขอ:\n- ประเภท: ${nextTd.leave_type_thai}\n- ระยะเวลา: ${nextTd.start_date} ถึง ${nextTd.end_date} (${nextTd.days} วัน)\n- เหตุผล: ${finalReason}\n- 🏥 ใบรับรองแพทย์: ${certNote}\n\nคำขอของคุณได้รับการบันทึกเข้าระบบแล้ว`,
         ),
         nextState: 'idle',
         nextTempData: {},
@@ -532,7 +532,7 @@ export function transition(input: TransitionInput): TransitionResult {
 
   if (nlp.intent === 'request_leave') {
     const today = formatDate(todayBangkok());
-    let nextTd: TempData = {
+    const nextTd: TempData = {
       leave_type: nlp.leave_type || undefined,
       leave_type_thai: nlp.leave_type ? getLeaveTypeThai(nlp.leave_type) || undefined : undefined,
       start_date: nlp.start_date || undefined,
@@ -561,7 +561,6 @@ export function transition(input: TransitionInput): TransitionResult {
       const guard = approveQuotaGuard(nextTd.leave_type!, nextTd.days!, quota);
       if (guard) return guard;
       if (nextTd.leave_type === 'sick' && (nextTd.days ?? 0) > 2) return sickCertPrompt(nextTd);
-      const days = nextTd.days!;
       return submitNow(nextTd);
     }
 

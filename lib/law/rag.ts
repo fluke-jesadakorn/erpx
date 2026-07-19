@@ -17,11 +17,11 @@ interface SearchRow {
   file_name: string;
 }
 
-export async function search(queryText: string, k = 5): Promise<ContractChunk[]> {
+export async function search(queryText: string, k = 5, actorId?: number): Promise<ContractChunk[]> {
   const text = queryText.trim();
   if (!text) return [];
   const limit = Math.min(Math.max(Math.floor(k), 1), 20);
-  const embedding = await embedChunk(text);
+  const embedding = await embedChunk(text, actorId);
   const vector = `[${embedding.join(',')}]`;
   const r = await query<SearchRow>(
     `SELECT ch.id, ch.contract_id, ch.chunk_index, ch.content, ch.token_count,
@@ -52,10 +52,11 @@ export async function search(queryText: string, k = 5): Promise<ContractChunk[]>
 
 export async function ask(
   queryText: string,
+  actorId?: number,
 ): Promise<{ answer: string; sources: ContractChunk[] }> {
   const text = queryText.trim();
   if (!text) throw new Error('Query is required');
-  const sources = await search(text, 5);
+  const sources = await search(text, 5, actorId);
   if (sources.length === 0) {
     return {
       answer: 'ไม่พบข้อมูลที่เกี่ยวข้องในเอกสารกฎหมายที่พร้อมใช้งาน',
@@ -75,7 +76,7 @@ export async function ask(
     temperature: 0.1,
     systemPrompt: 'คุณเป็นผู้ช่วยด้านเอกสารกฎหมาย ตอบเป็นภาษาไทยโดยใช้เฉพาะบริบทที่ให้มา หากบริบทไม่เพียงพอให้ระบุว่าไม่พบข้อมูล และอ้างอิงแหล่งที่มาในรูป [เลข] เสมอ',
     text: `บริบท:\n${context}\n\nคำถาม: ${text}`,
-  });
+  }, { actorId });
   if (!r.ok || !r.text) throw new Error(r.error || 'RAG answer failed');
   return { answer: r.text, sources };
 }

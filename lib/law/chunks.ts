@@ -53,9 +53,9 @@ export function chunkText(text: string, size = 512, overlap = 64): string[] {
   return chunks;
 }
 
-export async function embedChunk(text: string): Promise<number[]> {
+export async function embedChunk(text: string, actorId?: number): Promise<number[]> {
   const model = process.env.OLLAMA_EMBED_MODEL || process.env.EMBED_MODEL || 'bge-m3';
-  const r = await invoke('law:contracts', 'embed', { text, modelOverride: model });
+  const r = await invoke('law:contracts', 'embed', { text, modelOverride: model }, { actorId });
   if (!r.ok || !r.embedding) throw new Error(r.error || 'Embedding failed');
   if (r.embedding.length !== 1024) {
     throw new Error(`Expected 1024 embedding dimensions, received ${r.embedding.length}`);

@@ -103,7 +103,14 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
 
     const disabled = !ocr.pendingFile || ocr.phase === 'confirming';
     const handleConfirmRef = useRef<() => Promise<void>>(() => Promise.resolve());
-    useImperativeHandle(ref, () => ({ submit: () => handleConfirmRef.current() }), []);
+    useImperativeHandle(
+      ref,
+      () => ({
+        submit: () => handleConfirmRef.current(),
+        extract: ocr.extract,
+      }),
+      [ocr.extract],
+    );
 
     const confPct = Math.round(ocr.confidence * 100);
     const pendingKind = ocr.pendingFile ? fileKind(ocr.pendingFile.type, ocr.pendingFile.name) : '';
@@ -251,7 +258,7 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                   </div>
                 )}
 
-                {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
+                {ocr.pendingFile && ocr.extractionState !== 'running' && (
                   <div className="flex flex-wrap items-center gap-2 pt-2">
                     <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-3/40">
                       <span className="text-[10px] font-sans tabular-nums uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
@@ -267,6 +274,9 @@ export const BookBankUpload = forwardRef<SlipUploadHandle, BookBankUploadProps>(
                         buttonTestId="slip-vision-model-trigger"
                       />
                     </div>
+                    {ocr.visionModels.length === 0 && (
+                      <span className="text-xs text-caution-strong">No vision models configured by IT.</span>
+                    )}
                     {ocr.extractionState === 'pending' && (
                       <button
                         type="button"

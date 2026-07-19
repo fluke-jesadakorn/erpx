@@ -21,8 +21,8 @@ export interface RagAnswer {
 
 const EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || process.env.EMBED_MODEL || 'bge-m3';
 
-async function embed(text: string): Promise<number[] | null> {
-  const r = await aiInvoke('finance:rag', 'embed', { text, modelOverride: EMBED_MODEL });
+async function embed(text: string, actorId?: number): Promise<number[] | null> {
+  const r = await aiInvoke('finance:rag', 'embed', { text, modelOverride: EMBED_MODEL }, { actorId });
   if (!r.ok || !r.embedding) return null;
   if (r.embedding.length !== 1024) {
     throw new Error(`Expected 1024 embedding dimensions, got ${r.embedding.length}`);
@@ -83,9 +83,10 @@ export async function searchVendors(args: {
   dateTo?: string | null;
   amountMin?: number | null;
   amountMax?: number | null;
+  actorId?: number;
 }): Promise<RagHit[]> {
   const k = Math.min(Math.max(args.k ?? 10, 1), 50);
-  const embedding = await embed(args.query);
+  const embedding = await embed(args.query, args.actorId);
   if (!embedding) return [];
   const vec = `[${embedding.join(',')}]`;
   const ctx = await loadActorScope();
@@ -124,8 +125,8 @@ export async function searchVendors(args: {
   }));
 }
 
-export async function askFinance(question: string, lang: 'en' | 'th' | 'de' = 'en'): Promise<RagAnswer | null> {
-  const hits = await searchVendors({ query: question, k: 8 });
+export async function askFinance(question: string, lang: 'en' | 'th' | 'de' = 'en', actorId?: number): Promise<RagAnswer | null> {
+  const hits = await searchVendors({ query: question, k: 8, actorId });
   if (hits.length === 0) {
     return {
       question,
@@ -153,7 +154,7 @@ export async function askFinance(question: string, lang: 'en' | 'th' | 'de' = 'e
     text: `Context:\n${context}\n\nQuestion: ${question}`,
     temperature: 0.1,
     maxTokens: 600,
-  });
+  }, { actorId });
 
   if (!r.ok || !r.text) return null;
   return { question, answer: r.text, hits };

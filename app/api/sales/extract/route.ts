@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: 'missing text' }, { status: 400 });
   }
   const lang = (body.lang ?? 'en') as 'en' | 'th' | 'de';
-  const draft = await extractSoFromText(body.text, lang);
+  const draft = await extractSoFromText(body.text, lang, actor.id);
   if (!draft) return NextResponse.json({ ok: true, draft: null });
   return NextResponse.json({ ok: true, draft });
 }

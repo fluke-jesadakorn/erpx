@@ -8,7 +8,7 @@ import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { query } from '@/db';
 import {
-  signSession, SESSION_COOKIE, SESSION_TTL_SECONDS, safeEqual, mintSessionId,
+  signSession, SESSION_COOKIE, SESSION_TTL_SECONDS, safeEqual, mintSessionId, verifySession,
 } from '@/server/sessionToken';
 
 export const runtime = 'nodejs';
@@ -41,7 +41,7 @@ export async function POST(req: Request) {
               WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
               LIMIT 1) AS role_id
        FROM users u
-      WHERE u.id = $1`,
+      WHERE u.id = $1 AND u.is_active IS TRUE`,
     [id],
   );
   if (!r.rows.length) return NextResponse.json({ error: 'user not found' }, { status: 404 });
@@ -74,6 +74,12 @@ export async function POST(req: Request) {
   );
   const permissions = permRows.map((p) => p.permission_id);
 
+  const c = await cookies();
+  const previous = await verifySession(c.get(SESSION_COOKIE)?.value ?? null);
+  if (previous) {
+    await query(`UPDATE auth.sessions SET revoked_at = now() WHERE id = $1`, [previous.id]).catch(() => {});
+  }
+
   const sid = mintSessionId();
   await query(
     `INSERT INTO auth.sessions (id, user_id, role, expires_at)
@@ -88,7 +94,6 @@ export async function POST(req: Request) {
     impersonatorUserId: null,
   });
 
-  const c = await cookies();
   c.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',

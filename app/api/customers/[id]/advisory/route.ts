@@ -16,7 +16,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json({ ok: false, error: 'invalid id' }, { status: 400 });
   }
   const lang = (new URL(req.url).searchParams.get('lang') ?? 'en') as 'en' | 'th' | 'de';
-  const advisory = await getCustomerAdvisory(customerId, { lang });
+  const advisory = await getCustomerAdvisory(customerId, { lang, actorId: actor.id });
   if (!advisory) return NextResponse.json({ ok: true, advisory: null });
   return NextResponse.json({ ok: true, advisory });
 }

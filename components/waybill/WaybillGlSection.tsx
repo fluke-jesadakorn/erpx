@@ -48,7 +48,7 @@ function DraftChip() {
 }
 
 function ExpenseBodyInlineBadges({ j }: { j: ExpenseJournalView }) {
-  return <>{j.draft && <DraftChip />}</>;
+  return <>{(j.accrual.draft || j.settlement.draft) && <DraftChip />}</>;
 }
 
 function ProcurementBodyInlineBadges({ j, locale }: { j: ProcurementJournalView; locale: Locale }) {
@@ -120,6 +120,7 @@ export function WaybillGlSection(props: Props) {
   const isExpense = props.journal.kind === 'expense';
   const isSales = props.journal.kind === 'sales';
   const isProcurement = !isExpense && !isSales;
+  const expense = isExpense ? props.journal as ExpenseJournalView : null;
 
   const title = isExpense
     ? <T id="waybill.gl.journal" locale={locale} />
@@ -153,7 +154,7 @@ export function WaybillGlSection(props: Props) {
           </div>
           <div className="flex items-center gap-2">
             {isExpense ? (
-              <ExpenseBodyInlineBadges j={props.journal as unknown as ExpenseJournalView} />
+              <ExpenseBodyInlineBadges j={expense!} />
             ) : isSales ? (
               <SalesBodyInlineBadges j={props.journal as unknown as SalesJournalView} locale={locale} />
             ) : (
@@ -169,17 +170,38 @@ export function WaybillGlSection(props: Props) {
       </summary>
 
       {isExpense ? (
-        <ExpenseGlPostConfirm
-          waybillId={props.waybillId}
-          journal={props.journal as unknown as ExpenseJournalView}
-          canFinalApprove={props.canFinalApprove ?? false}
-          canConfirmGl={props.canConfirmGl ?? false}
-          canEditDraft={props.canEditDraft ?? false}
-          isFinalApproval={props.isFinalApproval ?? false}
-          isDisbursed={props.isDisbursed ?? false}
-          actorCanSeeLines={props.actorCanSeeLines}
-          locale={locale}
-        />
+        <div className="space-y-5 p-4">
+          <section className="space-y-2">
+            <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-info">Accrual · Expense / VAT / payable</h3>
+            <ExpenseGlPostConfirm
+              waybillId={props.waybillId}
+              journal={expense!.accrual}
+              canFinalApprove={props.canFinalApprove ?? false}
+              canConfirmGl={false}
+              canEditDraft={props.canEditDraft ?? false}
+              isFinalApproval={props.isFinalApproval ?? false}
+              isDisbursed={false}
+              actorCanSeeLines={props.actorCanSeeLines}
+              locale={locale}
+            />
+          </section>
+          {(expense!.settlement.draft || expense!.settlement.posted) && (
+            <section className="space-y-2 border-t border-rule pt-5">
+              <h3 className="font-mono text-xs font-bold uppercase tracking-widest text-caution-strong">Settlement · Payable / bank</h3>
+              <ExpenseGlPostConfirm
+                waybillId={props.waybillId}
+                journal={expense!.settlement}
+                canFinalApprove={false}
+                canConfirmGl={props.canConfirmGl ?? false}
+                canEditDraft={false}
+                isFinalApproval={false}
+                isDisbursed={props.isDisbursed ?? false}
+                actorCanSeeLines={props.actorCanSeeLines}
+                locale={locale}
+              />
+            </section>
+          )}
+        </div>
       ) : isSales ? (
         <SalesAccrualForm
           waybillId={props.waybillId}

@@ -61,7 +61,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_law_contracts_doc_no ON law.contracts (doc
 CREATE OR REPLACE FUNCTION law.next_doc_seq() RETURNS TEXT AS $$ ... $$ LANGUAGE plpgsql;
 ```
 
-ดู schema ปัจจุบันใน `folio/db/05_law/001_schema.sql`.
+ดู schema ปัจจุบันใน `folio/db/schema.sql`.
 
 ## Service management (host-native launchd)
 

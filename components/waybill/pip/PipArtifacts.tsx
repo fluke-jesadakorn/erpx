@@ -79,7 +79,7 @@ export function PipArtifacts({
     }
   }
 
-  if (pip.key === 'accounting_authorization') {
+  if (pip.key === 'accounting_approval' || pip.key === 'accounting_authorization') {
     if (isProcurementArtifacts) {
       const a = artifacts as ProcurementArtifacts;
       if (a.po) {
@@ -91,7 +91,7 @@ export function PipArtifacts({
             artifact={{
               id: a.po.po_number,
               status: a.po.status,
-              href: `/po/${a.po.id}`,
+              href: `/api/waybill/${waybillId}/po`,
               finalizedAt: a.po.issued_at,
               finalizedByName: a.po.issuer_name ?? null,
             }}
@@ -136,7 +136,7 @@ export function PipArtifacts({
             artifact={{
               id: a.po.po_number,
               status: a.po.status,
-              href: `/po/${a.po.id}`,
+              href: `/api/waybill/${waybillId}/po`,
               finalizedAt: a.po.issued_at,
               finalizedByName: a.po.issuer_name ?? null,
             }}
@@ -173,7 +173,7 @@ export function PipArtifacts({
     }
   }
 
-  if (pip.key === 'awaiting_disbursement') {
+  if (pip.key === 'payment' || pip.key === 'awaiting_disbursement') {
     if (isProcurementArtifacts) {
       const a = artifacts as ProcurementArtifacts;
       if (a.paySlip) {
@@ -228,7 +228,7 @@ export function PipArtifacts({
     }
   }
 
-  if (pip.key === 'disbursed' || pip.key === 'cfo_authorization') {
+  if (pip.key === 'settlement' || pip.key === 'disbursed' || pip.key === 'cfo_authorization') {
     if (isProcurementArtifacts) {
       const a = artifacts as ProcurementArtifacts;
       if (a.glSettlement) {

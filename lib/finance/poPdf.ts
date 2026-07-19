@@ -6,7 +6,7 @@
 import 'server-only';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { query } from '../db';
-import { put, presignedGetUrl } from '../slips/storage';
+import { exists, put } from '../slips/storage';
 
 export interface PoLineItem {
   description: string;
@@ -110,6 +110,7 @@ export async function buildPoBuffer(po: PoData): Promise<Buffer> {
 }
 
 interface PoRow {
+  po_id: number;
   po_number: string;
   vendor_name: string | null;
   total_amount: string | null;
@@ -119,11 +120,13 @@ interface PoRow {
 
 export async function loadPoRowFor(waybillId: string): Promise<PoRow | null> {
   const r = await query<PoRow>(
-    `SELECT po.po_number, e.vendor_name, po.total_amount::text AS total_amount,
+    `SELECT po.id AS po_id, po.po_number, coalesce(po.vendor_name, e.vendor_name) AS vendor_name,
+            po.total_amount::text AS total_amount,
             po.currency, u.fullname AS requester_name
        FROM waybills wb
        LEFT JOIN expenses e ON e.id = wb.origin_id AND wb.origin = 'expense'
-       LEFT JOIN purchase_orders po ON po.id = wb.origin_id AND wb.origin = 'po'
+       LEFT JOIN purchase_orders po
+         ON po.id = CASE WHEN wb.origin = 'po' THEN wb.origin_id ELSE e.po_id END
        LEFT JOIN users u
          ON u.id = CASE WHEN wb.origin = 'expense' THEN e.submitter_id ELSE po.issued_by END
       WHERE wb.id = $1
@@ -140,6 +143,11 @@ export async function generatePoPdf(
 ): Promise<string> {
   const row = await loadPoRowFor(waybillId);
   if (!row) throw new Error(`PO not generated yet for ${waybillId}`);
+  const items = await query<{ description: string; qty: string; unit_price: string }>(
+    `SELECT description, qty::text, unit_price::text
+       FROM po_items WHERE po_id = $1 ORDER BY id`,
+    [row.po_id],
+  );
   const total = row.total_amount != null ? parseFloat(row.total_amount) : null;
   const data: PoData = {
     waybillId,
@@ -147,7 +155,12 @@ export async function generatePoPdf(
     vendorName: row.vendor_name ?? '',
     totalAmount: total,
     currency: row.currency ?? 'THB',
-    lineItems: [],
+    lineItems: items.rows.map((item) => ({
+      description: item.description,
+      quantity: Number(item.qty),
+      unitPrice: Number(item.unit_price),
+      amount: Math.round(Number(item.qty) * Number(item.unit_price) * 100) / 100,
+    })),
     requestedBy: row.requester_name ?? '',
     approvedBy: approvedByName,
     approvedAt: new Date(),
@@ -160,10 +173,6 @@ export async function generatePoPdf(
 
 export async function ensurePoPdf(waybillId: string, approvedByName: string): Promise<string> {
   const key = poStorageKey(waybillId);
-  try {
-    await presignedGetUrl(key, 60);
-    return key;
-  } catch {
-    return await generatePoPdf(waybillId, approvedByName);
-  }
+  if (await exists(key)) return key;
+  return generatePoPdf(waybillId, approvedByName);
 }

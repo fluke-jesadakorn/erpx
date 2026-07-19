@@ -14,7 +14,7 @@ import { reCallWaybillAction } from '@/waybill/recall-action';
 import { hasPermission, resolveNextStage } from '@folio-lib/perm/server';
 import { PERM } from '@folio-lib/perm/taxonomy';
 import { loadActor, type ActorWithScope } from '@/server/guard';
-import { ensureGlForExpense, ensurePoForExpense as ensurePoForExpenseWithClient } from '@/waybill/ensureArtifacts';
+import { ensureGlForExpense, ensurePoForExpense as ensurePoForExpenseWithClient, ensurePrForExpense } from '@/waybill/ensureArtifacts';
 import { ensurePoPdf } from '@/finance/poPdf';
 import { upsertDraftJournal, finalizeDraftJournal, saveDraftJournalLines, setExpenseJournalEntry, validateJournalLines, type DraftGlLine } from '@/finance/postExpenseToGL';
 import { upsertProcurementDraftAccrual } from '@/finance/postProcurementToGL';
@@ -161,7 +161,9 @@ async function approveExpenseWaybill(actor: ActorWithScope, wb: WbForCheck): Pro
         ORDER BY id DESC LIMIT 1`,
       [ctx.expenseId],
     );
-    if (!draft.rows[0]) throw new Error('Ask AI or enter a balanced accrual draft before submitting review');
+    if (!draft.rows[0]) {
+      redirect(`/waybill/${wb.id}/gl?notice=missing-accrual-draft`);
+    }
     const lines = await _query<DraftGlLine>(
       `SELECT account_code, debit::float8 AS debit, credit::float8 AS credit,
               COALESCE(description, '') AS description
@@ -191,6 +193,8 @@ async function approveExpenseWaybill(actor: ActorWithScope, wb: WbForCheck): Pro
       });
       if (!finalized) throw new Error('A reviewed and balanced accrual draft is required');
       journalId = finalized.journalId;
+      await ensurePrForExpense(q, ctx.expenseId);
+      await ensurePoForExpenseWithClient(q, ctx.expenseId);
     }
     await q(
       `UPDATE expenses SET status = $1, journal_entry_id = COALESCE($2, journal_entry_id), updated_at = now()
@@ -291,6 +295,7 @@ export async function approveWaybillAction(formData: FormData): Promise<void> {
   const next = resolveNextStage(currentStage, actor.role_name, undefined, domain);
   if (!next) throw new Error(`No next stage from "${currentStage}"`);
 
+  let shouldGeneratePo = false;
   await withTransaction(async (q) => {
     if (wb.origin === 'expense') {
       await q(
@@ -378,15 +383,18 @@ export async function approveWaybillAction(formData: FormData): Promise<void> {
       next.stage === 'accounting_authorization' &&
       (wb.origin === 'expense' || wb.origin === 'po' || wb.origin === 'pr')
     ) {
-      const actorName = String(actor.role_name ?? 'system');
-      const { rows: actorRows } = await q<{ fullname: string }>(
-        `SELECT fullname FROM users WHERE id = $1`,
-        [actor.id],
-      );
-      const fullname = actorRows[0]?.fullname ?? actorName;
-      await ensurePoPdf(wb.id, fullname);
+      shouldGeneratePo = true;
     }
   });
+
+  if (shouldGeneratePo) {
+    const actorName = String(actor.role_name ?? 'system');
+    const { rows: actorRows } = await _query<{ fullname: string }>(
+      `SELECT fullname FROM users WHERE id = $1`,
+      [actor.id],
+    );
+    await ensurePoPdf(wb.id, actorRows[0]?.fullname ?? actorName);
+  }
 
   revalidatePath(`/waybill/${wb.id}`);
   redirect(`/waybill/${wb.id}`);
@@ -765,13 +773,26 @@ export async function confirmGlRecordedAction(formData: FormData): Promise<void>
     if (locked.rows[0]?.current_stage !== 'settlement') {
       throw new Error('Expense stage changed; refresh and try again');
     }
-    const finalized = await finalizeDraftJournal({
-      expenseId: wb.origin_id,
-      actorId: actor.id,
-      step: 'settlement',
-      client: q as typeof _query,
-    });
-    if (!finalized) throw new Error('A reviewed and balanced settlement draft is required');
+    const payable = await q<{ status: string; open_foreign: string }>(
+      `SELECT status, open_foreign::text
+         FROM finance.ap_documents
+        WHERE source_type = 'expense' AND source_id = $1
+        ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+      [String(wb.origin_id)],
+    );
+    if (!payable.rows[0] || payable.rows[0].status !== 'paid' || Math.abs(Number(payable.rows[0].open_foreign)) > 0.005) {
+      throw new Error('The expense payable must be fully allocated before settlement confirmation');
+    }
+    const payments = await q<{ journal_id: string }>(
+      `SELECT ep.journal_id::text
+         FROM expense_payments ep
+         JOIN finance.journals j ON j.id = ep.journal_id AND j.status = 'posted'
+        WHERE ep.expense_id = $1
+        ORDER BY ep.id`,
+      [wb.origin_id],
+    );
+    if (!payments.rows.length) throw new Error('No posted payment journal is available for settlement');
+    const journalIds = payments.rows.map((item) => Number(item.journal_id));
     await q(
       `UPDATE expenses SET status = 'completed',
                            gl_confirmed_at = now(),
@@ -800,7 +821,7 @@ export async function confirmGlRecordedAction(formData: FormData): Promise<void>
       stageTo: 'completed',
       actorId: actor.id,
       actorRole: actor.role_name ?? 'finance',
-      payload: { expenseId: wb.origin_id, journalId: finalized.journalId },
+      payload: { expenseId: wb.origin_id, journalIds },
       client: q as never,
     });
     await recordEvent({
@@ -810,7 +831,7 @@ export async function confirmGlRecordedAction(formData: FormData): Promise<void>
       stageTo: 'completed',
       actorId: actor.id,
       actorRole: actor.role_name,
-      payload: { journalId: finalized.journalId },
+      payload: { journalIds },
       client: q as never,
     });
   });
@@ -1064,12 +1085,17 @@ export async function recomputeExpenseDraftGlAction(formData: FormData): Promise
   if (expRes.rows.length === 0) throw new Error('Expense not found');
 
   const step = flow.stage === 'settlement' ? 'settlement' : 'accrual';
-  const ai = await aiInvoke('finance:rag', 'chat', {
-    actorId: actor.id,
-    temperature: 0,
-    systemPrompt: 'Draft a balanced Thai expense journal using only valid chart-of-accounts codes. Never post. Return a concise explanation of debit and credit choices.',
-    text: `${step} journal for EXP-${wb.origin_id}, payee ${expRes.rows[0].vendor_name ?? 'employee'}, amount THB ${flow.amount}`,
+  const candidate = await upsertDraftJournal({
+    expenseId: wb.origin_id,
+    vendorName: expRes.rows[0].vendor_name ?? '',
+    step,
+    preparedBy: actor.id,
   });
+  const ai = await aiInvoke('finance:rag', 'chat', {
+    temperature: 0,
+    systemPrompt: 'Review the supplied balanced Thai expense journal candidate. Explain why each debit and credit is appropriate, flag any concern, and never post or reverse the debit/credit direction. Return concise advice for a human accountant.',
+    text: `${step} journal for EXP-${wb.origin_id}, payee ${expRes.rows[0].vendor_name ?? 'employee'}, amount THB ${flow.amount}. Candidate lines: ${JSON.stringify(candidate.lines)}`,
+  }, { actorId: actor.id });
   await upsertDraftJournal({
     expenseId: wb.origin_id,
     vendorName: expRes.rows[0].vendor_name ?? '',
@@ -1081,7 +1107,8 @@ export async function recomputeExpenseDraftGlAction(formData: FormData): Promise
     aiConfidence: ai.ok && ai.text ? 0.7 : 0,
   });
   revalidatePath(`/waybill/${wb.id}`);
-  redirect(`/waybill/${wb.id}`);
+  revalidatePath(`/waybill/${wb.id}/gl`);
+  redirect(`/waybill/${wb.id}/gl?notice=ai-draft-ready`);
 }
 
 export async function saveExpenseDraftGlAction(formData: FormData): Promise<void> {
@@ -1118,6 +1145,7 @@ export async function saveExpenseDraftGlAction(formData: FormData): Promise<void
     actorId: actor.id,
     lines,
   });
+  revalidatePath(`/waybill/${wb.id}`);
   revalidatePath(`/waybill/${wb.id}/gl`);
-  redirect(`/waybill/${wb.id}/gl`);
+  redirect(`/waybill/${wb.id}/gl?notice=draft-saved`);
 }

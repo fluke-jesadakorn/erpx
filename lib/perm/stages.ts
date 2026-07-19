@@ -169,7 +169,6 @@ const STAGE_DEPARTMENT: Record<string, string> = {
   awaiting_disbursement: 'finance',
   disbursed: 'finance',
   so_draft: 'sales',
-  so_sales_review: 'sales',
   so_credit_check: 'accounting',
   so_invoiced: 'accounting',
   so_paid: 'finance',

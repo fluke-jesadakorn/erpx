@@ -29,7 +29,7 @@ export interface SoItemRow {
 
 interface Props {
   lang: 'en' | 'th' | 'de';
-  onUse: (draft: ExtractedDraft) => void;
+  onUse?: (draft: ExtractedDraft) => void;
   waybillId?: string;
   soId?: number;
   soItems?: SoItemRow[];
@@ -39,7 +39,7 @@ interface Props {
 
 export function SalesExtractPanel({
   lang,
-  onUse,
+  onUse = () => {},
   waybillId,
   soId,
   soItems = [],

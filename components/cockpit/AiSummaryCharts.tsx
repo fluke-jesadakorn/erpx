@@ -120,7 +120,7 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
               <button
                 type="button"
                 onClick={generate}
-                className="rounded-md bg-accent-strong hover:bg-accent disabled:opacity-50 text-ink text-xs font-bold px-4 py-2"
+                className="action-button rounded-md bg-action hover:bg-action-hover disabled:opacity-50 text-action-ink text-xs font-bold px-4 py-2"
               >
                 <T id="cockpit.regenerate" />
               </button>
@@ -130,7 +130,7 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
             <button
               type="button"
               onClick={generate}
-              className="rounded-md bg-accent-strong hover:bg-accent disabled:opacity-50 text-ink text-xs font-bold px-4 py-2"
+                className="action-button rounded-md bg-action hover:bg-action-hover disabled:opacity-50 text-action-ink text-xs font-bold px-4 py-2"
             >
               <T id="common.retry" />
             </button>
@@ -151,7 +151,7 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
         <button
           type="button"
           onClick={generate}
-          className="w-full rounded-md border border-accent bg-accent-strong hover:bg-accent-strong text-accent-soft text-sm font-bold py-8 flex items-center justify-center gap-2"
+          className="action-button w-full rounded-md border border-action bg-action hover:bg-action-hover text-action-ink text-sm font-bold py-8 flex items-center justify-center gap-2"
         >
           <span className="text-2xl">✨</span>
           <span>
@@ -176,7 +176,7 @@ export function AiSummaryCharts({ actor, brief, stuck, locale = 'th' }: AiSummar
       )}
 
       {mode === 'error' && (
-        <div className="rounded-md border border-critical bg-critical-soft p-4 text-critical-soft text-xs font-mono">
+        <div className="rounded-md border border-critical bg-critical-soft p-4 text-critical-strong text-xs font-mono">
           {error || <T id="ai.explain.failed" />}
         </div>
       )}

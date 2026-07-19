@@ -6,6 +6,7 @@ import type { ChatScope } from './scope';
 import { useChatSession } from './useChatSession';
 import { MessageRenderer } from './MessageRenderer';
 import { SessionList } from './SessionList';
+import { AiModelControl } from '@/components/ai/AiModelControl';
 
 export function ChatPanel({
   scope,
@@ -19,7 +20,7 @@ export function ChatPanel({
   const [showSessions, setShowSessions] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
-  const cs = useChatSession({ scope: { tileId: scope.tileId, displayName: scope.displayName, hint: scope.hint } });
+  const cs = useChatSession({ sectionKey: scope.sectionKey, scope: { tileId: scope.tileId, displayName: scope.displayName, hint: scope.hint } });
 
   useEffect(() => {
     if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -48,33 +49,24 @@ export function ChatPanel({
         onClick={onClose}
         className="fixed inset-0 z-sticky bg-paper/30"
       />
-      <aside className="fixed right-0 top-0 bottom-0 z-fixed flex w-full max-w-md flex-col border-l border-rule bg-paper-2/95 backdrop-blur-md shadow-2xl text-ink">
-        <header className="flex items-center gap-2 border-b border-rule px-3 py-2 text-sm">
-          <span className="font-mono text-accent">
+      <aside className="fixed inset-y-0 right-0 z-fixed flex h-[100dvh] w-full max-w-none flex-col border-l border-rule bg-paper-2/95 text-ink shadow-2xl backdrop-blur-md sm:max-w-md">
+        <header className="flex flex-wrap items-center gap-2 border-b border-rule px-3 py-2 text-sm">
+          <span className="min-w-0 flex-1 truncate font-mono text-accent">
             <T id="chat.global.titleWith" values={{ scope: scope.displayName }} />
           </span>
-          <span className="ml-auto" />
-          <input
-            value={cs.model}
-            onChange={(e) => cs.setModel(e.target.value)}
-            className="w-24 rounded border border-rule bg-paper px-2 py-1 font-mono text-xs text-ink"
-            title="model"
-            aria-label="model"
-          />
-          <select
-            value={cs.thinking}
-            onChange={(e) => cs.setThinking(e.target.value as 'low' | 'medium' | 'high')}
-            className="rounded border border-rule bg-paper px-2 py-1 text-xs text-ink"
-            aria-label="thinking"
-          >
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-          </select>
+          <div className="order-3 flex min-w-0 basis-full items-center sm:order-none sm:basis-auto">
+            <AiModelControl
+              sectionKey={scope.sectionKey}
+              modelName={cs.model}
+              thinkLevel={cs.thinking}
+              onChange={(model) => cs.setModel(model.name)}
+              onThinkChange={cs.setThinking}
+            />
+          </div>
           <button
             type="button"
             onClick={() => setShowSessions((s) => !s)}
-            className="rounded border border-rule px-2 py-1 text-xs text-ink-2 hover:bg-paper-2"
+            className="shrink-0 rounded border border-rule px-2 py-1 text-xs text-ink-2 hover:bg-paper-2"
             title="sessions"
           >
             ☰
@@ -83,7 +75,7 @@ export function ChatPanel({
             type="button"
             onClick={onClose}
             aria-label="close"
-            className="text-ink-2 hover:text-ink text-lg w-8 h-8 inline-flex items-center justify-center rounded-full hover:bg-paper-2"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-lg text-ink-2 hover:bg-paper-2 hover:text-ink"
           >
             ✕
           </button>

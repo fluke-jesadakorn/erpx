@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { T } from '@/components/i18n/T';
 
 interface Props {
@@ -19,91 +19,84 @@ interface RecommendOk {
   latencyMs: number;
 }
 
-interface RecommendFail {
-  ok: false;
-  error?: string;
-}
-
 type State =
+  | { kind: 'idle' }
   | { kind: 'loading' }
   | { kind: 'ready'; data: RecommendOk }
   | { kind: 'error' };
 
-function decisionTone(d: 'approve' | 'reject'): string {
-  return d === 'approve'
-    ? 'border-positive bg-positive-strong text-positive-soft'
-    : 'border-critical bg-critical-strong text-critical-soft';
+function decisionTone(decision: 'approve' | 'reject'): string {
+  return decision === 'approve'
+    ? 'border-positive/50 bg-positive-soft text-positive'
+    : 'border-critical/50 bg-critical-soft text-critical';
 }
 
-function confidenceBarTone(c: number): string {
-  if (c >= 0.7) return 'bg-positive';
-  if (c >= 0.4) return 'bg-caution';
+function confidenceBarTone(confidence: number): string {
+  if (confidence >= 0.7) return 'bg-positive';
+  if (confidence >= 0.4) return 'bg-caution';
   return 'bg-critical';
 }
 
-function clamp01(n: number): number {
-  if (!Number.isFinite(n)) return 0;
-  if (n < 0) return 0;
-  if (n > 1) return 1;
-  return n;
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
 }
 
-export function AiRecommendChip({
-  waybillId,
-  amount,
-  currentStage,
-  vendorName,
-}: Props) {
-  const [state, setState] = useState<State>({ kind: 'loading' });
+export function AiRecommendChip({ waybillId, amount, currentStage, vendorName }: Props) {
+  const [state, setState] = useState<State>({ kind: 'idle' });
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch('/api/waybill/recommend', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            waybillId,
-            amount: amount == null ? null : Number(amount),
-            currentStage,
-            vendorName: vendorName ?? null,
-          }),
-        });
-        const data = (await res.json()) as RecommendOk | RecommendFail;
-        if (cancelled) return;
-        if (data && (data as RecommendOk).ok) {
-          const ok = data as RecommendOk;
-          const conf = clamp01(Number(ok.confidence));
-          const decision: 'approve' | 'reject' = ok.decision === 'reject' ? 'reject' : 'approve';
-          setState({
-            kind: 'ready',
-            data: {
-              ok: true,
-              decision,
-              confidence: conf,
-              rationale: ok.rationale || '',
-              modelName: ok.modelName || 'unknown',
-              latencyMs: ok.latencyMs ?? 0,
-            },
-          });
-        } else {
-          setState({ kind: 'error' });
-        }
-      } catch {
-        if (!cancelled) setState({ kind: 'error' });
+  async function load() {
+    if (state.kind === 'loading') return;
+    setState({ kind: 'loading' });
+    try {
+      const res = await fetch('/api/waybill/recommend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          waybillId,
+          amount: amount == null ? null : Number(amount),
+          currentStage,
+          vendorName: vendorName ?? null,
+        }),
+      });
+      const data = (await res.json()) as RecommendOk | { ok: false };
+      if (!res.ok || !data.ok) {
+        setState({ kind: 'error' });
+        return;
       }
+      setState({
+        kind: 'ready',
+        data: {
+          ...data,
+          decision: data.decision === 'reject' ? 'reject' : 'approve',
+          confidence: clamp01(Number(data.confidence)),
+          rationale: data.rationale || '',
+          modelName: data.modelName || 'unknown',
+          latencyMs: data.latencyMs ?? 0,
+        },
+      });
+    } catch {
+      setState({ kind: 'error' });
     }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [waybillId, amount, currentStage, vendorName]);
+  }
+
+  if (state.kind === 'idle') {
+    return (
+      <button
+        type="button"
+        onClick={() => void load()}
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-accent/50 bg-accent-soft px-3 py-2 text-xs font-semibold text-accent-ink transition hover:border-accent hover:bg-accent/15"
+      >
+        <span aria-hidden>✦</span>
+        <T id="waybill.ai.recommend" />
+      </button>
+    );
+  }
 
   if (state.kind === 'loading') {
     return (
-      <div className="inline-flex items-center gap-1.5 rounded-lg border border-rule/60 bg-paper-2/40 px-2.5 py-1 font-mono text-xs text-ink-2">
-        <span aria-hidden>🤖</span>
+      <div className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-rule bg-paper-2 px-3 py-2 text-xs text-ink-2" role="status" aria-live="polite">
+        <span aria-hidden>✦</span>
         <T id="waybill.ai.thinkingLoading" />
       </div>
     );
@@ -111,56 +104,36 @@ export function AiRecommendChip({
 
   if (state.kind === 'error') {
     return (
-      <div className="inline-flex items-center gap-1.5 rounded-lg border border-rule/60 bg-paper-2/40 px-2.5 py-1 font-mono text-xs text-ink-2">
-        <span aria-hidden>🤖</span>
+      <button
+        type="button"
+        onClick={() => void load()}
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-critical/50 bg-critical-soft px-3 py-2 text-xs font-semibold text-critical transition hover:border-critical"
+      >
+        <span aria-hidden>!</span>
         <T id="waybill.ai.unavailable" />
-      </div>
+      </button>
     );
   }
 
   const { decision, confidence, rationale, modelName, latencyMs } = state.data;
   const pct = Math.round(confidence * 100);
-  const tone = decisionTone(decision);
-  const barTone = confidenceBarTone(confidence);
-
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={`inline-flex max-w-sm flex-col gap-1 rounded-lg border px-2.5 py-1.5 font-mono text-xs ${tone}`}
-    >
-      <div className="flex items-center gap-2">
-        <span aria-hidden>🤖</span>
-        <span className="font-bold uppercase tracking-wider">
-          <T id="waybill.ai.suggests" />:
-        </span>
-        <span className="font-bold">
-          <T id={decision === 'approve' ? 'waybill.ai.approveGlyph' : 'waybill.ai.rejectGlyph'} />
-        </span>
-        <span className="font-bold">{pct}%</span>
+    <div className={`w-full rounded-lg border p-3 ${decisionTone(decision)}`} role="status" aria-live="polite">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em]">
+          <T id="waybill.ai.suggests" />: {decision === 'approve' ? '✓' : '✕'} {pct}%
+        </p>
+        <button type="button" onClick={() => void load()} className="text-xs underline-offset-2 hover:underline">
+          <T id="waybill.review.refresh" />
+        </button>
       </div>
-
-      <div className="flex items-center gap-1.5">
-        <div className="h-1 w-24 overflow-hidden rounded-full bg-paper-3/40">
-          <div
-            className={`h-full ${barTone}`}
-            style={{ width: `${pct}%` }}
-            aria-label={`confidence ${pct}%`}
-          />
-        </div>
-        <span className="text-xs uppercase tracking-widest opacity-70">
-          <T id="waybill.ai.confidence" />
-        </span>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-paper-3">
+        <div className={`h-full ${confidenceBarTone(confidence)}`} style={{ width: `${pct}%` }} />
       </div>
-
-      {rationale && (
-        <p className="font-sans text-sm leading-snug opacity-90">{rationale}</p>
-      )}
-
-      <div className="font-mono text-xs uppercase tracking-widest opacity-60">
-        model: {modelName} · {latencyMs}ms ·{' '}
-        <T id="waybill.ai.neverAutoClicks" />
-      </div>
+      {rationale && <p className="mt-2 text-sm leading-relaxed">{rationale}</p>}
+      <p className="mt-2 text-[11px] font-mono uppercase tracking-wider opacity-70">
+        {modelName} · {latencyMs}ms · <T id="waybill.ai.neverAutoClicks" />
+      </p>
     </div>
   );
 }

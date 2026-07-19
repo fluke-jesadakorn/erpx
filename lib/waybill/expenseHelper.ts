@@ -31,7 +31,7 @@ export async function helpWithExpenseSubmit(args: {
     text,
     temperature: 0.2,
     maxTokens: 300,
-  });
+  }, { actorId: args.submitterId });
 
   let description = text;
   let descriptionTh: string | null = null;

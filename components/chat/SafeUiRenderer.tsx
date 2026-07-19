@@ -70,7 +70,7 @@ function AccordionView({ node, onAction }: { node: UiAccordion; onAction?: (name
 }
 
 function ButtonView({ node, onAction }: { node: UiButton; onAction?: (name: string, payload?: Record<string, unknown>) => void }) {
-  const style = node.variant === 'primary' ? 'bg-accent text-accent-ink hover:bg-accent-strong' : node.variant === 'danger' ? 'bg-critical text-paper hover:bg-critical-strong' : 'border border-rule bg-paper text-ink-2 hover:bg-paper-3';
+  const style = node.variant === 'primary' ? 'action-button bg-action text-action-ink hover:bg-action-hover' : node.variant === 'danger' ? 'action-button bg-critical text-action-ink hover:bg-critical-strong' : 'border border-rule bg-paper text-ink-2 hover:bg-paper-3';
   return <button type="button" onClick={action(node.action, onAction)} className={cls('h-9 rounded-md px-3 text-xs font-medium', style)}>{node.label}</button>;
 }
 

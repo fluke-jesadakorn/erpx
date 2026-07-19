@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { query } from '@/db';
 import { apiGuard } from '@/server/apiGuard';
 import { PERM } from '@/perm';
+import { VISION_MODELS_CACHE_TAG } from '@/ai/loadVisionModels';
+import { revalidateTag } from 'next/cache';
 
 
 export async function GET(req: Request) {
@@ -23,6 +25,7 @@ export async function POST(req: Request) {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
     [body.section_key, body.task_type, body.provider_id, body.model_id, body.staff_id || null, JSON.stringify(body.params_json || {}), body.priority ?? 100, body.enabled !== false],
   );
+  revalidateTag(VISION_MODELS_CACHE_TAG, 'max');
   return NextResponse.json({ id: r.rows[0].id, ok: true });
 }
 
@@ -33,5 +36,6 @@ export async function DELETE(req: Request) {
   const id = url.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
   await query(`DELETE FROM ai_assignments WHERE id = $1`, [id]);
+  revalidateTag(VISION_MODELS_CACHE_TAG, 'max');
   return NextResponse.json({ ok: true });
 }

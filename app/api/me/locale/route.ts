@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { query } from '@/db';
 import { verifySession, SESSION_COOKIE } from '@/server/sessionToken';
+import { validateActiveSession } from '@/server/sessionStore';
 import { isSecondaryLocale } from '@/server/locale';
 
 export async function POST(req: Request) {
@@ -20,17 +21,18 @@ export async function POST(req: Request) {
     .get('cookie')
     ?.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`))?.[1];
   const payload = await verifySession(token ? decodeURIComponent(token) : null);
-  if (!payload) {
+  const active = payload ? await validateActiveSession(payload) : null;
+  if (!active) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
 
   await query(`UPDATE users SET secondary_locale = $1 WHERE id = $2`, [
     locale,
-    payload.sub,
+    active.sub,
   ]);
   await query(`UPDATE auth.sessions SET locale = $1 WHERE id = $2`, [
     locale,
-    payload.id,
+    active.id,
   ]);
 
   const c = await cookies();

@@ -6,6 +6,7 @@ import { deriveScope } from './scope';
 import { useChatSession } from './useChatSession';
 import { MessageRenderer } from './MessageRenderer';
 import { SessionList } from './SessionList';
+import { AiModelControl } from '@/components/ai/AiModelControl';
 
 interface Props {
   initialSessions: { id: string; userId: number; title: string; modelName: string; createdAt: string; updatedAt: string }[];
@@ -24,7 +25,7 @@ export function FullChat({ initialSessions, initialSessionId }: Props) {
     quickPrompts: [],
     sectionKey: 'chat:full',
   };
-  const cs = useChatSession({ scope: { tileId: scope.tileId, displayName: scope.displayName, hint: scope.hint } });
+  const cs = useChatSession({ sectionKey: 'chat:global', scope: { tileId: scope.tileId, displayName: scope.displayName, hint: scope.hint } });
 
   useEffect(() => {
     if (initialSessionId) {
@@ -45,7 +46,7 @@ export function FullChat({ initialSessions, initialSessionId }: Props) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] gap-3">
+    <div className="flex min-h-0 flex-1 gap-3">
       <aside className="w-64 shrink-0 overflow-y-auto rounded-md border border-rule bg-paper-2/60 p-2 text-sm">
         <SessionList
           sessions={cs.sessions.length > 0 ? cs.sessions : (initialSessions as any)}
@@ -61,7 +62,7 @@ export function FullChat({ initialSessions, initialSessionId }: Props) {
         </div>
       </aside>
 
-      <section className="flex min-w-0 flex-1 flex-col rounded-md border border-rule bg-paper-2/60">
+      <section className="flex min-w-0 min-h-0 flex-1 flex-col rounded-md border border-rule bg-paper-2/60">
         <header className="flex items-center gap-3 border-b border-rule px-4 py-2 text-sm">
           <span className="font-mono text-accent">
             <T id="chat.global.titleWith" values={{ scope: scope.displayName }} />
@@ -73,20 +74,13 @@ export function FullChat({ initialSessions, initialSessionId }: Props) {
             <label className="text-mute">
               <T id="chat.global.model" />
             </label>
-            <input
-              value={cs.model}
-              onChange={(e) => cs.setModel(e.target.value)}
-              className="w-32 rounded border border-rule bg-paper px-2 py-1 font-mono text-xs text-ink"
+            <AiModelControl
+              sectionKey="chat:global"
+              modelName={cs.model}
+              thinkLevel={cs.thinking}
+              onChange={(model) => cs.setModel(model.name)}
+              onThinkChange={cs.setThinking}
             />
-            <select
-              value={cs.thinking}
-              onChange={(e) => cs.setThinking(e.target.value as 'low' | 'medium' | 'high')}
-              className="rounded border border-rule bg-paper px-2 py-1 text-xs text-ink"
-            >
-              <option value="low">low</option>
-              <option value="medium">medium</option>
-              <option value="high">high</option>
-            </select>
           </div>
         </header>
 
@@ -148,7 +142,7 @@ export function FullChat({ initialSessions, initialSessionId }: Props) {
               <button
                 type="button"
                 onClick={cs.abort}
-                className="rounded-lg bg-critical-strong px-4 text-sm text-ink hover:bg-critical"
+                className="rounded-lg bg-critical-strong px-4 text-sm text-paper hover:bg-critical"
               >
                 <T id="chat.global.stop" />
               </button>
@@ -156,7 +150,7 @@ export function FullChat({ initialSessions, initialSessionId }: Props) {
               <button
                 type="submit"
                 disabled={!input.trim()}
-                className="rounded-lg bg-accent-strong px-4 text-sm font-medium text-ink hover:bg-accent disabled:opacity-50"
+                className="action-button rounded-lg bg-action px-4 text-sm font-medium text-action-ink hover:bg-action-hover disabled:opacity-50"
               >
                 ➤
               </button>

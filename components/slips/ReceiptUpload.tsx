@@ -66,6 +66,7 @@ export interface ReceiptUploadProps {
   onDraftStarted?: (info: { waybillId: string; expenseId: number }) => void;
   hideSubmitButton?: boolean;
   draftWaybillId?: string | null;
+  evidenceOnly?: boolean;
 }
 
 const INPUT_CLS =
@@ -91,6 +92,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
       onSubmitStateChange,
       hideSubmitButton = false,
       draftWaybillId = null,
+      evidenceOnly = false,
     },
     ref,
   ) {
@@ -98,6 +100,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
       kind: 'receipt',
       initialModels,
       currentUserId,
+      evidenceOnly,
       onSlipReady: (id, _kind, parsed) => onSlipReady?.(id, 'receipt', parsed),
       onSlipDiscarded: (id) => onSlipDiscarded?.(id, 'receipt'),
     });
@@ -191,7 +194,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
       }
       setConfirmedExpenseId(r.expenseId);
       setConfirmedStatus(r.status ?? null);
-      const lock = await getSlipLockState({ slipId: ocr.slipId, actorId: currentUserId ?? 0 });
+      const lock = await getSlipLockState({ slipId: ocr.slipId });
       ocr.setLocked(lock.locked);
       ocr.setLockReason(lock.reason);
       ocr.setPhase('confirmed');
@@ -205,12 +208,20 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
 
     const handleConfirmRef = useRef<() => Promise<void>>(() => Promise.resolve());
     handleConfirmRef.current = handleConfirm;
-    useImperativeHandle(ref, () => ({ submit: () => handleConfirmRef.current() }), []);
+    useImperativeHandle(
+      ref,
+      () => ({
+        submit: () => handleConfirmRef.current(),
+        extract: ocr.extract,
+      }),
+      [ocr.extract],
+    );
 
     const submitState: SubmitState = {
       visible: !!ocr.pendingFile && ocr.extractionState === 'done',
       canConfirm,
       confirming: ocr.phase === 'confirming',
+      extractionState: ocr.extractionState,
       pendingFile: !!ocr.pendingFile,
       isBookBank: false,
       error: ocr.error,
@@ -238,6 +249,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
       submitState.visible,
       submitState.canConfirm,
       submitState.confirming,
+      submitState.extractionState,
       submitState.pendingFile,
       submitState.error,
       submitState.hint,
@@ -416,7 +428,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   </p>
                 )}
 
-                {ocr.pendingFile && ocr.extractionState !== 'running' && ocr.visionModels.length > 0 && (
+                {ocr.pendingFile && ocr.extractionState !== 'running' && (
                   <div className="flex flex-wrap items-center gap-2 pt-2">
                     <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-3/40">
                       <span className="text-[10px] font-sans tabular-nums uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
@@ -432,17 +444,24 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                         buttonTestId="slip-vision-model-trigger"
                       />
                     </div>
-                    {ocr.extractionState === 'pending' && (
+                    {ocr.visionModels.length === 0 && (
+                      <span className="text-xs text-caution-strong">No vision models configured by IT.</span>
+                    )}
+                    {ocr.phase !== 'confirmed' && (
                       <button
                         type="button"
                         onClick={ocr.extract}
                         disabled={!ocr.selectedModel || ocr.phase === 'confirming'}
-                        title="Run OCR with the selected model"
+                        title={ocr.extractionState === 'pending' ? 'Extract with the selected model' : 'Re-extract with the selected model'}
                         data-testid="slip-extract"
                         className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 hover:bg-accent/20 text-accent px-3 py-1.5 text-xs font-sans tabular-nums font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-paper-3 disabled:border-rule-strong disabled:text-mute"
                       >
-                        <Wand2 className="size-3.5" strokeWidth={2.5} aria-hidden />
-                        <span>Extract</span>
+                        {ocr.extractionState === 'pending' ? (
+                          <Wand2 className="size-3.5" strokeWidth={2.5} aria-hidden />
+                        ) : (
+                          <RefreshCw className="size-3.5" strokeWidth={2.5} aria-hidden />
+                        )}
+                        <span>{ocr.extractionState === 'pending' ? 'Extract' : 'Re-extract'}</span>
                       </button>
                     )}
                   </div>

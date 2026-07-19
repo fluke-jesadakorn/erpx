@@ -1,15 +1,13 @@
-import React from 'react';
 import { Suspense } from 'react';
 import { headers } from 'next/headers';
+import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 import {
   loadWaybillRailContext,
   loadApproversByStage,
   loadActedUsersByStage,
-  loadJournalForWaybill,
   loadSalesArtifacts,
   loadWaybillEvents,
-  type WaybillJournalView,
 } from '@/waybill/queries';
 import { loadActor } from '@/server/guard';
 import { loadVisionModels } from '@/ai/loadVisionModels';
@@ -20,7 +18,6 @@ import { getSecondaryLocale } from '@/server/locale';
 import { pipsForDomain, pipIndex, domainForOrigin } from '@/waybill/derive';
 import { verifyEventChain } from '@/waybill/events';
 import { WaybillStepCards } from '@/components/waybill/WaybillStepCards';
-import { WaybillGlSection } from '@/components/waybill/WaybillGlSection';
 import { WaybillTimelineBigPicture } from '@/components/waybill/WaybillTimelineBigPicture';
 import { WaybillAuditSection } from '@/components/waybill/WaybillAuditSection';
 import { WaybillHeader } from '@/components/waybill/WaybillHeader';
@@ -33,6 +30,16 @@ import { NoPermissionView } from '@/components/NoPermissionView';
 import { SalesPipPanel } from './_components/SalesPipPanel';
 import { SalesExtractPanel, type SoItemRow } from '@/components/waybill/SalesExtractPanel';
 import { query } from '@/db';
+import {
+  allocateSalesReceiptAction,
+  issueSalesInvoiceAction,
+  mapSalesProductAction,
+  refundSalesCreditAction,
+  rejectSalesOrderAction,
+  reserveSalesStockAction,
+  returnSalesStockAction,
+  shipSalesStockAction,
+} from './_actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -89,18 +96,18 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
 
   const salesArtifacts = await loadSalesArtifacts(wb);
 
-  const [approversByStage, actedUsersByStage, visionModels, locale, salesJournal, events, integrity, soItemsRes, arSlipRes] = await Promise.all([
+  const [approversByStage, actedUsersByStage, visionModels, locale, events, integrity, soItemsRes, arSlipRes, productsRes, warehousesRes, officialRes, arRes, creditRes] = await Promise.all([
     loadApproversByStage(wb.id),
     loadActedUsersByStage(wb.id),
-    loadVisionModels(),
+    loadVisionModels(actor.id),
     getSecondaryLocale(),
-    loadJournalForWaybill(wb.id),
     loadWaybillEvents(wb.id),
     verifyEventChain(wb.id),
-    query<SoItemRow>(
+    query<SoItemRow & { product_id: number | null; reserved_qty: number; shipped_qty: number; invoiced_qty: number; returned_qty: number }>(
       `SELECT id, description, qty::float AS qty, unit_price::float AS unit_price,
               vat_amount::float AS vat_amount, line_total::float AS line_total,
-              mapped_revenue_account_code, confidence_score::float AS confidence_score
+              mapped_revenue_account_code, confidence_score::float AS confidence_score,
+              product_id, reserved_qty::float, shipped_qty::float, invoiced_qty::float, returned_qty::float
          FROM so_items
         WHERE sales_order_id = $1
         ORDER BY id ASC`,
@@ -110,6 +117,11 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
       `SELECT ar_slip_id FROM sales_orders WHERE id = $1`,
       [wb.origin_id],
     ),
+    query<{ id: string; sku: string; name: string }>(`SELECT id::text, sku, name FROM inventory.products WHERE active ORDER BY sku`),
+    query<{ id: string; code: string; name: string }>(`SELECT id::text, code, name FROM inventory.warehouses WHERE active ORDER BY code`),
+    query<{ id: string; journal_no: string; status: string; posting_date: string; description: string; source_type: string; total: string }>(`SELECT j.id::text, j.journal_no, j.status, j.posting_date::text, j.description, j.source_type, sum(l.debit_thb)::text AS total FROM finance.journals j JOIN finance.journal_lines l ON l.journal_id = j.id WHERE (j.source_type IN ('sales_invoice','ar_receipt','sales_credit_note') AND j.source_id = $1) OR (j.source_type = 'ar_refund' AND j.source_id IN (SELECT d.id::text FROM finance.ar_documents d JOIN finance.commercial_documents c ON c.id = d.document_id WHERE c.source_type = 'sales_return' AND c.source_id LIKE $1 || ':%')) OR (j.source_type = 'inventory_movement' AND j.metadata->>'businessSourceType' IN ('sales_order_line','sales_return_line') AND j.metadata->>'businessSourceId' IN (SELECT id::text FROM so_items WHERE sales_order_id = $2)) GROUP BY j.id ORDER BY j.posting_date, j.id`, [String(wb.origin_id), wb.origin_id]),
+    query<{ id: string; document_no: string; currency_code: string; open_foreign: string; open_thb: string; status: string }>(`SELECT d.id::text, d.document_no, d.currency_code, d.open_foreign::text, d.open_thb::text, d.status FROM finance.ar_documents d JOIN finance.commercial_documents c ON c.id = d.document_id WHERE d.document_type = 'invoice' AND c.source_type = 'sales_order' AND c.source_id = $1 ORDER BY d.id DESC LIMIT 1`, [String(wb.origin_id)]),
+    query<{ id: string; document_no: string; currency_code: string; open_foreign: string; open_thb: string; status: string }>(`SELECT d.id::text, d.document_no, d.currency_code, d.open_foreign::text, d.open_thb::text, d.status FROM finance.ar_documents d JOIN finance.commercial_documents c ON c.id = d.document_id WHERE d.document_type = 'credit_note' AND c.source_type = 'sales_return' AND c.source_id LIKE $1 || ':%' AND d.status IN ('open','partially_paid') ORDER BY d.id DESC LIMIT 1`, [String(wb.origin_id)]),
   ]);
 
   const soItems = soItemsRes.rows.map((r) => ({
@@ -125,12 +137,20 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
   const actorRole = actor.role_name;
   const session = permOut.session;
 
-  const actorCanSeeGlLines = hasPermission(session, 'finance:gl:view::allow');
   const canPostSalesGlVat = hasPermission(session, 'finance:gl:post::allow');
-  const canPostSalesGlAccrual = hasPermission(session, 'finance:gl:post::allow');
   const canPostSalesGlSettlement = hasPermission(session, 'finance:gl:post::allow');
   const canConfirmSalesGl = hasPermission(session, 'finance:gl:confirm::allow');
   const canSettle = hasPermission(session, 'finance:sales:settle::allow');
+  const canOperateInventory = hasPermission(session, 'inventory:stock:ship::allow')
+    && hasPermission(session, 'finance:journal:prepare::allow')
+    && hasPermission(session, 'finance:journal:approve::allow');
+  const canAllocateReceipt = hasPermission(session, 'finance:journal:prepare::allow')
+    && hasPermission(session, 'finance:journal:approve::allow');
+  const invoiceable = soItems.some((item) => ((item.product_id ? item.shipped_qty : item.qty) - item.invoiced_qty) > 0);
+  const canIssueInvoice = invoiceable
+    && hasPermission(session, 'finance:sales:invoice::allow')
+    && hasPermission(session, 'finance:journal:prepare::allow')
+    && hasPermission(session, 'finance:journal:approve::allow');
 
   const canRecordSalesPayment =
     hasPermission(session, PERM.admin.system.bypass) ||
@@ -204,7 +224,7 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
           />
 
           {action === 'reject' && canAct && !rejectionReason && wb.status === 'open' && (
-            <InlineActionForm kind="reject" waybillId={wb.id} stage={wb.current_stage} locale={locale} />
+            <InlineActionForm kind="reject" waybillId={wb.id} stage={wb.current_stage} locale={locale} submitAction={rejectSalesOrderAction} />
           )}
 
           <WaybillTimelineBigPicture
@@ -279,6 +299,30 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
             />
           ) : null}
 
+          <section className="panel-elevated overflow-hidden">
+            <div className="border-b border-rule px-5 py-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">Fulfillment and stock</h2><p className="text-sm text-ink-2">Map SKUs, reserve available stock, ship partially, and return against the original moving-average cost.</p></div><Link className="glass-chip px-3 py-1 text-sm" href="/inventory">Open inventory</Link></div></div>
+            <div className="divide-y divide-rule">{soItems.map((item) => <div key={item.id} className="p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-medium">{item.description}</div><div className="mt-1 font-mono text-xs text-mute">Ordered {item.qty} · Reserved {item.reserved_qty} · Shipped {item.shipped_qty} · Returned {item.returned_qty}</div></div>{hasPermission(session, 'inventory:stock:ship::allow') && <form action={mapSalesProductAction} className="flex gap-2"><input type="hidden" name="lineId" value={item.id} /><input type="hidden" name="salesOrderId" value={wb.origin_id} /><select className="rounded-md border border-rule bg-paper px-2 py-1 text-sm" name="productId" defaultValue={item.product_id ?? ''} required><option value="">Map product</option>{productsRes.rows.map((product) => <option key={product.id} value={product.id}>{product.sku} · {product.name}</option>)}</select><button className="glass-chip px-3 py-1 text-sm">Save</button></form>}</div>{item.product_id && canOperateInventory && <div className="mt-3 grid gap-3 lg:grid-cols-3"><form action={reserveSalesStockAction} className="rounded-md border border-rule bg-paper-2 p-3"><div className="text-xs font-bold uppercase text-mute">Reserve</div><input type="hidden" name="lineId" value={item.id} /><input type="hidden" name="salesOrderId" value={wb.origin_id} /><select className="field" name="warehouseId">{warehousesRes.rows.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code}</option>)}</select><input className="field" name="quantity" type="number" min="0.000001" max={item.qty - item.reserved_qty} step="0.000001" placeholder="Quantity" required /><input className="field" name="lotId" type="number" placeholder="Lot ID if required" /><button className="action-button mt-2">Reserve</button></form><form action={shipSalesStockAction} className="rounded-md border border-rule bg-paper-2 p-3"><div className="text-xs font-bold uppercase text-mute">Ship</div><input type="hidden" name="lineId" value={item.id} /><input type="hidden" name="requestKey" value={crypto.randomUUID()} /><select className="field" name="warehouseId">{warehousesRes.rows.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code}</option>)}</select><input className="field" name="movementDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /><input className="field" name="quantity" type="number" min="0.000001" max={item.qty - item.shipped_qty} step="0.000001" placeholder="Quantity" required /><input className="field" name="lotId" type="number" placeholder="Lot ID if required" /><button className="action-button mt-2">Ship & post COGS</button></form><form action={returnSalesStockAction} className="rounded-md border border-rule bg-paper-2 p-3"><div className="text-xs font-bold uppercase text-mute">Return</div><input type="hidden" name="lineId" value={item.id} /><input type="hidden" name="requestKey" value={crypto.randomUUID()} /><select className="field" name="warehouseId">{warehousesRes.rows.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.code}</option>)}</select><input className="field" name="movementDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /><input className="field" name="quantity" type="number" min="0.000001" max={item.shipped_qty - item.returned_qty} step="0.000001" placeholder="Quantity" required /><input className="field" name="lotId" type="number" placeholder="Lot ID if required" /><button className="action-button mt-2">Return & reverse COGS</button></form></div>}</div>)}</div>
+          </section>
+
+          <section className="panel-elevated overflow-hidden"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-5 py-4"><div><h2 className="text-lg font-bold">Accounting effect</h2><p className="text-sm text-ink-2">Official immutable journals generated by shipment, invoice, receipt, and return events.</p></div>{wb.current_stage === 'so_invoiced' && canIssueInvoice && <form action={issueSalesInvoiceAction}><input type="hidden" name="waybillId" value={wb.id} /><button className="action-button">Invoice newly fulfilled quantity</button></form>}</div><div className="divide-y divide-rule">{officialRes.rows.map((journal) => <Link key={journal.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 hover:bg-paper-2" href={`/ledger/${journal.id}`}><div><div className="font-mono font-bold text-accent">{journal.journal_no}</div><div className="text-sm text-ink">{journal.description}</div><div className="text-xs text-mute">{journal.posting_date} · {journal.source_type}</div></div><div className="text-right"><div className="font-mono">THB {Number(journal.total).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div><div className="text-xs font-bold text-positive">{journal.status}</div></div></Link>)}{!officialRes.rows.length && <p className="p-5 text-sm text-mute">No official accounting effects yet. Draft proposals remain outside reports.</p>}</div>{arRes.rows[0] && canAllocateReceipt && ['open','partially_paid'].includes(arRes.rows[0].status) && <form action={allocateSalesReceiptAction} className="grid gap-3 border-t border-rule p-5 sm:grid-cols-2 lg:grid-cols-5"><input type="hidden" name="salesOrderId" value={wb.origin_id} /><input type="hidden" name="requestKey" value={crypto.randomUUID()} /><label className="text-sm">Receipt date<input className="field" name="allocationDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label><label className="text-sm">Amount {arRes.rows[0].currency_code}<input className="field" name="foreignAmount" type="number" min="0.01" max={arRes.rows[0].open_foreign} step="0.01" required /></label><label className="text-sm">WHT THB<input className="field" name="whtAmountThb" type="number" min="0" step="0.01" defaultValue="0" /></label><label className="text-sm">FX to THB<input className="field" name="fxRate" type="number" min="0.0000000001" step="0.0000000001" defaultValue={arRes.rows[0].currency_code.trim() === 'THB' ? '1' : ''} /></label><button className="action-button self-end">Allocate partial receipt</button><div className="sm:col-span-2 lg:col-span-5 text-xs text-mute">{arRes.rows[0].document_no} · Open {Number(arRes.rows[0].open_foreign).toLocaleString()} {arRes.rows[0].currency_code} / THB {Number(arRes.rows[0].open_thb).toLocaleString()}</div></form>}</section>
+
+          {creditRes.rows[0] && canAllocateReceipt && (
+            <section className="panel-elevated p-5">
+              <h2 className="text-lg font-bold">Customer refund</h2>
+              <p className="mt-1 text-sm text-ink-2">Settle the open credit note through bank and recognize realized FX.</p>
+              <form action={refundSalesCreditAction} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <input type="hidden" name="salesOrderId" value={wb.origin_id} />
+                <input type="hidden" name="arDocumentId" value={creditRes.rows[0].id} />
+                <input type="hidden" name="requestKey" value={crypto.randomUUID()} />
+                <label className="text-sm">Refund date<input className="field" name="refundDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></label>
+                <label className="text-sm">Amount {creditRes.rows[0].currency_code}<input className="field" name="foreignAmount" type="number" min="0.01" max={Math.abs(Number(creditRes.rows[0].open_foreign))} step="0.01" required /></label>
+                <label className="text-sm">FX to THB<input className="field" name="fxRate" type="number" min="0.0000000001" step="0.0000000001" defaultValue={creditRes.rows[0].currency_code.trim() === 'THB' ? '1' : ''} /></label>
+                <button className="action-button self-end">Post partial refund</button>
+                <div className="self-end text-xs text-mute">{creditRes.rows[0].document_no} · Credit {Math.abs(Number(creditRes.rows[0].open_foreign)).toLocaleString()} {creditRes.rows[0].currency_code}</div>
+              </form>
+            </section>
+          )}
+
           <section className="space-y-3">
             <header className="flex items-baseline justify-between">
               <h2 className="text-sm font-mono uppercase tracking-widest text-ink-2">
@@ -290,7 +334,6 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
             </header>
             <SalesExtractPanel
               lang={locale as 'en' | 'th' | 'de'}
-              onUse={() => {}}
               waybillId={wb.id}
               soId={wb.origin_id}
               soItems={soItems}
@@ -298,19 +341,6 @@ export default async function SalesDetailPage({ params, searchParams }: PageProp
               canRecord={canRecordSalesPayment}
             />
           </section>
-
-          <WaybillGlSection
-            waybillId={wb.id}
-            origin="so"
-            journal={(salesJournal as unknown as WaybillJournalView)}
-            actorRole={actor.role_name ?? null}
-            actorCanSeeLines={actorCanSeeGlLines}
-            lang={locale}
-            canPostSalesGlVat={canPostSalesGlVat}
-            canPostSalesGlAccrual={canPostSalesGlAccrual}
-            canPostSalesGlSettlement={canPostSalesGlSettlement}
-            canConfirmSalesGl={canConfirmSalesGl}
-          />
 
           <WaybillAuditSection
           waybillId={wb.id}

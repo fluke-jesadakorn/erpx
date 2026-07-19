@@ -71,9 +71,9 @@ export function PipCard({
   actions,
 }: Props) {
   const isCurrentStage = currentStage === pip.key;
-  const isFinalApproval = pip.key === 'final_authorization';
-  const isDisbursed = pip.key === 'disbursed';
-  const isAwaitingDisbursement = pip.key === 'awaiting_disbursement';
+  const isFinalApproval = pip.key === 'accounting_approval' || pip.key === 'final_authorization';
+  const isDisbursed = pip.key === 'settlement' || pip.key === 'disbursed';
+  const isAwaitingDisbursement = pip.key === 'payment' || pip.key === 'awaiting_disbursement';
   const isRejection = state === 'rejected' || isRejected;
   const isPassed = state === 'passed';
 

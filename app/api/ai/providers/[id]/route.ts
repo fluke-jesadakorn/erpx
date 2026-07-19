@@ -3,6 +3,8 @@ import { query } from '@/db';
 import { encryptKey } from '@/ai/crypto';
 import { apiGuard } from '@/server/apiGuard';
 import { PERM } from '@/perm';
+import { VISION_MODELS_CACHE_TAG } from '@/ai/loadVisionModels';
+import { revalidateTag } from 'next/cache';
 
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -26,6 +28,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (setParts.length === 0) return NextResponse.json({ error: 'nothing to update' }, { status: 400 });
   sqlParams.push(id);
   await query(`UPDATE ai_providers SET ${setParts.join(', ')} WHERE id = $${i}`, sqlParams);
+  revalidateTag(VISION_MODELS_CACHE_TAG, 'max');
   return NextResponse.json({ ok: true });
 }
 
@@ -34,5 +37,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   if (guard.response) return guard.response;
   const { id } = await params;
   await query(`DELETE FROM ai_providers WHERE id = $1`, [id]);
+  revalidateTag(VISION_MODELS_CACHE_TAG, 'max');
   return NextResponse.json({ ok: true });
 }

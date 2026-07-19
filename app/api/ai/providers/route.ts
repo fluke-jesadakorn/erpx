@@ -3,6 +3,8 @@ import { query } from '@/db';
 import { encryptKey } from '@/ai/crypto';
 import { apiGuard } from '@/server/apiGuard';
 import { PERM } from '@/perm';
+import { VISION_MODELS_CACHE_TAG } from '@/ai/loadVisionModels';
+import { revalidateTag } from 'next/cache';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -37,6 +39,7 @@ export async function POST(req: Request) {
        VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
       [body.name, body.type, body.base_url, keyBuf, body.enabled !== false, body.preset || null, body.notes || null],
     );
+    revalidateTag(VISION_MODELS_CACHE_TAG, 'max');
     return NextResponse.json({ id: res.rows[0].id, ok: true });
   } catch (e: unknown) {
     if ((e as { code?: string }).code === '23505') return NextResponse.json({ error: 'name already exists' }, { status: 409 });

@@ -52,7 +52,7 @@ folio/
 │   ├── native/vision-ocr/             # Swift N-API macOS Vision addon (loaded at runtime)
 │   ├── notifications/                 # notifications queries + events + recipients
 │   ├── org/                           # org tree, scope, display, queries
-│   ├── perm/                          # single RBAC system (string grammar + role-id grammar)
+│   ├── perm/                          # permission grammar, department roles, ranks, and policies
 │   ├── po/                            # PO-from-invoice helper
 │   ├── policy/                        # policy lint
 │   ├── sales/                         # SO extraction helper
@@ -64,7 +64,7 @@ folio/
 │   ├── db.ts, config.ts               # pg pool + env config
 │   └── next-shim.d.ts                 # ambient next/headers + next/server stubs
 ├── tests/                             # .mjs pure-logic tests re-implementing prod modules
-├── db/                                # SQL migrations + seed scripts + AI seeder scripts
+├── db/                                # current schema snapshot, reference seed, and DB utilities
 ├── docs/                              # architecture + setup notes
 ├── n8n/                               # DEPRECATED (kept for historical reference; flows moved into lib/hook)
 ├── sample/law/                        # legal PDFs for Law RAG demo
@@ -94,33 +94,19 @@ launchctl list | grep lawpoc
 # Postgres on 5432 (folio_db), MinIO on 9000/9001, Ollama on 11434, n8n on 5678
 ```
 
-### 2. Apply database migrations
+### 2. Initialize a fresh database
 
 ```bash
-PGPASSWORD=contractpw psql -h localhost -U contract -d folio_db \
-  -f db/00_schemas.sql \
-  -f db/init.sql -f db/seed.sql -f db/v2_seed.sql
-
-# Perm schema (replaces legacy db/rbac/)
-PGPASSWORD=contractpw psql -h localhost -U contract -d folio_db -f db/perm/9000-rebuild-string-grammar.sql
-PGPASSWORD=contractpw psql -h localhost -U contract -d folio_db -f db/perm/9001-seed-new-grammar.sql
-PGPASSWORD=contractpw psql -h localhost -U contract -d folio_db -f db/perm/9002-seed-user-roles-and-depts.sql
-
-# Phase subdirs + dated migrations
-for f in db/01_perm/*.sql db/02_finance/*.sql db/03_hook/*.sql db/04_hr/*.sql db/05_law/*.sql db/06_folio_cockpit/*.sql; do
-  PGPASSWORD=contractpw psql -h localhost -U contract -d folio_db -f "$f"
-done
-for f in db/migrations/*.sql; do
-  PGPASSWORD=contractpw psql -h localhost -U contract -d folio_db -f "$f"
-done
+bun run db:setup
 ```
 
-### 3. Install deps, build COA embeddings, seed AI providers
+`db/setup.sh` applies `db/schema.sql` and `db/seed.sql`. It only accepts a fresh database and refuses to modify one where `folio.users` already exists. The seed contains reference catalogs and access policy only; it does not contain users, business transactions, audit history, embeddings, or API keys.
+
+### 3. Install deps and build COA embeddings
 
 ```bash
 bun install
 bun run embed    # node db/embed_coa.js — embeds chart-of-accounts via Ollama bge-m3
-node db/seed_ai_settings.js
 ```
 
 ### 4. Configure env
@@ -130,6 +116,19 @@ node db/seed_ai_settings.js
 - `lib/config.ts` reads the same.
 
 Generate the session secret with `openssl rand -hex 32`; both the cookie mint and the HMAC verifier use the same value.
+
+### First-user bootstrap
+
+The organization rebuild intentionally leaves no active identity. Set a strong, one-time `FOLIO_BOOTSTRAP_TOKEN` in `.env.local`, then create the first access administrator:
+
+```bash
+curl -X POST http://localhost:3004/api/auth/bootstrap \
+  -H "x-folio-bootstrap-token: $FOLIO_BOOTSTRAP_TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"employee_code":"BOOT-001","fullname":"Platform Administrator","department_id":"it","role_id":"it_manager"}'
+```
+
+The endpoint only succeeds while there are no active users, assigns the selected department-owned access-admin role, and closes permanently after the first user is created. Configure `FOLIO_WORKER_TOKEN` for the internal approver-nudge and Law indexing workers.
 
 ### 5. Start the dev server
 
@@ -159,11 +158,7 @@ bun run build       # next build --turbopack (optional — validation only; clea
 <domain>:<subject>:<verb>[:<qualifier>]::<effect>
 ```
 
-Roles use the inline-level grammar:
-
-```
-<name>::<level>     # 1 = CEO … 10 = lowest
-```
+Hierarchy roles have stable IDs such as `accounting_manager` and a numeric `rank` in `perm.roles`; rank 1 is the highest authority. Each hierarchy role belongs to exactly one `perm.departments` row.
 
 Caller rules:
 
@@ -198,5 +193,6 @@ Stage names follow finance-standard keys — see `lib/waybill/labels.ts` for the
 - `infra/` — shared host-native services
 - `docs/BUNDLER.md` — Turbopack notes
 - `docs/LINE-SETUP.md`, `docs/N8N-SETUP.md` — webhook setup
-- `docs/RBAC-STANDARD.md` — permission grammar (kept for the historical perm view reference)
+- `docs/RBAC-STANDARD.md` — current organization and permission model
+- `docs/ORG-ACCESS.md` — departments, ranks, and responsibility boundaries
 - `docs/stage-approval-design.md` — finance-standard stage keys + Waybill pipeline

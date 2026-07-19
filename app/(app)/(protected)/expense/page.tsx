@@ -251,7 +251,7 @@ export default async function ExpenseInboxPage({ searchParams }: PageProps) {
           <div className="mb-8">
             <NewExpensePanel
               currentUserId={actor.id}
-              initialModels={await loadVisionModels()}
+              initialModels={await loadVisionModels(actor.id)}
             />
           </div>
         )}

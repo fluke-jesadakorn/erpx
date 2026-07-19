@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   }
   const locale = lang ?? 'en';
 
-  const hits = await searchVendors({ query: question, k: 8 });
+  const hits = await searchVendors({ query: question, k: 8, actorId: actor.id });
   const context = hits.map((h, i) =>
     `[${i + 1}] vendor=${h.vendor_name ?? '?'}, amount=${h.amount_thb ?? '?'}, date=${h.transaction_date ?? '?'}\n    ${(h.description ?? '').slice(0, 280)}`,
   ).join('\n');

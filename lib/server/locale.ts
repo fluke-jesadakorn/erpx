@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { isSecondary, normalizeSecondaryLocale, LOCALE_HEADER, LOCALE_COOKIE, type SecondaryLocale } from '@/i18n/config';
 import { query } from '../db';
 import { verifySession } from './sessionToken';
+import { validateActiveSession } from './sessionStore';
 
 export type { SecondaryLocale };
 export { isSecondary, isSecondary as isSecondaryLocale, normalizeSecondaryLocale, LOCALE_COOKIE, LOCALE_HEADER };
@@ -15,10 +16,11 @@ export async function getSecondaryLocale(): Promise<SecondaryLocale> {
 
     const token = c.get('folio_session')?.value ?? null;
     const payload = await verifySession(token);
-    if (payload) {
+    const active = payload ? await validateActiveSession(payload) : null;
+    if (active) {
       const r = await query<{ locale: string }>(
         `SELECT locale FROM auth.sessions WHERE id = $1 LIMIT 1`,
-        [payload.id],
+        [active.id],
       );
       const v = r.rows[0]?.locale;
       if (isSecondary(v)) return v;

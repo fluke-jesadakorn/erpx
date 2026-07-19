@@ -1,7 +1,8 @@
 import 'server-only';
+import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import { BookMarked } from 'lucide-react';
+import { ArrowRight, BookMarked, CircleCheckBig } from 'lucide-react';
 import { loadWaybillRailContext } from '@/waybill/queries';
 import { loadActor } from '@/server/guard';
 import { hasPermission, loadActivePermSession } from '@folio-lib/perm/server';
@@ -11,20 +12,25 @@ import { PageLayout } from '@/components/PageLayout';
 import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { crumbsForPath } from '@/components/breadcrumbs/routes';
 import { getSecondaryLocale } from '@/server/locale';
+import { T } from '@/components/i18n/TServer';
 import { OverviewShell } from '../_components/Overview';
 import { Empty } from '@/components/ui';
 import { authorizeExpenseStage, loadExpenseFlowContext, type ExpenseActor } from '@/waybill/expenseFlow';
 import { query } from '@/db';
 import { recomputeExpenseDraftGlAction } from '@/app/actions/waybill';
+import { GlSubmit } from '@/components/waybill/GlSubmit';
 
 export const dynamic = 'force-dynamic';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function WaybillGlPage({ params }: PageProps) {
+export default async function WaybillGlPage({ params, searchParams }: PageProps) {
   const { id } = await params;
+  const sp = await searchParams;
+  const notice = Array.isArray(sp.notice) ? sp.notice[0] : sp.notice;
   const actor = await loadActor();
   if (!actor) redirect('/login');
   const h = await headers();
@@ -63,7 +69,7 @@ export default async function WaybillGlPage({ params }: PageProps) {
     const ownsClaim = claim.rows[0]?.claimed_by === actor.id;
     canFinalApprove = stage === 'accounting_approval' && decision.allow;
     canConfirmGl = stage === 'settlement' && decision.allow && ownsClaim;
-    canEditDraft = ['accounting_review', 'settlement'].includes(stage) && decision.allow && ownsClaim;
+    canEditDraft = stage === 'accounting_review' && decision.allow && ownsClaim;
   }
 
   const journal = await loadJournalForWaybill(wb.id);
@@ -75,6 +81,40 @@ export default async function WaybillGlPage({ params }: PageProps) {
       />
       <PageLayout title={`GL · ${wb.id}`} subtitle={journal ? `${journal.kind} journal` : 'No journal'}>
         <OverviewShell waybillId={wb.id} active="gl">
+          {notice === 'missing-accrual-draft' && (
+            <p className="mb-4 rounded-md border border-caution bg-caution-soft p-3 text-sm text-caution-strong" role="alert">
+              <T id="waybill.gl.missingAccrualDraft" locale={locale} />
+            </p>
+          )}
+          {(notice === 'ai-draft-ready' || notice === 'draft-saved') && (
+            <section className="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-positive/50 bg-positive-soft p-4" role="status" aria-live="polite">
+              <CircleCheckBig className="size-5 shrink-0 text-positive" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <T
+                  id={notice === 'ai-draft-ready' ? 'waybill.gl.aiDraftReady' : 'waybill.gl.draftSaved'}
+                  variant="stacked"
+                  locale={locale}
+                  primaryClassName="block text-sm font-semibold text-positive"
+                  secondaryClassName="mt-0.5 block text-xs font-normal text-positive/80"
+                />
+                <p className="mt-1 text-sm text-ink-2">
+                  <T
+                    id={notice === 'ai-draft-ready' ? 'waybill.gl.aiDraftReadyHint' : 'waybill.gl.draftSavedNext'}
+                    variant="stacked"
+                    locale={locale}
+                    primaryClassName="block font-normal leading-relaxed text-ink-2"
+                    secondaryClassName="mt-0.5 block text-xs font-normal leading-relaxed text-mute"
+                  />
+                </p>
+              </div>
+              {notice === 'draft-saved' && (
+                <Link href={`/waybill/${wb.id}#waybill-task`} className="inline-flex min-h-10 items-center gap-2 rounded-md bg-positive px-3 py-2 text-sm font-semibold text-paper transition hover:bg-positive-strong">
+                  <T id="waybill.gl.continueReview" locale={locale} variant="compact" />
+                  <ArrowRight className="size-4 shrink-0" aria-hidden />
+                </Link>
+              )}
+            </section>
+          )}
           {journal ? (
             <WaybillGlSection
               waybillId={wb.id}
@@ -95,9 +135,14 @@ export default async function WaybillGlPage({ params }: PageProps) {
               {canEditDraft && (
                 <form action={recomputeExpenseDraftGlAction}>
                   <input type="hidden" name="waybillId" value={wb.id} />
-                  <button type="submit" className="rounded-md bg-info px-3 py-2 text-sm font-semibold text-paper">
-                    Ask AI to draft GL
-                  </button>
+                  <GlSubmit
+                    label="waybill.gl.askAiDraft"
+                    pendingLabel="waybill.gl.aiDrafting"
+                    pendingHint="waybill.gl.aiDraftingHint"
+                    icon="✦"
+                    testId={`gl-ai-draft-empty-${wb.id}`}
+                    className="rounded-md bg-info px-3 py-2 text-sm font-semibold text-paper hover:bg-info-strong"
+                  />
                 </form>
               )}
             </div>

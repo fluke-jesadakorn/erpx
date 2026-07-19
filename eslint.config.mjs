@@ -35,7 +35,6 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    "lib/**",
     "lib/native/vision-ocr/**",
     "lib/native/vision-ocr/node_modules/**",
     "tests/**",

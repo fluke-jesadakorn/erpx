@@ -5,7 +5,15 @@ export type ReportIntentKey =
   | 'trial_balance'
   | 'income_statement'
   | 'balance_sheet'
-  | 'period_summary';
+  | 'period_summary'
+  | 'ar_aging'
+  | 'ap_aging'
+  | 'fx_exposure'
+  | 'inventory_valuation'
+  | 'gross_margin'
+  | 'vat_register'
+  | 'wht_register'
+  | 'budget_vs_actual';
 
 export const REPORT_INTENTS: ReadonlyArray<ReportIntentKey> = [
   'cash_flow',
@@ -13,6 +21,14 @@ export const REPORT_INTENTS: ReadonlyArray<ReportIntentKey> = [
   'income_statement',
   'balance_sheet',
   'period_summary',
+  'ar_aging',
+  'ap_aging',
+  'fx_exposure',
+  'inventory_valuation',
+  'gross_margin',
+  'vat_register',
+  'wht_register',
+  'budget_vs_actual',
 ];
 
 export interface SqlAsk { question: string; }

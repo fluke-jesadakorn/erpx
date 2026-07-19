@@ -216,7 +216,6 @@ export async function authorizeObject(
   ctx: AuthorizeCtx = {},
 ): Promise<Decision> {
   const [type, idRaw] = objectKey.split(':', 2);
-  const idNum = /^\d+$/.test(idRaw ?? '') ? parseInt(idRaw!, 10) : null;
   const resource: ResourceRef = { type, id: idRaw, ownerId: actor.id };
 
   if (action.kind === 'perm') {

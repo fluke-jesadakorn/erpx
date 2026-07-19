@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Bell } from 'lucide-react';
 import { NotificationPanel, type NotificationItem } from './NotificationPanel';
 
@@ -19,54 +20,43 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
   hideButton,
   scoped,
 }) => {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>(initialItems);
-  const [count, setCount] = useState<number>(unread);
+  const [count, setCount] = useState(unread);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
-  const sinceRef = useRef<string>(
-    initialItems.length ? initialItems[0].createdAt : new Date(0).toISOString(),
-  );
+  const sinceRef = useRef<string>(initialItems[0]?.createdAt ?? new Date(0).toISOString());
 
   useEffect(() => {
-    function onExternal() { setOpen(true); }
-    window.addEventListener('folio:open-notifications', onExternal);
-    return () => window.removeEventListener('folio:open-notifications', onExternal);
+    const openNotifications = () => setOpen(true);
+    window.addEventListener('folio:open-notifications', openNotifications);
+    return () => window.removeEventListener('folio:open-notifications', openNotifications);
   }, []);
 
   useEffect(() => {
-    if (hideButton) return;
+    if (hideButton || !scoped) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
 
-    async function tick() {
+    const tick = async () => {
       try {
-        const url = scoped
-          ? `/api/notifications?scope=mine&limit=15&since=${encodeURIComponent(sinceRef.current)}`
-          : `/api/notifications?limit=15&since=${encodeURIComponent(sinceRef.current)}`;
-        const res = await fetch(url, { cache: 'no-store' });
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        const data = await res.json();
-        const fresh: NotificationItem[] = data.items || [];
+        const response = await fetch(`/api/notifications?view=all&limit=30&since=${encodeURIComponent(sinceRef.current)}`, { cache: 'no-store' });
+        if (!response.ok) throw new Error('notification polling failed');
+        const data = await response.json() as { items?: NotificationItem[]; unread?: number };
         if (cancelled) return;
-
-        setItems((prev) => {
-          const seen = new Set(prev.map((p) => String(p.id)));
-          return [...fresh.filter((f) => !seen.has(String(f.id))), ...prev].slice(0, 30);
+        const fresh = data.items ?? [];
+        setItems((previous) => {
+          const known = new Set(previous.map((item) => String(item.id)));
+          return [...fresh.filter((item) => !known.has(String(item.id))), ...previous].slice(0, 50);
         });
-
-        if (typeof data.unread === 'number') {
-          setCount(data.unread);
-        } else if (fresh.length > 0) {
-          setCount((c) => c + fresh.length);
-        }
-
-        if (fresh.length > 0) sinceRef.current = fresh[0].createdAt;
+        if (typeof data.unread === 'number') setCount(data.unread);
+        if (fresh[0]) sinceRef.current = fresh[0].createdAt;
       } catch {
-        // ignore polling errors
+        // Polling is best-effort; the next tick retries.
       } finally {
         if (!cancelled) timer = setTimeout(tick, POLL_MS);
       }
-    }
+    };
 
     timer = setTimeout(tick, POLL_MS);
     return () => {
@@ -75,73 +65,54 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
     };
   }, [hideButton, scoped]);
 
-  async function postAction(path: string, body: unknown): Promise<{ ok?: boolean; updated?: number } | null> {
-    try {
-      const r = await fetch(path, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-        cache: 'no-store',
-      });
-      if (!r.ok) return null;
-      return r.json();
-    } catch {
-      return null;
-    }
-  }
-
-  const onToggleRead = useCallback(async (id: string | number, currentlyRead: boolean) => {
-    const result = await postAction('/api/notifications/mark-read', { ids: [id] });
-    if (!result) return;
-    const readAt = new Date().toISOString();
-    setItems((prev) =>
-      prev.map((it) =>
-        String(it.id) === String(id) ? { ...it, readAt } : it,
-      ),
-    );
-    if (!currentlyRead) setCount((c) => Math.max(0, c - 1));
+  const post = useCallback(async (path: string, body?: unknown) => {
+    const response = await fetch(path, {
+      method: 'POST',
+      headers: body ? { 'content-type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error(`notification request failed: ${response.status}`);
+    return response.json() as Promise<Record<string, unknown>>;
   }, []);
 
-  const onClear = useCallback(async (id: string | number) => {
-    const result = await postAction('/api/notifications/mark-read', { ids: [id] });
-    if (!result) return;
-    const readAt = new Date().toISOString();
-    setItems((prev) =>
-      prev.map((it) =>
-        String(it.id) === String(id) ? { ...it, readAt } : it,
-      ),
-    );
-    setCount((c) => Math.max(0, c - 1));
+  const onOpen = useCallback(async (item: NotificationItem) => {
+    try {
+      const result = await post(`/api/notifications/${encodeURIComponent(item.id)}/open`);
+      const opened = result.item as NotificationItem;
+      setItems((previous) => previous.map((row) => String(row.id) === String(item.id) ? opened : row));
+      setCount((value) => item.readAt ? value : Math.max(0, value - 1));
+      if (typeof result.href === 'string') router.push(result.href);
+    } catch {
+      // Keep the panel open if the item disappeared or the request failed.
+    }
+  }, [post, router]);
+
+  const onToggleRead = useCallback(async (id: string, currentlyRead: boolean) => {
+    try {
+      await post('/api/notifications/mark-read', { ids: [id], read: currentlyRead ? false : true });
+      const readAt = currentlyRead ? null : new Date().toISOString();
+      setItems((previous) => previous.map((item) => String(item.id) === String(id) ? { ...item, readAt } : item));
+      setCount((value) => currentlyRead ? value + 1 : Math.max(0, value - 1));
+    } catch {}
+  }, [post]);
+
+  const onDelete = useCallback(async (id: string) => {
+    try {
+      const response = await fetch(`/api/notifications/${encodeURIComponent(id)}`, { method: 'DELETE', cache: 'no-store' });
+      if (!response.ok) return;
+      setItems((previous) => previous.filter((item) => String(item.id) !== String(id)));
+    } catch {}
   }, []);
 
   const onMarkAllRead = useCallback(async () => {
-    const ids = items.filter((it) => !it.readAt).map((it) => it.id);
-    if (ids.length === 0) {
-      const result = await postAction('/api/notifications/mark-read', { all: true });
-      if (result) {
-        setItems((prev) => prev.map((it) => ({ ...it, readAt: it.readAt ?? new Date().toISOString() })));
-        setCount(0);
-      }
-      return;
-    }
-    const result = await postAction('/api/notifications/mark-read', { ids });
-    if (result) {
+    try {
+      await post('/api/notifications/mark-read', { all: true, read: true });
       const now = new Date().toISOString();
-      setItems((prev) => prev.map((it) => (it.readAt ? it : { ...it, readAt: now })));
+      setItems((previous) => previous.map((item) => ({ ...item, readAt: item.readAt ?? now })));
       setCount(0);
-    }
-  }, [items]);
-
-  const onClearAll = useCallback(async () => {
-    const result = await postAction('/api/notifications/mark-read', { all: true });
-    if (result) {
-      setItems([]);
-      setCount(0);
-    }
-  }, []);
-
-  const list = items;
-  const unreadCount = count;
+    } catch {}
+  }, [post]);
 
   return (
     <div className="relative">
@@ -149,50 +120,26 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
         <button
           type="button"
           aria-label="Notifications"
-          onClick={() => setOpen((v) => !v)}
+          onClick={() => setOpen((value) => !value)}
           className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rule bg-paper-2 text-ink-2 transition-colors hover:border-rule-strong hover:bg-paper-3 hover:text-ink"
         >
           <Bell size={16} />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold font-mono text-ink">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
+          {count > 0 && <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold font-mono text-ink">{count > 99 ? '99+' : count}</span>}
         </button>
       )}
-
-      {hideButton && unreadCount > 0 && (
-        <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold font-mono text-ink">
-          {unreadCount > 99 ? '99+' : unreadCount}
-        </span>
-      )}
-
-      {hideButton ? (
+      {hideButton && count > 0 && <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold font-mono text-ink">{count > 99 ? '99+' : count}</span>}
+      {(hideButton || open) && (
         <NotificationPanel
-          items={list}
-          onClose={() => {}}
+          items={items}
+          onClose={() => setOpen(false)}
+          onOpen={onOpen}
           onToggleRead={onToggleRead}
-          onClear={onClear}
+          onDelete={onDelete}
           onMarkAllRead={onMarkAllRead}
-          onClearAll={onClearAll}
           filter={filter}
           onFilterChange={setFilter}
           scoped={scoped}
         />
-      ) : (
-        open && (
-          <NotificationPanel
-            items={list}
-            onClose={() => setOpen(false)}
-            onToggleRead={onToggleRead}
-            onClear={onClear}
-            onMarkAllRead={onMarkAllRead}
-            onClearAll={onClearAll}
-            filter={filter}
-            onFilterChange={setFilter}
-            scoped={scoped}
-          />
-        )
       )}
     </div>
   );

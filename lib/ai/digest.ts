@@ -2,7 +2,7 @@ import 'server-only';
 
 import { query } from '@/db';
 import { aiInvoke } from '@/ai/router';
-import { listRecentNotifications } from '@/notifications/queries';
+import { listRecentNotificationsForUser } from '@/notifications/queries';
 
 export type DigestSeverity = 'info' | 'success' | 'warning' | 'error';
 
@@ -38,12 +38,12 @@ function langLine(lang: 'en' | 'th' | 'de'): string {
 }
 
 export async function generateDigest(
-  _actorId: number,
+  actorId: number,
   opts?: { limit?: number; lang?: 'en' | 'th' | 'de' },
 ): Promise<NotificationDigest | null> {
   const limit = opts?.limit ?? 50;
   const lang = opts?.lang ?? 'en';
-  const events = await listRecentNotifications(limit);
+  const events = await listRecentNotificationsForUser(actorId, limit);
   if (events.length === 0) return null;
 
   let highest: DigestSeverity = 'info';

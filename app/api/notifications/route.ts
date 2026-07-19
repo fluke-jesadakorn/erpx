@@ -1,49 +1,53 @@
 import { NextResponse } from 'next/server';
 import { requireActor } from '@/server/guard';
 import {
-  listRecentNotifications,
-  listUserNotifications,
+  listActionCount,
   listUnreadCount,
+  listUserNotifications,
+  type NotificationReadFilter,
+  type NotificationView,
 } from '@/notifications/queries';
+import { reconcileOpenActionsForUser } from '@/notifications/waybill';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
+function viewFromUrl(url: URL): NotificationView {
+  const raw = url.searchParams.get('view');
+  if (raw === 'actions' || raw === 'notifications') return raw;
   const scope = url.searchParams.get('scope');
-  const unreadOnly = url.searchParams.get('onlyUnread') === 'true';
-  const includeCleared = url.searchParams.get('includeCleared') === 'true';
-  const limitRaw = url.searchParams.get('limit');
-  const sinceRaw = url.searchParams.get('since');
-  const limit = Math.max(1, Math.min(100, parseInt(limitRaw || '15', 10) || 15));
+  if (scope === 'waiting') return 'actions';
+  if (scope === 'watching') return 'notifications';
+  return 'all';
+}
 
-  if (scope === 'mine') {
-    const actor = await requireActor().catch(() => null);
-    if (!actor) {
-      return NextResponse.json({ items: [], unread: 0 });
-    }
-    const sinceMs = sinceRaw ? Date.parse(sinceRaw) : NaN;
-    let rows = await listUserNotifications(actor.id, limit, { includeCleared, onlyUnread: unreadOnly });
-    if (!Number.isNaN(sinceMs)) {
-      rows = rows.filter((it) => Date.parse(it.createdAt) > sinceMs);
-    }
-    const unread = await listUnreadCount(actor.id);
-    return NextResponse.json({ items: rows, unread });
-  }
+function readFromUrl(url: URL): NotificationReadFilter {
+  const raw = url.searchParams.get('read');
+  if (raw === 'unread' || raw === 'read') return raw;
+  return url.searchParams.get('onlyUnread') === 'true' ? 'unread' : 'all';
+}
 
-  if (scope === 'unread') {
-    const actor = await requireActor().catch(() => null);
-    if (!actor) return NextResponse.json({ unread: 0 });
-    return NextResponse.json({ unread: await listUnreadCount(actor.id) });
-  }
+export async function GET(req: Request) {
+  const actor = await requireActor().catch(() => null);
+  if (!actor) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  await reconcileOpenActionsForUser(actor.id);
 
-  let items = await listRecentNotifications(limit);
-  if (sinceRaw) {
-    const sinceMs = Date.parse(sinceRaw);
-    if (!Number.isNaN(sinceMs)) {
-      items = items.filter((it) => Date.parse(it.createdAt) > sinceMs);
-    }
-  }
-  return NextResponse.json({ items });
+  const url = new URL(req.url);
+  const limit = Math.max(1, Math.min(100, Number(url.searchParams.get('limit') ?? 30) || 30));
+  const domainRaw = url.searchParams.get('domain');
+  const domain = domainRaw === 'expense' || domainRaw === 'so' ? domainRaw : 'all';
+  const items = await listUserNotifications(actor.id, limit, {
+    view: viewFromUrl(url),
+    read: readFromUrl(url),
+    domain,
+    watchingOnly: url.searchParams.get('source') === 'watching' || url.searchParams.get('scope') === 'watching',
+    cursor: url.searchParams.get('cursor'),
+    since: url.searchParams.get('since'),
+  });
+  return NextResponse.json({
+    items,
+    unread: await listUnreadCount(actor.id),
+    actions: await listActionCount(actor.id),
+    nextCursor: items.length === limit ? items[items.length - 1]?.id ?? null : null,
+  });
 }

@@ -8,6 +8,12 @@ export interface QuickPrompt {
 }
 
 export const QUICK_PROMPTS: Record<string, QuickPrompt[]> = {
+  executive: [
+    { icon: '📊', label: 'Posted position', label_th: 'ฐานะการเงินที่บันทึกแล้ว', label_de: 'Gebuchte Finanzlage', prompt: 'Summarize posted revenue, gross margin, cash, receivables, payables, and inventory for the current year. Use database results only.' },
+    { icon: '💵', label: '30-day cash forecast', label_th: 'คาดการณ์เงินสด 30 วัน', label_de: '30-Tage-Liquiditätsprognose', prompt: 'Forecast cash for the next 30 days from current cash plus due AR minus due AP, and show every component from the database.' },
+    { icon: '🧪', label: 'Scenario simulation', label_th: 'จำลองสถานการณ์', label_de: 'Szenario-Simulation', prompt: 'Simulate the 30-day cash result if customer collections are 20% lower and payable due dates remain unchanged. Show the baseline, assumptions, and simulated result from database values.' },
+    { icon: '🕰️', label: 'Past performance', label_th: 'สรุปผลงานย้อนหลัง', label_de: 'Vergangene Leistung', prompt: 'Summarize posted monthly revenue, gross margin, and net income history and identify the strongest and weakest month using database results.' },
+  ],
   cockpit: [
     { icon: '💵', label: 'Cash · 6mo',         label_th: 'เงินสด · 6 เดือน',         label_de: 'Liquidität · 6 Mo.',          prompt: 'Show me the cash balance over the last 6 months as a chart.' },
     { icon: '🏷️', label: 'Top 5 expense categories', label_th: '5 หมวดค่าใช้จ่ายสูงสุด', label_de: 'Top 5 Ausgabenkategorien', prompt: 'Chart the top 5 expense categories by total amount this month.' },

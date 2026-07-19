@@ -5,12 +5,12 @@ const withNextIntl = createNextIntlPlugin('./src/i18n.ts');
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["localhost", "127.0.0.1", "100.97.9.56"],
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   async redirects() {
     return [
       { source: '/dashboard',       destination: '/',                         permanent: true },
+      { source: '/settings',        destination: '/ai-settings',               permanent: true },
+      { source: '/cockpit',         destination: '/executive',                  permanent: true },
+      { source: '/search-coa',      destination: '/ledger?tab=accounts',        permanent: true },
       { source: '/submit-expense',  destination: '/expense',                   permanent: true },
       { source: '/expense-claim',   destination: '/expense',                   permanent: true },
       { source: '/approve-expense', destination: '/expense?tab=approve',       permanent: true },

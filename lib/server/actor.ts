@@ -3,6 +3,7 @@
 
 import { query } from '../db';
 import { SESSION_COOKIE, verifySession, type SessionPayload } from './sessionToken';
+import { validateActiveSession } from './sessionStore';
 import { parseRoleId } from '../perm/grammar';
 
 export interface ActorUser {
@@ -65,7 +66,7 @@ export async function loadActor(): Promise<ActorUser | null> {
            ) t
        ), ARRAY[]::text[]) AS permissions
       FROM users u
-     WHERE u.id = $1`,
+     WHERE u.id = $1 AND u.is_active IS TRUE`,
     [sess.sub],
   );
   const row = res.rows[0];
@@ -88,12 +89,16 @@ export async function loadActor(): Promise<ActorUser | null> {
 
 export async function getSessionFromAnySource(reqHeaders?: Record<string, string | string[] | undefined>): Promise<SessionPayload | null> {
   const fromHeaders = reqHeaders ? sessionFromHeaders(reqHeaders) : null;
-  if (fromHeaders) return verifySession(fromHeaders);
+  if (fromHeaders) {
+    const payload = await verifySession(fromHeaders);
+    return payload ? validateActiveSession(payload) : null;
+  }
   try {
     const { cookies } = await import('next/headers');
     const c = await cookies();
     const token = c.get(SESSION_COOKIE)?.value ?? null;
-    return verifySession(token);
+    const payload = await verifySession(token);
+    return payload ? validateActiveSession(payload) : null;
   } catch {
     return null;
   }

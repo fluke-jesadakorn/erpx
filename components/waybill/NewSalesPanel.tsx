@@ -621,12 +621,12 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
                 }
                 data-testid="sales-sticky-submit"
                 className={[
-                  'shrink-0 inline-flex items-center justify-center gap-2 rounded-md border w-12 h-12 transition-all duration-200',
+                  'shrink-0 inline-flex min-h-12 items-center justify-center gap-2 rounded-md border px-4 transition-all duration-200 whitespace-nowrap',
                   'disabled:opacity-50 disabled:cursor-not-allowed',
                   submitting
                     ? 'bg-rule-strong text-ink-2 border-rule-strong'
                     : canSubmitAll
-                    ? 'bg-accent hover:bg-accent-strong text-paper-2 border-accent shadow-[0_8px_24px_-8px_color-mix(in_oklab,var(--accent)_55%,transparent)]'
+                    ? 'action-button bg-action hover:bg-action-hover text-action-ink border-action shadow-[0_8px_24px_-8px_color-mix(in_oklab,var(--action-bg)_55%,transparent)]'
                     : 'bg-paper-3 text-mute border-rule-strong',
                 ].join(' ')}
               >
@@ -637,8 +637,8 @@ export function NewSalesPanel({ currentUserId, initialDraft }: NewSalesPanelProp
                 ) : (
                   <Lock className="size-5" aria-hidden strokeWidth={2} />
                 )}
-                <span className="sr-only">
-                  {canSubmitAll ? 'Submit' : 'Submit (locked)'}
+                <span>
+                  <T id="waybill.sales.submitForApproval" />
                 </span>
               </button>
             </div>

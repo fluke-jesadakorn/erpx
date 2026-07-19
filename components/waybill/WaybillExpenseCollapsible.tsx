@@ -67,11 +67,11 @@ function SlipRow({
         </span>
         <span className="text-sm font-bold text-ink">{label}</span>
         {slip ? (
-          <span className="ml-auto rounded-full border border-info bg-info px-2 py-0.5 text-sm font-mono uppercase tracking-widest text-info-soft">
+          <span className="ml-auto rounded-full border border-info bg-info px-2 py-0.5 text-xs font-medium text-info-soft">
             ✓ {slip.status}
           </span>
         ) : (
-          <span className="bg-paper-2 border border-rule ml-auto rounded-full border px-2 py-0.5 text-sm font-mono uppercase tracking-widest text-mute">
+          <span className="ml-auto rounded-full border border-rule bg-paper-2 px-2 py-0.5 text-xs font-medium text-mute">
             <T id="waybill.expense.none" />
           </span>
         )}
@@ -141,11 +141,11 @@ function Field({
   full?: boolean;
 }) {
   return (
-    <div className={full ? 'col-span-2' : ''}>
-      <dt className="text-sm font-mono uppercase tracking-widest text-mute">{label}</dt>
+    <div className={full ? 'col-span-full' : ''}>
+      <dt className="text-xs font-medium leading-snug text-mute">{label}</dt>
       <dd
         className={
-          'mt-0.5 text-sm text-ink' +
+          'mt-1 text-sm leading-relaxed text-ink' +
           (mono ? ' font-mono' : '') +
           (accent ? ' ' + accent : '')
         }
@@ -178,7 +178,7 @@ function ContextShell({
   const headerCls: Record<typeof tone, string> = {
     cyan: 'text-info-soft',
     amber: 'text-caution-soft',
-    indigo: 'text-accent-soft',
+    indigo: 'text-accent',
     emerald: 'text-positive-soft',
     rose: 'text-critical-soft',
     slate: 'text-ink',
@@ -218,19 +218,25 @@ function StepContextBlock({
       return <SubmissionContext picture={picture} receipt={receipt} receiptHref={receiptHref} bookBank={bookBank} bookHref={bookHref} locale={locale} />;
     case 'dept_verification':
     case 'dept_authorization':
+    case 'department_approval':
       return <DeptContext picture={picture} receipt={receipt} receiptHref={receiptHref} locale={locale} />;
     case 'accounting_verification':
     case 'accounting_supervision':
     case 'accounting_authorization':
+    case 'accounting_review':
+    case 'accounting_approval':
       return <AccountingContext picture={picture} locale={locale} />;
     case 'final_authorization':
     case 'disbursement_authorization':
     case 'cfo_authorization':
     case 'ceo_authorization':
+    case 'executive_approval':
       return <FinalContext picture={picture} bookBank={bookBank} bookHref={bookHref} locale={locale} />;
     case 'awaiting_disbursement':
+    case 'payment':
       return <AwaitingDisbursementContext picture={picture} bookBank={bookBank} bookHref={bookHref} locale={locale} />;
     case 'disbursed':
+    case 'settlement':
       return <DisbursedContext picture={picture} receipt={receipt} receiptHref={receiptHref} bookBank={bookBank} hasGlConfirmed={hasGlConfirmed} locale={locale} />;
     default:
       return null;
@@ -291,7 +297,7 @@ function SubmissionContext({
       </div>
       {expense.payment_method === 'transfer' && bookBank && bookHref && (
         <div className="rounded-md border border-accent bg-accent-soft p-3 text-xs">
-          <div className="flex items-center justify-between gap-2 text-sm font-mono uppercase tracking-widest text-accent-soft">
+          <div className="flex items-center justify-between gap-2 text-sm font-mono uppercase tracking-widest text-accent">
             <span>🏦 {<T id="waybill.expense.book_bank_transfer" />}</span>
             <a href={bookHref} target="_blank" rel="noreferrer" className="text-info hover:underline">
               {<T id="waybill.expense.open_slip" />}
@@ -399,7 +405,7 @@ function AccountingContext({
           label={<T id="waybill.expense.total" />}
           value={fmtMoney(expense.total_amount)}
           mono
-          accent="text-accent-soft font-bold"
+          accent="text-accent font-bold"
         />
         <Field
           label={<T id="waybill.expense.sub_vat_vs_total" />}
@@ -424,7 +430,7 @@ function AccountingContext({
             {<T id="waybill.expense.no_items_using_single_amount_from_slip" />}
           </p>
         ) : (
-          <ul className="bg-paper-2 border border-rule mt-2 divide-y divide-rule rounded-md border">
+          <ul className="surface-contrast-reset mt-2 divide-y divide-rule overflow-hidden rounded-md border border-rule bg-paper-2">
             {items.map((it) => (
               <li key={it.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
                 <div className="min-w-0 flex-1">
@@ -696,197 +702,175 @@ export async function WaybillExpenseCollapsible({
   const bookHref = bookBankSlip ? await presignedOrHash(bookBankSlip) : null;
 
   return (
-    <details className="bg-paper-2 border border-rule group rounded-md border" open>
-      <summary className="cursor-pointer list-none px-4 py-3 [&::-webkit-details-marker]:hidden">
+    <details className="group/expense overflow-hidden rounded-xl border border-rule bg-paper-2" open>
+      <summary className="cursor-pointer list-none px-5 py-4 [&::-webkit-details-marker]:hidden">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <span
               aria-hidden
-              className="grid h-9 w-9 place-items-center rounded-md bg-indigo-soft text-indigo ring-1 ring-indigo/40"
+              className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-soft text-indigo ring-1 ring-indigo/40"
             >
               📦
             </span>
-            <div className="flex flex-col">
-              <span className="text-base font-bold text-ink">
-                <T id="waybill.expense.expense_picture" />
-              </span>
-              <span className="font-mono text-sm uppercase tracking-widest text-mute">
-                <T id="waybill.expense.vendor_items_slips" />:{' '}
-                <span className="text-info">{waybillId}</span>
-              </span>
+            <div>
+              <T
+                id="waybill.expense.expense_picture"
+                variant="stacked"
+                primaryClassName="block text-base font-semibold text-ink"
+                secondaryClassName="mt-0.5 block text-xs font-normal text-mute"
+              />
+              <span className="mt-1 block font-mono text-xs text-info">{waybillId}</span>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {statusPill(expense.status, localeSafe)}
-            <span className="font-mono text-sm uppercase tracking-wider text-mute group-open:hidden">
+            <span className="text-sm text-mute group-open/expense:hidden">
               ▶
             </span>
-            <span className="font-mono text-sm uppercase tracking-wider text-mute hidden group-open:inline">
+            <span className="hidden text-sm text-mute group-open/expense:inline">
               ▼
             </span>
           </div>
         </div>
       </summary>
 
-      <div className="space-y-6 border-t border-rule/60 px-4 py-4">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-ink-2">
-              <span aria-hidden>📋</span>
-              <span>
-                <T id="waybill.expense.expense_details" />
-              </span>
-            </div>
-            <dl className="grid grid-cols-2 gap-x-4 divide-y divide-rule text-sm">
-              <Field label={<T id="waybill.expense.created_by_vendor" />} value={expense.vendor_name ?? '—'} mono />
-              <Field label={<T id="waybill.expense.vendor_address" />} value={expense.vendor_address ?? '—'} mono />
-              <Field label={<T id="waybill.expense.created_to_customer" />} value={expense.created_to ?? '—'} mono />
-              <Field label={<T id="waybill.expense.customer_address" />} value={expense.created_to_address ?? '—'} mono />
-              <Field
-                label={<T id="waybill.expense.transaction_date" />}
-                value={fmtDate(expense.transaction_date)}
-                mono
+      <div className="space-y-5 border-t border-rule/60 p-5">
+        <section aria-label="Expense summary" className="space-y-5">
+          <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-4">
+            <Field
+              label={<T id="waybill.expense.vendor" variant="stacked" primaryClassName="block text-xs font-medium text-ink-2" secondaryClassName="mt-0.5 block text-[11px] font-normal text-mute" />}
+              value={expense.vendor_name ?? '—'}
+            />
+            <Field
+              label={<T id="waybill.expense.created_to_customer" variant="stacked" primaryClassName="block text-xs font-medium text-ink-2" secondaryClassName="mt-0.5 block text-[11px] font-normal text-mute" />}
+              value={expense.created_to ?? '—'}
+            />
+            <Field
+              label={<T id="waybill.expense.transaction_date" variant="stacked" primaryClassName="block text-xs font-medium text-ink-2" secondaryClassName="mt-0.5 block text-[11px] font-normal text-mute" />}
+              value={fmtDate(expense.transaction_date)}
+              mono
+            />
+            <Field
+              label={<T id="waybill.expense.payment_method" variant="stacked" primaryClassName="block text-xs font-medium text-ink-2" secondaryClassName="mt-0.5 block text-[11px] font-normal text-mute" />}
+              value={paymentLabel(expense.payment_method)}
+            />
+          </dl>
+
+          <div className="flex flex-wrap items-end justify-between gap-4 rounded-xl border border-positive/30 bg-positive-soft/35 p-4">
+            <T
+              id="waybill.expense.total"
+              variant="stacked"
+              primaryClassName="block text-sm font-semibold text-ink"
+              secondaryClassName="mt-0.5 block text-xs font-normal text-mute"
+            />
+            <span className="font-mono text-3xl font-bold text-positive">{fmtMoney(expense.total_amount)}</span>
+          </div>
+        </section>
+
+        <section className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <T
+              id="waybill.expense.line_items"
+              variant="stacked"
+              primaryClassName="block text-sm font-semibold text-ink"
+              secondaryClassName="mt-0.5 block text-xs font-normal text-mute"
+            />
+            <span className="rounded-full border border-rule bg-paper-3 px-2.5 py-1 text-xs font-medium text-ink-2">{items.length}</span>
+          </div>
+          {items.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-rule p-4 text-sm italic text-mute">
+              <T id="waybill.expense.no_line_items" />
+            </p>
+          ) : (
+            <ul className="divide-y divide-rule overflow-hidden rounded-xl border border-rule bg-paper/30">
+              {items.map((it) => (
+                <li key={it.id} className="grid gap-3 px-4 py-3 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="min-w-0">
+                    <div className="font-medium text-ink">{it.description}</div>
+                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs text-mute">
+                      {it.qty && it.unit_price && <span>{it.qty} × {fmtMoney(it.unit_price)}</span>}
+                      {it.mapped_account_code && <span>acct: <span className="text-info">{it.mapped_account_code}</span></span>}
+                    </div>
+                  </div>
+                  <div className="font-mono text-base font-semibold text-info">{fmtMoney(it.amount)}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <details className="group/details overflow-hidden rounded-xl border border-rule bg-paper/20">
+          <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+            <span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg bg-paper-3 text-ink-2">⌁</span>
+            <span className="min-w-0 flex-1">
+              <T
+                id="waybill.expense.expense_details"
+                variant="stacked"
+                primaryClassName="block text-sm font-semibold text-ink"
+                secondaryClassName="mt-0.5 block text-xs font-normal text-mute"
               />
+            </span>
+            <span className="text-sm text-mute transition group-open/details:rotate-180" aria-hidden>⌄</span>
+          </summary>
+          <div className="space-y-5 border-t border-rule p-4">
+            <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+              <Field label={<T id="waybill.expense.vendor_address" variant="stacked" />} value={expense.vendor_address ?? '—'} />
+              <Field label={<T id="waybill.expense.customer_address" variant="stacked" />} value={expense.created_to_address ?? '—'} />
               <Field
-                label={<T id="waybill.expense.payment_method" />}
-                value={expense.payment_method ?? '—'}
-                mono
+                label={<T id="waybill.expense.submitter" variant="stacked" />}
+                value={submitter_name ? `${submitter_name} #${expense.submitter_id ?? '—'}` : expense.submitter_id ? `#${expense.submitter_id}` : '—'}
               />
-              <Field
-                label={<T id="waybill.expense.submitter" />}
-                value={
-                  submitter_name
-                    ? `${submitter_name} #${expense.submitter_id ?? '—'}`
-                    : expense.submitter_id
-                    ? `#${expense.submitter_id}`
-                    : '—'
-                }
-              />
-              <Field
-                label={<T id="waybill.expense.subtotal" />}
-                value={fmtMoney(expense.subtotal)}
-                mono
-                accent="text-ink text-base"
-              />
-              <Field
-                label={<T id="waybill.expense.vat" />}
-                value={fmtMoney(expense.vat_amount)}
-                mono
-                accent="text-ink text-base"
-              />
-              <Field
-                label={<T id="waybill.expense.total" />}
-                value={fmtMoney(expense.total_amount)}
-                mono
-                accent="text-2xl sm:text-3xl text-positive font-extrabold"
-                full
-              />
+              <Field label={<T id="waybill.expense.subtotal" variant="stacked" />} value={fmtMoney(expense.subtotal)} mono />
+              <Field label={<T id="waybill.expense.vat" variant="stacked" />} value={fmtMoney(expense.vat_amount)} mono />
             </dl>
             {expense.rejection_reason && (
               <p className="rounded-lg border border-critical bg-critical-strong px-3 py-2 text-sm italic text-critical-soft">
-                <span aria-hidden>✗</span>{' '}
-                <T id="waybill.expense.rejection_reason" />: &ldquo;{expense.rejection_reason}&rdquo;
+                <span aria-hidden>✗</span>{' '}<T id="waybill.expense.rejection_reason" />: &ldquo;{expense.rejection_reason}&rdquo;
               </p>
             )}
-          </section>
-
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-ink-2">
-              <span aria-hidden>🧾</span>
-              <span>
-                <T id="waybill.expense.line_items" /> ({items.length})
-              </span>
+            <div className="space-y-3 border-t border-rule pt-4">
+              <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink-2">
+                <T id="waybill.expense.step_context" variant="stacked" />
+                <span className="font-mono text-xs text-info">{currentStage}</span>
+              </div>
+              <StepContextBlock pipKey={currentStage} picture={data} hasGlConfirmed={false} locale={localeSafe} />
             </div>
-            {items.length === 0 ? (
-              <p className="text-sm italic text-mute">
-                <T id="waybill.expense.no_line_items" />
-              </p>
-            ) : (
-              <ul className="divide-y divide-rule">
-                {items.map((it) => (
-                  <li
-                    key={it.id}
-                    className="flex items-center justify-between gap-3 py-2 text-sm"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-ink font-medium">{it.description}</div>
-                      <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs font-mono text-mute">
-                        {it.qty && it.unit_price && (
-                          <span>
-                            {it.qty} × {fmtMoney(it.unit_price)}
-                          </span>
-                        )}
-                        {it.mapped_account_code && (
-                          <span>
-                            acct: <span className="text-info">{it.mapped_account_code}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right font-mono text-lg font-semibold text-info-soft">
-                      {fmtMoney(it.amount)}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
+          </div>
+        </details>
 
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-ink-2">
-            <span aria-hidden>📎</span>
-            <span>
-              <T id="waybill.expense.slip_attachments" />
+        <details className="group/attachments overflow-hidden rounded-xl border border-rule bg-paper/20">
+          <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+            <span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg bg-paper-3 text-ink-2">📎</span>
+            <span className="min-w-0 flex-1">
+              <T
+                id="waybill.expense.slip_attachments"
+                variant="stacked"
+                primaryClassName="block text-sm font-semibold text-ink"
+                secondaryClassName="mt-0.5 block text-xs font-normal text-mute"
+              />
             </span>
+            <span className="rounded-full border border-rule px-2 py-0.5 text-xs text-mute">{slips.length}</span>
+            <span className="text-sm text-mute transition group-open/attachments:rotate-180" aria-hidden>⌄</span>
+          </summary>
+          <div className="grid divide-y divide-rule border-t border-rule px-4 py-2 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+            <SlipRow emoji="🧾" label={<T id="waybill.expense.receipt" variant="stacked" />} slip={receiptSlip} href={receiptHref} locale={localeSafe} />
+            <div className="sm:pl-4">
+              <SlipRow
+                emoji="📖"
+                label={<T id="waybill.expense.book_bank" variant="stacked" />}
+                slip={bookBankSlip}
+                href={bookHref}
+                locale={localeSafe}
+                bankFields={bookBankSlip ? {
+                  bankName: bookBankSlip.bank_name,
+                  accountNumber: bookBankSlip.account_number,
+                  accountName: bookBankSlip.account_name,
+                  bankBranch: bookBankSlip.bank_branch,
+                } : null}
+              />
+            </div>
           </div>
-          <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2 divide-y divide-rule sm:divide-y-0">
-            <SlipRow
-              emoji="🧾"
-              label={
-                <T id="waybill.expense.receipt" />
-              }
-              slip={receiptSlip}
-              href={receiptHref}
-              locale={localeSafe}
-            />
-            <SlipRow
-              emoji="📖"
-              label={
-                <T id="waybill.expense.book_bank" />
-              }
-              slip={bookBankSlip}
-              href={bookHref}
-              locale={localeSafe}
-              bankFields={
-                bookBankSlip
-                  ? {
-                      bankName: bookBankSlip.bank_name,
-                      accountNumber: bookBankSlip.account_number,
-                      accountName: bookBankSlip.account_name,
-                      bankBranch: bookBankSlip.bank_branch,
-                    }
-                  : null
-              }
-            />
-          </div>
-        </section>
-
-        <section className="space-y-4 border-t border-rule/60 pt-4">
-          <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-ink-2">
-            <span aria-hidden>🎯</span>
-            <span>
-              <T id="waybill.expense.step_context" /> ·{' '}
-              <span className="text-info">{currentStage}</span>
-            </span>
-          </div>
-          <StepContextBlock
-            pipKey={currentStage}
-            picture={data}
-            hasGlConfirmed={false}
-            locale={localeSafe}
-          />
-        </section>
+        </details>
       </div>
     </details>
   );

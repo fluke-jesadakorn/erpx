@@ -37,6 +37,8 @@ interface ModelRow {
   context_window: number | null;
   enabled: boolean;
   description: string | null;
+  is_free: boolean;
+  reasoning_levels: string[];
 }
 
 async function loadProviders(): Promise<ProviderRow[]> {
@@ -52,7 +54,7 @@ async function loadProviders(): Promise<ProviderRow[]> {
 
 async function loadModels(): Promise<ModelRow[]> {
   const res = await query<ModelRow>(
-    `SELECT id, name, provider_id, capabilities, context_window, enabled, description
+    `SELECT id, name, provider_id, capabilities, context_window, enabled, description, is_free, reasoning_levels
        FROM ai_models
        ORDER BY id`,
   );
@@ -66,6 +68,7 @@ interface AssignmentRow {
   provider_id: number;
   model_id: number;
   enabled: boolean;
+  user_selectable: boolean;
   priority: number;
   params_json: Record<string, unknown> | null;
   created_at: string;
@@ -73,7 +76,7 @@ interface AssignmentRow {
 
 async function loadAssignments(): Promise<AssignmentRow[]> {
   const res = await query<AssignmentRow>(
-    `SELECT id, section_key, task_type, provider_id, model_id, enabled, priority, params_json, created_at
+    `SELECT id, section_key, task_type, provider_id, model_id, enabled, user_selectable, priority, params_json, created_at
        FROM ai_assignments
        ORDER BY priority, id`,
   );
@@ -127,6 +130,7 @@ export default async function AiSettingsPage({
   const canCreate = hasPermission(out.session, PERM.ai.provider.create);
   const canDelete = hasPermission(out.session, PERM.ai.provider.delete);
   const canTest = hasPermission(out.session, PERM.ai.provider.test);
+  const canSync = hasPermission(out.session, 'ai:model:sync::allow');
   const canEditModels = hasPermission(out.session, PERM.ai.model.update);
 
   const tabs = [
@@ -150,6 +154,7 @@ export default async function AiSettingsPage({
             canCreate={canCreate}
             canDelete={canDelete}
             canTest={canTest}
+            canSync={canSync}
           />
         ) : active === 'models' ? (
           <ModelsTab
@@ -168,6 +173,7 @@ export default async function AiSettingsPage({
               model_id: a.model_id,
               priority: a.priority,
               enabled: a.enabled,
+              user_selectable: a.user_selectable,
               provider_name: providers.find((p) => p.id === a.provider_id)?.name ?? null,
               model_name: models.find((m) => m.id === a.model_id)?.name ?? null,
             }))}

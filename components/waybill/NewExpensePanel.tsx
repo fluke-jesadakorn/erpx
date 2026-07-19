@@ -59,6 +59,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
   const receiptSlipId = submitState?.slipId ?? null;
   const receiptReady = submitState?.canConfirm === true;
   const receiptHasFile = submitState?.pendingFile === true;
+  const receiptOcrStarted = submitState?.extractionState !== undefined && submitState.extractionState !== 'pending';
   const needsBookBank = payment === 'transfer';
   const bookBankReady: boolean =
     !needsBookBank ||
@@ -280,12 +281,12 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 }
                 data-testid="expense-sticky-submit"
                 className={[
-                  'shrink-0 inline-flex items-center justify-center gap-2 rounded-lg border-2 w-12 h-12 transition-all duration-200',
+                  'shrink-0 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border-2 px-4 transition-all duration-200 whitespace-nowrap',
                   'disabled:opacity-50 disabled:cursor-not-allowed',
                   submitting
                     ? 'bg-rule-strong text-ink-2 border-rule-strong'
                     : canSubmitAll
-                    ? 'bg-accent hover:bg-accent-strong text-paper-2 border-accent shadow-[0_8px_24px_-8px_color-mix(in_oklab,var(--accent)_55%,transparent)]'
+                    ? 'action-button bg-action hover:bg-action-hover text-action-ink border-action shadow-[0_8px_24px_-8px_color-mix(in_oklab,var(--action-bg)_55%,transparent)]'
                     : 'bg-paper-3 text-mute border-rule-strong',
                   'ring-1 ring-accent/30',
                 ].join(' ')}
@@ -297,8 +298,8 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                 ) : (
                   <Lock className="size-5" aria-hidden strokeWidth={2} />
                 )}
-                <span className="sr-only">
-                  {canSubmitAll ? 'Submit' : 'Submit (locked)'}
+                <span>
+                  <T id="waybill.expense.submitForApproval" />
                 </span>
               </button>
             </div>
@@ -391,7 +392,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
         bodyTint
         flat
         badge={
-          receiptHasFile ? (
+          receiptHasFile && receiptOcrStarted ? (
             <span className="text-xs font-sans tabular-nums px-2 py-0.5 rounded-full border border-info/40 bg-info-soft text-info inline-flex items-center gap-1">
               {receiptReady ? (
                 <>
@@ -435,7 +436,7 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                   <p className="text-xs text-mute mt-0.5 font-sans tabular-nums uppercase tracking-wider">RECEIPT</p>
                 </div>
               </div>
-              {receiptHasFile ? (
+              {receiptHasFile && receiptOcrStarted ? (
                 <span className="inline-flex items-center gap-1 rounded-md border border-info/40 bg-info-soft px-2.5 py-1 text-xs font-bold font-sans tabular-nums uppercase tracking-widest text-info">
                   {receiptReady ? (
                     <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
@@ -446,12 +447,12 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
                     ? <T id="waybill.expense.ocr_ok" />
                     : <T id="waybill.expense.ocr" />}
                 </span>
-              ) : (
+              ) : !receiptHasFile ? (
                 <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-3 px-2.5 py-1 text-xs font-bold font-sans tabular-nums uppercase tracking-widest text-mute">
                   <CircleDot className="size-3" aria-hidden strokeWidth={2} />
                   <T id="waybill.expense.empty" />
                 </span>
-              )}
+              ) : null}
             </header>
             <SlipUpload
               kind="receipt"

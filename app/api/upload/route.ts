@@ -123,38 +123,61 @@ export async function POST(req: Request) {
   const originalName = file.name || 'slip';
   const key = makeKey(originalName);
 
-  const stored = await put(key, buffer, mime);
+  let stored: Awaited<ReturnType<typeof put>>;
+  try {
+    stored = await put(key, buffer, mime);
+  } catch {
+    return NextResponse.json(
+      {
+        error: 'storage_unavailable',
+        detail: 'File storage is unavailable. Start the Folio storage service and retry the upload.',
+      },
+      { status: 502 },
+    );
+  }
 
   const modelName = String(form.get('model_name') || '').trim() || undefined;
+  const evidenceOnly = form.get('evidence_only') === '1';
 
   let parsed: Record<string, unknown>;
   let mode: string;
   let validation: { ok: boolean; errors: Array<{ code: string; severity: 'error' | 'warning'; field?: string; message: string }>; warnings: Array<{ code: string; severity: 'error' | 'warning'; field?: string; message: string }>; retried: boolean; summary: string };
-  try {
-    const r = await runOcrPipeline(buffer, mime, { modelName, kind });
-    parsed = r.parsed;
-    mode = r.mode;
-    validation = r.validation;
-  } catch (err: any) {
-    const upstreamStatus = err?.statusCode ?? err?.response?.status ?? null;
-    const status =
-      typeof upstreamStatus === 'number' && upstreamStatus >= 400 && upstreamStatus < 600
-        ? upstreamStatus
-        : 502;
-    return NextResponse.json(
-      {
-        error: 'ocr_failed',
-        detail: err.message,
-        upstreamStatus: upstreamStatus ?? null,
-        upstreamCode: err?.upstreamCode ?? null,
-        upstreamMessage: err?.upstreamMessage ?? null,
-      },
-      { status },
-    );
+  if (evidenceOnly) {
+    parsed = {};
+    mode = 'evidence-only';
+    validation = { ok: true, errors: [], warnings: [], retried: false, summary: 'evidence-only' };
+  } else {
+    try {
+      const r = await runOcrPipeline(buffer, mime, { modelName, kind, actorId: actor.id });
+      parsed = r.parsed;
+      mode = r.mode;
+      validation = r.validation;
+    } catch (err: any) {
+      const upstreamStatus = err?.statusCode ?? err?.response?.status ?? null;
+      const providerUnavailable = err?.providerUnavailable === true;
+      const status = providerUnavailable
+        ? 502
+        : typeof upstreamStatus === 'number' && upstreamStatus >= 400 && upstreamStatus < 600
+          ? upstreamStatus
+          : 502;
+      return NextResponse.json(
+        {
+          error: providerUnavailable ? 'provider_unavailable' : 'ocr_failed',
+          detail: err.message,
+          provider: err?.providerName ?? null,
+          model: err?.modelName ?? null,
+          upstreamStatus: upstreamStatus ?? null,
+          upstreamCode: err?.upstreamCode ?? null,
+          upstreamMessage: err?.upstreamMessage ?? null,
+        },
+        { status },
+      );
+    }
   }
 
-  const confidence =
-    kind === 'book_bank' ? bankConfidenceScore(parsed, validation) : ocrConfidence(parsed, validation);
+  const confidence = evidenceOnly
+    ? 0
+    : kind === 'book_bank' ? bankConfidenceScore(parsed, validation) : ocrConfidence(parsed, validation);
 
   const isPrOrPo = rawTargetType === 'pr' || rawTargetType === 'po';
   const initialStatus = isPrOrPo ? 'confirmed' : 'pending';

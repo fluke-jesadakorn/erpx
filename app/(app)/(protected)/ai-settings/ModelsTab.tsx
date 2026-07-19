@@ -14,6 +14,8 @@ interface ModelRow {
   context_window: number | null;
   enabled: boolean;
   description: string | null;
+  is_free: boolean;
+  reasoning_levels: string[];
 }
 
 interface Props {
@@ -91,7 +93,7 @@ export function ModelsTab({ initialModels, providers, canEdit, canDelete }: Prop
                 return (
                   <tr key={model.id} className="border-t border-rule hover:bg-paper-3">
                     <td className="px-4 py-3 font-mono text-xs tabular-nums text-mute">{model.id}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-ink">{model.name}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-ink">{model.name}{model.is_free && <Badge tone="positive" size="sm">free</Badge>}</td>
                     <td className="px-4 py-3 text-xs text-ink-2">{providers.find((provider) => provider.id === model.provider_id)?.name ?? '?'}</td>
                     <td className="px-4 py-3"><div className="flex flex-wrap gap-1">{model.capabilities.map((capability) => <Badge key={capability} tone="neutral" size="sm">{capability}</Badge>)}</div></td>
                     <td className="px-4 py-3 font-mono text-xs tabular-nums text-mute">{model.context_window ?? '—'}</td>

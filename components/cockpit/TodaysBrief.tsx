@@ -119,8 +119,7 @@ async function loadAnomalies(): Promise<AnomalyRow[]> {
             COALESCE(payload_json->>'severity', 'warning') AS severity,
             created_at::text AS created_at
        FROM notifications
-      WHERE type = 'anomaly'
-        AND cleared_at IS NULL
+       WHERE type = 'anomaly'
       ORDER BY created_at DESC
       LIMIT 3`,
   );
@@ -169,7 +168,7 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
           </span>
           <Link
             href="/cockpit"
-            className="inline-flex items-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-sm font-bold text-accent-soft hover:bg-accent transition-all"
+            className="action-button inline-flex items-center gap-1.5 rounded-md border border-action bg-action px-3 py-1.5 text-sm font-bold text-action-ink hover:bg-action-hover transition-all"
           >
             <span>↻</span>
             <span>
@@ -443,7 +442,7 @@ export async function TodaysBrief({ actor }: TodaysBriefProps) {
                     className="block min-w-0 rounded-md border border-accent bg-accent-strong px-3 py-2 hover:bg-accent-strong transition-all"
                   >
                     <div className="flex items-center justify-between text-sm font-mono gap-2 min-w-0">
-                      <span className="text-accent-soft font-bold truncate min-w-0">
+                      <span className="text-accent font-bold truncate min-w-0">
                         {s.waybill_id}
                       </span>
                       <span className="text-accent flex-shrink-0 whitespace-nowrap">

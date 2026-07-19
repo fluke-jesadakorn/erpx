@@ -70,10 +70,15 @@ export async function POST(req: Request) {
         const soRes = await q<{ so_number: string; id: number }>(
           `INSERT INTO sales_orders
              (so_number, customer_id, sales_rep_id, status, payment_terms, due_date,
-              subtotal, vat_total, total_amount)
+              subtotal, vat_total, total_amount, branch_id)
            VALUES (
              next_sales_order_number(EXTRACT(YEAR FROM now())::smallint),
-             $1, $2, 'so_draft', $3, $4, $5, $6, $7
+             $1, $2, 'so_draft', $3, $4, $5, $6, $7,
+             (SELECT id
+               FROM finance.branches
+               WHERE active
+               ORDER BY id
+               LIMIT 1)
            )
            RETURNING id, so_number`,
           [

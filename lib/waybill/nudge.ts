@@ -2,9 +2,7 @@ import 'server-only';
 import { aiInvoke } from '@/ai/router';
 import { query } from '../db';
 import { loadWaybill } from './queries';
-import { STAGE_TO_ROLE } from '../perm/stages';
 
-const IDLE_HOURS_THRESHOLD = 8;
 const MAX_NUDGES_PER_RUN = 20;
 
 export interface NudgeCandidate {

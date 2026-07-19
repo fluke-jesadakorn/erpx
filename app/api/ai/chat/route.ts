@@ -30,7 +30,7 @@ export async function POST(req: Request) {
 
   let body: any = {};
   try { body = await req.json(); } catch {}
-  const { sectionKey, tileId, messages, lang: bodyLang, contextData, systemPrompt: overridePrompt } = body;
+  const { sectionKey, tileId, messages, model, thinking, lang: bodyLang, contextData, systemPrompt: overridePrompt } = body;
   if (!sectionKey || !Array.isArray(messages) || messages.length === 0) {
     return NextResponse.json({ ok: false, error: 'sectionKey and messages required' }, { status: 400 });
   }
@@ -89,6 +89,8 @@ export async function POST(req: Request) {
     {
       messages,
       systemPrompt,
+      modelOverride: typeof model === 'string' && model.trim() ? model.trim() : undefined,
+      thinking: thinking === 'low' || thinking === 'medium' || thinking === 'high' ? thinking : undefined,
       temperature: 0.3,
     },
     { actorId: actor.id },

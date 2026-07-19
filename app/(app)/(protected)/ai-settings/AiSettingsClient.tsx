@@ -42,6 +42,7 @@ interface Props {
   canCreate: boolean;
   canDelete: boolean;
   canTest: boolean;
+  canSync?: boolean;
 }
 
 function isDirty(initial: ProviderRow, edit: EditState): boolean {
@@ -69,6 +70,7 @@ export const AiSettingsClient: React.FC<Props> = ({
   canCreate,
   canDelete,
   canTest,
+  canSync = false,
 }) => {
   const router = useRouter();
   const toast = useToast();
@@ -185,6 +187,28 @@ export const AiSettingsClient: React.FC<Props> = ({
       toast.info(msg);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Test failed';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setTestingId(null);
+    }
+  };
+
+  const syncModels = async (provider: ProviderRow) => {
+    if (!canSync) return;
+    setTestingId(provider.id);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch(`/api/ai/providers/${provider.id}/sync-models`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const msg = `${provider.name}: ${data.synced ?? 0} model(s) synchronized.`;
+      setInfo(msg);
+      toast.success(msg);
+      startTransition(() => router.refresh());
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Sync failed';
       setError(msg);
       toast.error(msg);
     } finally {
@@ -418,18 +442,28 @@ export const AiSettingsClient: React.FC<Props> = ({
                   />
                 </td>
                 <td className="px-2 py-1.5 text-right">
-                  {canEdit || canDelete || canTest ? (
+                  {canEdit || canDelete || canTest || canSync ? (
                     <div className="inline-flex flex-col gap-1 items-end">
-                      {canTest ? (
-                        <button
+                {canTest ? (
+                  <button
                           type="button"
                           className="px-2 py-1 rounded bg-paper-2 hover:bg-paper-2 text-xs disabled:opacity-40"
                           onClick={() => test(p.id)}
                           disabled={testing || saving || deleting}
                         >
                           {testing ? <T id="aiSettings.testing" /> : <T id="aiSettings.test" />}
-                        </button>
-                      ) : null}
+                  </button>
+                ) : null}
+                {canSync && p.type === 'openai_compat' ? (
+                  <button
+                    type="button"
+                    className="px-2 py-1 rounded border border-rule text-xs text-ink-2 hover:bg-paper-2 disabled:opacity-40"
+                    onClick={() => void syncModels(p)}
+                    disabled={testingId === p.id}
+                  >
+                    Sync models
+                  </button>
+                ) : null}
                       {canEdit ? (
                         <div className="inline-flex gap-1">
                           <button

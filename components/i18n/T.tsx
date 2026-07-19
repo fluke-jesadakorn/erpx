@@ -49,9 +49,17 @@ function lookup(dict: Record<string, unknown>, path: string): string | undefined
   return typeof cur === 'string' ? cur : undefined;
 }
 
+function replaceValues(text: string | undefined, values?: Record<string, string | number>): string | undefined {
+  if (!text || !values) return text;
+  return text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? `{${key}}`));
+}
+
 export function interpolate(text: BilingualText, values: Record<string, string | number>): BilingualText {
-  const replace = (s?: string) => s?.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? `{${key}}`));
-  return { en: replace(text.en) ?? '', th: replace(text.th), de: replace(text.de) };
+  return {
+    en: replaceValues(text.en, values) ?? '',
+    th: replaceValues(text.th, values),
+    de: replaceValues(text.de, values),
+  };
 }
 
 export function T({
@@ -70,8 +78,9 @@ export function T({
   const loc = useSecondaryLocale();
 
   const Tag = (as ?? 'span') as React.ElementType;
-  const secondary =
+  const secondaryRaw =
     !hideSecondary ? value?.[loc] ?? (id ? lookup(SECONDARY_DICTS[loc], id) : undefined) : undefined;
+  const secondary = replaceValues(secondaryRaw, values);
 
   const basePrimaryCls =
     variant === 'stacked'

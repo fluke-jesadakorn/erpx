@@ -7,10 +7,13 @@ import { descriptionFor, ratingsFor } from '@/ai/modelDescriptions';
 export interface VisionModel {
   id: number;
   name: string;
+  capabilities: string[];
   description: string | null;
   context_window: number | null;
   defaults_json: any;
   provider_name: string;
+  is_free: boolean;
+  preferred?: boolean;
   auto_registered: boolean;
   speed_rating: number | null;
   accuracy_rating: number | null;
@@ -19,13 +22,16 @@ export interface VisionModel {
 interface DbRow {
   id: number;
   name: string;
+  capabilities: string[];
   description: string | null;
   context_window: number | null;
   defaults_json: any;
   provider_name: string;
   provider_type: 'ollama' | 'openai_compat' | 'minimax';
+  provider_base_url: string;
   provider_id: number | null;
   api_key_enc: Buffer | null;
+  is_free: boolean;
 }
 
 interface OllamaTagModel {
@@ -52,18 +58,22 @@ async function resolveProviderId(name: string): Promise<number | null> {
   return r.rows[0]?.id ?? null;
 }
 
-function hasEnvFallback(type: 'ollama' | 'openai_compat' | 'minimax'): boolean {
-  if (type === 'ollama') return !!process.env.OLLAMA_URL;
-  if (type === 'openai_compat') return !!(process.env.OPENAI_API_KEY || process.env.OPENROUTER_API_KEY);
+function hasEnvFallback(providerName: string, type: 'ollama' | 'openai_compat' | 'minimax', baseUrl?: string): boolean {
+  if (type === 'ollama') return !!(process.env.OLLAMA_URL || baseUrl);
+  if (type === 'openai_compat') {
+    return providerName.toLowerCase() === 'openrouter'
+      ? !!(process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY)
+      : !!process.env.OPENAI_API_KEY;
+  }
   if (type === 'minimax') return !!process.env.MINIMAX_API_KEY;
   return false;
 }
 
-async function isProviderUsable(type: 'ollama' | 'openai_compat' | 'minimax', apiKeyEnc: Buffer | null): Promise<boolean> {
+async function isProviderUsable(providerName: string, type: 'ollama' | 'openai_compat' | 'minimax', apiKeyEnc: Buffer | null, baseUrl: string): Promise<boolean> {
   // Ollama needs a reachable server, not a key.
-  if (type === 'ollama') return !!process.env.OLLAMA_URL;
+  if (type === 'ollama') return !!(process.env.OLLAMA_URL || baseUrl);
   // Other providers need a decryptable DB key OR a working env-var fallback.
-  if (hasEnvFallback(type)) return true;
+  if (hasEnvFallback(providerName, type, baseUrl)) return true;
   if (!apiKeyEnc) return false;
   try {
     const k = await decryptKey(apiKeyEnc);
@@ -75,10 +85,17 @@ async function isProviderUsable(type: 'ollama' | 'openai_compat' | 'minimax', ap
 
 async function loadVisionModelsUncached(): Promise<VisionModel[]> {
   const dbRes = await query<DbRow>(
-    `SELECT m.id, m.name, m.description, m.context_window, m.defaults_json,
-            p.name AS provider_name, p.type AS provider_type, p.id AS provider_id, p.api_key_enc
+    `SELECT m.id, m.name, m.capabilities, m.description, m.context_window, m.defaults_json,
+            m.is_free,
+            p.name AS provider_name, p.type AS provider_type, p.base_url AS provider_base_url,
+            p.id AS provider_id, p.api_key_enc
      FROM ai_models m
-     LEFT JOIN ai_providers p ON p.id = m.provider_id
+     JOIN ai_assignments a ON a.model_id = m.id
+       AND a.section_key = 'staff:ocr'
+       AND a.task_type = 'vision'
+       AND a.enabled = true
+       AND a.user_selectable = true
+     JOIN ai_providers p ON p.id = m.provider_id AND p.enabled = true
      WHERE m.enabled = true AND 'vision' = ANY(m.capabilities)
      ORDER BY m.id`,
   );
@@ -88,24 +105,29 @@ async function loadVisionModelsUncached(): Promise<VisionModel[]> {
 
   for (const r of dbRes.rows) {
     if (!r.provider_id || !r.provider_type) continue;
-    const usable = await isProviderUsable(r.provider_type, r.api_key_enc);
+    if (seen.has(r.name)) continue;
+    const usable = await isProviderUsable(r.provider_name, r.provider_type, r.api_key_enc, r.provider_base_url);
     if (!usable) continue;
     seen.add(r.name);
     const ratings = ratingsFor(r.name);
     merged.push({
       id: r.id,
       name: r.name,
+      capabilities: r.capabilities ?? ['vision'],
       description: r.description,
       context_window: r.context_window,
       defaults_json: r.defaults_json,
       provider_name: r.provider_name,
+      is_free: r.is_free,
       auto_registered: false,
       speed_rating: ratings?.speed ?? null,
       accuracy_rating: ratings?.accuracy ?? null,
     });
   }
 
-  const ollamaBase = process.env.OLLAMA_URL || 'http://localhost:11434';
+  const ollamaBase = process.env.OLLAMA_URL
+    || dbRes.rows.find((row) => row.provider_type === 'ollama')?.provider_base_url
+    || 'http://localhost:11434';
   const ollamaVision = await fetchOllamaVisionModels(ollamaBase);
 
   if (ollamaVision.length > 0) {
@@ -132,10 +154,12 @@ async function loadVisionModelsUncached(): Promise<VisionModel[]> {
       merged.push({
         id,
         name: m.name,
+        capabilities: ['vision'],
         description,
         context_window: context,
         defaults_json: {},
         provider_name: 'local-ollama',
+        is_free: false,
         auto_registered: true,
         speed_rating: ratings?.speed ?? null,
         accuracy_rating: ratings?.accuracy ?? null,
@@ -158,8 +182,36 @@ async function loadVisionModelsUncached(): Promise<VisionModel[]> {
   return merged;
 }
 
-export const loadVisionModels = unstable_cache(
+const loadVisionModelsCached = unstable_cache(
   loadVisionModelsUncached,
   ['vision-models-list'],
   { tags: ['vision-models'], revalidate: 300 },
 );
+
+export const VISION_MODELS_CACHE_TAG = 'vision-models';
+
+export async function loadVisionModels(actorId?: number): Promise<VisionModel[]> {
+  const models = await loadVisionModelsCached();
+  let preferredName: string | null = null;
+  if (actorId) {
+    const preference = await query<{ model_name: string }>(
+      `SELECT m.name AS model_name
+         FROM folio.ai_user_section_preferences pref
+         JOIN folio.ai_models m ON m.id = pref.model_id AND m.enabled = true
+        WHERE pref.user_id = $1 AND pref.section_key = 'staff:ocr'
+        LIMIT 1`,
+      [actorId],
+    );
+    preferredName = preference.rows[0]?.model_name ?? null;
+  }
+
+  return [...models]
+    .map((model) => ({ ...model, preferred: Boolean(preferredName && model.name === preferredName) }))
+    .sort((a, b) => {
+      if (a.preferred !== b.preferred) return a.preferred ? -1 : 1;
+      if (a.is_free !== b.is_free) return a.is_free ? -1 : 1;
+      const contextDelta = (b.context_window ?? -1) - (a.context_window ?? -1);
+      if (contextDelta !== 0) return contextDelta;
+      return a.name.localeCompare(b.name);
+    });
+}

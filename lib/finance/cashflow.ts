@@ -54,6 +54,7 @@ export interface CashflowArgs {
   dateFrom: string;
   dateTo: string;
   lang?: 'en' | 'th' | 'de';
+  branchId?: number | null;
 }
 
 function emptySection(): CashflowSection {
@@ -98,14 +99,16 @@ export async function getCashflowStatement(args: CashflowArgs): Promise<Cashflow
     is_cash_account: boolean;
     net: string | number | null;
   }>(
-    `SELECT account_code,
-            account_name,
-            activity,
-            is_cash_account,
-            (COALESCE(debit, 0) - COALESCE(credit, 0)) AS net
-       FROM finance.v_cashflow_classified
-      WHERE entry_date BETWEEN $1::date AND $2::date`,
-    [dates.from, dates.to]
+    `SELECT l.account_code,
+            l.account_name,
+            COALESCE(m.activity, 'unclassified')::text AS activity,
+            (l.control_type IN ('bank','cash')) AS is_cash_account,
+            (l.debit_thb - l.credit_thb) AS net
+       FROM finance.v_posted_lines l
+       LEFT JOIN finance.account_cf_class m ON m.account_code = l.account_code
+      WHERE l.posting_date BETWEEN $1::date AND $2::date
+        AND ($3::bigint IS NULL OR l.branch_id = $3)`,
+    [dates.from, dates.to, args.branchId ?? null]
   );
 
   const buckets: Record<CfActivity, CashflowRow[]> = {
@@ -128,22 +131,20 @@ export async function getCashflowStatement(args: CashflowArgs): Promise<Cashflow
   }
 
   const openingRes = await query<{ opening: string | number | null }>(
-    `SELECT COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS opening
-       FROM folio.ledger_lines l
-       JOIN folio.journal_entries j ON j.id = l.journal_entry_id
-      WHERE j.is_draft = FALSE
-        AND l.account_code IN (SELECT account_code FROM finance.account_cf_class WHERE is_cash_account = TRUE)
-        AND j.entry_date < $1::date`,
-    [dates.from]
+    `SELECT COALESCE(SUM(debit_thb), 0) - COALESCE(SUM(credit_thb), 0) AS opening
+       FROM finance.v_posted_lines
+      WHERE control_type IN ('bank','cash')
+        AND posting_date < $1::date
+        AND ($2::bigint IS NULL OR branch_id = $2)`,
+    [dates.from, args.branchId ?? null]
   );
   const movementRes = await query<{ net: string | number | null }>(
-    `SELECT COALESCE(SUM(l.debit), 0) - COALESCE(SUM(l.credit), 0) AS net
-       FROM folio.ledger_lines l
-       JOIN folio.journal_entries j ON j.id = l.journal_entry_id
-      WHERE j.is_draft = FALSE
-        AND l.account_code IN (SELECT account_code FROM finance.account_cf_class WHERE is_cash_account = TRUE)
-        AND j.entry_date BETWEEN $1::date AND $2::date`,
-    [dates.from, dates.to]
+    `SELECT COALESCE(SUM(debit_thb), 0) - COALESCE(SUM(credit_thb), 0) AS net
+       FROM finance.v_posted_lines
+      WHERE control_type IN ('bank','cash')
+        AND posting_date BETWEEN $1::date AND $2::date
+        AND ($3::bigint IS NULL OR branch_id = $3)`,
+    [dates.from, dates.to, args.branchId ?? null]
   );
 
   const opening_balance = num(openingRes.rows[0]?.opening);

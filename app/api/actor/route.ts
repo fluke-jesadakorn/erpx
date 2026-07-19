@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { query } from '@/db';
-import { signSession, SESSION_COOKIE, SESSION_TTL_SECONDS, mintSessionId } from '@/server/sessionToken';
+import { signSession, SESSION_COOKIE, SESSION_TTL_SECONDS, mintSessionId, verifySession } from '@/server/sessionToken';
 import { safeEqual } from '@/server/sessionToken';
 
 export const runtime = 'nodejs';
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const r = await query('SELECT id, fullname FROM users WHERE id = $1', [id]);
+  const r = await query('SELECT id, fullname FROM users WHERE id = $1 AND is_active IS TRUE', [id]);
   if (!r.rows.length) return NextResponse.json({ error: 'user not found' }, { status: 404 });
 
   const roleRow = await query<{ id: string; name: string }>(
@@ -44,6 +44,12 @@ export async function POST(req: Request) {
     [id],
   );
   const roleName = roleRow.rows[0]?.name || 'unconfigured';
+
+  const c = await cookies();
+  const previous = await verifySession(c.get(SESSION_COOKIE)?.value ?? null);
+  if (previous) {
+    await query(`UPDATE auth.sessions SET revoked_at = now() WHERE id = $1`, [previous.id]).catch(() => {});
+  }
 
   const sid = mintSessionId();
   await query(
@@ -59,7 +65,6 @@ export async function POST(req: Request) {
     impersonatorUserId: null,
   });
 
-  const c = await cookies();
   c.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -78,6 +83,11 @@ export async function DELETE() {
     return NextResponse.json({ error: 'disabled in production' }, { status: 404 });
   }
   const c = await cookies();
+  const token = c.get(SESSION_COOKIE)?.value ?? null;
+  const payload = await verifySession(token);
+  if (payload) {
+    await query(`UPDATE auth.sessions SET revoked_at = now() WHERE id = $1`, [payload.id]).catch(() => {});
+  }
   c.delete(SESSION_COOKIE);
   return NextResponse.json({ ok: true });
 }

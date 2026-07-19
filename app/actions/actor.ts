@@ -35,7 +35,7 @@ export async function switchActor(formData: FormData): Promise<{ ok: boolean; us
               WHERE ur.user_id = u.id AND ur.role_kind = 'hierarchy'
               LIMIT 1) AS role_id
        FROM users u
-      WHERE u.id = $1`,
+      WHERE u.id = $1 AND u.is_active IS TRUE`,
     [id],
   );
   if (!r.rows.length) throw new Error('user not found');

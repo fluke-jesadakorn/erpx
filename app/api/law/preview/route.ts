@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { apiGuard } from '@/server/apiGuard';
+import { PERM } from '@/perm/taxonomy';
 import { getContract, previewContract } from '@/law/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-  const guard = await apiGuard(req);
+  const guard = await apiGuard(req, { perm: PERM.law.preview.read });
   if (guard.response) return guard.response;
   const id = new URL(req.url).searchParams.get('id');
   if (!id) return NextResponse.json({ ok: false, error: 'id is required' }, { status: 400 });

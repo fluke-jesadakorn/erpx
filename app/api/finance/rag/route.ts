@@ -24,11 +24,12 @@ export async function POST(req: Request) {
       dateTo: body.dateTo ?? null,
       amountMin: Number.isFinite(body.amountMin) ? body.amountMin : null,
       amountMax: Number.isFinite(body.amountMax) ? body.amountMax : null,
+      actorId: guard.actor?.id,
     });
     return NextResponse.json({ ok: true, hits });
   }
 
-  const r = await askFinance(q, lang);
+  const r = await askFinance(q, lang, guard.actor?.id);
   if (!r) return NextResponse.json({ ok: true, answer: null, hits: [] });
   return NextResponse.json({ ok: true, ...r });
 }

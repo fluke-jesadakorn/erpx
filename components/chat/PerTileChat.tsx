@@ -181,7 +181,7 @@ export function PerTileChat({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-4 right-4 z-sticky rounded-full bg-paper border border-accent text-accent-soft text-sm font-mono px-4 py-2 shadow-xl hover:bg-paper-2"
+        className="fixed bottom-4 right-4 z-sticky rounded-full bg-paper border border-accent text-accent-ink text-sm font-mono px-4 py-2 shadow-xl hover:bg-paper-2"
         title={`Open AI chat for ${displayName || tileId}`}
       >
         <T id="chat.label" values={{ tile: tileId }} />
@@ -227,13 +227,13 @@ export function PerTileChat({
             {messages.map(renderMessage)}
             {busy && (
               <div className="flex justify-start">
-                <div className="rounded-md px-3 py-2 border bg-critical-strong border-critical-strong text-xs text-critical-soft font-mono animate-pulse">
+                <div className="rounded-md px-3 py-2 border bg-critical-strong border-critical-strong text-xs text-paper font-mono animate-pulse">
                   <T id="chat.thinking" />
                 </div>
               </div>
             )}
             {error && (
-              <div className="rounded-md px-3 py-2 border bg-critical-strong border-critical-strong text-xs text-critical-soft font-mono">
+              <div className="rounded-md px-3 py-2 border bg-critical-strong border-critical-strong text-xs text-paper font-mono">
                 🤖 <T id="chat.aiUnavailable" values={{ error: error ?? 'unknown' }} />
               </div>
             )}
@@ -257,7 +257,7 @@ export function PerTileChat({
             <button
               type="submit"
               disabled={busy || !input.trim()}
-              className="rounded-lg bg-accent-strong hover:bg-accent disabled:opacity-50 text-ink text-sm font-medium px-4"
+              className="action-button rounded-lg bg-action hover:bg-action-hover disabled:opacity-50 text-action-ink text-sm font-medium px-4"
             >
               ➤
             </button>

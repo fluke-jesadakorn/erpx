@@ -1,72 +1,55 @@
 import Link from 'next/link';
-import type { InboxScope } from '@/waybill/queries';
-import { T } from '@/components/i18n/T';
-import { Bell, Layers3, Zap, type LucideIcon } from 'lucide-react';
-import { createElement } from 'react';
+import type { NotificationReadFilter, NotificationView } from '@/notifications/queries';
+import { Bell, CheckCircle2, Inbox, Layers3, Zap } from 'lucide-react';
 
 interface Props {
-  current: InboxScope;
-  counts?: Partial<Record<InboxScope, number>>;
-  lang?: 'en' | 'th';
+  current: NotificationView;
+  read: NotificationReadFilter;
+  domain: 'expense' | 'so' | 'all';
+  counts: { actions: number; unread: number };
 }
 
-interface PillSpec {
-  scope: InboxScope;
-  href: string;
-  icon: LucideIcon;
-  labelId: string;
-  count?: number;
+function href(view: NotificationView, read: NotificationReadFilter, domain: string): string {
+  const params = new URLSearchParams({ view, read, domain });
+  return `/inbox?${params.toString()}`;
 }
 
-export function InboxFilters({ current, counts, lang: _lang = 'en' }: Props) {
-  const specs: Array<Omit<PillSpec, 'count'>> = [
-    { scope: 'waiting',  href: '/inbox?scope=waiting',  icon: Zap, labelId: 'inbox.filterWaiting' },
-    { scope: 'watching', href: '/inbox?scope=watching', icon: Bell, labelId: 'inbox.filterWatching' },
-    { scope: 'all',      href: '/inbox?scope=all',      icon: Layers3, labelId: 'inbox.filterAll' },
+export function InboxFilters({ current, read, domain, counts }: Props) {
+  const tabs = [
+    { value: 'actions' as const, label: 'Action required', icon: Zap, count: counts.actions },
+    { value: 'notifications' as const, label: 'Notifications', icon: Bell, count: counts.unread },
+    { value: 'all' as const, label: 'All', icon: Layers3, count: undefined },
   ];
-  const pills: PillSpec[] = specs.map((p) => {
-    const c = counts?.[p.scope];
-    return { ...p, count: typeof c === 'number' ? c : undefined };
-  });
-
   return (
-    <nav
-      aria-label="Inbox scope"
-      className="glass-toolbar mb-5 flex flex-wrap gap-2 p-2 text-xs font-mono"
-    >
-      {pills.map((p) => {
-        const isCurrent = p.scope === current;
-        return (
-          <Link
-            key={p.scope}
-            href={p.href}
-            aria-current={isCurrent ? 'page' : undefined}
-            className={
-              'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ' +
-              (isCurrent
-                ? 'border-info bg-info-soft text-info'
-                : 'border-rule text-ink-2 hover:border-rule hover:text-ink')
-            }
-          >
-            {createElement(p.icon, { size: 13, 'aria-hidden': true })}
-            <span><T id={p.labelId} /></span>
-            {typeof p.count === 'number' && (
-              <span
-                className={
-                  'rounded-full px-1.5 py-0.5 text-xs ' +
-                  (isCurrent
-                    ? 'bg-info/30 text-info-strong'
-                    : 'bg-paper-2 text-ink-2')
-                }
-              >
-                {p.count}
-              </span>
-            )}
+    <div className="glass-toolbar mb-5 space-y-3 p-2 text-xs font-mono">
+      <nav aria-label="Inbox type" className="flex flex-wrap gap-2">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const active = current === tab.value;
+          return (
+            <Link key={tab.value} href={href(tab.value, read, domain)} className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors ${active ? 'border-info bg-info-soft text-info' : 'border-rule text-ink-2 hover:text-ink'}`}>
+              <Icon size={13} aria-hidden />
+              <span>{tab.label}</span>
+              {tab.count != null && <span className="rounded-full bg-paper-2 px-1.5 py-0.5">{tab.count}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+      <div className="flex flex-wrap items-center gap-2 border-t border-rule pt-2">
+        <span className="text-mute">Read:</span>
+        {(['all', 'unread', 'read'] as const).map((value) => (
+          <Link key={value} href={href(current, value, domain)} className={`inline-flex items-center gap-1 rounded-md px-2 py-1 ${read === value ? 'bg-paper-3 text-ink' : 'text-ink-2 hover:text-ink'}`}>
+            {value === 'unread' ? <Inbox size={12} /> : value === 'read' ? <CheckCircle2 size={12} /> : null}
+            {value}
           </Link>
-        );
-      })}
-    </nav>
+        ))}
+        <span className="ml-2 text-mute">Domain:</span>
+        {(['all', 'expense', 'so'] as const).map((value) => (
+          <Link key={value} href={href(current, read, value)} className={`rounded-md px-2 py-1 ${domain === value ? 'bg-paper-3 text-ink' : 'text-ink-2 hover:text-ink'}`}>
+            {value === 'so' ? 'Sales orders' : value === 'expense' ? 'Expenses' : 'All'}
+          </Link>
+        ))}
+      </div>
+    </div>
   );
 }
-
-export default InboxFilters;

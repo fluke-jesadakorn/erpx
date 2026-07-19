@@ -5,7 +5,7 @@
 > the psql/curl evidence a viewer can re-run.
 >
 > Companion doc: `docs/youtube-casts.md` — cast, departments, cull rules.
-> Tile catalog source of truth: `db/perm/*.sql`.
+> Tile catalog source of truth: `db/seed.sql`.
 
 ## Conventions
 
@@ -14,7 +14,7 @@
 - **Persona badge** (top-left corner of every shot):
   `🪪 <name> · <dept> · L<n>` — matches `docs/youtube-casts.md`.
 - **Tile badge** (bottom-right): `<tile-id> · <href>` — matches
-  `db/perm/*.sql`.
+  `db/seed.sql`.
 - **Evidence footer** — every episode ends with copy-paste psql/curl one-liners
   so the viewer can verify the screenshot in 30 seconds.
 - **Out of scope**: marketing copy, music cues, color grading. Ops only.
@@ -471,13 +471,13 @@ PGPASSWORD=contractpw psql -h localhost -U contract -d folio_db -c "
 | Persona        | 🪪 Alex Admin (editing) · then John / Emily / Charles (viewing) |
 | Tiles          | `permissions`, `directory`                                  |
 | DB source      | `users.staff_level`, `roles.default_staff_level`            |
-| Migration      | `db/apply_staff_level.sql`                                  |
+| Seed           | `perm.roles.rank` in `db/seed.sql`                          |
 | Tables touched | `users.staff_level`, role default backfill                  |
 | Length target  | ~4 min                                                      |
 
 ### Level mapping (canonical)
 
-From `db/apply_staff_level.sql:43` — single source of truth:
+The current source of truth is `perm.roles.rank` in `db/seed.sql`:
 
 | Role                  | default_staff_level |
 |-----------------------|---------------------|
@@ -515,8 +515,7 @@ From `db/apply_staff_level.sql:43` — single source of truth:
    `components/tileAccess.ts`).
 9. **Switch persona → John**. The new tiles are visible on his hub.
 10. Roll back: as Alex, set John back to L5 → tiles disappear again.
-11. Show the **canonical mapping** with `psql` and explain that `apply_staff_level.sql`
-    is idempotent — re-run any time after a role rename.
+11. Show the canonical `perm.roles.rank` mapping with `psql`.
 
 ### Narration
 

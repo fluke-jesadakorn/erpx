@@ -211,6 +211,7 @@ function NavRow({
   left,
   center,
   right,
+  rightAction,
   onClick,
 }: {
   active?: boolean;
@@ -220,6 +221,7 @@ function NavRow({
   left?: React.ReactNode;
   center?: React.ReactNode;
   right?: React.ReactNode;
+  rightAction?: React.ReactNode;
   onClick?: () => void;
 }) {
   const t = TONE[tone];
@@ -230,34 +232,57 @@ function NavRow({
       ? `${t.active} text-ink`
       : 'text-ink-2 hover:bg-paper-3/40 hover:text-ink cursor-pointer';
 
-  const inner = (
+  const marker = dot ? (
+    <span
+      aria-hidden
+      className={[
+        'absolute left-0 top-0 bottom-0 w-1 transition-all duration-200',
+        active
+          ? `${t.dot} shadow-[0_0_10px_-1px_currentColor]`
+          : 'bg-transparent group-hover:bg-rule/40',
+      ].join(' ')}
+    />
+  ) : null;
+
+  const main = (
     <>
-      {dot ? (
-        <span
-          aria-hidden
-          className={[
-            'absolute left-0 top-0 bottom-0 w-1 transition-all duration-200',
-            active
-              ? `${t.dot} shadow-[0_0_10px_-1px_currentColor]`
-              : 'bg-transparent group-hover:bg-rule/40',
-          ].join(' ')}
-        />
-      ) : null}
       {left ? (
         <span className={['flex h-5 w-5 shrink-0 items-center justify-center transition-colors', active ? t.text : 'text-mute group-hover:text-ink-2'].join(' ')} aria-hidden>
           {left}
         </span>
       ) : null}
       <span className="flex min-w-0 flex-1 items-center text-left">{center}</span>
-      {right ? <span className="flex shrink-0 items-center gap-1.5">{right}</span> : null}
     </>
   );
 
-  if (locked || !onClick) return <div className={[base, state].join(' ')}>{inner}</div>;
+  const rightSlot = right ? <span className="flex shrink-0 items-center gap-1.5">{right}</span> : null;
+  const rightActionSlot = rightAction ? <span className="flex shrink-0 items-center gap-1.5">{rightAction}</span> : null;
+
+  if (locked || !onClick) {
+    return <div className={[base, state].join(' ')}>{marker}{main}{rightSlot}{rightActionSlot}</div>;
+  }
+
+  if (!rightAction) {
+    return (
+      <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined} className={[base, state].join(' ')}>
+        {marker}{main}{rightSlot}
+      </button>
+    );
+  }
+
   return (
-    <button type="button" onClick={onClick} aria-current={active ? 'true' : undefined} className={[base, state].join(' ')}>
-      {inner}
-    </button>
+    <div className={[base, state].join(' ')}>
+      {marker}
+      <button
+        type="button"
+        onClick={onClick}
+        aria-current={active ? 'true' : undefined}
+        className="flex min-w-0 flex-1 items-stretch gap-3 border-0 bg-transparent p-0 text-left text-inherit"
+      >
+        {main}{rightSlot}
+      </button>
+      {rightActionSlot}
+    </div>
   );
 }
 
@@ -692,7 +717,7 @@ export function PermissionMatrix({ columns, targets, initialCells, canEdit, acto
                                 </span>
                               </span>
                             }
-                            right={
+                            rightAction={
                               <span className="flex items-center gap-1.5">
                                 {userHas ? (
                                   <Pill tone="positive" size="xs">

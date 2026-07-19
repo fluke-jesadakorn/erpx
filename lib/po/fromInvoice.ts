@@ -37,13 +37,13 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-async function runExtractionChat(parsed: Record<string, unknown>): Promise<{ invoiceNo?: string; dueDate?: string; items?: unknown[] } | null> {
+async function runExtractionChat(parsed: Record<string, unknown>, actorId?: number): Promise<{ invoiceNo?: string; dueDate?: string; items?: unknown[] } | null> {
   const r = await aiInvoke('staff:submit', 'chat', {
     systemPrompt: `You complete missing fields in a supplier invoice JSON. Output only JSON {"invoiceNo":"...","dueDate":"YYYY-MM-DD","items":[...]}. If a field is already present, keep it. If uncertain, return empty string. Keep response under 100 words.`,
     text: JSON.stringify(parsed),
     temperature: 0.1,
     maxTokens: 400,
-  });
+  }, { actorId });
   if (!r.ok || !r.text) return null;
   try {
     return JSON.parse(r.text.match(/\{[\s\S]*\}/)?.[0] ?? '{}');
@@ -75,7 +75,7 @@ export async function ingestPoInvoice(args: {
 
   let ocr;
   try {
-    ocr = await runOcrPipeline(args.buffer, mime, { kind: 'po_invoice' });
+    ocr = await runOcrPipeline(args.buffer, mime, { kind: 'po_invoice', actorId: args.uploadedBy });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e);
     await query(
@@ -88,7 +88,7 @@ export async function ingestPoInvoice(args: {
   const parsed = ocr.parsed as Record<string, unknown>;
   const ocrConfidence = confidenceScore(parsed, ocr.validation as any);
 
-  const chatFill = await runExtractionChat(parsed).catch(() => null);
+  const chatFill = await runExtractionChat(parsed, args.uploadedBy).catch(() => null);
   if (chatFill && typeof chatFill === 'object') {
     if (!parsed.invoiceNo && typeof chatFill.invoiceNo === 'string') parsed.invoiceNo = chatFill.invoiceNo;
     if (!parsed.dueDate && typeof chatFill.dueDate === 'string') parsed.dueDate = chatFill.dueDate;

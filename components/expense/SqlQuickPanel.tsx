@@ -100,7 +100,7 @@ export function SqlQuickPanel() {
             type="button"
             onClick={() => run(p)}
             disabled={busy}
-            className="rounded-full border border-info-strong bg-info px-3 py-1.5 text-xs font-mono text-info-soft hover:bg-info disabled:opacity-50"
+            className="rounded-full border border-info-strong bg-info px-3 py-1.5 text-xs font-mono text-paper hover:bg-info disabled:opacity-50"
           >
             <span aria-hidden className="mr-1">
               {p.icon}

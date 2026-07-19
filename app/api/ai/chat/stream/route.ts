@@ -11,11 +11,12 @@ export async function POST(req: NextRequest) {
   if (guard.response) return guard.response;
   const actor = guard.actor!;
   const body = await req.json().catch(() => ({}));
-  const { sectionKey, messages, systemPrompt, model, temperature } = body as {
+  const { sectionKey, messages, systemPrompt, model, thinking, temperature } = body as {
     sectionKey?: string;
     messages?: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
     systemPrompt?: string;
     model?: string;
+    thinking?: 'low' | 'medium' | 'high';
     temperature?: number;
   };
   if (!sectionKey || !Array.isArray(messages) || messages.length === 0) {
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
             messages,
             systemPrompt,
             modelOverride: model,
+            thinking,
             temperature: typeof temperature === 'number' ? temperature : 0.3,
           },
           { actorId: actor.id },
@@ -53,8 +55,10 @@ export async function POST(req: NextRequest) {
         send('error', {
           message: e?.message ?? String(e),
           statusCode: e?.statusCode ?? e?.response?.status ?? undefined,
-          upstreamCode: e?.response?.data?.error?.code ?? null,
-          upstreamMessage: e?.response?.data?.error?.message ?? null,
+          provider: e?.providerName ?? null,
+          model: e?.modelName ?? model ?? null,
+          upstreamCode: e?.upstreamCode ?? e?.response?.data?.error?.code ?? null,
+          upstreamMessage: e?.upstreamMessage ?? e?.response?.data?.error?.message ?? null,
         });
         controller.close();
       }

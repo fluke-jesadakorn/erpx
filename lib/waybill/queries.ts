@@ -24,6 +24,7 @@ export interface WaybillRow {
   fiscal_year: number;
   waybill_kind: 'reimbursement' | 'procurement';
   submitter_id: number | null;
+  submitter_name?: string | null;
   vendor_name: string | null;
   vendor_address: string | null;
   created_to: string | null;
@@ -41,11 +42,14 @@ export interface WaybillRow {
 
 export const loadWaybill = cache(async (id: string): Promise<WaybillRow | null> => {
   const r = await query<WaybillRow>(
-    `SELECT id, origin, origin_id, fiscal_year, waybill_kind, submitter_id,
+    `SELECT w.id, w.origin, w.origin_id, w.fiscal_year, w.waybill_kind, w.submitter_id,
+            u.fullname AS submitter_name,
             vendor_name, vendor_address, created_to, created_to_address, total_amount, currency, current_stage,
              current_owner_role, current_owner_user_id, status, flagged_reason,
-             created_at, updated_at
-        FROM waybills WHERE id = $1`,
+             w.created_at, w.updated_at
+        FROM waybills w
+        LEFT JOIN users u ON u.id = w.submitter_id
+       WHERE w.id = $1`,
     [id],
   );
   return r.rows[0] ?? null;
@@ -56,11 +60,14 @@ export async function loadWaybillByOrigin(
   originId: number,
 ): Promise<WaybillRow | null> {
   const r = await query<WaybillRow>(
-    `SELECT id, origin, origin_id, fiscal_year, waybill_kind, submitter_id,
+    `SELECT w.id, w.origin, w.origin_id, w.fiscal_year, w.waybill_kind, w.submitter_id,
+            u.fullname AS submitter_name,
             vendor_name, vendor_address, created_to, created_to_address, total_amount, currency, current_stage,
             current_owner_role, current_owner_user_id, status,
-            created_at, updated_at
-       FROM waybills WHERE origin = $1 AND origin_id = $2`,
+            w.created_at, w.updated_at
+       FROM waybills w
+       LEFT JOIN users u ON u.id = w.submitter_id
+      WHERE w.origin = $1 AND w.origin_id = $2`,
     [origin, originId],
   );
   return r.rows[0] ?? null;
@@ -389,7 +396,7 @@ export type ApproversByStage = Record<string, ApproverRow[]>;
 export type ActedUsersByStage = Record<string, ActedUserEntry[]>;
 
 // Stages whose approver pool is scoped to the submitter's own department.
-const DEPT_SCOPED_STAGES = new Set(['submission', 'department_approval', 'dept_verification', 'dept_authorization', 'so_dept_approval']);
+const DEPT_SCOPED_STAGES = new Set(['submission', 'department_approval', 'dept_verification', 'dept_authorization', 'so_sales_review', 'so_dept_approval']);
 
 export async function loadApproversByStage(waybillId: string): Promise<ApproversByStage> {
   const wb = await loadWaybill(waybillId);
@@ -601,8 +608,47 @@ export interface SalesArtifacts {
   ar_receipt: { file_path: string; mime_type: string; uploaded_at: string } | null;
 }
 
-export async function loadSalesArtifacts(_wb: WaybillRow): Promise<SalesArtifacts | null> {
-  return null;
+export async function loadSalesArtifacts(wb: WaybillRow): Promise<SalesArtifacts | null> {
+  if (wb.origin !== 'so') return null;
+  const order = await query<{
+    customer_id: number;
+    subtotal: string;
+    vat_total: string;
+    total_amount: string;
+    invoice_number: string | null;
+    invoice_issued_at: string | null;
+    ar_slip_id: number | null;
+    code: string;
+    name: string;
+    name_th: string | null;
+    name_de: string | null;
+  }>(
+    `SELECT so.customer_id, so.subtotal::text, so.vat_total::text, so.total_amount::text,
+            so.invoice_number, so.invoice_issued_at::text, so.ar_slip_id,
+            c.code, c.name, c.name_th, c.name_de
+       FROM sales_orders so JOIN customers c ON c.id = so.customer_id
+      WHERE so.id = $1`,
+    [wb.origin_id],
+  );
+  const row = order.rows[0];
+  if (!row) return null;
+  const [items, slip] = await Promise.all([
+    query<{ id: number; description: string; qty: string; unit_price: string; vat_amount: string; line_total: string }>(
+      `SELECT id, description, qty::text, unit_price::text, vat_amount::text, line_total::text
+         FROM so_items WHERE sales_order_id = $1 ORDER BY id`,
+      [wb.origin_id],
+    ),
+    row.ar_slip_id
+      ? query<{ file_path: string; mime_type: string; uploaded_at: string }>(`SELECT file_path, mime_type, uploaded_at::text FROM slips WHERE id = $1`, [row.ar_slip_id])
+      : Promise.resolve({ rows: [] as Array<{ file_path: string; mime_type: string; uploaded_at: string }> }),
+  ]);
+  return {
+    customer: { id: row.customer_id, code: row.code, name: row.name, name_th: row.name_th, name_de: row.name_de },
+    items: items.rows.map((item) => ({ id: item.id, description: item.description, qty: Number(item.qty), unit_price: Number(item.unit_price), vat_amount: Number(item.vat_amount), line_total: Number(item.line_total) })),
+    totals: { subtotal: Number(row.subtotal), vat_total: Number(row.vat_total), total: Number(row.total_amount) },
+    invoice: { number: row.invoice_number, issued_at: row.invoice_issued_at },
+    ar_receipt: slip.rows[0] ?? null,
+  };
 }
 
 export type InboxScope = 'mine' | 'queue' | 'all' | 'active' | 'waiting' | 'watching';
@@ -635,6 +681,8 @@ export interface JournalEntryLike {
   entry_date: string | Date;
   description?: string | null;
   lines: JournalLineRow[];
+  ai_suggestion?: Record<string, unknown> | null;
+  ai_confidence?: number | null;
   finalized_by_name?: string | null;
   finalized_by?: number | null;
   finalized_at?: string | null;
@@ -647,10 +695,8 @@ export interface JournalEventLike {
 }
 
 export interface ExpenseJournalView {
-  draft: JournalEntryLike | null;
-  posted: JournalEntryLike | null;
-  posted_event: JournalEventLike | null;
-  confirmed_event: JournalEventLike | null;
+  accrual: ProcurementJournalStepView;
+  settlement: ProcurementJournalStepView;
 }
 
 export interface ProcurementJournalStepView {
@@ -698,6 +744,7 @@ async function loadJournalStep(args: {
     finalized_at: string | null;
   }>(
     `SELECT je.id AS journal_id, je.entry_date, je.description, je.is_draft,
+            je.ai_suggestion, je.ai_confidence::float8 AS ai_confidence,
             je.finalized_by, u.fullname AS finalized_by_name, je.finalized_at
        FROM journal_entries je
        LEFT JOIN users u ON u.id = je.finalized_by
@@ -724,13 +771,61 @@ async function loadJournalStep(args: {
       lines: lines.rows.filter((line) => line.journal_entry_id === row.journal_id),
     };
   };
+  const draft = block(true);
+  let posted = block(false);
+  if (args.origin === 'expense' && !posted) {
+    const sourceType = args.step === 'settlement' ? 'ap_payment' : 'expense';
+    const official = await query<{
+      id: number;
+      posting_date: string;
+      description: string;
+      approver_id: number | null;
+      approver_name: string | null;
+      posted_at: string | null;
+    }>(
+      `SELECT j.id, j.posting_date::text, j.description, j.approver_id,
+              u.fullname AS approver_name, j.posted_at::text
+         FROM finance.journals j
+         LEFT JOIN users u ON u.id = j.approver_id
+        WHERE j.waybill_id = $1 AND j.source_type = $2 AND j.status = 'posted'
+        ORDER BY j.id`,
+      [args.waybillId, sourceType],
+    );
+    if (official.rows.length) {
+      const ids = official.rows.map((item) => item.id);
+      const officialLines = await query<JournalLineRow>(
+        `SELECT jl.account_code, a.name AS account_name, NULL::text AS account_name_th,
+                jl.debit_thb::float8 AS debit, jl.credit_thb::float8 AS credit,
+                jl.description
+           FROM finance.journal_lines jl
+           JOIN finance.accounts a ON a.code = jl.account_code
+          WHERE jl.journal_id = ANY($1::bigint[])
+          ORDER BY jl.journal_id, jl.line_no`,
+        [ids],
+      );
+      const last = official.rows.at(-1)!;
+      posted = {
+        journal_id: last.id,
+        entry_date: last.posting_date,
+        description: official.rows.length === 1
+          ? last.description
+          : `${official.rows.length} posted payment journals`,
+        finalized_by: last.approver_id,
+        finalized_by_name: last.approver_name,
+        finalized_at: last.posted_at,
+        lines: officialLines.rows,
+      };
+    }
+  }
   const eventKinds = args.origin === 'so'
     ? {
         posted: `posted-to-gl-sales-${args.step}`,
         confirmed: `gl-confirmed-sales-${args.step}`,
       }
     : {
-        posted: `posted-to-gl-${args.step}`,
+        posted: args.origin === 'expense' && args.step === 'settlement'
+          ? 'payment-confirmed'
+          : `posted-to-gl-${args.step}`,
         confirmed: `gl-confirmed-${args.step}`,
       };
   const events = await query<JournalEventLike & { kind: string }>(
@@ -743,8 +838,8 @@ async function loadJournalStep(args: {
   );
   return {
     stepKey: args.step,
-    draft: block(true),
-    posted: block(false),
+    draft,
+    posted,
     posted_event: events.rows.find((event) => event.kind === eventKinds.posted) ?? null,
     confirmed_event: events.rows.find((event) => event.kind === eventKinds.confirmed) ?? null,
   };
@@ -758,17 +853,11 @@ export async function loadJournalForWaybill(waybillId: string): Promise<WaybillJ
   const row = wb.rows[0];
   if (!row || !['expense', 'pr', 'po', 'so'].includes(row.origin)) return null;
   if (row.origin === 'expense') {
-    const step = row.current_stage === 'settlement' || row.current_stage === 'completed'
-      ? 'settlement'
-      : 'accrual';
-    const journal = await loadJournalStep({ origin: row.origin, originId: row.origin_id, waybillId, step });
-    return {
-      kind: 'expense',
-      draft: journal.draft,
-      posted: journal.posted,
-      posted_event: journal.posted_event,
-      confirmed_event: journal.confirmed_event,
-    };
+    const [accrual, settlement] = await Promise.all([
+      loadJournalStep({ origin: row.origin, originId: row.origin_id, waybillId, step: 'accrual' }),
+      loadJournalStep({ origin: row.origin, originId: row.origin_id, waybillId, step: 'settlement' }),
+    ]);
+    return { kind: 'expense', accrual, settlement };
   }
   if (row.origin === 'so') {
     const [vat, accrual, settlement] = await Promise.all([
@@ -786,12 +875,12 @@ export async function loadJournalForWaybill(waybillId: string): Promise<WaybillJ
 }
 
 
-export async function getSemanticSuggestions(description: string) {
+export async function getSemanticSuggestions(description: string, actorId?: number) {
   if (!description || description.trim() === '') {
     return { success: true, suggestions: [] };
   }
   try {
-    const ai = await aiInvoke('acct:coa-search', 'embed', { text: description });
+    const ai = await aiInvoke('acct:coa-search', 'embed', { text: description }, { actorId });
     if (!ai.ok || !ai.embedding) {
       return { success: false, error: ai.error || 'Could not generate embedding.' };
     }
@@ -972,7 +1061,7 @@ export async function listSalesOrders(_actorId?: number): Promise<{ rows: any[] 
       [],
     );
     return { rows: r.rows };
-  } catch (e: any) {
+  } catch {
     return { rows: [] };
   }
 }

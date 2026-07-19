@@ -28,11 +28,11 @@ const TONE_BG: Record<NonNullable<AiActionButtonProps['tone']>, string> = {
 };
 
 const TONE_CARD: Record<NonNullable<AiActionButtonProps['tone']>, string> = {
-  indigo:  'border-accent bg-accent-strong text-accent-soft',
+  indigo:  'border-accent bg-accent-strong text-paper',
   amber:   'border-caution bg-caution-strong text-caution-soft',
   emerald: 'border-positive bg-positive-strong text-positive-soft',
   cyan:    'border-info bg-info-strong text-info-soft',
-  purple:  'border-accent bg-accent-strong text-accent-soft',
+  purple:  'border-accent bg-accent-strong text-paper',
   rose:    'border-critical bg-critical-strong text-critical-soft',
 };
 

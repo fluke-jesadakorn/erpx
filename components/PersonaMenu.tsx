@@ -174,13 +174,6 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
   };
 
   useEffect(() => {
-    if (!open) {
-      setQuery('');
-      setHighlight(0);
-    }
-  }, [open]);
-
-  useEffect(() => {
     function onExternal() { setOpen(true); }
     window.addEventListener('folio:open-persona', onExternal);
     return () => window.removeEventListener('folio:open-persona', onExternal);
@@ -229,7 +222,7 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
         aria-haspopup="menu"
         aria-expanded={open}
         className={[
-          'flex h-10 min-w-0 items-center gap-2 rounded-lg border pl-1.5 pr-2.5 transition-all cursor-pointer',
+          'flex h-10 min-w-0 items-center gap-1.5 rounded-lg border pl-1.5 pr-1.5 transition-all cursor-pointer sm:gap-2 sm:pr-2.5',
           open
             ? 'border-accent bg-paper-3 ring-2 ring-accent/20'
             : 'border-rule bg-paper-2 hover:border-rule-strong hover:bg-paper-3',
@@ -241,7 +234,7 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
           level={currentUser ? staffLevelOf(currentUser) : undefined}
           size="sm"
         />
-        <div className="hidden min-[360px]:block text-left">
+        <div className="hidden text-left sm:block">
           <span className="block text-xs font-semibold text-ink leading-tight">
             {currentUser?.fullname?.split(' ')[0] || 'User'}
           </span>
@@ -272,40 +265,47 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
             aria-hidden
           />
           <div
-            role="menu"
-            className="absolute right-0 mt-2 w-[30rem] max-w-[94vw] bg-paper-2 rounded-md shadow-modal z-fixed animate-fade-scale flex flex-col max-h-[min(78vh,680px)] overflow-hidden"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="persona-menu-title"
+            className="fixed left-3 right-3 top-16 z-fixed mt-0 flex max-h-[calc(100dvh-10.5rem)] w-auto max-w-none animate-fade-scale flex-col overflow-hidden rounded-2xl border border-rule-strong bg-paper-2 shadow-modal sm:absolute sm:left-auto sm:right-0 sm:top-auto sm:mt-2 sm:max-h-[min(88dvh,46rem)] sm:w-[34rem] sm:max-w-[calc(100vw-1.5rem)]"
           >
             {/* ── Header ─────────────────────────────────────────── */}
-            <div className="relative px-4 pt-4 pb-3 border-b border-rule/80">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg  from-accent to-accent border border-accent text-accent-soft">
-                  <Users size={14} />
+            <div className="relative border-b border-rule/80 px-4 py-4 sm:px-5">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-positive/40 bg-positive-soft text-positive">
+                  <Users size={18} />
                 </span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-mono font-bold uppercase tracking-widest text-ink-2 leading-tight">
-                    <T id="persona.title" />
-                  </div>
-                  <div className="text-[10px] font-mono uppercase tracking-wider text-mute mt-0.5 truncate">
+                <div className="min-w-0 flex-1">
+                  <h2 id="persona-menu-title" className="text-base font-semibold leading-tight text-ink">
+                    <T
+                      id="persona.title"
+                      variant="stacked"
+                      primaryClassName="block text-base font-semibold text-ink"
+                      secondaryClassName="mt-0.5 block text-xs font-normal text-mute"
+                    />
+                  </h2>
+                  <p className="mt-1 truncate text-xs text-ink-2">
                     {currentUser?.fullname || 'Anonymous'}
-                  </div>
+                  </p>
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-2/70 px-1.5 py-1 text-[10px] font-mono font-bold text-ink-2">
-                  <span className="h-1.5 w-1.5 rounded-full bg-positive animate-pulse" />
+                <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-rule bg-paper-3 px-3 text-xs font-mono font-semibold tabular-nums text-ink-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-positive" />
                   {flat.length}/{users.length}
                 </span>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
                   aria-label="Close"
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-rule bg-paper-2/60 text-ink-2 hover:text-ink hover:border-rule transition-colors"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rule bg-paper-2 text-ink-2 transition-colors hover:border-rule-strong hover:bg-paper-3 hover:text-ink"
                 >
-                  <X size={12} />
+                  <X size={16} />
                 </button>
               </div>
             </div>
 
             {/* ── Controls ──────────────────────────────────────── */}
-            <div className="px-4 py-3 border-b border-rule/80 space-y-2.5">
+            <div className="space-y-3 border-b border-rule/80 px-4 py-3 sm:px-5">
               <ControlRow labelId="persona.group" icon={Filter}>
                 {GROUP_OPTIONS.map((opt) => {
                   const active = groupBy === opt.key;
@@ -314,7 +314,14 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                       key={opt.key}
                       active={active}
                       onClick={() => setGroupBy(opt.key)}
-                      label={<T id={opt.id} />}
+                      label={(
+                        <T
+                          id={opt.id}
+                          variant="compact"
+                          primaryClassName="font-medium text-current"
+                          secondaryClassName="ml-1 text-[10px] font-normal text-current opacity-75"
+                        />
+                      )}
                       icon={opt.icon}
                     />
                   );
@@ -328,7 +335,14 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                       key={opt.key}
                       active={active}
                       onClick={() => setSortBy(opt.key)}
-                      label={<T id={opt.id} />}
+                      label={(
+                        <T
+                          id={opt.id}
+                          variant="compact"
+                          primaryClassName="font-medium text-current"
+                          secondaryClassName="ml-1 text-[10px] font-normal text-current opacity-75"
+                        />
+                      )}
                     />
                   );
                 })}
@@ -336,33 +350,38 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
             </div>
 
             {/* ── Search ────────────────────────────────────────── */}
-            <div className="px-4 py-3 border-b border-rule/80">
+            <div className="border-b border-rule/80 px-4 py-3 sm:px-5">
               <label className="relative block">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-mute pointer-events-none">
-                  <Search size={14} />
+                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-mute">
+                  <Search size={16} />
                 </span>
                 <input
                   autoFocus
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search by name, code, or role…"
-                  className="w-full pl-9 pr-9 py-2.5 rounded-md bg-paper-2 border border-rule text-sm text-ink placeholder:text-mute focus:outline-none"
+                  className="h-11 w-full rounded-xl border border-rule bg-paper-1 pl-10 pr-10 text-sm text-ink outline-none transition placeholder:text-mute focus:border-accent focus:ring-2 focus:ring-accent/20"
                 />
                 {query && (
                   <button
                     type="button"
                     onClick={() => setQuery('')}
                     aria-label="Clear search"
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-mute hover:text-ink transition-colors"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-mute transition-colors hover:text-ink"
                   >
-                  <X size={12} />
+                    <X size={14} />
                   </button>
                 )}
               </label>
             </div>
 
             {/* ── List ──────────────────────────────────────────── */}
-            <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto px-2 py-2">
+            <div
+              ref={listRef}
+              role="listbox"
+              aria-label="Available user roles"
+              className="min-h-0 flex-1 overflow-y-auto px-2 py-2"
+            >
               {grouped.length === 0 ? (
                 <div className="px-4 py-12 text-center">
                   <div className="mx-auto mb-3 inline-flex h-10 w-10 items-center justify-center rounded-full border border-rule bg-paper-2/60 text-mute">
@@ -399,21 +418,20 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                     return { icon: m.icon, label: m.label, code: m.code, tone: 'dept' };
                   })();
                   return (
-                    <div key={gKey} className={gi > 0 ? 'mt-2' : ''}>
-                      <div className="mx-2 mb-1.5 px-2 pt-1 pb-1 flex items-center gap-2">
-                        <span className="text-sm leading-none opacity-90">{gMeta.icon}</span>
-                        <span className="text-[10px] uppercase tracking-widest font-mono font-bold text-ink-2">
+                    <div key={gKey} className={gi > 0 ? 'mt-3' : ''}>
+                      <div className="sticky top-0 z-10 mx-1 mb-1.5 flex items-center gap-2 rounded-lg bg-paper-2/95 px-3 py-2 backdrop-blur-md">
+                        <span className="text-sm leading-none" aria-hidden>{gMeta.icon}</span>
+                        <span className="text-xs font-semibold text-ink-2">
                           {gMeta.tone === 'level'
                             ? <T id={`persona.level.${Number(gKey.replace(/^P/, ''))}`} />
                             : <T id={gMeta.label} />}
                         </span>
-                        <span className="ml-auto inline-flex items-center gap-1 rounded-md border border-rule bg-paper-2/70 px-1.5 py-0.5 text-[9px] font-mono font-bold text-ink-2">
-                          <span className="text-mute">{gMeta.code}</span>
-                          <span className="text-mute">·</span>
-                          <span className="text-ink-2">{arr.length}</span>
+                        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-rule bg-paper-3 px-2 py-1 text-[10px] font-mono font-semibold tabular-nums text-ink-2">
+                          <span>{gMeta.code}</span>
+                          <span className="text-mute">{arr.length}</span>
                         </span>
                       </div>
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         {arr.map((u: any) => {
                           const idx = flat.findIndex((f) => f.id === u.id);
                           const selected = currentUser?.id === u.id;
@@ -423,22 +441,23 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                             <button
                               key={u.id}
                               data-idx={idx}
-                              role="menuitem"
+                              role="option"
+                              aria-selected={selected}
                               type="button"
                               onClick={() => selectUser(u)}
                               onMouseEnter={() => setHighlight(idx)}
                               className={[
-                                'group relative w-full flex items-center gap-3 pl-3 pr-2.5 py-2 rounded-md text-left transition-all overflow-hidden',
+                                'group relative flex min-h-[4.25rem] w-full items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5 text-left transition-all',
                                 focused
-                                  ? 'bg-paper-2/80 ring-1 ring-inset ring-rule/80'
-                                  : 'ring-1 ring-inset ring-transparent hover:bg-paper-2/50',
-                                selected ? 'ring-accent' : '',
+                                  ? 'border-rule-strong bg-paper-3'
+                                  : 'border-transparent hover:border-rule hover:bg-paper-3/60',
+                                selected ? 'border-positive/50 bg-positive-soft/40' : '',
                               ].join(' ')}
                             >
                               {selected && (
                                 <span
                                   aria-hidden
-                                  className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full  from-accent to-accent shadow-[0_0_8px_rgba(99,102,241,0.6)]"
+                                  className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-positive"
                                 />
                               )}
                               <UserAvatar
@@ -447,41 +466,29 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
                                 level={staffLevelOf(u)}
                                 size="sm"
                                 ring={selected}
+                                className="border border-rule-strong bg-paper-3"
                               />
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className={[
-                                    'text-[13px] font-semibold truncate',
-                                    selected ? 'text-ink' : 'text-ink',
-                                  ].join(' ')}>
-                                    {u.fullname}
-                                  </span>
-                                  {selected && (
-                                    <span className="inline-flex items-center gap-0.5 text-[9px] font-mono font-bold uppercase tracking-wider text-positive">
-                                      <Check size={9} />
-                                    </span>
+                                <span className="block truncate text-sm font-semibold text-ink">
+                                  {u.fullname}
+                                </span>
+                                <div className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-mute">
+                                  <span className="truncate text-ink-2">{positionLabel(roleKey, u.department ?? null)}</span>
+                                  <span aria-hidden>·</span>
+                                  <span className="shrink-0 font-mono tabular-nums">P{staffLevelOf(u)}</span>
+                                  {u.employee_code && (
+                                    <>
+                                      <span aria-hidden>·</span>
+                                      <span className="shrink-0 font-mono tabular-nums">{u.employee_code}</span>
+                                    </>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-1 mt-1 flex-wrap">
-                                  <span
-                                    className={[
-                                      'px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border tracking-wider',
-                                      roleBadge(roleKey),
-                                    ].join(' ')}
-                                  >
-                                    {positionLabel(roleKey, u.department ?? null)}
-                                  </span>
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase border border-rule bg-paper-2/60 text-ink-2">
-                                    P{staffLevelOf(u)}
-                                  </span>
-                                  <span className="text-[10px] text-mute font-mono tabular-nums">
-                                    {u.employee_code}
-                                  </span>
-                                </div>
                               </div>
-                              <span className="text-base leading-none opacity-50 shrink-0 group-hover:opacity-90 transition-opacity">
-                                {roleGlyph(roleKey)}
-                              </span>
+                              {selected && (
+                                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-positive text-paper" aria-label="Current role">
+                                  <Check size={14} strokeWidth={3} />
+                                </span>
+                              )}
                             </button>
                           );
                         })}
@@ -493,33 +500,23 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
             </div>
 
             {/* ── Footer ────────────────────────────────────────── */}
-            <div className="px-4 py-2.5 border-t border-rule/80 bg-paper-2/50 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 text-[10px] font-mono text-mute">
-                <Kbd>↑</Kbd>
-                <Kbd>↓</Kbd>
-                <span className="ml-0.5 mr-1.5">select</span>
-                <Kbd>↵</Kbd>
-                <span className="ml-0.5 mr-1.5">confirm</span>
-                <Kbd>Esc</Kbd>
-                <span className="ml-0.5">close</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className={[
-                  'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider',
-                  roleBadge(curRole),
-                ].join(' ')}>
-                  <span className="opacity-70">●</span>
-                  {positionLabel(curRole, currentUser?.department ?? null)}
-                </span>
-                <button
-                  type="button"
-                  onClick={signOut}
-                  className="inline-flex items-center gap-1 rounded-md border border-critical bg-critical px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-wider text-critical-soft hover:bg-critical hover:border-critical transition-colors"
-                >
-                  <ArrowRight size={10} />
-                  <T id="chrome.signOut" />
-                </button>
-              </div>
+            <div className="flex items-center justify-between gap-3 border-t border-rule/80 bg-paper-1/50 px-4 py-3 sm:px-5">
+              <p className="hidden min-w-0 truncate text-xs text-mute sm:block">
+                <T id="persona.filterHint" hideSecondary />
+              </p>
+              <button
+                type="button"
+                onClick={signOut}
+                className="ml-auto inline-flex min-h-9 shrink-0 items-center gap-2 rounded-lg border border-critical/50 bg-critical-soft px-3 py-2 text-xs font-semibold text-critical transition-colors hover:border-critical hover:bg-critical/15"
+              >
+                <ArrowRight size={13} />
+                <T
+                  id="chrome.signOut"
+                  variant="compact"
+                  primaryClassName="font-semibold text-critical"
+                  secondaryClassName="ml-1 text-[11px] font-normal text-critical/80"
+                />
+              </button>
             </div>
           </div>
         </>
@@ -528,26 +525,20 @@ export const PersonaMenu: React.FC<PersonaMenuProps> = ({ users, currentUser }) 
   );
 };
 
-const Kbd: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <kbd className="inline-flex min-w-[1.25rem] h-[1.125rem] items-center justify-center rounded border border-rule bg-paper-2/80 px-1 text-[9px] font-mono font-bold text-ink-2 shadow-[inset_0_-1px_0_rgba(0,0,0,0.4)]">
-    {children}
-  </kbd>
-);
-
 const ControlRow: React.FC<{
   labelId: string;
   icon: LucideIcon;
   children: React.ReactNode;
 }> = ({ labelId, icon: IconCmp, children }) => (
-  <div className="flex items-center gap-2">
-    <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-widest text-mute shrink-0 w-16">
-      <IconCmp size={10} />
-      <T id={labelId} />
-    </span>
-    <div className="flex items-center gap-1 p-0.5 rounded-lg border border-rule bg-paper-2/60 flex-1 min-w-0">
+  <fieldset className="min-w-0 space-y-1.5">
+    <legend className="flex items-center gap-1.5 text-xs font-medium text-ink-2">
+      <IconCmp size={13} aria-hidden />
+      <T id={labelId} variant="compact" />
+    </legend>
+    <div className="grid min-w-0 grid-cols-3 gap-1 rounded-xl border border-rule bg-paper-1 p-1">
       {children}
     </div>
-  </div>
+  </fieldset>
 );
 
 const SegPill: React.FC<{
@@ -559,15 +550,16 @@ const SegPill: React.FC<{
   <button
     type="button"
     onClick={onClick}
+    aria-pressed={active}
     className={[
-      'flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] font-mono font-bold uppercase tracking-wider transition-all',
+      'inline-flex min-h-9 min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-medium transition-all',
       active
-        ? ' from-accent to-accent text-ink border border-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_12px_rgba(99,102,241,0.25)]'
-        : 'text-ink-2 border border-transparent hover:text-ink hover:bg-paper-2/60',
+        ? 'border-accent/60 bg-accent-soft text-accent-ink shadow-sm'
+        : 'border-transparent text-ink-2 hover:border-rule hover:bg-paper-3 hover:text-ink',
     ].join(' ')}
   >
-    {IconCmp && <IconCmp size={11} />}
-    {label}
+    {IconCmp && <IconCmp className="shrink-0" size={13} aria-hidden />}
+    <span className="min-w-0 truncate">{label}</span>
   </button>
 );
 

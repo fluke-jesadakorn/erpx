@@ -21,7 +21,7 @@ export function deriveScope(pathname: string, search: string): ChatScope | null 
     displayName: 'Folio',
     hint: 'You have access to all allow-listed tables.',
     quickPrompts: QUICK_PROMPTS['cockpit'] ?? [],
-    sectionKey: 'chat:full',
+    sectionKey: 'chat:global',
   };
 
   const make = (tileId: string, displayName: string, hint: string, qpKey: string): ChatScope => ({
@@ -29,7 +29,7 @@ export function deriveScope(pathname: string, search: string): ChatScope | null 
     displayName,
     hint,
     quickPrompts: QUICK_PROMPTS[qpKey] ?? QUICK_PROMPTS['cockpit'] ?? [],
-    sectionKey: 'chat:full',
+    sectionKey: `chat:${tileId}`,
   });
 
   if (pathname === '/') return make('hub', 'Hub', 'You are on the Hub home page.', 'hub');
@@ -46,6 +46,7 @@ export function deriveScope(pathname: string, search: string): ChatScope | null 
   if (pathname === '/pr' || pathname.startsWith('/pr/')) return make('pr', 'PR', 'You are on the PR page.', 'pr');
   if (pathname === '/po' || pathname.startsWith('/po/')) return make('po', 'PO', 'You are on the PO page.', 'po');
   if (pathname === '/cockpit' || pathname.startsWith('/cockpit/')) return make('cockpit', 'Cockpit', 'You are on the Cockpit page.', 'cockpit');
+  if (pathname === '/executive' || pathname.startsWith('/executive/')) return make('executive', 'Executive finance', 'Use posted accounting, controlled subledgers, inventory, and operational pipeline data for executive decisions.', 'executive');
   if (pathname === '/ledger' || pathname.startsWith('/ledger/')) return make('ledger', 'Ledger', 'You are on the Ledger page.', 'ledger');
   if (pathname === '/policy' || pathname.startsWith('/policy/')) return make('policy', 'Policy', 'You are on the Policy page.', 'policy');
   if (pathname === '/tiles' || pathname.startsWith('/tiles/')) return make('tiles', 'Tiles', 'You are on the Tile Catalog page.', 'tiles');

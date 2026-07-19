@@ -117,11 +117,11 @@ const ROUTES: Route[] = [
     build: (locale, _path, ctx) => {
       const sub = ctx.subtab ?? 'overview';
       const subLabels: Record<string, string> = {
-        gl: 'waybill.tab.gl',
-        audit: 'waybill.tab.audit',
-        chat: 'waybill.tab.chat',
-        attachments: 'waybill.tab.attachments',
-        overview: 'waybill.tab.overview',
+        gl: 'waybill.tabGl',
+        audit: 'waybill.tabAudit',
+        chat: 'waybill.tabChat',
+        attachments: 'waybill.tabAttachments',
+        overview: 'waybill.tabOverview',
       };
       return [
         homeCrumbFor(locale),

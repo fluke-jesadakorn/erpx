@@ -17,8 +17,8 @@ const MODEL_STORAGE_KEY = 'slip.ocrModel';
 export function useSlipOcr(opts: SlipOcrOpts) {
   const {
     kind,
+    evidenceOnly = false,
     initialModels = [],
-    currentUserId,
     onSlipReady,
     onSlipDiscarded,
   } = opts;
@@ -47,8 +47,11 @@ export function useSlipOcr(opts: SlipOcrOpts) {
 
   useEffect(() => {
     if (!selectedModel && visionModels.length > 0) {
+      const preferred = visionModels.find((m) => m.preferred)?.name;
       const saved = typeof window !== 'undefined' ? window.localStorage.getItem(MODEL_STORAGE_KEY) : null;
-      if (saved && visionModels.some((m) => m.name === saved)) {
+      if (preferred) {
+        setSelectedModel(preferred);
+      } else if (saved && visionModels.some((m) => m.name === saved)) {
         setSelectedModel(saved);
       } else {
         setSelectedModel(visionModels[0].name);
@@ -106,6 +109,7 @@ export function useSlipOcr(opts: SlipOcrOpts) {
       fd.append('file', file, file.name);
       if (selectedModel) fd.append('model_name', selectedModel);
       fd.append('kind', kind);
+      if (evidenceOnly) fd.append('evidence_only', '1');
       const xhr = new XMLHttpRequest();
       xhrRef.current = xhr;
       const result: UploadOk = await new Promise((resolve, reject) => {
@@ -146,7 +150,6 @@ export function useSlipOcr(opts: SlipOcrOpts) {
       if (result.status === 'confirmed') {
         const lock = await getSlipLockState({
           slipId: result.slipId,
-          actorId: currentUserId ?? 0,
         });
         setLocked(lock.locked);
         setLockReason(lock.reason);
@@ -175,10 +178,18 @@ export function useSlipOcr(opts: SlipOcrOpts) {
   function pickModel(name: string) {
     if (name === selectedModel) return;
     setSelectedModel(name);
+    const model = visionModels.find((item) => item.name === name);
     try {
       window.localStorage.setItem(MODEL_STORAGE_KEY, name);
     } catch {
       /* ignore */
+    }
+    if (model) {
+      void fetch('/api/ai/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionKey: 'staff:ocr', task: 'vision', modelId: model.id, thinkLevel: 'auto' }),
+      }).catch(() => undefined);
     }
     setValidation(undefined);
     if (extractionState === 'done' && pendingFile && visionModels.length > 0 && phase !== 'confirming') {
@@ -207,8 +218,12 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     }
     setFileName(file.name);
     setPendingFile(file);
-    setPhase('idle');
-    setExtractionState('pending');
+    if (evidenceOnly) {
+      void uploadFile(file);
+    } else {
+      setPhase('idle');
+      setExtractionState('pending');
+    }
   }
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
@@ -227,7 +242,7 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     if (slipId == null) return;
     const removedId = slipId;
     setError(null);
-    const r = await discardSlip({ slipId, actorId: currentUserId ?? 0 });
+    const r = await discardSlip({ slipId });
     if (!r.success) {
       setError(r.error ?? 'Remove failed');
       if (r.error?.toLowerCase().includes('locked')) {

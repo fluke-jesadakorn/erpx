@@ -1,5 +1,6 @@
 import 'server-only';
 import { withTransaction } from '@/db';
+import { DEFAULT_CHAT_MODEL } from '@/ai/defaults';
 
 export interface ChatSession {
   id: string;
@@ -107,7 +108,7 @@ export async function createSession(
       `INSERT INTO chat.sessions (user_id, title, model_name)
        VALUES ($1::int, $2, $3)
        RETURNING id, user_id, title, model_name, created_at, updated_at`,
-      [userId, title ?? 'New chat', modelName ?? 'MiniMax-M3'],
+      [userId, title ?? 'New chat', modelName ?? DEFAULT_CHAT_MODEL],
     );
     return mapSession(r.rows[0]);
   });

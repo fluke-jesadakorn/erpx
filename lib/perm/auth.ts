@@ -9,6 +9,7 @@ import { query } from '../db';
 import {
   SESSION_COOKIE, verifySession, sessionFromHeaders, type SessionPayload,
 } from '../server/sessionToken';
+import { validateActiveSession } from '../server/sessionStore';
 import type { PermSession } from './session';
 import { loadDeptPermissionBundles, expandUserPermissions } from './deptGrant';
 
@@ -42,6 +43,8 @@ export async function loadPermSessionFromCookieValue(
 }
 
 async function hydratePermSession(payload: SessionPayload): Promise<ActivePermSession | null> {
+  const active = await validateActiveSession(payload);
+  if (!active) return null;
   const profile = await query<{
     fullname: string;
     role_id: string | null;
@@ -89,7 +92,7 @@ async function hydratePermSession(payload: SessionPayload): Promise<ActivePermSe
            ) t
        ), ARRAY[]::text[]) AS permissions
       FROM users u
-     WHERE u.id = $1`,
+     WHERE u.id = $1 AND u.is_active IS TRUE`,
     [payload.sub],
   );
   if (profile.rows.length === 0) return null;

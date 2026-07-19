@@ -12,14 +12,16 @@ interface InlineActionFormProps {
   waybillId: string;
   stage: string;
   locale?: unknown;
+  submitAction?: (formData: FormData) => Promise<void>;
 }
 
 export function InlineActionForm({
   kind,
   waybillId,
   stage,
+  submitAction,
 }: InlineActionFormProps) {
-  const action = kind === 'reject' ? rejectWaybillAction : finalRejectWaybillAction;
+  const action = submitAction ?? (kind === 'reject' ? rejectWaybillAction : finalRejectWaybillAction);
 
   return (
     <section className="rounded-md border border-critical bg-critical-soft p-5 shadow-lg shadow-critical">

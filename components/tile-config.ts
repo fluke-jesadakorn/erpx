@@ -1,6 +1,6 @@
 // Static tile types + thin re-exports.
 //
-// The catalog itself lives in perm.tiles (db/perm/*).
+// The catalog itself lives in perm.tiles (db/seed.sql).
 // This file exists only for:
 //   - TileDef / TileWithMeta type aliases (consumed by tile-config consumers)
 //   - tileHref() slug parser (used in client navigation)

@@ -12,7 +12,8 @@ import { hasPermission } from '@folio-lib/perm/server';
 import { PERM } from '@folio-lib/perm/taxonomy';
 import { appendWaybillEvent } from '@/waybill/append';
 import { aiInvoke } from '@/ai/router';
-import { publish as publishEvent } from '@/notifications/events';
+import { allocatePaymentInTransaction } from '@/finance/subledger';
+import { loadPostingActor } from '@/finance/journals';
 import { type WbForCheck } from './_helpers';
 import {
   assertExpenseClaim,
@@ -21,12 +22,16 @@ import {
   type ExpenseActor,
 } from '@/waybill/expenseFlow';
 
-async function semanticCoaMatch(description: string): Promise<{ code: string | null; score: number }> {
+async function semanticCoaMatch(
+  description: string,
+  runQuery: typeof query = query,
+  actorId?: number,
+): Promise<{ code: string | null; score: number }> {
   if (!description || !description.trim()) return { code: null, score: 0 };
-  const res = await aiInvoke('acct:coa-search', 'embed', { text: description });
+  const res = await aiInvoke('acct:coa-search', 'embed', { text: description }, { actorId });
   if (!res.ok || !res.embedding) return { code: null, score: 0 };
   const vectorStr = `[${res.embedding.join(',')}]`;
-  const matchRes = await query(
+  const matchRes = await runQuery(
     `SELECT code, (1 - (embedding <=> $1::vector)) AS similarity
      FROM chart_of_accounts
      ORDER BY similarity DESC LIMIT 1`,
@@ -128,11 +133,10 @@ export async function submitExpenseFromSlip(args: {
     const correctionNotes = parsed.correctionNotes || '';
     const preExistingExpenseId = draftContext ? null : (slip.expense_id ?? null);
 
-    await query('BEGIN');
-
-    let expenseId: number;
-    let previousStatus: string | null = null;
-    if (draftContext) {
+    const { expenseId, initialStatus } = await withTransaction(async (query) => {
+      let expenseId: number;
+      let previousStatus: string | null = null;
+      if (draftContext) {
       expenseId = draftContext.expenseId;
       previousStatus = 'draft';
       await query(
@@ -140,7 +144,10 @@ export async function submitExpenseFromSlip(args: {
             SET vendor_name = $1, transaction_date = $2, subtotal = $3, vat_amount = $4, total_amount = $5,
                 payment_method = $6, is_corrupted = $7, correction_notes = $8, ocr_raw_json = $9,
                 document_url = $10, status = 'department_approval', created_to = $12, vendor_address = $13, created_to_address = $14,
-                payee_type = $15, updated_at = CURRENT_TIMESTAMP
+                payee_type = $15,
+                branch_id = COALESCE(branch_id, (SELECT id FROM finance.branches WHERE active ORDER BY id LIMIT 1)),
+                department_id = COALESCE(department_id, (SELECT department_id FROM perm.user_departments WHERE user_id = submitter_id LIMIT 1)),
+                updated_at = CURRENT_TIMESTAMP
           WHERE id = $11`,
         [
           vendor, txnDate, subtotal, vatAmount, totalAmount, paymentMethod,
@@ -167,7 +174,7 @@ export async function submitExpenseFromSlip(args: {
           WHERE id = $3`,
         [vendor, totalAmount, draftContext.waybillId, createdTo || null, vendorAddress || null, createdToAddress || null],
       );
-    } else if (preExistingExpenseId) {
+      } else if (preExistingExpenseId) {
       expenseId = preExistingExpenseId;
       const cur = await query(`SELECT status FROM expenses WHERE id = $1`, [expenseId]);
       previousStatus = cur.rows[0]?.status ?? null;
@@ -176,7 +183,10 @@ export async function submitExpenseFromSlip(args: {
             SET vendor_name = $1, transaction_date = $2, subtotal = $3, vat_amount = $4, total_amount = $5,
                 payment_method = $6, is_corrupted = $7, correction_notes = $8, ocr_raw_json = $9,
                 document_url = $10, created_to = $12, vendor_address = $13, created_to_address = $14,
-                payee_type = $15, updated_at = CURRENT_TIMESTAMP
+                payee_type = $15,
+                branch_id = COALESCE(branch_id, (SELECT id FROM finance.branches WHERE active ORDER BY id LIMIT 1)),
+                department_id = COALESCE(department_id, (SELECT department_id FROM perm.user_departments WHERE user_id = submitter_id LIMIT 1)),
+                updated_at = CURRENT_TIMESTAMP
           WHERE id = $11`,
         [
           vendor, txnDate, subtotal, vatAmount, totalAmount, paymentMethod,
@@ -190,14 +200,16 @@ export async function submitExpenseFromSlip(args: {
         ],
       );
       await query(`DELETE FROM expense_items WHERE expense_id = $1`, [expenseId]);
-    } else {
+      } else {
       const headerRes = await query(
         `INSERT INTO expenses (
            submitter_id, vendor_name, transaction_date, subtotal, vat_amount, total_amount,
            payment_method, status, is_corrupted, correction_notes, ocr_raw_json, document_url,
-           created_to, vendor_address, created_to_address, payee_type
+           created_to, vendor_address, created_to_address, payee_type, branch_id, department_id
          )
-         VALUES ($1,$2,$3,$4,$5,$6,$7,'department_approval',$8,$9,$10,$11,$12,$13,$14,$15)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,'department_approval',$8,$9,$10,$11,$12,$13,$14,$15,
+                 (SELECT id FROM finance.branches WHERE active ORDER BY id LIMIT 1),
+                 (SELECT department_id FROM perm.user_departments WHERE user_id = $1 LIMIT 1))
          RETURNING id`,
         [
           args.actorId, vendor, txnDate, subtotal, vatAmount, totalAmount, paymentMethod,
@@ -217,9 +229,9 @@ export async function submitExpenseFromSlip(args: {
           WHERE id = $2`,
         [expenseId, args.slipId],
       );
-    }
+      }
 
-    if (bookBankSlip) {
+      if (bookBankSlip) {
       const accountNumber = bookBankFields!.accountNumber!.replace(/[^\d]/g, '');
       const bankBranch = bookBankFields!.bankBranch?.trim() || null;
       await query(
@@ -241,14 +253,14 @@ export async function submitExpenseFromSlip(args: {
           bookBankSlip.id,
         ],
       );
-    }
+      }
 
-    const items = args.overrides?.items ?? (Array.isArray(parsed.items) ? parsed.items : []);
-    for (const item of items) {
+      const items = args.overrides?.items ?? (Array.isArray(parsed.items) ? parsed.items : []);
+      for (const item of items) {
       let bestCode: string | null = null;
       let score = 0;
       try {
-        const match = await semanticCoaMatch(item.description);
+        const match = await semanticCoaMatch(item.description, query, args.actorId);
         if (match.code) { bestCode = match.code; score = match.score; }
       } catch {}
       const qty = Number(item.qty ?? 1.00);
@@ -258,17 +270,18 @@ export async function submitExpenseFromSlip(args: {
          VALUES ($1,$2,$3,$4,$5,$6,$7)`,
         [expenseId, item.description, qty, unitPrice, Number(item.amount) || 0, bestCode, score]
       );
-    }
+      }
 
-    const initialStatus = preExistingExpenseId
-      ? previousStatus || 'department_approval'
-      : 'department_approval';
+      const initialStatus = preExistingExpenseId
+        ? previousStatus || 'department_approval'
+        : 'department_approval';
 
-    if (!preExistingExpenseId || initialStatus !== previousStatus) {
-      await query(`UPDATE expenses SET status = $1 WHERE id = $2`, [initialStatus, expenseId]);
-    }
+      if (!preExistingExpenseId || initialStatus !== previousStatus) {
+        await query(`UPDATE expenses SET status = $1 WHERE id = $2`, [initialStatus, expenseId]);
+      }
 
-    await query('COMMIT');
+      return { expenseId, initialStatus };
+    });
     const waybillId = await appendWaybillEvent({
       origin: 'expense',
       originId: expenseId,
@@ -303,15 +316,9 @@ export async function submitExpenseFromSlip(args: {
         caption,
       });
     }
-    await publishEvent('expense.submitted', { expenseId, status: initialStatus }, {
-      actorId: args.actorId, refType: 'expense', refId: Number(expenseId),
-      severity: 'info',
-      message: `Submitted expense #EXP-${expenseId} initial status ${initialStatus}`,
-    });
     revalidatePath('/');
     return { success: true, expenseId, waybillId, status: initialStatus, policy: null, slipStatus: 'confirmed' };
   } catch (error: any) {
-    await query('ROLLBACK');
     console.error('submitExpenseFromSlip failed:', error);
     return { success: false, error: error.message };
   }
@@ -406,16 +413,6 @@ export async function attachPaymentSlipAction(formData: FormData): Promise<{ ok:
     return { ok: false, error: 'slip already attached to another expense' };
   }
 
-  const expRes = await _query<{ vendor_name: string; total_amount: string; vat_amount: string }>(
-    `SELECT vendor_name, total_amount, vat_amount FROM expenses WHERE id = $1`,
-    [parsed.data.expenseId],
-  );
-  if (expRes.rows.length === 0) return { ok: false, error: 'expense not found' };
-  const exp = expRes.rows[0];
-  if (Math.abs(Number(exp.total_amount) - parsed.data.amount) > 0.005) {
-    return { ok: false, error: 'Payment amount must exactly match the approved amount' };
-  }
-
   try {
     await withTransaction(async (q) => {
       const locked = await q<{ current_stage: string }>(
@@ -425,11 +422,43 @@ export async function attachPaymentSlipAction(formData: FormData): Promise<{ ok:
       if (locked.rows[0]?.current_stage !== 'payment') {
         throw new Error('Expense stage changed; refresh and try again');
       }
+      const apRes = await q<{ id: string; open_foreign: string; currency_code: string }>(
+        `SELECT id::text, open_foreign::text, currency_code
+           FROM finance.ap_documents
+          WHERE source_type = 'expense' AND source_id = $1
+            AND status IN ('open', 'partially_paid')
+          ORDER BY id DESC LIMIT 1 FOR UPDATE`,
+        [String(parsed.data.expenseId)],
+      );
+      const ap = apRes.rows[0];
+      if (!ap) throw new Error('No open expense payable is available for payment');
+      const open = Number(ap.open_foreign);
+      if (parsed.data.amount > open + 0.005) {
+        throw new Error(`Payment exceeds the remaining ${ap.currency_code} ${open.toFixed(2)}`);
+      }
+      const postingActor = await loadPostingActor(q, actor.id);
+      const allocation = await allocatePaymentInTransaction(q, {
+        apDocumentId: Number(ap.id),
+        allocationDate: parsed.data.paymentDate,
+        foreignAmount: parsed.data.amount,
+        bankAccountCode: parsed.data.paymentMethod === 'cash'
+          ? '110100'
+          : parsed.data.paymentMethod === 'credit_card'
+            ? '110300'
+            : '110200',
+        sourceEventKey: `expense:${parsed.data.expenseId}:payment:${parsed.data.slipId}`,
+        actor: postingActor,
+        waybillId: wb.id,
+      });
+      const remaining = Math.round((open - parsed.data.amount) * 100) / 100;
+      const finalPayment = remaining <= 0.005;
+      const next = finalPayment ? 'settlement' : 'payment';
       await q(
       `INSERT INTO expense_payments
          (waybill_id, expense_id, slip_id, amount, payment_date, bank_name,
-          account_number, payee, reference, ocr_payload, ocr_confidence, confirmed_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          account_number, payee, reference, ocr_payload, ocr_confidence, confirmed_by,
+          journal_id, allocation_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         wb.id,
         parsed.data.expenseId,
@@ -443,6 +472,8 @@ export async function attachPaymentSlipAction(formData: FormData): Promise<{ ok:
         slip.ocr_raw_json ?? null,
         slip.ocr_confidence,
         actor.id,
+        allocation.journalId,
+        allocation.allocationId,
       ],
     );
       await q(
@@ -451,26 +482,26 @@ export async function attachPaymentSlipAction(formData: FormData): Promise<{ ok:
       [parsed.data.expenseId, parsed.data.slipId],
     );
       await q(
-      `UPDATE expenses SET status = 'settlement',
-                          payment_method = $1,
-                          disbursed_at = now(),
-                          disbursed_by = $2,
+      `UPDATE expenses SET status = $1,
+                          payment_method = $2,
+                          disbursed_at = CASE WHEN $3 THEN now() ELSE disbursed_at END,
+                          disbursed_by = CASE WHEN $3 THEN $4 ELSE disbursed_by END,
                           updated_at = now()
-        WHERE id = $3`,
-      [parsed.data.paymentMethod, actor.id, parsed.data.expenseId],
+        WHERE id = $5`,
+      [next, parsed.data.paymentMethod, finalPayment, actor.id, parsed.data.expenseId],
     );
       await q(
-      `UPDATE waybills SET current_stage = 'settlement',
+      `UPDATE waybills SET current_stage = $2,
                           status = 'open',
                           updated_at = now()
         WHERE id = $1`,
-      [wb.id],
+      [wb.id, next],
     );
       await recordEvent({
       waybillId: wb.id,
       kind: 'payment-confirmed',
       stageFrom: 'payment',
-      stageTo: 'settlement',
+      stageTo: next,
       actorId: actor.id,
       actorRole: actor.role_name ?? 'finance',
       payload: {
@@ -480,6 +511,10 @@ export async function attachPaymentSlipAction(formData: FormData): Promise<{ ok:
         paymentDate: parsed.data.paymentDate,
         bankName: parsed.data.bankName,
         reference: parsed.data.reference,
+        remaining,
+        currency: ap.currency_code,
+        journalId: allocation.journalId,
+        allocationId: allocation.allocationId,
       },
       client: q as never,
     });
@@ -496,7 +531,7 @@ export async function attachPaymentSlipAction(formData: FormData): Promise<{ ok:
         caption: `Payment ${parsed.data.reference}`,
         client: q as typeof query,
       });
-      await q(
+      if (finalPayment) await q(
       `UPDATE waybill_stage_claims
           SET released_at = now(), released_by = $2, release_reason = 'stage completed'
         WHERE waybill_id = $1 AND stage = 'payment' AND released_at IS NULL`,
@@ -505,7 +540,7 @@ export async function attachPaymentSlipAction(formData: FormData): Promise<{ ok:
     });
   } catch (error) {
     if ((error as { code?: string }).code === '23505') {
-      return { ok: false, error: 'This expense has already been paid' };
+      return { ok: false, error: 'This payment slip has already been recorded' };
     }
     return { ok: false, error: error instanceof Error ? error.message : 'Payment confirmation failed' };
   }

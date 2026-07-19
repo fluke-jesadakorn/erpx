@@ -4,9 +4,9 @@ import { T } from '@/components/i18n/TServer';
 import { getSecondaryLocale } from '@/server/locale';
 
 const SEVERITY_STYLE: Record<string, string> = {
-  ok: 'border-positive bg-positive text-positive',
-  watch: 'border-caution bg-caution text-caution',
-  critical: 'border-critical bg-critical text-critical',
+  ok: 'border-positive bg-positive text-paper',
+  watch: 'border-caution bg-caution text-paper',
+  critical: 'border-critical bg-critical text-paper',
 };
 
 const SEVERITY_LABEL: Record<string, string> = {

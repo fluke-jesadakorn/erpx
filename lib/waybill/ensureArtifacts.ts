@@ -45,6 +45,28 @@ export async function ensurePrForExpense(
   const prId = ins.rows[0].id;
 
   await client(
+    `INSERT INTO pr_items
+        (pr_id, description, qty, unit_price, mapped_account_code, confidence_score)
+     SELECT $1,
+            ei.description,
+            ei.qty,
+            CASE WHEN ei.unit_price > 0 THEN ei.unit_price
+                 ELSE ei.amount / NULLIF(ei.qty, 0) END,
+            CASE WHEN coa.account_type = 'expense' THEN ei.mapped_account_code END,
+            ei.confidence_score
+       FROM expense_items ei
+       LEFT JOIN chart_of_accounts coa ON coa.code = ei.mapped_account_code
+      WHERE ei.expense_id = $2`,
+    [prId, expenseId],
+  );
+  await client(
+    `INSERT INTO pr_items (pr_id, description, qty, unit_price)
+     SELECT $1, COALESCE(NULLIF($2, ''), 'Expense claim'), 1, $3
+      WHERE NOT EXISTS (SELECT 1 FROM pr_items WHERE pr_id = $1)`,
+    [prId, exp.vendor_name ?? '', total],
+  );
+
+  await client(
     `UPDATE expenses SET pr_id = $1, updated_at = now() WHERE id = $2`,
     [prId, expenseId],
   );
@@ -87,12 +109,25 @@ export async function ensurePoForExpense(
 
   const ins = await client<{ id: number }>(
     `INSERT INTO purchase_orders
-        (pr_id, po_number, vendor_name, total_amount, currency, status, issued_by)
-     VALUES ($1, $2, $3, $4, $5, 'accounting_authorization', $6)
+        (pr_id, po_number, vendor_name, total_amount, currency, status, issued_by, branch_id, fx_rate)
+     VALUES ($1, $2, $3, $4, $5, 'accounting_authorization', $6,
+             COALESCE((SELECT branch_id FROM expenses WHERE id = $7),
+                      (SELECT id FROM finance.branches WHERE active ORDER BY id LIMIT 1)),
+             COALESCE((SELECT fx_rate FROM expenses WHERE id = $7), 1))
      RETURNING id`,
-    [prId, poNumber, exp.vendor_name ?? '', total, pr.currency ?? 'THB', exp.submitter_id],
+    [prId, poNumber, exp.vendor_name ?? '', total, pr.currency ?? 'THB', exp.submitter_id, expenseId],
   );
   const poId = ins.rows[0].id;
+
+  await client(
+    `INSERT INTO po_items
+        (po_id, description, qty, unit_price, mapped_account_code)
+     SELECT $1, description, qty, unit_price, mapped_account_code
+       FROM pr_items
+      WHERE pr_id = $2
+      ORDER BY id`,
+    [poId, prId],
+  );
 
   await client(
     `UPDATE expenses SET po_id = $1, updated_at = now() WHERE id = $2`,

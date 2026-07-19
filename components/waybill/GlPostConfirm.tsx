@@ -14,8 +14,9 @@ import {
   postProcurementSettlementAction,
   saveProcurementAccrualAction,
 } from '@/app/actions/procurement';
-import type { ExpenseJournalView, ProcurementJournalStepView } from '@/waybill/queries';
+import type { ProcurementJournalStepView } from '@/waybill/queries';
 import { LinesTable, summarizeLines } from './GlLinesTable';
+import { GlSubmit } from './GlSubmit';
 import { T } from '@/components/i18n/TServer';
 
 type Locale = 'th' | 'de';
@@ -32,7 +33,7 @@ export function ExpenseGlPostConfirm({
   locale,
 }: {
   waybillId: string;
-  journal: ExpenseJournalView;
+  journal: ProcurementJournalStepView;
   canFinalApprove: boolean;
   canConfirmGl: boolean;
   canEditDraft: boolean;
@@ -45,18 +46,40 @@ export function ExpenseGlPostConfirm({
   const empty = !draft && !posted;
   const liveLines = draft?.lines ?? posted?.lines ?? [];
   const totals = summarizeLines(liveLines);
+  const advisory = draft?.ai_suggestion && typeof draft.ai_suggestion.text === 'string'
+    ? draft.ai_suggestion.text
+    : draft?.ai_suggestion?.fallback
+      ? String(draft.ai_suggestion.error ?? 'AI was unavailable; deterministic rules produced this draft.')
+      : null;
 
   const headerActions: React.ReactNode[] = [];
+  if (empty && canEditDraft) {
+    headerActions.push(
+      <form key="draft" action={recomputeExpenseDraftGlAction}>
+        <input type="hidden" name="waybillId" value={waybillId} />
+        <GlSubmit
+          label="waybill.gl.askAiDraft"
+          pendingLabel="waybill.gl.aiDrafting"
+          pendingHint="waybill.gl.aiDraftingHint"
+          icon="✦"
+          testId={`gl-ai-draft-${waybillId}`}
+          className="rounded-md bg-info px-3 py-2 text-sm font-semibold text-paper hover:bg-info-strong"
+        />
+      </form>,
+    );
+  }
   if (draft && !posted) {
     headerActions.push(
       <form key="recompute" action={recomputeExpenseDraftGlAction}>
         <input type="hidden" name="waybillId" value={waybillId} />
-        <button
-          type="submit"
-          className="rounded-lg border border-info bg-info px-3 py-1.5 text-sm font-mono text-info-soft hover:bg-info"
-        >
-          ⟳ <T id="waybill.gl.recomputeDraft" locale={locale} />
-        </button>
+        <GlSubmit
+          label="waybill.gl.recomputeDraft"
+          pendingLabel="waybill.gl.aiDrafting"
+          pendingHint="waybill.gl.aiDraftingHint"
+          icon="⟳"
+          testId={`gl-ai-redraft-${waybillId}`}
+          className="rounded-lg border border-info bg-info px-3 py-1.5 text-sm font-mono text-info-soft hover:bg-info-strong"
+        />
       </form>,
     );
   }
@@ -164,6 +187,13 @@ export function ExpenseGlPostConfirm({
             </span>
           </header>
           {draft.description && <p className="text-sm text-ink-2">{draft.description}</p>}
+          {advisory && (
+            <aside className="rounded-md border border-caution bg-caution-soft p-3 text-sm text-ink-2">
+              <div className="font-bold text-caution-strong">AI advisory · human review required</div>
+              <p className="mt-1 whitespace-pre-wrap">{advisory}</p>
+              {draft.ai_confidence != null && <div className="mt-2 font-mono text-xs text-mute">confidence {Math.round(draft.ai_confidence * 100)}%</div>}
+            </aside>
+          )}
           <GlVisibilityGate
             actorCanSeeLines={actorCanSeeLines}
             totalDebit={totals.totalDebit}
@@ -207,9 +237,14 @@ export function ExpenseGlPostConfirm({
                   </tbody>
                 </table>
               </div>
-              <button type="submit" className="rounded-md bg-info px-3 py-2 text-sm font-semibold text-paper">
-                Validate and save GL draft
-              </button>
+              <GlSubmit
+                label="waybill.gl.validateSaveDraft"
+                pendingLabel="waybill.gl.savingDraft"
+                pendingHint="waybill.gl.savingDraftHint"
+                icon="✓"
+                testId={`gl-save-draft-${waybillId}`}
+                className="rounded-md bg-info px-3 py-2 text-sm font-semibold text-paper hover:bg-info-strong"
+              />
             </form>
           )}
         </section>

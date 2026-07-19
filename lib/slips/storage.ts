@@ -47,6 +47,16 @@ export async function get(key: string): Promise<Buffer> {
   return await streamToBuffer(stream);
 }
 
+export async function exists(key: string): Promise<boolean> {
+  await ensureBucket();
+  try {
+    await minioClient.statObject(config.storage.minio.bucket, key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function remove(key: string): Promise<void> {
   await ensureBucket();
   await minioClient.removeObject(config.storage.minio.bucket, key).catch(() => {});
