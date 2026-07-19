@@ -43,7 +43,7 @@ async function mockReceipt(page: Page, tag: string): Promise<void> {
       currency: 'THB',
       isCorrupted: false,
       correctionNotes: '',
-      items: [],
+      items: [{ description: 'Original OCR item', qty: 1, unitPrice: 100, amount: 100 }],
       e2eTag: tag,
     };
     const slip = await q1<{ id: number }>(
@@ -77,15 +77,12 @@ async function mockReceipt(page: Page, tag: string): Promise<void> {
 }
 
 async function extract(page: Page, tag: string): Promise<number> {
+  const done = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/upload' && r.request().method() === 'POST');
   await page.locator('input[type="file"]').first().setInputFiles({
     name: `${tag}.svg`,
     mimeType: 'image/svg+xml',
     buffer: receipt(tag),
   });
-  const btn = page.getByTestId('slip-extract').first();
-  await expect(btn).toBeVisible();
-  const done = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/upload' && r.request().method() === 'POST');
-  await btn.click();
   const res = await done;
   expect(res.status()).toBe(200);
   const body = await res.json() as UploadBody;
@@ -199,9 +196,11 @@ test.describe('slip UI', () => {
     tag = '';
   });
 
-  test('drop zone + extract + confirm', async ({ page }) => {
+  test('drop zone + automatic extraction + confirm', async ({ page }) => {
     await extract(page, tag);
     await ready(page, tag);
+    await page.locator('summary[title="OCR line items"]').click();
+    await page.locator('input[placeholder="Description"]').fill('Edited line item');
     const own = page.getByTestId('slip-confirm');
     if (await own.count()) {
       await expect(own).toBeEnabled();
@@ -214,14 +213,16 @@ test.describe('slip UI', () => {
     await page.waitForURL(/\/waybill\/WB-\d{4}-\d{6}(?:\?.*)?$/);
     const id = page.url().match(/WB-\d{4}-\d{6}/)?.[0];
     expect(id).toBeTruthy();
-    const row = await q1<{ id: string; origin: string; vendor_name: string }>(
-      `SELECT w.id, w.origin, e.vendor_name
+    const row = await q1<{ id: string; origin: string; vendor_name: string; item_description: string }>(
+      `SELECT w.id, w.origin, e.vendor_name,
+              (SELECT description FROM expense_items WHERE expense_id = e.id ORDER BY id LIMIT 1) AS item_description
          FROM waybills w
          JOIN expenses e ON e.id = w.origin_id
         WHERE w.id = $1 AND w.origin = 'expense'`,
       [id],
     );
-    expect(row).toEqual(expect.objectContaining({ id, origin: 'expense', vendor_name: tag }));
+    expect(row).toEqual(expect.objectContaining({ id, origin: 'expense', vendor_name: tag, item_description: 'Edited line item' }));
+    await expect(page.getByTestId('expense-submit-success')).toBeVisible();
   });
 
   test('total not equal to subtotal plus VAT blocks submit', async ({ page }) => {
@@ -234,8 +235,12 @@ test.describe('slip UI', () => {
   test('transfer payment requires book bank slip', async ({ page }) => {
     await extract(page, tag);
     await ready(page, tag);
-    await page.locator('select:has(option[value="transfer"])').first().selectOption('transfer');
+    await expect(page.getByTestId('expense-book-bank-section')).toBeHidden();
+    await page.getByTestId('slip-payment-credit_card').click();
+    await expect(page.getByTestId('expense-book-bank-section')).toBeHidden();
+    await page.getByTestId('slip-payment-transfer').click();
     await expect(page.getByTestId('expense-sticky-submit')).toBeDisabled();
+    await expect(page.getByTestId('expense-book-bank-section')).toBeVisible();
     await expect(page.getByLabel('Add book bank slip')).toBeVisible();
   });
 

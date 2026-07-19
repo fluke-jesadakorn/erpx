@@ -20,6 +20,7 @@ export async function GET(req: Request) {
     let contentType = 'application/octet-stream';
     const lowerKey = key.toLowerCase();
     if (lowerKey.endsWith('.png')) contentType = 'image/png';
+    else if (lowerKey.endsWith('.svg')) contentType = 'image/svg+xml; charset=utf-8';
     else if (lowerKey.endsWith('.jpg') || lowerKey.endsWith('.jpeg')) contentType = 'image/jpeg';
     else if (lowerKey.endsWith('.webp')) contentType = 'image/webp';
     else if (lowerKey.endsWith('.pdf')) contentType = 'application/pdf';

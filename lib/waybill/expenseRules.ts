@@ -1,3 +1,5 @@
+import { expenseEntryStage } from './routing';
+
 export const EXECUTIVE_THRESHOLD_THB = 200_000;
 
 export type ExpenseStage =
@@ -34,8 +36,12 @@ export function requiresExecutiveApproval(amount: number): boolean {
   return amount > EXECUTIVE_THRESHOLD_THB;
 }
 
-export function nextExpenseStage(stage: ExpenseStage, amount: number): ExpenseStage | null {
-  if (stage === 'submission') return 'department_approval';
+export function nextExpenseStage(
+  stage: ExpenseStage,
+  amount: number,
+  submitterRoleName?: string | null,
+): ExpenseStage | null {
+  if (stage === 'submission') return expenseEntryStage(submitterRoleName);
   if (stage === 'department_approval') return 'accounting_review';
   if (stage === 'accounting_review') return 'accounting_approval';
   if (stage === 'accounting_approval') return requiresExecutiveApproval(amount) ? 'executive_approval' : 'payment';
@@ -75,8 +81,11 @@ export function evaluateExpenseStageRule(
     if (!head && !highest) {
       return { allow: false, reason: 'Accounting approval requires the Accounting head or highest-ranked active member' };
     }
-    if (actor.id === ctx.submitterId || actor.id === ctx.accrualPreparerId) {
-      return { allow: false, reason: 'Accounting approver must differ from submitter and preparer' };
+    if (actor.id === ctx.submitterId) {
+      return { allow: false, reason: 'Accounting approver must differ from submitter' };
+    }
+    if (actor.id === ctx.accrualPreparerId && actor.roleName !== 'accounting_manager') {
+      return { allow: false, reason: 'Only the Accounting Manager may approve their own accrual draft' };
     }
   }
   if (stage === 'executive_approval') {

@@ -450,7 +450,7 @@ function ActionPromptBlock({
   locale,
   approvers,
   currentUserId,
-  visionModels,
+  visionModels: _visionModels,
   events,
   canConfirmGl,
   glConfirmed,
@@ -678,7 +678,7 @@ function ActionPromptBlock({
               {<T id="waybill.timeline.current_stage" />}
             </span>
           </div>
-          <SettleForm waybillId={waybillId} expenseId={originId} visionModels={visionModels} />
+          <SettleForm waybillId={waybillId} expenseId={originId} />
           <ApproversList
             approvers={approvers}
             locale={locale}

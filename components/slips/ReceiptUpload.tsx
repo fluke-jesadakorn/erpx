@@ -26,6 +26,9 @@ import {
   Eye,
   FileSpreadsheet,
   Wand2,
+  Wallet,
+  CreditCard,
+  Camera,
 } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { submitExpenseFromSlip } from '@/app/actions/expense';
@@ -39,11 +42,12 @@ import {
 } from './SlipCard';
 import { useSlipOcr } from './useSlipOcr';
 import { ModelSelect } from './ModelSelect';
+import { T } from '@/components/i18n/T';
 import type {
   BookBankFields,
+  ExpenseDraft,
   ItemRow,
   ParsedFields,
-  SlipDraftFields,
   SlipUploadHandle,
   SubmitState,
 } from './types';
@@ -54,6 +58,7 @@ export interface ReceiptUploadProps {
   bookBankSlipId?: number | null;
   bookBankFields?: BookBankFields;
   onPaymentChange?: (next: 'cash' | 'credit_card' | 'transfer') => void;
+  payeeType?: 'employee' | 'vendor';
   onConfirmed?: (result: {
     slipId: number;
     expenseId: number;
@@ -67,6 +72,7 @@ export interface ReceiptUploadProps {
   hideSubmitButton?: boolean;
   draftWaybillId?: string | null;
   evidenceOnly?: boolean;
+  compact?: boolean;
 }
 
 const INPUT_CLS =
@@ -78,6 +84,12 @@ const NUMBER_CLS =
 const TABLE_INPUT_CLS =
   'bg-paper-2 border border-rule w-full focus:border-rule-strong rounded px-2 py-1 text-sm text-ink focus:outline-none';
 
+const PAYMENT_OPTIONS = [
+  { value: 'cash', id: 'expense.paymentCash', Icon: Wallet },
+  { value: 'credit_card', id: 'expense.paymentCard', Icon: CreditCard },
+  { value: 'transfer', id: 'expense.paymentTransfer', Icon: Building2 },
+] as const;
+
 export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
   function ReceiptUpload(
     {
@@ -86,6 +98,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
       bookBankSlipId = null,
       bookBankFields,
       onPaymentChange,
+      payeeType = 'employee',
       onConfirmed,
       onSlipReady,
       onSlipDiscarded,
@@ -93,6 +106,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
       hideSubmitButton = false,
       draftWaybillId = null,
       evidenceOnly = false,
+      compact = false,
     },
     ref,
   ) {
@@ -117,23 +131,26 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
     const [confirmedExpenseId, setConfirmedExpenseId] = useState<number | null>(null);
     const [confirmedStatus, setConfirmedStatus] = useState<string | null>(null);
     const [dragOver, setDragOver] = useState(false);
-
-    function applyParsed(p: ParsedFields) {
-      setVendor(p.vendorName ?? '');
-      setVendorAddress(p.vendorAddress ?? '');
-      setCreatedTo(p.createdTo ?? '');
-      setCreatedToAddress(p.createdToAddress ?? '');
-      setDate(p.transactionDate ?? '');
-      setPayment((p.paymentMethod as any) ?? 'cash');
-      setSubtotal(String(p.subtotal ?? 0));
-      setVat(String(p.vatAmount ?? 0));
-      setTotal(String(p.totalAmount ?? (Number(p.subtotal ?? 0) + Number(p.vatAmount ?? 0))));
-      setItems(p.items ?? []);
-    }
+    const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
-      if (ocr.parsed) applyParsed(ocr.parsed);
-    }, [ocr.parsed]);
+      const parsed = ocr.parsed;
+      if (!parsed) return;
+      setVendor(parsed.vendorName ?? '');
+      setVendorAddress(parsed.vendorAddress ?? '');
+      setCreatedTo(parsed.createdTo ?? '');
+      setCreatedToAddress(parsed.createdToAddress ?? '');
+      setDate(parsed.transactionDate ?? '');
+      const nextPayment = parsed.paymentMethod === 'credit_card' || parsed.paymentMethod === 'transfer'
+        ? parsed.paymentMethod
+        : 'cash';
+      setPayment(nextPayment);
+      onPaymentChange?.(nextPayment);
+      setSubtotal(String(parsed.subtotal ?? 0));
+      setVat(String(parsed.vatAmount ?? 0));
+      setTotal(String(parsed.totalAmount ?? (Number(parsed.subtotal ?? 0) + Number(parsed.vatAmount ?? 0))));
+      setItems(parsed.items ?? []);
+    }, [ocr.parsed, onPaymentChange]);
 
     const disabled = !ocr.pendingFile || ocr.phase === 'confirming';
     const subN = Number(subtotal);
@@ -141,11 +158,17 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
     const totalN = Number(total);
     const receiptMathOk =
       subN >= 0 && vatN >= 0 && totalN >= 0 && Math.abs(totalN - (subN + vatN)) <= 0.01;
+    const bankReady = payment !== 'transfer'
+      || (bookBankSlipId != null
+        && !!bookBankFields?.bankName.trim()
+        && !!bookBankFields.accountNumber.trim()
+        && !!bookBankFields.accountName.trim());
     const canConfirm =
       vendor.trim().length > 0 &&
       date.length > 0 &&
       !Number.isNaN(new Date(date).getTime()) &&
-      receiptMathOk;
+      receiptMathOk &&
+      bankReady;
 
     async function handleConfirm() {
       if (ocr.slipId == null) return;
@@ -169,6 +192,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
         vatAmount: vatN,
         totalAmount: totalN,
         paymentMethod: payment,
+        payeeType,
         items,
       };
       if (payment === 'transfer' && bookBankSlipId && bookBankFields) {
@@ -225,8 +249,10 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
       pendingFile: !!ocr.pendingFile,
       isBookBank: false,
       error: ocr.error,
-      hint: !canConfirm ? 'missing-fields' : 'ok',
-      parsed: {
+      hint: payment === 'transfer' && !bankReady
+        ? 'transfer-needs-bookbank'
+        : !canConfirm ? 'missing-fields' : 'ok',
+      draft: {
         vendorName: vendor,
         vendorAddress,
         createdTo,
@@ -236,7 +262,9 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
         subtotal: Number(subtotal) || 0,
         vatAmount: Number(vat) || 0,
         totalAmount: Number(total) || 0,
-      } as SlipDraftFields,
+        payeeType,
+        items,
+      } satisfies ExpenseDraft,
       slipId: ocr.slipId,
     };
 
@@ -253,12 +281,14 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
       submitState.pendingFile,
       submitState.error,
       submitState.hint,
-      submitState.parsed?.vendorName,
-      submitState.parsed?.transactionDate,
-      submitState.parsed?.paymentMethod,
-      submitState.parsed?.subtotal,
-      submitState.parsed?.vatAmount,
-      submitState.parsed?.totalAmount,
+      submitState.draft?.vendorName,
+      submitState.draft?.transactionDate,
+      submitState.draft?.paymentMethod,
+      submitState.draft?.subtotal,
+      submitState.draft?.vatAmount,
+      submitState.draft?.totalAmount,
+      submitState.draft?.payeeType,
+      items,
       submitState.slipId,
     ]);
 
@@ -274,9 +304,17 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
           onChange={ocr.onPick}
           className="hidden"
         />
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={ocr.onPick}
+          className="hidden"
+        />
 
-        <div className="space-y-3">
-          <div className="flex flex-col items-stretch gap-4">
+        <div className={ocr.pendingFile && !compact ? 'grid gap-5 lg:grid-cols-[minmax(18rem,0.8fr)_minmax(0,1.2fr)] lg:items-start' : 'space-y-3'}>
+          <div className={ocr.pendingFile && !compact ? 'flex flex-col items-stretch gap-4 lg:sticky lg:top-24 lg:col-start-1' : 'flex flex-col items-stretch gap-4'}>
             {!ocr.pendingFile ? (
               <div
                 onDragOver={(e) => {
@@ -288,7 +326,6 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                   setDragOver(false);
                   ocr.onDrop(e);
                 }}
-                onClick={() => ocr.inputRef.current?.click()}
                 className={`w-full h-40 sm:h-56 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-colors duration-200 hover:border-accent/60 hover:bg-paper-3/30 ${
                   dragOver
                     ? 'border-positive'
@@ -298,12 +335,28 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 aria-label="Drop a slip or click to browse"
               >
                 <UploadCloud className="size-9 text-accent" strokeWidth={1.5} aria-hidden />
-                <p className="text-xs font-sans tabular-nums text-ink-2 text-center px-3">
-                  Drop or click
-                </p>
+                <p className="text-sm font-semibold text-ink"><T id="expense.addReceipt" /></p>
                 <p className="text-xs font-sans tabular-nums text-mute text-center px-3 uppercase tracking-wider">
                   JPG · PNG · WEBP · PDF · ≤ 20 MB
                 </p>
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-accent bg-accent-soft px-3.5 py-2 text-sm font-semibold text-accent-strong"
+                  >
+                    <Camera className="size-4" aria-hidden />
+                    <T id="expense.takePhoto" hideSecondary />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => ocr.inputRef.current?.click()}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-rule-strong bg-paper-2 px-3.5 py-2 text-sm font-semibold text-ink-2"
+                  >
+                    <Upload className="size-4" aria-hidden />
+                    <T id="expense.chooseFile" hideSecondary />
+                  </button>
+                </div>
               </div>
             ) : ocr.preview ? (
               <button
@@ -317,7 +370,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 <img
                   src={ocr.preview}
                   alt="preview"
-                  className="w-full max-h-72 sm:max-h-80 object-contain rounded-lg"
+                  className={compact ? 'max-h-64 w-full rounded-lg object-contain' : 'w-full max-h-72 rounded-lg object-contain sm:max-h-80'}
                 />
                 {ocr.extractionState !== 'running' && (
                   <span
@@ -429,8 +482,13 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                 )}
 
                 {ocr.pendingFile && ocr.extractionState !== 'running' && (
-                  <div className="flex flex-wrap items-center gap-2 pt-2">
-                    <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-3/40">
+                  <details className="group rounded-lg border border-rule bg-paper-3/35" open={ocr.extractionState === 'pending'}>
+                    <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-semibold text-ink-2 [&::-webkit-details-marker]:hidden">
+                      <span className="inline-flex items-center gap-1.5"><Eye className="size-3.5" aria-hidden /><T id="expense.aiOptions" /></span>
+                      <ChevronDown className="size-4 text-mute transition-transform group-open:rotate-180" aria-hidden />
+                    </summary>
+                    <div className="flex flex-wrap items-center gap-2 border-t border-rule p-2.5">
+                    <div className="inline-flex items-center gap-2 pl-1.5 pr-1 py-1 rounded-lg border border-rule bg-paper-2">
                       <span className="text-[10px] font-sans tabular-nums uppercase tracking-widest text-mute shrink-0 inline-flex items-center gap-1">
                         <Eye className="size-3" strokeWidth={2} aria-hidden />
                         Model
@@ -464,102 +522,96 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                         <span>{ocr.extractionState === 'pending' ? 'Extract' : 'Re-extract'}</span>
                       </button>
                     )}
-                  </div>
+                    </div>
+                  </details>
                 )}
               </div>
             )}
           </div>
 
-          {ocr.phase !== 'confirmed' && ocr.extractionState !== 'pending' && (
+          {compact && ocr.phase !== 'confirmed' && ocr.extractionState !== 'running' && ocr.extractionState !== 'pending' && (
+            <div className="space-y-2 border-t border-rule pt-3">
+              {ocr.error && (
+                <p title={ocr.error} className="flex items-start gap-1.5 text-xs text-critical">
+                  <CircleAlert className="mt-0.5 size-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
+                  {ocr.error}
+                </p>
+              )}
+              <div className="flex items-center justify-between gap-2">
+                {ocr.slipId != null ? (
+                  <button
+                    type="button"
+                    onClick={ocr.removeFile}
+                    disabled={ocr.phase === 'confirming'}
+                    aria-label="Remove"
+                    data-testid="slip-remove"
+                    className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-critical/40 bg-critical-soft px-3 py-2 text-xs font-semibold text-critical transition-colors hover:bg-critical/15 disabled:opacity-50"
+                  >
+                    <Trash2 className="size-3.5" strokeWidth={2} aria-hidden />
+                    Remove
+                  </button>
+                ) : <span />}
+                <button
+                  type="button"
+                  onClick={ocr.pickAnother}
+                  disabled={ocr.phase === 'confirming'}
+                  className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-rule-strong bg-paper-3 px-3 py-2 text-xs font-semibold text-ink-2 transition-colors hover:bg-paper-3/80 disabled:opacity-50"
+                >
+                  <RefreshCw className="size-3.5" strokeWidth={2} aria-hidden />
+                  Replace
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!compact && ocr.phase !== 'confirmed' && ocr.extractionState !== 'pending' && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="sm:col-span-2 pt-4 pb-1 space-y-3 border-t border-rule first:border-t-0 first:pt-0">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:col-start-2">
+                <div className="sm:col-span-2 space-y-3">
                   <div className="flex items-center gap-2 pb-2">
-                    <span aria-hidden className="text-info">{<Building2 className="size-4" strokeWidth={2.5} />}</span>
-                    <h4 className="text-sm font-semibold text-ink">Vendor</h4>
-                    <span className="text-xs font-sans tabular-nums text-mute normal-case tracking-normal">Created from</span>
+                    <Building2 className="size-4 text-info" aria-hidden strokeWidth={2.5} />
+                    <h4 className="text-sm font-semibold text-ink"><T id="expense.reviewDetails" hideSecondary /></h4>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Field label="Name" icon={<Building2 className="size-3" aria-hidden strokeWidth={2} />}>
-                      <div className="relative">
-                        <input
-                          value={vendor}
-                          onChange={(e) => setVendor(e.target.value)}
-                          disabled={disabled}
-                          className={INPUT_CLS}
-                          placeholder="Vendor Name"
-                          data-testid="slip-field-vendor"
-                        />
-                        {ocr.extractionState === 'running' && !vendor ? (
-                          <FieldSpinner />
-                        ) : ocr.extractionState === 'done' && vendor.trim() ? (
-                          <FilledTick filled />
-                        ) : null}
-                      </div>
-                    </Field>
-                    <Field label="Address" icon={<Building2 className="size-3" aria-hidden strokeWidth={2} />}>
-                      <div className="relative">
-                        <input
-                          value={vendorAddress}
-                          onChange={(e) => setVendorAddress(e.target.value)}
-                          disabled={disabled}
-                          className={INPUT_CLS}
-                          placeholder="Vendor Address"
-                          data-testid="slip-field-vendor-address"
-                        />
-                        {ocr.extractionState === 'running' && !vendorAddress ? (
-                          <FieldSpinner />
-                        ) : ocr.extractionState === 'done' && vendorAddress.trim() ? (
-                          <FilledTick filled />
-                        ) : null}
-                      </div>
-                    </Field>
-                  </div>
+                  <Field label="Vendor" icon={<Building2 className="size-3" aria-hidden strokeWidth={2} />}>
+                    <div className="relative">
+                      <input
+                        value={vendor}
+                        onChange={(e) => setVendor(e.target.value)}
+                        disabled={disabled}
+                        className={INPUT_CLS}
+                        placeholder="Vendor name"
+                        data-testid="slip-field-vendor"
+                        aria-invalid={ocr.extractionState === 'done' && !vendor.trim()}
+                      />
+                      {ocr.extractionState === 'running' && !vendor ? (
+                        <FieldSpinner />
+                      ) : ocr.extractionState === 'done' && vendor.trim() ? (
+                        <FilledTick filled />
+                      ) : null}
+                    </div>
+                    {ocr.extractionState === 'done' && !vendor.trim() && (
+                      <p className="mt-1 text-xs text-critical"><T id="expense.vendorRequired" /></p>
+                    )}
+                  </Field>
                 </div>
 
-                <div className="sm:col-span-2 pt-4 pb-1 space-y-3 border-t border-rule first:border-t-0 first:pt-0">
-                  <div className="flex items-center gap-2 pb-2">
-                    <span aria-hidden className="text-info">{<User className="size-4" strokeWidth={2.5} />}</span>
-                    <h4 className="text-sm font-semibold text-ink">Customer</h4>
-                    <span className="text-xs font-sans tabular-nums text-mute normal-case tracking-normal">Created to</span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Field label="Name" icon={<User className="size-3" aria-hidden strokeWidth={2} />}>
-                      <div className="relative">
-                        <input
-                          value={createdTo}
-                          onChange={(e) => setCreatedTo(e.target.value)}
-                          disabled={disabled}
-                          className={INPUT_CLS}
-                          placeholder="Customer Name"
-                          data-testid="slip-field-created-to"
-                        />
-                        {ocr.extractionState === 'running' && !createdTo ? (
-                          <FieldSpinner />
-                        ) : ocr.extractionState === 'done' && createdTo.trim() ? (
-                          <FilledTick filled />
-                        ) : null}
-                      </div>
+                <details className="group sm:col-span-2 rounded-lg border border-rule bg-paper-3/35">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-2.5 text-sm font-semibold text-ink-2 [&::-webkit-details-marker]:hidden">
+                    <span><T id="expense.moreDetails" /></span>
+                    <ChevronDown className="size-4 text-mute transition-transform group-open:rotate-180" aria-hidden />
+                  </summary>
+                  <div className="grid grid-cols-1 gap-3 border-t border-rule p-3 sm:grid-cols-2">
+                    <Field label="Vendor address" icon={<Building2 className="size-3" aria-hidden strokeWidth={2} />}>
+                      <input value={vendorAddress} onChange={(e) => setVendorAddress(e.target.value)} disabled={disabled} className={INPUT_CLS} placeholder="Vendor address" data-testid="slip-field-vendor-address" />
                     </Field>
-                    <Field label="Address" icon={<User className="size-3" aria-hidden strokeWidth={2} />}>
-                      <div className="relative">
-                        <input
-                          value={createdToAddress}
-                          onChange={(e) => setCreatedToAddress(e.target.value)}
-                          disabled={disabled}
-                          className={INPUT_CLS}
-                          placeholder="Customer Address"
-                          data-testid="slip-field-created-to-address"
-                        />
-                        {ocr.extractionState === 'running' && !createdToAddress ? (
-                          <FieldSpinner />
-                        ) : ocr.extractionState === 'done' && createdToAddress.trim() ? (
-                          <FilledTick filled />
-                        ) : null}
-                      </div>
+                    <Field label="Receipt issued to" icon={<User className="size-3" aria-hidden strokeWidth={2} />}>
+                      <input value={createdTo} onChange={(e) => setCreatedTo(e.target.value)} disabled={disabled} className={INPUT_CLS} placeholder="Company or customer name" data-testid="slip-field-created-to" />
+                    </Field>
+                    <Field label="Issued-to address" icon={<User className="size-3" aria-hidden strokeWidth={2} />}>
+                      <input value={createdToAddress} onChange={(e) => setCreatedToAddress(e.target.value)} disabled={disabled} className={INPUT_CLS} placeholder="Company or customer address" data-testid="slip-field-created-to-address" />
                     </Field>
                   </div>
-                </div>
+                </details>
 
                 <div className="sm:col-span-2 pt-4 pb-1 space-y-3 border-t border-rule first:border-t-0 first:pt-0">
                   <div className="flex items-center gap-2 pb-2">
@@ -576,6 +628,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                           disabled={disabled}
                           className={INPUT_CLS}
                           data-testid="slip-field-date"
+                          aria-invalid={ocr.extractionState === 'done' && (!date || Number.isNaN(new Date(date).getTime()))}
                         />
                         {ocr.extractionState === 'running' && !date ? (
                           <FieldSpinner />
@@ -583,25 +636,34 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                           <FilledTick filled />
                         ) : null}
                       </div>
+                      {ocr.extractionState === 'done' && (!date || Number.isNaN(new Date(date).getTime())) && (
+                        <p className="mt-1 text-xs text-critical"><T id="expense.dateRequired" /></p>
+                      )}
                     </Field>
-                    <Field label="Pay" icon={<Banknote className="size-3" aria-hidden strokeWidth={2} />}>
-                      <div className="relative">
-                        <select
-                          value={payment}
-                          onChange={(e) => {
-                            const v = e.target.value as typeof payment;
-                            setPayment(v);
-                            onPaymentChange?.(v);
-                          }}
-                          disabled={disabled || ocr.extractionState === 'running'}
-                          className="w-full rounded-md hover:bg-paper-3/60 focus:border-positive/60 focus:ring-2 focus:ring-positive/20 transition-all px-3.5 py-2.5 pr-9 text-xs text-ink focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed font-medium border border-rule bg-paper-2"
-                          title="Payment method"
-                        >
-                          <option value="cash">Cash</option>
-                          <option value="credit_card">Credit card</option>
-                          <option value="transfer">Transfer</option>
-                        </select>
-                        {ocr.extractionState === 'running' && <FieldSpinner />}
+                    <Field label="Payment" icon={<Banknote className="size-3" aria-hidden strokeWidth={2} />}>
+                      <div className="grid grid-cols-3 gap-2">
+                        {PAYMENT_OPTIONS.map(({ value, id, Icon }) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => {
+                              setPayment(value);
+                              onPaymentChange?.(value);
+                            }}
+                            disabled={disabled || ocr.extractionState === 'running'}
+                            data-testid={`slip-payment-${value}`}
+                            aria-pressed={payment === value}
+                            className={[
+                              'flex min-h-11 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
+                              payment === value
+                                ? 'border-accent bg-accent-soft text-accent-strong'
+                                : 'border-rule bg-paper-2 text-ink-2 hover:border-accent/50 hover:bg-paper-3',
+                            ].join(' ')}
+                          >
+                            <Icon className="size-4" aria-hidden strokeWidth={2} />
+                            <T id={id} hideSecondary />
+                          </button>
+                        ))}
                       </div>
                     </Field>
                   </div>
@@ -642,12 +704,15 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
                       </Field>
                     ))}
                   </div>
+                  {ocr.extractionState === 'done' && !receiptMathOk && (
+                    <p className="text-xs text-critical"><T id="expense.totalMismatch" /></p>
+                  )}
                 </div>
               </div>
 
               {ocr.pendingFile && ocr.extractionState === 'done' && !hideSubmitButton && (
                 <div
-                  className={`rounded-md border p-3 space-y-1 ${
+                  className={`rounded-md border p-3 space-y-1 lg:col-start-2 ${
                     canConfirm
                       ? 'border-positive/50 bg-positive-soft'
                       : 'border-rule-strong bg-paper-3/40'
@@ -715,8 +780,8 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
               )}
 
               {ocr.pendingFile && ocr.extractionState === 'done' && (
-                <div className="rounded-md overflow-hidden border border-rule bg-paper-3/40">
-                  <details className="group" open>
+                <div className="rounded-md overflow-hidden border border-rule bg-paper-3/40 lg:col-start-2">
+                  <details className="group">
                     <summary
                       className="flex items-center justify-between px-3 py-2 border-b border-rule cursor-pointer select-none hover:bg-paper-3/60 transition-colors [&::-webkit-details-marker]:hidden"
                       title="OCR line items"
@@ -859,7 +924,7 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
               {ocr.error && (
                 <p
                   title={ocr.error}
-                  className="text-xs text-critical font-sans tabular-nums inline-flex items-center gap-1.5"
+                  className="text-xs text-critical font-sans tabular-nums inline-flex items-center gap-1.5 lg:col-start-2"
                 >
                   <CircleAlert className="size-3.5" strokeWidth={2.5} aria-hidden />
                   {ocr.error}
@@ -869,13 +934,13 @@ export const ReceiptUpload = forwardRef<SlipUploadHandle, ReceiptUploadProps>(
               {ocr.pendingFile && ocr.extractionState === 'done' && ocr.selectedModelDesc && (
                 <p
                   title={ocr.selectedModelDesc}
-                  className="text-xs text-mute italic line-clamp-2"
+                  className="text-xs text-mute italic line-clamp-2 lg:col-start-2"
                 >
                   {ocr.selectedModelDesc}
                 </p>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-rule-strong">
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-rule-strong lg:col-start-2">
                 {ocr.pendingFile && ocr.slipId != null && ocr.extractionState !== 'running' ? (
                   <button
                     type="button"

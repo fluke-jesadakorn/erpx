@@ -10,6 +10,7 @@ import type {
 import type { WaybillEventRow } from '@/waybill/events';
 import type { WaybillAttachmentRow } from '@/waybill/attachments';
 import type { VisionModel } from '@/ai/loadVisionModels';
+import type { ExpensePaymentPreview } from '@/finance/expenseDocument';
 import {
   computePipState,
   domainForOrigin,
@@ -59,6 +60,7 @@ interface Props {
   locale?: SecondaryLocale;
   vendorName?: string | null;
   amount?: string | number | null;
+  payment?: ExpensePaymentPreview | null;
 }
 
 export function WaybillTaskPanel({
@@ -85,6 +87,7 @@ export function WaybillTaskPanel({
   locale = 'th',
   vendorName,
   amount,
+  payment,
 }: Props) {
   const pip = findPip(domain, currentStage);
   const index = pipIndex(domain, currentStage);
@@ -220,6 +223,7 @@ export function WaybillTaskPanel({
             isSubmitter={flags.isSubmitter}
             domain={domain}
             locale={locale}
+            payment={payment}
           />
         )}
 

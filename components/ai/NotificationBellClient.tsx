@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Bell } from 'lucide-react';
 import { NotificationPanel, type NotificationItem } from './NotificationPanel';
 
@@ -21,17 +21,48 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
   scoped,
 }) => {
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>(initialItems);
   const [count, setCount] = useState(unread);
+  const [pulse, setPulse] = useState(false);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const sinceRef = useRef<string>(initialItems[0]?.createdAt ?? new Date(0).toISOString());
+  const prevCountRef = useRef<number>(unread);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const openNotifications = () => setOpen(true);
     window.addEventListener('folio:open-notifications', openNotifications);
     return () => window.removeEventListener('folio:open-notifications', openNotifications);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (count > prevCountRef.current) {
+      setPulse(true);
+      const t = setTimeout(() => setPulse(false), 600);
+      prevCountRef.current = count;
+      return () => clearTimeout(t);
+    }
+    prevCountRef.current = count;
+  }, [count]);
 
   useEffect(() => {
     if (hideButton || !scoped) return;
@@ -88,20 +119,27 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
     }
   }, [post, router]);
 
-  const onToggleRead = useCallback(async (id: string, currentlyRead: boolean) => {
+  const onToggleRead = useCallback(async (item: NotificationItem) => {
     try {
-      await post('/api/notifications/mark-read', { ids: [id], read: currentlyRead ? false : true });
+      const currentlyRead = !!item.readAt;
+      await post('/api/notifications/mark-read', { ids: [item.id], read: !currentlyRead });
       const readAt = currentlyRead ? null : new Date().toISOString();
-      setItems((previous) => previous.map((item) => String(item.id) === String(id) ? { ...item, readAt } : item));
+      setItems((previous) => previous.map((row) => String(row.id) === String(item.id) ? { ...row, readAt } : row));
       setCount((value) => currentlyRead ? value + 1 : Math.max(0, value - 1));
     } catch {}
   }, [post]);
 
-  const onDelete = useCallback(async (id: string) => {
+  const onDelete = useCallback(async (item: NotificationItem) => {
     try {
-      const response = await fetch(`/api/notifications/${encodeURIComponent(id)}`, { method: 'DELETE', cache: 'no-store' });
+      const response = await fetch(`/api/notifications/${encodeURIComponent(item.id)}`, { method: 'DELETE', cache: 'no-store' });
       if (!response.ok) return;
-      setItems((previous) => previous.filter((item) => String(item.id) !== String(id)));
+      setItems((previous) => {
+        const target = previous.find((row) => String(row.id) === String(item.id));
+        if (target && !target.readAt) {
+          setCount((value) => Math.max(0, value - 1));
+        }
+        return previous.filter((row) => String(row.id) !== String(item.id));
+      });
     } catch {}
   }, []);
 
@@ -114,20 +152,43 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
     } catch {}
   }, [post]);
 
+  const lastUpdatedAt = items[0]?.createdAt;
+
   return (
     <div className="relative">
       {!hideButton && (
         <button
+          ref={buttonRef}
           type="button"
           aria-label="Notifications"
+          aria-expanded={open}
+          aria-controls="notification-panel"
           onClick={() => setOpen((value) => !value)}
-          className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rule bg-paper-2 text-ink-2 transition-colors hover:border-rule-strong hover:bg-paper-3 hover:text-ink"
+          className={[
+            'relative inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-all',
+            open
+              ? 'border-accent/60 bg-accent-soft/70 text-accent'
+              : 'border-rule bg-paper-2 text-ink-2 hover:border-rule-strong hover:bg-paper-3 hover:text-ink',
+          ].join(' ')}
         >
-          <Bell size={16} />
-          {count > 0 && <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold font-mono text-ink">{count > 99 ? '99+' : count}</span>}
+          <Bell size={16} className={pulse ? 'animate-fade-scale' : ''} />
+          {count > 0 && (
+            <span
+              className={[
+                'absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full border border-paper bg-critical px-1 text-[10px] font-bold font-mono text-paper shadow-sm',
+                pulse ? 'animate-fade-scale' : '',
+              ].join(' ')}
+            >
+              {count > 99 ? '99+' : count}
+            </span>
+          )}
         </button>
       )}
-      {hideButton && count > 0 && <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-critical px-1 text-[10px] font-semibold font-mono text-ink">{count > 99 ? '99+' : count}</span>}
+      {hideButton && count > 0 && (
+        <span className="absolute -top-1 -right-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full bg-critical px-1 text-[10px] font-bold font-mono text-paper">
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
       {(hideButton || open) && (
         <NotificationPanel
           items={items}
@@ -139,8 +200,11 @@ export const NotificationBellClient: React.FC<NotificationBellClientProps> = ({
           filter={filter}
           onFilterChange={setFilter}
           scoped={scoped}
+          lastUpdatedAt={lastUpdatedAt}
         />
       )}
     </div>
   );
 };
+
+export default NotificationBellClient;

@@ -8,6 +8,12 @@ export interface QuickPrompt {
 }
 
 export const QUICK_PROMPTS: Record<string, QuickPrompt[]> = {
+  chat: [
+    { icon: '◫', label: 'Executive pulse', label_th: 'ภาพรวมผู้บริหาร', label_de: 'Executive-Überblick', prompt: 'Build an executive pulse from live Folio data: cash, open receivables, open payables, current-month revenue, inventory value, and approval bottlenecks.' },
+    { icon: '⌁', label: 'Approval bottlenecks', label_th: 'คอขวดการอนุมัติ', label_de: 'Freigabe-Engpässe', prompt: 'Find every active waybill that has been in its current approval stage for more than 24 hours, with owner, amount, and age.' },
+    { icon: '◎', label: 'People & access', label_th: 'บุคลากรและสิทธิ์', label_de: 'Personen & Zugriff', prompt: 'Show active employees with their departments, assigned roles, and effective permission counts.' },
+    { icon: '⌘', label: 'Run raw SQL', label_th: 'รัน Raw SQL', label_de: 'Raw SQL ausführen', prompt: 'SELECT status, COUNT(*)::int AS waybill_count, COALESCE(SUM(total_amount), 0) AS total_amount FROM folio.waybills GROUP BY status ORDER BY total_amount DESC' },
+  ],
   executive: [
     { icon: '📊', label: 'Posted position', label_th: 'ฐานะการเงินที่บันทึกแล้ว', label_de: 'Gebuchte Finanzlage', prompt: 'Summarize posted revenue, gross margin, cash, receivables, payables, and inventory for the current year. Use database results only.' },
     { icon: '💵', label: '30-day cash forecast', label_th: 'คาดการณ์เงินสด 30 วัน', label_de: '30-Tage-Liquiditätsprognose', prompt: 'Forecast cash for the next 30 days from current cash plus due AR minus due AP, and show every component from the database.' },

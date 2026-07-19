@@ -15,10 +15,10 @@ import {
 import {
   greetingLine,
   kpiSummary,
-  pickPendingApprovals,
   timeGreeting,
   type GreetingKey,
 } from '@/hero';
+import type { ActionQueueSummary } from '@/notifications/queries';
 import { T } from '@/components/i18n/T';
 import { useFormatMoney } from '@/components/i18n/formatters';
 import {
@@ -44,7 +44,7 @@ interface HubHeroProps {
     level?: number | null;
   } | null;
   tiles: TileWithMeta[];
-  pendingPrs: any[];
+  actionQueue: ActionQueueSummary;
   isLocked: (t: TileWithMeta) => boolean;
   onOpenCommand: () => void;
   onOpenPersona?: () => void;
@@ -68,7 +68,7 @@ const QUICK_ACTIONS: Array<{
 export const HubHero: React.FC<HubHeroProps> = ({
   actor,
   tiles,
-  pendingPrs,
+  actionQueue,
   isLocked,
   onOpenCommand,
   onOpenPersona,
@@ -77,7 +77,6 @@ export const HubHero: React.FC<HubHeroProps> = ({
   initialGreetingKey,
 }) => {
   const kpis = kpiSummary(tiles, isLocked);
-  const pending = pickPendingApprovals(pendingPrs ?? []);
   const fmtMoney = useFormatMoney();
 
   const fullname = (actor?.fullname || '').trim() || 'there';
@@ -170,11 +169,13 @@ export const HubHero: React.FC<HubHeroProps> = ({
                 />
                 <HeroMetric
                   label={<T id="hub.kpiPending" hideSecondary />}
-                  value={pending.length}
-                  detail={pending.length === 0
+                  value={actionQueue.state === 'error' ? '!' : actionQueue.total}
+                  detail={actionQueue.state === 'error'
+                    ? <T id="hub.actionErrorTitle" hideSecondary />
+                    : actionQueue.total === 0
                     ? <T id="hub.kpiPendingClear" hideSecondary />
                     : <T id="hub.kpiPendingReview" hideSecondary />}
-                  tone={pending.length === 0 ? 'text-positive' : 'text-caution'}
+                  tone={actionQueue.state === 'error' ? 'text-critical' : actionQueue.total === 0 ? 'text-positive' : 'text-caution'}
                 />
               </div>
 
@@ -213,7 +214,7 @@ export const HubHero: React.FC<HubHeroProps> = ({
             </div>
 
             <div className="min-w-0 lg:col-span-5">
-              <PendingApprovals prs={pending} fmtMoney={fmtMoney} />
+              <PendingApprovals queue={actionQueue} fmtMoney={fmtMoney} />
             </div>
           </div>
         </div>
@@ -229,7 +230,7 @@ function HeroMetric({
   tone,
 }: {
   label: React.ReactNode;
-  value: number;
+  value: React.ReactNode;
   detail: React.ReactNode;
   tone: string;
 }) {
@@ -243,23 +244,11 @@ function HeroMetric({
 }
 
 interface PendingApprovalsProps {
-  prs: any[];
+  queue: ActionQueueSummary;
   fmtMoney: (n: number | string | null | undefined, currency?: string) => string;
 }
 
-const PENDING_HREF = '/inbox?scope=waiting';
-
-const STAGE_PILL: Record<string, { id: string; tone: string }> = {
-  supervisor_review:         { id: 'hub.stage.supervisorReview',          tone: 'border-caution   text-paper   bg-caution'   },
-  head_review:               { id: 'hub.stage.headReview',                tone: 'border-caution   text-paper   bg-caution'   },
-  account_officer_review:    { id: 'hub.stage.accountOfficerReview',      tone: 'border-info    text-paper    bg-info'    },
-  account_supervisor_review: { id: 'hub.stage.accountSupervisorReview',   tone: 'border-info    text-paper    bg-info'    },
-  accounting_review:         { id: 'hub.stage.accountingReview',          tone: 'border-info    text-paper    bg-info'    },
-  cfo_review:                { id: 'hub.stage.cfoReview',                 tone: 'border-accent  text-paper  bg-accent'  },
-  ceo_review:                { id: 'hub.stage.ceoReview',                 tone: 'border-accent  text-paper  bg-accent'  },
-  finance_review:            { id: 'hub.stage.financeReview',             tone: 'border-accent  text-paper  bg-accent'  },
-  po_pending:                { id: 'hub.stage.poPending',                 tone: 'border-accent  text-paper  bg-accent'  },
-};
+const PENDING_HREF = '/inbox?view=actions&read=all&domain=all';
 
 function timeAgo(iso: string | null | undefined): { id: string; values?: Record<string, number | string> } | null {
   if (!iso) return null;
@@ -276,74 +265,70 @@ function timeAgo(iso: string | null | undefined): { id: string; values?: Record<
   return null;
 }
 
-const PendingApprovals: React.FC<PendingApprovalsProps> = ({ prs, fmtMoney }) => {
-  const items = (prs ?? []).slice(0, 3);
+const PendingApprovals: React.FC<PendingApprovalsProps> = ({ queue, fmtMoney }) => {
+  const items = queue.items;
+  const isError = queue.state === 'error';
 
   return (
-    <Link
-      href={PENDING_HREF}
-      aria-label="Open pending approvals"
+    <section
+      aria-label="Open action queue"
       className="panel-interactive group relative block h-full min-h-[292px] w-full overflow-hidden rounded-2xl bg-paper/30"
     >
       <div className="flex items-center justify-between gap-2 px-4 sm:px-5 pt-4 sm:pt-5">
         <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-widest text-ink">
           <ShoppingCart size={14} aria-hidden className="text-accent" />
-          <T id="hub.pendingTitle" hideSecondary />
+          <T id="hub.actionTitle" hideSecondary />
         </div>
         <div className="inline-flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-widest text-ink-2">
-          <span className={`min-w-[18px] h-[18px] inline-flex items-center justify-center rounded-full px-1.5 text-xs font-black ${items.length === 0 ? 'bg-positive text-paper border border-positive' : 'bg-accent text-paper border border-accent'}`}>
-            {items.length}
+          <span className={`min-w-[18px] h-[18px] inline-flex items-center justify-center rounded-full px-1.5 text-xs font-black ${isError ? 'bg-critical text-paper border border-critical' : queue.total === 0 ? 'bg-positive text-paper border border-positive' : 'bg-accent text-paper border border-accent'}`}>
+            {isError ? '!' : queue.total}
           </span>
         </div>
       </div>
 
-      {items.length === 0 ? (
+      {isError ? (
+        <div className="flex min-h-[210px] flex-col items-center justify-center px-5 py-8 text-center">
+          <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-critical/30 bg-critical-soft/55 text-critical">
+            <Bell size={23} aria-hidden />
+          </span>
+          <div className="text-sm font-semibold text-ink"><T id="hub.actionErrorTitle" hideSecondary /></div>
+          <div className="mt-1 max-w-[30ch] text-sm text-mute"><T id="hub.actionErrorBody" hideSecondary /></div>
+        </div>
+      ) : items.length === 0 ? (
         <div className="flex min-h-[210px] flex-col items-center justify-center px-5 py-8 text-center">
           <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full border border-positive/30 bg-positive-soft/55 text-positive">
             <CheckCircle2 size={23} aria-hidden />
           </span>
-          <div className="text-sm font-semibold text-ink"><T id="hub.pendingEmptyTitle" hideSecondary /></div>
+          <div className="text-sm font-semibold text-ink"><T id="hub.actionEmptyTitle" hideSecondary /></div>
           <div className="mt-1 max-w-[30ch] text-sm text-mute">
-            <T id="hub.pendingEmptyBody" hideSecondary />
+            <T id="hub.actionEmptyBody" hideSecondary />
           </div>
         </div>
       ) : (
         <ul className="divide-y divide-rule mt-2">
-          {items.map((pr) => {
-            const pill = STAGE_PILL[pr.status] ?? { id: '', tone: 'border-rule text-ink-2 bg-paper-2/30' };
-            const vendor = pr.vendor_name || `PR-${pr.id}`;
-            const ago = timeAgo(pr.created_at);
+          {items.map((item) => {
+            const ago = timeAgo(item.createdAt);
             return (
-              <li key={pr.id} className="flex items-center gap-3 px-4 sm:px-5 py-2.5 transition-colors hover:bg-paper-2/40">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className="font-mono text-xs text-mute shrink-0">PR-{pr.id}</span>
-                    <span className="truncate text-[13px] font-bold text-ink">{vendor}</span>
+              <li key={`${item.waybillId}:${item.stageKey}`}>
+                <Link href={item.href} className="flex items-center gap-3 px-4 sm:px-5 py-2.5 transition-colors hover:bg-paper-2/40">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono text-xs text-mute shrink-0">{item.waybillId}</span>
+                      <span className="truncate text-[13px] font-bold text-ink">{item.counterparty ?? item.origin.toUpperCase()}</span>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-xs text-mute font-mono truncate">
+                      <span className="truncate">{item.message}</span>
+                      <span className="text-mute">·</span>
+                      {ago ? <span className="shrink-0" suppressHydrationWarning><T id={ago.id} hideSecondary values={ago.values} /></span> : null}
+                    </div>
                   </div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-xs text-mute font-mono truncate">
-                    <span className="truncate">{pr.requester_name ?? '—'}</span>
-                    {pr.requester_dept_group_name && (
-                      <>
-                        <span className="text-mute">·</span>
-                        <span className="truncate">{pr.requester_dept_group_name}</span>
-                      </>
-                    )}
-                    <span className="text-mute">·</span>
-                    {ago ? (
-                      <span className="shrink-0"><T id={ago.id} hideSecondary values={ago.values} /></span>
-                    ) : (
-                      <span className="shrink-0">{new Date(pr.created_at).toLocaleDateString()}</span>
-                    )}
+                  <div className="shrink-0 flex flex-col items-end gap-1">
+                    <span className="inline-flex items-center rounded-full border border-caution/40 bg-caution-soft/70 px-2 py-0.5 text-xs font-mono font-bold uppercase tracking-widest text-caution">
+                      {item.stageKey.replace(/_/g, ' ')}
+                    </span>
+                    <span className="text-sm font-mono font-bold text-ink tabular-nums">{fmtMoney(item.totalAmount, item.currency)}</span>
                   </div>
-                </div>
-                <div className="shrink-0 flex flex-col items-end gap-1">
-                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-mono font-bold uppercase tracking-widest ${pill.tone}`}>
-                    <T id={pill.id} hideSecondary />
-                  </span>
-                  <span className="text-sm font-mono font-bold text-ink tabular-nums">
-                    {fmtMoney(pr.total_estimate, pr.currency ?? undefined)}
-                  </span>
-                </div>
+                </Link>
               </li>
             );
           })}
@@ -352,13 +337,13 @@ const PendingApprovals: React.FC<PendingApprovalsProps> = ({ prs, fmtMoney }) =>
 
       <div className="flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-t border-rule/70 mt-1">
         <span className="text-xs font-mono text-mute truncate">
-          {items.length === 0 ? <T id="hub.pendingFooterIdle" hideSecondary /> : <T id="hub.pendingFooter" hideSecondary values={{ shown: items.length, total: prs.length }} />}
+          {isError ? <T id="hub.actionFooterError" hideSecondary /> : items.length === 0 ? <T id="hub.actionFooterIdle" hideSecondary /> : <T id="hub.actionFooter" hideSecondary values={{ shown: items.length, total: queue.total }} />}
         </span>
-        <span className="text-xs font-mono font-bold uppercase tracking-widest text-accent group-hover:text-accent transition-colors">
-          <T id="hub.pendingViewAll" hideSecondary />
-        </span>
+        <Link href={PENDING_HREF} className="text-xs font-mono font-bold uppercase tracking-widest text-accent transition-colors hover:text-accent-strong">
+          <T id="hub.actionViewAll" hideSecondary />
+        </Link>
       </div>
-    </Link>
+    </section>
   );
 };
 

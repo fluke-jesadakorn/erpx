@@ -67,15 +67,39 @@ const ALLOWED_COLUMNS: Record<string, Set<string>> = {
   'perm.user_departments': new Set(['user_id','department_id','assigned_at','assigned_by']),
 };
 
-const ALLOWED_TABLES = new Set(Object.keys(ALLOWED_COLUMNS));
+type SqlCatalog = Record<string, Set<string>>;
+
+const APP_SCHEMAS = ['finance', 'folio', 'inventory', 'law', 'perm'];
+const HIDDEN_COLUMN = /(^|_)(api_key|password|secret|token|embedding|file_data|image_data|binary_data)($|_)/i;
+let catalogCache: { expiresAt: number; value: SqlCatalog } | null = null;
 
 const FORBIDDEN_KEYWORDS = /\b(INSERT|UPDATE|DELETE|TRUNCATE|DROP|ALTER|CREATE|GRANT|REVOKE|COPY|VACUUM|REINDEX|CLUSTER|LOCK|CALL|DO\s+\$|EXPLAIN\s+ANALYZE|INTO\s+OUTFILE|LOAD\s+DATA|WITH\s+RECURSIVE\s+.*\bINSERT|pg_read_file|pg_ls_dir)\b/i;
 
-function schemaDigest(): string {
-  return Array.from(ALLOWED_TABLES).sort().map(t => {
-    const cols = Array.from(ALLOWED_COLUMNS[t] ?? []).sort().join(',');
+function schemaDigest(catalog: SqlCatalog = ALLOWED_COLUMNS): string {
+  return Object.keys(catalog).sort().map(t => {
+    const cols = Array.from(catalog[t] ?? []).sort().join(',');
     return `${t}(${cols})`;
   }).join('\n');
+}
+
+async function liveCatalog(): Promise<SqlCatalog> {
+  if (catalogCache && catalogCache.expiresAt > Date.now()) return catalogCache.value;
+  const pool = getReadOnlyPool();
+  const r = await pool.query<{ table_schema: string; table_name: string; column_name: string }>(
+    `SELECT table_schema, table_name, column_name
+       FROM information_schema.columns
+      WHERE table_schema = ANY($1::text[])
+      ORDER BY table_schema, table_name, ordinal_position`,
+    [APP_SCHEMAS],
+  );
+  const value: SqlCatalog = {};
+  for (const row of r.rows) {
+    if (HIDDEN_COLUMN.test(row.column_name)) continue;
+    const table = `${row.table_schema}.${row.table_name}`;
+    (value[table] ??= new Set()).add(row.column_name);
+  }
+  catalogCache = { expiresAt: Date.now() + 5 * 60_000, value };
+  return value;
 }
 
 function safeParse(s: string): { sql?: string; explanation?: string } | null {
@@ -86,27 +110,36 @@ function safeParse(s: string): { sql?: string; explanation?: string } | null {
 
 const RESERVED_ALIAS = new Set(['where','join','left','right','full','inner','outer','cross','on','group','order','limit','offset','having','union','intersect','except','window']);
 
-export function validateSql(sql: string): { ok: boolean; reason?: string; cleanSql: string } {
+export function validateSql(
+  sql: string,
+  catalog: SqlCatalog = ALLOWED_COLUMNS,
+): { ok: boolean; reason?: string; cleanSql: string } {
   const clean = sql.trim().replace(/;+\s*$/, '');
   if (!/^\s*(SELECT|WITH)\b/i.test(clean)) return { ok: false, reason: 'query must start with SELECT or WITH', cleanSql: clean };
   if (clean.includes(';')) return { ok: false, reason: 'multiple SQL statements are not allowed', cleanSql: clean };
   if (FORBIDDEN_KEYWORDS.test(clean)) {
     return { ok: false, reason: 'forbidden keyword in SQL', cleanSql: clean };
   }
+  if (HIDDEN_COLUMN.test(clean)) {
+    return { ok: false, reason: 'query references a non-reportable column', cleanSql: clean };
+  }
+  if (/\bSELECT\s+(?:DISTINCT\s+)?(?:[a-z_][a-z0-9_]*\.)?\*/i.test(clean)) {
+    return { ok: false, reason: 'select explicit columns instead of *', cleanSql: clean };
+  }
   const tableMatches = Array.from(clean.matchAll(/\b(?:FROM|JOIN)\s+([a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*)(?:\s+(?:AS\s+)?([a-z_][a-z0-9_]*))?/gi));
   const refs = tableMatches.map((m) => m[1].toLowerCase());
   if (refs.length === 0) return { ok: false, reason: 'no table references found', cleanSql: clean };
   for (const ref of refs) {
-    if (!ALLOWED_TABLES.has(ref)) {
-      return { ok: false, reason: `table "${ref}" is not in the allow-list`, cleanSql: clean };
+    if (!catalog[ref]) {
+      return { ok: false, reason: `table "${ref}" is outside Folio`, cleanSql: clean };
     }
   }
   const fullColRefs = Array.from(clean.matchAll(/\b([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)\.([a-z_][a-z0-9_]*)\b/gi));
   for (const match of fullColRefs) {
     const table = `${match[1].toLowerCase()}.${match[2].toLowerCase()}`;
     const column = match[3].toLowerCase();
-    if (!ALLOWED_COLUMNS[table]?.has(column)) {
-      return { ok: false, reason: `column "${table}.${column}" is not allowed`, cleanSql: clean };
+    if (!catalog[table]?.has(column)) {
+      return { ok: false, reason: `column "${table}.${column}" is unavailable`, cleanSql: clean };
     }
   }
   const aliases = new Map<string, string>();
@@ -127,22 +160,79 @@ export function validateSql(sql: string): { ok: boolean; reason?: string; cleanS
   for (const m of colRefs) {
     const qualifier = m[1].toLowerCase();
     const c = m[2].toLowerCase();
-    if (ALLOWED_TABLES.has(`${qualifier}.${c}`)) continue;
+    if (catalog[`${qualifier}.${c}`]) continue;
     const table = aliases.get(qualifier);
-    const allowed = table ? ALLOWED_COLUMNS[table] : undefined;
+    const allowed = table ? catalog[table] : undefined;
     if (!allowed && derivedAliases.has(qualifier)) continue;
     if (!allowed) {
       return { ok: false, reason: `column reference uses unknown table or alias "${qualifier}"`, cleanSql: clean };
     }
     if (!allowed.has(c)) {
-      return { ok: false, reason: `column "${qualifier}.${c}" is not allowed`, cleanSql: clean };
+      return { ok: false, reason: `column "${qualifier}.${c}" is unavailable`, cleanSql: clean };
     }
   }
   return { ok: true, cleanSql: clean };
 }
 
+function rawSqlFromQuestion(question: string): string | null {
+  const fenced = question.match(/```sql\s*([\s\S]*?)```/i)?.[1]?.trim();
+  if (fenced && /^(SELECT|WITH)\b/i.test(fenced)) return fenced;
+  const direct = question.trim().match(/^(?:run|execute|query)?\s*:?[\s\n]*((?:SELECT|WITH)\b[\s\S]*)$/i)?.[1]?.trim();
+  return direct || null;
+}
+
 function knownSql(question: string): { sql: string; explanation: string } | null {
   const q = question.toLowerCase();
+  const executivePulse = q.includes('executive pulse') || (
+    q.includes('cash') &&
+    q.includes('open receivable') &&
+    q.includes('open payable') &&
+    q.includes('inventory') &&
+    q.includes('approval')
+  );
+  if (executivePulse) {
+    return {
+      sql: `WITH cash AS (
+              SELECT COALESCE(SUM(debit_thb - credit_thb), 0) AS amount
+                FROM finance.v_posted_lines
+               WHERE control_type IN ('bank', 'cash')
+                 AND posting_date <= CURRENT_DATE
+            ), receivables AS (
+              SELECT COALESCE(SUM(open_thb), 0) AS amount
+                FROM finance.ar_documents
+               WHERE status IN ('open', 'partially_paid')
+            ), payables AS (
+              SELECT COALESCE(SUM(open_thb), 0) AS amount
+                FROM finance.ap_documents
+               WHERE status IN ('open', 'partially_paid')
+            ), revenue AS (
+              SELECT COALESCE(SUM(credit_thb - debit_thb), 0) AS amount
+                FROM finance.v_posted_lines
+               WHERE account_type = 'revenue'
+                 AND posting_date >= date_trunc('month', CURRENT_DATE)::date
+                 AND posting_date <= CURRENT_DATE
+            ), stock AS (
+              SELECT COALESCE(SUM(value_thb), 0) AS amount
+                FROM inventory.v_valuation
+            ), stage_counts AS (
+              SELECT current_stage, COUNT(*)::bigint AS item_count
+                FROM folio.waybills
+               WHERE status = 'open'
+               GROUP BY current_stage
+            ), bottlenecks AS (
+              SELECT COALESCE(SUM(item_count), 0)::bigint AS item_count,
+                     COALESCE(string_agg(current_stage || ': ' || item_count, ', ' ORDER BY item_count DESC, current_stage), 'No open approvals') AS detail
+                FROM stage_counts
+            )
+            SELECT 'Cash balance' AS metric, cash.amount AS amount_thb, NULL::bigint AS item_count, 'Posted cash and bank control accounts' AS detail FROM cash
+            UNION ALL SELECT 'Open receivables', receivables.amount, NULL::bigint, 'Open and partially paid AR' FROM receivables
+            UNION ALL SELECT 'Open payables', payables.amount, NULL::bigint, 'Open and partially paid AP' FROM payables
+            UNION ALL SELECT 'Current-month revenue', revenue.amount, NULL::bigint, 'Posted revenue this month' FROM revenue
+            UNION ALL SELECT 'Inventory value', stock.amount, NULL::bigint, 'Current inventory valuation' FROM stock
+            UNION ALL SELECT 'Approval bottlenecks', NULL::numeric, bottlenecks.item_count, bottlenecks.detail FROM bottlenecks`,
+      explanation: 'Live executive pulse from posted finance records, controlled AR/AP, inventory valuation, and open Folio approval stages.',
+    };
+  }
   if (q.includes('sales order') && q.includes('open') && (q.includes('how many') || q.includes('total value'))) {
     return {
       sql: `SELECT COUNT(*)::int AS open_orders,
@@ -242,11 +332,44 @@ async function explainSql(sql: string): Promise<{ columns: string[]; rows: Array
 
 export async function askSql(req: SqlAskRequest): Promise<SqlAskResult | null> {
   const lang = req.lang ?? 'en';
-  const langLine = lang === 'th'
-    ? 'อธิบายสั้น ๆ เป็นภาษาไทย'
-    : lang === 'de'
-      ? 'Erklären Sie kurz auf Deutsch.'
-      : 'Brief explanation in English.';
+  const fallbackLanguage = lang === 'th' ? 'Thai' : lang === 'de' ? 'German' : 'English';
+
+  const catalog = await liveCatalog().catch(() => ALLOWED_COLUMNS);
+  const direct = rawSqlFromQuestion(req.question);
+  if (direct) {
+    const v = validateSql(direct, catalog);
+    if (!v.ok) {
+      return {
+        question: req.question,
+        sql: direct,
+        columns: [],
+        rows: [],
+        rowCount: 0,
+        explanation: `[rejected] ${v.reason}`,
+      };
+    }
+    try {
+      const result = await explainSql(v.cleanSql);
+      return {
+        question: req.question,
+        sql: v.cleanSql,
+        columns: result.columns,
+        rows: result.rows,
+        rowCount: result.rows.length,
+        explanation: 'Executed directly against the live Folio read replica.',
+      };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return {
+        question: req.question,
+        sql: v.cleanSql,
+        columns: [],
+        rows: [],
+        rowCount: 0,
+        explanation: `[runtime error] ${msg}`,
+      };
+    }
+  }
 
   const known = knownSql(req.question);
   if (known) {
@@ -262,7 +385,7 @@ export async function askSql(req: SqlAskRequest): Promise<SqlAskResult | null> {
   }
 
   const r = await aiInvoke('cockpit:sql', 'chat', {
-    systemPrompt: `You generate a single read-only PostgreSQL query against the following allow-listed tables:\n${schemaDigest()}\n\nRules:\n- SELECT only; no INSERT/UPDATE/DELETE.\n- Reference tables as schema.table (e.g. folio.expenses).\n- Include a 100-row LIMIT unless the question requires totals (then SUM/COUNT/AVG without LIMIT is fine).\n- Use only the columns listed.\n- Reply with JSON only: {"sql":"...","explanation":"..."}. ${langLine}`,
+    systemPrompt: `You translate a Folio business question into one raw PostgreSQL query. The live application catalog is:\n${schemaDigest(catalog)}\n\nRules:\n- Produce SELECT or WITH ... SELECT only.\n- Reference every table as schema.table.\n- Use only listed tables and columns.\n- Join the minimum tables needed and never invent a column.\n- Include LIMIT 100 for detail rows; aggregates do not need a limit.\n- Use CURRENT_DATE for relative business dates.\n- Detect the language of the business question and write the explanation in that same language, supporting any language. If the question contains no natural language, use ${fallbackLanguage}.\n- Reply with JSON only: {"sql":"...","explanation":"..."}.`,
     text: req.question,
     temperature: 0,
     maxTokens: 800,
@@ -272,7 +395,7 @@ export async function askSql(req: SqlAskRequest): Promise<SqlAskResult | null> {
   const parsed = safeParse(r.text);
   if (!parsed || typeof parsed.sql !== 'string') return null;
 
-  const v = validateSql(parsed.sql);
+  const v = validateSql(parsed.sql, catalog);
   if (!v.ok) {
     return {
       question: req.question,

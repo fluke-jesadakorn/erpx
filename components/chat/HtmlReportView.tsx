@@ -33,7 +33,7 @@ export function HtmlReportView({ title, columns, rows, rowCount, sql, explanatio
           {(['html', 'css', 'js', 'full'] as const).map((key) => <button key={key} type="button" onClick={() => copy(key)} className="inline-flex h-7 items-center gap-1 rounded-md border border-rule bg-paper px-2 font-mono text-xs text-ink-2 hover:bg-paper-3">{copied === key ? <Check size={12} /> : <Copy size={12} />}{key}</button>)}
         </div>
       </header>
-      {tab === 'report' ? <iframe title={title ?? 'Query result'} srcDoc={report.full} sandbox="allow-scripts allow-same-origin" className="block h-[420px] w-full border-0 bg-paper" /> : <pre className="max-h-80 overflow-auto bg-paper p-3 font-mono text-xs text-ink-2"><code>{sql}</code></pre>}
+      {tab === 'report' ? <iframe title={title ?? 'Query result'} srcDoc={report.full} sandbox="allow-scripts allow-downloads" allow="clipboard-write" className="block h-[420px] w-full border-0 bg-paper" /> : <pre className="max-h-80 overflow-auto bg-paper p-3 font-mono text-xs text-ink-2"><code>{sql}</code></pre>}
       {explanation && <div className="border-t border-rule bg-paper-2 px-3 py-2 text-xs text-mute">{explanation}</div>}
     </Panel>
   );

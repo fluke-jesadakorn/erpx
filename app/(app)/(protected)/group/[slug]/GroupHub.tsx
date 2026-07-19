@@ -16,13 +16,12 @@ interface Props {
   actor: any;
   group: TileGroup;
   users: any[];
-  prs: any[];
   tiles: TileDef[];
   accessByTile: Record<string, TileAccess>;
   greetingKey: GreetingKey;
 }
 
-export function GroupHub({ actor, group, users, prs, tiles, accessByTile, greetingKey }: Props) {
+export function GroupHub({ actor, group, users, tiles, accessByTile, greetingKey }: Props) {
   const router = useRouter();
   const [openCommand, setOpenCommand] = useState(false);
 
@@ -63,7 +62,7 @@ export function GroupHub({ actor, group, users, prs, tiles, accessByTile, greeti
             <HubHero
               actor={actor}
               tiles={tiles as any}
-              pendingPrs={prs}
+              actionQueue={{ state: 'ready', total: 0, items: [] }}
               isLocked={isLocked}
               onOpenCommand={() => setOpenCommand(true)}
               initialGreetingKey={greetingKey}

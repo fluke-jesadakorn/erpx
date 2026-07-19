@@ -8,6 +8,12 @@ import {
   type ExpenseRuleActor,
   type ExpenseRuleContext,
 } from '../lib/waybill/expenseRules';
+import {
+  expenseEntryStage,
+  isExecutiveRole,
+  nextProcurementStage,
+  procurementResubmitStage,
+} from '../lib/waybill/routing';
 
 const base: ExpenseRuleContext = {
   stage: 'department_approval',
@@ -36,6 +42,25 @@ test('stable roles expose explicit canonical ranks', () => {
   assert.deepEqual(parseRoleId('ceo'), { name: 'ceo', level: 1 });
 });
 
+test('CEO and CFO finance submissions skip department approval', () => {
+  assert.equal(isExecutiveRole('cfo'), true);
+  assert.equal(isExecutiveRole('ceo::1'), true);
+  assert.equal(isExecutiveRole('manager::4'), false);
+  assert.equal(expenseEntryStage('cfo'), 'accounting_review');
+  assert.equal(expenseEntryStage('ceo'), 'accounting_review');
+  assert.equal(expenseEntryStage('manager'), 'department_approval');
+  assert.equal(procurementResubmitStage('cfo'), 'accounting_authorization');
+  assert.equal(procurementResubmitStage('ceo'), 'accounting_authorization');
+  assert.equal(procurementResubmitStage('manager'), 'submission');
+});
+
+test('procurement bypass requires the executive to be the submitter', () => {
+  assert.equal(nextProcurementStage('submission', 'cfo', true), 'accounting_authorization');
+  assert.equal(nextProcurementStage('submission', 'ceo', true), 'accounting_authorization');
+  assert.equal(nextProcurementStage('submission', 'cfo', false), 'dept_authorization');
+  assert.equal(nextProcurementStage('submission', 'manager', true), 'dept_authorization');
+});
+
 test('deny permission takes precedence over an allow', () => {
   assert.equal(matchPerm([
     'finance:expense:pay::allow',
@@ -60,7 +85,7 @@ test('only a designated department head may self-approve', () => {
   }).allow, true);
 });
 
-test('accounting approver differs from submitter and preparer', () => {
+test('accounting approver differs from submitter and non-manager preparer', () => {
   const ctx = { ...base, stage: 'accounting_approval' as const };
   assert.equal(evaluateExpenseStageRule(actor({
     id: 30,
@@ -72,8 +97,24 @@ test('accounting approver differs from submitter and preparer', () => {
     id: 31,
     departmentId: 'accounting',
     rank: 4,
-    roleName: 'manager',
+    roleName: 'supervisor',
   }), { ...ctx, accountingHeadId: 31 }).allow, false);
+});
+
+test('Accounting Manager may approve their own accrual draft', () => {
+  const ctx = {
+    ...base,
+    stage: 'accounting_approval' as const,
+    accountingHeadId: 7,
+    accountingTopRank: 3,
+    accrualPreparerId: 7,
+  };
+  assert.equal(evaluateExpenseStageRule(actor({
+    id: 7,
+    departmentId: 'accounting',
+    rank: 3,
+    roleName: 'accounting_manager',
+  }), ctx).allow, true);
 });
 
 test('THB 200,000 skips executive approval while THB 200,000.01 requires it', () => {
@@ -81,6 +122,8 @@ test('THB 200,000 skips executive approval while THB 200,000.01 requires it', ()
   assert.equal(nextExpenseStage('accounting_approval', 200_000), 'payment');
   assert.equal(requiresExecutiveApproval(200_000.01), true);
   assert.equal(nextExpenseStage('accounting_approval', 200_000.01), 'executive_approval');
+  assert.equal(nextExpenseStage('submission', 100, 'ceo'), 'accounting_review');
+  assert.equal(nextExpenseStage('submission', 100, 'manager'), 'department_approval');
 });
 
 test('either CFO or CEO may approve high value except their own claim', () => {

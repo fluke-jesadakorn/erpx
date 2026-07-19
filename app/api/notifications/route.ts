@@ -35,7 +35,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const limit = Math.max(1, Math.min(100, Number(url.searchParams.get('limit') ?? 30) || 30));
   const domainRaw = url.searchParams.get('domain');
-  const domain = domainRaw === 'expense' || domainRaw === 'so' ? domainRaw : 'all';
+  const domain = domainRaw === 'expense' || domainRaw === 'so' || domainRaw === 'pr' || domainRaw === 'po' ? domainRaw : 'all';
   const items = await listUserNotifications(actor.id, limit, {
     view: viewFromUrl(url),
     read: readFromUrl(url),

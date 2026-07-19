@@ -3,6 +3,7 @@ import 'server-only';
 import { cache } from 'react';
 import { query } from '@/db';
 import { renderNotificationMessage, type NotificationArgs, type NotificationCategory } from './catalog';
+import { reconcileOpenActionsForUser } from './waybill';
 
 export type { NotificationCategory };
 
@@ -39,10 +40,30 @@ export interface NotificationItem {
 export interface ListUserNotificationsOpts {
   view?: NotificationView;
   read?: NotificationReadFilter;
-  domain?: 'expense' | 'so' | 'pr' | 'all';
+  domain?: 'expense' | 'so' | 'pr' | 'po' | 'all';
   watchingOnly?: boolean;
   cursor?: string | null;
   since?: string | null;
+}
+
+export interface ActionQueueItem {
+  id: string;
+  waybillId: string;
+  origin: 'expense' | 'pr' | 'po' | 'so';
+  stageKey: string;
+  message: string;
+  counterparty: string | null;
+  submitterName: string | null;
+  totalAmount: number | null;
+  currency: string;
+  createdAt: string;
+  href: string;
+}
+
+export interface ActionQueueSummary {
+  state: 'ready' | 'error';
+  total: number;
+  items: ActionQueueItem[];
 }
 
 export const notificationSchemaReady = cache(async (): Promise<boolean> => {
@@ -126,7 +147,10 @@ function buildWhere(actorId: number, opts: ListUserNotificationsOpts): { sql: st
   const params: unknown[] = [actorId];
   const view = opts.view ?? 'all';
 
-  if (view === 'actions') where.push("n.category = 'action' AND n.resolved_at IS NULL");
+  if (view === 'actions') {
+    where.push("n.category = 'action' AND n.resolved_at IS NULL");
+    where.push("(n.waybill_id IS NULL OR (wb.status = 'open' AND wb.origin IN ('expense', 'pr', 'po', 'so') AND n.stage_key = wb.current_stage))");
+  }
   if (view === 'notifications') where.push("(n.category = 'update' OR n.resolved_at IS NOT NULL)");
   if (opts.read === 'unread') where.push('n.read_at IS NULL');
   if (opts.read === 'read') where.push('n.read_at IS NOT NULL');
@@ -189,11 +213,90 @@ export async function listUnreadCount(actorId: number): Promise<number> {
 export async function listActionCount(actorId: number): Promise<number> {
   const r = await query<{ n: number }>(
     `SELECT COUNT(*)::int AS n
-       FROM notifications
-      WHERE user_id = $1 AND category = 'action' AND resolved_at IS NULL`,
+       FROM (
+         SELECT COALESCE(n.waybill_id, 'notification:' || n.id::text) AS task_id,
+                CASE WHEN n.waybill_id IS NULL THEN n.id::text ELSE COALESCE(n.stage_key, '') END AS task_stage
+           FROM notifications n
+           LEFT JOIN waybills wb ON wb.id = n.waybill_id
+          WHERE n.user_id = $1 AND n.category = 'action' AND n.resolved_at IS NULL
+            AND (n.waybill_id IS NULL OR (wb.status = 'open' AND wb.origin IN ('expense', 'pr', 'po', 'so') AND n.stage_key = wb.current_stage))
+          GROUP BY 1, 2
+       ) tasks`,
     [actorId],
   );
   return r.rows[0]?.n ?? 0;
+}
+
+export async function loadActionQueueSummary(actorId: number, limit = 3): Promise<ActionQueueSummary> {
+  const bounded = Math.max(1, Math.min(10, limit));
+  try {
+    await reconcileOpenActionsForUser(actorId);
+    const r = await query<{
+      id: number;
+      waybill_id: string;
+      origin: 'expense' | 'pr' | 'po' | 'so';
+      stage_key: string;
+      message: string;
+      counterparty: string | null;
+      submitter_name: string | null;
+      total_amount: string | null;
+      currency: string;
+      created_at: Date | string;
+      total: number;
+    }>(
+      `WITH current_tasks AS (
+         SELECT DISTINCT ON (n.waybill_id, n.stage_key)
+                n.id, n.waybill_id, w.origin, n.stage_key,
+                COALESCE(n.payload_json->>'message', n.message_key, n.type) AS message,
+                COALESCE(w.vendor_name, e.vendor_name, so.so_number, pr.vendor_name, po.vendor_name) AS counterparty,
+                su.fullname AS submitter_name,
+                COALESCE(w.total_amount, e.total_amount, pr.total_estimate, po.total_amount, so.total_amount)::text AS total_amount,
+                COALESCE(w.currency, pr.currency, po.currency, so.currency, 'THB') AS currency,
+                n.created_at
+           FROM notifications n
+           JOIN waybills w ON w.id = n.waybill_id
+           LEFT JOIN expenses e ON w.origin = 'expense' AND e.id = w.origin_id
+           LEFT JOIN sales_orders so ON w.origin = 'so' AND so.id = w.origin_id
+           LEFT JOIN purchase_requisitions pr ON w.origin = 'pr' AND pr.id = w.origin_id
+           LEFT JOIN purchase_orders po ON w.origin = 'po' AND po.id = w.origin_id
+           LEFT JOIN purchase_requisitions po_pr ON w.origin = 'po' AND po_pr.id = po.pr_id
+           LEFT JOIN users su ON su.id = COALESCE(w.submitter_id, e.submitter_id, pr.requester_id, po_pr.requester_id, so.sales_rep_id)
+          WHERE n.user_id = $1
+            AND n.category = 'action'
+            AND n.resolved_at IS NULL
+            AND w.status = 'open'
+            AND w.origin IN ('expense', 'pr', 'po', 'so')
+            AND n.stage_key = w.current_stage
+          ORDER BY n.waybill_id, n.stage_key, n.created_at ASC, n.id ASC
+       )
+       SELECT current_tasks.*, COUNT(*) OVER()::int AS total
+         FROM current_tasks
+        ORDER BY created_at ASC, id ASC
+        LIMIT $2`,
+      [actorId, bounded],
+    );
+    const total = r.rows[0]?.total ?? 0;
+    return {
+      state: 'ready',
+      total,
+      items: r.rows.map((row) => ({
+        id: String(row.id),
+        waybillId: row.waybill_id,
+        origin: row.origin,
+        stageKey: row.stage_key,
+        message: row.message,
+        counterparty: row.counterparty,
+        submitterName: row.submitter_name,
+        totalAmount: row.total_amount == null ? null : Number(row.total_amount),
+        currency: row.currency,
+        createdAt: iso(row.created_at) ?? new Date(0).toISOString(),
+        href: `/waybill/${encodeURIComponent(row.waybill_id)}`,
+      })),
+    };
+  } catch (error) {
+    console.error('Failed to load action queue summary:', error);
+    return { state: 'error', total: 0, items: [] };
+  }
 }
 
 export async function getNotificationForUser(actorId: number, id: number): Promise<NotificationItem | null> {

@@ -21,6 +21,12 @@ export type NotificationMessageKey =
   | 'expense.reassigned'
   | 'expense.released'
   | 'expense.reminder'
+  | 'procurement.submitted'
+  | 'procurement.departmentAuthorization'
+  | 'procurement.accountingAuthorization'
+  | 'procurement.cfoAuthorization'
+  | 'procurement.completed'
+  | 'procurement.rejected'
   | 'sales.submitted'
   | 'sales.salesReview'
   | 'sales.reviewed'
@@ -65,7 +71,7 @@ export function renderNotificationMessage(key: string, args: NotificationArgs): 
 
   switch (key as NotificationMessageKey) {
     case 'expense.submitted':
-      return `Expense ${waybill} for ${amount} at ${counterparty} was submitted and is waiting for Department approval.`;
+      return `Expense ${waybill} for ${amount} at ${counterparty} was submitted for review.`;
     case 'expense.departmentApproval':
       return `Approval required: ${submitter} submitted expense ${waybill} for ${amount} at ${counterparty}.`;
     case 'expense.departmentApproved':
@@ -87,7 +93,7 @@ export function renderNotificationMessage(key: string, args: NotificationArgs): 
     case 'expense.payment':
       return `Payment required: Pay expense ${waybill} for ${amount} to ${counterparty}.`;
     case 'expense.paymentConfirmed':
-      return `Payment for expense ${waybill} was confirmed by ${actor}; Accounting settlement is pending.`;
+      return `Payment ${amount} to ${text(args, 'payee')} for expense ${waybill} was recorded by ${actor}; the simulated paid slip is attached.`;
     case 'expense.settlement':
       return `Settlement required: Post and confirm the settlement GL for expense ${waybill}.`;
     case 'expense.completed':
@@ -104,6 +110,18 @@ export function renderNotificationMessage(key: string, args: NotificationArgs): 
       return `Expense ${waybill} is available again for ${stage}.`;
     case 'expense.reminder':
       return `Reminder: Expense ${waybill} has been waiting ${text(args, 'age')} at ${stage}.`;
+    case 'procurement.submitted':
+      return `Purchase request ${waybill} for ${amount} at ${counterparty} was submitted for review.`;
+    case 'procurement.departmentAuthorization':
+      return `Approval required: Review purchase request ${waybill} for ${amount} at ${counterparty}.`;
+    case 'procurement.accountingAuthorization':
+      return `Accounting approval required: Review purchase request ${waybill} for ${amount} at ${counterparty}.`;
+    case 'procurement.cfoAuthorization':
+      return `CFO approval required: Review purchase request ${waybill} for ${amount} at ${counterparty}.`;
+    case 'procurement.completed':
+      return `Purchase request ${waybill} was completed.`;
+    case 'procurement.rejected':
+      return `Purchase request ${waybill} was rejected by ${actor} at ${stage}: ${reason}.`;
     case 'sales.submitted':
       return `Sales order ${so} (${waybill}) for ${customer}, ${amount}, was submitted for Sales review.`;
     case 'sales.salesReview':

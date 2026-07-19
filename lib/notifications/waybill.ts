@@ -49,6 +49,10 @@ interface Draft {
 }
 
 const CURRENT_ACTION_KEYS: Record<string, NotificationMessageKey> = {
+  submission: 'procurement.submitted',
+  dept_authorization: 'procurement.departmentAuthorization',
+  accounting_authorization: 'procurement.accountingAuthorization',
+  cfo_authorization: 'procurement.cfoAuthorization',
   department_approval: 'expense.departmentApproval',
   accounting_review: 'expense.accountingReview',
   accounting_approval: 'expense.accountingApproval',
@@ -63,9 +67,13 @@ const CURRENT_ACTION_KEYS: Record<string, NotificationMessageKey> = {
 };
 
 function argsFor(ctx: WaybillContext, event: EventInput): NotificationArgs {
+  const eventAmount = Number(event.payload.amount);
+  const eventCurrency = typeof event.payload.currency === 'string' ? event.payload.currency : ctx.currency;
   return {
     waybillId: ctx.id,
-    amount: ctx.total_amount ? `${Number(ctx.total_amount).toLocaleString('th-TH')} ${ctx.currency}` : null,
+    amount: Number.isFinite(eventAmount) && eventAmount > 0
+      ? `${eventAmount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${eventCurrency}`
+      : ctx.total_amount ? `${Number(ctx.total_amount).toLocaleString('th-TH')} ${ctx.currency}` : null,
     counterparty: ctx.counterparty,
     soNumber: ctx.so_number,
     customer: ctx.customer,
@@ -77,6 +85,9 @@ function argsFor(ctx: WaybillContext, event: EventInput): NotificationArgs {
     reason: event.payload.reason ?? null,
     age: event.payload.age ?? null,
     assignee: event.payload.assigneeName ?? null,
+    payee: event.payload.payee ?? null,
+    attachmentKey: event.payload.attachmentKey ?? null,
+    simulated: event.payload.simulated ?? false,
   };
 }
 
@@ -90,17 +101,24 @@ function addRecipient(map: Map<number, Recipient>, recipient: Recipient): void {
 
 async function loadContext(q: QueryFn, waybillId: string): Promise<WaybillContext | null> {
   const r = await q<WaybillContext>(
-    `SELECT w.id, w.origin, w.origin_id, w.current_stage, w.submitter_id,
-            w.total_amount::text, w.currency,
-            COALESCE(e.vendor_name, so.so_number, pr.vendor_name, po.vendor_name) AS counterparty,
+    `SELECT w.id, w.origin, w.origin_id, w.current_stage,
+            owner.resolved_submitter_id AS submitter_id,
+            COALESCE(w.total_amount, e.total_amount, pr.total_estimate, po.total_amount, so.total_amount)::text AS total_amount,
+            COALESCE(w.currency, pr.currency, po.currency, so.currency, 'THB') AS currency,
+            COALESCE(w.vendor_name, e.vendor_name, so.so_number, pr.vendor_name, po.vendor_name) AS counterparty,
             so.so_number, c.name AS customer, so.due_date::text, so.invoice_number,
-            (SELECT ud.department_id FROM perm.user_departments ud WHERE ud.user_id = w.submitter_id LIMIT 1) AS submitter_department
+            sud.department_id AS submitter_department
        FROM waybills w
        LEFT JOIN expenses e ON w.origin = 'expense' AND e.id = w.origin_id
        LEFT JOIN sales_orders so ON w.origin = 'so' AND so.id = w.origin_id
        LEFT JOIN customers c ON c.id = so.customer_id
        LEFT JOIN purchase_requisitions pr ON w.origin = 'pr' AND pr.id = w.origin_id
        LEFT JOIN purchase_orders po ON w.origin = 'po' AND po.id = w.origin_id
+       LEFT JOIN purchase_requisitions po_pr ON w.origin = 'po' AND po_pr.id = po.pr_id
+       CROSS JOIN LATERAL (
+         SELECT COALESCE(w.submitter_id, e.submitter_id, pr.requester_id, po_pr.requester_id, so.sales_rep_id) AS resolved_submitter_id
+       ) owner
+       LEFT JOIN perm.user_departments sud ON sud.user_id = owner.resolved_submitter_id
       WHERE w.id = $1`,
     [waybillId],
   );
@@ -115,7 +133,11 @@ async function eligibleUsers(
 ): Promise<number[]> {
   const permission = STAGE_TO_PERM[stage];
   if (!permission) return [];
-  const sameDept = stage === 'department_approval' || stage === 'so_sales_review' || stage === 'so_dept_approval';
+  const sameDept = stage === 'submission'
+    || stage === 'dept_authorization'
+    || stage === 'department_approval'
+    || stage === 'so_sales_review'
+    || stage === 'so_dept_approval';
   const department = sameDept ? ctx.submitter_department : stageDepartment(stage);
   const params: unknown[] = [permission, ctx.submitter_id, actorId];
   const filters = [
@@ -233,9 +255,15 @@ async function draftForEvent(q: QueryFn, ctx: WaybillContext, event: EventInput)
     actionDraft(ctx, eventWithNames, key, stage, await eligibleUsers(q, ctx, stage, event.actorId));
 
   if (ctx.origin === 'expense') {
-    if (event.kind === 'submitted') return [updates('expense.submitted'), await actions('expense.departmentApproval', event.stageTo ?? 'department_approval')];
+    if (event.kind === 'submitted') {
+      const stage = event.stageTo ?? 'department_approval';
+      return [updates('expense.submitted'), await actions(CURRENT_ACTION_KEYS[stage] ?? 'expense.departmentApproval', stage)];
+    }
     if (event.kind === 'rejected') return [updates('expense.rejected', 'error')];
-    if (event.kind === 'resubmitted') return [await actions('expense.resubmitted', event.stageTo ?? 'department_approval')];
+    if (event.kind === 'resubmitted') {
+      const stage = event.stageTo ?? 'department_approval';
+      return [await actions(CURRENT_ACTION_KEYS[stage] ?? 'expense.resubmitted', stage)];
+    }
     if (event.kind === 'payment-confirmed') return [updates('expense.paymentConfirmed', 'success'), await actions('expense.settlement', 'settlement')];
     if (event.kind === 'posted-to-gl-settlement' || event.kind === 'gl-confirmed-settlement') return [updates('expense.completed', 'success')];
     if (event.kind === 'stage-released') return [await actions('expense.released', event.stageTo ?? event.stageFrom ?? ctx.current_stage)];
@@ -252,6 +280,8 @@ async function draftForEvent(q: QueryFn, ctx: WaybillContext, event: EventInput)
       return out;
     }
     if (event.kind === 'advanced' || event.kind === 'posted-to-gl-accrual' || event.kind === 'executive-skipped') {
+      const skipped = Array.isArray(event.payload.skippedStages) && event.payload.skippedStages.includes('department_approval');
+      if (skipped) return [updates('expense.submitted'), await actions('expense.accountingReview', 'accounting_review')];
       if (event.stageFrom === 'department_approval') return [updates('expense.departmentApproved'), await actions('expense.accountingReview', 'accounting_review')];
       if (event.stageFrom === 'accounting_review') return [updates('expense.accountingReviewed'), await actions('expense.accountingApproval', 'accounting_approval')];
       if (event.stageFrom === 'accounting_approval') {
@@ -279,6 +309,35 @@ async function draftForEvent(q: QueryFn, ctx: WaybillContext, event: EventInput)
     }
     return [];
   }
+
+  if (ctx.origin === 'pr' || ctx.origin === 'po') {
+    if (event.kind === 'submitted') {
+      const stage = event.stageTo ?? 'submission';
+      const key = CURRENT_ACTION_KEYS[stage];
+      return [
+        updates('procurement.submitted'),
+        ...(key ? [await actions(key, stage)] : []),
+      ];
+    }
+    if (event.kind === 'resubmitted') {
+      const stage = event.stageTo ?? 'submission';
+      const key = CURRENT_ACTION_KEYS[stage];
+      return key ? [await actions(key, stage)] : [];
+    }
+    if (event.kind === 'rejected') return [updates('procurement.rejected', 'error')];
+    if (event.kind === 'advanced') {
+      const stage = event.stageTo ?? ctx.current_stage;
+      const key = CURRENT_ACTION_KEYS[stage];
+      return key ? [await actions(key, stage)] : [updates('procurement.completed', 'success')];
+    }
+    if (event.kind === 'stage-released') {
+      const stage = event.stageTo ?? event.stageFrom ?? ctx.current_stage;
+      const key = CURRENT_ACTION_KEYS[stage];
+      return key ? [await actions(key, stage)] : [];
+    }
+    return [];
+  }
+
   return [];
 }
 
@@ -305,7 +364,11 @@ export async function notifyWaybillEvent(q: QueryFn, event: EventInput): Promise
 
   const drafts = (await draftForEvent(q, ctx, event)).filter((draft) => draft.recipients.length > 0);
   for (const draft of drafts) {
-    const args = { ...draft.args, message: renderNotificationMessage(draft.key, draft.args) };
+    const args: NotificationArgs = { ...draft.args, message: renderNotificationMessage(draft.key, draft.args) };
+    const attachmentKey = typeof args.attachmentKey === 'string' ? args.attachmentKey : null;
+    const href = draft.key === 'expense.paymentConfirmed' && attachmentKey
+      ? `/api/slips/file?key=${encodeURIComponent(attachmentKey)}`
+      : `/waybill/${encodeURIComponent(ctx.id)}`;
     for (const recipient of draft.recipients) {
       await q(
         `INSERT INTO notifications
@@ -326,7 +389,7 @@ export async function notifyWaybillEvent(q: QueryFn, event: EventInput): Promise
           draft.key,
           JSON.stringify(args),
           draft.severity,
-          `/waybill/${encodeURIComponent(ctx.id)}`,
+          href,
         ],
       );
     }
@@ -337,7 +400,7 @@ export async function reconcileOpenActionsForUser(userId: number): Promise<void>
   const r = await query<{
     id: string;
     current_stage: string;
-    origin: 'expense' | 'so';
+    origin: 'expense' | 'pr' | 'po' | 'so';
     submitter_id: number | null;
     event_id: string | null;
     event_kind: string | null;
@@ -365,7 +428,7 @@ export async function reconcileOpenActionsForUser(userId: number): Promise<void>
           WHERE waybill_id = w.id AND stage = w.current_stage AND released_at IS NULL
           LIMIT 1
        ) c ON TRUE
-      WHERE w.status = 'open' AND w.origin IN ('expense', 'so')
+      WHERE w.status = 'open' AND w.origin IN ('expense', 'pr', 'po', 'so')
         AND w.current_stage = ANY($1::text[])`,
     [Object.keys(CURRENT_ACTION_KEYS)],
   );

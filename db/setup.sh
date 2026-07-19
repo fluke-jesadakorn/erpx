@@ -32,6 +32,8 @@ apply_schema() {
   "${psql_args[@]}" -f "$root/migrations/2026-07-19-L-sales-branch.sql"
   "${psql_args[@]}" -f "$root/migrations/2026-07-19-M-local-vision-default.sql"
   "${psql_args[@]}" -f "$root/migrations/2026-07-19-N-staff-full-chat.sql"
+  "${psql_args[@]}" -f "$root/migrations/2026-07-19-O-capital-contribution-navigation.sql"
+  "${psql_args[@]}" -f "$root/migrations/2026-07-19-P-action-queue-integrity.sql"
 }
 
 if [[ "$mode" == "--reset-local" ]]; then

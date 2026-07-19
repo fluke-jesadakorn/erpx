@@ -209,8 +209,10 @@ function StepContextBlock({
   const { slips } = picture;
   const receipt = slips.find((s) => (s as any).kind === 'receipt') ?? null;
   const bookBank = slips.find((s) => (s as any).kind === 'book_bank' || (s as any).kind === 'book-bank') ?? null;
+  const paymentSlip = [...slips].reverse().find((s) => (s as any).kind === 'payment_slip') ?? null;
   const receiptHref = receipt ? slipUrl(receipt) : null;
   const bookHref = bookBank ? slipUrl(bookBank) : null;
+  const paymentHref = paymentSlip ? slipUrl(paymentSlip) : null;
 
   switch (pipKey) {
     case 'draft':
@@ -237,7 +239,7 @@ function StepContextBlock({
       return <AwaitingDisbursementContext picture={picture} bookBank={bookBank} bookHref={bookHref} locale={locale} />;
     case 'disbursed':
     case 'settlement':
-      return <DisbursedContext picture={picture} receipt={receipt} receiptHref={receiptHref} bookBank={bookBank} hasGlConfirmed={hasGlConfirmed} locale={locale} />;
+      return <DisbursedContext picture={picture} paymentSlip={paymentSlip} paymentHref={paymentHref} bookBank={bookBank} hasGlConfirmed={hasGlConfirmed} locale={locale} />;
     default:
       return null;
   }
@@ -608,15 +610,15 @@ function AwaitingDisbursementContext({
 
 function DisbursedContext({
   picture,
-  receipt,
-  receiptHref,
+  paymentSlip,
+  paymentHref,
   bookBank,
   hasGlConfirmed,
   locale,
 }: {
   picture: ExpenseFullPicture;
-  receipt: WaybillSlip | null;
-  receiptHref: string | null;
+  paymentSlip: WaybillSlip | null;
+  paymentHref: string | null;
   bookBank: WaybillSlip | null;
   hasGlConfirmed: boolean;
   locale: SecondaryLocale;
@@ -634,8 +636,8 @@ function DisbursedContext({
       }
     >
       <div className="flex flex-wrap items-center gap-4">
-        {receipt && (
-          <SlipRow emoji="📄" label={<T id="waybill.expense.receipt" />} slip={receipt} href={receiptHref} locale={locale} />
+        {paymentSlip && (
+          <SlipRow emoji="💸" label={<T id="waybill.attachment.paymentSlip" />} slip={paymentSlip} href={paymentHref} locale={locale} />
         )}
         <dl className="grid flex-1 grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
           <Field
@@ -676,8 +678,8 @@ function DisbursedContext({
             }
           />
           <Field
-            label={<T id="waybill.expense.receipt" />}
-            value={receipt ? `${receipt.mime_type}` : '—'}
+            label={<T id="waybill.attachment.paymentSlip" />}
+            value={paymentSlip ? `${paymentSlip.mime_type}` : '—'}
             mono
           />
         </dl>
@@ -698,8 +700,10 @@ export async function WaybillExpenseCollapsible({
   const { expense, items, slips, submitter_name } = data;
   const receiptSlip = slips.find((s) => (s as any).kind === 'receipt') ?? null;
   const bookBankSlip = slips.find((s) => (s as any).kind === 'book_bank' || (s as any).kind === 'book-bank') ?? null;
+  const paymentSlips = slips.filter((s) => (s as any).kind === 'payment_slip');
   const receiptHref = receiptSlip ? await presignedOrHash(receiptSlip) : null;
   const bookHref = bookBankSlip ? await presignedOrHash(bookBankSlip) : null;
+  const paymentHrefs = await Promise.all(paymentSlips.map((slip) => presignedOrHash(slip)));
 
   return (
     <details className="group/expense overflow-hidden rounded-xl border border-rule bg-paper-2" open>
@@ -838,7 +842,7 @@ export async function WaybillExpenseCollapsible({
           </div>
         </details>
 
-        <details className="group/attachments overflow-hidden rounded-xl border border-rule bg-paper/20">
+        <details id="expense-attachments" className="group/attachments overflow-hidden rounded-xl border border-rule bg-paper/20" open={paymentSlips.length > 0}>
           <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
             <span aria-hidden className="grid h-8 w-8 place-items-center rounded-lg bg-paper-3 text-ink-2">📎</span>
             <span className="min-w-0 flex-1">
@@ -870,6 +874,26 @@ export async function WaybillExpenseCollapsible({
               />
             </div>
           </div>
+          {paymentSlips.length > 0 && (
+            <div className="divide-y divide-rule border-t border-rule px-4 py-2">
+              {paymentSlips.map((slip, index) => (
+                <SlipRow
+                  key={slip.file_path}
+                  emoji="💸"
+                  label={<T id="waybill.attachment.paymentSlip" variant="stacked" />}
+                  slip={slip}
+                  href={paymentHrefs[index]}
+                  locale={localeSafe}
+                  bankFields={{
+                    bankName: slip.bank_name,
+                    accountNumber: slip.account_number,
+                    accountName: slip.account_name,
+                    bankBranch: slip.bank_branch,
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </details>
       </div>
     </details>

@@ -1,55 +1,41 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
+import Link from 'next/link';
+import { Bell, CheckCheck, Settings2, X } from 'lucide-react';
 import { T } from '@/components/i18n/T';
+import { Empty } from '@/components/ui/Empty';
+import {
+  NotificationItemRow,
+  BUCKET_ORDER,
+  bucketOf,
+  relTime,
+  type NotificationRowItem,
+  type TimeBucket,
+} from './NotificationItemRow';
 
-export interface NotificationItem {
-  id: string;
-  type: string;
-  category: 'action' | 'update';
-  message: string;
-  href?: string | null;
-  createdAt: string;
-  readAt?: string | null;
-  resolvedAt?: string | null;
-  resolvedBy?: string | null;
-  audience?: 'owner' | 'approver' | 'watcher';
-}
+export type { NotificationRowItem as NotificationItem };
 
 export interface NotificationPanelProps {
-  items: NotificationItem[];
+  items: NotificationRowItem[];
   onClose: () => void;
-  onOpen?: (item: NotificationItem) => void;
-  onToggleRead?: (id: string, currentlyRead: boolean) => void;
-  onDelete?: (id: string) => void;
+  onOpen?: (item: NotificationRowItem) => void;
+  onToggleRead?: (item: NotificationRowItem) => void;
+  onDelete?: (item: NotificationRowItem) => void;
   onMarkAllRead?: () => void;
   filter?: 'all' | 'unread';
   onFilterChange?: (next: 'all' | 'unread') => void;
   scoped?: boolean;
+  lastUpdatedAt?: string;
 }
 
-const GLYPH_BY_TYPE: Record<string, string> = {
-  'waybill.expense.submitted': '🧾',
-  'waybill.expense.advanced': '🛡️',
-  'waybill.expense.payment-confirmed': '💳',
-  'waybill.expense.rejected': '⛔',
-  'waybill.so.so-submitted': '💼',
-  'waybill.so.so-reviewed': '🛡️',
-  'waybill.so.so-credit-checked': '🔍',
-  'waybill.so.so-invoiced': '🧾',
-  'waybill.so.so-paid': '💰',
-  'waybill.so.so-rejected': '⛔',
+const BUCKET_LABEL: Record<TimeBucket, string> = {
+  new: 'ai.notification.bucket.new',
+  today: 'ai.notification.bucket.today',
+  yesterday: 'ai.notification.bucket.yesterday',
+  thisWeek: 'ai.notification.bucket.thisWeek',
+  earlier: 'ai.notification.bucket.earlier',
 };
-
-function relTime(iso: string): string {
-  const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.floor(hours / 24)}d ago`;
-}
 
 export const NotificationPanel: React.FC<NotificationPanelProps> = ({
   items,
@@ -61,78 +47,195 @@ export const NotificationPanel: React.FC<NotificationPanelProps> = ({
   filter = 'all',
   onFilterChange,
   scoped = false,
+  lastUpdatedAt,
 }) => {
-  const [hoverId, setHoverId] = useState<string | null>(null);
   const visible = filter === 'unread' ? items.filter((item) => !item.readAt) : items;
   const unreadCount = items.filter((item) => !item.readAt).length;
 
+  const grouped = visible.reduce<Record<TimeBucket, NotificationRowItem[]>>(
+    (acc, item) => {
+      const b = bucketOf(item.createdAt);
+      (acc[b] ??= []).push(item);
+      return acc;
+    },
+    { new: [], today: [], yesterday: [], thisWeek: [], earlier: [] },
+  );
+
   return (
     <>
-      <div className="fixed inset-0 z-sticky" onClick={onClose} aria-hidden />
-      <div className="absolute right-0 top-full z-fixed mt-2 flex max-h-[70vh] w-96 max-w-[calc(100vw-1rem)] flex-col rounded-xl border border-rule-strong bg-paper p-4 shadow-modal animate-fade-in">
-        <div className="mb-3 flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <div className="text-xs font-mono uppercase tracking-wide text-mute"><T id="ai.notification.title" /></div>
-            {scoped && <span className="text-xs font-mono text-ink-2"><T id="ai.notification.scopeMine" /></span>}
-            {unreadCount > 0 && <span className="rounded-full border border-critical bg-critical px-1.5 py-0.5 text-xs font-mono text-critical">{unreadCount} <T id="ai.notification.new" /></span>}
+      <div
+        className="fixed inset-0 z-popover bg-canvas/70 backdrop-blur-[2px] animate-fade-in"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div
+        role="dialog"
+        aria-label="Notifications"
+        className="panel-floating absolute right-0 top-full z-popover mt-2 flex max-h-[min(72vh,680px)] w-[420px] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-2xl animate-fade-scale"
+      >
+        {/* Header */}
+        <div className="flex items-start gap-3 border-b border-rule/60 px-4 pt-3.5 pb-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-accent/35 bg-accent-soft/60 text-accent">
+            <Bell size={16} aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold tracking-tight text-ink">
+                <T id="ai.notification.title" hideSecondary />
+              </h2>
+              {unreadCount > 0 && (
+                <span className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-critical px-1.5 text-[10px] font-mono font-bold text-paper">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </div>
+            <div className="mt-0.5 truncate text-[11px] font-mono text-mute" suppressHydrationWarning>
+              {lastUpdatedAt ? (
+                <T id="ai.notification.updated" values={{ ago: relTime(lastUpdatedAt) }} hideSecondary />
+              ) : (
+                <T id="ai.notification.scopeMine" hideSecondary />
+              )}
+            </div>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close notifications" className="inline-flex h-5 w-5 items-center justify-center rounded text-mute hover:bg-paper-2 hover:text-ink">✕</button>
+          <div className="flex shrink-0 items-center gap-0.5">
+            {onMarkAllRead && (
+              <button
+                type="button"
+                onClick={onMarkAllRead}
+                disabled={unreadCount === 0}
+                aria-label="Mark all as read"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mute transition-colors hover:bg-paper-2/80 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-mute"
+              >
+                <CheckCheck size={15} aria-hidden />
+              </button>
+            )}
+            <Link
+              href="/inbox"
+              onClick={onClose}
+              aria-label="Open inbox"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mute transition-colors hover:bg-paper-2/80 hover:text-ink"
+            >
+              <Settings2 size={15} aria-hidden />
+            </Link>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close notifications"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-mute transition-colors hover:bg-paper-2/80 hover:text-ink"
+            >
+              <X size={15} aria-hidden />
+            </button>
+          </div>
         </div>
 
+        {/* Filter segmented control */}
         {scoped && (
-          <div className="mb-3 flex items-center gap-1 px-1">
-            {(['all', 'unread'] as const).map((value) => (
-              <button key={value} type="button" onClick={() => onFilterChange?.(value)} className={`rounded-md px-2 py-1 text-xs font-mono uppercase tracking-wide ${filter === value ? 'bg-accent text-paper' : 'text-ink-2 hover:text-ink'}`}>{value}</button>
-            ))}
-            {onMarkAllRead && <button type="button" onClick={onMarkAllRead} className="ml-auto text-xs font-mono text-ink-2 hover:text-ink"><T id="ai.notification.markAllRead" /></button>}
+          <div className="flex items-center gap-1 px-4 py-2.5">
+            <div className="inline-flex items-center gap-0.5 rounded-lg border border-rule bg-paper-2/60 p-0.5">
+              {(['all', 'unread'] as const).map((value) => {
+                const active = filter === value;
+                const label = value === 'all' ? (
+                  <T id="ai.notification.filterAll" hideSecondary />
+                ) : (
+                  <T id="ai.notification.filterUnread" hideSecondary />
+                );
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => onFilterChange?.(value)}
+                    className={[
+                      'inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-mono uppercase tracking-wide transition-colors',
+                      active
+                        ? 'bg-accent text-paper shadow-sm'
+                        : 'text-ink-2 hover:text-ink',
+                    ].join(' ')}
+                  >
+                    {label}
+                    {value === 'unread' && unreadCount > 0 && (
+                      <span className={`rounded-full px-1.5 text-[10px] ${active ? 'bg-paper/25 text-paper' : 'bg-critical-soft/70 text-critical'}`}>
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {onMarkAllRead && unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={onMarkAllRead}
+                className="ml-auto text-[11px] font-mono text-ink-2 transition-colors hover:text-accent"
+              >
+                <T id="ai.notification.markAllRead" hideSecondary />
+              </button>
+            )}
           </div>
         )}
 
-        <div className="-mx-1 flex-1 overflow-y-auto px-1">
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-3 pb-2">
           {visible.length === 0 ? (
-            <div className="py-8 text-center text-xs font-mono text-mute"><T id="ai.notification.empty" /></div>
+            <div className="px-2 py-4">
+              <Empty
+                icon={Bell}
+                title={<T id="ai.notification.emptyTitle" hideSecondary />}
+                body={<T id="ai.notification.emptyBody" hideSecondary />}
+                action={{ label: <T id="ai.notification.emptyCta" hideSecondary />, href: '/inbox' }}
+              />
+            </div>
           ) : (
-            <ul className="space-y-1">
-              {visible.map((item) => {
-                const unread = !item.readAt;
-                const deletable = item.category === 'update' || !!item.resolvedAt;
+            <div className="space-y-4 py-1">
+              {BUCKET_ORDER.map((bucket) => {
+                const rows = grouped[bucket];
+                if (!rows || rows.length === 0) return null;
                 return (
-                  <li key={item.id} onMouseEnter={() => setHoverId(item.id)} onMouseLeave={() => setHoverId(null)} className={`rounded-lg border px-3.5 py-3 text-xs ${unread ? 'border-action bg-action text-action-ink' : 'border-rule bg-paper-2 text-ink-2'}`}>
-                    <div className="flex items-start gap-2">
-                      <span className="mt-0.5 text-base leading-none">{GLYPH_BY_TYPE[item.type] ?? (item.category === 'action' ? '⚡' : '🔔')}</span>
-                      <div className="min-w-0 flex-1">
-                        <button type="button" onClick={() => onOpen?.(item)} className="block w-full break-words text-left text-sm font-medium leading-6 hover:underline">{item.message}</button>
-                        <div className={`mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono uppercase tracking-wide ${unread ? 'text-action-ink' : 'text-mute'}`}>
-                          <span>{relTime(item.createdAt)}</span>
-                          {item.resolvedAt && <span>· {item.resolvedBy ? `handled by ${item.resolvedBy}` : 'handled'}</span>}
-                          {onToggleRead && (
-                            <button type="button" onClick={() => onToggleRead(item.id, !!item.readAt)} className={unread ? 'text-action-ink hover:text-action-ink' : 'text-ink-2 hover:text-ink'}>
-                              <T
-                                id={unread ? 'ai.notification.markRead' : 'ai.notification.markUnread'}
-                                primaryClassName={unread ? 'font-semibold text-action-ink' : 'font-semibold text-ink-2'}
-                                secondaryClassName={unread ? 'ml-1.5 text-[10px] font-semibold text-action-ink' : 'ml-1.5 text-[10px] font-normal text-ink-2'}
-                              />
-                            </button>
-                          )}
-                          {onDelete && deletable && hoverId === item.id && (
-                            <button type="button" onClick={() => onDelete(item.id)} className={unread ? 'text-action-ink hover:text-action-ink' : 'text-critical hover:text-critical-strong'}>
-                              <T
-                                id="ai.notification.delete"
-                                primaryClassName={unread ? 'font-semibold text-action-ink' : 'font-semibold text-critical'}
-                                secondaryClassName={unread ? 'ml-1.5 text-[10px] font-semibold text-action-ink' : 'ml-1.5 text-[10px] font-normal text-critical'}
-                              />
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                  <section key={bucket} className="space-y-1.5">
+                    <div className="flex items-center gap-2 px-1">
+                      <h3 className="text-[10px] font-mono font-semibold uppercase tracking-[0.16em] text-mute">
+                        <T id={BUCKET_LABEL[bucket]} hideSecondary />
+                      </h3>
+                      <span className="rounded-full border border-rule bg-paper-2/60 px-1.5 py-0.5 text-[10px] font-mono text-ink-2">
+                        {rows.length}
+                      </span>
+                      <span className="h-px flex-1 bg-rule/50" />
                     </div>
-                  </li>
+                    <div className="space-y-1.5">
+                      {rows.map((item) => (
+                        <NotificationItemRow
+                          key={item.id}
+                          item={item}
+                          onOpen={onOpen}
+                          onToggleRead={onToggleRead}
+                          onDelete={onDelete}
+                          compact
+                        />
+                      ))}
+                    </div>
+                  </section>
                 );
               })}
-            </ul>
+            </div>
           )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-rule/60 bg-paper-2/40 px-4 py-2.5">
+          <Link
+            href="/inbox"
+            onClick={onClose}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-2 transition-colors hover:text-accent"
+          >
+            <T id="ai.notification.viewAll" hideSecondary />
+            <span aria-hidden>→</span>
+          </Link>
+          <span className="text-[10px] font-mono uppercase tracking-wide text-mute">
+            {items.length} {items.length === 1 ? 'item' : 'items'}
+          </span>
         </div>
       </div>
     </>
   );
 };
+
+export default NotificationPanel;

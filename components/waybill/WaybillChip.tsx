@@ -32,7 +32,8 @@ export function WaybillChip({
   const pips = pipsForDomain(domain);
   const idx = pips.findIndex((p) => p.key === currentStage);
   const isRejected = currentStage === 'rejected';
-  const isClosed = currentStage === 'disbursed' || isRejected;
+  const isCompleted = currentStage === 'completed';
+  const isClosed = currentStage === 'disbursed' || isRejected || isCompleted;
   const needCeo =
     domain === 'expense' && typeof amountTHB === 'number' && amountTHB >= 200_000;
 
@@ -56,7 +57,13 @@ export function WaybillChip({
       aria-label={pip ? pip.label : 'waybill.chip.waybillTitle'}
     >
       <span aria-hidden>{pip?.emoji ?? '📦'}</span>
-      <T id={pip?.label ?? (isRejected ? 'waybill.stage.rejected' : `waybill.stage.${stageKey(currentStage)}`)} />
+      <T id={pip?.label ?? (
+        isRejected
+          ? 'waybill.stage.rejected'
+          : isCompleted
+            ? 'waybill.status.completed'
+            : `waybill.stage.${stageKey(currentStage)}`
+      )} />
       {!isClosed && idx >= 0 && (
         <span className="ml-1 opacity-60">
           {idx + 1}/{totalActive}

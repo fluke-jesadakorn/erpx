@@ -6,6 +6,7 @@ import { stageLabel as pipStageLabel } from '@/waybill/labels';
 import type { WaybillEventRow } from '@/waybill/events';
 import type { ApproverRow } from '@/waybill/queries';
 import type { VisionModel } from '@/ai/loadVisionModels';
+import type { ExpensePaymentPreview } from '@/finance/expenseDocument';
 import type { SecondaryLocale } from '@/server/locale';
 import {
   approveWaybillAction,
@@ -64,6 +65,7 @@ interface Props {
   isSubmitter: boolean;
   domain?: import('@/waybill/derive').WaybillDomain;
   locale?: SecondaryLocale;
+  payment?: ExpensePaymentPreview | null;
 }
 
 export function PipActionPrompt({
@@ -87,7 +89,7 @@ export function PipActionPrompt({
   approvers,
   rejectionReason,
   rejectionActor,
-  visionModels = [],
+  visionModels: _visionModels = [],
   events: _events,
   actedUsers,
   action,
@@ -95,6 +97,7 @@ export function PipActionPrompt({
   isSubmitter,
   domain = 'expense',
   locale,
+  payment,
 }: Props) {
   const localeSafe: SecondaryLocale = locale ?? 'th';
   if (isRejection) {
@@ -158,7 +161,7 @@ export function PipActionPrompt({
       : finalRejectWaybillAction;
     return (
       <section className={'space-y-4 ' + FINAL_APPROVAL_BG}>
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(15rem,24rem)] sm:items-start">
+        <div className="grid gap-3">
           <div className="min-w-0 space-y-2">
             <div className="flex min-w-0 items-start gap-2">
               <span aria-hidden className="shrink-0 text-base leading-5">🔒</span>
@@ -166,18 +169,21 @@ export function PipActionPrompt({
                 id="waybill.timeline.finalAuthorization"
                 locale={localeSafe}
                 variant="stacked"
-                className="min-w-0"
+                as="div"
+                className="min-w-0 flex-1"
                 primaryClassName="block font-mono text-xs font-semibold uppercase tracking-[0.12em] text-accent"
-                secondaryClassName="mt-1 block font-sans text-sm font-normal leading-snug text-ink-2"
+                secondaryClassName="mt-1 block break-words font-sans text-sm font-normal leading-snug text-ink-2"
               />
             </div>
-            <div className="pl-7">
+            <div className="min-w-0 pl-7">
               <T
                 id="waybill.timeline.currentStage"
                 locale={localeSafe}
                 variant="stacked"
+                as="div"
+                className="min-w-0"
                 primaryClassName="block font-mono text-xs font-semibold uppercase tracking-[0.12em] text-mute"
-                secondaryClassName="mt-1 block font-sans text-sm font-normal leading-snug text-mute"
+                secondaryClassName="mt-1 block break-words font-sans text-sm font-normal leading-snug text-mute"
               />
             </div>
           </div>
@@ -186,8 +192,10 @@ export function PipActionPrompt({
               id="waybill.timeline.approveGlPost"
               locale={localeSafe}
               variant="stacked"
+              as="div"
+              className="min-w-0"
               primaryClassName="block font-mono text-xs font-semibold uppercase tracking-[0.08em] text-accent"
-              secondaryClassName="mt-1 block font-sans text-sm font-normal leading-snug text-ink-2"
+              secondaryClassName="mt-1 block break-words font-sans text-sm font-normal leading-snug text-ink-2"
             />
           </div>
         </div>
@@ -346,7 +354,7 @@ export function PipActionPrompt({
           </span>
         </div>
         {originId != null ? (
-          <SettleForm waybillId={waybillId} expenseId={originId} visionModels={visionModels} />
+          <SettleForm waybillId={waybillId} expenseId={originId} payment={payment} />
         ) : (
           <p className="text-sm font-mono text-ink-2">
             no expenseId available to settle

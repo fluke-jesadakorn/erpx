@@ -163,6 +163,37 @@ export async function deleteSession(userId: number, sessionId: string): Promise<
   });
 }
 
+export async function rewindSession(
+  userId: number,
+  sessionId: string,
+  messageId: string,
+): Promise<void> {
+  await withTransaction(async (q) => {
+    await q(`SELECT set_config('app.user_id', $1, true)`, [String(userId)]);
+    const target = await q<{ id: string; role: string }>(
+      `SELECT m.id, m.role
+         FROM chat.messages m
+         JOIN chat.sessions s ON s.id = m.session_id
+        WHERE m.id = $1::bigint
+          AND m.session_id = $2::uuid
+          AND s.user_id = $3::int
+        FOR UPDATE`,
+      [messageId, sessionId, userId],
+    );
+    if (target.rows[0]?.role !== 'user') throw new Error('editable checkpoint not found');
+    await q(
+      `DELETE FROM chat.messages
+        WHERE session_id = $1::uuid
+          AND id >= $2::bigint`,
+      [sessionId, messageId],
+    );
+    await q(
+      `UPDATE chat.sessions SET updated_at = now() WHERE id = $1::uuid`,
+      [sessionId],
+    );
+  });
+}
+
 export interface AppendMessageInput {
   role: 'user' | 'assistant' | 'system';
   content: string;

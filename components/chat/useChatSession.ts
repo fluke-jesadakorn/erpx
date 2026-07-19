@@ -27,6 +27,7 @@ export interface UseChatSession {
   streamingContent: string;
   streamingBlocks: { charts: ChartSpec[]; htmls: string[]; sqls: SqlResolved[] };
   send: (text: string) => Promise<void>;
+  editMessage: (messageId: string, text: string) => Promise<void>;
   newSession: () => Promise<void>;
   switchSession: (id: string) => Promise<void>;
   deleteSession: (id: string) => Promise<void>;
@@ -49,6 +50,8 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
 
   useEffect(() => {
     try {
+      const sid = localStorage.getItem(SS_KEY);
+      if (sid) setSessionId(sid);
       const m = localStorage.getItem(MODEL_KEY);
       if (m) setModelState(m);
       const t = localStorage.getItem(THINK_KEY);
@@ -112,36 +115,50 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
     if (!sessionId) { setMessages([]); return; }
     let cancel = false;
     fetch(`/api/ai/chat/full/sessions/${sessionId}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         if (cancel) return;
         if (Array.isArray(d?.messages)) setMessages(d.messages as ChatMessage[]);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (cancel) return;
+        try { localStorage.removeItem(SS_KEY); } catch {}
+        setSessionId(null);
+        setMessages([]);
+      });
     return () => { cancel = true; };
   }, [sessionId]);
 
-  const send = useCallback(async (text: string) => {
+  const run = useCallback(async (text: string, editMessageId?: string) => {
     const content = text.trim();
     if (!content || pending) return;
     const sid = await ensureSession();
     if (!sid) return;
+    const checkpoint = editMessageId
+      ? messages.findIndex((message) => message.id === editMessageId && message.role === 'user')
+      : -1;
+    if (editMessageId && checkpoint < 0) return;
+    const prior = checkpoint >= 0 ? messages.slice(0, checkpoint) : messages;
+    const tempId = `t${Date.now()}`;
     const userMsg: ChatMessage = {
-      id: `t${Date.now()}`,
+      id: tempId,
       sessionId: sid,
       role: 'user',
       content,
       blocks: { plain: content, charts: [], htmls: [], sqls: [] },
       createdAt: new Date().toISOString(),
     };
-    setMessages((m) => [...m, userMsg]);
+    setMessages([...prior, userMsg]);
     setPending(true);
     resetContent();
     setStreamingBlocks({ charts: [], htmls: [], sqls: [] });
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
-      const history = messages.map((m) => ({ role: m.role, content: m.content }));
+      const history = prior.map((message) => ({ role: message.role, content: message.content }));
       await streamChat(
         {
           messages: [...history, { role: 'user' as const, content }],
@@ -151,6 +168,7 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
           thinking,
           lang: locale,
           scope: input.scope,
+          editMessageId,
         },
         {
           signal: ctrl.signal,
@@ -168,7 +186,7 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
               });
             }
             const aiMsg: ChatMessage = {
-              id: `t${Date.now() + 1}`,
+              id: meta.assistantMessageId ?? `t${Date.now() + 1}`,
               sessionId: meta.sessionId ?? sid,
               role: 'assistant',
               content: contentRef.current,
@@ -182,7 +200,12 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
               latencyMs: meta.latencyMs ?? null,
               createdAt: new Date().toISOString(),
             };
-            setMessages((m) => [...m, aiMsg]);
+            setMessages((current) => {
+              const next = current.map((message) => message.id === tempId && meta.userMessageId
+                ? { ...message, id: meta.userMessageId }
+                : message);
+              return [...next, aiMsg];
+            });
             resetContent();
             void refreshSessions();
           },
@@ -204,6 +227,9 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
       abortRef.current = null;
     }
   }, [pending, messages, model, thinking, locale, ensureSession, appendContent, resetContent, refreshSessions, input.scope, input.sectionKey]);
+
+  const send = useCallback((text: string) => run(text), [run]);
+  const editMessage = useCallback((messageId: string, text: string) => run(text, messageId), [run]);
 
   const newSession = useCallback(async () => {
     try { localStorage.removeItem(SS_KEY); } catch {}
@@ -246,6 +272,6 @@ export function useChatSession(input: UseChatSessionInput = {}): UseChatSession 
     model, setModel,
     thinking, setThinking,
     pending, streamingContent, streamingBlocks,
-    send, newSession, switchSession, deleteSession, refreshSessions, abort,
+    send, editMessage, newSession, switchSession, deleteSession, refreshSessions, abort,
   };
 }

@@ -134,10 +134,12 @@ function NavRow({ icon: IconCmp, label, href, active, locked, badge, tone = GROU
   );
 }
 
-function BilingualLabel({ label, active, section = false, activeTone }: { label: SidebarLabel; active?: boolean; section?: boolean; activeTone?: string }) {
+function BilingualLabel({ label, active, section = false, activeTone, compact = false }: { label: SidebarLabel; active?: boolean; section?: boolean; activeTone?: string; compact?: boolean }) {
   const t = useTranslations();
   const loc = useSecondaryLocale();
-  const primaryClass = section
+  const primaryClass = compact
+    ? ['truncate text-[10px] font-medium uppercase leading-tight tracking-[0.1em]', active ? activeTone || 'text-accent-strong' : 'text-accent-strong'].join(' ')
+    : section
     ? ['truncate text-[14px] font-semibold leading-tight tracking-[0.02em]', active ? activeTone || 'text-accent-strong' : 'text-mute/85'].join(' ')
     : ['truncate text-[13px] font-medium', active ? activeTone || 'text-ink' : 'text-ink-2'].join(' ');
 
@@ -159,7 +161,7 @@ function BilingualLabel({ label, active, section = false, activeTone }: { label:
       <span className={primaryClass}>
         {primary}
       </span>
-      <span className={section ? 'truncate text-[10px] font-normal text-mute/90' : 'truncate text-[10.5px] font-normal text-mute/90'} lang={loc}>
+      <span className={compact ? 'truncate text-[9px] font-normal text-accent-strong/80' : section ? 'truncate text-[10px] font-normal text-mute/90' : 'truncate text-[10.5px] font-normal text-mute/90'} lang={loc}>
         {secondary}
       </span>
     </span>
@@ -347,6 +349,7 @@ function SectionGroup({
 }
 
 function SidebarBody({ currentUser }: SidebarProps) {
+  const t = useTranslations();
   const pathname = usePathname() || '/';
   const params = useSearchParams();
   const search = params ? `?${params.toString()}` : '';
@@ -370,7 +373,7 @@ function SidebarBody({ currentUser }: SidebarProps) {
   return (
     <>
       <nav
-        className="min-h-0 flex-1 overflow-y-auto px-3 pb-3"
+        className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 pt-4"
         aria-label="Primary navigation"
       >
         <div className="space-y-1.5 divide-y divide-rule/60">
@@ -392,7 +395,7 @@ function SidebarBody({ currentUser }: SidebarProps) {
         <button
           type="button"
           onClick={allCollapsed ? expandAll : collapseAll}
-          aria-label={allCollapsed ? 'Expand all sections' : 'Collapse all sections'}
+          aria-label={t(allCollapsed ? 'sidebar.expandAll' : 'sidebar.collapseAll')}
           className="group flex w-full items-center justify-center gap-2 rounded-lg border border-accent/25 bg-accent-soft/15 py-1.5 text-[10px] font-medium uppercase tracking-[0.1em] text-accent-strong transition-colors hover:border-accent/50 hover:bg-accent-soft/35 hover:text-accent-strong"
         >
           {allCollapsed ? (
@@ -400,7 +403,10 @@ function SidebarBody({ currentUser }: SidebarProps) {
           ) : (
             <ChevronUp size={11} className="transition-transform group-hover:scale-110" />
           )}
-          <span>{allCollapsed ? 'Expand all' : 'Collapse all'}</span>
+          <BilingualLabel
+            label={{ id: allCollapsed ? 'sidebar.expandAll' : 'sidebar.collapseAll' }}
+            compact
+          />
         </button>
       </div>
 

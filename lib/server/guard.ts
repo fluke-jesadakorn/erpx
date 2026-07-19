@@ -220,16 +220,20 @@ export async function requireAction(
 
 export async function slipOwnership(key: string, actor: ActorWithScope): Promise<boolean> {
   if (matchPerm(actor.permissions, 'admin:system:bypass::allow')) return true;
-  const r = await query<{ uploaded_by: number | null }>(
-    `SELECT uploaded_by FROM slips WHERE file_path = $1 LIMIT 1`,
+  const r = await query<{ uploaded_by: number | null; submitter_id: number | null }>(
+    `SELECT s.uploaded_by, e.submitter_id
+       FROM slips s
+       LEFT JOIN expenses e ON e.id = s.expense_id
+      WHERE s.file_path = $1 LIMIT 1`,
     [key],
   );
   if (r.rows.length === 0) return false;
   const uploadedBy = r.rows[0].uploaded_by;
+  const submitterId = r.rows[0].submitter_id;
   if (!uploadedBy) return false;
   if (uploadedBy === actor.id) return true;
   if (matchPerm(actor.permissions, 'finance:expense:view_all::allow')) return true;
-  if (matchPerm(actor.permissions, 'finance:expense:view_own::allow')) return uploadedBy === actor.id;
+  if (matchPerm(actor.permissions, 'finance:expense:view_own::allow') && submitterId === actor.id) return true;
   const targetDept = await query<{ dept_perm: string | null }>(
     `SELECT (SELECT up.permission_id FROM perm.user_permissions up
               WHERE up.user_id = u.id AND up.permission_id LIKE 'user:dept:%'

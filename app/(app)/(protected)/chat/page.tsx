@@ -55,7 +55,6 @@ export default async function ChatPage() {
         ]}
       />
       <PageLayout
-        title="AI Chat"
         density="compact"
         className="h-full flex flex-col"
         contentClassName="flex-1 min-h-0 flex flex-col"

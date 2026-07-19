@@ -102,14 +102,16 @@ test.describe('Inbox', () => {
     expect(counts.watching).toBeGreaterThanOrEqual(0);
   });
 
-  test('6e.8 — /expense scopes render (mine, queue, all)', async ({ page }) => {
+  test('6e.8 — /expense scopes preserve mine/all and route queue to Inbox', async ({ page }) => {
     await signIn(page, 'officerEmp001');
-    for (const s of ['mine', 'queue', 'all']) {
+    for (const s of ['mine', 'all']) {
       const r = await page.goto(`/expense?scope=${s}`);
       expect(r?.ok() || r?.status() === 200).toBeTruthy();
       await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
       await expect(page).toHaveURL(new RegExp(`/expense\\?scope=${s}`));
     }
+    await page.goto('/expense?scope=queue');
+    await expect(page).toHaveURL(/\/inbox\?view=actions&domain=expense$/);
   });
 
   test('6e.9 — /api/waybill/nudges returns 200 + array', async ({ page }) => {

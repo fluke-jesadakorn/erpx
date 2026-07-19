@@ -99,7 +99,7 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     setValidation(undefined);
   }
 
-  async function uploadFile(file: File) {
+  async function uploadFile(file: File, modelName = selectedModel) {
     setError(null);
     setFileName(file.name);
     setPhase('extracting');
@@ -107,7 +107,7 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     try {
       const fd = new FormData();
       fd.append('file', file, file.name);
-      if (selectedModel) fd.append('model_name', selectedModel);
+      if (modelName) fd.append('model_name', modelName);
       fd.append('kind', kind);
       if (evidenceOnly) fd.append('evidence_only', '1');
       const xhr = new XMLHttpRequest();
@@ -195,7 +195,7 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     if (extractionState === 'done' && pendingFile && visionModels.length > 0 && phase !== 'confirming') {
       setError(null);
       setExtractionState('running');
-      void uploadFile(pendingFile);
+      void uploadFile(pendingFile, name);
     }
   }
 
@@ -218,8 +218,16 @@ export function useSlipOcr(opts: SlipOcrOpts) {
     }
     setFileName(file.name);
     setPendingFile(file);
-    if (evidenceOnly) {
-      void uploadFile(file);
+    const preferred = visionModels.find((model) => model.preferred)?.name;
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem(MODEL_STORAGE_KEY) : null;
+    const modelName = selectedModel
+      || preferred
+      || (saved && visionModels.some((model) => model.name === saved) ? saved : '')
+      || visionModels[0]?.name
+      || '';
+    if (modelName && modelName !== selectedModel) setSelectedModel(modelName);
+    if (evidenceOnly || modelName) {
+      void uploadFile(file, modelName);
     } else {
       setPhase('idle');
       setExtractionState('pending');

@@ -8,6 +8,7 @@ import type { BookBankFields, ParsedFields, SlipUploadHandle, SubmitState } from
 
 export type {
   BookBankFields,
+  ExpenseDraft,
   SlipDraftFields,
   SlipUploadHandle,
   SubmitState,
@@ -27,6 +28,7 @@ export interface SlipUploadProps {
   onSlipReady?: (slipId: number, kind: 'receipt' | 'book_bank', parsed: ParsedFields) => void;
   onSlipDiscarded?: (slipId: number, kind: 'receipt' | 'book_bank') => void;
   onPaymentChange?: (next: 'cash' | 'credit_card' | 'transfer') => void;
+  payeeType?: 'employee' | 'vendor';
   currentUserId?: number;
   initialModels?: VisionModel[];
   bookBankSlipId?: number | null;
@@ -36,6 +38,7 @@ export interface SlipUploadProps {
   onSubmitStateChange?: (state: SubmitState) => void;
   draftWaybillId?: string | null;
   evidenceOnly?: boolean;
+  compact?: boolean;
   onDraftStarted?: (info: { waybillId: string; expenseId: number }) => void;
 }
 
@@ -43,7 +46,7 @@ export const SlipUpload = forwardRef<SlipUploadHandle, SlipUploadProps>(function
   props,
   ref,
 ) {
-  const { kind = 'receipt', onSlipReady, onSlipDiscarded, ...rest } = props;
+  const { kind = 'receipt', onSlipReady, onSlipDiscarded, compact = false, ...rest } = props;
   if (kind === 'book_bank') {
     return (
       <BookBankUpload
@@ -58,6 +61,7 @@ export const SlipUpload = forwardRef<SlipUploadHandle, SlipUploadProps>(function
     <ReceiptUpload
       ref={ref}
       {...rest}
+      compact={compact}
       onSlipReady={(id, _kind, parsed) => onSlipReady?.(id, 'receipt', parsed)}
       onSlipDiscarded={(id) => onSlipDiscarded?.(id, 'receipt')}
     />

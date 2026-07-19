@@ -2,7 +2,7 @@ import React, { Suspense } from 'react';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import { CircleAlert, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, CircleAlert, ShieldCheck, X } from 'lucide-react';
 import {
   loadWaybillRailContext,
   loadApproversByStage,
@@ -29,6 +29,7 @@ import { BreadcrumbSetter } from '@/components/breadcrumbs/BreadcrumbSetter';
 import { T } from '@/components/i18n/TServer';
 import { WaybillTabs } from './_components/WaybillTabs';
 import { authorizeExpenseStage, loadExpenseFlowContext, type ExpenseActor } from '@/waybill/expenseFlow';
+import { loadExpensePaymentPreview } from '@/finance/expenseDocument';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,12 +68,13 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
   }
 
   const action = asString(sp.action);
-  const [approversByStage, actedUsersByStage, visionModels, locale, expensePicture, integrity, openClaim] = await Promise.all([
+  const [approversByStage, actedUsersByStage, visionModels, locale, expensePicture, payment, integrity, openClaim] = await Promise.all([
     loadApproversByStage(wb.id),
     loadActedUsersByStage(wb.id),
     loadVisionModels(actor.id),
     getSecondaryLocale(),
     wb.origin === 'expense' ? loadExpenseFullPicture(wb.origin_id) : Promise.resolve(null),
+    wb.origin === 'expense' ? loadExpensePaymentPreview(wb.id) : Promise.resolve(null),
     verifyEventChain(wb.id),
     wb.origin === 'expense'
       ? query<{ claimed_by: number; fullname: string }>(
@@ -183,6 +185,8 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
     wb.status === 'completed' ? 100
       : wb.status === 'rejected' ? 0
       : stepsTotal > 0 ? Math.round((stepsDone / stepsTotal) * 100) : 0;
+  const submitted = asString(sp.submitted) === '1' && actor.id === wb.submitter_id;
+  const currentPip = curIdxAll >= 0 ? pipsAll[curIdxAll] : null;
 
   const statusTone = wb.status === 'completed'
     ? { ring: 'from-positive/40 to-info/20', chip: 'bg-positive-soft border border-positive/40 text-positive-strong', dot: 'bg-positive', label: <T id="waybill.status.completed" locale={locale} variant="compact" /> }
@@ -229,6 +233,29 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             }
           />
 
+          {submitted && (
+            <section className="panel flex items-start gap-3 border-positive/45 bg-positive-soft/45 p-4" role="status" data-testid="expense-submit-success">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full border border-positive/40 bg-positive-soft text-positive">
+                <CheckCircle2 className="size-5" aria-hidden strokeWidth={2.5} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 className="font-semibold text-positive-strong"><T id="waybill.submitted.title" locale={locale} /></h2>
+                <p className="mt-1 text-sm text-ink-2">
+                  <T id="waybill.submitted.waiting" locale={locale} />{' '}
+                  {currentPip ? <T id={currentPip.label} locale={locale} /> : wb.current_stage}
+                </p>
+                <p className="mt-1 font-mono text-xs text-mute">{wb.id}</p>
+              </div>
+              <Link
+                href={`/waybill/${wb.id}`}
+                aria-label="Dismiss submission confirmation"
+                className="grid size-9 shrink-0 place-items-center rounded-lg border border-rule bg-paper-2 text-mute transition hover:text-ink"
+              >
+                <X className="size-4" aria-hidden />
+              </Link>
+            </section>
+          )}
+
           <WaybillTabs waybillId={wb.id} active="overview" locale={locale} />
 
           {isRejected && (
@@ -266,6 +293,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             currentStage={wb.current_stage}
             status={wb.status}
             canAct={canActNow}
+            compactMobile={actor.id === wb.submitter_id && !canActNow}
             indicators={
               <>
                 <WaybillRiskBadge waybillId={wb.id} />
@@ -274,7 +302,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
             }
           />
 
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,27rem)] lg:items-start">
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,27rem)] xl:items-start">
             <main className="min-w-0 space-y-5">
               {expensePicture ? (
                 <Suspense fallback={<div className="panel h-56 animate-pulse" aria-hidden />}>
@@ -315,7 +343,7 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
 
             </main>
 
-            <aside className="min-w-0 lg:sticky lg:top-[5.5rem]">
+            <aside className="min-w-0 xl:sticky xl:top-[5.5rem]">
               <WaybillTaskPanel
                 wb={wb}
                 waybillId={wb.id}
@@ -365,12 +393,13 @@ export default async function WaybillDetail({ params, searchParams }: PageProps)
                 locale={locale}
                 vendorName={displayVendor}
                 amount={displayTotal}
+                payment={payment}
               />
             </aside>
           </div>
 
           {hasActionSurface && (
-            <div className="fixed inset-x-0 bottom-0 z-fixed border-t border-rule bg-[color-mix(in_oklab,var(--glass-floating)_94%,transparent)] p-3 shadow-modal backdrop-blur-xl lg:hidden safe-bottom">
+            <div className="fixed inset-x-0 bottom-0 z-fixed border-t border-rule bg-[color-mix(in_oklab,var(--glass-floating)_94%,transparent)] p-3 shadow-modal backdrop-blur-xl xl:hidden safe-bottom">
               <a href="#waybill-task" className="flex min-h-11 items-center justify-center rounded-lg bg-info px-4 py-2.5 text-sm font-semibold text-paper transition hover:bg-info-strong">
                 <T id="waybill.overview.reviewTask" locale={locale} variant="compact" />
               </a>

@@ -20,6 +20,13 @@ import { upsertDraftJournal, finalizeDraftJournal, saveDraftJournalLines, setExp
 import { upsertProcurementDraftAccrual } from '@/finance/postProcurementToGL';
 import { pipsForDomain } from '@/waybill/derive';
 import {
+  expenseEntryStage,
+  isExecutiveRole,
+  nextProcurementStage,
+  procurementResubmitStage,
+  skippedDepartmentStage,
+} from '@/waybill/routing';
+import {
   assertExpenseClaim,
   authorizeExpenseStage,
   claimExpenseStage,
@@ -148,7 +155,13 @@ function expenseActor(actor: ActorWithScope): ExpenseActor {
 
 async function approveExpenseWaybill(actor: ActorWithScope, wb: WbForCheck): Promise<void> {
   const ctx = await loadExpenseFlowContext(wb.id);
-  const decision = await authorizeExpenseStage(expenseActor(actor), ctx);
+  const skipDepartment = actor.id === ctx.submitterId
+    && isExecutiveRole(actor.role_name)
+    && hasPermission(actor, PERM.finance.expense.create)
+    && (ctx.stage === 'submission' || ctx.stage === 'department_approval');
+  const decision = skipDepartment
+    ? { allow: true as const, reason: 'Executive submitter skips department approval' }
+    : await authorizeExpenseStage(expenseActor(actor), ctx);
   if (!decision.allow) throw new Error(decision.reason);
   if (ctx.stage === 'payment' || ctx.stage === 'settlement') {
     throw new Error(`${ctx.stage} requires its dedicated human confirmation action`);
@@ -174,7 +187,9 @@ async function approveExpenseWaybill(actor: ActorWithScope, wb: WbForCheck): Pro
     await _query(`UPDATE journal_entries SET prepared_by = $2 WHERE id = $1`, [draft.rows[0].id, actor.id]);
   }
   let journalId: number | null = null;
-  const next = nextExpenseStage(ctx.stage, ctx.amount);
+  const next = skipDepartment
+    ? expenseEntryStage(actor.role_name)
+    : nextExpenseStage(ctx.stage, ctx.amount, actor.id === ctx.submitterId ? actor.role_name : null);
   if (!next || next === 'completed') throw new Error(`No approval transition from ${ctx.stage}`);
   await withTransaction(async (q) => {
     const locked = await q<{ current_stage: string }>(
@@ -233,7 +248,16 @@ async function approveExpenseWaybill(actor: ActorWithScope, wb: WbForCheck): Pro
       stageTo: next,
       actorId: actor.id,
       actorRole: actor.role_name,
-      payload: { decision: 'approve', journalId },
+      payload: {
+        decision: 'approve',
+        journalId,
+        ...(skipDepartment
+          ? {
+              skippedStages: [skippedDepartmentStage('expense')],
+              skipReason: 'executive_submitter',
+            }
+          : {}),
+      },
       client: q as never,
     });
   });
@@ -283,6 +307,10 @@ export async function approveWaybillAction(formData: FormData): Promise<void> {
     redirect(`/waybill/${wb.id}`);
   }
 
+  const executiveProcurementSubmitter = (wb.origin === 'pr' || wb.origin === 'po')
+    && wb.current_stage === 'submission'
+    && wb.submitter_id === actor.id
+    && isExecutiveRole(actor.role_name);
   if (!(await canActOnWaybillStage(actor, wb))) {
     throw new Error('cannot act at this stage');
   }
@@ -292,7 +320,10 @@ export async function approveWaybillAction(formData: FormData): Promise<void> {
     wb.origin === 'expense' ? 'expense'
       : wb.origin === 'so' ? 'sales'
         : 'procurement';
-  const next = resolveNextStage(currentStage, actor.role_name, undefined, domain);
+  const nextStage = domain === 'procurement'
+    ? nextProcurementStage(currentStage, actor.role_name, wb.submitter_id === actor.id)
+    : resolveNextStage(currentStage, actor.role_name, undefined, domain)?.stage ?? null;
+  const next = nextStage ? { stage: nextStage, completed: false } : null;
   if (!next) throw new Error(`No next stage from "${currentStage}"`);
 
   let shouldGeneratePo = false;
@@ -374,7 +405,15 @@ export async function approveWaybillAction(formData: FormData): Promise<void> {
       stageTo: next.stage,
       actorId: actor.id,
       actorRole: actor.role_name,
-      payload: { decision: 'approve' },
+      payload: {
+        decision: 'approve',
+        ...(executiveProcurementSubmitter
+          ? {
+              skippedStages: [skippedDepartmentStage(wb.origin)],
+              skipReason: 'executive_submitter',
+            }
+          : {}),
+      },
       client: q as never,
     });
 
@@ -685,26 +724,41 @@ export async function resubmitWaybillAction(formData: FormData): Promise<void> {
   }
 
   await withTransaction(async (q) => {
-    const resubmitStage = wb.origin === 'expense' ? 'department_approval' : 'submission';
+    const isProcurement = wb.origin === 'pr' || wb.origin === 'po';
+    const resubmitStage = wb.origin === 'expense'
+      ? expenseEntryStage(actor.role_name)
+      : isProcurement
+        ? procurementResubmitStage(actor.role_name)
+        : 'submission';
     if (wb.origin === 'expense') {
       await q(
-        `UPDATE expenses SET status = 'department_approval',
+        `UPDATE expenses SET status = $2,
                             rejection_reason = NULL,
                             rejection_actor_id = NULL,
                             rejected_at = NULL,
                             updated_at = now()
           WHERE id = $1`,
-        [wb.origin_id],
+        [wb.origin_id, resubmitStage],
       );
     } else if (wb.origin === 'pr') {
       await q(
-        `UPDATE purchase_requisitions SET status = 'submission',
+        `UPDATE purchase_requisitions SET status = $2,
                                         rejection_reason = NULL,
                                         rejection_actor_id = NULL,
                                         rejected_at = NULL,
                                         updated_at = now()
           WHERE id = $1`,
-        [wb.origin_id],
+        [wb.origin_id, resubmitStage],
+      );
+    } else if (wb.origin === 'po') {
+      await q(
+        `UPDATE purchase_orders SET status = $2,
+                                   rejection_reason = NULL,
+                                   rejection_actor_id = NULL,
+                                   rejected_at = NULL,
+                                   updated_at = now()
+          WHERE id = $1`,
+        [wb.origin_id, resubmitStage],
       );
     }
     await q(
@@ -723,7 +777,16 @@ export async function resubmitWaybillAction(formData: FormData): Promise<void> {
       stageTo: resubmitStage,
       actorId: actor.id,
       actorRole: actor.role_name,
-      payload: { origin: wb.origin, origin_id: wb.origin_id },
+      payload: {
+        origin: wb.origin,
+        origin_id: wb.origin_id,
+        ...(isExecutiveRole(actor.role_name) && (wb.origin === 'expense' || isProcurement)
+          ? {
+              skippedStages: [skippedDepartmentStage(wb.origin)],
+              skipReason: 'executive_submitter',
+            }
+          : {}),
+      },
       client: q as never,
     });
   });

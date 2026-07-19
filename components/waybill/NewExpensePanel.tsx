@@ -1,22 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { Activity, useState } from 'react';
 import {
-  Upload,
-  Rocket,
-  Banknote,
-  CreditCard,
-  CircleDot,
-  CircleAlert,
-  ArrowRight,
   ArrowUpRight,
+  Building2,
+  ChevronDown,
+  CircleAlert,
+  CircleCheck,
+  Landmark,
   Loader2,
   Lock,
-  CircleCheck,
-  Wallet,
-  Building2,
-  Landmark,
   Receipt,
+  Upload,
+  UserRound,
 } from 'lucide-react';
 import {
   SlipUpload,
@@ -25,7 +21,6 @@ import {
 } from '@/components/SlipUpload';
 import type { VisionModel } from '@/ai/loadVisionModels';
 import { submitExpenseFromSlip } from '@/app/actions/expense';
-import { StepCard, StepBadge } from '@/components/StepCard';
 import { useSecondaryLocale } from '@/components/i18n/SecondaryLocaleProvider';
 import { NewWaybillPanel } from './NewWaybillPanel';
 import { StaffSubmitHelper } from './StaffSubmitHelper';
@@ -53,116 +48,75 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  void submitExpenseFromSlip;
-
-  const parsed = submitState?.parsed ?? null;
+  const draft = submitState?.draft ?? null;
   const receiptSlipId = submitState?.slipId ?? null;
-  const receiptReady = submitState?.canConfirm === true;
   const receiptHasFile = submitState?.pendingFile === true;
-  const receiptOcrStarted = submitState?.extractionState !== undefined && submitState.extractionState !== 'pending';
+  const receiptReady = submitState?.canConfirm === true;
   const needsBookBank = payment === 'transfer';
-  const bookBankReady: boolean =
-    !needsBookBank ||
-    (bookBankSlipId != null &&
-      bookBankFields.bankName.length > 0 &&
-      bookBankFields.accountNumber.length > 0 &&
-      bookBankFields.accountName.length > 0);
-  const canSubmitAll = receiptReady && bookBankReady && !submitting;
+  const bankReady = !needsBookBank || (
+    bookBankSlipId != null
+    && bookBankFields.bankName.trim().length > 0
+    && bookBankFields.accountNumber.trim().length > 0
+    && bookBankFields.accountName.trim().length > 0
+  );
+  const canSubmit = receiptReady && bankReady && !submitting;
+  const total = draft?.totalAmount ?? 0;
 
-  const steps = [
-    {
-      key: 'upload' as const,
-      n: 1,
-      Icon: Upload,
-      title: 'Upload receipt',
-      titleTh: 'อัพโหลดใบเสร็จ',
-      done: receiptReady && (needsBookBank ? bookBankReady : true),
-      active: !receiptReady || (needsBookBank && !bookBankReady),
-    },
-    {
-      key: 'review' as const,
-      n: 2,
-      Icon: Rocket,
-      title: 'Review',
-      titleTh: 'ตรวจสอบ',
-      done: canSubmitAll,
-      active: canSubmitAll,
-    },
-  ];
-
-  const completedCount = steps.filter((s) => s.done).length;
-  const receiptTotal = parsed?.totalAmount ?? 0;
   const blocker = !receiptHasFile
-    ? { Icon: Upload, en: 'Drop a receipt', th: 'อัพโหลดใบเสร็จ' }
-    : !receiptReady
-    ? { Icon: Loader2, en: 'Wait for OCR', th: 'รอ OCR' }
-    : needsBookBank && !bookBankReady
-    ? { Icon: Building2, en: 'Add book bank slip', th: 'เพิ่มสลิปสมุดบัญชี' }
-    : null;
+    ? { Icon: Upload, id: 'expense.blockerReceipt' }
+    : submitState?.extractionState === 'running'
+      ? { Icon: Loader2, id: 'expense.blockerReading' }
+      : needsBookBank && !bankReady
+        ? { Icon: Landmark, id: 'expense.blockerBank' }
+        : !receiptReady
+          ? { Icon: CircleAlert, id: 'expense.blockerFields' }
+          : null;
 
-  const PAYMENT_LABEL: Record<typeof payment, { en: string; th: string; Icon: typeof Wallet }> = {
-    cash: { en: 'Cash', th: 'เงินสด', Icon: Wallet },
-    credit_card: { en: 'Card', th: 'บัตรเครดิต', Icon: CreditCard },
-    transfer: { en: 'Transfer', th: 'โอนเงิน', Icon: Building2 },
-  };
-  const payMeta = PAYMENT_LABEL[payment];
-
-  function scrollToStep(n: number) {
-    if (typeof document === 'undefined') return;
-    document.getElementById(`step-${n}`)?.scrollIntoView({
-      behavior: 'smooth',
-      block: 'start',
-    });
-  }
-
-  async function handleSubmitAll() {
-    if (!receiptSlipId) return;
+  async function handleSubmit() {
+    if (!receiptSlipId || !draft || !canSubmit) return;
     setSubmitError(null);
     setSubmitting(true);
-    const r = await submitExpenseFromSlip({
+    const result = await submitExpenseFromSlip({
       slipId: receiptSlipId,
       actorId: currentUserId,
       overrides: {
-        ...(parsed ?? {}),
-        paymentMethod: needsBookBank ? 'transfer' : payment,
-        payeeType,
+        vendorName: draft.vendorName,
+        vendorAddress: draft.vendorAddress,
+        createdTo: draft.createdTo,
+        createdToAddress: draft.createdToAddress,
+        transactionDate: draft.transactionDate,
+        subtotal: draft.subtotal,
+        vatAmount: draft.vatAmount,
+        totalAmount: draft.totalAmount,
+        paymentMethod: draft.paymentMethod,
+        payeeType: draft.payeeType,
+        items: draft.items,
         ...(needsBookBank && bookBankSlipId
           ? { bookBankSlipId, bookBankFields }
           : {}),
       },
     });
     setSubmitting(false);
-    if (!r.success) {
-      setSubmitError(r.error ?? 'Submit failed');
+    if (!result.success) {
+      setSubmitError(result.error ?? 'Submit failed');
       return;
     }
-    if (r.waybillId) {
-      window.location.assign(`/waybill/${r.waybillId}`);
-    } else if (r.expenseId) {
-      window.location.assign(`/waybill/by-expense/${r.expenseId}`);
+    if (result.waybillId) {
+      window.location.assign(`/waybill/${result.waybillId}?submitted=1`);
+    } else if (result.expenseId) {
+      window.location.assign(`/waybill/by-expense/${result.expenseId}?submitted=1`);
     }
   }
-
-  const hint = (
-    <span title="Upload → AI reads → submit · อัพโหลด → AI อ่าน → ส่ง">
-      <T id="waybill.expense.upload_ai_reads_submit" />
-    </span>
-  );
 
   const submitLabel = submitting ? (
     <span className="inline-flex items-center gap-2">
       <Loader2 className="size-4 animate-spin" aria-hidden />
       <T id="waybill.expense.saving" />
     </span>
-  ) : canSubmitAll ? (
-    <span className="inline-flex items-center gap-2">
-      <ArrowRight className="size-4" aria-hidden />
-      <T id="waybill.expense.submit" />
-    </span>
   ) : (
     <span className="inline-flex items-center gap-2">
-      <Lock className="size-4" aria-hidden />
-      <T id="waybill.expense.submit" />
+      {canSubmit ? <ArrowUpRight className="size-4" aria-hidden /> : <Lock className="size-4" aria-hidden />}
+      <T id="waybill.expense.submitForApproval" />
     </span>
   );
 
@@ -175,344 +129,164 @@ export function NewExpensePanel({ currentUserId, initialModels }: Props) {
       titleTh=""
       discardLabel={null}
       submitLabel={submitLabel}
-      readyToSubmit={canSubmitAll}
+      readyToSubmit={canSubmit}
       submitting={submitting}
-      onSubmit={handleSubmitAll}
+      onSubmit={handleSubmit}
       onDiscard={() => {}}
-      hint={hint}
+      hint={<T id="expense.composerHint" />}
       draftWaybillId={null}
-      headerExtra={
-        <span
-          aria-live="polite"
-          title={
-            receiptTotal > 0
-              ? `${receiptTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`
-              : '—'
-          }
-          className={[
-            'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-sm font-semibold font-sans tabular-nums tabular-nums',
-            canSubmitAll
-              ? 'border-positive/40 bg-positive-soft text-positive'
-              : receiptTotal > 0
-              ? 'border-info/40 bg-info-soft text-info'
-              : 'border-rule bg-paper-3 text-mute',
-          ].join(' ')}
-          data-testid="expense-header-total"
-        >
-          <Banknote className="size-3.5" aria-hidden strokeWidth={2} />
-          {receiptTotal > 0
-            ? `${receiptTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB`
-            : '— THB'}
-        </span>
-      }
       stickyActionBar={
         <div
-          className="sticky bottom-2 z-10 -mx-5 sm:-mx-7 px-5 sm:px-7 py-4 bg-paper-2 rounded-md border border-rule border-l-4 border-l-accent/60 shadow-popover"
+          className="sticky bottom-24 z-10 -mx-5 rounded-xl border border-rule bg-paper-2/95 px-4 py-3 shadow-popover backdrop-blur sm:-mx-7 sm:px-5 md:bottom-2"
           data-testid="expense-sticky-bar"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:gap-5">
-            <div className="flex min-w-0 items-center gap-2 text-sm">
+          <div className="flex flex-wrap items-center gap-3 sm:flex-nowrap">
+            <div className="flex min-w-0 flex-1 items-center gap-2" aria-live="polite">
               {blocker ? (
-                <span
-                  title={`${blocker.en} · ${blocker.th}`}
-                  aria-label={blocker.en}
-                  className="inline-flex shrink-0 w-11 h-11 items-center justify-center rounded-lg bg-caution-soft text-caution border border-caution/40"
-                >
-                  <blocker.Icon className="size-4" strokeWidth={2} aria-hidden />
-                </span>
+                <>
+                  <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-caution/40 bg-caution-soft text-caution">
+                    <blocker.Icon className={submitState?.extractionState === 'running' ? 'size-4 animate-spin' : 'size-4'} aria-hidden />
+                  </span>
+                  <span className="text-sm text-ink-2"><T id={blocker.id} /></span>
+                </>
               ) : (
                 <>
-                  <span
-                    aria-label="Ready"
-                    title="Ready · พร้อม"
-                    className="inline-flex shrink-0 w-11 h-11 items-center justify-center rounded-lg bg-positive-soft text-positive border border-positive/40"
-                  >
-                    <CircleCheck className="size-4" strokeWidth={2.5} aria-hidden />
+                  <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-positive/40 bg-positive-soft text-positive">
+                    <CircleCheck className="size-4" aria-hidden strokeWidth={2.5} />
                   </span>
-                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                    <span
-                      title={`${payMeta.en} · ${payMeta.th}`}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rule bg-paper-3 text-sm font-medium font-sans tabular-nums text-ink"
-                    >
-                      <payMeta.Icon className="size-3" aria-hidden strokeWidth={2} />
-                      {payMeta.en}
-                    </span>
-                    {parsed?.vendorName && (
-                      <span
-                        title={`Vendor · ผู้ขาย`}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-rule bg-paper-3 text-sm font-medium font-sans text-ink max-w-[180px] truncate"
-                      >
-                        <Building2 className="size-3" aria-hidden strokeWidth={2} />
-                        {parsed.vendorName}
-                      </span>
-                    )}
-                  </div>
+                  <span className="text-sm text-positive-strong"><T id="expense.readyToSubmit" /></span>
                 </>
               )}
             </div>
-            <div className="hidden sm:block w-px h-11 bg-rule" aria-hidden />
-            <div className="flex items-center gap-4 justify-self-stretch sm:justify-self-end">
-              <div
-                aria-live="polite"
-                title={
-                  receiptTotal > 0
-                    ? `${receiptTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })} THB · รวม`
-                    : '—'
-                }
-                className={[
-                  'font-display text-3xl font-bold tabular-nums leading-none tracking-tight',
-                  canSubmitAll ? 'text-positive' : 'text-ink',
-                ].join(' ')}
-                data-testid="expense-sticky-total"
-              >
-                {receiptTotal > 0
-                  ? receiptTotal.toLocaleString('th-TH', { minimumFractionDigits: 2 })
-                  : '—'}
-                <span className="ml-1.5 text-base font-medium font-sans text-ink-2 uppercase tracking-wider">THB</span>
+            <div className="ml-auto flex w-full items-center justify-between gap-3 sm:w-auto sm:justify-end">
+              <div className="text-right">
+                <div className="font-display text-2xl font-bold tabular-nums text-ink">
+                  {total > 0 ? total.toLocaleString('th-TH', { minimumFractionDigits: 2 }) : '—'}
+                </div>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-mute">THB</div>
               </div>
               <button
                 type="button"
-                onClick={handleSubmitAll}
-                disabled={!canSubmitAll}
-                title={
-                  canSubmitAll
-                    ? 'Submit for approval · ส่งเพื่ออนุมัติ'
-                    : 'Disabled · ปิดอยู่'
-                }
+                onClick={handleSubmit}
+                disabled={!canSubmit}
                 data-testid="expense-sticky-submit"
                 className={[
-                  'shrink-0 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border-2 px-4 transition-all duration-200 whitespace-nowrap',
-                  'disabled:opacity-50 disabled:cursor-not-allowed',
-                  submitting
-                    ? 'bg-rule-strong text-ink-2 border-rule-strong'
-                    : canSubmitAll
-                    ? 'action-button bg-action hover:bg-action-hover text-action-ink border-action shadow-[0_8px_24px_-8px_color-mix(in_oklab,var(--action-bg)_55%,transparent)]'
-                    : 'bg-paper-3 text-mute border-rule-strong',
-                  'ring-1 ring-accent/30',
+                  'inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg border-2 px-4 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
+                  canSubmit
+                    ? 'action-button border-action bg-action text-action-ink hover:bg-action-hover'
+                    : 'border-rule-strong bg-paper-3 text-mute',
                 ].join(' ')}
               >
-                {submitting ? (
-                  <Loader2 className="size-5 animate-spin" aria-hidden />
-                ) : canSubmitAll ? (
-                  <ArrowUpRight className="size-5" aria-hidden strokeWidth={2.5} />
-                ) : (
-                  <Lock className="size-5" aria-hidden strokeWidth={2} />
-                )}
-                <span>
-                  <T id="waybill.expense.submitForApproval" />
-                </span>
+                {submitLabel}
               </button>
             </div>
           </div>
           {submitError && (
-            <p
-              role="alert"
-              title={submitError}
-              data-testid="expense-sticky-error"
-              className="mt-2 flex items-center gap-1.5 text-xs text-critical font-sans tabular-nums"
-            >
-              <CircleAlert className="size-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
-              <span className="truncate">{submitError}</span>
+            <p role="alert" className="mt-2 flex items-center gap-1.5 text-xs text-critical" data-testid="expense-sticky-error">
+              <CircleAlert className="size-3.5 shrink-0" aria-hidden />
+              {submitError}
             </p>
           )}
         </div>
       }
     >
-      <div className="flex items-center justify-end" aria-label="Progress">
-        <span className="text-xs text-mute font-sans tabular-nums">
-          {completedCount}/{steps.length}
-        </span>
-      </div>
-      <ol className="relative grid grid-cols-2 gap-y-3">
-        {steps.map((s, i) => {
-          const Icon = s.Icon;
-          return (
-            <li key={s.key} className="relative flex justify-center">
-              {i < steps.length - 1 && (
-                <span
-                  aria-hidden
-                  className="hidden sm:block absolute top-[18px] left-[calc(50%+22px)] right-[calc(-50%+22px)] h-px bg-rule overflow-hidden"
-                >
-                  <span
-                    className="block h-full bg-positive transition-[width] duration-500 ease-out"
-                    style={{ width: completedCount > i ? '100%' : '0%' }}
-                  />
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => scrollToStep(s.n)}
-                aria-current={s.active ? 'step' : undefined}
-                aria-label={`Jump to step ${s.n}: ${s.title}`}
-                title={`${s.title} · ${s.titleTh}`}
-                className="group flex flex-col items-center gap-1.5 w-full sm:w-auto px-2 py-2 transition-colors"
-              >
-                <StepBadge n={s.n} done={s.done} active={s.active} tone="accent" />
-                <Icon
-                  aria-hidden
-                  className={[
-                    'size-4 mt-0.5',
-                    s.done
-                      ? 'text-positive'
-                      : s.active
-                      ? 'text-accent'
-                      : 'text-mute',
-                  ].join(' ')}
-                  strokeWidth={2}
-                />
-                <p
-                  className={[
-                    'text-sm font-semibold text-center',
-                    s.done || s.active ? 'text-ink font-semibold' : 'text-ink-2',
-                  ].join(' ')}
-                >
-                  {s.title}
-                </p>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-
-      <StepCard
-        n={1}
-        icon={<Upload className="size-4" strokeWidth={2} aria-hidden />}
-        title={
-          <T id="waybill.expense.upload_receipt" />
-        }
-        hint={
-          <span title="Drop a photo, scan, or PDF · ลาก/วางไฟล์รูป สแกน หรือ PDF">
-            <T id="waybill.expense.photo_scan_or_pdf" />
+      <section className="space-y-4" aria-label="Receipt">
+        <header className="flex items-start gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-accent/30 bg-accent-soft text-accent">
+            <Receipt className="size-5" aria-hidden />
           </span>
-        }
-        cardId="step-1"
-        done={receiptReady && (needsBookBank ? bookBankReady : true)}
-        active={!receiptReady || (needsBookBank && !bookBankReady)}
-        tone="accent"
-        bodyTint
-        flat
-        badge={
-          receiptHasFile && receiptOcrStarted ? (
-            <span className="text-xs font-sans tabular-nums px-2 py-0.5 rounded-full border border-info/40 bg-info-soft text-info inline-flex items-center gap-1">
-              {receiptReady ? (
-                <>
-                  <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
-                  <span title="OCR done · OCR เสร็จ">OCR</span>
-                </>
-              ) : (
-                <>
-                  <Loader2 className="size-3 animate-spin" aria-hidden />
-                  <span title="OCR in progress · OCR กำลังทำงาน">OCR</span>
-                </>
-              )}
-            </span>
-          ) : null
-        }
-      >
-        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-md border border-rule bg-paper-2/50 p-3">
-          <span className="mr-2 text-xs font-mono uppercase tracking-wider text-mute">Payee</span>
+          <div>
+            <h3 className="text-base font-semibold text-ink"><T id="waybill.expense.upload_receipt" /></h3>
+            <p className="mt-0.5 text-sm text-ink-2"><T id="expense.receiptHelp" /></p>
+          </div>
+        </header>
+        <SlipUpload
+          kind="receipt"
+          currentUserId={currentUserId}
+          initialModels={initialModels}
+          bookBankSlipId={needsBookBank ? bookBankSlipId : null}
+          bookBankFields={needsBookBank ? bookBankFields : undefined}
+          payeeType={payeeType}
+          onPaymentChange={setPayment}
+          onSubmitStateChange={setSubmitState}
+          hideSubmitButton
+          draftWaybillId={null}
+          onConfirmed={({ expenseId, waybillId }) => {
+            if (waybillId) window.location.assign(`/waybill/${waybillId}?submitted=1`);
+            else if (expenseId) window.location.assign(`/waybill/by-expense/${expenseId}?submitted=1`);
+          }}
+        />
+      </section>
+
+      <section className="rounded-xl border border-rule bg-paper-3/35 p-3 sm:p-4" aria-label="Payee type">
+        <p className="mb-2 text-xs font-mono uppercase tracking-widest text-mute"><T id="expense.payeeLabel" /></p>
+        <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => setPayeeType('employee')}
-            className={payeeType === 'employee' ? 'rounded-md border border-accent bg-accent-soft px-3 py-1.5 text-sm font-bold text-accent-strong' : 'rounded-md border border-rule px-3 py-1.5 text-sm text-mute'}
+            aria-pressed={payeeType === 'employee'}
+            className={[
+              'flex min-h-12 items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition',
+              payeeType === 'employee' ? 'border-accent bg-accent-soft text-accent-strong' : 'border-rule bg-paper-2 text-ink-2',
+            ].join(' ')}
           >
-            Employee reimbursement
+            <UserRound className="size-4 shrink-0" aria-hidden />
+            <T id="expense.employeeReimbursement" hideSecondary />
           </button>
           <button
             type="button"
             onClick={() => setPayeeType('vendor')}
-            className={payeeType === 'vendor' ? 'rounded-md border border-accent bg-accent-soft px-3 py-1.5 text-sm font-bold text-accent-strong' : 'rounded-md border border-rule px-3 py-1.5 text-sm text-mute'}
+            aria-pressed={payeeType === 'vendor'}
+            className={[
+              'flex min-h-12 items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm transition',
+              payeeType === 'vendor' ? 'border-accent bg-accent-soft text-accent-strong' : 'border-rule bg-paper-2 text-ink-2',
+            ].join(' ')}
           >
-            Vendor payment
+            <Building2 className="size-4 shrink-0" aria-hidden />
+            <T id="expense.vendorPayment" hideSecondary />
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="rounded-md border border-rule bg-paper-2/40 p-5 space-y-4">
-            <header className="flex items-start justify-between gap-3 pb-3 border-b border-rule">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Receipt className="size-5 text-accent shrink-0" aria-hidden strokeWidth={2} />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink leading-tight"><T id="waybill.expense.receipt" /></p>
-                  <p className="text-xs text-mute mt-0.5 font-sans tabular-nums uppercase tracking-wider">RECEIPT</p>
-                </div>
-              </div>
-              {receiptHasFile && receiptOcrStarted ? (
-                <span className="inline-flex items-center gap-1 rounded-md border border-info/40 bg-info-soft px-2.5 py-1 text-xs font-bold font-sans tabular-nums uppercase tracking-widest text-info">
-                  {receiptReady ? (
-                    <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
-                  ) : (
-                    <Loader2 className="size-3 animate-spin" aria-hidden />
-                  )}
-                  {receiptReady
-                    ? <T id="waybill.expense.ocr_ok" />
-                    : <T id="waybill.expense.ocr" />}
-                </span>
-              ) : !receiptHasFile ? (
-                <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-3 px-2.5 py-1 text-xs font-bold font-sans tabular-nums uppercase tracking-widest text-mute">
-                  <CircleDot className="size-3" aria-hidden strokeWidth={2} />
-                  <T id="waybill.expense.empty" />
-                </span>
-              ) : null}
-            </header>
-            <SlipUpload
-              kind="receipt"
-              currentUserId={currentUserId}
-              initialModels={initialModels}
-              bookBankSlipId={needsBookBank ? bookBankSlipId : null}
-              bookBankFields={needsBookBank ? bookBankFields : undefined}
-              onPaymentChange={setPayment}
-              onSubmitStateChange={setSubmitState}
-              hideSubmitButton
-              draftWaybillId={null}
-              onConfirmed={({ expenseId, waybillId }) => {
-                if (waybillId) window.location.assign(`/waybill/${waybillId}`);
-                else if (expenseId) window.location.assign(`/waybill/by-expense/${expenseId}`);
-              }}
-            />
-          </div>
+      </section>
 
-          <div className="rounded-md border border-rule bg-paper-2/40 p-5 space-y-4">
-            <header className="flex items-start justify-between gap-3 pb-3 border-b border-rule">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Landmark className="size-5 text-accent shrink-0" aria-hidden strokeWidth={2} />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-ink leading-tight"><T id="waybill.expense.book_bank" /></p>
-                  <p className="text-xs text-mute mt-0.5 font-sans tabular-nums uppercase tracking-wider">BOOK BANK</p>
-                </div>
-              </div>
-              {bookBankSlipId != null ? (
-                <span className="inline-flex items-center gap-1 rounded-md border border-positive/40 bg-positive-soft px-2.5 py-1 text-xs font-bold font-sans tabular-nums uppercase tracking-widest text-positive-strong">
-                  <CircleCheck className="size-3" aria-hidden strokeWidth={2.5} />
-                  SLIP-{bookBankSlipId}
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 rounded-md border border-rule bg-paper-3 px-2.5 py-1 text-xs font-bold font-sans tabular-nums uppercase tracking-widest text-mute">
-                  <CircleDot className="size-3" aria-hidden strokeWidth={2} />
-                  <T id="waybill.expense.empty" />
-                </span>
-              )}
-            </header>
-            <SlipUpload
-              kind="book_bank"
-              currentUserId={currentUserId}
-              initialModels={initialModels}
-              onSlipReady={(slipId, kind) => {
-                if (kind === 'book_bank') setBookBankSlipId(slipId);
-              }}
-              onSlipDiscarded={(slipId, kind) => {
-                if (kind === 'book_bank' && bookBankSlipId === slipId) {
-                  setBookBankSlipId(null);
-                  setBookBankFields(EMPTY_BANK);
-                }
-              }}
-              onBookBankFieldsChange={setBookBankFields}
-              hideSubmitButton
-            />
-          </div>
+      <Activity mode={needsBookBank ? 'visible' : 'hidden'}>
+        <section className="space-y-4 rounded-xl border border-info/35 bg-info-soft/20 p-4" aria-label="Add book bank slip" data-testid="expense-book-bank-section">
+          <header className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg border border-info/35 bg-info-soft text-info">
+              <Landmark className="size-5" aria-hidden />
+            </span>
+            <div>
+              <h3 className="text-base font-semibold text-ink"><T id="expense.transferDetails" /></h3>
+              <p className="mt-0.5 text-sm text-ink-2"><T id="expense.transferDetailsHint" /></p>
+            </div>
+          </header>
+          <SlipUpload
+            kind="book_bank"
+            currentUserId={currentUserId}
+            initialModels={initialModels}
+            onSlipReady={(slipId, kind) => {
+              if (kind === 'book_bank') setBookBankSlipId(slipId);
+            }}
+            onSlipDiscarded={(slipId, kind) => {
+              if (kind === 'book_bank' && bookBankSlipId === slipId) {
+                setBookBankSlipId(null);
+                setBookBankFields(EMPTY_BANK);
+              }
+            }}
+            onBookBankFieldsChange={setBookBankFields}
+            hideSubmitButton
+          />
+        </section>
+      </Activity>
+
+      <details className="group rounded-xl border border-rule bg-paper-3/25">
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-ink-2 [&::-webkit-details-marker]:hidden">
+          <span><T id="expense.needWritingHelp" /></span>
+          <ChevronDown className="size-4 text-mute transition-transform group-open:rotate-180" aria-hidden />
+        </summary>
+        <div className="border-t border-rule p-3">
+          <StaffSubmitHelper currentUserId={currentUserId} lang={locale === 'th' ? 'th' : locale === 'de' ? 'de' : 'en'} />
         </div>
-      </StepCard>
-
-      <StaffSubmitHelper currentUserId={currentUserId} lang={locale === 'th' ? 'th' : 'en'} />
+      </details>
     </NewWaybillPanel>
   );
 }

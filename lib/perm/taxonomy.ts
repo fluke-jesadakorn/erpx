@@ -159,6 +159,7 @@ export const PERM = {
     dash_it:         { view: allow('tile', 'dash_it', 'view') },
     dash_manager:    { view: allow('tile', 'dash_manager', 'view') },
     dash_staff:      { view: allow('tile', 'dash_staff', 'view') },
+    capital:         { view: allow('tile', 'capital', 'view') },
     hr:              { view: allow('tile', 'hr', 'view') },
     hr_employees:    { view: allow('tile', 'hr_employees', 'view') },
     hr_leave:        { view: allow('tile', 'hr_leave', 'view') },

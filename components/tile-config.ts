@@ -120,6 +120,7 @@ const TILE_ICON: Record<string, LucideIcon> = {
   'search-coa': FileSearch,
   reconciliation: GitCompareArrows,
   ledger: Landmark,
+  capital: Landmark,
   hr: UsersRound,
   hr_employees: UserRound,
   hr_leave: CalendarDays,

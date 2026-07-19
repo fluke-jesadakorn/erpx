@@ -12,6 +12,7 @@ import { type TileDef, tileHref } from '@/components/tile-config';
 import { evaluateTileOptimistic, type TileAccess } from '@/components/tileAccess';
 import { ROOT_CRUMB } from '@/components/breadcrumbs';
 import type { GreetingKey } from '@/hero';
+import type { ActionQueueSummary } from '@/notifications/queries';
 import { T } from '@/components/i18n/T';
 
 interface HomeClientProps {
@@ -19,7 +20,7 @@ interface HomeClientProps {
   currentUser: any | null;
   expenses: any[];
   policies?: any[];
-  prs: any[];
+  actionQueue: ActionQueueSummary;
   execReport: any | null;
   canViewHub: boolean;
   tiles?: TileDef[];
@@ -32,7 +33,7 @@ export function HomeClient({
   currentUser,
   expenses: _expenses,
   policies: _policies,
-  prs,
+  actionQueue,
   execReport: _execReport,
   canViewHub,
   tiles = [],
@@ -87,7 +88,7 @@ export function HomeClient({
             <HubHero
               actor={currentUser}
               tiles={visibleTiles as any}
-              pendingPrs={prs as any[]}
+              actionQueue={actionQueue}
               initialGreetingKey={greetingKey}
               isLocked={(t) => (accessByTile[t.id] ?? evaluateTileOptimistic(t, currentUser)).state === 'locked'}
               onOpenCommand={handleOpenCommand}

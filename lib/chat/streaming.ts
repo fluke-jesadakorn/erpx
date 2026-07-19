@@ -11,6 +11,7 @@ export interface StreamChatRequest {
   thinking?: 'auto' | 'low' | 'medium' | 'high';
   lang?: 'en' | 'th' | 'de';
   scope?: { tileId?: string; displayName?: string; hint?: string };
+  editMessageId?: string;
 }
 
 export interface StreamChatBlocks {
@@ -21,6 +22,8 @@ export interface StreamChatBlocks {
 
 export interface StreamChatMeta {
   sessionId: string;
+  userMessageId?: string;
+  assistantMessageId?: string;
   modelName: string;
   latencyMs: number;
   blocks?: StreamChatBlocks;
@@ -38,6 +41,8 @@ interface SsePayload {
   delta?: string;
   meta?: StreamChatMeta;
   sessionId?: string;
+  userMessageId?: string;
+  assistantMessageId?: string;
   modelName?: string;
   latencyMs?: number;
   blocks?: StreamChatBlocks;
@@ -108,6 +113,8 @@ export async function streamChat(req: StreamChatRequest, h: StreamChatHandlers):
           (payload.sessionId
             ? {
                 sessionId: payload.sessionId,
+                userMessageId: typeof payload.userMessageId === 'string' ? payload.userMessageId : undefined,
+                assistantMessageId: typeof payload.assistantMessageId === 'string' ? payload.assistantMessageId : undefined,
                 modelName: payload.modelName ?? '',
                 latencyMs: payload.latencyMs ?? 0,
                 blocks: payload.blocks,

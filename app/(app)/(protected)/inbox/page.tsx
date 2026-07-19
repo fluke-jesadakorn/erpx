@@ -54,7 +54,7 @@ export default async function InboxPage({ searchParams }: Props) {
   const sp = await searchParams;
   const view = viewOf(sp.view, sp.scope);
   const read = readOf(sp.read);
-  const domain = sp.domain === 'expense' || sp.domain === 'so' ? sp.domain : 'all';
+  const domain = sp.domain === 'expense' || sp.domain === 'so' || sp.domain === 'pr' || sp.domain === 'po' ? sp.domain : 'all';
   const [items, actions, unread] = await Promise.all([
     listUserNotifications(actor.id, 100, { view, read, domain, watchingOnly: sp.scope === 'watching' }),
     listActionCount(actor.id),

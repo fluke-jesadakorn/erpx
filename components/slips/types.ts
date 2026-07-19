@@ -21,6 +21,11 @@ export interface SlipDraftFields {
   totalAmount: number;
 }
 
+export interface ExpenseDraft extends SlipDraftFields {
+  payeeType: 'employee' | 'vendor';
+  items: ItemRow[];
+}
+
 export interface SubmitState {
   visible: boolean;
   canConfirm: boolean;
@@ -30,7 +35,7 @@ export interface SubmitState {
   isBookBank: boolean;
   error: string | null;
   hint: 'ok' | 'transfer-needs-bookbank' | 'missing-fields';
-  parsed: SlipDraftFields | null;
+  draft: ExpenseDraft | null;
   slipId: number | null;
 }
 

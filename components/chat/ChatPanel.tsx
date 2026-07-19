@@ -123,7 +123,7 @@ export function ChatPanel({
                 <MessageRenderer
                   key={m.id}
                   role={m.role}
-                  content={m.content}
+                  content={m.role === 'assistant' ? (m.blocks?.plain || (m.blocks?.htmls?.length || m.blocks?.sqls?.length || m.blocks?.charts?.length ? '' : m.content)) : m.content}
                   charts={m.blocks?.charts as any}
                   htmls={m.blocks?.htmls}
                   sqls={m.blocks?.sqls}

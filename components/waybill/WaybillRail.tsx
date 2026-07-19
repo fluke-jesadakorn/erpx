@@ -17,6 +17,7 @@ interface Props {
   status: string;
   canAct?: boolean;
   indicators?: React.ReactNode;
+  compactMobile?: boolean;
 }
 
 const STATE_TONE = {
@@ -35,13 +36,15 @@ function badgeKey(state: ReturnType<typeof computePipState>, canAct: boolean): s
   return 'waybill.pip.pending';
 }
 
-export function WaybillRail({ wb, currentStage, status, canAct = false, indicators }: Props) {
+export function WaybillRail({ wb, currentStage, status, canAct = false, indicators, compactMobile = false }: Props) {
   const domain: WaybillDomain = domainForOrigin(wb.origin);
   const pips = pipsForDomain(domain);
   const currentIndex = pipIndex(domain, currentStage);
   const completedCount = status === 'completed'
     ? pips.length
     : Math.max(0, currentIndex);
+  const currentPip = currentIndex >= 0 ? pips[currentIndex] : null;
+  const nextPip = currentIndex >= 0 ? pips[currentIndex + 1] ?? null : null;
 
   return (
     <section aria-label="Waybill progress" className="panel space-y-5 p-4 sm:p-5">
@@ -68,7 +71,47 @@ export function WaybillRail({ wb, currentStage, status, canAct = false, indicato
         </div>
       </header>
 
-      <ol className="flex w-full max-w-full snap-x snap-mandatory gap-2 overflow-x-auto pb-2 md:grid md:grid-cols-7 md:gap-0 md:overflow-visible">
+      {compactMobile && (
+        <div className="space-y-3 md:hidden" data-testid="waybill-mobile-progress">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-rule bg-paper-3/45 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-widest text-mute"><T id="waybill.timeline.completedCount" values={{ n: completedCount, total: pips.length }} hideSecondary /></div>
+              <div className="mt-1 text-xl font-bold text-positive">{completedCount}/{pips.length}</div>
+            </div>
+            <div className="rounded-lg border border-info/35 bg-info-soft/35 p-3">
+              <div className="text-[10px] font-mono uppercase tracking-widest text-info"><T id="waybill.timeline.current" hideSecondary /></div>
+              <div className="mt-1 text-sm font-semibold text-ink">{currentPip ? <T id={currentPip.label} hideSecondary /> : '—'}</div>
+            </div>
+          </div>
+          {nextPip && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-paper-2 px-3 py-2.5 text-sm">
+              <span className="text-mute"><T id="waybill.timeline.next" /></span>
+              <span className="text-right font-semibold text-ink"><T id={nextPip.label} /></span>
+            </div>
+          )}
+          <details className="group rounded-lg border border-rule bg-paper-3/25">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 py-2 text-sm font-semibold text-ink-2 [&::-webkit-details-marker]:hidden">
+              <T id="waybill.timeline.showAllSteps" />
+              <span className="text-mute transition-transform group-open:rotate-180">⌄</span>
+            </summary>
+            <ol className="divide-y divide-rule border-t border-rule px-3">
+              {pips.map((pip, index) => {
+                const state = computePipState(pip, index, currentIndex, currentStage, status);
+                return (
+                  <li key={pip.key} className="flex items-center gap-2 py-2.5 text-sm">
+                    <span className={state === 'passed' ? 'text-positive' : state === 'active' ? 'text-info' : 'text-mute'}>
+                      {state === 'passed' ? <Check size={14} aria-hidden /> : state === 'active' ? <Zap size={14} aria-hidden /> : <Circle size={11} aria-hidden />}
+                    </span>
+                    <T id={pip.label} />
+                  </li>
+                );
+              })}
+            </ol>
+          </details>
+        </div>
+      )}
+
+      <ol className={compactMobile ? 'hidden w-full max-w-full pb-2 md:grid md:grid-cols-7 md:gap-0' : 'flex w-full max-w-full snap-x snap-mandatory gap-2 overflow-x-auto pb-2 md:grid md:grid-cols-7 md:gap-0 md:overflow-visible'}>
         {pips.map((pip, index) => {
           const state = computePipState(pip, index, currentIndex, currentStage, status);
           const isCurrent = state === 'active';

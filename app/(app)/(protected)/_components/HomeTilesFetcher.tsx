@@ -1,6 +1,6 @@
 import 'server-only';
 import { getDashboardData, getExecutiveReport } from '@/dashboard/queries';
-import { listPurchaseRequisitions } from '@/waybill/queries';
+import { loadActionQueueSummary } from '@/notifications/queries';
 import { HomeClient } from '@/app/(app)/HomeClient';
 import {
   loadActorAsSession,
@@ -22,9 +22,9 @@ interface Props {
 }
 
 export async function HomeTilesFetcher({ actor, canViewHub, canViewExec }: Props) {
-  const [{ users = [], expenses = [] }, prsRes, execRes] = await Promise.all([
+  const [{ users = [], expenses = [] }, actionQueue, execRes] = await Promise.all([
     getDashboardData(),
-    listPurchaseRequisitions(actor.id),
+    loadActionQueueSummary(actor.id, 3),
     canViewExec ? getExecutiveReport(actor.id) : Promise.resolve({ success: false as const, report: null }),
   ]);
 
@@ -44,7 +44,7 @@ export async function HomeTilesFetcher({ actor, canViewHub, canViewExec }: Props
       users={users as any[]}
       currentUser={actor as any}
       expenses={expenses as any[]}
-      prs={(prsRes.success ? prsRes.prs : []) as any[]}
+      actionQueue={actionQueue}
       execReport={execRes.success ? execRes.report : null}
       canViewHub={canViewHub || globalOpen}
       tiles={bundle.tiles}
