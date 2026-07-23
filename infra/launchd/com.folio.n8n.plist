@@ -8,11 +8,11 @@
     <key>ProgramArguments</key>
     <array>
         <string>/Users/fluke/.nvm/versions/node/v22.23.0/bin/node</string>
-        <string>/Users/fluke/Desktop/Work/Contents/infra/scripts/start-n8n.js</string>
+        <string>/Users/fluke/Desktop/Work/folio/infra/scripts/start-n8n.js</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/fluke/Desktop/Work/Contents/infra</string>
+    <string>/Users/fluke/Desktop/Work/folio/infra</string>
 
     <key>EnvironmentVariables</key>
     <dict>
@@ -29,9 +29,9 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/Users/fluke/Desktop/Work/Contents/infra/logs/folio-n8n.log</string>
+    <string>/Users/fluke/Desktop/Work/folio/.runtime/logs/folio-n8n.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/fluke/Desktop/Work/Contents/infra/logs/folio-n8n.err.log</string>
+    <string>/Users/fluke/Desktop/Work/folio/.runtime/logs/folio-n8n.err.log</string>
 </dict>
 </plist>

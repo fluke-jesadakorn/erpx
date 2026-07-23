@@ -2,8 +2,9 @@
 # Start n8n with env loaded from .env
 # Used by launchd plist (which can't source .env directly)
 
+script_dir="$(cd "$(dirname "$0")" && pwd)"
 set -a
-. /Users/fluke/Desktop/Work/Contents/infra/.env
+. "$script_dir/../.env"
 set +a
 
 # Use node 22 (nvm) — node 26 system breaks isolated-vm native build

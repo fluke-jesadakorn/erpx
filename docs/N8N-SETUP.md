@@ -3,7 +3,7 @@
 > **Historical context (2026-07-16 flatten).** Most of the n8n flows this doc
 > describes are now deprecated — the Law RAG and HR agent ingest paths live
 > in-process inside folio's Next.js server (`lib/hook/`, `lib/law/`,
-> `lib/hr/agent.ts`). The flows under `folio/n8n/flows/` are kept only as a
+> `lib/hr/agent.ts`). The flows under `n8n/flows/` are kept only as a
 > reference of the old externalization. New ingest should be added to the
 > Next.js route handlers in `app/api/hook/{line,line-hr,line-law,generic}/`,
 > not as new n8n flows.
@@ -23,9 +23,9 @@ open https://n8n.jesadakorn.com
 
 ## 2. Environment Variables
 
-n8n อ่านจาก `/Users/fluke/Desktop/Work/Contents/infra/.env` (host-native runtime env, **gitignored**).
+n8n อ่านจาก `/Users/fluke/Desktop/Work/folio/infra/.env` (host-native runtime env, **gitignored**).
 
-Template reference: `folio/.env.example`.
+Template reference: `.env.example`.
 
 ```
 # LINE
@@ -146,7 +146,7 @@ launchctl kickstart -k gui/$(id -u)/com.folio.n8n
 launchctl kickstart -k gui/$(id -u)/com.folio.minio
 
 # ดู log
-tail -f /Users/fluke/Desktop/Work/Contents/infra/logs/n8n.log
+tail -f /Users/fluke/Desktop/Work/folio/.runtime/logs/folio-n8n.log
 ```
 
 ## Troubleshooting
@@ -157,7 +157,7 @@ tail -f /Users/fluke/Desktop/Work/Contents/infra/logs/n8n.log
 | `model 'qwen3.6:35b-a3b-q4_K_M' not found` (404) | ยังไม่ pull model | `ollama pull qwen3.6:35b-a3b-q4_K_M` (หรือดูใน `infra/scripts/`) |
 | `vector extension not found` | Postgres ไม่มี pgvector | `brew install pgvector` (ต้องใช้ Postgres 18) |
 | Webhook 404 หลัง restart | flow ไม่ active | เปิด n8n UI → activate flow `03-docs-hub` |
-| `EACCES ~/Desktop` ใน n8n.log | launchd ไม่มี Full Disk Access | System Settings > Privacy & Security → เพิ่ม `/Users/fluke/.nvm/versions/node/v22.23.0/bin/node` |
+| `EACCES ~/Desktop` ใน folio-n8n.log | launchd ไม่มี Full Disk Access | System Settings > Privacy & Security → เพิ่ม `/Users/fluke/.nvm/versions/node/v22.23.0/bin/node` |
 | n8n ไม่ start หลัง reboot | launchd agent ไม่ load | `launchctl load ~/Library/LaunchAgents/com.folio.n8n.plist` |
 
 ## หมายเหตุ

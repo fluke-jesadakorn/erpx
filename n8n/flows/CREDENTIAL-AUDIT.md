@@ -61,7 +61,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_law_contracts_doc_no ON law.contracts (doc
 CREATE OR REPLACE FUNCTION law.next_doc_seq() RETURNS TEXT AS $$ ... $$ LANGUAGE plpgsql;
 ```
 
-ดู schema ปัจจุบันใน `folio/db/schema.sql`.
+ดู schema ปัจจุบันใน `db/schema.sql`.
 
 ## Service management (host-native launchd)
 
@@ -73,7 +73,7 @@ launchctl kickstart -k gui/$(id -u)/com.folio.n8n
 launchctl kickstart -k gui/$(id -u)/com.folio.minio
 
 # View n8n log
-tail -f /Users/fluke/Desktop/Work/Contents/infra/logs/n8n.log
+tail -f /Users/fluke/Desktop/Work/folio/.runtime/logs/folio-n8n.log
 
 # Postgres auto-start via brew services (postgresql@18)
 # Cloudflared manual — tunnel ID b8f4ccf5-67de-4bfa-b292-7641ad185006

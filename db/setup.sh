@@ -3,7 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")" && pwd)"
 project_root="$(cd "$root/.." && pwd)"
-backup_root="$(cd "$project_root/../infra/backups" && pwd)"
+backup_root="$(cd "$project_root/.runtime" && pwd)/backups"
 db_name="${POSTGRES_DB:-folio_db}"
 db_user="${POSTGRES_USER:-contract}"
 db_host="${POSTGRES_HOST:-localhost}"

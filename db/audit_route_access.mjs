@@ -1,6 +1,6 @@
 // CI sweep: hits every page and API route with each role's session and asserts the expected status.
 // Run after starting both web-admin (port 3003) and rbac (port 3100):
-//   node folio/db/audit_route_access.mjs
+//   node db/audit_route_access.mjs
 
 import { setTimeout as sleep } from 'node:timers/promises';
 import { createHmac } from 'node:crypto';

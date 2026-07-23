@@ -1,6 +1,6 @@
 # Folio — AI-Augmented Finance System
 
-Local, single-tenant AI ERP for expense capture, multi-stage approval, purchase orders, double-entry GL, HR, Law RAG, and executive reporting. Runs side-by-side with the shared local infrastructure (PostgreSQL with pgvector, n8n, MinIO, local Ollama) provisioned in the parent repo.
+Local, single-tenant AI ERP for expense capture, multi-stage approval, purchase orders, double-entry GL, HR, Law RAG, and executive reporting. The project includes its Folio-specific host-native service templates under `infra/` and uses external PostgreSQL, MinIO, and Ollama services.
 
 ---
 
@@ -87,10 +87,10 @@ folio/
 
 ### 1. Provision the shared infra
 
-Postgres with pgvector, MinIO, Ollama, and n8n are launched by `launchd` plists in the workspace-root `infra/` folder. From the parent repo:
+Folio-specific n8n and MinIO launchd templates live in this project's `infra/` folder. PostgreSQL, MinIO, Ollama, and n8n must be running before using the application:
 
 ```bash
-launchctl list | grep lawpoc
+launchctl list | grep folio
 # Postgres on 5432 (folio_db), MinIO on 9000/9001, Ollama on 11434, n8n on 5678
 ```
 
@@ -189,8 +189,7 @@ Stage names follow finance-standard keys — see `lib/waybill/labels.ts` for the
 
 ## See also
 
-- `AGENTS.md` (workspace root) — shared conventions
-- `infra/` — shared host-native services
+- `infra/` — Folio host-native service templates
 - `docs/BUNDLER.md` — Turbopack notes
 - `docs/LINE-SETUP.md`, `docs/N8N-SETUP.md` — webhook setup
 - `docs/RBAC-STANDARD.md` — current organization and permission model

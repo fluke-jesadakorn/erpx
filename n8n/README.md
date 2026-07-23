@@ -2,9 +2,9 @@
 
 The orchestration workflow previously described here has been replaced by:
 
-- `folio/ocr/` — Fastify OCR service (port 3004)
-- `folio/app/src/app/api/upload/` — upload proxy
-- `folio/app/src/app/api/ai/invoke/` — AI router (called via `x-ai-key` header from the OCR service)
+- `lib/slips/` — in-process OCR and slip storage
+- `app/api/slips/` — upload and file routes
+- `lib/ai/` — in-process AI router
 
 The workflow JSON (`flows/finance-agent-bot.json`) is no longer shipped with this repo. If you need to revive the LINE-OA flow, copy the steps below from the legacy description and recreate them in n8n:
 

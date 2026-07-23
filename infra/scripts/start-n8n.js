@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 
-const ENV_FILE = '/Users/fluke/Desktop/Work/Contents/infra/.env';
+const ENV_FILE = path.resolve(__dirname, '..', '.env');
 const N8N_BIN = '/Users/fluke/.nvm/versions/node/v22.23.0/bin/n8n';
 
 // Parse .env manually (KEY=VALUE, ignore comments/blanks, strip quotes)

@@ -2,9 +2,20 @@ uploads/
 web-admin/.env.local
 .env
 .env.local
+.env.*.local
 server/*/node_modules/
 server/*/.env
 server/*/dist/
+
+node_modules/
+.next/
+out/
+build/
+dist/
+*.log
+logs/
+.runtime/
+tsconfig.tsbuildinfo
 
 lib/native/vision-ocr/build/
 lib/native/vision-ocr/node_modules/
