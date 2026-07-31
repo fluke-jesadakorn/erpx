@@ -1,0 +1,3090 @@
+syntax = "proto3";
+
+package erpx.platform.v1;
+
+import "google/protobuf/empty.proto";
+import "erpx/common/v1/context.proto";
+
+message CustomerSummary {
+  string id = 1;
+  string account_code = 2;
+  string trading_name = 3;
+  string legal_name = 4;
+  string country = 5;
+  string status = 6;
+  string billing_state = 7;
+  string health = 8;
+  uint32 holding_count = 9;
+  uint32 company_count = 10;
+  uint32 branch_count = 11;
+  uint32 active_user_count = 12;
+  uint32 expiring_role_count = 13;
+  uint32 open_ticket_count = 14;
+  uint32 module_count = 15;
+  uint32 projection_lag_seconds = 16;
+}
+
+message ListCustomersRequest {
+  string search = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message ListCustomersResponse { repeated CustomerSummary customers = 1; }
+message GetCustomerRequest {
+  string customer_id = 1;
+  string purpose = 2;
+  erpx.common.v1.QueryContext context = 3;
+}
+message GetCustomerResponse { CustomerSummary customer = 1; string correlation_id = 2; }
+
+message GetCustomerProjectionRequest {
+  string customer_id = 1;
+  string projection = 2;
+  string purpose = 3;
+  erpx.common.v1.QueryContext context = 4;
+}
+message GetCustomerProjectionResponse {
+  string customer_id = 1;
+  string projection = 2;
+  bytes payload_json = 3;
+  string projection_updated_at = 4;
+  string freshness = 5;
+  bool read_only = 6;
+  string correlation_id = 7;
+  bool supported = 8;
+  string unsupported_reason = 9;
+  bool present = 10;
+}
+message GetCustomer360DetailRequest {
+  string customer_id = 1;
+  string purpose = 2;
+  erpx.common.v1.QueryContext context = 3;
+  uint32 notes_page_size = 4;
+  string notes_before_occurred_at = 5;
+  string notes_before_id = 6;
+}
+message CustomerNote {
+  string id = 1;
+  string author_ref = 2;
+  string created_at = 3;
+  string body = 4;
+}
+message Customer360SectionState {
+  string section = 1;
+  string state = 2;
+}
+// Bounded, server-allowlisted scalar facts for the Customer 360 detail view.
+// Raw projection payloads and credential-bearing fields never cross this
+// boundary.
+message Customer360SectionFact {
+  string section = 1;
+  string key = 2;
+  string value = 3;
+}
+message GetCustomer360DetailResponse {
+  string customer_id = 1;
+  bytes payload_json = 2;
+  string projection_updated_at = 3;
+  string freshness = 4;
+  bool read_only = 5;
+  string correlation_id = 6;
+  bool supported = 7;
+  string unsupported_reason = 8;
+  bool present = 9;
+  repeated CustomerNote notes = 10;
+  string notes_next_before_occurred_at = 11;
+  string notes_next_before_id = 12;
+  repeated Customer360SectionState section_states = 13;
+  repeated Customer360SectionFact section_facts = 14;
+}
+
+// Platform Operations reads expose only safe registry/readiness metadata.
+// Database keys, storage namespaces, credential references, and backup
+// references are never part of this transport contract.
+message PlatformTenantSummary {
+  string tenant_id = 1;
+  string state = 2;
+  uint64 registry_version = 3;
+  string routing = 4;
+  string projection = 5;
+  string backup_pitr = 6;
+  string storage = 7;
+}
+
+message ListPlatformTenantsRequest {
+  uint32 page_size = 1;
+  string after_tenant_id = 2;
+  erpx.common.v1.QueryContext context = 3;
+}
+
+message ListPlatformTenantsResponse {
+  repeated PlatformTenantSummary tenants = 1;
+  bool has_more = 2;
+  string next_after_tenant_id = 3;
+  string correlation_id = 4;
+}
+message GetPlatformTenantRequest {
+  string tenant_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetPlatformTenantResponse {
+  PlatformTenantSummary tenant = 1;
+  string correlation_id = 2;
+}
+
+message BeginTenantProvisioningRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string write_database_key = 3;
+  string read_database_key = 4;
+  string storage_namespace = 5;
+  string credential_key_ref = 6;
+  string backup_chain_ref = 7;
+  erpx.common.v1.CommandContext context = 8;
+  string owner_principal_ref = 9;
+  string owner_approver_ref = 10;
+}
+message BeginTenantProvisioningResponse {
+  string tenant_id = 1;
+  string state = 2;
+  uint64 registry_version = 3;
+  bool accepted = 4;
+  string correlation_id = 5;
+}
+
+message ProvisionTenantResourcesRequest {
+  string tenant_id = 1;
+  erpx.common.v1.CommandContext context = 2;
+}
+message ProvisionTenantResourcesResponse {
+  string tenant_id = 1;
+  string state = 2;
+  bool databases_ready = 3;
+  bool storage_ready = 4;
+  string correlation_id = 5;
+  bool owner_seeded = 6;
+  string owner_principal_ref = 7;
+  string owner_recovery_code = 8;
+}
+
+message TransitionTenantStateRequest {
+  string tenant_id = 1;
+  erpx.common.v1.CommandContext context = 2;
+}
+message TransitionTenantStateResponse {
+  string tenant_id = 1;
+  string state = 2;
+  uint64 registry_version = 3;
+  string correlation_id = 4;
+}
+
+message PitrRecoveryPoint {
+  string target_time = 1;
+  string target_lsn = 2;
+  string wal_archive_ref = 3;
+  string physical_restore_target_ref = 4;
+}
+
+message ScheduleTenantBackupRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string kind = 3;
+  string backup_ref = 4;
+  string restore_target_ref = 5;
+  string candidate_read_database_key = 6;
+  uint64 source_version = 7;
+  string available_at = 8;
+  string idempotency_key = 9;
+  uint32 max_attempts = 10;
+  erpx.common.v1.CommandContext context = 11;
+  string source_projection = 12;
+  PitrRecoveryPoint pitr_recovery_point = 13;
+}
+message ScheduleTenantBackupResponse {
+  string job_id = 1;
+  string tenant_id = 2;
+  string kind = 3;
+  string state = 4;
+  string available_at = 5;
+  uint32 max_attempts = 6;
+  bool duplicate = 7;
+  string correlation_id = 8;
+}
+message ListTenantBackupJobsRequest {
+  string tenant_id = 1;
+  uint32 page_size = 2;
+  erpx.common.v1.QueryContext context = 3;
+}
+message TenantBackupJobSummary {
+  string job_id = 1;
+  string tenant_id = 2;
+  string kind = 3;
+  string state = 4;
+  string available_at = 5;
+  uint32 attempts = 6;
+  uint32 max_attempts = 7;
+  bool verified = 8;
+  bool error_present = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+message ListTenantBackupJobsResponse {
+  repeated TenantBackupJobSummary jobs = 1;
+  string correlation_id = 2;
+}
+
+message StartProjectionRebuildRequest {
+  string tenant_id = 1;
+  string projection_name = 2;
+  string candidate_read_database_key = 3;
+  uint64 source_version = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message StartProjectionRebuildResponse {
+  string tenant_id = 1;
+  string projection_name = 2;
+  string state = 3;
+  uint64 source_version = 4;
+  string correlation_id = 5;
+  uint64 generation = 6;
+}
+message ActivateProjectionRebuildRequest {
+  string tenant_id = 1;
+  string projection_name = 2;
+  string candidate_read_database_key = 3;
+  uint64 generation = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message ActivateProjectionRebuildResponse {
+  string tenant_id = 1;
+  string projection_name = 2;
+  string state = 3;
+  uint64 generation = 4;
+  string correlation_id = 5;
+}
+
+message ListProjectionStatusesRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string projection_name = 3;
+  uint32 page_size = 4;
+  string after_cursor = 5;
+  erpx.common.v1.QueryContext context = 6;
+}
+message ProjectionStatus {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string projection_name = 3;
+  string job_key = 4;
+  string job_id = 5;
+  string kind = 6;
+  string state = 7;
+  string available_at = 8;
+  uint32 attempts = 9;
+  uint32 max_attempts = 10;
+  string lease_until = 11;
+  string last_error = 12;
+  string dead_lettered_at = 13;
+  string rebuild_id = 14;
+  uint64 version = 15;
+  string created_at = 16;
+  string updated_at = 17;
+  string published_at = 18;
+  string freshness = 19;
+}
+message ListProjectionStatusesResponse {
+  repeated ProjectionStatus statuses = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message ListPlatformAuditRequest {
+  uint32 page_size = 1;
+  string before_recorded_at = 2;
+  string before_audit_id = 3;
+  erpx.common.v1.QueryContext context = 4;
+}
+message PlatformAuditEntry {
+  string audit_id = 1;
+  string actor_ref = 2;
+  string action = 3;
+  string purpose = 4;
+  string correlation_id = 5;
+  string recorded_at = 6;
+  bool customer_scoped = 7;
+}
+message ListPlatformAuditResponse {
+  repeated PlatformAuditEntry entries = 1;
+  bool has_more = 2;
+  string next_before_recorded_at = 3;
+  string next_before_audit_id = 4;
+  string correlation_id = 5;
+}
+
+// Dead-letter replay is a high-risk, platform-scoped operator command. The
+// MFA code is transport-only and is never persisted or returned.
+message ReplayDeadLetterOutboxRequest {
+  string event_id = 1;
+  string available_at = 2;
+  string mfa_code = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message ReplayDeadLetterOutboxResponse {
+  string event_id = 1;
+  string state = 2;
+  string correlation_id = 3;
+  bool replayed = 4;
+}
+
+message ListPlatformIntegrationsRequest {
+  erpx.common.v1.QueryContext context = 1;
+}
+message PlatformIntegrationStatus {
+  string integration_key = 1;
+  string state = 2;
+  string capability = 3;
+  string checked_at = 4;
+}
+message ListPlatformIntegrationsResponse {
+  repeated PlatformIntegrationStatus integrations = 1;
+  string correlation_id = 2;
+}
+
+message GetPlatformSettingsRequest {
+  erpx.common.v1.QueryContext context = 1;
+}
+message PlatformSettingsSummary {
+  string contract_version = 1;
+  string transport = 2;
+  string tenant_isolation = 3;
+  string aggregate_authority = 4;
+  string billing_authority = 5;
+  string storage_authority = 6;
+  string command_owner = 7;
+}
+message GetPlatformSettingsResponse {
+  PlatformSettingsSummary settings = 1;
+  string correlation_id = 2;
+}
+
+// G13 migration status is an audited control-plane surface. Lifecycle
+// commands remain MFA-bound and never expose cutover or command-owner
+// approval material.
+message ListMigrationStatusesRequest {
+  uint32 page_size = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message MigrationStatus {
+  string run_id = 1;
+  string cohort = 2;
+  string phase = 3;
+  string command_owner = 4;
+  uint64 version = 5;
+  string retention_until = 6;
+  uint64 transition_count = 7;
+  uint64 work_pending = 8;
+  uint64 work_failed = 9;
+  string reconciliation_state = 10;
+  string rollback_state = 11;
+  string updated_at = 12;
+  string source_snapshot_hash = 13;
+  uint64 source_missing_table_count = 14;
+  uint64 source_entity_kind_count = 15;
+  uint64 source_total_rows = 16;
+  string source_captured_at = 17;
+}
+message ListMigrationStatusesResponse {
+  repeated MigrationStatus statuses = 1;
+  string correlation_id = 2;
+}
+
+// G13 execution work can be queued only after authenticated platform
+// authorization and a fresh MFA step-up. This command never changes command
+// ownership and never performs a production cutover.
+message QueueMigrationWorkRequest {
+  string run_id = 1;
+  string work_kind = 2;
+  string scope_key = 3;
+  string source_fence = 4;
+  uint32 max_attempts = 5;
+  string mfa_code = 6;
+  erpx.common.v1.CommandContext context = 7;
+}
+message QueueMigrationWorkResponse {
+  string work_id = 1;
+  string run_id = 2;
+  string work_kind = 3;
+  string scope_key = 4;
+  string state = 5;
+  bool queued = 6;
+  string correlation_id = 7;
+}
+
+message BeginMigrationRunRequest {
+  string run_id = 1;
+  string cohort = 2;
+  string source_contract_hash = 3;
+  string id_namespace = 4;
+  string mfa_code = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message BeginMigrationRunResponse {
+  string run_id = 1;
+  string cohort = 2;
+  string phase = 3;
+  string command_owner = 4;
+  uint64 version = 5;
+  string created_at = 6;
+  string updated_at = 7;
+  string correlation_id = 8;
+}
+
+message AdvanceMigrationPhaseRequest {
+  string run_id = 1;
+  uint64 expected_version = 2;
+  string expected_phase = 3;
+  string mfa_code = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message AdvanceMigrationPhaseResponse {
+  string run_id = 1;
+  string cohort = 2;
+  string phase = 3;
+  string command_owner = 4;
+  uint64 version = 5;
+  string created_at = 6;
+  string updated_at = 7;
+  string correlation_id = 8;
+}
+
+message CustomerAccessAuditEntry {
+  string audit_id = 1;
+  string actor_ref = 2;
+  string session_ref = 3;
+  string customer_id = 4;
+  string module = 5;
+  string scope = 6;
+  string purpose = 7;
+  string occurred_at = 8;
+  string correlation_id = 9;
+}
+
+message GetCustomerAccessAuditRequest {
+  string customer_id = 1;
+  string purpose = 2;
+  erpx.common.v1.QueryContext context = 3;
+  uint32 page_size = 4;
+  string before_occurred_at = 5;
+  string before_audit_id = 6;
+}
+
+message GetCustomerAccessAuditResponse {
+  string customer_id = 1;
+  repeated CustomerAccessAuditEntry entries = 2;
+  string next_before_occurred_at = 3;
+  string next_before_audit_id = 4;
+  string projection_updated_at = 5;
+  string freshness = 6;
+  bool read_only = 7;
+  string correlation_id = 8;
+  bool present = 9;
+}
+
+// Tenant-local organization commands and rebuildable reads. The tenant ID is
+// an opaque route reference; database keys and credentials never cross this
+// transport boundary.
+message SaveOrganizationNodeRequest {
+  string tenant_id = 1;
+  string kind = 2;
+  string node_id = 3;
+  string holding_id = 4;
+  string company_id = 5;
+  string branch_id = 6;
+  string department_id = 7;
+  string code = 8;
+  string name = 9;
+  string registration_number = 10;
+  string status = 11;
+  bool has_expected_version = 12;
+  uint64 expected_version = 13;
+  erpx.common.v1.CommandContext context = 14;
+}
+message SaveOrganizationNodeResponse {
+  string kind = 1;
+  string node_id = 2;
+  uint64 aggregate_version = 3;
+  string event_id = 4;
+  bool applied = 5;
+  string correlation_id = 6;
+}
+message ListOrganizationNodesRequest {
+  string tenant_id = 1;
+  string kind = 2;
+  string holding_id = 3;
+  uint32 page_size = 4;
+  string after_cursor = 5;
+  erpx.common.v1.QueryContext context = 6;
+}
+message OrganizationNode {
+  string kind = 1;
+  string node_id = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  string department_id = 6;
+  string code = 7;
+  string name = 8;
+  string registration_number = 9;
+  string status = 10;
+  uint64 aggregate_version = 11;
+  string updated_at = 12;
+}
+message ListOrganizationNodesResponse {
+  repeated OrganizationNode nodes = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message GetOperationsSummaryRequest {
+  string tenant_id = 1;
+  string holding_id = 2;
+  erpx.common.v1.QueryContext context = 3;
+}
+message OperationsSourceCount {
+  string source_domain = 1;
+  uint64 reference_count = 2;
+}
+message OperationsSummary {
+  string tenant_id = 1;
+  string holding_id = 2;
+  string projection_name = 3;
+  uint64 read_row_count = 4;
+  uint64 exception_count = 5;
+  uint64 projection_checkpoint_count = 6;
+  uint64 event_count = 7;
+  uint64 source_reference_count = 8;
+  repeated OperationsSourceCount source_counts = 9;
+  string latest_event_at = 10;
+}
+message GetOperationsSummaryResponse {
+  OperationsSummary summary = 1;
+  string correlation_id = 2;
+}
+message ListOperationsExceptionsRequest {
+  string tenant_id = 1;
+  string holding_id = 2;
+  uint32 page_size = 3;
+  string after_cursor = 4;
+  erpx.common.v1.QueryContext context = 5;
+}
+message OperationsException {
+  string exception_id = 1;
+  string category = 2;
+  string severity = 3;
+  string status = 4;
+  string assigned_to = 5;
+  string manager_ref = 6;
+  string due_at = 7;
+  uint64 aggregate_version = 8;
+  string updated_at = 9;
+}
+message ListOperationsExceptionsResponse {
+  repeated OperationsException exceptions = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+message CreateOperationsExceptionFromSourceRequest {
+  string tenant_id = 1;
+  string holding_id = 2;
+  string exception_id = 3;
+  string source_domain = 4;
+  string source_type = 5;
+  string source_id = 6;
+  string source_event_id = 7;
+  uint64 source_version = 8;
+  string event_type = 9;
+  uint32 event_version = 10;
+  string occurred_at = 11;
+  string category = 12;
+  string severity = 13;
+  bytes payload_json = 14;
+  erpx.common.v1.CommandContext context = 15;
+}
+message CreateOperationsExceptionFromSourceResponse {
+  string exception_id = 1;
+  string source_event_id = 2;
+  uint64 aggregate_version = 3;
+  string event_id = 4;
+  bool applied = 5;
+  string correlation_id = 6;
+}
+message TransitionOperationsExceptionRequest {
+  string tenant_id = 1;
+  string holding_id = 2;
+  string exception_id = 3;
+  string action = 4;
+  string assignee = 5;
+  string manager = 6;
+  string sla_policy_ref = 7;
+  string sla_due_at = 8;
+  uint32 sla_escalation_after_minutes = 9;
+  erpx.common.v1.CommandContext context = 10;
+  string mfa_code = 11;
+}
+message TransitionOperationsExceptionResponse {
+  string exception_id = 1;
+  string from_status = 2;
+  string to_status = 3;
+  uint64 aggregate_version = 4;
+  string event_id = 5;
+  bool applied = 6;
+  string correlation_id = 7;
+}
+
+message PublishOperationsWorkQueuePolicyRequest {
+  string tenant_id = 1;
+  string holding_id = 2;
+  string policy_id = 3;
+  string name = 4;
+  repeated string allowed_domains = 5;
+  uint32 escalation_after_minutes = 6;
+  erpx.common.v1.CommandContext context = 7;
+}
+message PublishOperationsWorkQueuePolicyResponse {
+  string policy_id = 1;
+  string status = 2;
+  uint64 aggregate_version = 3;
+  string event_id = 4;
+  bool applied = 5;
+  string correlation_id = 6;
+}
+message ListOperationsWorkQueuePoliciesRequest {
+  string tenant_id = 1;
+  string holding_id = 2;
+  uint32 page_size = 3;
+  string after_cursor = 4;
+  erpx.common.v1.QueryContext context = 5;
+}
+message OperationsWorkQueuePolicy {
+  string policy_id = 1;
+  string name = 2;
+  repeated string allowed_domains = 3;
+  uint32 escalation_after_minutes = 4;
+  string status = 5;
+  uint64 aggregate_version = 6;
+  string updated_at = 7;
+}
+message ListOperationsWorkQueuePoliciesResponse {
+  repeated OperationsWorkQueuePolicy policies = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message CreateTicketRequest {
+  string customer_id = 1;
+  string severity = 2;
+  string description = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message Ticket {
+  string id = 1;
+  string customer_id = 2;
+  string status = 3;
+  string severity = 4;
+  string description = 5;
+  repeated TicketReply customer_replies = 6;
+}
+message TicketReply {
+  string id = 1;
+  string author_ref = 2;
+  string body = 3;
+  string created_at = 4;
+}
+message CreateTicketResponse { Ticket ticket = 1; }
+message UpdateTicketRequest {
+  string ticket_id = 1;
+  string next_status = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message UpdateTicketResponse { Ticket ticket = 1; }
+message GetTicketRequest {
+  string ticket_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetTicketResponse {
+  Ticket ticket = 1;
+  string correlation_id = 2;
+  bool present = 3;
+}
+message ListTicketsRequest {
+  uint32 page_size = 1;
+  string status = 2;
+  string customer_id = 3;
+  erpx.common.v1.QueryContext context = 4;
+  string after_cursor = 5;
+}
+message ListTicketsResponse {
+  repeated Ticket tickets = 1;
+  bool has_more = 2;
+  string correlation_id = 3;
+  string next_cursor = 4;
+}
+message CreateTicketRecurrenceRequest {
+  string closed_ticket_id = 1;
+  string severity = 2;
+  string description = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message CreateTicketRecurrenceResponse { Ticket ticket = 1; }
+message AddTicketReplyRequest {
+  string ticket_id = 1;
+  string body = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message AddTicketReplyResponse { Ticket ticket = 1; }
+message AddTicketInternalNoteRequest {
+  string ticket_id = 1;
+  string body = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message AddTicketInternalNoteResponse { Ticket ticket = 1; }
+
+// Safe incident transport DTO. Internal timeline, broadcasts, mitigation,
+// root-cause, and corrective-action details remain server-side until their
+// dedicated disclosure policy exists.
+message Incident {
+  string id = 1;
+  string status = 2;
+  string commander_ref = 3;
+  repeated string leads = 4;
+  repeated string affected_services = 5;
+  repeated string affected_customer_accounts = 6;
+  uint64 version = 7;
+}
+message CreateIncidentRequest {
+  string commander_ref = 1;
+  repeated string leads = 2;
+  repeated string affected_services = 3;
+  repeated string affected_customer_accounts = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message CreateIncidentResponse {
+  Incident incident = 1;
+  string correlation_id = 2;
+}
+message UpdateIncidentRequest {
+  string incident_id = 1;
+  string next_status = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message UpdateIncidentResponse {
+  Incident incident = 1;
+  string correlation_id = 2;
+}
+message GetIncidentRequest {
+  string incident_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetIncidentResponse {
+  Incident incident = 1;
+  string correlation_id = 2;
+  bool present = 3;
+}
+message ListIncidentsRequest {
+  uint32 page_size = 1;
+  string status = 2;
+  erpx.common.v1.QueryContext context = 3;
+}
+message ListIncidentsResponse {
+  repeated Incident incidents = 1;
+  bool has_more = 2;
+  string correlation_id = 3;
+}
+
+message RequestSupportSessionRequest {
+  string ticket_id = 1;
+  string customer_id = 2;
+  string agent_ref = 3;
+  string mode = 4;
+  repeated string permissions = 5;
+  string scope = 6;
+  string reason = 7;
+  uint32 duration_minutes = 8;
+  string represented_tenant_user = 9;
+  erpx.common.v1.CommandContext context = 10;
+  string module = 11;
+}
+message SupportSession {
+  string id = 1;
+  string ticket_id = 2;
+  string customer_id = 3;
+  string mode = 4;
+  string status = 5;
+  string expires_at = 6;
+  string approval_state = 7;
+  string capability_id = 8;
+  string capability_secret = 9;
+  string module = 10;
+}
+message RequestSupportSessionResponse { SupportSession session = 1; }
+message ApproveSupportSessionRequest {
+  string session_id = 1;
+  string customer_approver = 2;
+  erpx.common.v1.CommandContext context = 3;
+  string device_ref = 4;
+}
+message RevokeSupportSessionRequest {
+  string session_id = 1;
+  string actor_ref = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+// The diagnostics boundary has two deliberately distinct modes. Platform
+// diagnostics never carry tenant capability material. Customer-support
+// diagnostics must carry the complete immutable capability binding so the
+// server can authorize it against current write-side state.
+message SupportDiagnosticsAccess {
+  enum Mode {
+    MODE_UNSPECIFIED = 0;
+    PLATFORM = 1;
+    CUSTOMER_SUPPORT = 2;
+  }
+
+  Mode mode = 1;
+  string customer_id = 2;
+  string capability_id = 3;
+  string capability_secret = 4;
+  string support_session_id = 5;
+  string support_ticket_id = 6;
+  string support_mode = 7;
+  string support_scope = 8;
+  string module = 9;
+  string subscription_id = 10;
+  string device_ref = 11;
+}
+message GetSupportDiagnosticsRequest {
+  string purpose = 1;
+  erpx.common.v1.QueryContext context = 2;
+  SupportDiagnosticsAccess access = 3;
+}
+message SupportDiagnosticField {
+  string key = 1;
+  string value = 2;
+}
+message GetSupportDiagnosticsResponse {
+  bytes payload_json = 1;
+  string schema_version = 2;
+  string correlation_id = 3;
+  repeated SupportDiagnosticField fields = 4;
+  string captured_at = 5;
+}
+
+message RoleAssignment {
+  string id = 1;
+  string principal_ref = 2;
+  string role_key = 3;
+  string scope = 4;
+  string valid_from = 5;
+  string valid_until = 6;
+  string risk_tier = 7;
+  uint32 assignment_version = 8;
+  bool effective = 9;
+}
+message ListExpiringRolesRequest {
+  uint32 within_days = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message ListExpiringRolesResponse { repeated RoleAssignment assignments = 1; }
+message RenewRoleRequest {
+  string assignment_id = 1;
+  string valid_until = 2;
+  string grantor = 3;
+  string approver = 4;
+  erpx.common.v1.CommandContext context = 5;
+  string customer_id = 6;
+  string module_key = 7;
+}
+message RenewRoleResponse { RoleAssignment assignment = 1; }
+message RoleReviewItem {
+  string assignment_id = 1;
+  string principal_ref = 2;
+  string valid_from = 3;
+  string valid_until = 4;
+  repeated string classifications = 5;
+  string notification_kind = 6;
+  string notification_key = 7;
+  RoleAssignment assignment = 8;
+}
+message ListRoleReviewRequest {
+  uint32 within_days = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message ListRoleReviewResponse {
+  string evaluated_at = 1;
+  string expiry_horizon_until = 2;
+  repeated RoleReviewItem items = 3;
+}
+message RecoverFinalRoleRequest {
+  string request_id = 1;
+  string target = 2;
+  string holding_id = 3;
+  string principal_ref = 4;
+  repeated string permissions = 5;
+  string functional_domain = 6;
+  uint32 authority_level = 7;
+  string valid_until = 8;
+  string timezone = 9;
+  string reason = 10;
+  string ticket_reference = 11;
+  string requester_ref = 12;
+  string approver_ref = 13;
+  string reviewer_ref = 14;
+  erpx.common.v1.CommandContext context = 15;
+}
+message RecoverFinalRoleResponse { RoleAssignment assignment = 1; }
+
+message CheckEntitlementRequest {
+  string billing_state = 1;
+  string module_key = 2;
+  bool module_active = 3;
+  bool rbac_allows = 4;
+  bool mutation = 5;
+  erpx.common.v1.QueryContext context = 6;
+  // Authoritative evaluation inputs. The legacy client-asserted fields above
+  // remain reserved for wire compatibility and are ignored by the server.
+  string customer_id = 7;
+  string subscription_id = 8;
+  string required_permission = 9;
+  uint64 approval_amount_minor = 10;
+  string support_capability_id = 11;
+  string support_device_ref = 12;
+  string support_session_id = 13;
+  string support_ticket_id = 14;
+  string support_mode = 15;
+  string support_scope = 16;
+}
+message CheckEntitlementResponse { bool allowed = 1; string reason = 2; }
+
+message EntitlementCommandReceipt {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  bool replayed = 4;
+  string command_id = 5;
+}
+message AllocateCompanyEntitlementRequest {
+  string customer_id = 1;
+  string module_key = 2;
+  string company_id = 3;
+  uint32 seats = 4;
+  uint32 branch_limit = 5;
+  erpx.common.v1.CommandContext context = 6;
+  string mfa_code = 7;
+}
+message AllocateCompanyEntitlementResponse {
+  EntitlementCommandReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message ActivateCompanyEntitlementRequest {
+  string customer_id = 1;
+  string module_key = 2;
+  string company_id = 3;
+  string activated_at = 4;
+  erpx.common.v1.CommandContext context = 5;
+  string mfa_code = 6;
+}
+message ActivateCompanyEntitlementResponse {
+  EntitlementCommandReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message ActivateBranchEntitlementRequest {
+  string customer_id = 1;
+  string module_key = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string activated_at = 5;
+  erpx.common.v1.CommandContext context = 6;
+  string mfa_code = 7;
+}
+message ActivateBranchEntitlementResponse {
+  EntitlementCommandReceipt receipt = 1;
+  string correlation_id = 2;
+}
+
+message ListFinanceJournalsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  uint32 page_size = 3;
+  string before_journal_id = 4;
+  erpx.common.v1.QueryContext context = 5;
+}
+message FinanceJournal {
+  string id = 1;
+  string company_id = 2;
+  string period_id = 3;
+  uint64 source_version = 4;
+  string posted_at = 5;
+  bytes payload_json = 6;
+}
+message ListFinanceJournalsResponse {
+  repeated FinanceJournal journals = 1;
+  bool has_more = 2;
+  string next_before_journal_id = 3;
+  string correlation_id = 4;
+}
+message GetFinanceTrialBalanceRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string chart_id = 5;
+  bytes chart_json = 6;
+  erpx.common.v1.QueryContext context = 7;
+}
+message FinanceTrialBalanceLine {
+  string account_id = 1;
+  string account_code = 2;
+  string account_name = 3;
+  string account_kind = 4;
+  int64 debit_minor = 5;
+  int64 credit_minor = 6;
+  int64 net_minor = 7;
+}
+message GetFinanceTrialBalanceResponse {
+  string holding_id = 1;
+  string company_id = 2;
+  string chart_id = 3;
+  string currency = 4;
+  repeated FinanceTrialBalanceLine lines = 5;
+  int64 total_debit_minor = 6;
+  int64 total_credit_minor = 7;
+  string projection_updated_at = 8;
+  string freshness = 9;
+  bool read_only = 10;
+  uint64 source_version = 11;
+  bool has_source_version = 12;
+  string correlation_id = 13;
+}
+message GetFinanceConsolidatedTrialBalanceRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  repeated bytes chart_json = 4;
+  erpx.common.v1.QueryContext context = 5;
+}
+message FinanceConsolidatedTrialBalanceLine {
+  string account_code = 1;
+  string account_name = 2;
+  string account_kind = 3;
+  int64 debit_minor = 4;
+  int64 credit_minor = 5;
+  int64 net_minor = 6;
+}
+message GetFinanceConsolidatedTrialBalanceResponse {
+  string holding_id = 1;
+  string currency = 2;
+  repeated string company_ids = 3;
+  repeated FinanceConsolidatedTrialBalanceLine lines = 4;
+  int64 total_debit_minor = 5;
+  int64 total_credit_minor = 6;
+  uint64 source_version = 7;
+  bool has_source_version = 8;
+  bool read_only = 9;
+  string correlation_id = 10;
+}
+message SaveFinancePeriodRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes period_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message FinancePeriodWriteReceipt {
+  string aggregate_type = 1;
+  string period_id = 2;
+  uint64 version = 3;
+  bool replayed = 4;
+}
+message SaveFinancePeriodResponse {
+  FinancePeriodWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message PostFinanceJournalRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes chart_json = 3;
+  bytes period_json = 4;
+  bytes journal_json = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message FinanceJournalPostReceipt {
+  string journal_id = 1;
+  string company_id = 2;
+  string period_id = 3;
+  string posted_at = 4;
+  bool replayed = 5;
+}
+message PostFinanceJournalResponse {
+  FinanceJournalPostReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message RecordThaiTaxFactRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes fact_json = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message ThaiTaxFactReceipt {
+  string fact_id = 1;
+  uint64 version = 2;
+  bool replayed = 3;
+}
+message RecordThaiTaxFactResponse {
+  ThaiTaxFactReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message GetThaiTaxReportRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string tax_period = 5;
+  string currency = 6;
+  uint32 page_size = 7;
+  erpx.common.v1.QueryContext context = 8;
+  string mfa_code = 9;
+}
+message ThaiTaxFactReadRow {
+  string fact_id = 1;
+  string journal_id = 2;
+  string line_id = 3;
+  string tax_date = 4;
+  string kind = 5;
+  string currency = 6;
+  int64 base_minor = 7;
+  int64 tax_minor = 8;
+  uint32 tax_rate_basis_points = 9;
+  string tax_identifier = 10;
+  uint64 source_version = 11;
+}
+message GetThaiTaxReportResponse {
+  string holding_id = 1;
+  string company_id = 2;
+  string tax_period = 3;
+  string currency = 4;
+  uint32 fact_count = 5;
+  int64 output_vat_base_minor = 6;
+  int64 output_vat_minor = 7;
+  int64 input_vat_base_minor = 8;
+  int64 input_vat_minor = 9;
+  int64 withholding_base_minor = 10;
+  int64 withholding_minor = 11;
+  repeated ThaiTaxFactReadRow facts = 12;
+  uint64 source_version = 13;
+  string projected_at = 14;
+  string correlation_id = 15;
+}
+message SaveFinanceSubledgerRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  bytes aggregate_json = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message FinanceSubledgerReceipt {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  bool replayed = 4;
+}
+message SaveFinanceSubledgerResponse {
+  FinanceSubledgerReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message SaveFinanceAllocationBatchRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes batch_json = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message SaveFinanceAllocationBatchResponse {
+  FinanceSubledgerReceipt payment = 1;
+  repeated FinanceSubledgerReceipt invoices = 2;
+  repeated FinanceSubledgerReceipt allocations = 3;
+  bool replayed = 4;
+  string correlation_id = 5;
+}
+message FinanceSubledgerReadRow {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  uint64 source_version = 5;
+  bytes aggregate_json = 6;
+}
+message ListFinanceSubledgerReadRowsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  string company_id = 4;
+  uint32 page_size = 5;
+  string after_cursor = 6;
+  erpx.common.v1.QueryContext context = 7;
+}
+message ListFinanceSubledgerReadRowsResponse {
+  repeated FinanceSubledgerReadRow rows = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message RegisterBankAccountRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes account_json = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message BankAccountReceipt {
+  string account_id = 1;
+  uint64 version = 2;
+  bool replayed = 3;
+}
+message RegisterBankAccountResponse {
+  BankAccountReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message ImportBankStatementRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes account_json = 3;
+  bytes import_json = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message BankImportReceipt {
+  string import_id = 1;
+  uint64 transaction_count = 2;
+  bool replayed = 3;
+}
+message ImportBankStatementResponse {
+  BankImportReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message EnqueueFinanceBankProviderImportRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes account_json = 3;
+  string provider_account_ref = 4;
+  string provider_key = 5;
+  string credential_key_ref = 6;
+  string starts_on = 7;
+  string ends_on = 8;
+  uint32 page_size = 9;
+  string import_id = 10;
+  uint32 max_attempts = 11;
+  string mfa_code = 12;
+  erpx.common.v1.CommandContext context = 13;
+}
+message EnqueueFinanceBankProviderImportResponse {
+  string job_id = 1;
+  string correlation_id = 2;
+}
+message GetFinanceBankProviderImportJobStatusRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string job_id = 3;
+  erpx.common.v1.QueryContext context = 4;
+}
+message FinanceBankProviderImportJobStatus {
+  string job_id = 1;
+  string tenant_id = 2;
+  string holding_ref = 3;
+  string import_id = 4;
+  string state = 5;
+  uint64 source_fence = 6;
+  uint32 attempts = 7;
+  uint32 max_attempts = 8;
+  string available_at = 9;
+  string lease_until = 10;
+  string last_failure_class = 11;
+  string completed_at = 12;
+  string updated_at = 13;
+}
+message GetFinanceBankProviderImportJobStatusResponse {
+  FinanceBankProviderImportJobStatus status = 1;
+  string correlation_id = 2;
+}
+message SaveBankReconciliationRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes account_json = 3;
+  bytes import_json = 4;
+  bytes reconciliation_json = 5;
+  bool has_expected_version = 6;
+  uint64 expected_version = 7;
+  erpx.common.v1.CommandContext context = 8;
+}
+message BankReconciliationReceipt {
+  string reconciliation_id = 1;
+  uint64 version = 2;
+  bool replayed = 3;
+}
+message SaveBankReconciliationResponse {
+  BankReconciliationReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message SaveBankMatchProposalRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes proposal_json = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message BankMatchProposalReceipt {
+  string proposal_id = 1;
+  string idempotency_key = 2;
+  bool replayed = 3;
+}
+message SaveBankMatchProposalResponse {
+  BankMatchProposalReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message SaveBankMatchDecisionRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes decision_json = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message BankMatchDecisionReceipt {
+  string decision_id = 1;
+  string proposal_id = 2;
+  string idempotency_key = 3;
+  bool replayed = 4;
+}
+message SaveBankMatchDecisionResponse {
+  BankMatchDecisionReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message SaveFinanceCloseReviewRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes period_json = 3;
+  bytes review_json = 4;
+  bool has_expected_version = 5;
+  uint64 expected_version = 6;
+  erpx.common.v1.CommandContext context = 7;
+}
+
+message SaveFinanceChartRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes chart_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message FinanceChartWriteReceipt {
+  string aggregate_type = 1;
+  string chart_id = 2;
+  uint64 version = 3;
+  string idempotency_key = 4;
+  string event_id = 5;
+  bool replayed = 6;
+}
+message SaveFinanceChartResponse {
+  FinanceChartWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+
+message FinanceChartSourceMetadata {
+  uint32 contract_version = 1;
+  uint32 event_version = 2;
+  string actor_ref = 3;
+  string actor_kind = 4;
+  string correlation_id = 5;
+  string causation_id = 6;
+  bool has_causation_id = 7;
+  string idempotency_key = 8;
+}
+message FinanceChartAccountReadRow {
+  string account_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string code = 4;
+  string name = 5;
+  string category = 6;
+  string normal_balance = 7;
+  string parent_account_id = 8;
+  bool has_parent_account_id = 9;
+  string status = 10;
+  uint64 source_version = 11;
+  string source_event_id = 12;
+  FinanceChartSourceMetadata source = 13;
+  string projected_at = 14;
+}
+message FinanceChartReadRow {
+  string chart_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string name = 4;
+  uint64 source_version = 5;
+  string source_event_id = 6;
+  FinanceChartSourceMetadata source = 7;
+  string projected_at = 8;
+  repeated FinanceChartAccountReadRow accounts = 9;
+}
+message ListFinanceChartsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  uint32 page_size = 5;
+  string after_chart_id = 6;
+  erpx.common.v1.QueryContext context = 7;
+}
+message ListFinanceChartsResponse {
+  repeated FinanceChartReadRow charts = 1;
+  bool has_more = 2;
+  string next_after_chart_id = 3;
+  string correlation_id = 4;
+}
+message FinanceCloseReviewReceipt {
+  string review_id = 1;
+  uint64 version = 2;
+  string status = 3;
+  string idempotency_key = 4;
+  bool replayed = 5;
+}
+message SaveFinanceCloseReviewResponse {
+  FinanceCloseReviewReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message GetFinanceCloseReviewRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string period_id = 3;
+  string holding_id = 4;
+  string company_id = 5;
+  erpx.common.v1.QueryContext context = 6;
+}
+message FinanceCloseReviewProjection {
+  string holding_id = 1;
+  string company_id = 2;
+  string period_id = 3;
+  string status = 4;
+  uint64 version = 5;
+  string idempotency_key = 6;
+  string opened_by = 7;
+  string reviewed_by = 8;
+  string closed_by = 9;
+}
+message FinanceCloseStatementSummary {
+  int64 debit_minor = 1;
+  int64 credit_minor = 2;
+  int64 net_minor = 3;
+  bool balanced = 4;
+}
+message FinanceCloseAccountSummary {
+  string account_id = 1;
+  int64 debit_minor = 2;
+  int64 credit_minor = 3;
+  int64 net_minor = 4;
+}
+message FinanceCloseControlSummary {
+  uint32 total = 1;
+  uint32 resolved = 2;
+  uint32 unresolved = 3;
+}
+message FinanceCloseReport {
+  FinanceCloseStatementSummary statement = 1;
+  FinanceCloseControlSummary controls = 2;
+  repeated FinanceCloseAccountSummary accounts = 3;
+}
+message FinanceCloseReadMetadata {
+  string period_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string availability = 4;
+  string freshness = 5;
+  bool read_only = 6;
+  string review_updated_at = 7;
+  string projection_updated_at = 8;
+  uint64 source_version = 9;
+  bool has_source_version = 10;
+  uint32 expected_fact_count = 11;
+  uint32 observed_fact_count = 12;
+  uint32 missing_fact_count = 13;
+}
+message FinanceCloseReadView {
+  FinanceCloseReviewProjection review = 1;
+  FinanceCloseReport report = 2;
+  FinanceCloseReadMetadata metadata = 3;
+}
+message GetFinanceCloseReviewResponse {
+  FinanceCloseReadView view = 1;
+  bool missing = 2;
+  FinanceCloseReadMetadata missing_metadata = 3;
+  string correlation_id = 4;
+}
+message ListFinanceCloseReviewsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  uint32 page_size = 5;
+  string before_cursor = 6;
+  erpx.common.v1.QueryContext context = 7;
+}
+message FinanceCloseReviewReadRow {
+  string holding_id = 1;
+  string company_id = 2;
+  string period_id = 3;
+  string status = 4;
+  uint64 source_version = 5;
+  string projected_at = 6;
+  string freshness = 7;
+  uint32 control_total = 8;
+  uint32 unresolved_controls = 9;
+  int64 net_minor = 10;
+  bool statement_present = 11;
+  bool balanced = 12;
+}
+message ListFinanceCloseReviewsResponse {
+  repeated FinanceCloseReviewReadRow rows = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message SaveHrEmployeeRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes employee_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message HrWriteReceipt {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  string idempotency_key = 4;
+  bool replayed = 5;
+}
+message SaveHrEmployeeResponse {
+  HrWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message TransitionHrEmployeeRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string employee_id = 3;
+  string transition = 4;
+  uint64 expected_version = 5;
+  string terminated_on = 6;
+  erpx.common.v1.CommandContext context = 7;
+}
+message TransitionHrEmployeeResponse {
+  HrWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message SaveHrLeaveRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes leave_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message SaveHrLeaveResponse {
+  HrWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message SaveHrExpenseRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes expense_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message SaveHrExpenseResponse {
+  HrWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message SaveHrPayrollRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes payroll_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message SaveHrPayrollResponse {
+  HrWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message ListHrEmployeesRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_employee_id = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message HrEmployeeReadRow {
+  string employee_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string employee_ref = 5;
+  string display_name = 6;
+  string status = 7;
+  string hired_on = 8;
+  string terminated_on = 9;
+  uint64 source_version = 10;
+  string source_event_id = 11;
+  string projected_at = 12;
+}
+message ListHrEmployeesResponse {
+  repeated HrEmployeeReadRow employees = 1;
+  bool has_more = 2;
+  string next_before_employee_id = 3;
+  string correlation_id = 4;
+}
+message ListHrLeaveRequestsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message HrLeaveReadRow {
+  string leave_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string employee_id = 5;
+  string starts_on = 6;
+  string ends_on = 7;
+  string reason = 8;
+  string status = 9;
+  string requested_by = 10;
+  string approved_by = 11;
+  uint64 source_version = 12;
+  string source_event_id = 13;
+  string projected_at = 14;
+}
+message ListHrLeaveRequestsResponse {
+  repeated HrLeaveReadRow leave_requests = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+message ListHrExpenseClaimsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message HrExpenseReadRow {
+  string expense_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string employee_id = 5;
+  string currency = 6;
+  int64 amount_minor = 7;
+  string status = 8;
+  string submitted_by = 9;
+  string approved_by = 10;
+  uint64 source_version = 11;
+  string source_event_id = 12;
+  string projected_at = 13;
+}
+message ListHrExpenseClaimsResponse {
+  repeated HrExpenseReadRow expenses = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+message ListHrPayrollRunsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  uint32 line_page_size = 7;
+  string before_cursor = 8;
+  erpx.common.v1.QueryContext context = 9;
+}
+message HrPayrollLineReadRow {
+  int32 line_no = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string employee_id = 5;
+  int64 gross_minor = 6;
+  int64 deductions_minor = 7;
+  int64 net_minor = 8;
+  uint64 source_version = 9;
+  string source_event_id = 10;
+  string projected_at = 11;
+}
+message HrPayrollRunReadRow {
+  string payroll_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string starts_on = 5;
+  string ends_on = 6;
+  string status = 7;
+  string prepared_by = 8;
+  string reviewed_by = 9;
+  string approved_by = 10;
+  int64 total_gross_minor = 11;
+  int64 total_deductions_minor = 12;
+  int64 total_net_minor = 13;
+  uint64 source_version = 14;
+  string source_event_id = 15;
+  string projected_at = 16;
+  repeated HrPayrollLineReadRow lines = 17;
+  bool lines_truncated = 18;
+}
+message ListHrPayrollRunsResponse {
+  repeated HrPayrollRunReadRow payroll_runs = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+message ListHrReassignmentsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message HrReassignmentReadRow {
+  string workflow_ref = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string expired_principal_ref = 5;
+  string replacement_principal_ref = 6;
+  string reason = 7;
+  string reassigned_at = 8;
+  uint64 source_version = 9;
+  string source_event_id = 10;
+  string projected_at = 11;
+}
+message ListHrReassignmentsResponse {
+  repeated HrReassignmentReadRow reassignments = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message ListPosSalesRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message SavePosSaleRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes sale_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message SavePosSaleResponse {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  string idempotency_key = 4;
+  bool replayed = 5;
+  string correlation_id = 6;
+}
+message PosSaleReadLine {
+  string line_id = 1;
+  int32 line_no = 2;
+  string item_reference = 3;
+  string description = 4;
+  int64 quantity = 5;
+  int64 unit_price_minor = 6;
+  int64 tax_minor = 7;
+  int64 subtotal_minor = 8;
+  int64 total_minor = 9;
+  string product_id = 10;
+  uint64 source_version = 11;
+  string source_event_id = 12;
+  string projected_at = 13;
+}
+message PosSaleReadPayment {
+  string payment_id = 1;
+  int64 amount_minor = 2;
+  string method = 3;
+  string received_at = 4;
+  uint64 source_version = 5;
+  string source_event_id = 6;
+  string projected_at = 7;
+}
+message PosSaleReadRow {
+  string sale_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string reference = 5;
+  string customer_id = 6;
+  string register_id = 7;
+  string currency = 8;
+  int64 subtotal_minor = 9;
+  int64 tax_minor = 10;
+  int64 total_minor = 11;
+  int64 paid_minor = 12;
+  string status = 13;
+  string created_at = 14;
+  string updated_at = 15;
+  uint64 source_version = 16;
+  string source_event_id = 17;
+  string projected_at = 18;
+  repeated PosSaleReadLine lines = 19;
+  repeated PosSaleReadPayment payments = 20;
+  bool lines_truncated = 21;
+  bool payments_truncated = 22;
+}
+message ListPosSalesResponse {
+  repeated PosSaleReadRow sales = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+// Legal reads expose normalized, redacted metadata from the tenant read
+// database. Object bytes are never transported through these messages.
+message SaveLegalContractRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes contract_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message SaveLegalDocumentRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes document_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message RecordLegalAccessRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes access_json = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message LegalWriteReceipt {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  string idempotency_key = 4;
+  string event_id = 5;
+  bool replayed = 6;
+}
+message SaveLegalContractResponse {
+  LegalWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message SaveLegalDocumentResponse {
+  LegalWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message RecordLegalAccessResponse {
+  LegalWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+
+message ListLegalContractsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message LegalContractPartyReadRow {
+  string party_id = 1;
+  string role = 2;
+}
+message LegalContractReadRow {
+  string contract_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string reference = 5;
+  string title = 6;
+  string object_ref = 7;
+  string content_sha256 = 8;
+  string retention_until = 9;
+  string status = 10;
+  string created_by = 11;
+  string approved_by = 12;
+  uint64 source_version = 13;
+  string source_event_id = 14;
+  string projected_at = 15;
+  repeated LegalContractPartyReadRow parties = 16;
+  string retention_state = 17;
+  string source_correlation_id = 18;
+}
+message ListLegalContractsResponse {
+  repeated LegalContractReadRow contracts = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message ListLegalDocumentsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message LegalDocumentVersionReadRow {
+  uint64 version = 1;
+  string object_ref = 2;
+  string content_sha256 = 3;
+  string created_at = 4;
+  string created_by = 5;
+  uint64 source_version = 6;
+  string source_event_id = 7;
+}
+message LegalDocumentReadRow {
+  string document_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string title = 5;
+  uint64 current_version = 6;
+  bool archived = 7;
+  uint64 source_version = 8;
+  string source_event_id = 9;
+  string projected_at = 10;
+  repeated LegalDocumentVersionReadRow versions = 11;
+  string source_correlation_id = 12;
+}
+message ListLegalDocumentsResponse {
+  repeated LegalDocumentReadRow documents = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message ListLegalAccessHistoryRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  string document_id = 6;
+  uint32 page_size = 7;
+  string before_cursor = 8;
+  erpx.common.v1.QueryContext context = 9;
+}
+message LegalAccessHistoryReadRow {
+  string entry_id = 1;
+  string document_id = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint64 document_version = 6;
+  string actor_ref = 7;
+  string action = 8;
+  string purpose = 9;
+  string observed_at = 10;
+  uint64 source_version = 11;
+  string source_event_id = 12;
+  string projected_at = 13;
+  string source_correlation_id = 14;
+}
+message ListLegalAccessHistoryResponse {
+  repeated LegalAccessHistoryReadRow entries = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message GetFinanceBankingReadRowRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  string aggregate_id = 4;
+  erpx.common.v1.QueryContext context = 5;
+}
+message FinanceBankingReadRow {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  uint64 source_version = 5;
+  bytes aggregate_json = 6;
+}
+message GetFinanceBankingReadRowResponse {
+  FinanceBankingReadRow row = 1;
+  string correlation_id = 2;
+}
+message ListFinanceBankingReadRowsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  string company_id = 4;
+  uint32 page_size = 5;
+  string after_cursor = 6;
+  erpx.common.v1.QueryContext context = 7;
+}
+message ListFinanceBankingReadRowsResponse {
+  repeated FinanceBankingReadRow rows = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message ListCrmReadRowsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  uint32 page_size = 4;
+  string after_id = 5;
+  erpx.common.v1.QueryContext context = 6;
+}
+message CrmReadRow {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint64 source_version = 6;
+  bytes payload_json = 7;
+}
+message ListCrmReadRowsResponse {
+  repeated CrmReadRow rows = 1;
+  bool has_more = 2;
+  string next_after_id = 3;
+  string correlation_id = 4;
+}
+message SaveCrmHandoffRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes handoff_json = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message CrmWriteReceipt {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  string reference = 3;
+  uint64 version = 4;
+  bool replayed = 5;
+}
+message SaveCrmHandoffResponse {
+  CrmWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message SaveCrmOpportunityRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes opportunity_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message SaveCrmOpportunityResponse {
+  CrmWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message RecordCrmAttributionRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string opportunity_id = 3;
+  string model = 4;
+  uint64 expected_opportunity_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message CrmAttributionWriteReceipt {
+  string record_id = 1;
+  string reference = 2;
+  string model = 3;
+  uint64 source_opportunity_version = 4;
+  uint64 version = 5;
+  bool replayed = 6;
+}
+message RecordCrmAttributionResponse {
+  CrmAttributionWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+
+message SubmitMarketingFormRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string form_id = 3;
+  string submission_id = 4;
+  bytes values_json = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message MarketingContentWriteReceipt {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  string idempotency_key = 4;
+  string event_id = 5;
+  bool replayed = 6;
+}
+message SubmitMarketingFormResponse {
+  MarketingContentWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message EraseMarketingProfileRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string profile_id = 3;
+  string reason = 4;
+  string erased_at = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message MarketingProfileErasureReceipt {
+  string profile_id = 1;
+  string idempotency_key = 2;
+  bool replayed = 3;
+}
+message EraseMarketingProfileResponse {
+  MarketingProfileErasureReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message IssueMarketingPreviewRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string template_id = 3;
+  uint64 template_version = 4;
+  string expires_at = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message IssueMarketingPreviewResponse {
+  MarketingContentWriteReceipt receipt = 1;
+  string preview_id = 2;
+  string token = 3;
+  string expires_at = 4;
+  string correlation_id = 5;
+}
+message RevokeMarketingPreviewRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string preview_id = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message RevokeMarketingPreviewResponse {
+  MarketingContentWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message IssueMarketingDomainVerificationRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string domain_id = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message IssueMarketingDomainVerificationResponse {
+  MarketingContentWriteReceipt receipt = 1;
+  string challenge = 2;
+  string correlation_id = 3;
+}
+message VerifyMarketingDomainRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string domain_id = 3;
+  string proof = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message VerifyMarketingDomainResponse {
+  MarketingContentWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message BindMarketingDomainRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string domain_id = 3;
+  string template_id = 4;
+  uint64 template_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message BindMarketingDomainResponse {
+  MarketingContentWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+
+// Provider onboarding carries opaque secret-manager references only. Secret
+// values and vendor access tokens never cross the protobuf boundary.
+message MarketingProviderChannelRoute {
+  string channel = 1;
+  string endpoint = 2;
+  string reconciliation_endpoint = 3;
+}
+
+message ConfigureMarketingProviderAccountRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string provider_account_id = 3;
+  string provider_account_ref = 4;
+  string provider_key = 5;
+  string verifier_key_ref = 6;
+  string outbound_credential_ref = 7;
+  repeated string channels = 8;
+  erpx.common.v1.CommandContext context = 9;
+  repeated MarketingProviderChannelRoute channel_routes = 10;
+  uint32 provider_priority = 11;
+}
+message AcknowledgeMarketingProviderVerificationRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string provider_account_id = 3;
+  string verification_reference = 4;
+  bool activate = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message SetMarketingProviderAccountStateRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string provider_account_id = 3;
+  bool active = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message MarketingProviderAccountWriteReceipt {
+  string provider_account_id = 1;
+  string provider_account_ref = 2;
+  string tenant_id = 3;
+  string holding_ref = 4;
+  string provider_key = 5;
+  repeated string channels = 6;
+  string state = 7;
+  string onboarding_state = 8;
+  uint64 version = 9;
+  string changed_at = 10;
+  bool replayed = 11;
+  uint32 provider_priority = 12;
+}
+message ConfigureMarketingProviderAccountResponse {
+  MarketingProviderAccountWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message AcknowledgeMarketingProviderVerificationResponse {
+  MarketingProviderAccountWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message SetMarketingProviderAccountStateResponse {
+  MarketingProviderAccountWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+
+message GetMarketingDeliveryReadRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string delivery_id = 3;
+  erpx.common.v1.QueryContext context = 4;
+}
+message MarketingDeliveryRead {
+  string delivery_id = 1;
+  string holding_id = 2;
+  string state = 3;
+  uint32 attempt_count = 4;
+  string next_attempt_at = 5;
+  string expires_at = 6;
+  uint64 version = 7;
+  bool read_only = 8;
+  bool present = 9;
+}
+message GetMarketingDeliveryReadResponse {
+  MarketingDeliveryRead delivery = 1;
+  string correlation_id = 2;
+}
+
+// Marketing content list reads expose replacement-projection metadata only.
+// Aggregate state, object bytes, bearer tokens, provider references, and
+// credential material remain outside this contract.
+message ListMarketingContentReadRowsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  uint32 page_size = 4;
+  string after_id = 5;
+  erpx.common.v1.QueryContext context = 6;
+}
+message MarketingContentReadRow {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  string label = 6;
+  string status = 7;
+  uint64 source_version = 8;
+  string source_event_id = 9;
+  string projected_at = 10;
+  bool read_only = 11;
+  bool present = 12;
+}
+message ListMarketingContentReadRowsResponse {
+  repeated MarketingContentReadRow rows = 1;
+  bool has_more = 2;
+  string next_after_id = 3;
+  string correlation_id = 4;
+}
+
+// Directory administration is intentionally typed and secret-free. Bind
+// credentials are referenced by an opaque secret-manager reference; raw
+// passwords, cookies, certificates, and directory entries never cross this
+// contract.
+message DirectoryConnectorSummary {
+  string connector_id = 1;
+  string provider = 2;
+  string scope_key = 3;
+  string endpoint = 4;
+  string base_dn = 5;
+  string tls_mode = 6;
+  string feed_kind = 7;
+  bool enabled = 8;
+  uint64 max_import_users = 9;
+  uint64 revision = 10;
+  string status = 11;
+  string last_success_at = 12;
+  string freshness = 13;
+}
+
+message ListDirectoryConnectorsRequest {
+  string scope_key = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message ListDirectoryConnectorsResponse {
+  repeated DirectoryConnectorSummary connectors = 1;
+  string correlation_id = 2;
+  // Explicit runtime state. The development profile returns "disabled" and
+  // never infers readiness from an empty connector list.
+  string readiness_state = 3;
+  string readiness_detail = 4;
+}
+message SaveDirectoryConnectorRequest {
+  string connector_id = 1;
+  string provider = 2;
+  string scope_key = 3;
+  string holding_ref = 4;
+  string endpoint = 5;
+  string base_dn = 6;
+  string tls_mode = 7;
+  string ca_certificate_sha256 = 8;
+  string server_name = 9;
+  string minimum_tls_version = 10;
+  string feed_kind = 11;
+  string credential_ref = 12;
+  bool enabled = 13;
+  uint64 max_import_users = 14;
+  uint64 expected_revision = 15;
+  erpx.common.v1.CommandContext context = 16;
+  // Transport-only fresh step-up for directory administration. Never persist.
+  string mfa_code = 17;
+}
+message SaveDirectoryConnectorResponse {
+  DirectoryConnectorSummary connector = 1;
+  string correlation_id = 2;
+}
+message StartDirectoryImportRequest {
+  string connector_id = 1;
+  uint64 total_users = 2;
+  uint32 page_size = 3;
+  erpx.common.v1.CommandContext context = 4;
+  // Transport-only fresh step-up for a potentially million-user import.
+  string mfa_code = 5;
+}
+message StartDirectoryImportResponse {
+  string connector_id = 1;
+  uint64 page_count = 2;
+  string status = 3;
+  string correlation_id = 4;
+}
+message DirectoryImportStatus {
+  string import_id = 1;
+  string connector_id = 2;
+  string state = 3;
+  uint64 max_users = 4;
+  uint64 users_seen = 5;
+  uint64 pages_applied = 6;
+  uint64 page_count = 7;
+  string cursor_kind = 8;
+  string started_at = 9;
+  string finalized_at = 10;
+  string updated_at = 11;
+  string failure_category = 12;
+}
+message GetDirectoryImportStatusRequest {
+  string connector_id = 1;
+  string import_id = 2;
+  erpx.common.v1.QueryContext context = 3;
+}
+message GetDirectoryImportStatusResponse {
+  DirectoryImportStatus status = 1;
+  string correlation_id = 2;
+}
+message DirectoryRoleMappingMessage {
+  string connector_id = 1;
+  string group_ref = 2;
+  string role_ref = 3;
+  string scope_key = 4;
+  bool requires_mfa = 5;
+  bool active = 6;
+  uint64 revision = 7;
+}
+message ListDirectoryRoleMappingsRequest {
+  string connector_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message ListDirectoryRoleMappingsResponse {
+  repeated DirectoryRoleMappingMessage mappings = 1;
+  string correlation_id = 2;
+}
+
+// Immutable identity links are read from the authoritative directory link
+// relation through a bounded cursor. The canonical identity-link key is an
+// opaque, non-secret value; directory credentials and raw transport payloads
+// never cross this contract.
+message DirectoryIdentityLinkSummary {
+  string connector_id = 1;
+  string external_subject = 2;
+  string immutable_identity_key = 3;
+  string principal_ref = 4;
+  bool active = 5;
+  uint64 source_revision = 6;
+  string observed_at = 7;
+  string revoked_at = 8;
+  bool immutable = 9;
+}
+message ListDirectoryIdentityLinksRequest {
+  string connector_id = 1;
+  uint32 page_size = 2;
+  string after_identity_link = 3;
+  erpx.common.v1.QueryContext context = 4;
+}
+message ListDirectoryIdentityLinksResponse {
+  repeated DirectoryIdentityLinkSummary links = 1;
+  bool has_more = 2;
+  string next_after_identity_link = 3;
+  string correlation_id = 4;
+}
+message SaveDirectoryRoleMappingRequest {
+  string connector_id = 1;
+  string group_ref = 2;
+  string role_ref = 3;
+  string scope_key = 4;
+  bool requires_mfa = 5;
+  bool active = 6;
+  uint64 expected_revision = 7;
+  erpx.common.v1.CommandContext context = 8;
+  // Transport-only fresh step-up for role mapping administration.
+  string mfa_code = 9;
+}
+message SaveDirectoryRoleMappingResponse {
+  DirectoryRoleMappingMessage mapping = 1;
+  string correlation_id = 2;
+}
+
+// Product aggregate transports preserve the source/read split: commands carry
+// one validated aggregate payload to the tenant write database, while queries
+// read the disposable projection and return only bounded, redacted metadata.
+message SaveSalesAggregateRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes aggregate_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message SalesWriteReceipt {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  bool replayed = 4;
+}
+message SaveSalesAggregateResponse {
+  SalesWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message TransitionSalesAggregateRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  string aggregate_id = 4;
+  string transition = 5;
+  uint64 expected_version = 6;
+  erpx.common.v1.CommandContext context = 7;
+}
+message TransitionSalesAggregateResponse {
+  SalesWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message GetSalesAggregateRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  string aggregate_id = 4;
+  erpx.common.v1.QueryContext context = 5;
+}
+message GetSalesAggregateResponse {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 source_version = 3;
+  bytes aggregate_json = 4;
+  bool present = 5;
+  string correlation_id = 6;
+}
+message ListSalesAggregatesRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message SalesAggregateReadRow {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  string reference = 6;
+  uint64 source_version = 7;
+  string projected_at = 8;
+}
+message ListSalesAggregatesResponse {
+  repeated SalesAggregateReadRow rows = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message SaveScmAggregateRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes aggregate_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message ScmWriteReceipt {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  bool replayed = 4;
+}
+message SaveScmAggregateResponse {
+  ScmWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message TransitionScmAggregateRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  string aggregate_id = 4;
+  string transition = 5;
+  uint64 expected_version = 6;
+  erpx.common.v1.CommandContext context = 7;
+}
+message TransitionScmAggregateResponse {
+  ScmWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message GetScmAggregateRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  string aggregate_id = 4;
+  erpx.common.v1.QueryContext context = 5;
+}
+message GetScmAggregateResponse {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 source_version = 3;
+  bytes aggregate_json = 4;
+  bool present = 5;
+  string correlation_id = 6;
+}
+message ListScmAggregatesRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message ScmAggregateReadRow {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  string reference = 6;
+  uint64 source_version = 7;
+  bytes aggregate_json = 8;
+  string projected_at = 9;
+}
+message ListScmAggregatesResponse {
+  repeated ScmAggregateReadRow rows = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message SaveAssetMaintenanceAggregateRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes aggregate_json = 3;
+  string idempotency_key = 4;
+  bool has_expected_version = 5;
+  uint64 expected_version = 6;
+  erpx.common.v1.CommandContext context = 7;
+}
+message AssetMaintenanceWriteReceipt {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  bool replayed = 4;
+}
+message SaveAssetMaintenanceAggregateResponse {
+  AssetMaintenanceWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message GetAssetMaintenanceAggregateRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string aggregate_type = 3;
+  string aggregate_id = 4;
+  erpx.common.v1.QueryContext context = 5;
+}
+message GetAssetMaintenanceAggregateResponse {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 source_version = 3;
+  bytes aggregate_json = 4;
+  bool present = 5;
+  string correlation_id = 6;
+}
+message ListAssetMaintenanceAggregatesRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message AssetMaintenanceAggregateReadRow {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  string reference = 6;
+  uint64 source_version = 7;
+  bytes aggregate_json = 8;
+  string projected_at = 9;
+}
+message ListAssetMaintenanceAggregatesResponse {
+  repeated AssetMaintenanceAggregateReadRow rows = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message CreateQualityInspectionRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes inspection_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message TransitionQualityInspectionRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string inspection_id = 3;
+  string action = 4;
+  uint64 passed_quantity = 5;
+  uint64 failed_quantity = 6;
+  string disposition_note = 7;
+  uint64 expected_version = 8;
+  erpx.common.v1.CommandContext context = 9;
+}
+message QualityWriteReceipt {
+  string inspection_id = 1;
+  uint64 version = 2;
+  string event_id = 3;
+  bool replayed = 4;
+}
+message CreateQualityInspectionResponse {
+  QualityWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message TransitionQualityInspectionResponse {
+  QualityWriteReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message GetQualityInspectionRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string inspection_id = 3;
+  erpx.common.v1.QueryContext context = 4;
+}
+message GetQualityInspectionResponse {
+  string inspection_id = 1;
+  uint64 source_version = 2;
+  bytes inspection_json = 3;
+  bool present = 4;
+  string correlation_id = 5;
+}
+message ListQualityInspectionsRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v1.QueryContext context = 8;
+}
+message QualityInspectionReadRow {
+  string inspection_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string reference = 5;
+  uint64 source_version = 6;
+  bytes inspection_json = 7;
+  string projected_at = 8;
+  string kind = 9;
+  string status = 10;
+  uint64 quantity = 11;
+}
+message ListQualityInspectionsResponse {
+  repeated QualityInspectionReadRow rows = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+service PlatformCustomerService {
+  rpc ListCustomers(ListCustomersRequest) returns (ListCustomersResponse);
+  rpc GetCustomer(GetCustomerRequest) returns (GetCustomerResponse);
+  rpc GetCustomerProjection(GetCustomerProjectionRequest) returns (GetCustomerProjectionResponse);
+  rpc GetCustomer360Detail(GetCustomer360DetailRequest) returns (GetCustomer360DetailResponse);
+  rpc GetCustomerAccessAudit(GetCustomerAccessAuditRequest) returns (GetCustomerAccessAuditResponse);
+}
+
+service PlatformOperationsService {
+  rpc ListTenants(ListPlatformTenantsRequest) returns (ListPlatformTenantsResponse);
+  rpc GetTenant(GetPlatformTenantRequest) returns (GetPlatformTenantResponse);
+  rpc BeginTenantProvisioning(BeginTenantProvisioningRequest)
+      returns (BeginTenantProvisioningResponse);
+  rpc ProvisionTenantResources(ProvisionTenantResourcesRequest)
+      returns (ProvisionTenantResourcesResponse);
+  rpc ActivateTenant(TransitionTenantStateRequest)
+      returns (TransitionTenantStateResponse);
+  rpc SuspendTenant(TransitionTenantStateRequest)
+      returns (TransitionTenantStateResponse);
+  rpc EnterTenantRecovery(TransitionTenantStateRequest)
+      returns (TransitionTenantStateResponse);
+  rpc ScheduleTenantBackup(ScheduleTenantBackupRequest)
+      returns (ScheduleTenantBackupResponse);
+  rpc ListTenantBackupJobs(ListTenantBackupJobsRequest)
+      returns (ListTenantBackupJobsResponse);
+  rpc StartProjectionRebuild(StartProjectionRebuildRequest)
+      returns (StartProjectionRebuildResponse);
+  rpc ActivateProjectionRebuild(ActivateProjectionRebuildRequest)
+      returns (ActivateProjectionRebuildResponse);
+  rpc ListProjectionStatuses(ListProjectionStatusesRequest)
+      returns (ListProjectionStatusesResponse);
+  rpc ListPlatformAudit(ListPlatformAuditRequest)
+      returns (ListPlatformAuditResponse);
+  rpc ReplayDeadLetterOutbox(ReplayDeadLetterOutboxRequest)
+      returns (ReplayDeadLetterOutboxResponse);
+  rpc ListPlatformIntegrations(ListPlatformIntegrationsRequest)
+      returns (ListPlatformIntegrationsResponse);
+  rpc GetPlatformSettings(GetPlatformSettingsRequest)
+      returns (GetPlatformSettingsResponse);
+}
+
+service MigrationService {
+  rpc ListMigrationStatuses(ListMigrationStatusesRequest)
+      returns (ListMigrationStatusesResponse);
+  rpc QueueMigrationWork(QueueMigrationWorkRequest)
+      returns (QueueMigrationWorkResponse);
+  rpc BeginMigrationRun(BeginMigrationRunRequest)
+      returns (BeginMigrationRunResponse);
+  rpc AdvanceMigrationPhase(AdvanceMigrationPhaseRequest)
+      returns (AdvanceMigrationPhaseResponse);
+}
+
+service DirectoryService {
+  rpc ListDirectoryConnectors(ListDirectoryConnectorsRequest)
+      returns (ListDirectoryConnectorsResponse);
+  rpc SaveDirectoryConnector(SaveDirectoryConnectorRequest)
+      returns (SaveDirectoryConnectorResponse);
+  rpc StartDirectoryImport(StartDirectoryImportRequest)
+      returns (StartDirectoryImportResponse);
+  rpc GetDirectoryImportStatus(GetDirectoryImportStatusRequest)
+      returns (GetDirectoryImportStatusResponse);
+  rpc ListDirectoryRoleMappings(ListDirectoryRoleMappingsRequest)
+      returns (ListDirectoryRoleMappingsResponse);
+  rpc ListDirectoryIdentityLinks(ListDirectoryIdentityLinksRequest)
+      returns (ListDirectoryIdentityLinksResponse);
+  rpc SaveDirectoryRoleMapping(SaveDirectoryRoleMappingRequest)
+      returns (SaveDirectoryRoleMappingResponse);
+}
+
+service OrganizationService {
+  rpc SaveOrganizationNode(SaveOrganizationNodeRequest)
+      returns (SaveOrganizationNodeResponse);
+  rpc ListOrganizationNodes(ListOrganizationNodesRequest)
+      returns (ListOrganizationNodesResponse);
+}
+
+service OperationsService {
+  rpc GetOperationsSummary(GetOperationsSummaryRequest)
+      returns (GetOperationsSummaryResponse);
+  rpc ListOperationsExceptions(ListOperationsExceptionsRequest)
+      returns (ListOperationsExceptionsResponse);
+  rpc CreateOperationsExceptionFromSource(CreateOperationsExceptionFromSourceRequest)
+      returns (CreateOperationsExceptionFromSourceResponse);
+  rpc TransitionOperationsException(TransitionOperationsExceptionRequest)
+      returns (TransitionOperationsExceptionResponse);
+  rpc PublishOperationsWorkQueuePolicy(PublishOperationsWorkQueuePolicyRequest)
+      returns (PublishOperationsWorkQueuePolicyResponse);
+  rpc ListOperationsWorkQueuePolicies(ListOperationsWorkQueuePoliciesRequest)
+      returns (ListOperationsWorkQueuePoliciesResponse);
+}
+
+service SupportService {
+  rpc CreateTicket(CreateTicketRequest) returns (CreateTicketResponse);
+  rpc UpdateTicket(UpdateTicketRequest) returns (UpdateTicketResponse);
+  rpc GetTicket(GetTicketRequest) returns (GetTicketResponse);
+  rpc ListTickets(ListTicketsRequest) returns (ListTicketsResponse);
+  rpc CreateTicketRecurrence(CreateTicketRecurrenceRequest) returns (CreateTicketRecurrenceResponse);
+  rpc AddTicketReply(AddTicketReplyRequest) returns (AddTicketReplyResponse);
+  rpc AddTicketInternalNote(AddTicketInternalNoteRequest) returns (AddTicketInternalNoteResponse);
+  rpc CreateIncident(CreateIncidentRequest) returns (CreateIncidentResponse);
+  rpc UpdateIncident(UpdateIncidentRequest) returns (UpdateIncidentResponse);
+  rpc GetIncident(GetIncidentRequest) returns (GetIncidentResponse);
+  rpc ListIncidents(ListIncidentsRequest) returns (ListIncidentsResponse);
+  rpc RequestSupportSession(RequestSupportSessionRequest) returns (RequestSupportSessionResponse);
+  rpc ApproveSupportSession(ApproveSupportSessionRequest) returns (SupportSession);
+  rpc RevokeSupportSession(RevokeSupportSessionRequest) returns (google.protobuf.Empty);
+  rpc GetSupportDiagnostics(GetSupportDiagnosticsRequest) returns (GetSupportDiagnosticsResponse);
+}
+
+service RoleLifecycleService {
+  rpc ListExpiringRoles(ListExpiringRolesRequest) returns (ListExpiringRolesResponse);
+  rpc RenewRole(RenewRoleRequest) returns (RenewRoleResponse);
+  rpc ListRoleReview(ListRoleReviewRequest) returns (ListRoleReviewResponse);
+  rpc RecoverFinalRole(RecoverFinalRoleRequest) returns (RecoverFinalRoleResponse);
+}
+
+service EntitlementService {
+  rpc CheckEntitlement(CheckEntitlementRequest) returns (CheckEntitlementResponse);
+  rpc AllocateCompanyEntitlement(AllocateCompanyEntitlementRequest)
+      returns (AllocateCompanyEntitlementResponse);
+  rpc ActivateCompanyEntitlement(ActivateCompanyEntitlementRequest)
+      returns (ActivateCompanyEntitlementResponse);
+  rpc ActivateBranchEntitlement(ActivateBranchEntitlementRequest)
+      returns (ActivateBranchEntitlementResponse);
+}
+
+service FinanceService {
+  rpc ListPostedJournals(ListFinanceJournalsRequest)
+      returns (ListFinanceJournalsResponse);
+  rpc GetFinanceTrialBalance(GetFinanceTrialBalanceRequest)
+      returns (GetFinanceTrialBalanceResponse);
+  rpc GetFinanceConsolidatedTrialBalance(GetFinanceConsolidatedTrialBalanceRequest)
+      returns (GetFinanceConsolidatedTrialBalanceResponse);
+  rpc SaveFinancePeriod(SaveFinancePeriodRequest)
+      returns (SaveFinancePeriodResponse);
+  rpc PostFinanceJournal(PostFinanceJournalRequest)
+      returns (PostFinanceJournalResponse);
+  rpc RecordThaiTaxFact(RecordThaiTaxFactRequest)
+      returns (RecordThaiTaxFactResponse);
+  rpc GetThaiTaxReport(GetThaiTaxReportRequest)
+      returns (GetThaiTaxReportResponse);
+  rpc SaveSubledger(SaveFinanceSubledgerRequest)
+      returns (SaveFinanceSubledgerResponse);
+  rpc SaveAllocationBatch(SaveFinanceAllocationBatchRequest)
+      returns (SaveFinanceAllocationBatchResponse);
+  rpc SaveFinanceChart(SaveFinanceChartRequest)
+      returns (SaveFinanceChartResponse);
+  rpc ListFinanceCharts(ListFinanceChartsRequest)
+      returns (ListFinanceChartsResponse);
+  rpc ListFinanceSubledgerReadRows(ListFinanceSubledgerReadRowsRequest)
+      returns (ListFinanceSubledgerReadRowsResponse);
+  rpc RegisterBankAccount(RegisterBankAccountRequest)
+      returns (RegisterBankAccountResponse);
+  rpc ImportBankStatement(ImportBankStatementRequest)
+      returns (ImportBankStatementResponse);
+  rpc EnqueueFinanceBankProviderImport(
+      EnqueueFinanceBankProviderImportRequest)
+      returns (EnqueueFinanceBankProviderImportResponse);
+  rpc GetFinanceBankProviderImportJobStatus(
+      GetFinanceBankProviderImportJobStatusRequest)
+      returns (GetFinanceBankProviderImportJobStatusResponse);
+  rpc SaveBankReconciliation(SaveBankReconciliationRequest)
+      returns (SaveBankReconciliationResponse);
+  rpc SaveBankMatchProposal(SaveBankMatchProposalRequest)
+      returns (SaveBankMatchProposalResponse);
+  rpc SaveBankMatchDecision(SaveBankMatchDecisionRequest)
+      returns (SaveBankMatchDecisionResponse);
+  rpc SaveFinanceCloseReview(SaveFinanceCloseReviewRequest)
+      returns (SaveFinanceCloseReviewResponse);
+  rpc GetFinanceCloseReview(GetFinanceCloseReviewRequest)
+      returns (GetFinanceCloseReviewResponse);
+  rpc ListFinanceCloseReviews(ListFinanceCloseReviewsRequest)
+      returns (ListFinanceCloseReviewsResponse);
+  rpc GetFinanceBankingReadRow(GetFinanceBankingReadRowRequest)
+      returns (GetFinanceBankingReadRowResponse);
+  rpc ListFinanceBankingReadRows(ListFinanceBankingReadRowsRequest)
+      returns (ListFinanceBankingReadRowsResponse);
+}
+
+service HrService {
+  rpc SaveHrEmployee(SaveHrEmployeeRequest) returns (SaveHrEmployeeResponse);
+  rpc TransitionHrEmployee(TransitionHrEmployeeRequest)
+      returns (TransitionHrEmployeeResponse);
+  rpc SaveHrLeave(SaveHrLeaveRequest) returns (SaveHrLeaveResponse);
+  rpc SaveHrExpense(SaveHrExpenseRequest) returns (SaveHrExpenseResponse);
+  rpc SaveHrPayroll(SaveHrPayrollRequest) returns (SaveHrPayrollResponse);
+  rpc ListHrEmployees(ListHrEmployeesRequest) returns (ListHrEmployeesResponse);
+  rpc ListHrLeaveRequests(ListHrLeaveRequestsRequest) returns (ListHrLeaveRequestsResponse);
+  rpc ListHrExpenseClaims(ListHrExpenseClaimsRequest) returns (ListHrExpenseClaimsResponse);
+  rpc ListHrPayrollRuns(ListHrPayrollRunsRequest) returns (ListHrPayrollRunsResponse);
+  rpc ListHrReassignments(ListHrReassignmentsRequest) returns (ListHrReassignmentsResponse);
+}
+
+service PosService {
+  rpc SavePosSale(SavePosSaleRequest) returns (SavePosSaleResponse);
+  rpc ListPosSales(ListPosSalesRequest) returns (ListPosSalesResponse);
+}
+
+service LegalService {
+  rpc SaveLegalContract(SaveLegalContractRequest) returns (SaveLegalContractResponse);
+  rpc SaveLegalDocument(SaveLegalDocumentRequest) returns (SaveLegalDocumentResponse);
+  rpc RecordLegalAccess(RecordLegalAccessRequest) returns (RecordLegalAccessResponse);
+  rpc ListLegalContracts(ListLegalContractsRequest) returns (ListLegalContractsResponse);
+  rpc ListLegalDocuments(ListLegalDocumentsRequest) returns (ListLegalDocumentsResponse);
+  rpc ListLegalAccessHistory(ListLegalAccessHistoryRequest)
+      returns (ListLegalAccessHistoryResponse);
+}
+
+service CrmService {
+  rpc ListCrmReadRows(ListCrmReadRowsRequest) returns (ListCrmReadRowsResponse);
+  rpc SaveCrmHandoff(SaveCrmHandoffRequest) returns (SaveCrmHandoffResponse);
+  rpc SaveCrmOpportunity(SaveCrmOpportunityRequest) returns (SaveCrmOpportunityResponse);
+  rpc RecordCrmAttribution(RecordCrmAttributionRequest)
+      returns (RecordCrmAttributionResponse);
+}
+
+service MarketingContentService {
+  rpc SubmitMarketingForm(SubmitMarketingFormRequest)
+      returns (SubmitMarketingFormResponse);
+  rpc ListMarketingContentReadRows(ListMarketingContentReadRowsRequest)
+      returns (ListMarketingContentReadRowsResponse);
+  rpc GetMarketingDeliveryRead(GetMarketingDeliveryReadRequest)
+      returns (GetMarketingDeliveryReadResponse);
+  rpc EraseMarketingProfile(EraseMarketingProfileRequest)
+      returns (EraseMarketingProfileResponse);
+  rpc IssueMarketingPreview(IssueMarketingPreviewRequest)
+      returns (IssueMarketingPreviewResponse);
+  rpc RevokeMarketingPreview(RevokeMarketingPreviewRequest)
+      returns (RevokeMarketingPreviewResponse);
+  rpc IssueMarketingDomainVerification(IssueMarketingDomainVerificationRequest)
+      returns (IssueMarketingDomainVerificationResponse);
+  rpc VerifyMarketingDomain(VerifyMarketingDomainRequest)
+      returns (VerifyMarketingDomainResponse);
+  rpc BindMarketingDomain(BindMarketingDomainRequest)
+      returns (BindMarketingDomainResponse);
+  rpc ConfigureMarketingProviderAccount(ConfigureMarketingProviderAccountRequest)
+      returns (ConfigureMarketingProviderAccountResponse);
+  rpc AcknowledgeMarketingProviderVerification(AcknowledgeMarketingProviderVerificationRequest)
+      returns (AcknowledgeMarketingProviderVerificationResponse);
+  rpc SetMarketingProviderAccountState(SetMarketingProviderAccountStateRequest)
+      returns (SetMarketingProviderAccountStateResponse);
+}
+
+service SalesService {
+  rpc SaveSalesAggregate(SaveSalesAggregateRequest)
+      returns (SaveSalesAggregateResponse);
+  rpc TransitionSalesAggregate(TransitionSalesAggregateRequest)
+      returns (TransitionSalesAggregateResponse);
+  rpc GetSalesAggregate(GetSalesAggregateRequest)
+      returns (GetSalesAggregateResponse);
+  rpc ListSalesAggregates(ListSalesAggregatesRequest)
+      returns (ListSalesAggregatesResponse);
+}
+
+service ScmService {
+  rpc SaveScmAggregate(SaveScmAggregateRequest)
+      returns (SaveScmAggregateResponse);
+  rpc TransitionScmAggregate(TransitionScmAggregateRequest)
+      returns (TransitionScmAggregateResponse);
+  rpc GetScmAggregate(GetScmAggregateRequest)
+      returns (GetScmAggregateResponse);
+  rpc ListScmAggregates(ListScmAggregatesRequest)
+      returns (ListScmAggregatesResponse);
+}
+
+service AssetMaintenanceService {
+  rpc SaveAssetMaintenanceAggregate(SaveAssetMaintenanceAggregateRequest)
+      returns (SaveAssetMaintenanceAggregateResponse);
+  rpc GetAssetMaintenanceAggregate(GetAssetMaintenanceAggregateRequest)
+      returns (GetAssetMaintenanceAggregateResponse);
+  rpc ListAssetMaintenanceAggregates(ListAssetMaintenanceAggregatesRequest)
+      returns (ListAssetMaintenanceAggregatesResponse);
+}
+
+service QualityService {
+  rpc CreateQualityInspection(CreateQualityInspectionRequest)
+      returns (CreateQualityInspectionResponse);
+  rpc TransitionQualityInspection(TransitionQualityInspectionRequest)
+      returns (TransitionQualityInspectionResponse);
+  rpc GetQualityInspection(GetQualityInspectionRequest)
+      returns (GetQualityInspectionResponse);
+  rpc ListQualityInspections(ListQualityInspectionsRequest)
+      returns (ListQualityInspectionsResponse);
+}

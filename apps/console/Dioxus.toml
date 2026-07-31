@@ -1,0 +1,6 @@
+[application]
+name = "ERPX"
+default_platform = "web"
+
+[web.app]
+title = "ERPX"

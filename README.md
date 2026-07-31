@@ -1,197 +1,82 @@
-# Folio — AI-Augmented Finance System
+# ERPX
 
-Local, single-tenant AI ERP for expense capture, multi-stage approval, purchase orders, double-entry GL, HR, Law RAG, and executive reporting. The project includes its Folio-specific host-native service templates under `infra/` and uses external PostgreSQL, MinIO, and Ollama services.
+ERPX is a Rust workspace with a Dioxus console, Tonic APIs, durable workers,
+SQLx persistence, native identity, and shared desktop/mobile UI. It replaces
+the former development application completely and serves the console at
+<http://localhost:3004>.
 
----
+## Local development
 
-## Architecture
+PostgreSQL, MinIO, Ollama, and n8n are host-native services. Keep `.env`,
+`.env.local`, and `.runtime/` outside Git. In particular, never delete or
+replace `.runtime/n8n/`: it contains the n8n state and encryption key.
 
-One Next.js process on port 3004. All RBAC, AI routing, OCR pipeline, slip storage, HR, Law, and Finance logic live inside the same Node.js process and are imported by route handlers via path aliases. The Fastify micro-services from earlier versions have been folded into the same process.
+The local database credentials are read from `.env.local`:
 
-```
-Browser → folio (Next.js 16 :3004, Turbopack) ─┬→ @/perm/*             ──→ Postgres
-                                              ├→ @/ai/*                ──┬→ Postgres
-                                              │                         ├→ Ollama
-                                              │                         └→ MinIO (folio-storage)
-                                              ├→ @/hr/*, @/law/*, @/finance/*
-                                              └→ @/waybill/*           (consolidated Expense/PR/PO)
-```
-
-Anything imported via `@/...` is the canonical domain library. Anything under `app/` is the Next.js router (pages, route handlers, server actions). Anything under `components/` is shared UI.
-
----
-
-## Project Layout
-
-```text
-folio/
-├── README.md
-├── package.json                       # single root manifest, no workspaces
-├── next.config.ts                     # Turbopack resolveAlias → lib/components/app
-├── tsconfig.json                      # paths: @/* → ./lib/*, @/components/* → ./components/*, @/app/* → ./app/*
-├── eslint.config.mjs
-├── postcss.config.mjs
-├── proxy.ts                           # Next.js 16 proxy (HMAC session verification)
-├── .env, .env.local, .env.example
-├── app/
-│   ├── (app)/                         # Top-level public pages + login redirect
-│   ├── (app)/(protected)/             # role-aware tiles (tiles, hr, law, expense, sales, …)
-│   ├── api/                           # thin route handlers → call @/<domain>/*
-│   └── actions/                       # 'use server' action modules (use server-only)
-├── components/                        # shared React components
-├── lib/
-│   ├── ai/                            # AI router + provider clients (minimax, ollama, openai)
-│   ├── customer/                      # customer master + product RAG embeddings
-│   ├── dashboard/                     # dashboard widgets
-│   ├── finance/                       # GL posting (expense/procurement/sales) + finance RAG
-│   ├── hook/                          # LINE webhook ingest + replay
-│   ├── hr/                            # HR feature (employees, leave, intents, agent)
-│   ├── i18n/                          # bilingual message dictionaries
-│   ├── law/                           # Law RAG (contracts, chunks, rag, queue)
-│   ├── ledger/                        # finance commentary
-│   ├── native/vision-ocr/             # Swift N-API macOS Vision addon (loaded at runtime)
-│   ├── notifications/                 # notifications queries + events + recipients
-│   ├── org/                           # org tree, scope, display, queries
-│   ├── perm/                          # permission grammar, department roles, ranks, and policies
-│   ├── po/                            # PO-from-invoice helper
-│   ├── policy/                        # policy lint
-│   ├── sales/                         # SO extraction helper
-│   ├── server/                        # Next-only session/guard helpers
-│   ├── slips/                         # receipt OCR pipeline + MinIO storage
-│   ├── waybill/                       # consolidated expense/PR/PO object + signed event log
-│   ├── chat/                          # chat history + streaming (used by AI components)
-│   ├── hero.ts, theme.ts, tileOrder.ts# small UI helpers (server-only)
-│   ├── db.ts, config.ts               # pg pool + env config
-│   └── next-shim.d.ts                 # ambient next/headers + next/server stubs
-├── tests/                             # .mjs pure-logic tests re-implementing prod modules
-├── db/                                # current schema snapshot, reference seed, and DB utilities
-├── docs/                              # architecture + setup notes
-├── n8n/                               # DEPRECATED (kept for historical reference; flows moved into lib/hook)
-├── sample/law/                        # legal PDFs for Law RAG demo
-└── bun.lock                           # single lockfile (workspaces merged)
+```dotenv
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+POSTGRES_USER=contract
+POSTGRES_PASSWORD=change_me
+POSTGRES_DB=folio_db
+ERPX_DEV_LEGACY_MINIO_ENDPOINT=http://127.0.0.1:9000
+ERPX_DEV_LEGACY_MINIO_ROOT=/absolute/path/to/local/minio-data
 ```
 
-### Key @/ aliases (tsconfig.json + next.config.ts)
-
-| Alias                 | Resolves to          | Used by |
-|-----------------------|----------------------|---------|
-| `@/<x>`               | `./lib/<x>`          | app + components + lib cross-imports |
-| `@/components/<x>`    | `./components/<x>`   | app pages |
-| `@/app/<x>`           | `./app/<x>`          | component → server action imports |
-
-`@folio-lib/*` was the old cross-folder alias under the workspaces setup; it has been replaced with `@/*` (the standard Next.js style).
-
----
-
-## Setup
-
-### 1. Provision the shared infra
-
-Folio-specific n8n and MinIO launchd templates live in this project's `infra/` folder. PostgreSQL, MinIO, Ollama, and n8n must be running before using the application:
+The destructive development reset is bounded to the loopback database and
+object-store targets declared above. It prints its exact targets, rejects
+unknown schemas or buckets, and requires the literal confirmation:
 
 ```bash
-launchctl list | grep folio
-# Postgres on 5432 (folio_db), MinIO on 9000/9001, Ollama on 11434, n8n on 5678
+cargo xtask reset-dev --confirm RESET_ERPX_DEV
+cargo xtask seed-demo
+cargo xtask dev --detach
 ```
 
-### 2. Initialize a fresh database
+`seed-demo` is idempotent. On the first run it prints the local Platform Root
+bootstrap password and recovery code once; only their hashes are stored.
+Directory connector support (LDAP/RFC4533, AD DS/DirSync, and UCS) is compiled
+but remains disabled in the development profile. External providers are
+unconfigured and never report synthetic success.
+
+## Runtime commands
 
 ```bash
-bun run db:setup
+cargo xtask dev --detach  # migrate, seed, and start API/worker/Dioxus
+cargo xtask status        # report only recorded ERPX child processes
+cargo xtask stop          # stop only recorded ERPX child processes
+cargo xtask seed-demo     # idempotent development fixture
+cargo xtask verify        # serialized Rust, Dioxus, scan, and smoke gates
 ```
 
-`db/setup.sh` applies `db/schema.sql` and `db/seed.sql`. It only accepts a fresh database and refuses to modify one where `folio.users` already exists. The seed contains reference catalogs and access policy only; it does not contain users, business transactions, audit history, embeddings, or API keys.
+Runtime logs and PID records are under ignored `.runtime/erpx/`. The Tonic API
+listens on `127.0.0.1:50051`, HTTP auth/health on `127.0.0.1:50052`, and the
+Dioxus console on `0.0.0.0:3004`.
 
-### 3. Install deps and build COA embeddings
+## Workspace
+
+- `apps/server`: Tonic services and HTTP auth/health endpoints
+- `apps/worker`: durable projectors, schedulers, and reconciliation workers
+- `apps/console`: Dioxus web/desktop/mobile console
+- `apps/migrator`: generic legacy reconciliation and rollback tooling
+- `crates/domain`, `crates/application`: product contracts and use cases
+- `crates/infrastructure`: SQLx repositories and provider adapters
+- `crates/identity`: native identity, MFA, and directory connectors
+- `crates/migration`: control/tenant write/read migrations
+- `crates/proto`: public gRPC contracts and descriptor baseline
+- `crates/ui`: shared product UI
+- `audits`: retained ERPX implementation and acceptance evidence
+- `xtask`: bounded development lifecycle and verification
+
+## Verification
 
 ```bash
-bun install
-bun run embed    # node db/embed_coa.js — embeds chart-of-accounts via Ollama bge-m3
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --offline -- -D warnings
+cargo test --workspace --offline --no-fail-fast
+cargo xtask verify
 ```
 
-### 4. Configure env
-
-- `.env` — top-level LINE / OpenRouter secrets (read by `bun run embed`/`bun run audit`)
-- `.env.local` — Next.js runtime secrets (`SESSION_SECRET`, Postgres, MinIO, ENCRYPTION_KEY, etc.)
-- `lib/config.ts` reads the same.
-
-Generate the session secret with `openssl rand -hex 32`; both the cookie mint and the HMAC verifier use the same value.
-
-### First-user bootstrap
-
-The organization rebuild intentionally leaves no active identity. Set a strong, one-time `FOLIO_BOOTSTRAP_TOKEN` in `.env.local`, then create the first access administrator:
-
-```bash
-curl -X POST http://localhost:3004/api/auth/bootstrap \
-  -H "x-folio-bootstrap-token: $FOLIO_BOOTSTRAP_TOKEN" \
-  -H 'content-type: application/json' \
-  -d '{"employee_code":"BOOT-001","fullname":"Platform Administrator","department_id":"it","role_id":"it_manager"}'
-```
-
-The endpoint only succeeds while there are no active users, assigns the selected department-owned access-admin role, and closes permanently after the first user is created. Configure `FOLIO_WORKER_TOKEN` for the internal approver-nudge and Law indexing workers.
-
-### 5. Start the dev server
-
-```bash
-bun run dev   # next dev --turbopack -p 3004 -H 0.0.0.0
-```
-
-Open `http://localhost:3004`.
-
-### 6. Build & verify
-
-```bash
-bun run lint        # eslint (flat config; react-hooks set-state-in-effect + purity + refs disabled)
-bun run typecheck   # tsc --noEmit
-bun run build       # next build --turbopack (optional — validation only; clean .next/ before dev)
-```
-
----
-
-## Key subsystems
-
-### RBAC (single source of truth)
-
-`lib/perm/` defines the canonical permission string grammar:
-
-```
-<domain>:<subject>:<verb>[:<qualifier>]::<effect>
-```
-
-Hierarchy roles have stable IDs such as `accounting_manager` and a numeric `rank` in `perm.roles`; rank 1 is the highest authority. Each hierarchy role belongs to exactly one `perm.departments` row.
-
-Caller rules:
-
-- Server-only code: `import { ... } from '@/perm/server'` (or `@/hr/server`, `@/law/server`).
-- Client code: `import { ... } from '@/perm'`.
-
-### Waybill (consolidated Expense/PR/PO)
-
-`lib/waybill/` is the single object representing any waybill regardless of origin (`expense` / `pr` / `po`). The `waybill_events` log is an append-only HMAC-SHA256-signed linked list. Mutations across the app call `appendWaybillEvent()` from `lib/waybill/append.ts`.
-
-Stage names follow finance-standard keys — see `lib/waybill/labels.ts` for the bilingual stages and `lib/perm/stages.ts` for stage→role→permission mapping.
-
-### HR / Law
-
-- HR: `lib/hr/{agent,employees,leave,intents,state}` plus `app/api/hr/*` route handlers.
-- Law: `lib/law/{admin,chunks,contracts,queue,rag}` plus `app/api/law/*` route handlers.
-- Two distinct LINE OAs:
-  - Folio / Law bot — `LINE_CHANNEL_SECRET` + `LINE_CHANNEL_ACCESS_TOKEN`, webhook → `app/api/hook/line-law`.
-  - HR bot — `HR_LINE_CHANNEL_SECRET` + `HR_LINE_CHANNEL_ACCESS_TOKEN`, webhook → `app/api/hook/line-hr`.
-
-### Native vision OCR
-
-`lib/native/vision-ocr/` is a Swift N-API addon compiled only on macOS (`Sources/`, `binding.gyp`, `build/Release/vision_ocr.node`). The runtime loader at `lib/native/vision-ocr/index.js` resolves the `.node` binary via `createRequire` and degrades to a no-op on non-darwin or when the build is missing. The OCR pipeline in `lib/slips/ocrPipeline.ts` consumes Pass 3 (Swift Vision) when available.
-
-`next.config.ts` ships `serverExternalPackages: ["lib/native/vision-ocr"]` so Next.js does not bundle the addon.
-
----
-
-## See also
-
-- `infra/` — Folio host-native service templates
-- `docs/BUNDLER.md` — Turbopack notes
-- `docs/LINE-SETUP.md`, `docs/N8N-SETUP.md` — webhook setup
-- `docs/RBAC-STANDARD.md` — current organization and permission model
-- `docs/ORG-ACCESS.md` — departments, ranks, and responsibility boundaries
-- `docs/stage-approval-design.md` — finance-standard stage keys + Waybill pipeline
+Non-loopback database, object-store, provider, and directory endpoints must use
+certificate-validating TLS. Production activation and external directory
+certification are deliberately outside this development cutover.

@@ -1,23 +1,43 @@
 # AGENTS.md
 
-Folio is a standalone Next.js application rooted at this directory.
+ERPX is a Rust/Dioxus workspace rooted at this directory.
 
-## Package manager
+## Tooling
 
-Use `bun` for Node dependencies and scripts. Do not use npm.
+Use Cargo with the pinned Rust toolchain. JavaScript package managers and
+Next.js are not part of this repository.
 
 ## Verification
 
-Run `bun run lint` and `bunx tsc --noEmit`. Do not use a production build as verification.
+Run:
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --offline -- -D warnings
+cargo test --workspace --offline --no-fail-fast
+```
+
+Use `cargo xtask verify` for the complete serialized Dioxus and runtime smoke
+suite. Do not substitute a production web framework build.
 
 ## Development
 
-Run `bun run dev` on port 3004. Keep the development server in the background when handing work back.
+Run `cargo xtask dev --detach`. Keep the ERPX development server running on
+port 3004 when handing work back. Use `cargo xtask status` and
+`cargo xtask stop`; these commands manage only recorded ERPX child processes.
 
-## Runtime
+## Runtime safety
 
-Keep `.env`, `.env.local`, `infra/.env`, and `.runtime/` outside Git. PostgreSQL, MinIO, Ollama, and n8n are host-native services. n8n state under `.runtime/n8n/` must retain its encryption key.
+Keep `.env`, `.env.local`, `.sqlx/`, `target/`, and `.runtime/` outside Git.
+PostgreSQL, MinIO, Ollama, and n8n are host-native. The n8n state and encryption
+key under `.runtime/n8n/` must never be deleted or replaced.
+
+`cargo xtask reset-dev` is destructive and must retain its loopback endpoint,
+schema/bucket allowlist, target printout, and literal confirmation fences.
 
 ## Structure
 
-Application routes live under `app/`, shared UI under `components/`, server libraries under `lib/`, database files under `db/`, and service templates under `infra/`.
+Applications live under `apps/`, shared crates under `crates/`, migrations
+under `crates/migration/`, fixtures under `fixtures/`, architecture decisions
+under `adr/`, retained ERPX evidence under `audits/`, and development
+orchestration under `xtask/`.
