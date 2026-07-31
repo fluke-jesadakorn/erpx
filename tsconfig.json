@@ -57,6 +57,7 @@
   "exclude": [
     "node_modules",
     "lib/native/vision-ocr/node_modules",
-    "lib/native/vision-ocr/build"
+    "lib/native/vision-ocr/build",
+    "erpx/target"
   ]
 }

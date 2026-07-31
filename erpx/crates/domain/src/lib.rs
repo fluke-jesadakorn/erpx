@@ -1,0 +1,33 @@
+#![doc = "Pure ERPX bounded-context rules. This crate has no transport or database dependencies."]
+
+pub mod access;
+pub mod asset_maintenance;
+pub mod commercial;
+pub mod contracts;
+pub mod cqrs;
+pub mod customer;
+pub mod finance;
+pub mod finance_banking;
+pub mod finance_budget;
+pub mod finance_chart;
+pub mod finance_close;
+pub mod finance_subledgers;
+pub mod finance_tax;
+pub mod hr;
+pub mod legal;
+pub mod marketing;
+pub mod marketing_abuse;
+pub mod marketing_callback;
+pub mod marketing_callback_secret;
+pub mod marketing_content;
+pub mod marketing_crm;
+pub mod marketing_delivery;
+pub mod marketing_journey;
+pub mod operations;
+pub mod platform_completion;
+pub mod pos;
+pub mod pos_refund;
+pub mod procurement_inventory;
+pub mod quality;
+pub mod sales;
+pub mod support;

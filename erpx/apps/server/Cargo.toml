@@ -1,0 +1,34 @@
+[package]
+name = "erpx-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+hex.workspace = true
+hmac.workspace = true
+erpx-application = { path = "../../crates/application" }
+erpx-domain = { path = "../../crates/domain" }
+erpx-identity = { path = "../../crates/identity" }
+erpx-infrastructure = { path = "../../crates/infrastructure" }
+erpx-migration = { path = "../../crates/migration" }
+erpx-proto = { path = "../../crates/proto" }
+erpx-worker = { path = "../worker" }
+prost-types = "0.14.4"
+rand_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tonic = { workspace = true, features = ["router", "transport"] }
+tonic-web.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

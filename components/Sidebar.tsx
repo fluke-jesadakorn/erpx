@@ -57,6 +57,7 @@ const GROUP_TONE: Record<string, GroupTone> = {
   finance: { text: 'text-positive', soft: 'bg-positive-soft/20', active: 'bg-positive-soft/65', border: 'border-positive/60', dot: 'bg-positive' },
   procurement: { text: 'text-info', soft: 'bg-info-soft/20', active: 'bg-info-soft/65', border: 'border-info/60', dot: 'bg-info' },
   policy: { text: 'text-accent', soft: 'bg-accent-soft/20', active: 'bg-accent-soft/65', border: 'border-accent/60', dot: 'bg-accent' },
+  platform: { text: 'text-info', soft: 'bg-info-soft/20', active: 'bg-info-soft/65', border: 'border-info/60', dot: 'bg-info' },
   people: { text: 'text-positive', soft: 'bg-positive-soft/20', active: 'bg-positive-soft/65', border: 'border-positive/60', dot: 'bg-positive' },
   executive: { text: 'text-caution', soft: 'bg-caution-soft/20', active: 'bg-caution-soft/65', border: 'border-caution/60', dot: 'bg-caution' },
 };

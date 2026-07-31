@@ -1,4 +1,5 @@
 uploads/
+.DS_Store
 web-admin/.env.local
 .env
 .env.local
@@ -19,3 +20,8 @@ tsconfig.tsbuildinfo
 
 lib/native/vision-ocr/build/
 lib/native/vision-ocr/node_modules/
+erpx/target/
+erpx/.env
+erpx/.sqlx/
+target/
+.sqlx/

@@ -36,6 +36,9 @@ apply_schema() {
   "${psql_args[@]}" -f "$root/migrations/2026-07-19-N-staff-full-chat.sql"
   "${psql_args[@]}" -f "$root/migrations/2026-07-19-O-capital-contribution-navigation.sql"
   "${psql_args[@]}" -f "$root/migrations/2026-07-19-P-action-queue-integrity.sql"
+  "${psql_args[@]}" -f "$root/migrations/2026-07-23-erpx-control-plane.sql"
+  "${psql_args[@]}" -f "$root/migrations/2026-07-24-operations-command-center.sql"
+  "${psql_args[@]}" -f "$root/migrations/2026-07-31-erpx-bridge-shadow.sql"
 }
 
 if [[ "$mode" == "--reset-local" ]]; then
@@ -77,7 +80,7 @@ if [[ "$mode" == "--reset-local" ]]; then
   chmod 600 "$backup/folio_db.dump" "$backup/folio_db.restore-list.txt"
   (cd "$project_root" && bun db/storage-reset.ts backup "$backup/minio")
   test -s "$backup/minio/manifest.json"
-  "${psql_args[@]}" -c "DROP SCHEMA IF EXISTS inventory, ai, auth, chat, finance, folio, hook, hr, law, n8n, perm CASCADE;"
+  "${psql_args[@]}" -c "DROP SCHEMA IF EXISTS inventory, ai, auth, chat, finance, folio, hook, hr, law, n8n, perm, platform CASCADE;"
   apply_schema
   (cd "$project_root" && bun db/storage-reset.ts recreate)
   "${psql_args[@]}" -Atqc "

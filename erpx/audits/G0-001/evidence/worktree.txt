@@ -1,0 +1,5 @@
+Audit-boundary commit: 75c1291af8b2a3149b0020f9bfd975e6b82d7896
+Audit-boundary branch: development
+Audit-boundary user changes: .env.example, .gitignore, components/Sidebar.tsx, components/sidebar-config.ts, db/setup.sh, lib/db.ts, new Operations/Platform/ERPX/platform migration files and libraries.
+Current ERPX G0 additions: audits, ADRs, MASTER_PLAN.md, EXECUTION_LEDGER.md, CONTRACT_POLICY.md, domain contracts, common protobuf context, migration crate, deterministic fixture, and evidence bundle.
+No reset, checkout, destructive database operation, environment rewrite, or n8n runtime reset was performed.

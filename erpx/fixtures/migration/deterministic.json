@@ -1,0 +1,127 @@
+{
+  "fixture_version": "g0-004",
+  "seed": 24072026,
+  "holdings": [
+    {
+      "id": "10000000-0000-4000-8000-000000000001",
+      "name": "Fixture North Holding",
+      "companies": [
+        {
+          "id": "10000000-0000-4000-8000-000000000011",
+          "legal_name": "Fixture North Trading Co., Ltd.",
+          "branches": [
+            {"id": "10000000-0000-4000-8000-000000000101", "code": "N-BKK", "name": "Bangkok"},
+            {"id": "10000000-0000-4000-8000-000000000102", "code": "N-CNX", "name": "Chiang Mai"}
+          ]
+        },
+        {
+          "id": "10000000-0000-4000-8000-000000000012",
+          "legal_name": "Fixture North Services Co., Ltd.",
+          "branches": [
+            {"id": "10000000-0000-4000-8000-000000000103", "code": "N-SVC", "name": "Service Center"}
+          ]
+        }
+      ]
+    },
+    {
+      "id": "10000000-0000-4000-8000-000000000002",
+      "name": "Fixture South Holding",
+      "companies": [
+        {
+          "id": "10000000-0000-4000-8000-000000000021",
+          "legal_name": "Fixture South Foods Co., Ltd.",
+          "branches": [
+            {"id": "10000000-0000-4000-8000-000000000201", "code": "S-HKT", "name": "Phuket"}
+          ]
+        }
+      ]
+    }
+  ],
+  "role_assignments": [
+    {
+      "id": "20000000-0000-4000-8000-000000000001",
+      "principal_ref": "fixture-user-owner",
+      "holding_id": "10000000-0000-4000-8000-000000000001",
+      "company_id": null,
+      "branch_id": null,
+      "parent_assignment_id": null,
+      "status": "active",
+      "valid_from": "2026-01-01T00:00:00Z",
+      "valid_until": "2026-12-31T23:59:59Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000002",
+      "principal_ref": "fixture-user-branch",
+      "holding_id": "10000000-0000-4000-8000-000000000001",
+      "company_id": "10000000-0000-4000-8000-000000000011",
+      "branch_id": "10000000-0000-4000-8000-000000000101",
+      "parent_assignment_id": "20000000-0000-4000-8000-000000000001",
+      "status": "active",
+      "valid_from": "2026-02-01T00:00:00Z",
+      "valid_until": "2026-09-30T23:59:59Z"
+    },
+    {
+      "id": "20000000-0000-4000-8000-000000000003",
+      "principal_ref": "fixture-user-expired",
+      "holding_id": "10000000-0000-4000-8000-000000000002",
+      "company_id": "10000000-0000-4000-8000-000000000021",
+      "branch_id": "10000000-0000-4000-8000-000000000201",
+      "parent_assignment_id": null,
+      "status": "expired",
+      "valid_from": "2025-01-01T00:00:00Z",
+      "valid_until": "2025-12-31T23:59:59Z"
+    }
+  ],
+  "customers": [
+    {"id": "30000000-0000-4000-8000-000000000001", "account_code": "FIX-CUST-N", "holding_id": "10000000-0000-4000-8000-000000000001", "status": "active", "billing_state": "active"},
+    {"id": "30000000-0000-4000-8000-000000000002", "account_code": "FIX-CUST-S", "holding_id": "10000000-0000-4000-8000-000000000002", "status": "onboarding", "billing_state": "trialing"}
+  ],
+  "sales_orders": [
+    {"id": "40000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "status": "so_invoiced", "amount_minor": 1250000},
+    {"id": "40000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000002", "status": "so_paid", "amount_minor": 880000}
+  ],
+  "purchase_orders": [
+    {"id": "50000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "status": "awaiting_disbursement", "amount_minor": 410000},
+    {"id": "50000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000002", "status": "disbursed", "amount_minor": 275000}
+  ],
+  "inventory_movements": [
+    {"id": "60000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "product_code": "FIX-SKU-001", "quantity": 25, "movement_type": "receipt"},
+    {"id": "60000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000001", "product_code": "FIX-SKU-001", "quantity": -4, "movement_type": "issue"}
+  ],
+  "journal_entries": [
+    {"id": "70000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "debit_minor": 1250000, "credit_minor": 1250000, "period": "2026-07"},
+    {"id": "70000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000002", "debit_minor": 275000, "credit_minor": 275000, "period": "2026-07"}
+  ],
+  "support_tickets": [
+    {"id": "80000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "status": "access_requested", "amount_minor": 0},
+    {"id": "80000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000002", "status": "resolved", "amount_minor": 0}
+  ],
+  "operations_exceptions": [
+    {"id": "90000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "status": "open", "amount_minor": 410000},
+    {"id": "90000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000002", "status": "resolved", "amount_minor": 0}
+  ],
+  "marketing_profiles": [
+    {"id": "a0000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "email": "profile-n@example.invalid", "consent_purposes": ["product_updates", "offers"], "suppressed": false},
+    {"id": "a0000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000002", "email": "profile-s@example.invalid", "consent_purposes": [], "suppressed": true}
+  ],
+  "attribution": [
+    {"id": "a1000000-0000-4000-8000-000000000001", "profile_id": "a0000000-0000-4000-8000-000000000001", "model": "first_touch", "revenue_minor": 1250000},
+    {"id": "a1000000-0000-4000-8000-000000000002", "profile_id": "a0000000-0000-4000-8000-000000000001", "model": "u_shaped", "revenue_minor": 1250000}
+  ],
+  "assets": [
+    {"id": "b0000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "asset_code": "FIX-ASSET-001", "status": "in_service", "book_value_minor": 900000},
+    {"id": "b0000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000002", "asset_code": "FIX-ASSET-002", "status": "maintenance", "book_value_minor": 340000}
+  ],
+  "maintenance": [
+    {"id": "b1000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "status": "scheduled", "amount_minor": 45000},
+    {"id": "b1000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000002", "status": "in_progress", "amount_minor": 70000}
+  ],
+  "employees": [
+    {"id": "c0000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "employment_state": "active", "leave_status": "approved", "payroll_minor": 65000},
+    {"id": "c0000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000002", "employment_state": "probation", "leave_status": "pending", "payroll_minor": 42000}
+  ],
+  "legal_documents": [
+    {"id": "d0000000-0000-4000-8000-000000000001", "holding_id": "10000000-0000-4000-8000-000000000001", "document_type": "contract", "version": 2, "retention_class": "seven_years"},
+    {"id": "d0000000-0000-4000-8000-000000000002", "holding_id": "10000000-0000-4000-8000-000000000002", "document_type": "nda", "version": 1, "retention_class": "contractual"}
+  ]
+}

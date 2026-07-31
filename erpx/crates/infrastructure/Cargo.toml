@@ -1,0 +1,29 @@
+[package]
+name = "erpx-infrastructure"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+erpx-application = { path = "../application" }
+erpx-domain = { path = "../domain" }
+erpx-migration = { path = "../migration" }
+hex.workspace = true
+hmac.workspace = true
+reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+sqlx.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+zeroize.workspace = true
+
+[lints]
+workspace = true

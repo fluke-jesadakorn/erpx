@@ -38,6 +38,7 @@ const eslintConfig = defineConfig([
     "lib/native/vision-ocr/**",
     "lib/native/vision-ocr/node_modules/**",
     ".runtime/**",
+    "erpx/target/**",
     "tests/**",
     "db/**",
     "n8n/**",

@@ -1,0 +1,20 @@
+[package]
+name = "erpx-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+dioxus = { workspace = true, features = ["html", "hooks", "macro", "signals"] }
+
+[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
+security-framework = "3.7.0"
+security-framework-sys = "2.17.0"
+
+[target.'cfg(target_os = "android")'.dependencies]
+erpx-android-bridge = { path = "../android-bridge" }
+jni = "0.21.1"
+
+[lints]
+workspace = true

@@ -1,0 +1,15 @@
+G0-001 baseline commands (run 2026-07-24; exit code 0 for each):
+Folio:
+- bun run lint — PASS, 0 errors, 4 warnings in infra/scripts/start-n8n.js
+- bunx tsc --noEmit — PASS
+Rust:
+- cargo fmt --all --check — PASS at the initial audit boundary
+- cargo clippy --workspace --all-targets -- -D warnings — PASS at the initial audit boundary
+- cargo test --workspace — PASS at the initial audit boundary (11 tests)
+- cargo check -p erpx-console --no-default-features --features web — PASS at the initial audit boundary
+- cargo check -p erpx-console --no-default-features --features desktop — PASS at the initial audit boundary
+Focused G0-003/G0-004 follow-up:
+- cargo test -p erpx-migration -p erpx-domain -p erpx-proto — PASS (15 tests)
+- cargo fmt --all --check — rerun after follow-up formatting
+- cargo clippy --workspace --all-targets -- -D warnings — final result is recorded in EXECUTION_LEDGER.md before integration.
+ 

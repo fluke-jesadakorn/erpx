@@ -19,6 +19,7 @@ import {
   Users,
   Zap,
   History,
+  LifeBuoy,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -71,6 +72,20 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
     ],
   },
   {
+    key: 'operations',
+    label: 'Operations',
+    icon: Truck,
+    items: [
+      {
+        key: 'operations-command-center',
+        label: 'Command Center',
+        icon: Gauge,
+        href: '/operations',
+        perms: ['tile:operations:view::allow'],
+      },
+    ],
+  },
+  {
     key: 'finance',
     label: { id: 'sidebar.finance' },
     icon: Gauge,
@@ -104,6 +119,14 @@ export const SIDEBAR_GROUPS: SidebarSection[] = [
       { key: 'tiles',  label: { id: 'sidebar.labels.tiles' },  icon: LayoutGrid,  href: '/tiles', perms: ['rbac:matrix:view::allow'] },
       { key: 'design-system', label: { id: 'sidebar.labels.designSystem' }, icon: Palette, href: '/design-system', perms: ['admin:system:bypass::allow'] },
       { key: 'settings', label: { id: 'sidebar.labels.settings' }, icon: Settings, href: '/ai-settings', perms: ['tile:settings:view::allow'] },
+    ],
+  },
+  {
+    key: 'platform',
+    label: 'ERPX Platform',
+    icon: LifeBuoy,
+    items: [
+      { key: 'platform-console', label: 'Customer Console', icon: LifeBuoy, href: '/platform', perms: ['platform:customer:view::allow'] },
     ],
   },
   {

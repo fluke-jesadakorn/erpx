@@ -1,0 +1,32 @@
+[package]
+name = "erpx-console"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = ["web"]
+web = ["dioxus/web", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
+desktop = ["dioxus/desktop", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
+mobile = ["dioxus/mobile", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
+
+[dependencies]
+dioxus = { workspace = true, features = ["signals"] }
+erpx-domain = { path = "../../crates/domain" }
+erpx-proto = { path = "../../crates/proto" }
+erpx-ui = { path = "../../crates/ui" }
+prost-types = "0.14.4"
+serde_json.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tonic.workspace = true
+tonic-web-wasm-client = "0.9.1"
+uuid = { workspace = true, features = ["js"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tonic = { workspace = true, features = ["transport"] }
+uuid.workspace = true
+
+[lints]
+workspace = true
