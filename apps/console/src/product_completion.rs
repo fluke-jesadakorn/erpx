@@ -510,6 +510,8 @@ pub struct DirectoryConnectorContract {
     vendor: DirectoryVendor,
     scope: ConnectorScope,
     policy: DirectoryConnectorPolicy,
+    lifecycle: SafeDisplayText,
+    readiness: SafeDisplayText,
 }
 
 impl DirectoryConnectorContract {
@@ -556,7 +558,26 @@ impl DirectoryConnectorContract {
             vendor,
             scope,
             policy,
+            lifecycle: SafeDisplayText::new("unconfigured"),
+            readiness: SafeDisplayText::new("unconfigured"),
         })
+    }
+
+    pub fn with_operational_state(
+        mut self,
+        lifecycle: &str,
+        readiness: &str,
+    ) -> Result<Self, ProductContractError> {
+        if !matches!(
+            lifecycle,
+            "draft" | "verified" | "importing" | "ready" | "active" | "suspended" | "failed"
+        ) || !matches!(readiness, "ready" | "not_ready" | "unconfigured")
+        {
+            return Err(ProductContractError::InvalidDirectoryLifecycle);
+        }
+        self.lifecycle = SafeDisplayText::new(lifecycle);
+        self.readiness = SafeDisplayText::new(readiness);
+        Ok(self)
     }
 
     /// Connector identifier.
@@ -577,6 +598,14 @@ impl DirectoryConnectorContract {
     /// Validated policy.
     pub const fn policy(&self) -> &DirectoryConnectorPolicy {
         &self.policy
+    }
+
+    pub fn lifecycle(&self) -> &SafeDisplayText {
+        &self.lifecycle
+    }
+
+    pub fn readiness(&self) -> &SafeDisplayText {
+        &self.readiness
     }
 }
 
@@ -1318,12 +1347,12 @@ pub enum ProductContext {
     Procurement,
     /// Inventory, catalog, and stock context.
     Inventory,
+    /// Asset lifecycle context.
+    Assets,
     /// Maintenance and capacity context.
     Maintenance,
     /// Quality inspections and release disposition context.
     Quality,
-    /// Support and incident context.
-    Support,
     /// Marketing and CRM context.
     MarketingCrm,
     /// HR, leave, expense, and payroll context.
@@ -1341,9 +1370,9 @@ pub const PRODUCT_CONTEXTS: &[ProductContext] = &[
     ProductContext::Sales,
     ProductContext::Procurement,
     ProductContext::Inventory,
+    ProductContext::Assets,
     ProductContext::Maintenance,
     ProductContext::Quality,
-    ProductContext::Support,
     ProductContext::MarketingCrm,
     ProductContext::HrPayroll,
     ProductContext::Pos,
@@ -1359,9 +1388,9 @@ impl ProductContext {
             Self::Sales => "/sales",
             Self::Procurement => "/procurement",
             Self::Inventory => "/inventory",
+            Self::Assets => "/assets",
             Self::Maintenance => "/maintenance",
             Self::Quality => "/quality",
-            Self::Support => "/support",
             Self::MarketingCrm => "/marketing",
             Self::HrPayroll => "/hr",
             Self::Pos => "/pos",
@@ -1377,9 +1406,9 @@ impl ProductContext {
             Self::Sales => "Sales",
             Self::Procurement => "Procurement",
             Self::Inventory => "Inventory",
+            Self::Assets => "Assets",
             Self::Maintenance => "Maintenance",
             Self::Quality => "Quality",
-            Self::Support => "Support",
             Self::MarketingCrm => "Marketing and CRM",
             Self::HrPayroll => "HR and Payroll",
             Self::Pos => "Point of Sale",
@@ -1894,7 +1923,7 @@ impl ProductSurface {
             Self::Context(ProductContext::Inventory) => "inventory",
             Self::Context(ProductContext::Maintenance) => "maintenance",
             Self::Context(ProductContext::Quality) => "quality",
-            Self::Context(ProductContext::Support) => "support",
+            Self::Context(ProductContext::Assets) => "assets",
             Self::Context(ProductContext::MarketingCrm) => "marketing-crm",
             Self::Context(ProductContext::HrPayroll) => "hr-payroll",
             Self::Context(ProductContext::Pos) => "pos",
@@ -2961,6 +2990,8 @@ pub fn DirectoryAdministrationSurface(model: DirectoryAdministrationModel) -> El
                             dl {
                                 class: "erpx-directory-fact-grid",
                                 div { dt { "Scope" } dd { "{connector.scope().label()}" } }
+                                div { dt { "Lifecycle" } dd { "{connector.lifecycle()}" } }
+                                div { dt { "Readiness" } dd { "{connector.readiness()}" } }
                                 div { dt { "Native change feed" } dd { "{connector.policy().change_feed.label()}" } }
                                 div { dt { "Full import" } dd { "Up to {connector.policy().full_import.max_users()} users" } }
                                 div { dt { "Communication" } dd { "{directory_bool_status(connector.policy().security.tls_only)} · TLS-only" } }
@@ -3331,6 +3362,8 @@ pub enum ProductContractError {
     FullImportBelowLimit,
     /// A directory import checkpoint is outside the bounded display contract.
     InvalidDirectoryImportStatus,
+    /// Directory lifecycle/readiness values must use the closed server vocabulary.
+    InvalidDirectoryLifecycle,
     /// Directory-managed role mapping is required.
     DirectoryRoleMappingRequired,
     /// Identity links must be immutable.
@@ -3384,6 +3417,7 @@ impl fmt::Display for ProductContractError {
                 "connector full-import capacity is below one million users"
             }
             Self::InvalidDirectoryImportStatus => "invalid directory import status",
+            Self::InvalidDirectoryLifecycle => "invalid directory lifecycle or readiness",
             Self::DirectoryRoleMappingRequired => "directory-managed role mapping is required",
             Self::ImmutableIdentityLinkRequired => "immutable identity linking is required",
             Self::AppendOnlyRevocationRequired => "append-only role revocation is required",

@@ -17,14 +17,17 @@ erpx-migration = { path = "../../crates/migration" }
 erpx-proto = { path = "../../crates/proto" }
 erpx-worker = { path = "../worker" }
 prost-types = "0.14.4"
+prost.workspace = true
 rand_core.workspace = true
+ring = "0.17.14"
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
-tonic = { workspace = true, features = ["router", "transport"] }
+tonic = { workspace = true, features = ["router", "transport", "tls-ring"] }
 tonic-web.workspace = true
+tokio-stream = "0.1.17"
 tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

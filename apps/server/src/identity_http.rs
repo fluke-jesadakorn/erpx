@@ -645,10 +645,20 @@ async fn directory_login(body: &[u8], auth: Arc<AuthContext>) -> IdentityHttpRes
         Ok(connector) => connector,
         Err(_) => return json_response("401 Unauthorized", "invalid_credentials"),
     };
-    let authenticated = match erpx_worker::authenticate_directory_user(
+    let settings = match auth
+        .directory
+        .connector_runtime_settings(input.connector_id)
+        .await
+    {
+        Ok(settings) => settings,
+        Err(_) => return json_response("503 Service Unavailable", "directory_unavailable"),
+    };
+    let authenticated = match erpx_worker::authenticate_directory_user_with_runtime(
         &connector,
+        &settings,
         &input.username,
         &input.password,
+        auth.directory_secrets.as_ref(),
     )
     .await
     {

@@ -511,16 +511,7 @@ impl BackupControlCommand {
                 }
             }
             PlatformBackupKind::Pitr => {
-                if self.restore_target_ref.is_some()
-                    || self.candidate_read_database_key.is_some()
-                    || self.source_version.is_some()
-                {
-                    return Err(PlatformCompletionError::InvalidBackupShape);
-                }
-                self.pitr_recovery_point
-                    .as_ref()
-                    .ok_or(PlatformCompletionError::InvalidBackupShape)?
-                    .validate(self.at)?;
+                return Err(PlatformCompletionError::PitrUnavailable);
             }
         }
         if !matches!(
@@ -1085,7 +1076,7 @@ mod tests {
     }
 
     #[test]
-    fn backup_pitr_requires_a_bounded_recovery_point_and_malformed_restore_requests_fail_closed() {
+    fn tenant_pitr_is_unavailable_and_recovery_points_remain_strictly_validated() {
         let at = Utc::now();
         let binding = TenantBinding::new("tenant-a", "holding-a").expect("binding");
         let pitr = BackupControlCommand {
@@ -1106,7 +1097,7 @@ mod tests {
         };
         assert_eq!(
             pitr.validate(&proof("platform.tenant.backup", at)),
-            Err(PlatformCompletionError::InvalidBackupShape)
+            Err(PlatformCompletionError::PitrUnavailable)
         );
         let mut valid_pitr = pitr.clone();
         valid_pitr.pitr_recovery_point = Some(PitrRecoveryPoint {
@@ -1117,8 +1108,15 @@ mod tests {
         });
         assert!(
             valid_pitr
-                .validate(&proof("platform.tenant.backup", at))
+                .pitr_recovery_point
+                .as_ref()
+                .expect("recovery point")
+                .validate(at)
                 .is_ok()
+        );
+        assert_eq!(
+            valid_pitr.validate(&proof("platform.tenant.backup", at)),
+            Err(PlatformCompletionError::PitrUnavailable)
         );
         let mut invalid_lsn = valid_pitr.clone();
         invalid_lsn.pitr_recovery_point = Some(PitrRecoveryPoint {
@@ -1128,7 +1126,11 @@ mod tests {
             physical_restore_target_ref: "physical-target-1".into(),
         });
         assert_eq!(
-            invalid_lsn.validate(&proof("platform.tenant.backup", at)),
+            invalid_lsn
+                .pitr_recovery_point
+                .as_ref()
+                .expect("recovery point")
+                .validate(at),
             Err(PlatformCompletionError::InvalidField {
                 field: "pitr.target_lsn"
             })

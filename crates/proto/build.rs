@@ -11,6 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(true)
         .build_server(true)
         .build_transport(false)
+        .boxed(".erpx.platform.v1.DataPlaneAgentEnvelope.payload.observation")
         .file_descriptor_set_path(&descriptor_set_path)
         .compile_protos(
             &[

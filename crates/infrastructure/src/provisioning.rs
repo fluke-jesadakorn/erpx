@@ -3117,6 +3117,49 @@ impl TenantDatabaseRouter {
     ) -> Result<RoutedTenantDatabase, PersistenceError> {
         validate_ref(tenant_id, "tenant_id")?;
         validate_ref(holding_ref, "holding_ref")?;
+        let deployment_mode: Option<String> = sqlx::query_scalar(
+            "SELECT deployment_mode
+             FROM erpx_control.tenant_infrastructure_profiles
+             WHERE tenant_id = $1",
+        )
+        .bind(tenant_id)
+        .fetch_optional(&self.control.pools().write)
+        .await?;
+        match deployment_mode.as_deref() {
+            Some("erpx_managed") => {}
+            Some("customer_data_plane") => {
+                return Err(PersistenceError::InvalidData(
+                    "customer data plane requests must route through the enrolled agent".into(),
+                ));
+            }
+            Some(_) => {
+                return Err(PersistenceError::InvalidData(
+                    "tenant execution route is not configured".into(),
+                ));
+            }
+            None => {
+                // Tenant registry rows created before the layered customer
+                // administration model have no customer binding and are
+                // explicitly ERPX-managed by the rollout contract. A bound
+                // tenant missing its profile is inconsistent and must never
+                // fall back from a customer data plane into managed storage.
+                let has_customer_binding: bool = sqlx::query_scalar(
+                    "SELECT EXISTS (
+                         SELECT 1
+                         FROM erpx_control.customer_tenant_bindings
+                         WHERE tenant_id = $1
+                     )",
+                )
+                .bind(tenant_id)
+                .fetch_one(&self.control.pools().write)
+                .await?;
+                if has_customer_binding {
+                    return Err(PersistenceError::InvalidData(
+                        "tenant execution route is not configured".into(),
+                    ));
+                }
+            }
+        }
         let registration = SqlxTenantStoreRegistry::new(self.control.clone())
             .get(tenant_id)
             .await?
@@ -3945,7 +3988,12 @@ impl TenantDatabaseProvisioner {
                 .fetch_one(&admin)
                 .await?;
         if !exists {
-            let statement = format!("CREATE DATABASE {}", quote_identifier(database_key));
+            let owner = database_owner_from_template(&self.config.database_url_template)?;
+            let statement = format!(
+                "CREATE DATABASE {} OWNER {}",
+                quote_identifier(database_key),
+                quote_identifier(&owner),
+            );
             if let Err(error) = sqlx::query(&statement).execute(&admin).await
                 && !is_duplicate_database(&error)
             {
@@ -7714,7 +7762,23 @@ fn validate_database_config(
         .database_url_template
         .replace("{database}", "erpx_tls_validation_database");
     validate_tls_database_url(&rendered_template, "tenant database URL template")?;
+    database_owner_from_template(&config.database_url_template)?;
     Ok(())
+}
+
+fn database_owner_from_template(template: &str) -> Result<String, PersistenceError> {
+    let rendered = template.replace("{database}", "erpx_owner_validation_database");
+    let options = PgConnectOptions::from_str(&rendered).map_err(|_| {
+        PersistenceError::Configuration("tenant database URLs must be valid PostgreSQL URLs")
+    })?;
+    let owner = options.get_username();
+    if owner.is_empty() || owner.len() > 63 || owner.chars().any(|character| character.is_control())
+    {
+        return Err(PersistenceError::Configuration(
+            "tenant database URL must identify a bounded database owner",
+        ));
+    }
+    Ok(owner.to_owned())
 }
 
 fn validate_tls_database_url(value: &str, field: &'static str) -> Result<(), PersistenceError> {
@@ -7790,6 +7854,10 @@ mod tests {
         assert_eq!(
             config.database_url_template.matches("{database}").count(),
             1
+        );
+        assert_eq!(
+            database_owner_from_template(&config.database_url_template).expect("database owner"),
+            "tenant"
         );
 
         assert!(

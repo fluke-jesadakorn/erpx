@@ -5,7 +5,7 @@
 //! disposable PostgreSQL instance and never performs tenant-route activation.
 
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     env, fmt, fs,
     io::Write,
     path::{Component, Path, PathBuf},
@@ -554,6 +554,79 @@ impl PitrRestoreTargetResolver for UnconfiguredPitrRestoreTargetResolver {
         _restore_target_ref: &str,
     ) -> Result<PhysicalPitrRestoreTarget, BackupAdapterError> {
         Err(BackupAdapterError::Configuration)
+    }
+}
+
+/// Local-only allow-listed restore target resolver. API callers supply only
+/// an opaque reference; the coordinator owns its private directory, port, and
+/// database URL. Ports outside 55440-55479 are rejected at construction.
+#[derive(Clone)]
+pub struct LocalPitrRestoreTargetResolver {
+    restore_root: PathBuf,
+    database_url_template: String,
+    targets: BTreeMap<String, u16>,
+}
+
+impl fmt::Debug for LocalPitrRestoreTargetResolver {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("LocalPitrRestoreTargetResolver")
+            .field("restore_root", &self.restore_root)
+            .field("database_url_template", &"<redacted>")
+            .field("target_count", &self.targets.len())
+            .finish()
+    }
+}
+
+impl LocalPitrRestoreTargetResolver {
+    pub fn new(
+        restore_root: PathBuf,
+        database_url_template: String,
+        targets: BTreeMap<String, u16>,
+    ) -> Result<Self, BackupAdapterError> {
+        if !restore_root.is_absolute()
+            || restore_root.parent().is_none()
+            || database_url_template.matches("{port}").count() != 1
+            || targets.is_empty()
+            || targets.len() > 40
+            || targets.iter().any(|(reference, port)| {
+                validate_opaque_ref(reference).is_err() || !(55440..=55479).contains(port)
+            })
+            || targets.values().collect::<BTreeSet<_>>().len() != targets.len()
+        {
+            return Err(BackupAdapterError::Configuration);
+        }
+        Ok(Self {
+            restore_root,
+            database_url_template,
+            targets,
+        })
+    }
+}
+
+#[async_trait]
+impl PitrRestoreTargetResolver for LocalPitrRestoreTargetResolver {
+    async fn resolve(
+        &self,
+        restore_target_ref: &str,
+    ) -> Result<PhysicalPitrRestoreTarget, BackupAdapterError> {
+        let port = self
+            .targets
+            .get(restore_target_ref)
+            .copied()
+            .ok_or(BackupAdapterError::Configuration)?;
+        let target_root = self.restore_root.join(restore_target_ref);
+        let database_url = self
+            .database_url_template
+            .replace("{port}", &port.to_string());
+        validate_local_restore_database_url(&database_url, port)?;
+        Ok(PhysicalPitrRestoreTarget {
+            restore_target_ref: restore_target_ref.to_owned(),
+            data_directory: target_root.join("data"),
+            wal_archive_directory: target_root.join("wal"),
+            database_url,
+            port,
+        })
     }
 }
 

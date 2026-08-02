@@ -905,6 +905,10 @@ fn g14_real_generated_directory_and_pitr_messages_round_trip_without_loss() {
         status: "queued".into(),
         last_success_at: String::new(),
         freshness: "not_probed".into(),
+        lifecycle: "draft".into(),
+        readiness: "unconfigured".into(),
+        last_preflight_at: String::new(),
+        last_heartbeat_at: String::new(),
     };
     let pitr = PitrRecoveryPoint {
         target_time: "2026-07-28T10:00:00Z".into(),
@@ -1260,7 +1264,7 @@ fn g14_mobile_and_pitr_boundaries_are_source_verified_and_external_proof_is_queu
         "apps/console/src/main.rs",
         &[
             "TargetSecureSessionAdapter::new",
-            "restore_secure_session",
+            "restore_and_revalidate_secure_session",
             "persist_secure_session",
             "clear_secure_session",
             "No browser or plaintext fallback is used",
@@ -1404,8 +1408,15 @@ fn g14_console_startup_deep_link_contract_is_bound_and_hash_restore_is_queued_if
             "let mut active_route = use_signal",
             "let mut deep_link_applied = use_signal",
             "window.location.hash.startsWith",
-            "let Some(destination) = console_deep_link(path.as_str())",
-            "ConsoleDeepLink::Customer(route) => active_route.set(route)",
+            "route_signals.activate(path.as_str())",
+        ],
+    );
+    require_markers(
+        MOBILE_CONSOLE,
+        "apps/console/src/main.rs",
+        &[
+            "let Some(destination) = console_deep_link(path)",
+            "ConsoleDeepLink::Customer(route) => self.active_route.set(route)",
         ],
     );
     if !MOBILE_CONSOLE.contains("window.location.hash") {

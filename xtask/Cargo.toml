@@ -12,7 +12,9 @@ erpx-domain = { path = "../crates/domain" }
 erpx-identity = { path = "../crates/identity" }
 erpx-infrastructure = { path = "../crates/infrastructure" }
 erpx-migration = { path = "../crates/migration" }
+erpx-worker = { path = "../apps/worker" }
 reqwest.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 sqlx.workspace = true

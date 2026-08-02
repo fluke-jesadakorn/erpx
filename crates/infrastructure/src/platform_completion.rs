@@ -2181,7 +2181,7 @@ mod tests {
         };
         assert_eq!(
             command.validate(&proof),
-            Err(PlatformCompletionError::InvalidBackupShape)
+            Err(PlatformCompletionError::PitrUnavailable)
         );
     }
 

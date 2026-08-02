@@ -6,6 +6,8 @@
 
 use std::{error::Error, fmt};
 
+pub use erpx_domain::data_plane::BusinessUnitId as TenantWorkspaceModule;
+
 use crate::{
     Locale, NavItem, ProjectionFreshness, RouteAuthRequirement, SafeUiText, TranslationKey,
     UiStateKind, normalize_deep_link, redact_deep_link,
@@ -28,6 +30,8 @@ pub enum PlatformOperationsRouteId {
     Tenants,
     /// A single tenant's platform operations view.
     Tenant,
+    /// A tenant-bound module workspace entered by a platform administrator.
+    TenantWorkspace,
     /// Projection health and rebuild controls.
     Projections,
     /// Backup and restore history.
@@ -88,6 +92,14 @@ pub const PLATFORM_OPERATIONS_ROUTES: &[PlatformOperationsRouteDefinition] = &[
         audience: PlatformOperationsAudience::Platform,
         auth: RouteAuthRequirement::Authenticated,
         icon: "▤",
+    },
+    PlatformOperationsRouteDefinition {
+        id: PlatformOperationsRouteId::TenantWorkspace,
+        template: "/platform/tenants/:id/workspace/:module",
+        label: TranslationKey::PlatformTenant,
+        audience: PlatformOperationsAudience::Platform,
+        auth: RouteAuthRequirement::Authenticated,
+        icon: "▣",
     },
     PlatformOperationsRouteDefinition {
         id: PlatformOperationsRouteId::Projections,
@@ -161,6 +173,131 @@ impl PlatformTenantId {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TenantWorkspaceViewerKind {
+    TenantUser,
+    PlatformTenantAdministrator,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TenantWorkspaceBillingMode {
+    Writable,
+    Grace,
+    ReadOnly,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TenantWorkspaceOrganizationScope {
+    Headquarters {
+        holding_id: SafeUiText,
+    },
+    Company {
+        holding_id: SafeUiText,
+        company_id: SafeUiText,
+    },
+    Branch {
+        holding_id: SafeUiText,
+        company_id: SafeUiText,
+        branch_id: SafeUiText,
+    },
+}
+
+/// Shared, display-safe module context. Authorization and consolidation stay
+/// server-owned; the UI only carries the selected scope and opaque evidence.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TenantWorkspaceContext {
+    pub tenant_id: PlatformTenantId,
+    pub customer_id: SafeUiText,
+    pub root_holding_id: SafeUiText,
+    pub scope: TenantWorkspaceOrganizationScope,
+    pub viewer_kind: TenantWorkspaceViewerKind,
+    pub billing_mode: TenantWorkspaceBillingMode,
+    pub entitled_modules: Vec<TenantWorkspaceModule>,
+    /// Never rendered in UI diagnostics. Targets pass it only through the
+    /// protected transport metadata boundary.
+    administrative_context_id: Option<SafeUiText>,
+}
+
+impl TenantWorkspaceContext {
+    pub fn entered_platform(
+        tenant_id: PlatformTenantId,
+        customer_id: impl AsRef<str>,
+        root_holding_id: impl AsRef<str>,
+        scope: TenantWorkspaceOrganizationScope,
+        billing_mode: TenantWorkspaceBillingMode,
+        entitled_modules: Vec<TenantWorkspaceModule>,
+        administrative_context_id: impl AsRef<str>,
+    ) -> Option<Self> {
+        let administrative_context_id = administrative_context_id.as_ref().trim();
+        if administrative_context_id.is_empty() {
+            return None;
+        }
+        Some(Self {
+            tenant_id,
+            customer_id: SafeUiText::new(customer_id),
+            root_holding_id: SafeUiText::new(root_holding_id),
+            scope,
+            viewer_kind: TenantWorkspaceViewerKind::PlatformTenantAdministrator,
+            billing_mode,
+            entitled_modules,
+            administrative_context_id: Some(SafeUiText::new(administrative_context_id)),
+        })
+    }
+
+    pub fn administrative_context_metadata(&self) -> Option<&str> {
+        self.administrative_context_id
+            .as_ref()
+            .map(SafeUiText::as_str)
+    }
+
+    pub fn permits_module(&self, module: TenantWorkspaceModule) -> bool {
+        self.entitled_modules.contains(&module)
+    }
+
+    pub const fn is_read_only(&self) -> bool {
+        matches!(self.billing_mode, TenantWorkspaceBillingMode::ReadOnly)
+    }
+}
+
+/// Tenant administration detail tabs. `EnterWorkspace` remains distinct from
+/// read-only administrative projections.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlatformTenantAdministrationTab {
+    Overview,
+    Infrastructure,
+    Identity,
+    CorporateIdentity,
+    BusinessUnits,
+    RootAccess,
+    ConfigurationHistory,
+    Organization,
+    Subscription,
+    Modules,
+    UsersAccess,
+    Health,
+    Audit,
+    EnterWorkspace,
+}
+
+impl PlatformTenantAdministrationTab {
+    pub const ALL: [Self; 14] = [
+        Self::Overview,
+        Self::Infrastructure,
+        Self::Identity,
+        Self::CorporateIdentity,
+        Self::BusinessUnits,
+        Self::RootAccess,
+        Self::ConfigurationHistory,
+        Self::Organization,
+        Self::Subscription,
+        Self::Modules,
+        Self::UsersAccess,
+        Self::Health,
+        Self::Audit,
+        Self::EnterWorkspace,
+    ];
 }
 
 /// Safe metadata accompanying an authorized Platform Operations read.
@@ -348,6 +485,11 @@ pub enum PlatformOperationsRoute {
     Tenants,
     /// A single tenant route with a validated opaque identifier.
     Tenant { tenant_id: PlatformTenantId },
+    /// Reused module UI inside one entered administrative context.
+    TenantWorkspace {
+        tenant_id: PlatformTenantId,
+        module: TenantWorkspaceModule,
+    },
     /// Projection health and rebuild controls.
     Projections,
     /// Backup and restore history.
@@ -358,6 +500,8 @@ pub enum PlatformOperationsRoute {
     Audit,
     /// Platform settings.
     Settings,
+    /// Contextual corporate identity editor under platform settings.
+    CorporateIdentity,
     /// Expiring-role review and recovery workflow.
     RoleReview,
 }
@@ -368,11 +512,12 @@ impl PlatformOperationsRoute {
         match self {
             Self::Tenants => PlatformOperationsRouteId::Tenants,
             Self::Tenant { .. } => PlatformOperationsRouteId::Tenant,
+            Self::TenantWorkspace { .. } => PlatformOperationsRouteId::TenantWorkspace,
             Self::Projections => PlatformOperationsRouteId::Projections,
             Self::Backups => PlatformOperationsRouteId::Backups,
             Self::Integrations => PlatformOperationsRouteId::Integrations,
             Self::Audit => PlatformOperationsRouteId::Audit,
-            Self::Settings => PlatformOperationsRouteId::Settings,
+            Self::Settings | Self::CorporateIdentity => PlatformOperationsRouteId::Settings,
             Self::RoleReview => PlatformOperationsRouteId::RoleReview,
         }
     }
@@ -384,11 +529,17 @@ impl PlatformOperationsRoute {
             Self::Tenant { tenant_id } => {
                 format!("/platform/tenants/{}", tenant_id.as_str())
             }
+            Self::TenantWorkspace { tenant_id, module } => format!(
+                "/platform/tenants/{}/workspace/{}",
+                tenant_id.as_str(),
+                module.as_str()
+            ),
             Self::Projections => "/platform/projections".to_string(),
             Self::Backups => "/platform/backups".to_string(),
             Self::Integrations => "/platform/integrations".to_string(),
             Self::Audit => "/platform/audit".to_string(),
             Self::Settings => "/platform/settings".to_string(),
+            Self::CorporateIdentity => "/platform/settings/corporate-identity".to_string(),
             Self::RoleReview => "/platform/role-review".to_string(),
         }
     }
@@ -432,11 +583,21 @@ impl PlatformOperationsRouteRegistry {
             ["platform", "tenants", tenant_id] => PlatformTenantId::new(*tenant_id)
                 .map(|tenant_id| PlatformOperationsRoute::Tenant { tenant_id })
                 .map_err(|_| PlatformOperationsRouteError::new(normalized)),
+            ["platform", "tenants", tenant_id, "workspace", module] => {
+                let tenant_id = PlatformTenantId::new(*tenant_id)
+                    .map_err(|_| PlatformOperationsRouteError::new(normalized.clone()))?;
+                let module = TenantWorkspaceModule::parse(module)
+                    .map_err(|_| PlatformOperationsRouteError::new(normalized.clone()))?;
+                Ok(PlatformOperationsRoute::TenantWorkspace { tenant_id, module })
+            }
             ["platform", "projections"] => Ok(PlatformOperationsRoute::Projections),
             ["platform", "backups"] => Ok(PlatformOperationsRoute::Backups),
             ["platform", "integrations"] => Ok(PlatformOperationsRoute::Integrations),
             ["platform", "audit"] => Ok(PlatformOperationsRoute::Audit),
             ["platform", "settings"] => Ok(PlatformOperationsRoute::Settings),
+            ["platform", "settings", "corporate-identity"] => {
+                Ok(PlatformOperationsRoute::CorporateIdentity)
+            }
             ["platform", "role-review"] => Ok(PlatformOperationsRoute::RoleReview),
             _ => Err(PlatformOperationsRouteError::new(normalized)),
         }
@@ -516,7 +677,8 @@ mod tests {
     use super::{
         PLATFORM_OPERATIONS_ROUTES, PlatformOperationsAudience, PlatformOperationsPageState,
         PlatformOperationsProjectionMetadata, PlatformOperationsRoute, PlatformOperationsRouteId,
-        PlatformOperationsRouteRegistry, PlatformTenantId,
+        PlatformOperationsRouteRegistry, PlatformTenantId, TenantWorkspaceBillingMode,
+        TenantWorkspaceContext, TenantWorkspaceModule, TenantWorkspaceOrganizationScope,
     };
     use crate::{Locale, ProjectionFreshness, RouteAuthRequirement, SafeUiText, UiStateKind};
 
@@ -525,6 +687,10 @@ mod tests {
         let expected = [
             (PlatformOperationsRouteId::Tenants, "/platform/tenants"),
             (PlatformOperationsRouteId::Tenant, "/platform/tenants/:id"),
+            (
+                PlatformOperationsRouteId::TenantWorkspace,
+                "/platform/tenants/:id/workspace/:module",
+            ),
             (
                 PlatformOperationsRouteId::Projections,
                 "/platform/projections",
@@ -572,12 +738,25 @@ mod tests {
             Ok(PlatformOperationsRoute::Projections)
         ));
         assert!(matches!(
+            registry.resolve("/platform/tenants/tenant_123/workspace/finance"),
+            Ok(PlatformOperationsRoute::TenantWorkspace {
+                module: TenantWorkspaceModule::Finance,
+                ..
+            })
+        ));
+        assert!(matches!(
             registry.resolve("/platform/role-review"),
             Ok(PlatformOperationsRoute::RoleReview)
+        ));
+        assert!(matches!(
+            registry.resolve("/platform/settings/corporate-identity"),
+            Ok(PlatformOperationsRoute::CorporateIdentity)
         ));
         for path in [
             "/platform/tenants-extra",
             "/platform/tenants/tenant_123/extra",
+            "/platform/tenants/tenant_123/workspace/unknown",
+            "/platform/tenants/tenant_123/workspace/finance/extra",
             "/platform/projections-extra",
             "/platform/backups-old",
             "/platform/settings/child",
@@ -704,6 +883,38 @@ mod tests {
         assert!(
             PlatformOperationsPageState::<u8>::Loading { metadata: None }
                 .is_scope_bound_to_tenant(&tenant)
+        );
+    }
+
+    #[test]
+    fn entered_workspace_is_tenant_bound_module_allow_listed_and_context_backed() {
+        let registry = PlatformOperationsRouteRegistry::new();
+        let route = registry
+            .resolve("/platform/tenants/tenant_123/workspace/finance")
+            .expect("entered workspace route");
+        assert_eq!(
+            route.path(),
+            "/platform/tenants/tenant_123/workspace/finance"
+        );
+        let tenant_id = PlatformTenantId::new("tenant_123").expect("tenant");
+        let context = TenantWorkspaceContext::entered_platform(
+            tenant_id,
+            "customer-123",
+            "holding-123",
+            TenantWorkspaceOrganizationScope::Headquarters {
+                holding_id: SafeUiText::new("holding-123"),
+            },
+            TenantWorkspaceBillingMode::ReadOnly,
+            vec![TenantWorkspaceModule::Finance],
+            "opaque-admin-context",
+        )
+        .expect("administrative context");
+        assert!(context.permits_module(TenantWorkspaceModule::Finance));
+        assert!(!context.permits_module(TenantWorkspaceModule::Sales));
+        assert!(context.is_read_only());
+        assert_eq!(
+            context.administrative_context_metadata(),
+            Some("opaque-admin-context")
         );
     }
 }

@@ -502,6 +502,150 @@ fn effective_provider_event(state: BillingState, event: BillingEvent) -> Option<
 
 pub const DEFAULT_GRACE_PERIOD_DAYS: i64 = 7;
 pub const DEFAULT_GRACE_PERIOD: chrono::Duration = chrono::Duration::days(7);
+pub const MAX_GRACE_EXTENSION: chrono::Duration = chrono::Duration::days(7);
+pub const ACTIVE_CATALOG_CURRENCY: &str = "USD";
+
+/// The single, bounded exception available for one delinquency cycle.
+/// Persistence enforces uniqueness on `(customer_id, subscription_id,
+/// delinquency_cycle_id)`; this value only validates the business rule.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BillingGraceExtension {
+    pub id: Uuid,
+    pub customer_id: Uuid,
+    pub subscription_id: Uuid,
+    pub delinquency_cycle_id: Uuid,
+    pub previous_grace_until: DateTime<Utc>,
+    pub extended_until: DateTime<Utc>,
+    pub granted_at: DateTime<Utc>,
+    pub granted_by: String,
+    pub reason: String,
+    pub correlation_id: Uuid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BillingGraceExtensionGrant {
+    pub customer_id: Uuid,
+    pub subscription_id: Uuid,
+    pub delinquency_cycle_id: Uuid,
+    pub previous_grace_until: DateTime<Utc>,
+    pub extension: chrono::Duration,
+    pub granted_at: DateTime<Utc>,
+    pub granted_by: String,
+    pub reason: String,
+    pub correlation_id: Uuid,
+}
+
+impl BillingGraceExtension {
+    pub fn grant(request: BillingGraceExtensionGrant) -> Result<Self, BillingGraceExtensionError> {
+        if request.customer_id.is_nil()
+            || request.subscription_id.is_nil()
+            || request.delinquency_cycle_id.is_nil()
+            || request.correlation_id.is_nil()
+        {
+            return Err(BillingGraceExtensionError::NilIdentifier);
+        }
+        if request.extension <= chrono::Duration::zero() || request.extension > MAX_GRACE_EXTENSION
+        {
+            return Err(BillingGraceExtensionError::InvalidDuration);
+        }
+        if request.granted_by.trim().is_empty()
+            || request.reason.trim().is_empty()
+            || request.granted_by.chars().any(char::is_control)
+            || request.reason.chars().any(char::is_control)
+            || request.reason.len() > 512
+        {
+            return Err(BillingGraceExtensionError::MissingEvidence);
+        }
+        let extended_until = request
+            .previous_grace_until
+            .checked_add_signed(request.extension)
+            .ok_or(BillingGraceExtensionError::TimestampOverflow)?;
+        Ok(Self {
+            id: Uuid::new_v4(),
+            customer_id: request.customer_id,
+            subscription_id: request.subscription_id,
+            delinquency_cycle_id: request.delinquency_cycle_id,
+            previous_grace_until: request.previous_grace_until,
+            extended_until,
+            granted_at: request.granted_at,
+            granted_by: request.granted_by,
+            reason: request.reason,
+            correlation_id: request.correlation_id,
+        })
+    }
+}
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum BillingGraceExtensionError {
+    #[error("billing grace extension identifier cannot be nil")]
+    NilIdentifier,
+    #[error("billing grace extension must be positive and at most seven days")]
+    InvalidDuration,
+    #[error("billing grace extension requires a bounded reason and actor")]
+    MissingEvidence,
+    #[error("billing grace extension timestamp overflow")]
+    TimestampOverflow,
+}
+
+/// UI-safe subscription intent. Provider price identifiers and amounts are
+/// absent by construction; the server resolves them from the published
+/// catalog and its internal provider binding.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubscriptionItemSelection {
+    pub item_key: String,
+    pub quantity: u32,
+}
+
+/// Resolve and validate the single currency for a set of requested catalog
+/// items. ERPX persistence remains ISO-currency aware, while the first active
+/// checkout currency is intentionally USD only.
+pub fn active_subscription_currency(
+    catalog: &PublishedCommercialCatalogRevision,
+    selections: &[SubscriptionItemSelection],
+) -> Result<String, SubscriptionSelectionError> {
+    if selections.is_empty() {
+        return Err(SubscriptionSelectionError::MissingItems);
+    }
+    let mut currency = None::<&str>;
+    let mut keys = BTreeSet::new();
+    for selection in selections {
+        if selection.quantity == 0
+            || selection.item_key.trim().is_empty()
+            || !keys.insert(selection.item_key.as_str())
+        {
+            return Err(SubscriptionSelectionError::InvalidItem);
+        }
+        let price = catalog
+            .price(&selection.item_key)
+            .ok_or(SubscriptionSelectionError::UnknownItem)?;
+        match currency {
+            Some(expected) if expected != price.amount.currency => {
+                return Err(SubscriptionSelectionError::MixedCurrency);
+            }
+            None => currency = Some(&price.amount.currency),
+            Some(_) => {}
+        }
+    }
+    let currency = currency.expect("non-empty subscription selections have a currency");
+    if currency != ACTIVE_CATALOG_CURRENCY {
+        return Err(SubscriptionSelectionError::InactiveCurrency);
+    }
+    Ok(currency.to_owned())
+}
+
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+pub enum SubscriptionSelectionError {
+    #[error("subscription must contain at least one catalog item")]
+    MissingItems,
+    #[error("subscription item key and quantity are invalid or duplicated")]
+    InvalidItem,
+    #[error("subscription catalog item does not exist")]
+    UnknownItem,
+    #[error("subscription items cannot mix currencies")]
+    MixedCurrency,
+    #[error("catalog currency is not active for checkout")]
+    InactiveCurrency,
+}
 
 /// Capabilities deliberately retained while a subscription is read-only.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -695,17 +839,25 @@ impl CommercialCatalogRevisionDraft {
 
 fn validate_prices(prices: &[CatalogPrice]) -> Result<(), CatalogError> {
     let mut keys = BTreeSet::new();
-    let mut base_fees = 0;
+    let mut base_fee_dimensions = BTreeSet::new();
     for price in prices {
         if price.item_key.trim().is_empty() || !keys.insert(price.item_key.as_str()) {
             return Err(CatalogError::DuplicateItemKey);
         }
         validate_price(price)?;
         if matches!(price.kind, CatalogPriceKind::BaseFee) {
-            base_fees += 1;
+            let charge = match price.charge {
+                ChargeKind::Recurring(BillingInterval::Monthly) => "monthly",
+                ChargeKind::Recurring(BillingInterval::Yearly) => "yearly",
+                ChargeKind::OneTime => "one_time",
+                ChargeKind::Metered => "metered",
+            };
+            if !base_fee_dimensions.insert((price.amount.currency.as_str(), charge)) {
+                return Err(CatalogError::ExactlyOneBaseFee);
+            }
         }
     }
-    if base_fees != 1 {
+    if base_fee_dimensions.is_empty() {
         return Err(CatalogError::ExactlyOneBaseFee);
     }
     Ok(())
@@ -869,7 +1021,7 @@ pub enum CatalogError {
     InvalidAmount,
     #[error("catalog revision number must be positive")]
     InvalidRevisionNumber,
-    #[error("catalog revision must contain exactly one base fee")]
+    #[error("catalog revision must contain one base fee per currency and billing interval")]
     ExactlyOneBaseFee,
     #[error("catalog item keys must be non-empty and unique")]
     DuplicateItemKey,
@@ -2256,6 +2408,124 @@ mod tests {
             )
             .expect_err("control character must fail"),
             CommercialCommandValidationError::ControlCharacter("idempotency_key")
+        );
+    }
+
+    #[test]
+    fn checkout_selection_is_server_catalog_owned_usd_only_and_single_currency() {
+        let mut base = commercial_price(
+            "tenant-base-monthly",
+            CatalogPriceKind::BaseFee,
+            PricingUnit::Flat,
+            ChargeKind::Recurring(BillingInterval::Monthly),
+            10_000,
+        );
+        base.amount.currency = "USD".into();
+        let mut module = commercial_price(
+            "module-finance-monthly",
+            CatalogPriceKind::Module,
+            PricingUnit::Company,
+            ChargeKind::Recurring(BillingInterval::Monthly),
+            2_500,
+        );
+        module.amount.currency = "USD".into();
+        let catalog = commercial_draft(1, vec![base, module])
+            .publish(Utc::now(), "catalog-admin")
+            .expect("USD catalog");
+        let selection = vec![
+            SubscriptionItemSelection {
+                item_key: "tenant-base-monthly".into(),
+                quantity: 1,
+            },
+            SubscriptionItemSelection {
+                item_key: "module-finance-monthly".into(),
+                quantity: 2,
+            },
+        ];
+        assert_eq!(
+            active_subscription_currency(&catalog, &selection),
+            Ok("USD".into())
+        );
+
+        let thb_catalog = commercial_draft(
+            2,
+            vec![commercial_price(
+                "tenant-base-monthly",
+                CatalogPriceKind::BaseFee,
+                PricingUnit::Flat,
+                ChargeKind::Recurring(BillingInterval::Monthly),
+                10_000,
+            )],
+        )
+        .publish(Utc::now(), "catalog-admin")
+        .expect("currency-aware persistence accepts ISO currencies");
+        assert_eq!(
+            active_subscription_currency(&thb_catalog, &selection[..1]),
+            Err(SubscriptionSelectionError::InactiveCurrency)
+        );
+    }
+
+    #[test]
+    fn catalog_supports_one_monthly_and_one_yearly_tenant_base() {
+        let mut monthly = commercial_price(
+            "tenant-base-monthly",
+            CatalogPriceKind::BaseFee,
+            PricingUnit::Flat,
+            ChargeKind::Recurring(BillingInterval::Monthly),
+            10_000,
+        );
+        monthly.amount.currency = "USD".into();
+        let mut yearly = commercial_price(
+            "tenant-base-yearly",
+            CatalogPriceKind::BaseFee,
+            PricingUnit::Flat,
+            ChargeKind::Recurring(BillingInterval::Yearly),
+            100_000,
+        );
+        yearly.amount.currency = "USD".into();
+        assert!(
+            commercial_draft(3, vec![monthly.clone(), yearly])
+                .publish(Utc::now(), "catalog-admin")
+                .is_ok()
+        );
+        let mut duplicate_monthly = monthly.clone();
+        duplicate_monthly.item_key = "tenant-base-monthly-duplicate".into();
+        assert_eq!(
+            commercial_draft(4, vec![monthly, duplicate_monthly])
+                .publish(Utc::now(), "catalog-admin"),
+            Err(CatalogError::ExactlyOneBaseFee)
+        );
+    }
+
+    #[test]
+    fn delinquency_extension_is_positive_bounded_and_auditable() {
+        let grace_until = Utc::now() + DEFAULT_GRACE_PERIOD;
+        let extension = BillingGraceExtension::grant(BillingGraceExtensionGrant {
+            customer_id: Uuid::new_v4(),
+            subscription_id: Uuid::new_v4(),
+            delinquency_cycle_id: Uuid::new_v4(),
+            previous_grace_until: grace_until,
+            extension: MAX_GRACE_EXTENSION,
+            granted_at: Utc::now(),
+            granted_by: "platform-billing-admin".into(),
+            reason: "approved payment-recovery exception".into(),
+            correlation_id: Uuid::new_v4(),
+        })
+        .expect("bounded extension");
+        assert_eq!(extension.extended_until, grace_until + MAX_GRACE_EXTENSION);
+        assert_eq!(
+            BillingGraceExtension::grant(BillingGraceExtensionGrant {
+                customer_id: Uuid::new_v4(),
+                subscription_id: Uuid::new_v4(),
+                delinquency_cycle_id: Uuid::new_v4(),
+                previous_grace_until: grace_until,
+                extension: MAX_GRACE_EXTENSION + chrono::Duration::seconds(1),
+                granted_at: Utc::now(),
+                granted_by: "platform-billing-admin".into(),
+                reason: "too long".into(),
+                correlation_id: Uuid::new_v4(),
+            }),
+            Err(BillingGraceExtensionError::InvalidDuration)
         );
     }
 }

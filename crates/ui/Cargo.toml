@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 dioxus = { workspace = true, features = ["html", "hooks", "macro", "signals"] }
+erpx-domain = { path = "../domain" }
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 security-framework = "3.7.0"

@@ -84,6 +84,21 @@ pub mod g13;
 /// Tenant-read migration 0042 adds the durable Marketing delivery projection
 /// cursor; it stores only source-event position metadata and is rebuilt from
 /// the tenant-write delivery outbox.
+/// Control migration 0067 makes physical PITR cluster-scoped, rejects new
+/// tenant PITR jobs, and stores only redacted chain, WAL continuity, recovery
+/// point, rehearsal, retention, and promotion-audit metadata.
+/// Control migration 0068 adds payload-free cluster recovery markers used by
+/// isolated local timestamp/LSN rehearsals.
+/// Control migration 0069 adds exact customer/tenant/root-holding bindings,
+/// hashed 30-minute platform tenant-administration contexts, Stripe binding
+/// metadata, bounded grace extensions, tenant-visible platform access audit,
+/// and rebuildable tenant/invoice summaries. It performs no automatic
+/// binding, activation, billing, suspension, or deletion.
+/// Control migration 0070 adds ERPX-managed/customer-data-plane profiles,
+/// hash-only agent enrollment and Root capabilities, signed desired/observed
+/// configuration state, customer approval records, and canonical business-unit
+/// configuration. It stores secret references only and defaults already-bound
+/// tenants to ERPX-managed execution without changing routing.
 pub static CONTROL_PLANE_MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 /// The control read database receives only rebuildable projection tables.

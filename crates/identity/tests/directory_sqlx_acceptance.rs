@@ -24,10 +24,10 @@ use erpx_identity::directory::sync::{
 };
 use erpx_identity::{
     AccessTokenSigner, DirectoryChange as LegacyDirectoryChange, DirectoryConnector,
-    DirectoryError, DirectoryFeedKind, DirectoryProvider, DirectoryRoleAccess,
-    DirectoryRoleMapping, DirectoryScope, DirectorySyncCursor, DirectorySyncPage, DirectoryTlsMode,
-    DirectoryTlsPolicy, DirectoryUser, PasswordService, SqlxDirectoryStore, SqlxIdentityStore,
-    apply_identity_migration, immutable_identity_link,
+    DirectoryConnectorLifecycle, DirectoryError, DirectoryFeedKind, DirectoryProvider,
+    DirectoryRoleAccess, DirectoryRoleMapping, DirectoryScope, DirectorySyncCursor,
+    DirectorySyncPage, DirectoryTlsMode, DirectoryTlsPolicy, DirectoryUser, PasswordService,
+    SqlxDirectoryStore, SqlxIdentityStore, apply_identity_migration, immutable_identity_link,
 };
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -332,6 +332,34 @@ async fn g14_local_directory_sqlx_acceptance() {
         .save_role_mapping(&role_mapping, fixed_at())
         .await
         .expect("persist full-import role mapping");
+    assert_eq!(
+        directory_store
+            .record_preflight(generic_id, true, None, Uuid::new_v4(), fixed_at(),)
+            .await
+            .expect("record local connector preflight"),
+        DirectoryConnectorLifecycle::Verified
+    );
+    directory_store
+        .transition_lifecycle(
+            generic_id,
+            DirectoryConnectorLifecycle::Importing,
+            "g14-local-admin",
+            Uuid::new_v4(),
+            fixed_at(),
+        )
+        .await
+        .expect("start local connector importing lifecycle");
+    // This fixture drives the native sync store directly rather than through
+    // `start_import`, which is the production operation that enables an
+    // importing connector atomically with its queue row.
+    sqlx::query(
+        "UPDATE erpx_identity.directory_connectors
+         SET enabled=true WHERE id=$1 AND lifecycle='importing'",
+    )
+    .bind(generic_id)
+    .execute(&pool)
+    .await
+    .expect("enable direct native-import fixture");
 
     let sync_scope_id = match &generic.scope {
         DirectoryScope::Holding { holding_ref } => {
@@ -450,6 +478,20 @@ async fn g14_local_directory_sqlx_acceptance() {
     assert_eq!(summary.users_seen, 3);
     assert_eq!(summary.pages_applied, 2);
     assert_eq!(sync_store.active_import_id(generic_id).await.unwrap(), None);
+    directory_store
+        .mark_import_reconciled(generic_id, fixed_at() + Duration::seconds(1))
+        .await
+        .expect("mark local import reconciled");
+    directory_store
+        .transition_lifecycle(
+            generic_id,
+            DirectoryConnectorLifecycle::Active,
+            "g14-local-admin",
+            Uuid::new_v4(),
+            fixed_at() + Duration::seconds(2),
+        )
+        .await
+        .expect("activate fully reconciled local connector");
 
     let import_state: String =
         sqlx::query_scalar("SELECT state FROM erpx_identity.directory_imports WHERE id=$1")
@@ -579,6 +621,36 @@ async fn g14_local_directory_sqlx_acceptance() {
             .is_some_and(|value| value > next_identity_link)
     }));
     let identity_store = SqlxIdentityStore::new(pool.clone());
+    for principal_ref in ["user-001@example.test", "user-003@example.test"] {
+        sqlx::query(
+            "INSERT INTO erpx_identity.principals
+                (id, principal_ref, status, created_at, updated_at)
+             VALUES ($1,$2,'active',$3,$3)
+             ON CONFLICT (principal_ref) DO NOTHING",
+        )
+        .bind(Uuid::new_v4())
+        .bind(principal_ref)
+        .bind(fixed_at())
+        .execute(&pool)
+        .await
+        .expect("persist canonical directory principal");
+    }
+    for (external_object_id, principal_ref) in [
+        ("user-001", "user-001@example.test"),
+        ("user-003", "user-003@example.test"),
+    ] {
+        directory_store
+            .link_principal(
+                generic_id,
+                external_object_id,
+                principal_ref,
+                "g14-local-admin",
+                Uuid::new_v4(),
+                fixed_at() + Duration::seconds(2),
+            )
+            .await
+            .expect("explicitly bind imported directory identity");
+    }
     let signer = AccessTokenSigner::new(b"01234567890123456789012345678901")
         .expect("directory login signer");
     let issued_directory_session = identity_store
@@ -701,6 +773,53 @@ async fn g14_local_directory_sqlx_acceptance() {
     .execute(&pool)
     .await
     .expect("persist platform identity projection for scope authorization");
+    let platform_principal_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO erpx_identity.principals
+            (id, principal_ref, status, created_at, updated_at)
+         VALUES ($1,'platform-user@example.test','active',$2,$2)",
+    )
+    .bind(platform_principal_id)
+    .bind(fixed_at())
+    .execute(&pool)
+    .await
+    .expect("persist canonical platform directory principal");
+    sqlx::query(
+        "INSERT INTO erpx_identity.directory_identity_links
+            (connector_id, external_object_id, identity_link, principal_ref,
+             active, source_revision, observed_at, revoked_at,
+             immutable_authority, immutable_value, linked_at)
+         VALUES ($1,'platform-user','platform-user-immutable',
+                 'platform-user@example.test',true,1,$2,NULL,
+                 'ldap:entryUUID','platform-user',$2)",
+    )
+    .bind(platform_id)
+    .bind(fixed_at())
+    .execute(&pool)
+    .await
+    .expect("persist immutable platform directory identity link");
+    sqlx::query(
+        "UPDATE erpx_identity.directory_connectors
+         SET lifecycle='active', enabled=true, last_preflight_at=$2,
+             last_import_completed_at=$2, last_reconciled_at=$2, updated_at=$2
+         WHERE id=$1",
+    )
+    .bind(platform_id)
+    .bind(fixed_at())
+    .execute(&pool)
+    .await
+    .expect("activate bounded platform authorization fixture");
+    directory_store
+        .link_principal(
+            platform_id,
+            "platform-user",
+            "platform-user@example.test",
+            "g14-local-admin",
+            Uuid::new_v4(),
+            fixed_at(),
+        )
+        .await
+        .expect("explicitly bind platform directory identity");
     let platform_scope_key = format!("holding:{platform_holding_id}");
     assert_eq!(
         identity_store
@@ -1473,6 +1592,13 @@ async fn api_started_import_is_claimable_by_the_native_worker_contract() {
         .save_connector(&connector, fixed_at())
         .await
         .expect("persist API/native-worker handoff connector");
+    assert_eq!(
+        store
+            .record_preflight(connector.id, true, None, Uuid::new_v4(), fixed_at(),)
+            .await
+            .expect("record API/native-worker connector preflight"),
+        DirectoryConnectorLifecycle::Verified
+    );
 
     let plan = store
         .start_import(&connector, 1_000_000, 5_000, fixed_at())

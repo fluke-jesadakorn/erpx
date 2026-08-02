@@ -5,7 +5,7 @@
 //! `SqlxDirectoryStore`; a failed page is never acknowledged as processed.
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use erpx_identity::directory::feeds::{FeedCursor, FeedKind};
 use erpx_identity::directory::sync::{
     ConnectorScope, DirectoryConnector as DurableDirectoryConnector, DirectoryPage,
@@ -13,18 +13,32 @@ use erpx_identity::directory::sync::{
     ImportConfig, ImportPlan, ImportState, SqlxDirectorySyncStore, TransportSecurity,
 };
 use erpx_identity::{
-    DirectoryChange, DirectoryConnector, DirectoryError, DirectoryFeedKind, DirectoryProvider,
-    DirectoryRoleMapping, DirectorySyncCursor, DirectorySyncPage, SqlxDirectoryStore,
+    DirectoryChange, DirectoryConnector, DirectoryConnectorRuntimeSettings, DirectoryError,
+    DirectoryFeedKind, DirectoryProvider, DirectoryRoleMapping, DirectorySyncCursor,
+    DirectorySyncPage, SqlxDirectoryStore,
 };
 use sqlx::PgPool;
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::directory_live;
+use crate::directory_secrets::{
+    DirectorySecretResolver, HttpsDirectorySecretResolver, LocalDirectorySecretResolver,
+    UnconfiguredDirectorySecretResolver,
+};
 use crate::{NamedWorkerHandler, WorkerHandlerReport, WorkerRuntimeError};
 
 pub const DIRECTORY_SYNC_HANDLER_NAME: &str = "directory_sync";
+pub const DIRECTORY_SUPERVISOR_HANDLER_NAME: &str = "directory_supervisor";
+
+enum DirectoryFeedSource<'a> {
+    Legacy(&'a str),
+    Persisted {
+        settings: &'a DirectoryConnectorRuntimeSettings,
+        resolver: &'a dyn DirectorySecretResolver,
+    },
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DirectorySyncRunReport {
@@ -64,6 +78,247 @@ pub struct DirectorySyncRuntimeHandler {
     connector_id: Uuid,
     adapter_name: String,
     full_import: bool,
+}
+
+#[derive(Clone)]
+pub struct DirectorySupervisorRuntimeHandler {
+    worker: DirectorySyncWorker,
+    resolver: Arc<dyn DirectorySecretResolver>,
+}
+
+impl DirectorySupervisorRuntimeHandler {
+    pub fn from_env(pool: PgPool) -> Result<Self, WorkerRuntimeError> {
+        let resolver: Arc<dyn DirectorySecretResolver> =
+            match std::env::var("ERPX_DIRECTORY_SECRET_RESOLVER").as_deref() {
+                Ok("local") | Err(std::env::VarError::NotPresent) => {
+                    let root = std::env::var_os("ERPX_DIRECTORY_SECRET_ROOT")
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or(
+                            std::env::current_dir()
+                                .map_err(|error| {
+                                    WorkerRuntimeError::Configuration(error.to_string())
+                                })?
+                                .join(".runtime/erpx/secrets/directory"),
+                        );
+                    Arc::new(
+                        LocalDirectorySecretResolver::new(root).map_err(|error| {
+                            WorkerRuntimeError::Configuration(error.to_string())
+                        })?,
+                    )
+                }
+                Ok("https") | Ok("secret-manager") => Arc::new(
+                    HttpsDirectorySecretResolver::new(
+                        &std::env::var("ERPX_DIRECTORY_SECRET_MANAGER_ENDPOINT").map_err(|_| {
+                            WorkerRuntimeError::Configuration(
+                                "ERPX_DIRECTORY_SECRET_MANAGER_ENDPOINT is required".into(),
+                            )
+                        })?,
+                        std::env::var("ERPX_DIRECTORY_SECRET_MANAGER_TOKEN").map_err(|_| {
+                            WorkerRuntimeError::Configuration(
+                                "ERPX_DIRECTORY_SECRET_MANAGER_TOKEN is required".into(),
+                            )
+                        })?,
+                    )
+                    .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?,
+                ),
+                Ok("unconfigured") => Arc::new(UnconfiguredDirectorySecretResolver),
+                _ => {
+                    return Err(WorkerRuntimeError::Configuration(
+                        "ERPX_DIRECTORY_SECRET_RESOLVER is invalid".into(),
+                    ));
+                }
+            };
+        Ok(Self {
+            worker: DirectorySyncWorker::new(pool),
+            resolver,
+        })
+    }
+
+    async fn run_claimed(
+        &self,
+        connector_id: Uuid,
+    ) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
+        let connector = self
+            .worker
+            .store
+            .connector(connector_id)
+            .await
+            .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
+        let settings = self
+            .worker
+            .store
+            .connector_runtime_settings(connector_id)
+            .await
+            .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
+        let role_mappings = self
+            .worker
+            .store
+            .list_role_mappings(connector_id)
+            .await
+            .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
+        let active_import = self
+            .worker
+            .durable_imports
+            .active_import_id(connector_id)
+            .await
+            .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
+        if active_import.is_some() || !connector.enabled {
+            return self
+                .worker
+                .run_full_import_source(
+                    &connector,
+                    DirectoryFeedSource::Persisted {
+                        settings: &settings,
+                        resolver: self.resolver.as_ref(),
+                    },
+                    &role_mappings,
+                )
+                .await;
+        }
+        let previous = self
+            .worker
+            .store
+            .latest_cursor(connector_id)
+            .await
+            .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
+        let live = match directory_live::fetch_with_runtime(
+            &connector,
+            &settings,
+            self.resolver.as_ref(),
+            previous.as_ref(),
+            false,
+        )
+        .await
+        {
+            Ok(live) => live,
+            Err(directory_live::LiveDirectoryError::NoMessage) => {
+                return Ok(WorkerHandlerReport::default());
+            }
+            Err(directory_live::LiveDirectoryError::AlreadyCommitted(sequence)) => {
+                directory_live::confirm_ucs_with_resolver(
+                    &connector,
+                    sequence,
+                    self.resolver.as_ref(),
+                )
+                .await
+                .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
+                return Ok(WorkerHandlerReport {
+                    claimed: 1,
+                    processed: 0,
+                    published: 1,
+                    retried: 0,
+                    dead_lettered: 0,
+                    has_work: true,
+                });
+            }
+            Err(error) => {
+                tracing::warn!(
+                    connector_id = %connector.id,
+                    provider = ?connector.provider,
+                    feed = ?connector.feed,
+                    error_kind = ?error,
+                    "directory supervisor native feed pass failed"
+                );
+                return Err(WorkerRuntimeError::Configuration(error.to_string()));
+            }
+        };
+        if live.page.changes.is_empty() {
+            self.worker
+                .store
+                .save_sync_checkpoint(&live.page.cursor)
+                .await
+                .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
+            return Ok(WorkerHandlerReport::default());
+        }
+        let report = self
+            .worker
+            .apply_page(&connector, &live.page, previous.as_ref(), &role_mappings)
+            .await
+            .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
+        if let Some(sequence) = live.ucs_confirmation {
+            directory_live::confirm_ucs_with_resolver(&connector, sequence, self.resolver.as_ref())
+                .await
+                .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
+        }
+        Ok(WorkerHandlerReport {
+            claimed: 1,
+            processed: report.changes_seen as u64,
+            published: report.changes_seen as u64,
+            retried: 0,
+            dead_lettered: 0,
+            has_work: true,
+        })
+    }
+}
+
+#[async_trait::async_trait]
+impl NamedWorkerHandler for DirectorySupervisorRuntimeHandler {
+    fn name(&self) -> &str {
+        DIRECTORY_SUPERVISOR_HANDLER_NAME
+    }
+
+    async fn run_once(&self, worker_id: Uuid) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
+        let at = Utc::now();
+        let Some(claim) = self
+            .worker
+            .store
+            .claim_supervisor_connector(worker_id, at, Duration::seconds(60))
+            .await
+            .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?
+        else {
+            return Ok(WorkerHandlerReport::default());
+        };
+        let result = self.run_claimed(claim.connector_id).await;
+        let completed_at = Utc::now();
+        let succeeded = result.is_ok();
+        let delay_seconds = if succeeded {
+            5
+        } else {
+            5_i64.saturating_mul(1_i64 << claim.consecutive_failures.min(5))
+        };
+        self.worker
+            .store
+            .complete_supervisor_connector(
+                &claim,
+                succeeded,
+                (!succeeded).then_some("directory_sync_failed"),
+                completed_at + Duration::seconds(delay_seconds.min(300)),
+                completed_at,
+            )
+            .await
+            .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
+        match result {
+            Ok(report) => Ok(report),
+            Err(error) => {
+                tracing::warn!(
+                    connector_id = %claim.connector_id,
+                    error_kind = ?error,
+                    "directory supervisor pass was persisted for retry"
+                );
+                Ok(WorkerHandlerReport {
+                    claimed: 1,
+                    processed: 0,
+                    published: 0,
+                    retried: 1,
+                    dead_lettered: 0,
+                    has_work: true,
+                })
+            }
+        }
+    }
+}
+
+async fn confirm_ucs_for_source(
+    connector: &DirectoryConnector,
+    sequence: u64,
+    source: &DirectoryFeedSource<'_>,
+) -> Result<(), directory_live::LiveDirectoryError> {
+    match source {
+        DirectoryFeedSource::Legacy(_) => directory_live::confirm_ucs(connector, sequence).await,
+        DirectoryFeedSource::Persisted { resolver, .. } => {
+            directory_live::confirm_ucs_with_resolver(connector, sequence, *resolver).await
+        }
+    }
 }
 
 impl DirectorySyncRuntimeHandler {
@@ -290,6 +545,14 @@ impl DirectorySyncWorker {
                 "directory import reconciliation is blocked after finalization".into(),
             ));
         }
+        self.store
+            .mark_import_reconciled(plan.connector().id(), Utc::now())
+            .await
+            .map_err(|error| {
+                WorkerRuntimeError::Configuration(format!(
+                    "directory connector readiness transition failed: {error}"
+                ))
+            })?;
         Ok(summary)
     }
 
@@ -297,6 +560,20 @@ impl DirectorySyncWorker {
         &self,
         connector: &DirectoryConnector,
         adapter_name: &str,
+        role_mappings: &[DirectoryRoleMapping],
+    ) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
+        self.run_full_import_source(
+            connector,
+            DirectoryFeedSource::Legacy(adapter_name),
+            role_mappings,
+        )
+        .await
+    }
+
+    async fn run_full_import_source(
+        &self,
+        connector: &DirectoryConnector,
+        source: DirectoryFeedSource<'_>,
         role_mappings: &[DirectoryRoleMapping],
     ) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
         let active_config = self
@@ -309,17 +586,20 @@ impl DirectorySyncWorker {
                 (Some(import_id), page_size, max_users, max_in_flight_pages)
             }
             None => {
-                let page_size = std::env::var("ERPX_DIRECTORY_PAGE_SIZE")
-                    .ok()
-                    .map(|value| {
-                        value.parse::<u32>().map_err(|_| {
-                            WorkerRuntimeError::Configuration(
-                                "ERPX_DIRECTORY_PAGE_SIZE is invalid".into(),
-                            )
+                let page_size = match &source {
+                    DirectoryFeedSource::Legacy(_) => std::env::var("ERPX_DIRECTORY_PAGE_SIZE")
+                        .ok()
+                        .map(|value| {
+                            value.parse::<u32>().map_err(|_| {
+                                WorkerRuntimeError::Configuration(
+                                    "ERPX_DIRECTORY_PAGE_SIZE is invalid".into(),
+                                )
+                            })
                         })
-                    })
-                    .transpose()?
-                    .unwrap_or(500);
+                        .transpose()?
+                        .unwrap_or(500),
+                    DirectoryFeedSource::Persisted { settings, .. } => settings.page_size,
+                };
                 if page_size == 0 || page_size > 5_000 {
                     return Err(WorkerRuntimeError::Configuration(
                         "ERPX_DIRECTORY_PAGE_SIZE is outside the permitted bound".into(),
@@ -413,14 +693,28 @@ impl DirectorySyncWorker {
                     return Err(self.rollback_import_failure(plan.import_id(), error).await);
                 }
             };
-            let live = match directory_live::fetch_with_mode(
-                connector,
-                adapter_name,
-                previous.as_ref(),
-                true,
-            )
-            .await
-            {
+            let fetched = match &source {
+                DirectoryFeedSource::Legacy(adapter_name) => {
+                    directory_live::fetch_with_mode(
+                        connector,
+                        adapter_name,
+                        previous.as_ref(),
+                        true,
+                    )
+                    .await
+                }
+                DirectoryFeedSource::Persisted { settings, resolver } => {
+                    directory_live::fetch_with_runtime(
+                        connector,
+                        settings,
+                        *resolver,
+                        previous.as_ref(),
+                        true,
+                    )
+                    .await
+                }
+            };
+            let live = match fetched {
                 Ok(page) => page,
                 Err(error) => {
                     return Err(self.rollback_import_failure(plan.import_id(), error).await);
@@ -472,7 +766,7 @@ impl DirectorySyncWorker {
                     .finalize_import_with_evidence(&plan, &checkpoint, role_mappings)
                     .await?;
                 if let Some(sequence) = live.ucs_confirmation {
-                    directory_live::confirm_ucs(connector, sequence)
+                    confirm_ucs_for_source(connector, sequence, &source)
                         .await
                         .map_err(|error| {
                             WorkerRuntimeError::Configuration(format!(
@@ -494,7 +788,7 @@ impl DirectorySyncWorker {
                 });
             }
             if let Some(sequence) = live.ucs_confirmation
-                && let Err(error) = directory_live::confirm_ucs(connector, sequence).await
+                && let Err(error) = confirm_ucs_for_source(connector, sequence, &source).await
             {
                 return Err(self.rollback_import_failure(plan.import_id(), error).await);
             }

@@ -2,8 +2,11 @@
 
 mod asset_maintenance_persistence;
 mod backup_retention;
+mod cluster_pitr;
 mod commands;
 mod commercial;
+mod corporate_identity;
+mod data_plane;
 mod error;
 mod finance_bank_credentials;
 mod finance_banking_persistence;
@@ -57,6 +60,7 @@ mod stripe_client;
 mod support_diagnostics;
 mod support_persistence;
 mod support_workflow;
+mod tenant_administration;
 mod tenant_projection_scheduler;
 mod tenant_projection_status_projection;
 mod worker;
@@ -82,6 +86,10 @@ pub use backup_retention::{
     TenantBackupRetentionObject, TenantBackupRetentionReceipt, TenantBackupRetentionReport,
     TenantBackupRetentionRequest, validate_tenant_backup_retention_request_at,
 };
+pub use cluster_pitr::{
+    ClusterPitrChain, ClusterPitrError, ClusterPitrRepository, ClusterRecoveryPoint,
+    ClusterRestoreRehearsal, ClusterRestoreRehearsalResult, MAX_CLUSTER_PITR_PAGE_SIZE,
+};
 pub use commands::CommandUnitOfWorkAdapter;
 pub use commercial::{
     BillingPolicyAdvanceReport, MAX_BILLING_POLICY_BATCH_SIZE,
@@ -94,16 +102,24 @@ pub use commercial::{
     StripeCatalogPublicationPlanError, StripeCatalogPublicationResponse,
     StripeCatalogPublicationStep, StripeCatalogPublishRequest, StripeCatalogReconcileRequest,
     StripeCatalogRequestError, StripeCatalogRetryPolicy, StripeCatalogSnapshotError,
-    StripeEntitlementFeatureId, StripeEntitlementUpdate, StripeEventId, StripeHttpCatalogProvider,
-    StripeIdentifierError, StripeInboxClaim, StripeInboxEvent, StripeInboxInsert,
-    StripeInboxReplayPolicy, StripeInboxRetryPolicy, StripeInboxState, StripeInboxStatus,
-    StripeInboxTransition, StripeMeterId, StripePriceId, StripeProductId, StripeProviderConfig,
-    StripeProviderConfigError, StripeProviderError, StripeProviderErrorKind,
-    StripeReplayAuthorizationContext, StripeSemanticApplier, StripeSemanticApplyError,
-    StripeSemanticApplyResult, StripeSemanticDispatchError, StripeSemanticDispatcher,
-    StripeSemanticEvent, StripeSemanticNoOp, StripeSemanticParseError, StripeWebhookEvent,
-    StripeWebhookEventParseError, StripeWebhookPersistenceContext,
-    StripeWebhookPersistenceContextError, redact_provider_error,
+    StripeCheckoutBinding, StripeEntitlementFeatureId, StripeEntitlementUpdate, StripeEventId,
+    StripeHttpCatalogProvider, StripeIdentifierError, StripeInboxClaim, StripeInboxEvent,
+    StripeInboxInsert, StripeInboxReplayPolicy, StripeInboxRetryPolicy, StripeInboxState,
+    StripeInboxStatus, StripeInboxTransition, StripeInvoiceProjection, StripeMeterId,
+    StripePriceId, StripeProductId, StripeProviderConfig, StripeProviderConfigError,
+    StripeProviderError, StripeProviderErrorKind, StripeReplayAuthorizationContext,
+    StripeSemanticApplier, StripeSemanticApplyError, StripeSemanticApplyResult,
+    StripeSemanticDispatchError, StripeSemanticDispatcher, StripeSemanticEvent, StripeSemanticNoOp,
+    StripeSemanticParseError, StripeWebhookEvent, StripeWebhookEventParseError,
+    StripeWebhookPersistenceContext, StripeWebhookPersistenceContextError, redact_provider_error,
+};
+pub use corporate_identity::{
+    CorporateIdentityHistoryEntry, CorporateIdentityRollback, SqlxCorporateIdentityStore,
+    VerifiedBrandDomain,
+};
+pub use data_plane::{
+    ApprovedDesiredConfiguration, DataPlaneEnrollmentConsumption, DataPlaneEnrollmentIssue,
+    RootAccessGrant, RootAccessQueueRecord, SqlxDataPlaneControlStore, TenantInfrastructureSummary,
 };
 pub use erpx_domain::commercial::{
     CatalogError, CatalogReconciliationReport, ProviderCatalogPrice, ProviderCatalogRevision,
@@ -361,10 +377,10 @@ pub use outbox::{
     ProjectionCheckpointDecision, ProjectionCheckpointRecord,
 };
 pub use pitr::{
-    PhysicalPitrRestoreExecutor, PhysicalPitrRestoreTarget, PitrBackupAdapter,
-    PitrBackupAdapterConfig, PitrBackupResult, PitrBackupTarget, PitrRestoreTargetResolver,
-    PostgresPhysicalPitrRestoreExecutor, UnconfiguredPhysicalPitrRestoreExecutor,
-    UnconfiguredPitrRestoreTargetResolver,
+    LocalPitrRestoreTargetResolver, PhysicalPitrRestoreExecutor, PhysicalPitrRestoreTarget,
+    PitrBackupAdapter, PitrBackupAdapterConfig, PitrBackupResult, PitrBackupTarget,
+    PitrRestoreTargetResolver, PostgresPhysicalPitrRestoreExecutor,
+    UnconfiguredPhysicalPitrRestoreExecutor, UnconfiguredPitrRestoreTargetResolver,
 };
 pub use platform_completion::*;
 pub use pools::{ControlPlaneDatabaseConfig, ControlPlanePoolSettings, ControlPlanePools};
@@ -438,6 +454,7 @@ pub use stripe_client::{
     DEFAULT_STRIPE_RESPONSE_BODY_BYTES, MAX_STRIPE_HTTP_TIMEOUT, MAX_STRIPE_REQUEST_BODY_BYTES,
     MAX_STRIPE_RESPONSE_BODY_BYTES, StripeApiKey, StripeCheckoutLineItem, StripeCheckoutMode,
     StripeCheckoutSessionCreateRequest, StripeCheckoutSessionResponse, StripeCredentialError,
+    StripeCustomerPortalSessionCreateRequest, StripeCustomerPortalSessionResponse,
     StripeEntitlementFeatureCreateRequest, StripeEntitlementFeatureListRequest,
     StripeEntitlementFeatureResponse, StripeHttpClient, StripeHttpConfigurationError,
     StripeHttpEndpoint, StripeHttpError, StripeHttpLimits, StripeHttpMethod,
@@ -470,6 +487,12 @@ pub use support_workflow::{
     SUPPORT_SESSION_APPROVED_EVENT, SUPPORT_SESSION_REVOKED_EVENT,
     SUPPORT_WORKFLOW_PROJECTION_NAME, SupportAccessProjectionRow, SupportDiagnosticsProjectionRow,
     SupportWorkflowPersistenceError, SupportWorkflowReconciliation, SupportWorkflowStore,
+};
+pub use tenant_administration::{
+    MAX_TENANT_SUMMARY_PAGE_SIZE, SqlxTenantAdministrationStore, TenantAdminContextIssue,
+    TenantBillingGraceExtensionGrant, TenantInvoicePage, TenantInvoiceSummary,
+    TenantRegistryFilter, TenantRegistryPage, TenantRegistrySummary,
+    TenantStripeSubscriptionBinding,
 };
 pub use tenant_projection_scheduler::{
     ClaimKeyDecision, ClaimKeyRegistry, DeadLetterRecord, MAX_BACKOFF_SECONDS,

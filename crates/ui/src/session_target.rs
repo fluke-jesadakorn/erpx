@@ -113,6 +113,16 @@ pub struct TargetSessionDescriptor {
 }
 
 impl TargetSessionDescriptor {
+    /// Describe a web client whose refresh credential is held only by the
+    /// server in an `HttpOnly`, same-site cookie. The console owns the HTTP
+    /// exchange; the shared target adapter still never uses browser storage.
+    pub const fn browser_http_only_cookie() -> Self {
+        Self {
+            target: ClientTarget::Web,
+            secure_session: SecureSessionSupport::Supported,
+        }
+    }
+
     /// Return the compiler-selected client target.
     pub const fn target(self) -> ClientTarget {
         self.target

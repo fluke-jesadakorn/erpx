@@ -108,12 +108,35 @@ message PlatformTenantSummary {
   string projection = 5;
   string backup_pitr = 6;
   string storage = 7;
+  string customer_id = 8;
+  string root_holding_id = 9;
+  string customer_name = 10;
+  string configuration_state = 11;
+  string subscription_state = 12;
+  string plan_key = 13;
+  repeated string enabled_modules = 14;
+  uint32 purchased_seats = 15;
+  uint32 used_seats = 16;
+  uint32 company_count = 17;
+  uint32 branch_count = 18;
+  string renewal_at = 19;
+  bool overdue = 20;
+  string integration_health = 21;
+  string health = 22;
+  string projected_at = 23;
+  bool enterable = 24;
 }
 
 message ListPlatformTenantsRequest {
   uint32 page_size = 1;
   string after_tenant_id = 2;
   erpx.common.v1.QueryContext context = 3;
+  string search = 4;
+  string lifecycle = 5;
+  string billing_state = 6;
+  string plan = 7;
+  string module = 8;
+  string health = 9;
 }
 
 message ListPlatformTenantsResponse {
@@ -129,6 +152,160 @@ message GetPlatformTenantRequest {
 message GetPlatformTenantResponse {
   PlatformTenantSummary tenant = 1;
   string correlation_id = 2;
+}
+
+// The raw administrative-context identifier is returned only to the caller
+// and subsequently travels in protected transport metadata. It must be
+// redacted from logs and UI diagnostics.
+message BeginTenantAdminContextRequest {
+  string tenant_id = 1;
+  string reason = 2;
+  string mfa_code = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message TenantAdminContext {
+  string administrative_context_id = 1;
+  string tenant_id = 2;
+  string customer_id = 3;
+  string root_holding_id = 4;
+  string issued_at = 5;
+  string expires_at = 6;
+  bool active = 7;
+}
+message BeginTenantAdminContextResponse {
+  TenantAdminContext administrative_context = 1;
+  string correlation_id = 2;
+}
+message GetTenantAdminContextRequest {
+  string administrative_context_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetTenantAdminContextResponse {
+  TenantAdminContext administrative_context = 1;
+  string correlation_id = 2;
+}
+message EndTenantAdminContextRequest {
+  string administrative_context_id = 1;
+  string reason = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message EndTenantAdminContextResponse {
+  bool ended = 1;
+  string correlation_id = 2;
+}
+
+message DiscoverTenantOrganizationUnitsRequest {
+  string tenant_id = 1;
+  uint32 page_size = 2;
+  string after_cursor = 3;
+  erpx.common.v1.QueryContext context = 4;
+}
+message TenantOrganizationUnit {
+  string kind = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string code = 5;
+  string name = 6;
+}
+message DiscoverTenantOrganizationUnitsResponse {
+  repeated TenantOrganizationUnit units = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message ListSaasCatalogRequest {
+  string currency = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message SaasCatalogPrice {
+  string item_key = 1;
+  string display_name = 2;
+  string kind = 3;
+  string pricing_unit = 4;
+  string interval = 5;
+  uint64 amount_minor = 6;
+  string currency = 7;
+}
+message ListSaasCatalogResponse {
+  uint32 revision = 1;
+  repeated SaasCatalogPrice prices = 2;
+  string correlation_id = 3;
+}
+message SubscriptionItemSelection {
+  string item_key = 1;
+  uint32 quantity = 2;
+}
+message GetTenantSubscriptionRequest {
+  string tenant_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message TenantSubscriptionStatus {
+  string tenant_id = 1;
+  string state = 2;
+  string currency = 3;
+  string grace_until = 4;
+  bool business_modules_read_only = 5;
+  repeated SubscriptionItemSelection items = 6;
+}
+message GetTenantSubscriptionResponse {
+  TenantSubscriptionStatus subscription = 1;
+  string correlation_id = 2;
+}
+message CreateCheckoutSessionRequest {
+  string tenant_id = 1;
+  repeated SubscriptionItemSelection items = 2;
+  string return_path = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message CreateCheckoutSessionResponse {
+  string hosted_url = 1;
+  string expires_at = 2;
+  string correlation_id = 3;
+}
+message CreateCustomerPortalSessionRequest {
+  string tenant_id = 1;
+  string return_path = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message CreateCustomerPortalSessionResponse {
+  string hosted_url = 1;
+  string correlation_id = 2;
+}
+message ListTenantInvoicesRequest {
+  string tenant_id = 1;
+  uint32 page_size = 2;
+  string after_invoice_id = 3;
+  erpx.common.v1.QueryContext context = 4;
+}
+message TenantInvoiceSummary {
+  string invoice_id = 1;
+  string state = 2;
+  string currency = 3;
+  uint64 amount_due_minor = 4;
+  uint64 amount_paid_minor = 5;
+  string due_at = 6;
+  bool hosted_invoice_available = 7;
+}
+message ListTenantInvoicesResponse {
+  repeated TenantInvoiceSummary invoices = 1;
+  bool has_more = 2;
+  string next_after_invoice_id = 3;
+  string correlation_id = 4;
+}
+message GrantBillingGraceExtensionRequest {
+  string tenant_id = 1;
+  string delinquency_cycle_id = 2;
+  uint32 extension_days = 3;
+  string reason = 4;
+  string mfa_code = 5;
+  erpx.common.v1.CommandContext context = 6;
+}
+message GrantBillingGraceExtensionResponse {
+  string extension_id = 1;
+  string extended_until = 2;
+  string correlation_id = 3;
 }
 
 message BeginTenantProvisioningRequest {
@@ -230,6 +407,73 @@ message TenantBackupJobSummary {
 message ListTenantBackupJobsResponse {
   repeated TenantBackupJobSummary jobs = 1;
   string correlation_id = 2;
+}
+
+// Physical PITR is a PostgreSQL-cluster capability. Callers provide only
+// opaque cluster/chain/restore-target references; filesystem paths, ports,
+// database URLs, object keys, and credentials remain worker-owned.
+message ScheduleClusterBaseBackupRequest {
+  string cluster_ref = 1;
+  string chain_ref = 2;
+  string storage_namespace = 3;
+  string retention_until = 4;
+  erpx.common.v1.CommandContext context = 5;
+  string mfa_code = 6;
+}
+message ScheduleClusterBaseBackupResponse {
+  string chain_id = 1;
+  string cluster_ref = 2;
+  string chain_ref = 3;
+  string state = 4;
+  string retention_until = 5;
+  string correlation_id = 6;
+}
+message ListClusterRecoveryPointsRequest {
+  string cluster_ref = 1;
+  uint32 page_size = 2;
+  erpx.common.v1.QueryContext context = 3;
+}
+message ClusterRecoveryPointSummary {
+  string recovery_point_id = 1;
+  string chain_id = 2;
+  string label = 3;
+  string target_time = 4;
+  string target_lsn = 5;
+  uint64 timeline_id = 6;
+  bool wal_continuity_verified = 7;
+  string state = 8;
+  string created_at = 9;
+}
+message ListClusterRecoveryPointsResponse {
+  repeated ClusterRecoveryPointSummary recovery_points = 1;
+  string correlation_id = 2;
+}
+message StartClusterRestoreRehearsalRequest {
+  string recovery_point_id = 1;
+  string restore_target_ref = 2;
+  erpx.common.v1.CommandContext context = 3;
+  string mfa_code = 4;
+}
+message StartClusterRestoreRehearsalResponse {
+  string rehearsal_id = 1;
+  string recovery_point_id = 2;
+  string restore_target_ref = 3;
+  string state = 4;
+  string created_at = 5;
+  string correlation_id = 6;
+}
+message GetClusterRestoreRehearsalRequest {
+  string rehearsal_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetClusterRestoreRehearsalResponse {
+  string rehearsal_id = 1;
+  string state = 2;
+  bool verification_complete = 3;
+  repeated string verification_checks = 4;
+  string failure_category = 5;
+  string updated_at = 6;
+  string correlation_id = 7;
 }
 
 message StartProjectionRebuildRequest {
@@ -2379,6 +2623,10 @@ message DirectoryConnectorSummary {
   string status = 11;
   string last_success_at = 12;
   string freshness = 13;
+  string lifecycle = 14;
+  string readiness = 15;
+  string last_preflight_at = 16;
+  string last_heartbeat_at = 17;
 }
 
 message ListDirectoryConnectorsRequest {
@@ -2412,6 +2660,11 @@ message SaveDirectoryConnectorRequest {
   erpx.common.v1.CommandContext context = 16;
   // Transport-only fresh step-up for directory administration. Never persist.
   string mfa_code = 17;
+  string user_filter = 18;
+  uint32 page_size = 19;
+  bytes attribute_mapping_json = 20;
+  string ca_reference = 21;
+  bytes feed_configuration_json = 22;
 }
 message SaveDirectoryConnectorResponse {
   DirectoryConnectorSummary connector = 1;
@@ -2514,6 +2767,86 @@ message SaveDirectoryRoleMappingRequest {
 message SaveDirectoryRoleMappingResponse {
   DirectoryRoleMappingMessage mapping = 1;
   string correlation_id = 2;
+}
+
+message PreflightDirectoryConnectorRequest {
+  string connector_id = 1;
+  erpx.common.v1.CommandContext context = 2;
+  string mfa_code = 3;
+}
+message PreflightDirectoryConnectorResponse {
+  string connector_id = 1;
+  string lifecycle = 2;
+  bool tls_verified = 3;
+  bool bind_verified = 4;
+  bool feed_verified = 5;
+  string observed_at = 6;
+  string correlation_id = 7;
+}
+message TransitionDirectoryConnectorLifecycleRequest {
+  string connector_id = 1;
+  string target_lifecycle = 2;
+  erpx.common.v1.CommandContext context = 3;
+  string mfa_code = 4;
+}
+message TransitionDirectoryConnectorLifecycleResponse {
+  string connector_id = 1;
+  string lifecycle = 2;
+  string correlation_id = 3;
+}
+message LinkDirectoryPrincipalRequest {
+  string connector_id = 1;
+  string external_subject = 2;
+  string principal_ref = 3;
+  erpx.common.v1.CommandContext context = 4;
+  string mfa_code = 5;
+}
+message LinkDirectoryPrincipalResponse {
+  string binding_id = 1;
+  string connector_id = 2;
+  string external_subject = 3;
+  string principal_ref = 4;
+  uint64 revision = 5;
+  string linked_at = 6;
+  string correlation_id = 7;
+}
+message UnlinkDirectoryPrincipalRequest {
+  string connector_id = 1;
+  string external_subject = 2;
+  erpx.common.v1.CommandContext context = 3;
+  string mfa_code = 4;
+}
+message UnlinkDirectoryPrincipalResponse {
+  string connector_id = 1;
+  string external_subject = 2;
+  bool unlinked = 3;
+  string correlation_id = 4;
+}
+message GetDirectoryConnectorReadinessRequest {
+  string connector_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetDirectoryConnectorReadinessResponse {
+  string connector_id = 1;
+  string lifecycle = 2;
+  string readiness = 3;
+  string last_preflight_at = 4;
+  string last_import_completed_at = 5;
+  string last_reconciled_at = 6;
+  string last_heartbeat_at = 7;
+  uint32 unresolved_conflicts = 8;
+  string correlation_id = 9;
+}
+message ReconcileDirectoryConnectorRequest {
+  string connector_id = 1;
+  erpx.common.v1.CommandContext context = 2;
+  string mfa_code = 3;
+}
+message ReconcileDirectoryConnectorResponse {
+  string connector_id = 1;
+  string state = 2;
+  uint32 unresolved_conflicts = 3;
+  string correlation_id = 4;
 }
 
 // Product aggregate transports preserve the source/read split: commands carry
@@ -2804,6 +3137,604 @@ message ListQualityInspectionsResponse {
   string correlation_id = 4;
 }
 
+// ---------------------------------------------------------------------------
+// Customer-hosted data plane and three-layer configuration
+// ---------------------------------------------------------------------------
+
+enum TenantDeploymentMode {
+  TENANT_DEPLOYMENT_MODE_UNSPECIFIED = 0;
+  TENANT_DEPLOYMENT_MODE_ERPX_MANAGED = 1;
+  TENANT_DEPLOYMENT_MODE_CUSTOMER_DATA_PLANE = 2;
+}
+
+enum ConfigurationLifecycle {
+  CONFIGURATION_LIFECYCLE_UNSPECIFIED = 0;
+  CONFIGURATION_LIFECYCLE_DRAFT = 1;
+  CONFIGURATION_LIFECYCLE_AWAITING_APPROVAL = 2;
+  CONFIGURATION_LIFECYCLE_APPROVED = 3;
+  CONFIGURATION_LIFECYCLE_APPLYING = 4;
+  CONFIGURATION_LIFECYCLE_VERIFIED = 5;
+  CONFIGURATION_LIFECYCLE_ACTIVE = 6;
+  CONFIGURATION_LIFECYCLE_REJECTED = 7;
+  CONFIGURATION_LIFECYCLE_DRIFTED = 8;
+  CONFIGURATION_LIFECYCLE_FAILED = 9;
+  CONFIGURATION_LIFECYCLE_SUSPENDED = 10;
+}
+
+enum DataPlaneAgentState {
+  DATA_PLANE_AGENT_STATE_UNSPECIFIED = 0;
+  DATA_PLANE_AGENT_STATE_UNENROLLED = 1;
+  DATA_PLANE_AGENT_STATE_ENROLLING = 2;
+  DATA_PLANE_AGENT_STATE_CONNECTED = 3;
+  DATA_PLANE_AGENT_STATE_HEALTHY = 4;
+  DATA_PLANE_AGENT_STATE_DRIFTED = 5;
+  DATA_PLANE_AGENT_STATE_DEGRADED = 6;
+  DATA_PLANE_AGENT_STATE_OFFLINE = 7;
+  DATA_PLANE_AGENT_STATE_SUSPENDED = 8;
+  DATA_PLANE_AGENT_STATE_UPGRADE_REQUIRED = 9;
+}
+
+enum RootAccessMode {
+  ROOT_ACCESS_MODE_UNSPECIFIED = 0;
+  ROOT_ACCESS_MODE_HEALTH_DIAGNOSTIC = 1;
+  ROOT_ACCESS_MODE_INFRASTRUCTURE_MAINTENANCE = 2;
+  ROOT_ACCESS_MODE_BUSINESS_DIAGNOSTIC = 3;
+  ROOT_ACCESS_MODE_BUSINESS_MUTATION = 4;
+  ROOT_ACCESS_MODE_EMERGENCY_RECOVERY = 5;
+}
+
+message TenantInfrastructureProfileMessage {
+  string tenant_id = 1;
+  string root_holding_id = 2;
+  TenantDeploymentMode deployment_mode = 3;
+  // Opaque secret-manager locators only; never secret values or connection strings.
+  string write_database_ref = 4;
+  string read_database_ref = 5;
+  string storage_ref = 6;
+  string directory_credential_ref = 7;
+  string backup_profile_ref = 8;
+  uint64 profile_version = 9;
+}
+
+message TenantInfrastructureReadModel {
+  string tenant_id = 1;
+  string root_holding_id = 2;
+  TenantDeploymentMode deployment_mode = 3;
+  uint64 profile_version = 4;
+  string agent_id = 5;
+  DataPlaneAgentState agent_state = 6;
+  string agent_version = 7;
+  uint64 observed_version = 8;
+  uint64 desired_version = 9;
+  string last_heartbeat_at = 10;
+  string observed_at = 11;
+  bool configuration_drifted = 12;
+  bool write_healthy = 13;
+  bool read_healthy = 14;
+  bool storage_healthy = 15;
+  bool directory_ready = 16;
+  bool projections_healthy = 17;
+  bool backup_verified = 18;
+  bool root_access_active = 19;
+  bool customer_managed_secrets = 20;
+}
+
+message GetTenantInfrastructureRequest {
+  string tenant_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetTenantInfrastructureResponse {
+  TenantInfrastructureReadModel infrastructure = 1;
+  string correlation_id = 2;
+}
+
+message SaveTenantInfrastructureProfileRequest {
+  TenantInfrastructureProfileMessage profile = 1;
+  uint64 expected_profile_version = 2;
+  string reason = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message SaveTenantInfrastructureProfileResponse {
+  uint64 profile_version = 1;
+  string correlation_id = 2;
+  // Customer-hosted changes are proposals until customer approval.
+  bool awaiting_customer_approval = 3;
+}
+
+message BusinessUnitDirectoryRoleMappingMessage {
+  string group_ref = 1;
+  string role_key = 2;
+  erpx.common.v1.TenantScope target_scope = 3;
+  bool requires_mfa = 4;
+  uint32 assignment_duration_hours = 5;
+  uint64 approval_limit_minor = 6;
+  bool active = 7;
+}
+
+message BusinessUnitConfigurationMessage {
+  string tenant_id = 1;
+  string root_holding_id = 2;
+  string business_unit = 3;
+  uint64 configuration_version = 4;
+  bool active = 5;
+  erpx.common.v1.TenantScope organization_scope = 6;
+  repeated BusinessUnitDirectoryRoleMappingMessage directory_role_mappings = 7;
+  repeated string integration_references = 8;
+  bytes retention_policy_json = 9;
+  bytes projection_policy_json = 10;
+  bytes workflow_policy_json = 11;
+  string updated_by = 12;
+  string updated_at = 13;
+}
+
+message GetBusinessUnitConfigurationRequest {
+  string tenant_id = 1;
+  string business_unit = 2;
+  erpx.common.v1.QueryContext context = 3;
+}
+message GetBusinessUnitConfigurationResponse {
+  BusinessUnitConfigurationMessage configuration = 1;
+  bool exists = 2;
+  string correlation_id = 3;
+}
+
+message SaveBusinessUnitConfigurationRequest {
+  BusinessUnitConfigurationMessage configuration = 1;
+  uint64 expected_configuration_version = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message SaveBusinessUnitConfigurationResponse {
+  uint64 configuration_version = 1;
+  string correlation_id = 2;
+}
+
+// Governed corporate identity. These messages contain typed presentation
+// values and immutable asset references only; raw CSS, HTML, JavaScript,
+// credentials, and customer data-plane references are not representable.
+message BrandScopeMessage {
+  string scope_kind = 1; // platform | holding | business_unit
+  string tenant_id = 2;
+  string root_holding_id = 3;
+  string business_unit = 4;
+}
+
+message BrandPaletteMessage {
+  string primary = 1;
+  string on_primary = 2;
+  string accent = 3;
+  string on_accent = 4;
+  string canvas = 5;
+  string surface = 6;
+  string surface_raised = 7;
+  string border = 8;
+  string text = 9;
+  string text_muted = 10;
+  string link = 11;
+  string focus = 12;
+}
+
+message BrandTokenSetMessage {
+  BrandPaletteMessage light = 1;
+  BrandPaletteMessage dark = 2;
+  string font_pack = 3;
+  uint32 heading_scale_percent = 4;
+  uint32 body_scale_percent = 5;
+  uint32 line_height_percent = 6;
+  string density = 7;
+  string radius = 8;
+  string elevation = 9;
+  string navigation = 10;
+  bool navigation_expanded_by_default = 11;
+  string motion = 12;
+}
+
+message BrandAssetReferenceMessage {
+  string kind = 1;
+  string object_key = 2;
+  string sha256 = 3;
+  string media_type = 4;
+  uint64 byte_length = 5;
+  uint32 width = 6;
+  uint32 height = 7;
+}
+
+message BrandAssetManifestMessage {
+  BrandAssetReferenceMessage logo_mark = 1;
+  BrandAssetReferenceMessage wordmark = 2;
+  BrandAssetReferenceMessage favicon = 3;
+  BrandAssetReferenceMessage login_artwork = 4;
+}
+
+message CorporateIdentityProfileMessage {
+  string profile_id = 1;
+  BrandScopeMessage scope = 2;
+  uint64 version = 3;
+  uint64 parent_published_version = 4;
+  string lifecycle = 5;
+  string display_name = 6;
+  string short_name = 7;
+  BrandTokenSetMessage tokens = 8;
+  BrandAssetManifestMessage assets = 9;
+  repeated string overridden_categories = 10;
+  repeated string locked_categories = 11;
+  string updated_by = 12;
+}
+
+message ResolvedCorporateIdentityMessage {
+  BrandScopeMessage scope = 1;
+  uint64 published_version = 2;
+  string display_name = 3;
+  string short_name = 4;
+  BrandTokenSetMessage tokens = 5;
+  BrandAssetManifestMessage assets = 6;
+  repeated string inherited_categories = 7;
+  repeated string locked_categories = 8;
+  string digest = 9;
+}
+
+message GetResolvedCorporateIdentityRequest {
+  BrandScopeMessage scope = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetResolvedCorporateIdentityResponse {
+  ResolvedCorporateIdentityMessage identity = 1;
+  string correlation_id = 2;
+}
+
+message GetCorporateIdentityDraftRequest {
+  BrandScopeMessage scope = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetCorporateIdentityDraftResponse {
+  CorporateIdentityProfileMessage draft = 1;
+  bool exists = 2;
+  string correlation_id = 3;
+}
+
+message SaveCorporateIdentityDraftRequest {
+  CorporateIdentityProfileMessage draft = 1;
+  uint64 expected_version = 2;
+  string reason = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message SaveCorporateIdentityDraftResponse {
+  CorporateIdentityProfileMessage draft = 1;
+  string correlation_id = 2;
+}
+
+message PublishCorporateIdentityDraftRequest {
+  string profile_id = 1;
+  uint64 expected_draft_version = 2;
+  string reason = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message PublishCorporateIdentityDraftResponse {
+  CorporateIdentityProfileMessage published = 1;
+  string correlation_id = 2;
+}
+
+message RollbackCorporateIdentityRequest {
+  string profile_id = 1;
+  uint64 source_version = 2;
+  uint64 expected_published_version = 3;
+  string reason = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message RollbackCorporateIdentityResponse {
+  CorporateIdentityProfileMessage published = 1;
+  string correlation_id = 2;
+}
+
+message ListCorporateIdentityHistoryRequest {
+  BrandScopeMessage scope = 1;
+  uint32 page_size = 2;
+  erpx.common.v1.QueryContext context = 3;
+}
+message CorporateIdentityHistoryEntryMessage {
+  CorporateIdentityProfileMessage profile = 1;
+  string reason = 2;
+  string correlation_id = 3;
+  string created_at = 4;
+  string published_at = 5;
+  string archived_at = 6;
+}
+message ListCorporateIdentityHistoryResponse {
+  repeated CorporateIdentityHistoryEntryMessage entries = 1;
+  string correlation_id = 2;
+}
+
+message NavigationManifestItem {
+  string route_id = 1;
+  string label = 2;
+  string path = 3;
+  string icon = 4;
+  uint32 badge_count = 5;
+}
+message NavigationManifestGroup {
+  string group_id = 1;
+  string label = 2;
+  repeated NavigationManifestItem items = 3;
+}
+message GetNavigationManifestRequest {
+  erpx.common.v1.QueryContext context = 1;
+}
+message GetNavigationManifestResponse {
+  string audience = 1;
+  string home_route = 2;
+  repeated NavigationManifestGroup groups = 3;
+  string correlation_id = 4;
+}
+
+message IssueDataPlaneEnrollmentRequest {
+  string tenant_id = 1;
+  string root_holding_id = 2;
+  string signed_manifest_digest = 3;
+  uint32 lifetime_seconds = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message IssueDataPlaneEnrollmentResponse {
+  string enrollment_id = 1;
+  // Returned once and never persisted. UI clients must redact this field.
+  bytes one_time_bootstrap_token = 2;
+  string expires_at = 3;
+  string correlation_id = 4;
+}
+
+message EnrollDataPlaneAgentRequest {
+  uint32 contract_version = 1;
+  string request_id = 2;
+  string correlation_id = 3;
+  string enrollment_id = 4;
+  // Transport-only bearer proof; the control database stores only SHA-256.
+  bytes one_time_bootstrap_token = 5;
+  bytes signed_installation_manifest = 6;
+  string agent_id = 7;
+  string tenant_id = 8;
+  string root_holding_id = 9;
+  string certificate_fingerprint = 10;
+  repeated string capabilities = 11;
+  string agent_version = 12;
+  string certificate_expires_at = 13;
+  erpx.common.v1.ActorAttribution actor = 14;
+  erpx.common.v1.AuditContext audit = 15;
+}
+message EnrollDataPlaneAgentResponse {
+  string agent_id = 1;
+  DataPlaneAgentState state = 2;
+  string enrolled_at = 3;
+  string correlation_id = 4;
+  string pinned_control_plane_signing_key_id = 5;
+}
+
+message DesiredConfigurationMessage {
+  uint32 contract_version = 1;
+  string configuration_id = 2;
+  string tenant_id = 3;
+  string root_holding_id = 4;
+  string target_agent_id = 5;
+  TenantDeploymentMode deployment_mode = 6;
+  string configuration_layer = 7;
+  string business_unit = 8;
+  uint64 expected_observed_version = 9;
+  uint64 desired_version = 10;
+  ConfigurationLifecycle lifecycle = 11;
+  bytes configuration_hash = 12;
+  // Contains non-sensitive desired metadata only. Secret values are prohibited.
+  bytes desired_state_json = 13;
+  repeated string secret_references = 14;
+  repeated string required_capabilities = 15;
+  string requester_ref = 16;
+  string reason = 17;
+  string expires_at = 18;
+  string correlation_id = 19;
+  bytes control_plane_signature = 20;
+  string signing_key_id = 21;
+}
+
+message ProposeDesiredConfigurationRequest {
+  DesiredConfigurationMessage desired = 1;
+  erpx.common.v1.CommandContext context = 2;
+}
+message ProposeDesiredConfigurationResponse {
+  string configuration_id = 1;
+  uint64 desired_version = 2;
+  ConfigurationLifecycle lifecycle = 3;
+  string correlation_id = 4;
+}
+
+message DecideDesiredConfigurationRequest {
+  string configuration_id = 1;
+  bool approve = 2;
+  string reason = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message DecideDesiredConfigurationResponse {
+  string configuration_id = 1;
+  ConfigurationLifecycle lifecycle = 2;
+  string correlation_id = 3;
+}
+
+message DataPlaneObservationMessage {
+  uint32 contract_version = 1;
+  string request_id = 2;
+  string tenant_id = 3;
+  string agent_id = 4;
+  uint64 observed_version = 5;
+  uint64 desired_version = 6;
+  string write_schema_version = 7;
+  string read_schema_version = 8;
+  bool write_healthy = 9;
+  bool read_healthy = 10;
+  bool storage_healthy = 11;
+  bool directory_ready = 12;
+  bool projections_healthy = 13;
+  bool backup_verified = 14;
+  // Allow-listed redacted category, never provider/database error text.
+  string failure_category = 15;
+  string correlation_id = 16;
+  string observed_at = 17;
+  string agent_version = 18;
+  erpx.common.v1.ActorAttribution actor = 19;
+  erpx.common.v1.AuditContext audit = 20;
+}
+
+message ReportDataPlaneObservationRequest {
+  DataPlaneObservationMessage observation = 1;
+}
+message ReportDataPlaneObservationResponse {
+  DataPlaneAgentState state = 1;
+  string correlation_id = 2;
+}
+
+message RootAccessRequestMessage {
+  string request_id = 1;
+  string requester_ref = 2;
+  string device_ref = 3;
+  string tenant_id = 4;
+  string agent_id = 5;
+  erpx.common.v1.TenantScope tenant_scope = 6;
+  RootAccessMode mode = 7;
+  repeated string allowed_actions = 8;
+  repeated string business_units = 9;
+  string reason = 10;
+  string ticket_reference = 11;
+  string requested_at = 12;
+  string requested_until = 13;
+}
+
+message RequestRootAccessRequest {
+  RootAccessRequestMessage access_request = 1;
+  erpx.common.v1.CommandContext context = 2;
+}
+message RequestRootAccessResponse {
+  string request_id = 1;
+  string state = 2;
+  string correlation_id = 3;
+}
+
+message DecideRootAccessRequest {
+  string request_id = 1;
+  bool approve = 2;
+  string reason = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message DecideRootAccessResponse {
+  string request_id = 1;
+  string state = 2;
+  string expires_at = 3;
+  string correlation_id = 4;
+}
+
+message RevokeRootAccessRequest {
+  string request_id = 1;
+  string reason = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message RevokeRootAccessResponse {
+  bool revoked = 1;
+  string correlation_id = 2;
+}
+
+message RootAccessQueueEntry {
+  RootAccessRequestMessage access_request = 1;
+  string state = 2;
+  string customer_approver_ref = 3;
+  string customer_approved_at = 4;
+  string rejected_at = 5;
+  string revoked_at = 6;
+  string revocation_reason = 7;
+}
+
+message ListRootAccessRequestsRequest {
+  string tenant_id = 1;
+  bool include_closed = 2;
+  uint32 page_size = 3;
+  erpx.common.v1.QueryContext context = 4;
+}
+message ListRootAccessRequestsResponse {
+  repeated RootAccessQueueEntry requests = 1;
+  string correlation_id = 2;
+}
+
+message TypedDataPlaneCommand {
+  uint32 contract_version = 1;
+  string command_id = 2;
+  string tenant_id = 3;
+  string agent_id = 4;
+  string command_type = 5;
+  bytes payload_json = 6;
+  string correlation_id = 7;
+  erpx.common.v1.ActorAttribution actor = 8;
+  erpx.common.v1.TenantScope tenant_scope = 9;
+  erpx.common.v1.AuditContext audit = 10;
+  string root_access_capability_id = 11;
+  bytes control_plane_signature = 12;
+  string expires_at = 13;
+  // Presented only for an interactive approved Root session. The agent stores
+  // only its SHA-256 digest after capability delivery.
+  bytes root_access_capability_token = 14;
+  string device_ref = 15;
+}
+
+message RootAccessCapabilityMessage {
+  uint32 contract_version = 1;
+  string capability_id = 2;
+  string request_id = 3;
+  // Delivered once over the tenant-bound mTLS stream; never persisted raw.
+  bytes one_time_capability_token = 4;
+  string root_principal_ref = 5;
+  string device_ref = 6;
+  string tenant_id = 7;
+  string agent_id = 8;
+  erpx.common.v1.TenantScope tenant_scope = 9;
+  repeated string allowed_actions = 10;
+  repeated string business_units = 11;
+  string issued_at = 12;
+  string expires_at = 13;
+  string correlation_id = 14;
+  string signing_key_id = 15;
+  bytes control_plane_signature = 16;
+}
+
+message RootAccessRevocationMessage {
+  uint32 contract_version = 1;
+  string capability_id = 2;
+  string tenant_id = 3;
+  string agent_id = 4;
+  string revoked_at = 5;
+  string correlation_id = 6;
+  string signing_key_id = 7;
+  bytes control_plane_signature = 8;
+}
+
+message DataPlaneCommandResult {
+  uint32 contract_version = 1;
+  string command_id = 2;
+  string tenant_id = 3;
+  string agent_id = 4;
+  string result_type = 5;
+  bytes redacted_payload_json = 6;
+  string correlation_id = 7;
+  string completed_at = 8;
+  bytes agent_signature = 9;
+}
+
+message DataPlaneAgentEnvelope {
+  oneof payload {
+    DataPlaneObservationMessage observation = 1;
+    DataPlaneCommandResult command_result = 2;
+  }
+}
+
+message ControlPlaneEnvelope {
+  oneof payload {
+    DesiredConfigurationMessage desired_configuration = 1;
+    TypedDataPlaneCommand typed_command = 2;
+    RootAccessCapabilityMessage root_access_capability = 3;
+    RootAccessRevocationMessage root_access_revocation = 4;
+  }
+}
+
 service PlatformCustomerService {
   rpc ListCustomers(ListCustomersRequest) returns (ListCustomersResponse);
   rpc GetCustomer(GetCustomerRequest) returns (GetCustomerResponse);
@@ -2815,6 +3746,14 @@ service PlatformCustomerService {
 service PlatformOperationsService {
   rpc ListTenants(ListPlatformTenantsRequest) returns (ListPlatformTenantsResponse);
   rpc GetTenant(GetPlatformTenantRequest) returns (GetPlatformTenantResponse);
+  rpc BeginTenantAdminContext(BeginTenantAdminContextRequest)
+      returns (BeginTenantAdminContextResponse);
+  rpc GetTenantAdminContext(GetTenantAdminContextRequest)
+      returns (GetTenantAdminContextResponse);
+  rpc EndTenantAdminContext(EndTenantAdminContextRequest)
+      returns (EndTenantAdminContextResponse);
+  rpc DiscoverTenantOrganizationUnits(DiscoverTenantOrganizationUnitsRequest)
+      returns (DiscoverTenantOrganizationUnitsResponse);
   rpc BeginTenantProvisioning(BeginTenantProvisioningRequest)
       returns (BeginTenantProvisioningResponse);
   rpc ProvisionTenantResources(ProvisionTenantResourcesRequest)
@@ -2829,6 +3768,14 @@ service PlatformOperationsService {
       returns (ScheduleTenantBackupResponse);
   rpc ListTenantBackupJobs(ListTenantBackupJobsRequest)
       returns (ListTenantBackupJobsResponse);
+  rpc ScheduleClusterBaseBackup(ScheduleClusterBaseBackupRequest)
+      returns (ScheduleClusterBaseBackupResponse);
+  rpc ListClusterRecoveryPoints(ListClusterRecoveryPointsRequest)
+      returns (ListClusterRecoveryPointsResponse);
+  rpc StartClusterRestoreRehearsal(StartClusterRestoreRehearsalRequest)
+      returns (StartClusterRestoreRehearsalResponse);
+  rpc GetClusterRestoreRehearsal(GetClusterRestoreRehearsalRequest)
+      returns (GetClusterRestoreRehearsalResponse);
   rpc StartProjectionRebuild(StartProjectionRebuildRequest)
       returns (StartProjectionRebuildResponse);
   rpc ActivateProjectionRebuild(ActivateProjectionRebuildRequest)
@@ -2843,6 +3790,18 @@ service PlatformOperationsService {
       returns (ListPlatformIntegrationsResponse);
   rpc GetPlatformSettings(GetPlatformSettingsRequest)
       returns (GetPlatformSettingsResponse);
+}
+
+service SaasBillingService {
+  rpc ListCatalog(ListSaasCatalogRequest) returns (ListSaasCatalogResponse);
+  rpc GetSubscription(GetTenantSubscriptionRequest) returns (GetTenantSubscriptionResponse);
+  rpc CreateCheckoutSession(CreateCheckoutSessionRequest)
+      returns (CreateCheckoutSessionResponse);
+  rpc CreateCustomerPortalSession(CreateCustomerPortalSessionRequest)
+      returns (CreateCustomerPortalSessionResponse);
+  rpc ListInvoices(ListTenantInvoicesRequest) returns (ListTenantInvoicesResponse);
+  rpc GrantGraceExtension(GrantBillingGraceExtensionRequest)
+      returns (GrantBillingGraceExtensionResponse);
 }
 
 service MigrationService {
@@ -2871,6 +3830,18 @@ service DirectoryService {
       returns (ListDirectoryIdentityLinksResponse);
   rpc SaveDirectoryRoleMapping(SaveDirectoryRoleMappingRequest)
       returns (SaveDirectoryRoleMappingResponse);
+  rpc PreflightDirectoryConnector(PreflightDirectoryConnectorRequest)
+      returns (PreflightDirectoryConnectorResponse);
+  rpc TransitionDirectoryConnectorLifecycle(TransitionDirectoryConnectorLifecycleRequest)
+      returns (TransitionDirectoryConnectorLifecycleResponse);
+  rpc LinkDirectoryPrincipal(LinkDirectoryPrincipalRequest)
+      returns (LinkDirectoryPrincipalResponse);
+  rpc UnlinkDirectoryPrincipal(UnlinkDirectoryPrincipalRequest)
+      returns (UnlinkDirectoryPrincipalResponse);
+  rpc GetDirectoryConnectorReadiness(GetDirectoryConnectorReadinessRequest)
+      returns (GetDirectoryConnectorReadinessResponse);
+  rpc ReconcileDirectoryConnector(ReconcileDirectoryConnectorRequest)
+      returns (ReconcileDirectoryConnectorResponse);
 }
 
 service OrganizationService {
@@ -3087,4 +4058,54 @@ service QualityService {
       returns (GetQualityInspectionResponse);
   rpc ListQualityInspections(ListQualityInspectionsRequest)
       returns (ListQualityInspectionsResponse);
+}
+
+// Browser/console-facing control-plane API. Authorization is evaluated from
+// the authenticated CommandContext; self-hosted changes remain approval-gated.
+service DataPlaneControlService {
+  rpc GetTenantInfrastructure(GetTenantInfrastructureRequest)
+      returns (GetTenantInfrastructureResponse);
+  rpc SaveTenantInfrastructureProfile(SaveTenantInfrastructureProfileRequest)
+      returns (SaveTenantInfrastructureProfileResponse);
+  rpc GetBusinessUnitConfiguration(GetBusinessUnitConfigurationRequest)
+      returns (GetBusinessUnitConfigurationResponse);
+  rpc SaveBusinessUnitConfiguration(SaveBusinessUnitConfigurationRequest)
+      returns (SaveBusinessUnitConfigurationResponse);
+  rpc IssueDataPlaneEnrollment(IssueDataPlaneEnrollmentRequest)
+      returns (IssueDataPlaneEnrollmentResponse);
+  rpc ProposeDesiredConfiguration(ProposeDesiredConfigurationRequest)
+      returns (ProposeDesiredConfigurationResponse);
+  rpc DecideDesiredConfiguration(DecideDesiredConfigurationRequest)
+      returns (DecideDesiredConfigurationResponse);
+  rpc RequestRootAccess(RequestRootAccessRequest)
+      returns (RequestRootAccessResponse);
+  rpc DecideRootAccess(DecideRootAccessRequest)
+      returns (DecideRootAccessResponse);
+  rpc RevokeRootAccess(RevokeRootAccessRequest)
+      returns (RevokeRootAccessResponse);
+  rpc ListRootAccessRequests(ListRootAccessRequestsRequest)
+      returns (ListRootAccessRequestsResponse);
+  rpc GetResolvedCorporateIdentity(GetResolvedCorporateIdentityRequest)
+      returns (GetResolvedCorporateIdentityResponse);
+  rpc GetCorporateIdentityDraft(GetCorporateIdentityDraftRequest)
+      returns (GetCorporateIdentityDraftResponse);
+  rpc SaveCorporateIdentityDraft(SaveCorporateIdentityDraftRequest)
+      returns (SaveCorporateIdentityDraftResponse);
+  rpc PublishCorporateIdentityDraft(PublishCorporateIdentityDraftRequest)
+      returns (PublishCorporateIdentityDraftResponse);
+  rpc RollbackCorporateIdentity(RollbackCorporateIdentityRequest)
+      returns (RollbackCorporateIdentityResponse);
+  rpc ListCorporateIdentityHistory(ListCorporateIdentityHistoryRequest)
+      returns (ListCorporateIdentityHistoryResponse);
+  rpc GetNavigationManifest(GetNavigationManifestRequest)
+      returns (GetNavigationManifestResponse);
+}
+
+// Agent-only service. The agent always initiates the mTLS connection; ERPX
+// never requires inbound access to customer databases, storage, or directory.
+service DataPlaneAgentService {
+  rpc Enroll(EnrollDataPlaneAgentRequest) returns (EnrollDataPlaneAgentResponse);
+  rpc ReportObservation(ReportDataPlaneObservationRequest)
+      returns (ReportDataPlaneObservationResponse);
+  rpc Connect(stream DataPlaneAgentEnvelope) returns (stream ControlPlaneEnvelope);
 }

@@ -161,14 +161,14 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
             max_attempts: 3,
         })
         .await
-        .expect("schedule PITR job");
+        .expect_err("tenant PITR must be rejected in favor of cluster-scoped recovery");
 
     assert_eq!(
         provisioner
             .project_backup_jobs_to_read(100)
             .await
             .expect("project all backup pages"),
-        1_002
+        1_001
     );
     let read_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM erpx_control.tenant_backup_jobs WHERE tenant_id = $1",
@@ -177,7 +177,7 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
     .fetch_one(&store.pools().read)
     .await
     .expect("count projected backup jobs");
-    assert_eq!(read_count, 1_002);
+    assert_eq!(read_count, 1_001);
     let scheduled_events: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM erpx_control.outbox_events
          WHERE aggregate_type = $1
@@ -190,19 +190,16 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
     .fetch_one(&store.pools().write)
     .await
     .expect("count scheduled backup events");
-    assert_eq!(scheduled_events, 1_002);
-    let stored_pitr: serde_json::Value = sqlx::query_scalar(
-        "SELECT pitr_recovery_point FROM erpx_control.tenant_backup_jobs
+    assert_eq!(scheduled_events, 1_001);
+    let tenant_pitr_jobs: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM erpx_control.tenant_backup_jobs
          WHERE tenant_id = $1 AND kind = 'pitr'",
     )
     .bind(tenant_id)
     .fetch_one(&store.pools().write)
     .await
-    .expect("read durable PITR recovery point");
-    assert_eq!(
-        stored_pitr["wal_archive_ref"].as_str(),
-        Some("wal-archive-fixture")
-    );
+    .expect("verify tenant PITR rejection left no durable job");
+    assert_eq!(tenant_pitr_jobs, 0);
 
     let worker_id = Uuid::new_v4();
     let claims = provisioner
@@ -289,7 +286,7 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
             (TENANT_BACKUP_JOB_CLAIMED_EVENT.into(), 2),
             (TENANT_BACKUP_JOB_COMPLETED_EVENT.into(), 1),
             (TENANT_BACKUP_JOB_FAILED_EVENT.into(), 1),
-            (TENANT_BACKUP_JOB_SCHEDULED_EVENT.into(), 1_002),
+            (TENANT_BACKUP_JOB_SCHEDULED_EVENT.into(), 1_001),
         ]
     );
     let first_job_id = claims[0].id;

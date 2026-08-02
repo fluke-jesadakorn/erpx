@@ -25,8 +25,8 @@ use erpx_identity::directory::tls::{
     TrustAnchor,
 };
 use erpx_identity::{
-    DirectoryChange, DirectoryConnector, DirectoryFeedKind, DirectoryProvider, DirectorySyncCursor,
-    DirectorySyncPage, DirectoryUser,
+    DirectoryChange, DirectoryConnector, DirectoryConnectorRuntimeSettings, DirectoryFeedKind,
+    DirectoryProvider, DirectorySyncCursor, DirectorySyncPage, DirectoryUser,
 };
 use ldap3::{
     LdapConnAsync, LdapConnSettings, ResultEntry, Scope, SearchEntry,
@@ -40,10 +40,12 @@ use rustls::{ClientConfig, RootCertStore, pki_types::CertificateDer};
 use serde::Deserialize;
 use serde_json::Value;
 use thiserror::Error;
+use zeroize::Zeroizing;
 
 use crate::directory_adapters::{
     MAX_DIRECTORY_ADAPTER_CURSOR_BYTES, MAX_DIRECTORY_ADAPTER_RESPONSE_BYTES,
 };
+use crate::directory_secrets::{DirectorySecretBundle, DirectorySecretResolver};
 
 const MAX_PAGE_SIZE: u32 = 5_000;
 const LDAP_TIMEOUT: Duration = Duration::from_secs(30);
@@ -155,6 +157,81 @@ impl Mapping {
                     "entryDeleted".into()
                 }
             }),
+        };
+        for attribute in [
+            &mapping.immutable,
+            &mapping.login,
+            &mapping.email,
+            &mapping.display_name,
+            &mapping.groups,
+            &mapping.disabled,
+            &mapping.locked,
+            &mapping.deleted,
+        ] {
+            validate_ldap_attribute_name(attribute)?;
+        }
+        Ok(mapping)
+    }
+
+    fn from_persisted(
+        provider: DirectoryProvider,
+        configured: &Value,
+    ) -> Result<Self, LiveDirectoryError> {
+        let object = configured
+            .as_object()
+            .ok_or(LiveDirectoryError::Configuration)?;
+        let value = |key: &str, default: &str| -> Result<String, LiveDirectoryError> {
+            match object.get(key) {
+                None => Ok(default.to_owned()),
+                Some(Value::String(value)) if !value.trim().is_empty() => {
+                    Ok(value.trim().to_owned())
+                }
+                Some(_) => Err(LiveDirectoryError::Configuration),
+            }
+        };
+        let immutable = immutable_attribute_for_provider(provider);
+        validate_immutable_attribute_override(
+            provider,
+            object.get("immutable").and_then(Value::as_str),
+        )?;
+        let mapping = Self {
+            provider,
+            immutable: immutable.into(),
+            login: value(
+                "login",
+                if provider == DirectoryProvider::ActiveDirectoryDomainServices {
+                    "sAMAccountName"
+                } else {
+                    "uid"
+                },
+            )?,
+            email: value("email", "mail")?,
+            display_name: value("display_name", "displayName")?,
+            groups: value("groups", "memberOf")?,
+            disabled: value(
+                "disabled",
+                if provider == DirectoryProvider::ActiveDirectoryDomainServices {
+                    "userAccountControl"
+                } else {
+                    "nsAccountLock"
+                },
+            )?,
+            locked: value(
+                "locked",
+                if provider == DirectoryProvider::ActiveDirectoryDomainServices {
+                    "lockoutTime"
+                } else {
+                    "pwdAccountLockedTime"
+                },
+            )?,
+            deleted: value(
+                "deleted",
+                if provider == DirectoryProvider::ActiveDirectoryDomainServices {
+                    "isDeleted"
+                } else {
+                    "entryDeleted"
+                },
+            )?,
         };
         for attribute in [
             &mapping.immutable,
@@ -329,8 +406,9 @@ fn bind_credentials() -> Result<(String, String), LiveDirectoryError> {
 /// peer leaf fingerprint with the connector's persisted trust anchor.
 fn ldap_tls_config(
     minimum_tls_version: &str,
+    ca_certificate_pem: Option<&[u8]>,
 ) -> Result<Option<Arc<ClientConfig>>, LiveDirectoryError> {
-    let Some(certificates) = private_ca_certificates()? else {
+    let Some(certificates) = private_ca_certificates(ca_certificate_pem)? else {
         // Rustls' default ldap3 configuration already permits only TLS 1.2+
         // and is appropriate for the default policy. A connector explicitly
         // requiring TLS 1.3 must provide a private trust bundle so the worker
@@ -359,7 +437,15 @@ fn ldap_tls_config(
     Ok(Some(Arc::new(config)))
 }
 
-fn private_ca_certificates() -> Result<Option<Vec<Vec<u8>>>, LiveDirectoryError> {
+fn private_ca_certificates(
+    ca_certificate_pem: Option<&[u8]>,
+) -> Result<Option<Vec<Vec<u8>>>, LiveDirectoryError> {
+    if let Some(pem) = ca_certificate_pem {
+        if pem.is_empty() || pem.len() > MAX_CA_CERTIFICATE_BYTES {
+            return Err(LiveDirectoryError::Configuration);
+        }
+        return Ok(Some(parse_pem_certificates(pem)?));
+    }
     let Some(path) = env::var(DIRECTORY_CA_CERT_PATH_ENV)
         .ok()
         .filter(|value| !value.trim().is_empty())
@@ -419,7 +505,10 @@ fn root_store_from_pem(pem: &[u8]) -> Result<RootCertStore, LiveDirectoryError> 
     Ok(roots)
 }
 
-fn ucs_http_client(connector: &DirectoryConnector) -> Result<Client, LiveDirectoryError> {
+fn ucs_http_client(
+    connector: &DirectoryConnector,
+    ca_certificate_pem: Option<&[u8]>,
+) -> Result<Client, LiveDirectoryError> {
     let mut builder = Client::builder()
         .use_rustls_tls()
         .https_only(true)
@@ -431,7 +520,7 @@ fn ucs_http_client(connector: &DirectoryConnector) -> Result<Client, LiveDirecto
         "1.3" => reqwest::tls::Version::TLS_1_3,
         _ => return Err(LiveDirectoryError::Configuration),
     });
-    if let Some(certificates) = private_ca_certificates()? {
+    if let Some(certificates) = private_ca_certificates(ca_certificate_pem)? {
         for certificate in certificates {
             let certificate = reqwest::Certificate::from_der(&certificate)
                 .map_err(|_| LiveDirectoryError::Configuration)?;
@@ -489,13 +578,37 @@ fn cursor_sequence(previous: Option<&DirectorySyncCursor>) -> Result<u64, LiveDi
 }
 
 fn connector_filter(connector: &DirectoryConnector) -> String {
-    env::var("ERPX_DIRECTORY_FILTER").unwrap_or_else(|_| {
-        if connector.provider == DirectoryProvider::ActiveDirectoryDomainServices {
-            "(&(objectCategory=person)(objectClass=user))".into()
-        } else {
-            "(objectClass=person)".into()
-        }
-    })
+    env::var("ERPX_DIRECTORY_FILTER").unwrap_or_else(|_| default_connector_filter(connector))
+}
+
+fn default_connector_filter(connector: &DirectoryConnector) -> String {
+    if connector.provider == DirectoryProvider::ActiveDirectoryDomainServices {
+        "(&(objectCategory=person)(objectClass=user))".into()
+    } else {
+        "(objectClass=person)".into()
+    }
+}
+
+fn validate_runtime_settings(
+    connector: &DirectoryConnector,
+    settings: &DirectoryConnectorRuntimeSettings,
+) -> Result<(), LiveDirectoryError> {
+    if settings.user_filter.trim().is_empty()
+        || settings.user_filter.len() > 2_048
+        || settings.user_filter.chars().any(char::is_control)
+        || !settings.user_filter.starts_with('(')
+        || !settings.user_filter.ends_with(')')
+        || settings.page_size == 0
+        || settings.page_size > MAX_PAGE_SIZE
+        || settings.page_size > connector.max_import_users as u32
+        || settings.ca_reference.trim().is_empty()
+        || !settings.attribute_mapping.is_object()
+        || !settings.feed_configuration.is_object()
+    {
+        return Err(LiveDirectoryError::Configuration);
+    }
+    Mapping::from_persisted(connector.provider, &settings.attribute_mapping)?;
+    Ok(())
 }
 
 fn validate_previous_cursor(
@@ -517,6 +630,7 @@ async fn open_ldap<'a>(
     connector: &'a DirectoryConnector,
     bind_dn: &'a str,
     password: &'a str,
+    ca_certificate_pem: Option<&[u8]>,
 ) -> Result<(ldap3::Ldap, Vec<u8>), LiveDirectoryError> {
     let expected_scheme = match connector.tls.mode {
         erpx_identity::DirectoryTlsMode::Ldaps => "ldaps",
@@ -527,7 +641,7 @@ async fn open_ldap<'a>(
     };
     validate_tls_policy(connector, expected_scheme)?;
     let mut settings = LdapConnSettings::new().set_conn_timeout(LDAP_TIMEOUT);
-    if let Some(config) = ldap_tls_config(&connector.tls.minimum_tls_version)? {
+    if let Some(config) = ldap_tls_config(&connector.tls.minimum_tls_version, ca_certificate_pem)? {
         settings = settings.set_config(config);
     }
     let settings = settings.set_starttls(matches!(
@@ -559,6 +673,15 @@ async fn open_ldap<'a>(
 #[derive(Clone)]
 struct LiveDirectoryAuthTransport {
     connector: DirectoryConnector,
+    ca_certificate_pem: Option<Arc<Vec<u8>>>,
+    mapping: Mapping,
+    user_filter: String,
+    service_bind: Option<Arc<ServiceBind>>,
+}
+
+struct ServiceBind {
+    bind_dn: Zeroizing<String>,
+    password: Zeroizing<String>,
 }
 
 impl DirectoryTransport for LiveDirectoryAuthTransport {
@@ -598,6 +721,9 @@ impl DirectoryTransport for LiveDirectoryAuthTransport {
         // could be retained in a worker heap after the bind completes.
         let password = request.credential().clone();
         let connector_ref = request.connector_ref();
+        let mapping = self.mapping.clone();
+        let user_filter = self.user_filter.clone();
+        let service_bind = self.service_bind.clone();
         Box::pin(async move {
             if connector.provider == DirectoryProvider::UniventionCorporateServer {
                 return ucs_bind_user(
@@ -605,45 +731,61 @@ impl DirectoryTransport for LiveDirectoryAuthTransport {
                     connector_ref,
                     &username,
                     password.expose_to_transport(),
+                    self.ca_certificate_pem.as_deref().map(Vec::as_slice),
                 )
                 .await;
             }
-            let (mut ldap, peer_certificate) =
-                open_ldap(&connector, &username, password.expose_to_transport())
-                    .await
-                    .map_err(|error| match error {
-                        LiveDirectoryError::TrustEvidenceUnavailable => {
-                            DirectoryTransportError::CertificateValidationFailed
-                        }
-                        LiveDirectoryError::Configuration | LiveDirectoryError::Protocol => {
-                            DirectoryTransportError::ProtocolViolation
-                        }
-                        LiveDirectoryError::Transport => DirectoryTransportError::Unavailable,
-                        _ => DirectoryTransportError::Unavailable,
-                    })?;
-            let mapping = Mapping::from_env(connector.provider)
-                .map_err(|_| DirectoryTransportError::ProtocolViolation)?;
+            let map_transport_error = |error| match error {
+                LiveDirectoryError::TrustEvidenceUnavailable => {
+                    DirectoryTransportError::CertificateValidationFailed
+                }
+                LiveDirectoryError::Configuration | LiveDirectoryError::Protocol => {
+                    DirectoryTransportError::ProtocolViolation
+                }
+                LiveDirectoryError::Transport => DirectoryTransportError::Unavailable,
+                _ => DirectoryTransportError::Unavailable,
+            };
             let filter = format!(
                 "(&{}({}={}))",
-                connector_filter(&connector),
+                user_filter,
                 mapping.login,
                 escape_ldap_filter_value(&username),
             );
-            let (entries, _) = ldap
-                .search(&connector.base_dn, Scope::Subtree, &filter, mapping.attrs())
+            let (entry, peer_certificate) = if let Some(service_bind) = service_bind {
+                let (mut service_ldap, _) = open_ldap(
+                    &connector,
+                    service_bind.bind_dn.as_str(),
+                    service_bind.password.as_str(),
+                    self.ca_certificate_pem.as_deref().map(Vec::as_slice),
+                )
                 .await
-                .map_err(|_| DirectoryTransportError::Unavailable)?
-                .success()
-                .map_err(|_| DirectoryTransportError::Rejected)?;
-            if entries.len() != 1 {
-                return Err(DirectoryTransportError::Rejected);
-            }
-            let entry = SearchEntry::construct(
-                entries
-                    .into_iter()
-                    .next()
-                    .ok_or(DirectoryTransportError::ProtocolViolation)?,
-            );
+                .map_err(map_transport_error)?;
+                let entry =
+                    find_auth_entry(&mut service_ldap, &connector, &mapping, &filter).await?;
+                let user_dn = entry.dn.clone();
+                let _ = service_ldap.unbind().await;
+                let (mut user_ldap, peer_certificate) = open_ldap(
+                    &connector,
+                    &user_dn,
+                    password.expose_to_transport(),
+                    self.ca_certificate_pem.as_deref().map(Vec::as_slice),
+                )
+                .await
+                .map_err(map_transport_error)?;
+                let _ = user_ldap.unbind().await;
+                (entry, peer_certificate)
+            } else {
+                let (mut user_ldap, peer_certificate) = open_ldap(
+                    &connector,
+                    &username,
+                    password.expose_to_transport(),
+                    self.ca_certificate_pem.as_deref().map(Vec::as_slice),
+                )
+                .await
+                .map_err(map_transport_error)?;
+                let entry = find_auth_entry(&mut user_ldap, &connector, &mapping, &filter).await?;
+                (entry, peer_certificate)
+            };
             let immutable = immutable_uuid_from_entry(&entry, &mapping, connector.provider)
                 .ok_or(DirectoryTransportError::ProtocolViolation)?;
             let account_status = directory_account_status(&entry, &mapping)
@@ -671,6 +813,29 @@ impl DirectoryTransport for LiveDirectoryAuthTransport {
             ))
         })
     }
+}
+
+async fn find_auth_entry(
+    ldap: &mut ldap3::Ldap,
+    connector: &DirectoryConnector,
+    mapping: &Mapping,
+    filter: &str,
+) -> Result<SearchEntry, DirectoryTransportError> {
+    let (entries, _) = ldap
+        .search(&connector.base_dn, Scope::Subtree, filter, mapping.attrs())
+        .await
+        .map_err(|_| DirectoryTransportError::Unavailable)?
+        .success()
+        .map_err(|_| DirectoryTransportError::Rejected)?;
+    if entries.len() != 1 {
+        return Err(DirectoryTransportError::Rejected);
+    }
+    Ok(SearchEntry::construct(
+        entries
+            .into_iter()
+            .next()
+            .ok_or(DirectoryTransportError::ProtocolViolation)?,
+    ))
 }
 
 fn auth_provider(provider: DirectoryProvider) -> AuthDirectoryProvider {
@@ -759,6 +924,88 @@ fn auth_connector_config(
     .map_err(|_| LiveDirectoryError::Configuration)
 }
 
+/// Perform a real, non-mutating TLS/bind/feed capability probe using the
+/// connector's persisted credential reference. LDAP probes read RootDSE;
+/// UCS probes request the next message without popping or confirming it.
+pub async fn preflight_directory_connector(
+    connector: &DirectoryConnector,
+    resolver: &dyn DirectorySecretResolver,
+) -> Result<(), LiveDirectoryError> {
+    connector
+        .validate()
+        .map_err(|_| LiveDirectoryError::Configuration)?;
+    let secret = resolver
+        .resolve(&connector.credential_ref)
+        .await
+        .map_err(|_| LiveDirectoryError::Configuration)?;
+    if connector.provider == DirectoryProvider::UniventionCorporateServer {
+        validate_ucs_connector(connector)?;
+        let subscription = secret
+            .subscription()
+            .ok_or(LiveDirectoryError::Configuration)?;
+        let client = ucs_http_client(connector, Some(secret.ca_certificate_pem()))?;
+        let url = ucs_path(&connector.endpoint, subscription, "/messages/next")?;
+        let response = client
+            .get(url)
+            .query(&[("timeout", "0"), ("pop", "false")])
+            .basic_auth(subscription, Some(secret.password()))
+            .header(header::ACCEPT, "application/json")
+            .send()
+            .await
+            .map_err(|_| LiveDirectoryError::Transport)?;
+        verify_https_peer_trust_evidence(&response, connector)?;
+        if response.status().is_success() || response.status() == reqwest::StatusCode::NO_CONTENT {
+            return Ok(());
+        }
+        return Err(LiveDirectoryError::Transport);
+    }
+    let (mut ldap, _) = open_ldap(
+        connector,
+        secret.bind_dn(),
+        secret.password(),
+        Some(secret.ca_certificate_pem()),
+    )
+    .await?;
+    let (entries, _) = ldap
+        .search(
+            "",
+            Scope::Base,
+            "(objectClass=*)",
+            vec!["supportedControl", "namingContexts"],
+        )
+        .await
+        .map_err(|_| LiveDirectoryError::Transport)?
+        .success()
+        .map_err(|_| LiveDirectoryError::Transport)?;
+    if entries.len() != 1 {
+        return Err(LiveDirectoryError::Protocol);
+    }
+    let root = SearchEntry::construct(
+        entries
+            .into_iter()
+            .next()
+            .ok_or(LiveDirectoryError::Protocol)?,
+    );
+    let controls = root
+        .attrs
+        .get("supportedControl")
+        .cloned()
+        .unwrap_or_default();
+    let feed_supported = match connector.feed {
+        DirectoryFeedKind::Polling => true,
+        DirectoryFeedKind::Rfc4533 => controls
+            .iter()
+            .any(|value| value == RFC4533_SYNC_REQUEST_OID),
+        DirectoryFeedKind::AdDirSync => controls.iter().any(|value| value == AD_DIRSYNC_OID),
+        DirectoryFeedKind::UcsProvisioningService => false,
+    };
+    if feed_supported {
+        Ok(())
+    } else {
+        Err(LiveDirectoryError::Protocol)
+    }
+}
+
 /// Authenticate a directory user through the same production transport used
 /// by the native LDAP/AD feed adapters.  The returned identity is still
 /// resolved against the imported write-side projection before a session is
@@ -767,6 +1014,79 @@ pub async fn authenticate_directory_user(
     connector: &DirectoryConnector,
     username: &str,
     password: &str,
+) -> Result<AuthenticatedDirectoryIdentity, LiveDirectoryError> {
+    authenticate_directory_user_with_ca(
+        connector,
+        username,
+        password,
+        None,
+        Mapping::from_persisted(connector.provider, &serde_json::json!({}))?,
+        default_connector_filter(connector),
+        None,
+    )
+    .await
+}
+
+pub async fn authenticate_directory_user_with_resolver(
+    connector: &DirectoryConnector,
+    username: &str,
+    password: &str,
+    resolver: &dyn DirectorySecretResolver,
+) -> Result<AuthenticatedDirectoryIdentity, LiveDirectoryError> {
+    let secret = resolver
+        .resolve(&connector.credential_ref)
+        .await
+        .map_err(|_| LiveDirectoryError::Configuration)?;
+    authenticate_directory_user_with_ca(
+        connector,
+        username,
+        password,
+        Some(Arc::new(secret.ca_certificate_pem().to_vec())),
+        Mapping::from_persisted(connector.provider, &serde_json::json!({}))?,
+        default_connector_filter(connector),
+        Some(Arc::new(ServiceBind {
+            bind_dn: Zeroizing::new(secret.bind_dn().to_owned()),
+            password: Zeroizing::new(secret.password().to_owned()),
+        })),
+    )
+    .await
+}
+
+pub async fn authenticate_directory_user_with_runtime(
+    connector: &DirectoryConnector,
+    settings: &DirectoryConnectorRuntimeSettings,
+    username: &str,
+    password: &str,
+    resolver: &dyn DirectorySecretResolver,
+) -> Result<AuthenticatedDirectoryIdentity, LiveDirectoryError> {
+    validate_runtime_settings(connector, settings)?;
+    let secret = resolver
+        .resolve(&connector.credential_ref)
+        .await
+        .map_err(|_| LiveDirectoryError::Configuration)?;
+    authenticate_directory_user_with_ca(
+        connector,
+        username,
+        password,
+        Some(Arc::new(secret.ca_certificate_pem().to_vec())),
+        Mapping::from_persisted(connector.provider, &settings.attribute_mapping)?,
+        settings.user_filter.clone(),
+        Some(Arc::new(ServiceBind {
+            bind_dn: Zeroizing::new(secret.bind_dn().to_owned()),
+            password: Zeroizing::new(secret.password().to_owned()),
+        })),
+    )
+    .await
+}
+
+async fn authenticate_directory_user_with_ca(
+    connector: &DirectoryConnector,
+    username: &str,
+    password: &str,
+    ca_certificate_pem: Option<Arc<Vec<u8>>>,
+    mapping: Mapping,
+    user_filter: String,
+    service_bind: Option<Arc<ServiceBind>>,
 ) -> Result<AuthenticatedDirectoryIdentity, LiveDirectoryError> {
     let authenticator = DirectoryAuthenticator::new(auth_connector_config(connector)?)
         .map_err(|_| LiveDirectoryError::Configuration)?;
@@ -781,6 +1101,10 @@ pub async fn authenticate_directory_user(
             request,
             &LiveDirectoryAuthTransport {
                 connector: connector.clone(),
+                ca_certificate_pem,
+                mapping,
+                user_filter,
+                service_bind,
             },
             None,
             Utc::now(),
@@ -811,9 +1135,11 @@ async fn ucs_bind_user(
     connector_ref: uuid::Uuid,
     username: &str,
     password: &str,
+    ca_certificate_pem: Option<&[u8]>,
 ) -> Result<DirectoryBindResult, DirectoryTransportError> {
     validate_ucs_connector(connector).map_err(|_| DirectoryTransportError::ProtocolViolation)?;
-    let client = ucs_http_client(connector).map_err(|_| DirectoryTransportError::Unavailable)?;
+    let client = ucs_http_client(connector, ca_certificate_pem)
+        .map_err(|_| DirectoryTransportError::Unavailable)?;
     let mut url =
         Url::parse(&connector.endpoint).map_err(|_| DirectoryTransportError::ProtocolViolation)?;
     url.set_path("/univention/udm/users/user/");
@@ -1251,6 +1577,7 @@ struct Rfc4533EntryContext<'a> {
     sequence: u64,
     page_size: u32,
     changes: &'a mut Vec<DirectoryChange>,
+    sync_cookie: Option<&'a mut Option<Vec<u8>>>,
 }
 
 struct Rfc4533SearchRequest<'a> {
@@ -1273,7 +1600,15 @@ fn append_rfc4533_entry(
     match std::panic::catch_unwind(AssertUnwindSafe(|| {
         let sync_state = parse_rfc4533_entry_sync_state(&result_entry.1)?;
         let entry = SearchEntry::construct(result_entry);
-        let (state, uuid, _entry_cookie) = sync_state;
+        let (state, uuid, entry_cookie) = sync_state;
+        if let Some(cookie) = entry_cookie {
+            if cookie.is_empty() {
+                return Err(LiveDirectoryError::Protocol);
+            }
+            if let Some(destination) = context.sync_cookie {
+                *destination = Some(cookie);
+            }
+        }
         match state {
             EntryState::Present => {}
             EntryState::Delete => {
@@ -1439,6 +1774,7 @@ async fn ldap_search_rfc4533_persistent(
             sequence,
             page_size,
             changes: &mut changes,
+            sync_cookie: Some(&mut sync_cookie),
         };
         if let Err(error) = append_rfc4533_entry(result_entry, context) {
             abort_search!(error);
@@ -1483,6 +1819,7 @@ async fn ldap_search_rfc4533_refresh_only(
         attributes,
         full_import,
     } = request;
+    let requested_sync_cookie = sync_cookie.clone();
     let mut controls: Vec<RawControl> = vec![
         SyncRequest {
             mode: rfc4533_refresh_mode(full_import, false),
@@ -1590,6 +1927,7 @@ async fn ldap_search_rfc4533_refresh_only(
             sequence,
             page_size,
             changes: &mut changes,
+            sync_cookie: None,
         };
         if let Err(error) = append_rfc4533_entry(result_entry, context) {
             abort_search!(error);
@@ -1600,11 +1938,18 @@ async fn ldap_search_rfc4533_refresh_only(
     if result.rc != 0 {
         return Err(LiveDirectoryError::Transport);
     }
-    let sync_cookie = rfc4533_sync_done_cookie(&result.ctrls)?
-        .filter(|cookie| !cookie.is_empty())
-        .ok_or(LiveDirectoryError::Protocol)?;
+    let sync_cookie = resolve_rfc4533_refresh_cookie(
+        rfc4533_sync_done_cookie(&result.ctrls)?,
+        &requested_sync_cookie,
+    )?;
     let (next_cookie, end_of_snapshot) = if full_import {
-        let page_cookie = rfc4533_paged_cookie(&result.ctrls)?;
+        // RFC 4533 servers are allowed to ignore the non-critical paged-results
+        // control. In that case the refresh response is still a complete,
+        // bounded snapshot because `append_rfc4533_entry` rejects any response
+        // larger than the configured page. Treat the missing paging response
+        // as a terminal page while still rejecting duplicate or malformed
+        // paging controls.
+        let page_cookie = rfc4533_paged_cookie(&result.ctrls)?.unwrap_or_default();
         if page_cookie.is_empty() {
             (sync_cookie, true)
         } else {
@@ -1634,6 +1979,21 @@ fn rfc4533_refresh_mode(full_import: bool, persistent_supported: bool) -> Refres
     }
 }
 
+fn resolve_rfc4533_refresh_cookie(
+    response_cookie: Option<Vec<u8>>,
+    requested_cookie: &[u8],
+) -> Result<Vec<u8>, LiveDirectoryError> {
+    match response_cookie {
+        Some(cookie) if !cookie.is_empty() => Ok(cookie),
+        // RFC 4533 makes syncDoneValue.cookie optional. On an incremental
+        // refresh with no newer state, retain the previously acknowledged
+        // server cookie rather than inventing progress or rejecting a valid
+        // response. The sync-done control itself remains mandatory.
+        Some(_) if !requested_cookie.is_empty() => Ok(requested_cookie.to_vec()),
+        _ => Err(LiveDirectoryError::Protocol),
+    }
+}
+
 async fn ldap_search_with_mode(
     connector: &DirectoryConnector,
     previous: Option<&DirectorySyncCursor>,
@@ -1642,17 +2002,51 @@ async fn ldap_search_with_mode(
     full_import: bool,
 ) -> Result<(DirectorySyncPage, bool), LiveDirectoryError> {
     let (bind_dn, password) = bind_credentials()?;
-    let (mut ldap, _peer_certificate) = open_ldap(connector, &bind_dn, &password).await?;
     let mapping = Mapping::from_env(connector.provider)?;
+    let filter = connector_filter(connector);
+    ldap_search_with_runtime(
+        connector,
+        previous,
+        page_size,
+        rfc4533,
+        full_import,
+        &bind_dn,
+        &password,
+        None,
+        mapping,
+        filter,
+        false,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn ldap_search_with_runtime(
+    connector: &DirectoryConnector,
+    previous: Option<&DirectorySyncCursor>,
+    page_size: u32,
+    rfc4533: bool,
+    full_import: bool,
+    bind_dn: &str,
+    password: &str,
+    ca_certificate_pem: Option<&[u8]>,
+    mapping: Mapping,
+    filter: String,
+    persistent_requested: bool,
+) -> Result<(DirectorySyncPage, bool), LiveDirectoryError> {
+    let (mut ldap, _peer_certificate) =
+        open_ldap(connector, bind_dn, password, ca_certificate_pem).await?;
     let cookie = decode_cookie(previous.and_then(|cursor| cursor.opaque_cookie.as_ref()))?;
-    let persistent = rfc4533 && !full_import && rfc4533_persistent_supported(&mut ldap).await?;
+    let persistent = rfc4533
+        && !full_import
+        && persistent_requested
+        && rfc4533_persistent_supported(&mut ldap).await?;
     let (rfc_sync_cookie, rfc_page_cookie) = if rfc4533 && full_import {
         decode_rfc4533_full_import_cursor(&cookie)?
     } else {
         (cookie.clone(), Vec::new())
     };
     let sequence = cursor_sequence(previous)?;
-    let filter = connector_filter(connector);
     let attributes = mapping.attrs();
     if rfc4533 {
         let request = Rfc4533SearchRequest {
@@ -1786,15 +2180,19 @@ fn rfc4533_sync_done_cookie(controls: &[Control]) -> Result<Option<Vec<u8>>, Liv
         .ok_or(LiveDirectoryError::Protocol)
 }
 
-fn rfc4533_paged_cookie(controls: &[Control]) -> Result<Vec<u8>, LiveDirectoryError> {
+fn rfc4533_paged_cookie(controls: &[Control]) -> Result<Option<Vec<u8>>, LiveDirectoryError> {
     let mut matching = controls
         .iter()
         .filter(|control| control.1.ctype == LDAP_PAGED_RESULTS_OID);
-    let control = matching.next().ok_or(LiveDirectoryError::Protocol)?;
+    let Some(control) = matching.next() else {
+        return Ok(None);
+    };
     if matching.next().is_some() {
         return Err(LiveDirectoryError::Protocol);
     }
-    parse_paged_cookie(&control.1).ok_or(LiveDirectoryError::Protocol)
+    parse_paged_cookie(&control.1)
+        .map(Some)
+        .ok_or(LiveDirectoryError::Protocol)
 }
 
 fn decode_rfc4533_full_import_cursor(
@@ -2055,18 +2453,38 @@ async fn ad_dirsync(
     page_size: u32,
 ) -> Result<LiveDirectoryPage, LiveDirectoryError> {
     let (bind_dn, password) = bind_credentials()?;
-    let (mut ldap, _peer_certificate) = open_ldap(connector, &bind_dn, &password).await?;
     let mapping = Mapping::from_env(connector.provider)?;
+    ad_dirsync_with_runtime(
+        connector,
+        previous,
+        page_size,
+        &bind_dn,
+        &password,
+        None,
+        mapping,
+        connector_filter(connector),
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn ad_dirsync_with_runtime(
+    connector: &DirectoryConnector,
+    previous: Option<&DirectorySyncCursor>,
+    page_size: u32,
+    bind_dn: &str,
+    password: &str,
+    ca_certificate_pem: Option<&[u8]>,
+    mapping: Mapping,
+    filter: String,
+) -> Result<LiveDirectoryPage, LiveDirectoryError> {
+    let (mut ldap, _peer_certificate) =
+        open_ldap(connector, bind_dn, password, ca_certificate_pem).await?;
     let cookie = decode_cookie(previous.and_then(|cursor| cursor.opaque_cookie.as_ref()))?;
     let sequence = cursor_sequence(previous)?;
     ldap.with_controls(ad_dirsync_controls(&cookie, page_size));
     let (entries, result) = ldap
-        .search(
-            &connector.base_dn,
-            Scope::Subtree,
-            &connector_filter(connector),
-            mapping.attrs(),
-        )
+        .search(&connector.base_dn, Scope::Subtree, &filter, mapping.attrs())
         .await
         .map_err(|_| LiveDirectoryError::Transport)?
         .success()
@@ -2342,15 +2760,34 @@ async fn ucs(
     previous: Option<&DirectorySyncCursor>,
     full_import: bool,
 ) -> Result<LiveDirectoryPage, LiveDirectoryError> {
-    validate_ucs_connector(connector)?;
     let subscription = required_env("ERPX_UCS_SUBSCRIPTION")?;
     let password = required_env("ERPX_UCS_SUBSCRIPTION_PASSWORD")?;
-    let client = ucs_http_client(connector)?;
-    let url = ucs_path(&connector.endpoint, &subscription, "/messages/next")?;
+    ucs_with_runtime(
+        connector,
+        previous,
+        full_import,
+        &subscription,
+        &password,
+        None,
+    )
+    .await
+}
+
+async fn ucs_with_runtime(
+    connector: &DirectoryConnector,
+    previous: Option<&DirectorySyncCursor>,
+    full_import: bool,
+    subscription: &str,
+    password: &str,
+    ca_certificate_pem: Option<&[u8]>,
+) -> Result<LiveDirectoryPage, LiveDirectoryError> {
+    validate_ucs_connector(connector)?;
+    let client = ucs_http_client(connector, ca_certificate_pem)?;
+    let url = ucs_path(&connector.endpoint, subscription, "/messages/next")?;
     let response = client
         .get(url)
         .query(&[("timeout", "0"), ("pop", "false")])
-        .basic_auth(&subscription, Some(&password))
+        .basic_auth(subscription, Some(password))
         .header(header::ACCEPT, "application/json")
         .send()
         .await
@@ -2407,10 +2844,9 @@ pub async fn fetch(
     fetch_with_mode(connector, adapter_name, previous, false).await
 }
 
-/// Fetch one bounded native page. A normal synchronization run uses the
-/// RFC 4533 refresh-and-persist mode; full imports explicitly use the
-/// refresh-only mode so the source can complete its snapshot before the
-/// durable worker finalizes it.
+/// Fetch one bounded native page. RFC 4533 defaults to refresh-only so one
+/// supervisor pass cannot monopolize the shared connector scheduler. A
+/// persisted connector may explicitly request refresh-and-persist mode.
 pub async fn fetch_with_mode(
     connector: &DirectoryConnector,
     adapter_name: &str,
@@ -2424,7 +2860,7 @@ pub async fn fetch_with_mode(
     connector
         .validate()
         .map_err(|_| LiveDirectoryError::Configuration)?;
-    if !connector.enabled {
+    if !connector.enabled && !full_import {
         return Err(LiveDirectoryError::Configuration);
     }
     validate_previous_cursor(connector, previous)?;
@@ -2469,25 +2905,173 @@ pub async fn fetch_with_mode(
     }
 }
 
+/// Fetch one native page using only the persisted connector settings and the
+/// connector-scoped secret bundle. This is the supervisor/runtime path; it
+/// deliberately ignores all legacy process-global directory variables.
+pub async fn fetch_with_runtime(
+    connector: &DirectoryConnector,
+    settings: &DirectoryConnectorRuntimeSettings,
+    resolver: &dyn DirectorySecretResolver,
+    previous: Option<&DirectorySyncCursor>,
+    full_import: bool,
+) -> Result<LiveDirectoryPage, LiveDirectoryError> {
+    connector
+        .validate()
+        .map_err(|_| LiveDirectoryError::Configuration)?;
+    if !connector.enabled && !full_import {
+        return Err(LiveDirectoryError::Configuration);
+    }
+    validate_previous_cursor(connector, previous)?;
+    validate_runtime_settings(connector, settings)?;
+    let secret = resolver
+        .resolve(&connector.credential_ref)
+        .await
+        .map_err(|_| LiveDirectoryError::Configuration)?;
+    fetch_with_resolved_runtime(connector, settings, &secret, previous, full_import).await
+}
+
+async fn fetch_with_resolved_runtime(
+    connector: &DirectoryConnector,
+    settings: &DirectoryConnectorRuntimeSettings,
+    secret: &DirectorySecretBundle,
+    previous: Option<&DirectorySyncCursor>,
+    full_import: bool,
+) -> Result<LiveDirectoryPage, LiveDirectoryError> {
+    let mapping = Mapping::from_persisted(connector.provider, &settings.attribute_mapping)?;
+    let page_size = settings.page_size.min(connector.max_import_users as u32);
+    match connector.feed {
+        DirectoryFeedKind::Polling => Ok(LiveDirectoryPage {
+            page: ldap_search_with_runtime(
+                connector,
+                previous,
+                page_size,
+                false,
+                false,
+                secret.bind_dn(),
+                secret.password(),
+                Some(secret.ca_certificate_pem()),
+                mapping,
+                settings.user_filter.clone(),
+                false,
+            )
+            .await?
+            .0,
+            ucs_confirmation: None,
+            end_of_snapshot: false,
+        }),
+        DirectoryFeedKind::Rfc4533 => {
+            let persistent_requested = settings
+                .feed_configuration
+                .get("persistent")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
+            let (page, end_of_snapshot) = ldap_search_with_runtime(
+                connector,
+                previous,
+                page_size,
+                true,
+                full_import,
+                secret.bind_dn(),
+                secret.password(),
+                Some(secret.ca_certificate_pem()),
+                mapping,
+                settings.user_filter.clone(),
+                persistent_requested,
+            )
+            .await?;
+            Ok(LiveDirectoryPage {
+                page,
+                ucs_confirmation: None,
+                end_of_snapshot,
+            })
+        }
+        DirectoryFeedKind::AdDirSync => {
+            ad_dirsync_with_runtime(
+                connector,
+                previous,
+                page_size,
+                secret.bind_dn(),
+                secret.password(),
+                Some(secret.ca_certificate_pem()),
+                mapping,
+                settings.user_filter.clone(),
+            )
+            .await
+        }
+        DirectoryFeedKind::UcsProvisioningService => {
+            let subscription = secret
+                .subscription()
+                .ok_or(LiveDirectoryError::Configuration)?;
+            ucs_with_runtime(
+                connector,
+                previous,
+                full_import,
+                subscription,
+                secret.password(),
+                Some(secret.ca_certificate_pem()),
+            )
+            .await
+        }
+    }
+}
+
+pub async fn confirm_ucs_with_resolver(
+    connector: &DirectoryConnector,
+    sequence: u64,
+    resolver: &dyn DirectorySecretResolver,
+) -> Result<(), LiveDirectoryError> {
+    if sequence == 0 {
+        return Err(LiveDirectoryError::Protocol);
+    }
+    let secret = resolver
+        .resolve(&connector.credential_ref)
+        .await
+        .map_err(|_| LiveDirectoryError::Configuration)?;
+    let subscription = secret
+        .subscription()
+        .ok_or(LiveDirectoryError::Configuration)?;
+    confirm_ucs_with_runtime(
+        connector,
+        sequence,
+        subscription,
+        secret.password(),
+        Some(secret.ca_certificate_pem()),
+    )
+    .await
+}
+
 pub async fn confirm_ucs(
     connector: &DirectoryConnector,
     sequence: u64,
 ) -> Result<(), LiveDirectoryError> {
-    validate_ucs_connector(connector)?;
     if sequence == 0 {
         return Err(LiveDirectoryError::Protocol);
     }
     let subscription = required_env("ERPX_UCS_SUBSCRIPTION")?;
     let password = required_env("ERPX_UCS_SUBSCRIPTION_PASSWORD")?;
-    let client = ucs_http_client(connector)?;
+    confirm_ucs_with_runtime(connector, sequence, &subscription, &password, None).await
+}
+
+async fn confirm_ucs_with_runtime(
+    connector: &DirectoryConnector,
+    sequence: u64,
+    subscription: &str,
+    password: &str,
+    ca_certificate_pem: Option<&[u8]>,
+) -> Result<(), LiveDirectoryError> {
+    validate_ucs_connector(connector)?;
+    if sequence == 0 {
+        return Err(LiveDirectoryError::Protocol);
+    }
+    let client = ucs_http_client(connector, ca_certificate_pem)?;
     let url = ucs_path(
         &connector.endpoint,
-        &subscription,
+        subscription,
         &format!("/messages/{sequence}/status"),
     )?;
     let response = client
         .patch(url)
-        .basic_auth(&subscription, Some(&password))
+        .basic_auth(subscription, Some(password))
         .header(header::ACCEPT, "application/json")
         .header(header::CONTENT_TYPE, "application/json")
         .json(&serde_json::json!({ "status": "ok" }))
@@ -2830,6 +3414,11 @@ mod tests {
         );
         let transport = LiveDirectoryAuthTransport {
             connector: connector.clone(),
+            ca_certificate_pem: None,
+            mapping: Mapping::from_persisted(connector.provider, &serde_json::json!({}))
+                .expect("default mapping"),
+            user_filter: default_connector_filter(&connector),
+            service_bind: None,
         };
         let expected = auth_connector_config(&connector).expect("auth config");
         assert!(transport.preflight(&expected).is_ok());
@@ -3126,6 +3715,22 @@ mod tests {
         };
         assert!(matches!(
             native_ldap_cookie(&[Control(None, control)], true),
+            Err(LiveDirectoryError::Protocol)
+        ));
+    }
+
+    #[test]
+    fn rfc4533_incremental_refresh_retains_cookie_when_sync_done_omits_one() {
+        assert_eq!(
+            resolve_rfc4533_refresh_cookie(Some(Vec::new()), &[1, 2, 3]),
+            Ok(vec![1, 2, 3])
+        );
+        assert!(matches!(
+            resolve_rfc4533_refresh_cookie(Some(Vec::new()), &[]),
+            Err(LiveDirectoryError::Protocol)
+        ));
+        assert!(matches!(
+            resolve_rfc4533_refresh_cookie(None, &[1, 2, 3]),
             Err(LiveDirectoryError::Protocol)
         ));
     }

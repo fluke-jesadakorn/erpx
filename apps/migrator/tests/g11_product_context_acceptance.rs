@@ -377,7 +377,7 @@ fn g11_product_shell_registry_is_authenticated_and_read_only_by_default() {
             "ProductContextId::Quality",
             "ProductContextId::HrPayroll",
             "ProductContextId::Legal",
-            "ProductContextId::Pos",
+            "ProductContextId::PointOfSale",
             "ProductContextId::MarketingCrm",
             "RouteAuthRequirement::Authenticated",
             "read_only_shell: true",

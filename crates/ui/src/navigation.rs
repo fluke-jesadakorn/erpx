@@ -25,6 +25,23 @@ impl NavItem {
     }
 }
 
+/// A named primary-navigation work area. Grouping is presentation metadata;
+/// every child route remains independently authorized by the server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NavGroup {
+    pub label: String,
+    pub items: Vec<NavItem>,
+}
+
+impl NavGroup {
+    pub fn new(label: impl Into<String>, items: Vec<NavItem>) -> Self {
+        Self {
+            label: label.into(),
+            items,
+        }
+    }
+}
+
 /// Minimal navigation state shared by responsive shells and mobile navigation drawers.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct NavigationState {
@@ -82,7 +99,7 @@ fn is_path_active(active: &str, item: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{NavItem, NavigationState, normalize_path};
+    use super::{NavGroup, NavItem, NavigationState, normalize_path};
 
     #[test]
     fn paths_are_normalized_without_losing_nested_routes() {
@@ -99,6 +116,16 @@ mod tests {
         state.set_active_path("/operations");
         assert!(state.is_active(&operations));
         assert!(!state.is_active(&platform));
+    }
+
+    #[test]
+    fn navigation_groups_preserve_explicit_work_area_counts() {
+        let group = NavGroup::new(
+            "Customer Operations",
+            vec![NavItem::new("Customer 360", "/platform/customers", "◎")],
+        );
+        assert_eq!(group.label, "Customer Operations");
+        assert_eq!(group.items.len(), 1);
     }
 
     #[test]

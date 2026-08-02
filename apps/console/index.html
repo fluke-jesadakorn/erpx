@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>{app_title}</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: #0b1117;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      #dx-toast {
+        position: fixed;
+        inset: 1rem 1rem auto auto;
+        z-index: 2147483647;
+        max-width: min(24rem, calc(100vw - 2rem));
+        transition: opacity 120ms ease, transform 120ms ease;
+      }
+
+      #dx-toast[aria-hidden="true"] {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-0.5rem);
+      }
+
+      #dx-toast-inner {
+        display: grid;
+        grid-template-columns: 0.35rem 1fr;
+        overflow: hidden;
+        color: #f1f5f9;
+        background: #111a22;
+        border: 1px solid #3b4f5e;
+        border-radius: 0.75rem;
+        box-shadow: 0 1rem 2rem rgb(0 0 0 / 32%);
+      }
+
+      #dx-toast-decor {
+        background: #67e8f9;
+      }
+
+      #dx-toast-decor.success {
+        background: #4ade80;
+      }
+
+      #dx-toast-decor.error {
+        background: #f87171;
+      }
+
+      .dx-toast-content {
+        padding: 0.75rem 0.9rem;
+      }
+
+      #dx-toast-text,
+      #dx-toast-msg {
+        margin: 0;
+      }
+
+      #dx-toast-text {
+        font-size: 0.875rem;
+      }
+
+      #dx-toast-msg {
+        margin-top: 0.25rem;
+        color: #a8bac7;
+        font-size: 0.75rem;
+        line-height: 1.4;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #dx-toast {
+          transition: none;
+        }
+      }
+    </style>
+    <script>
+      (() => {
+        const storageKey = "SCHEDULED-DX-TOAST";
+        let closeTimer;
+
+        window.closeDXToast = () => {
+          const toast = document.getElementById("dx-toast");
+          if (toast) toast.setAttribute("aria-hidden", "true");
+          if (closeTimer) window.clearTimeout(closeTimer);
+        };
+
+        window.showDXToast = (heading, message, level, durationMs) => {
+          const toast = document.getElementById("dx-toast");
+          const title = document.getElementById("dx-toast-text");
+          const body = document.getElementById("dx-toast-msg");
+          const decor = document.getElementById("dx-toast-decor");
+          if (!toast || !title || !body || !decor) return;
+          title.textContent = String(heading ?? "ERPX development server");
+          body.textContent = String(message ?? "The console is rebuilding.");
+          decor.className = String(level ?? "info");
+          toast.removeAttribute("aria-hidden");
+          if (closeTimer) window.clearTimeout(closeTimer);
+          closeTimer = window.setTimeout(window.closeDXToast, Number(durationMs) || 5000);
+        };
+
+        window.scheduleDXToast = (heading, message, level, durationMs) => {
+          try {
+            sessionStorage.setItem(
+              storageKey,
+              JSON.stringify({ heading, message, level, durationMs }),
+            );
+          } catch (_) {
+            // The development notice is non-essential and may fail closed.
+          }
+        };
+
+        window.addEventListener("DOMContentLoaded", () => {
+          try {
+            const scheduled = sessionStorage.getItem(storageKey);
+            if (!scheduled) return;
+            sessionStorage.removeItem(storageKey);
+            const notice = JSON.parse(scheduled);
+            window.showDXToast(
+              notice.heading,
+              notice.message,
+              notice.level,
+              notice.durationMs,
+            );
+          } catch (_) {
+            // Ignore malformed or unavailable development-only state.
+          }
+        });
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="dx-toast" role="status" aria-live="polite" aria-hidden="true">
+      <div id="dx-toast-inner">
+        <div id="dx-toast-decor" class="info" aria-hidden="true"></div>
+        <div class="dx-toast-content">
+          <strong id="dx-toast-text">ERPX development server</strong>
+          <p id="dx-toast-msg">The console is rebuilding.</p>
+        </div>
+      </div>
+    </div>
+    <div id="main"></div>
+  </body>
+</html>

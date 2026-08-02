@@ -29,11 +29,14 @@ pub use challenge::{
 };
 pub use device::DeviceRecord;
 pub use directory::{
-    DIRECTORY_REVOCATION_SLA, DirectoryAuthDecision, DirectoryAuthPolicy, DirectoryAuthRequest,
-    DirectoryChange, DirectoryConnector, DirectoryConnectorSnapshot, DirectoryError,
-    DirectoryFeedKind, DirectoryImportPlan, DirectoryImportStatus, DirectoryProvider,
-    DirectoryRevocationState, DirectoryRisk, DirectoryRoleAction, DirectoryRoleFact,
-    DirectoryRoleMapping, DirectoryScope, DirectorySyncCursor, DirectorySyncPage, DirectoryTlsMode,
+    DIRECTORY_PREFLIGHT_MAX_AGE, DIRECTORY_REVOCATION_SLA, DirectoryAuthDecision,
+    DirectoryAuthPolicy, DirectoryAuthRequest, DirectoryChange, DirectoryConnector,
+    DirectoryConnectorLifecycle, DirectoryConnectorReadinessSnapshot,
+    DirectoryConnectorRuntimeSettings, DirectoryConnectorSnapshot, DirectoryError,
+    DirectoryFeedKind, DirectoryImportPlan, DirectoryImportStatus,
+    DirectoryPrincipalBindingSnapshot, DirectoryProvider, DirectoryRevocationState, DirectoryRisk,
+    DirectoryRoleAction, DirectoryRoleFact, DirectoryRoleMapping, DirectoryScope,
+    DirectorySupervisorClaim, DirectorySyncCursor, DirectorySyncPage, DirectoryTlsMode,
     DirectoryTlsPolicy, DirectoryUser, MAX_DIRECTORY_BATCH_SIZE, MAX_DIRECTORY_IMPORT_USERS,
     MAX_DIRECTORY_PAGE_SIZE, SqlxDirectoryStore, immutable_identity_link,
 };
@@ -74,6 +77,8 @@ pub const IDENTITY_REVOCATION_APPLIED_AT_MIGRATION_SQL: &str =
     include_str!("../migrations/0004_directory_revocation_applied_at.sql");
 pub const IDENTITY_ROLE_PROJECTION_CONSTRAINTS_MIGRATION_SQL: &str =
     include_str!("../migrations/0005_directory_role_projection_constraints.sql");
+pub const IDENTITY_DIRECTORY_CAPABILITIES_MIGRATION_SQL: &str =
+    include_str!("../migrations/0006_directory_capabilities.sql");
 
 /// Apply the identity schema and its forward reconciliation/outbox migration
 /// to a write-side pool. Callers must not run this function against a read
@@ -90,6 +95,9 @@ pub async fn apply_identity_migration(pool: &sqlx::PgPool) -> Result<(), sqlx::E
         .execute(pool)
         .await?;
     sqlx::raw_sql(IDENTITY_ROLE_PROJECTION_CONSTRAINTS_MIGRATION_SQL)
+        .execute(pool)
+        .await?;
+    sqlx::raw_sql(IDENTITY_DIRECTORY_CAPABILITIES_MIGRATION_SQL)
         .execute(pool)
         .await?;
     Ok(())

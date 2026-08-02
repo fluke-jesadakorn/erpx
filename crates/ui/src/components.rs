@@ -1,10 +1,15 @@
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 
 use dioxus::{dioxus_core::current_scope_id, prelude::*};
+use erpx_domain::corporate_identity::{
+    BrandCategory, BrandDensity, BrandElevation, BrandFontPack, BrandMotion, BrandNavigation,
+    BrandRadius, BrandTokenSet, HexColor, ResolvedCorporateIdentity,
+};
 
 use crate::{
-    Locale, LocaleContext, NavItem, RouteState, SafeSessionMetadata, SafeUiText, ScopeOption,
-    TranslationKey, UiStateKind, redact_deep_link, use_locale, use_theme,
+    Locale, LocaleContext, NavGroup, NavItem, RouteState, SafeSessionMetadata, SafeUiText,
+    ScopeOption, TranslationKey, UiStateKind, corporate_identity_style, redact_deep_link,
+    use_corporate_identity, use_locale, use_theme,
 };
 
 /// A top-level responsive shell shared by web, desktop, and mobile clients.
@@ -14,8 +19,8 @@ pub fn AppShell(
     brand: String,
     /// Short context subtitle.
     subtitle: String,
-    /// Navigation entries rendered in the responsive rail.
-    nav_items: Vec<NavItem>,
+    /// Named work areas rendered in the responsive rail.
+    nav_groups: Vec<NavGroup>,
     /// Current normalized path.
     active_path: String,
     /// Optional read-only/support/impersonation context banner.
@@ -30,62 +35,197 @@ pub fn AppShell(
     selected_scope: String,
     /// Callback for requesting a scope change. The server remains authoritative.
     on_scope_change: EventHandler<String>,
+    /// Callback for client-side navigation. Keeping navigation inside the mounted application
+    /// preserves the in-memory session on web targets that intentionally have no browser token
+    /// storage fallback.
+    on_navigate: EventHandler<String>,
     /// Page content.
     children: Element,
 ) -> Element {
     let locale = use_locale();
     let theme = use_theme();
+    let corporate_identity = use_corporate_identity();
+    let identity = corporate_identity.current();
     let current_locale = locale.current();
     let theme_token = theme.current().css_token();
-    let brand = safe_display_text(&brand);
+    let fallback_brand = safe_display_text(&brand);
+    let brand = safe_display_text(if identity.display_name.is_empty() {
+        &fallback_brand
+    } else {
+        &identity.display_name
+    });
+    let brand_mark = identity.short_name.chars().take(2).collect::<String>();
+    let brand_style = corporate_identity_style(&identity);
     let subtitle = safe_display_text(&subtitle);
     let active_path = redact_deep_link(&active_path);
     let header_note = header_note.map(|note| safe_display_text(&note));
-    let nav_items = nav_items
+    let nav_groups = nav_groups
         .into_iter()
-        .map(|item| NavItem {
-            label: safe_display_text(&item.label),
-            path: redact_deep_link(&item.path),
-            icon: safe_display_text(&item.icon),
+        .map(|group| NavGroup {
+            label: safe_display_text(&group.label),
+            items: group
+                .items
+                .into_iter()
+                .map(|item| NavItem {
+                    label: safe_display_text(&item.label),
+                    path: redact_deep_link(&item.path),
+                    icon: safe_display_text(&item.icon),
+                })
+                .collect(),
         })
         .collect::<Vec<_>>();
+    let active_context = nav_groups
+        .iter()
+        .find_map(|group| {
+            group
+                .items
+                .iter()
+                .find(|item| is_active(&active_path, &item.path))
+                .map(|item| (group.label.clone(), item.label.clone()))
+        })
+        .unwrap_or_else(|| ("Workspace".to_owned(), brand.clone()));
+    let mut nav_collapsed = use_signal(|| !identity.tokens.navigation_expanded_by_default);
+    let mut mobile_nav_open = use_signal(|| false);
+    let mut command_open = use_signal(|| false);
+    let mut command_query = use_signal(String::new);
+    let command_query_value = command_query.read().trim().to_ascii_lowercase();
+    let command_items = nav_groups
+        .iter()
+        .flat_map(|group| group.items.iter())
+        .filter(|item| {
+            command_query_value.is_empty()
+                || item
+                    .label
+                    .to_ascii_lowercase()
+                    .contains(&command_query_value)
+                || item
+                    .path
+                    .to_ascii_lowercase()
+                    .contains(&command_query_value)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let shell_class = format!(
+        "ui-shell ui-theme-{theme_token}{}",
+        if *nav_collapsed.read() {
+            " nav-collapsed"
+        } else {
+            ""
+        }
+    );
+    let nav_class = if *mobile_nav_open.read() {
+        "ui-nav mobile-open"
+    } else {
+        "ui-nav"
+    };
 
     rsx! {
         div {
-            class: "ui-shell ui-theme-{theme_token}",
+            class: "{shell_class}",
+            style: "{brand_style}",
             "data-locale": current_locale.language_tag(),
             "data-theme": theme_token,
+            "data-brand-version": identity.published_version.to_string(),
+            button {
+                class: if *mobile_nav_open.read() { "ui-nav-scrim visible" } else { "ui-nav-scrim" },
+                r#type: "button",
+                aria_label: "Close navigation",
+                onclick: move |_| mobile_nav_open.set(false),
+            }
             nav {
-                class: "ui-nav",
+                class: "{nav_class}",
                 aria_label: locale.text(TranslationKey::Navigation),
-                div { class: "ui-nav-brand",
-                    span { class: "ui-brand-mark", aria_hidden: "true", "E" }
-                    div {
-                        strong { "{brand}" }
-                        span { "{subtitle}" }
+                div { class: "ui-nav-header",
+                    div { class: "ui-nav-brand",
+                        span { class: "ui-brand-mark", aria_hidden: "true", "{brand_mark}" }
+                        div { class: "ui-brand-copy",
+                            strong { "{brand}" }
+                            span { "{subtitle}" }
+                        }
+                    }
+                    button {
+                        class: "ui-icon-button ui-collapse-button",
+                        r#type: "button",
+                        aria_label: if *nav_collapsed.read() { "Expand navigation" } else { "Collapse navigation" },
+                        aria_expanded: (!*nav_collapsed.read()).to_string(),
+                        onclick: move |_| {
+                            let next = !*nav_collapsed.read();
+                            nav_collapsed.set(next);
+                        },
+                        EnterpriseIcon { name: "panel".to_owned() }
                     }
                 }
+                button {
+                    class: "ui-command-trigger",
+                    r#type: "button",
+                    aria_keyshortcuts: "Control+K Meta+K",
+                    onclick: move |_| command_open.set(true),
+                    EnterpriseIcon { name: "search".to_owned() }
+                    span { "Search workspaces" }
+                    kbd { "⌘K" }
+                }
                 div { class: "ui-nav-items",
-                    for item in nav_items {
-                        a {
-                            class: if is_active(&active_path, &item.path) { "ui-nav-item active" } else { "ui-nav-item" },
-                            href: "{item.path}",
-                            aria_current: if is_active(&active_path, &item.path) { "page" } else { "false" },
-                            span { class: "ui-nav-icon", aria_hidden: "true", "{item.icon}" }
-                            span { "{item.label}" }
+                    for group in nav_groups.iter() {
+                        details { class: "ui-nav-group", open: true,
+                            summary { class: "ui-nav-group-heading",
+                                span { class: "ui-nav-group-title", "{group.label}" }
+                                span { class: "ui-nav-group-count", "{group.items.len()}" }
+                            }
+                            div { class: "ui-nav-group-items",
+                            for item in group.items.iter() {
+                                {
+                                    let path_for_click = item.path.clone();
+                                    rsx! {
+                                        a {
+                                            class: if is_active(&active_path, &item.path) { "ui-nav-item active" } else { "ui-nav-item" },
+                                            href: "{item.path}",
+                                            onclick: move |event| {
+                                                event.prevent_default();
+                                                on_navigate.call(path_for_click.clone());
+                                                mobile_nav_open.set(false);
+                                            },
+                                            aria_current: if is_active(&active_path, &item.path) { "page" } else { "false" },
+                                            span { class: "ui-nav-icon", aria_hidden: "true",
+                                                EnterpriseIcon { name: nav_icon_name(&item.path).to_owned() }
+                                            }
+                                            span { class: "ui-nav-label", "{item.label}" }
+                                        }
+                                    }
+                                }
+                            }
+                            }
                         }
                     }
                 }
                 div { class: "ui-nav-footer",
                     LocaleToggle {}
-                    span { class: "ui-locale-name", "{current_locale.native_name()}" }
+                    span { class: "ui-locale-name ui-nav-label", "{current_locale.native_name()}" }
+                    button {
+                        class: "ui-icon-button ui-theme-button",
+                        r#type: "button",
+                        aria_label: "Change color mode",
+                        onclick: move |_| theme.toggle(),
+                        EnterpriseIcon { name: "theme".to_owned() }
+                        span { class: "ui-nav-label", "{theme.current().css_token()}" }
+                    }
                 }
             }
             main { class: "ui-main",
                 header { class: "ui-topbar",
-                    div {
-                        span { class: "ui-eyebrow", "ERPX CLIENT" }
-                        h1 { "{brand}" }
+                    div { class: "ui-topbar-leading",
+                        button {
+                            class: "ui-icon-button ui-mobile-menu",
+                            r#type: "button",
+                            aria_label: "Open navigation",
+                            aria_expanded: mobile_nav_open.read().to_string(),
+                            onclick: move |_| mobile_nav_open.set(true),
+                            EnterpriseIcon { name: "menu".to_owned() }
+                        }
+                        nav { class: "ui-breadcrumbs", aria_label: "Breadcrumb",
+                            span { "{active_context.0}" }
+                            EnterpriseIcon { name: "chevron".to_owned() }
+                            strong { "{active_context.1}" }
+                        }
                     }
                     div { class: "ui-topbar-actions",
                         if let Some(note) = header_note {
@@ -97,16 +237,140 @@ pub fn AppShell(
                             selected: selected_scope,
                             on_change: on_scope_change,
                         }
+                        button {
+                            class: "ui-profile-button",
+                            r#type: "button",
+                            aria_label: "Account and session",
+                            span { class: "ui-profile-avatar", aria_hidden: "true", "A" }
+                            span { class: "ui-profile-copy",
+                                strong { "Administrator" }
+                                small { "Secure session" }
+                            }
+                        }
                     }
                 }
-                if let Some(metadata) = session_metadata {
-                    SessionBanners { metadata }
+                div { class: "ui-content",
+                    if let Some(metadata) = session_metadata {
+                        SessionBanners { metadata }
+                    }
+                    if let Some(banner) = context_banner {
+                        ContextBanner { kind: banner }
+                    }
+                    {children}
                 }
-                if let Some(banner) = context_banner {
-                    ContextBanner { kind: banner }
-                }
-                {children}
             }
+            Dialog {
+                open: *command_open.read(),
+                title: "Find a workspace".to_owned(),
+                on_close: move |_| command_open.set(false),
+                div { class: "ui-command-palette",
+                    div { class: "ui-command-input",
+                        EnterpriseIcon { name: "search".to_owned() }
+                        label { class: "sr-only", r#for: "erpx-command-search", "Search authorized routes" }
+                        input {
+                            id: "erpx-command-search",
+                            r#type: "search",
+                            value: "{command_query}",
+                            placeholder: "Search authorized workspaces and settings",
+                            autofocus: true,
+                            oninput: move |event| command_query.set(event.value()),
+                        }
+                    }
+                    div { class: "ui-command-results", role: "listbox",
+                        if command_items.is_empty() {
+                            div { class: "ui-command-empty", "No authorized route matches this search." }
+                        }
+                        for item in command_items {
+                            {
+                                let path = item.path.clone();
+                                rsx! {
+                                    button {
+                                        class: "ui-command-result",
+                                        r#type: "button",
+                                        role: "option",
+                                        onclick: move |_| {
+                                            on_navigate.call(path.clone());
+                                            command_open.set(false);
+                                            command_query.set(String::new());
+                                        },
+                                        EnterpriseIcon { name: nav_icon_name(&item.path).to_owned() }
+                                        span { strong { "{item.label}" } small { "{item.path}" } }
+                                        kbd { "↵" }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    p { class: "ui-safe-note", "Search is limited to server-authorized navigation. It does not index customer business records." }
+                }
+            }
+        }
+    }
+}
+
+fn nav_icon_name(path: &str) -> &'static str {
+    if path.contains("customers") {
+        "customers"
+    } else if path.contains("director") {
+        "directory"
+    } else if path.contains("support") {
+        "support"
+    } else if path.contains("billing") || path.contains("finance") {
+        "billing"
+    } else if path.contains("settings") {
+        "settings"
+    } else if path.contains("audit") || path.contains("role-review") {
+        "shield"
+    } else if path.contains("backup") {
+        "database"
+    } else if path.contains("projection") {
+        "activity"
+    } else if path.contains("tenant") {
+        "building"
+    } else {
+        "module"
+    }
+}
+
+/// Fixed inline-SVG icon registry shared across every target. Icon names are
+/// presentation metadata and never interpreted as markup.
+#[component]
+pub fn EnterpriseIcon(name: String) -> Element {
+    let path = match name.as_str() {
+        "search" => "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm5 12 4 4",
+        "customers" => {
+            "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
+        }
+        "directory" => "M3 5h6l2 2h10v12H3V5Zm4 7h10M7 16h7",
+        "support" => {
+            "M4 15v-3a8 8 0 0 1 16 0v3M4 15h3v5H5a1 1 0 0 1-1-1v-4Zm16 0h-3v5h2a1 1 0 0 0 1-1v-4Z"
+        }
+        "billing" => "M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6",
+        "settings" => {
+            "M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.4-3.5a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1a8 8 0 0 0-1.7-1L14.7 3h-4L10 6a8 8 0 0 0-1.8 1L5.8 6 3.8 9.4 6 11a7 7 0 0 0 0 2l-2.2 1.6 2 3.4 2.4-1a8 8 0 0 0 1.8 1l.7 3h4l.6-3a8 8 0 0 0 1.8-1l2.4 1 2-3.4-2.1-1.6a7 7 0 0 0 0-1Z"
+        }
+        "shield" => "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Zm-3-10 2 2 4-4",
+        "database" => {
+            "M4 6c0 2 3.6 4 8 4s8-2 8-4-3.6-4-8-4-8 2-8 4Zm0 0v6c0 2 3.6 4 8 4s8-2 8-4V6M4 12v6c0 2 3.6 4 8 4s8-2 8-4v-6"
+        }
+        "activity" => "M3 12h4l2-7 4 14 2-7h6",
+        "building" => "M4 22V3h12v19M16 9h4v13M8 7h4M8 11h4M8 15h4M8 19h4",
+        "menu" => "M4 6h16M4 12h16M4 18h16",
+        "panel" => "M4 4h16v16H4V4Zm6 0v16",
+        "theme" => "M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z",
+        "chevron" => "m9 18 6-6-6-6",
+        _ => "M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z",
+    };
+    rsx! {
+        svg {
+            class: "ui-icon",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "1.8",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "{path}" }
         }
     }
 }
@@ -324,6 +588,326 @@ pub fn FilterBar(aria_label: String, children: Element) -> Element {
     rsx! {
         section { class: "ui-filter-bar", aria_label: "{aria_label}", role: "search",
             {children}
+        }
+    }
+}
+
+fn page_family(
+    family: &'static str,
+    title: String,
+    description: String,
+    actions: Option<Element>,
+    children: Element,
+) -> Element {
+    let title = safe_display_text(&title);
+    let description = safe_display_text(&description);
+    rsx! {
+        section { class: "ui-page-family ui-page-family-{family}", "data-page-family": family,
+            header { class: "ui-page-family-header",
+                div {
+                    h3 { "{title}" }
+                    p { "{description}" }
+                }
+                if let Some(actions) = actions {
+                    div { class: "ui-page-family-actions", {actions} }
+                }
+            }
+            div { class: "ui-page-family-body", {children} }
+        }
+    }
+}
+
+/// KPI, exception, activity, readiness, and next-action dashboard surface.
+#[component]
+pub fn DashboardLayout(
+    title: String,
+    description: String,
+    actions: Option<Element>,
+    children: Element,
+) -> Element {
+    page_family("dashboard", title, description, actions, children)
+}
+
+/// Searchable, filterable, pageable collection and list/detail surface.
+#[component]
+pub fn CollectionLayout(
+    title: String,
+    description: String,
+    actions: Option<Element>,
+    children: Element,
+) -> Element {
+    page_family("collection", title, description, actions, children)
+}
+
+/// Summary, status, actions, tabs, timeline, and audit record surface.
+#[component]
+pub fn RecordLayout(
+    title: String,
+    description: String,
+    actions: Option<Element>,
+    children: Element,
+) -> Element {
+    page_family("record", title, description, actions, children)
+}
+
+/// Guided validation, review, confirmation, receipt, and rollback workflow.
+#[component]
+pub fn WorkflowLayout(
+    title: String,
+    description: String,
+    actions: Option<Element>,
+    children: Element,
+) -> Element {
+    page_family("workflow", title, description, actions, children)
+}
+
+/// Categorized inherited settings with validation and dirty-state protection.
+#[component]
+pub fn SettingsLayout(
+    title: String,
+    description: String,
+    actions: Option<Element>,
+    children: Element,
+) -> Element {
+    page_family("settings", title, description, actions, children)
+}
+
+/// Desired/observed health, drift, incident evidence, and high-risk operations.
+#[component]
+pub fn OperationsLayout(
+    title: String,
+    description: String,
+    actions: Option<Element>,
+    children: Element,
+) -> Element {
+    page_family("operations", title, description, actions, children)
+}
+
+/// Validated editor payload. It contains only typed design tokens and bounded
+/// display fields; credentials and executable styling never enter this model.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CorporateIdentityEditorSubmission {
+    pub display_name: String,
+    pub short_name: String,
+    pub tokens: BrandTokenSet,
+    pub locked_categories: BTreeSet<BrandCategory>,
+    pub reason: String,
+    pub mfa_code: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CorporateIdentityEditorActionKind {
+    SaveDraft,
+    Publish,
+    Rollback,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CorporateIdentityEditorAction {
+    pub kind: CorporateIdentityEditorActionKind,
+    pub submission: CorporateIdentityEditorSubmission,
+}
+
+fn update_preview_color(target: &mut HexColor, candidate: &str) -> bool {
+    match HexColor::new(candidate) {
+        Ok(value) => {
+            *target = value;
+            true
+        }
+        Err(_) => false,
+    }
+}
+
+/// Governed three-region corporate-identity editor shared by platform,
+/// holding, and business-unit settings. The application remains responsible
+/// for server authorization and mutations.
+#[component]
+pub fn CorporateIdentityEditor(
+    scope_label: String,
+    profile: ResolvedCorporateIdentity,
+    parent_locked_categories: Vec<BrandCategory>,
+    editable: bool,
+    on_action: Option<EventHandler<CorporateIdentityEditorAction>>,
+) -> Element {
+    let mut display_name = use_signal(|| profile.display_name.clone());
+    let mut short_name = use_signal(|| profile.short_name.clone());
+    let mut light_primary = use_signal(|| profile.tokens.light.primary.as_str().to_owned());
+    let mut light_accent = use_signal(|| profile.tokens.light.accent.as_str().to_owned());
+    let mut dark_primary = use_signal(|| profile.tokens.dark.primary.as_str().to_owned());
+    let mut dark_accent = use_signal(|| profile.tokens.dark.accent.as_str().to_owned());
+    let mut font_pack = use_signal(|| profile.tokens.font_pack);
+    let mut density = use_signal(|| profile.tokens.density);
+    let mut radius = use_signal(|| profile.tokens.radius);
+    let mut elevation = use_signal(|| profile.tokens.elevation);
+    let mut navigation = use_signal(|| profile.tokens.navigation);
+    let mut motion = use_signal(|| profile.tokens.motion);
+    let mut locked_categories = use_signal(|| profile.locked_categories.clone());
+    let mut preview_theme = use_signal(|| "light".to_owned());
+    let mut preview_locale = use_signal(|| "English".to_owned());
+    let mut preview_device = use_signal(|| "desktop".to_owned());
+    let mut reason = use_signal(String::new);
+    let mut mfa_code = use_signal(String::new);
+
+    let parent_locked = parent_locked_categories
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+    let mut preview = profile.clone();
+    preview.display_name = safe_display_text(&display_name.read()).to_string();
+    preview.short_name = safe_display_text(&short_name.read()).to_string();
+    preview.tokens.font_pack = *font_pack.read();
+    preview.tokens.density = *density.read();
+    preview.tokens.radius = *radius.read();
+    preview.tokens.elevation = *elevation.read();
+    preview.tokens.navigation = *navigation.read();
+    preview.tokens.motion = *motion.read();
+    let colors_valid =
+        update_preview_color(&mut preview.tokens.light.primary, &light_primary.read())
+            && update_preview_color(&mut preview.tokens.light.accent, &light_accent.read())
+            && update_preview_color(&mut preview.tokens.dark.primary, &dark_primary.read())
+            && update_preview_color(&mut preview.tokens.dark.accent, &dark_accent.read());
+    let token_validation = colors_valid.then(|| preview.tokens.validate()).transpose();
+    let publication_error = match token_validation {
+        Ok(Some(())) => None,
+        Err(error) => Some(format!("Publication blocked: {error:?}")),
+        Ok(None) => Some("Publication blocked: colors must use #RRGGBB.".to_owned()),
+    };
+    let preview_style = corporate_identity_style(&preview);
+    let preview_class = format!(
+        "ui-brand-preview {} {}",
+        preview_theme.read().as_str(),
+        preview_device.read().as_str()
+    );
+    let scope_label = safe_display_text(&scope_label);
+    let version = profile.published_version;
+    let inherited_count = profile.inherited_categories.len();
+
+    let submission = CorporateIdentityEditorSubmission {
+        display_name: preview.display_name.clone(),
+        short_name: preview.short_name.clone(),
+        tokens: preview.tokens.clone(),
+        locked_categories: locked_categories.read().clone(),
+        reason: safe_display_text(&reason.read()).to_string(),
+        mfa_code: mfa_code.read().trim().to_owned(),
+    };
+    let publish_disabled = !editable
+        || publication_error.is_some()
+        || submission.reason.is_empty()
+        || submission.mfa_code.is_empty();
+    let save_disabled = !editable || publication_error.is_some() || submission.reason.is_empty();
+
+    rsx! {
+        SettingsLayout {
+            title: "Corporate identity".to_owned(),
+            description: format!("{scope_label} · published v{version} · {inherited_count} inherited categories"),
+            actions: None,
+            div { class: "ui-brand-editor",
+                aside { class: "ui-brand-controls", aria_label: "Corporate identity tokens",
+                    section { class: "ui-brand-control-section",
+                        div { class: "ui-brand-section-heading", h4 { "Identity" } span { "Typed display fields" } }
+                        label { "Display name" input { value: "{display_name}", maxlength: "96", disabled: !editable, oninput: move |event| display_name.set(event.value()) } }
+                        label { "Short name" input { value: "{short_name}", maxlength: "16", disabled: !editable, oninput: move |event| short_name.set(event.value()) } }
+                    }
+                    section { class: "ui-brand-control-section",
+                        div { class: "ui-brand-section-heading", h4 { "Color" } span { "Light and dark required" } }
+                        div { class: "ui-brand-color-grid",
+                            label { "Light primary" input { r#type: "color", value: "{light_primary}", disabled: !editable, oninput: move |event| light_primary.set(event.value()) } }
+                            label { "Light accent" input { r#type: "color", value: "{light_accent}", disabled: !editable, oninput: move |event| light_accent.set(event.value()) } }
+                            label { "Dark primary" input { r#type: "color", value: "{dark_primary}", disabled: !editable, oninput: move |event| dark_primary.set(event.value()) } }
+                            label { "Dark accent" input { r#type: "color", value: "{dark_accent}", disabled: !editable, oninput: move |event| dark_accent.set(event.value()) } }
+                        }
+                    }
+                    section { class: "ui-brand-control-section",
+                        div { class: "ui-brand-section-heading", h4 { "Presentation" } span { "Curated values only" } }
+                        label { "Font pack" select { value: font_pack.read().as_str(), disabled: !editable, onchange: move |event| if let Ok(value) = BrandFontPack::parse(&event.value()) { font_pack.set(value); },
+                            option { value: "erpx_sans", "ERPX Sans" }
+                            option { value: "corporate_sans", "Corporate Sans" }
+                            option { value: "thai_formal", "Thai Formal" }
+                            option { value: "system_ui", "System UI" }
+                        } }
+                        label { "Density" select { value: density.read().as_str(), disabled: !editable, onchange: move |event| density.set(match event.value().as_str() { "compact" => BrandDensity::Compact, "spacious" => BrandDensity::Spacious, _ => BrandDensity::Comfortable }),
+                            option { value: "compact", "Compact" } option { value: "comfortable", "Comfortable" } option { value: "spacious", "Spacious" }
+                        } }
+                        label { "Shape" select { value: radius.read().as_str(), disabled: !editable, onchange: move |event| radius.set(match event.value().as_str() { "square" => BrandRadius::Square, "rounded" => BrandRadius::Rounded, _ => BrandRadius::Soft }),
+                            option { value: "square", "Square" } option { value: "soft", "Soft" } option { value: "rounded", "Rounded" }
+                        } }
+                        label { "Elevation" select { value: elevation.read().as_str(), disabled: !editable, onchange: move |event| elevation.set(match event.value().as_str() { "flat" => BrandElevation::Flat, "elevated" => BrandElevation::Elevated, _ => BrandElevation::Subtle }),
+                            option { value: "flat", "Flat" } option { value: "subtle", "Subtle" } option { value: "elevated", "Elevated" }
+                        } }
+                        label { "Navigation" select { value: navigation.read().as_str(), disabled: !editable, onchange: move |event| navigation.set(if event.value() == "solid" { BrandNavigation::Solid } else { BrandNavigation::Tinted }),
+                            option { value: "solid", "Solid rail" } option { value: "tinted", "Tinted rail" }
+                        } }
+                        label { "Motion" select { value: motion.read().as_str(), disabled: !editable, onchange: move |event| motion.set(match event.value().as_str() { "none" => BrandMotion::None, "standard" => BrandMotion::Standard, _ => BrandMotion::Subtle }),
+                            option { value: "none", "None" } option { value: "subtle", "Subtle" } option { value: "standard", "Standard" }
+                        } }
+                    }
+                }
+                section { class: "ui-brand-preview-region", aria_label: "Live corporate identity preview",
+                    div { class: "ui-brand-preview-toolbar",
+                        div { role: "group", aria_label: "Preview device",
+                            for device in ["desktop", "tablet", "mobile"] { button { class: if preview_device.read().as_str() == device { "active" } else { "" }, r#type: "button", onclick: move |_| preview_device.set(device.to_owned()), "{device}" } }
+                        }
+                        div { role: "group", aria_label: "Preview language and mode",
+                            button { r#type: "button", onclick: move |_| preview_locale.set(if preview_locale.read().as_str() == "English" { "ไทย".to_owned() } else { "English".to_owned() }), "{preview_locale}" }
+                            button { r#type: "button", onclick: move |_| preview_theme.set(if preview_theme.read().as_str() == "light" { "dark".to_owned() } else { "light".to_owned() }), "{preview_theme}" }
+                        }
+                    }
+                    div { class: "{preview_class}", style: "{preview_style}",
+                        div { class: "ui-brand-preview-shell",
+                            aside { span { class: "ui-brand-preview-mark", "{preview.short_name}" } strong { "{preview.display_name}" }
+                                nav { span { class: "active", "Dashboard" } span { "Finance" } span { "People & roles" } span { "Settings" } }
+                            }
+                            main {
+                                header { small { "{preview_locale} · {scope_label}" } button { "Primary action" } }
+                                div { class: "ui-brand-preview-content",
+                                    div { class: "ui-brand-preview-kpis", for (label, value) in [("Open approvals", "12"), ("Healthy services", "9/10"), ("Directory freshness", "30s")] { article { small { "{label}" } strong { "{value}" } } } }
+                                    article { class: "ui-brand-preview-table", h5 { "Recent work" }
+                                        div { strong { "Quarter close review" } span { "Ready for approval" } }
+                                        div { strong { "Directory synchronization" } span { "Healthy" } }
+                                    }
+                                    div { class: "ui-brand-preview-safety", strong { "Security status" } " · Mandatory ERPX safety colors are not brand configurable." }
+                                }
+                            }
+                        }
+                    }
+                }
+                aside { class: "ui-brand-governance", aria_label: "Identity inheritance and publication",
+                    section { h4 { "Inheritance & locks" }
+                        p { "A child can specialize only categories left unlocked by its parent." }
+                        div { class: "ui-brand-category-list",
+                            for category in BrandCategory::ALL {
+                                {
+                                    let is_parent_locked = parent_locked.contains(&category);
+                                    let is_locked = locked_categories.read().contains(&category);
+                                    rsx! { label { class: if is_parent_locked { "locked-by-parent" } else { "" },
+                                        input { r#type: "checkbox", checked: is_locked || is_parent_locked, disabled: !editable || is_parent_locked,
+                                            onchange: move |event| { let mut next = locked_categories.read().clone(); if event.checked() { next.insert(category); } else { next.remove(&category); } locked_categories.set(next); }
+                                        }
+                                        span { "{category.as_str()}" }
+                                        if is_parent_locked { small { "Inherited · locked by parent" } }
+                                    } }
+                                }
+                            }
+                        }
+                    }
+                    section { h4 { "Validation" }
+                        if let Some(error) = publication_error.as_ref() { div { class: "ui-brand-validation bad", role: "alert", "{error}" } }
+                        else { div { class: "ui-brand-validation good", role: "status", "Both palettes pass typed token and WCAG publication checks." } }
+                        p { "Safety banners, focus visibility, destructive actions, and Root/support identity always remain ERPX controlled." }
+                    }
+                    if editable {
+                        section { h4 { "Publish" }
+                            label { "Reason" textarea { value: "{reason}", maxlength: "240", oninput: move |event| reason.set(event.value()), placeholder: "Required publication reason" } }
+                            label { "Fresh MFA" input { r#type: "password", value: "{mfa_code}", autocomplete: "one-time-code", oninput: move |event| mfa_code.set(event.value()) } }
+                            div { class: "ui-brand-action-row",
+                                button { class: "ui-button", r#type: "button", disabled: save_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::SaveDraft, submission: submission.clone() }); } }, "Save draft" }
+                                button { class: "ui-button primary", r#type: "button", disabled: publish_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Publish, submission: submission.clone() }); } }, "Publish with MFA" }
+                            }
+                        }
+                    } else {
+                        div { class: "ui-brand-validation neutral", "Read-only effective identity. Platform Root changes to a customer profile must use an audited proposal activated by a holding-authorized publisher." }
+                    }
+                }
+            }
         }
     }
 }

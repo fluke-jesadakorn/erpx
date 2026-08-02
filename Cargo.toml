@@ -13,6 +13,8 @@ members = [
   "apps/worker",
   "apps/console",
   "apps/migrator",
+  "apps/wal-archive",
+  "apps/data-plane-agent",
 ]
 resolver = "2"
 

@@ -792,6 +792,46 @@ impl SessionController {
         }
     }
 
+    /// Begin a server-backed browser-session restoration without rendering an
+    /// authenticated route from local state. The browser application must
+    /// complete this flow using an authoritative server response.
+    pub fn begin_server_restore(&mut self, return_to: impl AsRef<str>) {
+        self.credentials = None;
+        self.state = SessionState::Restoring {
+            return_to: safe_return_to(return_to.as_ref()),
+        };
+    }
+
+    /// Install a session that was freshly rotated by the authoritative server.
+    ///
+    /// This is the web counterpart to OS-protected client restoration. The
+    /// caller supplies the result of an `HttpOnly` cookie exchange; a missing
+    /// or rejected cookie becomes a normal signed-out state, and no browser
+    /// storage is consulted.
+    pub fn complete_server_restore(
+        &mut self,
+        result: Result<(String, IssuedSession), AuthTransportError>,
+        return_to: impl AsRef<str>,
+    ) -> Result<bool, SessionCommandError> {
+        let return_to = safe_return_to(return_to.as_ref());
+        match result {
+            Ok((principal_ref, issued)) => {
+                self.install(issued, principal_ref)?;
+                Ok(true)
+            }
+            Err(AuthTransportError::Unauthorized) => {
+                self.credentials = None;
+                self.state = SessionState::SignedOut { return_to };
+                Ok(false)
+            }
+            Err(error) => {
+                self.credentials = None;
+                self.state = state_for_transport_error(error.clone(), return_to);
+                Err(SessionCommandError::Transport(error))
+            }
+        }
+    }
+
     /// Persist the active session through a target-owned secure adapter.
     ///
     /// Calling this method is the only shared path that hands session material to a store. A
@@ -1471,6 +1511,41 @@ mod tests {
             assert!(!state.may_render_high_risk_access());
             assert!(!state.high_risk_mfa_marker().contains("local"));
         }
+    }
+
+    #[test]
+    fn authoritative_browser_restore_installs_fresh_session_or_signs_out() {
+        let mut controller = SessionController::default();
+        controller.begin_server_restore("/platform/customers");
+        assert!(matches!(controller.state(), SessionState::Restoring { .. }));
+
+        let issued = IssuedSession::new(
+            "session-browser",
+            "access-browser",
+            "refresh-browser",
+            "access-expiry",
+            "refresh-expiry",
+        )
+        .expect("valid server session");
+        assert_eq!(
+            controller.complete_server_restore(
+                Ok(("local:browser".into(), issued)),
+                "/platform/customers",
+            ),
+            Ok(true)
+        );
+        assert!(matches!(controller.state(), SessionState::Authenticated(_)));
+
+        controller.begin_server_restore("/platform/customers");
+        assert_eq!(
+            controller.complete_server_restore(
+                Err(AuthTransportError::Unauthorized),
+                "/platform/customers",
+            ),
+            Ok(false)
+        );
+        assert!(matches!(controller.state(), SessionState::SignedOut { .. }));
+        assert!(controller.access_token().is_none());
     }
 
     #[test]
