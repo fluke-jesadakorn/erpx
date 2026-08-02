@@ -51,8 +51,10 @@ use uuid::Uuid;
 
 mod backup_retention;
 mod backup_runtime;
+mod cluster_pitr_runtime;
 pub mod directory_adapters;
 mod directory_live;
+mod directory_secrets;
 mod directory_sync;
 mod finance_bank_provider_registry;
 mod finance_banking_import;
@@ -100,9 +102,22 @@ pub use backup_retention::{
 pub use backup_runtime::{
     BackupRuntime, TENANT_BACKUP_HANDLER_NAME, TenantBackupJobRuntimeHandler,
 };
-pub use directory_live::{LiveDirectoryError, authenticate_directory_user};
+pub use cluster_pitr_runtime::{
+    CLUSTER_PITR_CONTROLLER_HANDLER_NAME, ClusterPitrControllerRuntimeHandler,
+};
+pub use directory_live::{
+    LiveDirectoryError, authenticate_directory_user, authenticate_directory_user_with_resolver,
+    authenticate_directory_user_with_runtime, confirm_ucs_with_resolver, fetch_with_runtime,
+    preflight_directory_connector,
+};
+pub use directory_secrets::{
+    DirectorySecretBundle, DirectorySecretError, DirectorySecretResolver,
+    HttpsDirectorySecretResolver, LocalDirectorySecretResolver,
+    UnconfiguredDirectorySecretResolver,
+};
 pub use directory_sync::{
-    DIRECTORY_SYNC_HANDLER_NAME, DirectorySyncRunReport, DirectorySyncRuntimeHandler,
+    DIRECTORY_SUPERVISOR_HANDLER_NAME, DIRECTORY_SYNC_HANDLER_NAME,
+    DirectorySupervisorRuntimeHandler, DirectorySyncRunReport, DirectorySyncRuntimeHandler,
     DirectorySyncWorker,
 };
 pub use erpx_infrastructure::{

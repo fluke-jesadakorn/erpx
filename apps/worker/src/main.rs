@@ -14,7 +14,9 @@ use erpx_infrastructure::{
 };
 use erpx_worker::{
     AssetMaintenanceProjectionRequest, AssetMaintenanceProjectionRunner, BackupRuntime,
-    BankProviderAdapterRegistry, DIRECTORY_SYNC_HANDLER_NAME, DirectorySyncRuntimeHandler,
+    BankProviderAdapterRegistry, CLUSTER_PITR_CONTROLLER_HANDLER_NAME,
+    ClusterPitrControllerRuntimeHandler, DIRECTORY_SUPERVISOR_HANDLER_NAME,
+    DIRECTORY_SYNC_HANDLER_NAME, DirectorySupervisorRuntimeHandler, DirectorySyncRuntimeHandler,
     FINANCE_BANK_PROVIDER_IMPORT_HANDLER_NAME, FINANCE_SUBLEDGER_RECONCILIATION_MAX_ROWS,
     FinanceBankProviderImportAuthorizer, FinanceBankProviderImportError,
     FinanceBankingTenantProjectionExecutor, FinanceChartTenantProjectionExecutor,
@@ -1135,9 +1137,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let mut registry = runtime.handler_registry()?;
                 registry.register(Arc::new(handler))?;
                 registry
+            } else if handler_name == DIRECTORY_SUPERVISOR_HANDLER_NAME {
+                let handler = DirectorySupervisorRuntimeHandler::from_env(
+                    runtime.store().pools().write.clone(),
+                )?;
+                let mut registry = runtime.handler_registry()?;
+                registry.register(Arc::new(handler))?;
+                registry
             } else if handler_name == DIRECTORY_SYNC_HANDLER_NAME {
                 let handler =
                     DirectorySyncRuntimeHandler::from_env(runtime.store().pools().write.clone())?;
+                let mut registry = runtime.handler_registry()?;
+                registry.register(Arc::new(handler))?;
+                registry
+            } else if handler_name == CLUSTER_PITR_CONTROLLER_HANDLER_NAME {
+                let handler = ClusterPitrControllerRuntimeHandler::from_env(
+                    runtime.store().pools().write.clone(),
+                )?;
                 let mut registry = runtime.handler_registry()?;
                 registry.register(Arc::new(handler))?;
                 registry

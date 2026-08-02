@@ -177,6 +177,7 @@ pub enum StripeHttpEndpoint {
     Prices,
     Price(StripePriceId),
     CheckoutSessions,
+    CustomerPortalSessions,
     EntitlementFeatures,
     EntitlementFeature(StripeEntitlementFeatureId),
     BillingMeters,
@@ -191,6 +192,7 @@ impl StripeHttpEndpoint {
             Self::Prices => "/v1/prices".into(),
             Self::Price(id) => format!("/v1/prices/{}", id.as_str()),
             Self::CheckoutSessions => "/v1/checkout/sessions".into(),
+            Self::CustomerPortalSessions => "/v1/billing_portal/sessions".into(),
             Self::EntitlementFeatures => "/v1/entitlements/features".into(),
             Self::EntitlementFeature(id) => format!("/v1/entitlements/features/{}", id.as_str()),
             Self::BillingMeters => "/v1/billing/meters".into(),
@@ -533,6 +535,19 @@ pub struct StripeCheckoutSessionCreateRequest {
     pub success_url: String,
     pub cancel_url: String,
     pub line_items: Vec<StripeCheckoutLineItem>,
+    pub automatic_tax: bool,
+    pub collect_billing_address: bool,
+    pub collect_tax_id: bool,
+    pub metadata: BTreeMap<String, String>,
+    /// Copied onto the authoritative Stripe Subscription so later invoice and
+    /// subscription webhooks retain ERPX's immutable aggregate references.
+    pub subscription_metadata: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StripeCustomerPortalSessionCreateRequest {
+    pub customer: String,
+    pub return_url: String,
 }
 
 // Responses are populated by serde from Stripe's remote API and therefore
@@ -597,6 +612,13 @@ pub struct StripeCheckoutSessionResponse {
     pub id: String,
     pub status: Option<String>,
     pub url: Option<String>,
+    pub expires_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct StripeCustomerPortalSessionResponse {
+    pub id: String,
+    pub url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -683,6 +705,23 @@ impl StripeFormBody for StripeCheckoutSessionCreateRequest {
             ("mode".into(), self.mode.as_str().into()),
             ("success_url".into(), self.success_url.clone()),
             ("cancel_url".into(), self.cancel_url.clone()),
+            (
+                "automatic_tax[enabled]".into(),
+                self.automatic_tax.to_string(),
+            ),
+            (
+                "billing_address_collection".into(),
+                if self.collect_billing_address {
+                    "required"
+                } else {
+                    "auto"
+                }
+                .into(),
+            ),
+            (
+                "tax_id_collection[enabled]".into(),
+                self.collect_tax_id.to_string(),
+            ),
         ];
         if let Some(customer) = &self.customer {
             fields.push(("customer".into(), customer.clone()));
@@ -702,7 +741,24 @@ impl StripeFormBody for StripeCheckoutSessionCreateRequest {
                 item.quantity.to_string(),
             ));
         }
+        append_metadata(&mut fields, &self.metadata)?;
+        append_prefixed_metadata(
+            &mut fields,
+            "subscription_data[metadata]",
+            &self.subscription_metadata,
+        )?;
         Ok(fields)
+    }
+}
+
+impl StripeFormBody for StripeCustomerPortalSessionCreateRequest {
+    fn encode_form(&self) -> Result<Vec<(String, String)>, StripeHttpRequestError> {
+        validate_customer_id(&self.customer)?;
+        validate_url("return_url", &self.return_url)?;
+        Ok(vec![
+            ("customer".into(), self.customer.clone()),
+            ("return_url".into(), self.return_url.clone()),
+        ])
     }
 }
 
@@ -740,6 +796,28 @@ fn append_metadata(
             return Err(StripeHttpRequestError::InvalidField { field: "metadata" });
         }
         fields.push((format!("metadata[{key}]"), value.clone()));
+    }
+    Ok(())
+}
+
+fn append_prefixed_metadata(
+    fields: &mut Vec<(String, String)>,
+    prefix: &str,
+    metadata: &BTreeMap<String, String>,
+) -> Result<(), StripeHttpRequestError> {
+    if metadata.len() > 50 {
+        return Err(StripeHttpRequestError::InvalidField { field: "metadata" });
+    }
+    for (key, value) in metadata {
+        if key.trim().is_empty()
+            || key.len() > 40
+            || value.len() > 500
+            || key.chars().any(char::is_control)
+            || value.chars().any(char::is_control)
+        {
+            return Err(StripeHttpRequestError::InvalidField { field: "metadata" });
+        }
+        fields.push((format!("{prefix}[{key}]"), value.clone()));
     }
     Ok(())
 }
@@ -942,6 +1020,20 @@ impl StripeHttpClient {
             idempotency_key: Some(idempotency_key.into()),
         };
         self.execute(envelope, "checkout session").await
+    }
+
+    pub async fn create_customer_portal_session(
+        &self,
+        request: StripeCustomerPortalSessionCreateRequest,
+        idempotency_key: &str,
+    ) -> Result<StripeResponseEnvelope<StripeCustomerPortalSessionResponse>, StripeHttpError> {
+        let envelope = StripeRequestEnvelope {
+            endpoint: StripeHttpEndpoint::CustomerPortalSessions,
+            method: StripeHttpMethod::Post,
+            body: request,
+            idempotency_key: Some(idempotency_key.into()),
+        };
+        self.execute(envelope, "customer portal session").await
     }
 
     pub async fn list_products(
@@ -1359,8 +1451,35 @@ mod tests {
                 price: StripePriceId::parse("price_test").expect("price"),
                 quantity: 1,
             }],
+            automatic_tax: true,
+            collect_billing_address: true,
+            collect_tax_id: true,
+            metadata: BTreeMap::from([
+                ("erpx_tenant_id".into(), "tenant-test".into()),
+                (
+                    "erpx_subscription_id".into(),
+                    "00000000-0000-4000-8000-000000000001".into(),
+                ),
+            ]),
+            subscription_metadata: BTreeMap::from([(
+                "erpx_subscription_id".into(),
+                "00000000-0000-4000-8000-000000000001".into(),
+            )]),
         };
-        assert!(body.encode_form().is_ok());
+        let fields = body.encode_form().expect("checkout form");
+        assert!(fields.contains(&("automatic_tax[enabled]".into(), "true".into())));
+        assert!(fields.contains(&("billing_address_collection".into(), "required".into())));
+        assert!(fields.contains(&("tax_id_collection[enabled]".into(), "true".into())));
+        assert!(fields.iter().any(|(key, value)| {
+            key == "subscription_data[metadata][erpx_subscription_id]"
+                && value == "00000000-0000-4000-8000-000000000001"
+        }));
+
+        let portal = StripeCustomerPortalSessionCreateRequest {
+            customer: "cus_test".into(),
+            return_url: "https://example.test/billing".into(),
+        };
+        assert!(portal.encode_form().is_ok());
     }
 
     #[test]

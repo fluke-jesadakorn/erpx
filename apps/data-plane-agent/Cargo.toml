@@ -1,0 +1,30 @@
+[package]
+name = "erpx-data-plane-agent"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+chrono.workspace = true
+base64.workspace = true
+erpx-domain = { path = "../../crates/domain" }
+erpx-proto = { path = "../../crates/proto" }
+hex.workspace = true
+prost.workspace = true
+ring = "0.17.14"
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-stream = "0.1.17"
+tonic = { workspace = true, features = ["transport", "tls-ring"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+zeroize.workspace = true
+
+[lints]
+workspace = true

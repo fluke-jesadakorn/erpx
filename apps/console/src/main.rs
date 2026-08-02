@@ -4,6 +4,7 @@ use erpx_domain::contracts::{
     AuditContext as DomainAuditContext, CONTRACT_VERSION, CommandContext as DomainCommandContext,
     TenantScope as DomainTenantScope,
 };
+use erpx_domain::corporate_identity as brand_domain;
 use erpx_proto::common::v1::{
     ActorAttribution, ActorKind, AuditContext, BranchScope, CommandContext, CompanyScope,
     EventualConsistency, HoldingScope, PlatformScope, QueryConsistency, QueryContext, TenantScope,
@@ -13,22 +14,26 @@ use erpx_proto::platform::{
     AcknowledgeMarketingProviderVerificationRequest, ActivateBranchEntitlementRequest,
     ActivateCompanyEntitlementRequest, AdvanceMigrationPhaseRequest, AdvanceMigrationPhaseResponse,
     AllocateCompanyEntitlementRequest, AssetMaintenanceAggregateReadRow, BeginMigrationRunRequest,
-    BeginMigrationRunResponse, BindMarketingDomainRequest, CheckEntitlementRequest,
-    ConfigureMarketingProviderAccountRequest, CreateIncidentRequest, CreateTicketRequest,
-    CrmReadRow, CrmWriteReceipt as CrmWriteReceiptMessage, EnqueueFinanceBankProviderImportRequest,
+    BeginMigrationRunResponse, BindMarketingDomainRequest, BrandAssetManifestMessage,
+    BrandPaletteMessage, BrandScopeMessage, BrandTokenSetMessage, CheckEntitlementRequest,
+    ConfigureMarketingProviderAccountRequest, CorporateIdentityProfileMessage,
+    CreateIncidentRequest, CreateTicketRequest, CrmReadRow,
+    CrmWriteReceipt as CrmWriteReceiptMessage, EnqueueFinanceBankProviderImportRequest,
     EnqueueFinanceBankProviderImportResponse, EntitlementCommandReceipt,
     EraseMarketingProfileRequest, EraseMarketingProfileResponse, FinanceChartAccountReadRow,
     FinanceChartReadRow, FinanceSubledgerReceipt, GetAssetMaintenanceAggregateRequest,
-    GetCustomer360DetailRequest, GetCustomerAccessAuditRequest, GetCustomerRequest,
-    GetFinanceBankProviderImportJobStatusRequest, GetFinanceBankProviderImportJobStatusResponse,
-    GetFinanceCloseReviewRequest, GetFinanceCloseReviewResponse,
-    GetFinanceConsolidatedTrialBalanceRequest, GetFinanceConsolidatedTrialBalanceResponse,
-    GetMarketingDeliveryReadRequest, GetOperationsSummaryRequest, GetPlatformSettingsRequest,
-    GetPlatformTenantRequest, GetSalesAggregateRequest, GetSalesAggregateResponse,
-    GetScmAggregateRequest, GetSupportDiagnosticsRequest, GetSupportDiagnosticsResponse,
-    GetThaiTaxReportRequest, GetThaiTaxReportResponse, HrEmployeeReadRow, HrExpenseReadRow,
-    HrLeaveReadRow, HrPayrollLineReadRow, HrPayrollRunReadRow, HrReassignmentReadRow,
-    ImportBankStatementRequest, ImportBankStatementResponse, Incident as IncidentMessage,
+    GetCorporateIdentityDraftRequest, GetCustomer360DetailRequest, GetCustomerAccessAuditRequest,
+    GetCustomerRequest, GetFinanceBankProviderImportJobStatusRequest,
+    GetFinanceBankProviderImportJobStatusResponse, GetFinanceCloseReviewRequest,
+    GetFinanceCloseReviewResponse, GetFinanceConsolidatedTrialBalanceRequest,
+    GetFinanceConsolidatedTrialBalanceResponse, GetMarketingDeliveryReadRequest,
+    GetNavigationManifestRequest, GetOperationsSummaryRequest, GetPlatformSettingsRequest,
+    GetPlatformTenantRequest, GetResolvedCorporateIdentityRequest, GetSalesAggregateRequest,
+    GetSalesAggregateResponse, GetScmAggregateRequest, GetSupportDiagnosticsRequest,
+    GetSupportDiagnosticsResponse, GetTenantInfrastructureRequest, GetThaiTaxReportRequest,
+    GetThaiTaxReportResponse, HrEmployeeReadRow, HrExpenseReadRow, HrLeaveReadRow,
+    HrPayrollLineReadRow, HrPayrollRunReadRow, HrReassignmentReadRow, ImportBankStatementRequest,
+    ImportBankStatementResponse, Incident as IncidentMessage,
     IssueMarketingDomainVerificationRequest, IssueMarketingPreviewRequest, LegalContractReadRow,
     ListAssetMaintenanceAggregatesRequest, ListAssetMaintenanceAggregatesResponse,
     ListCrmReadRowsRequest, ListCrmReadRowsResponse, ListCustomersRequest,
@@ -49,31 +54,34 @@ use erpx_proto::platform::{
     ListSalesAggregatesRequest, ListSalesAggregatesResponse, ListScmAggregatesRequest,
     ListScmAggregatesResponse, ListTenantBackupJobsRequest, ListTicketsRequest,
     ListTicketsResponse, MarketingProviderChannelRoute, PosSaleReadRow, PostFinanceJournalRequest,
-    PostFinanceJournalResponse, PublishOperationsWorkQueuePolicyRequest,
-    PublishOperationsWorkQueuePolicyResponse, QueueMigrationWorkRequest,
-    QueueMigrationWorkResponse, RecordCrmAttributionRequest, RecordCrmAttributionResponse,
-    RecordLegalAccessRequest, RecordLegalAccessResponse, RegisterBankAccountRequest,
-    RegisterBankAccountResponse, ReplayDeadLetterOutboxRequest, ReplayDeadLetterOutboxResponse,
-    RevokeMarketingPreviewRequest, RoleReviewItem, SalesAggregateReadRow,
-    SaveAssetMaintenanceAggregateRequest, SaveAssetMaintenanceAggregateResponse,
-    SaveBankMatchDecisionRequest, SaveBankMatchDecisionResponse, SaveBankMatchProposalRequest,
-    SaveBankMatchProposalResponse, SaveBankReconciliationRequest, SaveBankReconciliationResponse,
-    SaveCrmHandoffRequest, SaveCrmHandoffResponse, SaveCrmOpportunityRequest,
-    SaveCrmOpportunityResponse, SaveFinanceAllocationBatchRequest, SaveFinanceChartRequest,
-    SaveFinanceChartResponse, SaveFinanceCloseReviewRequest, SaveFinanceCloseReviewResponse,
-    SaveFinancePeriodRequest, SaveFinancePeriodResponse, SaveFinanceSubledgerRequest,
-    SaveFinanceSubledgerResponse, SaveHrEmployeeRequest, SaveHrExpenseRequest, SaveHrLeaveRequest,
-    SaveHrPayrollRequest, SaveLegalContractRequest, SaveLegalContractResponse,
-    SaveLegalDocumentRequest, SaveLegalDocumentResponse, SavePosSaleRequest, SavePosSaleResponse,
-    SaveSalesAggregateRequest, SaveSalesAggregateResponse, SaveScmAggregateRequest,
-    SaveScmAggregateResponse, SetMarketingProviderAccountStateRequest, SupportDiagnosticsAccess,
-    TransitionHrEmployeeRequest, TransitionHrEmployeeResponse,
+    PostFinanceJournalResponse, PublishCorporateIdentityDraftRequest,
+    PublishOperationsWorkQueuePolicyRequest, PublishOperationsWorkQueuePolicyResponse,
+    QueueMigrationWorkRequest, QueueMigrationWorkResponse, RecordCrmAttributionRequest,
+    RecordCrmAttributionResponse, RecordLegalAccessRequest, RecordLegalAccessResponse,
+    RegisterBankAccountRequest, RegisterBankAccountResponse, ReplayDeadLetterOutboxRequest,
+    ReplayDeadLetterOutboxResponse, RevokeMarketingPreviewRequest, RoleReviewItem,
+    SalesAggregateReadRow, SaveAssetMaintenanceAggregateRequest,
+    SaveAssetMaintenanceAggregateResponse, SaveBankMatchDecisionRequest,
+    SaveBankMatchDecisionResponse, SaveBankMatchProposalRequest, SaveBankMatchProposalResponse,
+    SaveBankReconciliationRequest, SaveBankReconciliationResponse,
+    SaveCorporateIdentityDraftRequest, SaveCrmHandoffRequest, SaveCrmHandoffResponse,
+    SaveCrmOpportunityRequest, SaveCrmOpportunityResponse, SaveFinanceAllocationBatchRequest,
+    SaveFinanceChartRequest, SaveFinanceChartResponse, SaveFinanceCloseReviewRequest,
+    SaveFinanceCloseReviewResponse, SaveFinancePeriodRequest, SaveFinancePeriodResponse,
+    SaveFinanceSubledgerRequest, SaveFinanceSubledgerResponse, SaveHrEmployeeRequest,
+    SaveHrExpenseRequest, SaveHrLeaveRequest, SaveHrPayrollRequest, SaveLegalContractRequest,
+    SaveLegalContractResponse, SaveLegalDocumentRequest, SaveLegalDocumentResponse,
+    SavePosSaleRequest, SavePosSaleResponse, SaveSalesAggregateRequest, SaveSalesAggregateResponse,
+    SaveScmAggregateRequest, SaveScmAggregateResponse, SetMarketingProviderAccountStateRequest,
+    SupportDiagnosticsAccess, TransitionHrEmployeeRequest, TransitionHrEmployeeResponse,
     TransitionOperationsExceptionRequest, TransitionOperationsExceptionResponse,
     TransitionSalesAggregateRequest, TransitionSalesAggregateResponse,
     TransitionScmAggregateRequest, TransitionScmAggregateResponse, UpdateIncidentRequest,
     UpdateTicketRequest, VerifyMarketingDomainRequest,
     asset_maintenance_service_client::AssetMaintenanceServiceClient,
-    crm_service_client::CrmServiceClient, entitlement_service_client::EntitlementServiceClient,
+    crm_service_client::CrmServiceClient,
+    data_plane_control_service_client::DataPlaneControlServiceClient,
+    entitlement_service_client::EntitlementServiceClient,
     finance_service_client::FinanceServiceClient, hr_service_client::HrServiceClient,
     legal_service_client::LegalServiceClient,
     marketing_content_service_client::MarketingContentServiceClient,
@@ -87,14 +95,15 @@ use erpx_proto::platform::{
     support_service_client::SupportServiceClient,
 };
 use erpx_ui::{
-    AccessToken, AppShell, AuthTransportError, CrmAttributionDisplayModel, CrmFieldInput,
-    CrmHandoffDisplayModel, CrmOpportunityDisplayModel, CrmPageMetadata, CrmProjectionMetadata,
-    CrmReadPage, CrmState, CrmSurface, CrmViewState, CustomerNoteDtoInput,
+    AccessToken, AppShell, AuthTransportError, CorporateIdentityEditor,
+    CorporateIdentityEditorAction, CorporateIdentityEditorActionKind, CrmAttributionDisplayModel,
+    CrmFieldInput, CrmHandoffDisplayModel, CrmOpportunityDisplayModel, CrmPageMetadata,
+    CrmProjectionMetadata, CrmReadPage, CrmState, CrmSurface, CrmViewState, CustomerNoteDtoInput,
     CustomerNotesDisplayModel, CustomerView as Customer360View, FilterBar, IncidentDetailState,
     IncidentDtoInput, IncidentListDisplayModel, IncidentListState, IncidentProjectionMetadata,
-    IssuedSession, Locale, LoginRequest, NavItem, PLATFORM_OPERATIONS_ROUTES, PageHeader,
-    PlatformOperationsRoute, PlatformOperationsRouteDefinition, PlatformOperationsRouteId,
-    PlatformOperationsRouteRegistry, PlatformRoute, PlatformTenantId, RefreshToken,
+    IssuedSession, Locale, LoginRequest, NavGroup, NavItem, PageHeader, PlatformOperationsRoute,
+    PlatformOperationsRouteDefinition, PlatformOperationsRouteId, PlatformOperationsRouteRegistry,
+    PlatformRoute, PlatformTenantAdministrationTab, PlatformTenantId, RefreshToken,
     RouteDefinition, RouteId, RouteRegistry, RouteStateBoundary, SHARED_STYLES, SafeUiText,
     ScopeKind, ScopeOption, SecureSessionSupport, SessionCommandError, SessionController,
     SessionFuture, SessionId, SessionState, SessionTransport, StatePanel, SupportApprovalState,
@@ -102,15 +111,19 @@ use erpx_ui::{
     SupportIncidentSurface, SupportIncidentSurfaceState, SupportMode, SupportProjectionMetadata,
     SupportRoute, SupportRouteTabs, SupportState, SupportTicketDtoInput,
     SupportTicketListDisplayModel, SupportTicketListState, TargetSecureSessionAdapter,
-    TargetSessionDescriptor, ThemeMode, UiStateKind, provide_locale, provide_theme, use_locale,
+    TargetSessionDescriptor, ThemeMode, UiStateKind, provide_corporate_identity, provide_locale,
+    provide_theme, use_corporate_identity, use_locale,
 };
 use tonic::metadata::MetadataValue;
 use uuid::Uuid;
 
 #[cfg(target_arch = "wasm32")]
 use erpx_proto::platform::{
-    GetDirectoryImportStatusRequest, ListDirectoryConnectorsRequest,
+    GetDirectoryImportStatusRequest, LinkDirectoryPrincipalRequest, ListDirectoryConnectorsRequest,
     ListDirectoryIdentityLinksRequest, ListDirectoryRoleMappingsRequest,
+    PreflightDirectoryConnectorRequest, ReconcileDirectoryConnectorRequest,
+    SaveDirectoryConnectorRequest, SaveDirectoryRoleMappingRequest, StartDirectoryImportRequest,
+    TransitionDirectoryConnectorLifecycleRequest, UnlinkDirectoryPrincipalRequest,
     directory_service_client::DirectoryServiceClient,
 };
 
@@ -141,7 +154,9 @@ const GRPC_ENDPOINT: &str = match option_env!("ERPX_CONSOLE_GRPC_ENDPOINT") {
 };
 const AUTH_HTTP_ORIGIN: &str = match option_env!("ERPX_CONSOLE_AUTH_HTTP_ORIGIN") {
     Some(value) => value,
-    None => "http://127.0.0.1:50052",
+    // Keep the loopback browser and auth service same-site so the HttpOnly
+    // refresh cookie can retain SameSite=Strict in development.
+    None => "http://localhost:50052",
 };
 const CUSTOMER_ACCESS_AUDIT_PAGE_SIZE: u32 = 25;
 const MAX_AUTH_RESPONSE_BYTES: usize = 64 * 1024;
@@ -157,10 +172,26 @@ try {
         headers,
         body,
         cache: "no-store",
-        credentials: "omit"
+        credentials: "include"
     });
     const text = await response.text();
     if (new TextEncoder().encode(text).byteLength > 65536) return [response.status, ""];
+    return [response.status, text];
+} catch (_) {
+    return [0, ""];
+}
+"#;
+const PUBLIC_BRAND_HTTP_SCRIPT: &str = r#"
+const url = await dioxus.recv();
+try {
+    const response = await fetch(url, {
+        method: "GET",
+        headers: {"accept": "application/json"},
+        cache: "default",
+        credentials: "omit"
+    });
+    const text = await response.text();
+    if (new TextEncoder().encode(text).byteLength > 32768) return [response.status, ""];
     return [response.status, text];
 } catch (_) {
     return [0, ""];
@@ -251,6 +282,27 @@ async fn post_auth_json(
     Ok(AuthHttpResponse { status, body })
 }
 
+async fn fetch_public_corporate_identity()
+-> Result<erpx_domain::corporate_identity::ResolvedCorporateIdentity, String> {
+    let eval = document::eval(PUBLIC_BRAND_HTTP_SCRIPT);
+    eval.send(format!("{AUTH_HTTP_ORIGIN}/branding/v1/bootstrap"))
+        .map_err(|_| "corporate identity bootstrap unavailable".to_owned())?;
+    let (status, body): (u16, String) = eval
+        .join()
+        .await
+        .map_err(|_| "corporate identity bootstrap unavailable".to_owned())?;
+    if status != 200 || body.is_empty() {
+        return Err("corporate identity bootstrap unavailable".to_owned());
+    }
+    let identity =
+        serde_json::from_str::<erpx_domain::corporate_identity::ResolvedCorporateIdentity>(&body)
+            .map_err(|_| "corporate identity bootstrap was invalid".to_owned())?;
+    identity
+        .validate()
+        .map_err(|_| "corporate identity bootstrap failed validation".to_owned())?;
+    Ok(identity)
+}
+
 fn auth_http_status(status: u16) -> AuthTransportError {
     match status {
         0 | 408 => AuthTransportError::Offline,
@@ -293,6 +345,20 @@ fn decode_issued_session(response: AuthHttpResponse) -> Result<IssuedSession, Au
     .map_err(|_| AuthTransportError::Server {
         code: "invalid_session_response".into(),
     })
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn restore_http_session() -> Result<(String, IssuedSession), AuthTransportError> {
+    let response = post_auth_json("/auth/restore", "{}".to_owned(), None).await?;
+    if response.status != 200 {
+        return Err(auth_http_status(response.status));
+    }
+    let principal_ref = json_string_fields(&response.body, ["principal_ref"])?
+        .into_iter()
+        .next()
+        .ok_or_else(invalid_session_response)?;
+    let issued = decode_issued_session(response)?;
+    Ok((principal_ref, issued))
 }
 
 fn json_string(value: &str) -> String {
@@ -1134,6 +1200,105 @@ struct PlatformTenantRecord {
     projection: String,
     backup_pitr: String,
     storage: String,
+    customer_name: String,
+    configuration_state: String,
+    subscription_state: String,
+    plan_key: String,
+    enabled_modules: Vec<String>,
+    purchased_seats: u32,
+    used_seats: u32,
+    company_count: u32,
+    branch_count: u32,
+    renewal_at: String,
+    overdue: bool,
+    integration_health: String,
+    health: String,
+    projected_at: String,
+    enterable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TenantInfrastructureRecord {
+    tenant_id: String,
+    root_holding_id: String,
+    deployment_mode: String,
+    profile_version: u64,
+    agent_id: String,
+    agent_state: String,
+    agent_version: String,
+    observed_version: u64,
+    desired_version: u64,
+    last_heartbeat_at: String,
+    observed_at: String,
+    configuration_drifted: bool,
+    write_healthy: bool,
+    read_healthy: bool,
+    storage_healthy: bool,
+    directory_ready: bool,
+    projections_healthy: bool,
+    backup_verified: bool,
+    root_access_active: bool,
+    customer_managed_secrets: bool,
+}
+
+impl TenantInfrastructureRecord {
+    fn from_wire(
+        wire: erpx_proto::platform::TenantInfrastructureReadModel,
+    ) -> Result<Self, String> {
+        validate_platform_identifier(&wire.tenant_id, "infrastructure tenant ID", false)?;
+        validate_platform_identifier(&wire.root_holding_id, "infrastructure holding ID", false)?;
+        validate_platform_identifier(&wire.agent_id, "agent ID", true)?;
+        validate_platform_read_text(&wire.agent_version, "agent version", true, 128)?;
+        validate_platform_read_text(
+            &wire.last_heartbeat_at,
+            "agent heartbeat timestamp",
+            true,
+            64,
+        )?;
+        validate_platform_read_text(&wire.observed_at, "agent observation timestamp", true, 64)?;
+        let deployment_mode =
+            erpx_proto::platform::TenantDeploymentMode::try_from(wire.deployment_mode)
+                .map_err(|_| "tenant deployment mode was invalid".to_string())?
+                .as_str_name()
+                .to_owned();
+        let agent_state = erpx_proto::platform::DataPlaneAgentState::try_from(wire.agent_state)
+            .map_err(|_| "data-plane agent state was invalid".to_string())?
+            .as_str_name()
+            .to_owned();
+        Ok(Self {
+            tenant_id: wire.tenant_id,
+            root_holding_id: wire.root_holding_id,
+            deployment_mode,
+            profile_version: wire.profile_version,
+            agent_id: wire.agent_id,
+            agent_state,
+            agent_version: wire.agent_version,
+            observed_version: wire.observed_version,
+            desired_version: wire.desired_version,
+            last_heartbeat_at: wire.last_heartbeat_at,
+            observed_at: wire.observed_at,
+            configuration_drifted: wire.configuration_drifted,
+            write_healthy: wire.write_healthy,
+            read_healthy: wire.read_healthy,
+            storage_healthy: wire.storage_healthy,
+            directory_ready: wire.directory_ready,
+            projections_healthy: wire.projections_healthy,
+            backup_verified: wire.backup_verified,
+            root_access_active: wire.root_access_active,
+            customer_managed_secrets: wire.customer_managed_secrets,
+        })
+    }
+
+    fn is_customer_hosted(&self) -> bool {
+        self.deployment_mode == "TENANT_DEPLOYMENT_MODE_CUSTOMER_DATA_PLANE"
+    }
+
+    fn agent_available(&self) -> bool {
+        matches!(
+            self.agent_state.as_str(),
+            "DATA_PLANE_AGENT_STATE_CONNECTED" | "DATA_PLANE_AGENT_STATE_HEALTHY"
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -5664,6 +5829,25 @@ impl From<erpx_proto::platform::PlatformTenantSummary> for PlatformTenantRecord 
             projection: safe_platform_read_text(&value.projection),
             backup_pitr: safe_platform_read_text(&value.backup_pitr),
             storage: safe_platform_read_text(&value.storage),
+            customer_name: safe_platform_read_text(&value.customer_name),
+            configuration_state: safe_platform_read_text(&value.configuration_state),
+            subscription_state: safe_platform_read_text(&value.subscription_state),
+            plan_key: safe_platform_read_text(&value.plan_key),
+            enabled_modules: value
+                .enabled_modules
+                .iter()
+                .map(|module| safe_platform_read_text(module))
+                .collect(),
+            purchased_seats: value.purchased_seats,
+            used_seats: value.used_seats,
+            company_count: value.company_count,
+            branch_count: value.branch_count,
+            renewal_at: safe_platform_read_text(&value.renewal_at),
+            overdue: value.overdue,
+            integration_health: safe_platform_read_text(&value.integration_health),
+            health: safe_platform_read_text(&value.health),
+            projected_at: safe_platform_read_text(&value.projected_at),
+            enterable: value.enterable,
         }
     }
 }
@@ -5677,8 +5861,35 @@ impl PlatformTenantRecord {
             (&self.projection, "tenant projection"),
             (&self.backup_pitr, "tenant backup/PITR status"),
             (&self.storage, "tenant storage status"),
+            (&self.configuration_state, "tenant configuration state"),
+            (&self.subscription_state, "tenant subscription state"),
+            (&self.integration_health, "tenant integration health"),
+            (&self.health, "tenant health"),
         ] {
             validate_platform_read_text(value, field, false, MAX_PLATFORM_READ_TEXT_BYTES)?;
+        }
+        validate_platform_read_text(
+            &self.customer_name,
+            "tenant customer name",
+            true,
+            MAX_PLATFORM_READ_TEXT_BYTES,
+        )?;
+        validate_platform_read_text(
+            &self.plan_key,
+            "tenant plan",
+            true,
+            MAX_PLATFORM_READ_TEXT_BYTES,
+        )?;
+        validate_platform_read_text(&self.renewal_at, "tenant renewal timestamp", true, 64)?;
+        validate_platform_read_text(&self.projected_at, "tenant projection timestamp", false, 64)?;
+        if self.enabled_modules.len() > 64
+            || self.used_seats > self.purchased_seats
+            || (self.enterable && self.configuration_state != "configured")
+        {
+            return Err("platform tenant commercial summary was inconsistent".into());
+        }
+        for module in &self.enabled_modules {
+            validate_platform_identifier(module, "tenant module", false)?;
         }
         Ok(())
     }
@@ -9225,6 +9436,12 @@ async fn fetch_platform_tenants(
             page_size: 100,
             after_tenant_id,
             context: Some(context),
+            search: String::new(),
+            lifecycle: String::new(),
+            billing_state: String::new(),
+            plan: String::new(),
+            module: String::new(),
+            health: String::new(),
         });
         request.metadata_mut().insert(
             "x-erpx-access-token",
@@ -9285,6 +9502,12 @@ async fn fetch_platform_tenants(
             page_size: 100,
             after_tenant_id,
             context: Some(context),
+            search: String::new(),
+            lifecycle: String::new(),
+            billing_state: String::new(),
+            plan: String::new(),
+            module: String::new(),
+            health: String::new(),
         });
         request.metadata_mut().insert(
             "x-erpx-access-token",
@@ -9405,6 +9628,59 @@ async fn fetch_platform_tenant(
         .map(PlatformTenantRecord::from_wire)
         .transpose()?
         .ok_or_else(|| "platform tenant detail was absent".to_string())
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn fetch_tenant_infrastructure(
+    tenant_id: String,
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+) -> Result<TenantInfrastructureRecord, String> {
+    let channel = tonic_web_wasm_client::Client::new(GRPC_ENDPOINT.to_string());
+    let mut client = DataPlaneControlServiceClient::new(channel);
+    let mut request = tonic::Request::new(GetTenantInfrastructureRequest {
+        tenant_id,
+        context: Some(platform_query_context(&principal_ref, &session_id)),
+    });
+    add_platform_metadata(&mut request, &access_token, &principal_ref, &session_id)?;
+    client
+        .get_tenant_infrastructure(request)
+        .await
+        .map_err(|error| error.to_string())?
+        .into_inner()
+        .infrastructure
+        .map(TenantInfrastructureRecord::from_wire)
+        .transpose()?
+        .ok_or_else(|| "tenant infrastructure detail was absent".to_string())
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn fetch_tenant_infrastructure(
+    tenant_id: String,
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+) -> Result<TenantInfrastructureRecord, String> {
+    let channel = tonic::transport::Endpoint::from_static(GRPC_ENDPOINT)
+        .connect()
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut client = DataPlaneControlServiceClient::new(channel);
+    let mut request = tonic::Request::new(GetTenantInfrastructureRequest {
+        tenant_id,
+        context: Some(platform_query_context(&principal_ref, &session_id)),
+    });
+    add_platform_metadata(&mut request, &access_token, &principal_ref, &session_id)?;
+    client
+        .get_tenant_infrastructure(request)
+        .await
+        .map_err(|error| error.to_string())?
+        .into_inner()
+        .infrastructure
+        .map(TenantInfrastructureRecord::from_wire)
+        .transpose()?
+        .ok_or_else(|| "tenant infrastructure detail was absent".to_string())
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -9817,6 +10093,615 @@ async fn fetch_platform_integrations(
         .into_iter()
         .map(PlatformIntegrationRecord::from_wire)
         .collect::<Result<Vec<_>, _>>()
+}
+
+const PLATFORM_BRAND_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000071";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PlatformBrandEditorRecord {
+    identity: brand_domain::ResolvedCorporateIdentity,
+    profile_id: String,
+    base_version: u64,
+}
+
+fn decode_brand_palette(
+    value: Option<BrandPaletteMessage>,
+) -> Result<brand_domain::BrandPalette, String> {
+    let value = value.ok_or_else(|| "corporate identity palette was absent".to_owned())?;
+    let color = |input: String| {
+        brand_domain::HexColor::new(input)
+            .map_err(|_| "corporate identity color was invalid".to_owned())
+    };
+    Ok(brand_domain::BrandPalette {
+        primary: color(value.primary)?,
+        on_primary: color(value.on_primary)?,
+        accent: color(value.accent)?,
+        on_accent: color(value.on_accent)?,
+        canvas: color(value.canvas)?,
+        surface: color(value.surface)?,
+        surface_raised: color(value.surface_raised)?,
+        border: color(value.border)?,
+        text: color(value.text)?,
+        text_muted: color(value.text_muted)?,
+        link: color(value.link)?,
+        focus: color(value.focus)?,
+    })
+}
+
+fn decode_brand_tokens(
+    value: Option<BrandTokenSetMessage>,
+) -> Result<brand_domain::BrandTokenSet, String> {
+    let value = value.ok_or_else(|| "corporate identity tokens were absent".to_owned())?;
+    let tokens = brand_domain::BrandTokenSet {
+        light: decode_brand_palette(value.light)?,
+        dark: decode_brand_palette(value.dark)?,
+        font_pack: brand_domain::BrandFontPack::parse(&value.font_pack)
+            .map_err(|_| "corporate identity font was invalid".to_owned())?,
+        heading_scale_percent: u16::try_from(value.heading_scale_percent)
+            .map_err(|_| "corporate identity typography was invalid".to_owned())?,
+        body_scale_percent: u16::try_from(value.body_scale_percent)
+            .map_err(|_| "corporate identity typography was invalid".to_owned())?,
+        line_height_percent: u16::try_from(value.line_height_percent)
+            .map_err(|_| "corporate identity typography was invalid".to_owned())?,
+        density: match value.density.as_str() {
+            "compact" => brand_domain::BrandDensity::Compact,
+            "comfortable" => brand_domain::BrandDensity::Comfortable,
+            "spacious" => brand_domain::BrandDensity::Spacious,
+            _ => return Err("corporate identity density was invalid".to_owned()),
+        },
+        radius: match value.radius.as_str() {
+            "square" => brand_domain::BrandRadius::Square,
+            "soft" => brand_domain::BrandRadius::Soft,
+            "rounded" => brand_domain::BrandRadius::Rounded,
+            _ => return Err("corporate identity shape was invalid".to_owned()),
+        },
+        elevation: match value.elevation.as_str() {
+            "flat" => brand_domain::BrandElevation::Flat,
+            "subtle" => brand_domain::BrandElevation::Subtle,
+            "elevated" => brand_domain::BrandElevation::Elevated,
+            _ => return Err("corporate identity elevation was invalid".to_owned()),
+        },
+        navigation: match value.navigation.as_str() {
+            "solid" => brand_domain::BrandNavigation::Solid,
+            "tinted" => brand_domain::BrandNavigation::Tinted,
+            _ => return Err("corporate identity navigation was invalid".to_owned()),
+        },
+        navigation_expanded_by_default: value.navigation_expanded_by_default,
+        motion: match value.motion.as_str() {
+            "none" => brand_domain::BrandMotion::None,
+            "subtle" => brand_domain::BrandMotion::Subtle,
+            "standard" => brand_domain::BrandMotion::Standard,
+            _ => return Err("corporate identity motion was invalid".to_owned()),
+        },
+    };
+    tokens
+        .validate_structure()
+        .map_err(|_| "corporate identity tokens failed validation".to_owned())?;
+    Ok(tokens)
+}
+
+fn decode_brand_asset(
+    value: Option<erpx_proto::platform::BrandAssetReferenceMessage>,
+    expected_kind: brand_domain::BrandAssetKind,
+) -> Result<Option<brand_domain::BrandAssetReference>, String> {
+    let Some(value) = value else { return Ok(None) };
+    let kind = match value.kind.as_str() {
+        "logo_mark" => brand_domain::BrandAssetKind::LogoMark,
+        "wordmark" => brand_domain::BrandAssetKind::Wordmark,
+        "favicon" => brand_domain::BrandAssetKind::Favicon,
+        "login_artwork" => brand_domain::BrandAssetKind::LoginArtwork,
+        _ => return Err("corporate identity asset kind was invalid".to_owned()),
+    };
+    if kind != expected_kind {
+        return Err("corporate identity asset manifest was invalid".to_owned());
+    }
+    let reference = brand_domain::BrandAssetReference {
+        kind,
+        object_key: value.object_key,
+        sha256: value.sha256,
+        media_type: value.media_type,
+        byte_length: value.byte_length,
+        width: (value.width > 0).then_some(value.width),
+        height: (value.height > 0).then_some(value.height),
+    };
+    reference
+        .validate()
+        .map_err(|_| "corporate identity asset was invalid".to_owned())?;
+    Ok(Some(reference))
+}
+
+fn decode_brand_assets(
+    value: Option<BrandAssetManifestMessage>,
+) -> Result<brand_domain::BrandAssetManifest, String> {
+    let value = value.unwrap_or_default();
+    Ok(brand_domain::BrandAssetManifest {
+        logo_mark: decode_brand_asset(value.logo_mark, brand_domain::BrandAssetKind::LogoMark)?,
+        wordmark: decode_brand_asset(value.wordmark, brand_domain::BrandAssetKind::Wordmark)?,
+        favicon: decode_brand_asset(value.favicon, brand_domain::BrandAssetKind::Favicon)?,
+        login_artwork: decode_brand_asset(
+            value.login_artwork,
+            brand_domain::BrandAssetKind::LoginArtwork,
+        )?,
+    })
+}
+
+fn decode_platform_brand_editor_record(
+    resolved: erpx_proto::platform::ResolvedCorporateIdentityMessage,
+    draft: Option<CorporateIdentityProfileMessage>,
+) -> Result<PlatformBrandEditorRecord, String> {
+    if resolved
+        .scope
+        .as_ref()
+        .is_none_or(|scope| scope.scope_kind != "platform")
+    {
+        return Err("corporate identity scope was invalid".to_owned());
+    }
+    let inherited_categories = resolved
+        .inherited_categories
+        .iter()
+        .map(|value| brand_domain::BrandCategory::parse(value))
+        .collect::<Result<std::collections::BTreeSet<_>, _>>()
+        .map_err(|_| "corporate identity inheritance was invalid".to_owned())?;
+    let mut identity = brand_domain::ResolvedCorporateIdentity {
+        scope: brand_domain::BrandScope::Platform,
+        published_version: resolved.published_version,
+        display_name: resolved.display_name,
+        short_name: resolved.short_name,
+        tokens: decode_brand_tokens(resolved.tokens)?,
+        assets: decode_brand_assets(resolved.assets)?,
+        inherited_categories,
+        locked_categories: resolved
+            .locked_categories
+            .iter()
+            .map(|value| brand_domain::BrandCategory::parse(value))
+            .collect::<Result<std::collections::BTreeSet<_>, _>>()
+            .map_err(|_| "corporate identity locks were invalid".to_owned())?,
+        digest: resolved.digest,
+    };
+    let (profile_id, base_version) = if let Some(draft) = draft {
+        if draft.lifecycle != "draft" || draft.version == 0 {
+            return Err("corporate identity draft state was invalid".to_owned());
+        }
+        identity.display_name = draft.display_name;
+        identity.short_name = draft.short_name;
+        identity.tokens = decode_brand_tokens(draft.tokens)?;
+        identity.assets = decode_brand_assets(draft.assets)?;
+        identity.locked_categories = draft
+            .locked_categories
+            .iter()
+            .map(|value| brand_domain::BrandCategory::parse(value))
+            .collect::<Result<std::collections::BTreeSet<_>, _>>()
+            .map_err(|_| "corporate identity draft locks were invalid".to_owned())?;
+        identity.published_version = draft.version;
+        (draft.profile_id, draft.version)
+    } else {
+        (
+            PLATFORM_BRAND_PROFILE_ID.to_owned(),
+            resolved.published_version,
+        )
+    };
+    Ok(PlatformBrandEditorRecord {
+        identity,
+        profile_id,
+        base_version,
+    })
+}
+
+fn authenticated_rpc_request<T>(
+    message: T,
+    access_token: &str,
+    principal_ref: &str,
+    session_id: &str,
+) -> Result<tonic::Request<T>, String> {
+    let mut request = tonic::Request::new(message);
+    for (key, value) in [
+        ("x-erpx-access-token", access_token),
+        ("x-erpx-actor", principal_ref),
+        ("x-erpx-session", session_id),
+    ] {
+        request.metadata_mut().insert(
+            key,
+            MetadataValue::try_from(value)
+                .map_err(|_| "session metadata was invalid".to_owned())?,
+        );
+    }
+    Ok(request)
+}
+
+fn brand_palette_message(value: &brand_domain::BrandPalette) -> BrandPaletteMessage {
+    BrandPaletteMessage {
+        primary: value.primary.as_str().to_owned(),
+        on_primary: value.on_primary.as_str().to_owned(),
+        accent: value.accent.as_str().to_owned(),
+        on_accent: value.on_accent.as_str().to_owned(),
+        canvas: value.canvas.as_str().to_owned(),
+        surface: value.surface.as_str().to_owned(),
+        surface_raised: value.surface_raised.as_str().to_owned(),
+        border: value.border.as_str().to_owned(),
+        text: value.text.as_str().to_owned(),
+        text_muted: value.text_muted.as_str().to_owned(),
+        link: value.link.as_str().to_owned(),
+        focus: value.focus.as_str().to_owned(),
+    }
+}
+
+fn brand_tokens_message(value: &brand_domain::BrandTokenSet) -> BrandTokenSetMessage {
+    BrandTokenSetMessage {
+        light: Some(brand_palette_message(&value.light)),
+        dark: Some(brand_palette_message(&value.dark)),
+        font_pack: value.font_pack.as_str().to_owned(),
+        heading_scale_percent: u32::from(value.heading_scale_percent),
+        body_scale_percent: u32::from(value.body_scale_percent),
+        line_height_percent: u32::from(value.line_height_percent),
+        density: value.density.as_str().to_owned(),
+        radius: value.radius.as_str().to_owned(),
+        elevation: value.elevation.as_str().to_owned(),
+        navigation: value.navigation.as_str().to_owned(),
+        navigation_expanded_by_default: value.navigation_expanded_by_default,
+        motion: value.motion.as_str().to_owned(),
+    }
+}
+
+fn brand_asset_message(
+    value: &brand_domain::BrandAssetReference,
+) -> erpx_proto::platform::BrandAssetReferenceMessage {
+    erpx_proto::platform::BrandAssetReferenceMessage {
+        kind: match value.kind {
+            brand_domain::BrandAssetKind::LogoMark => "logo_mark",
+            brand_domain::BrandAssetKind::Wordmark => "wordmark",
+            brand_domain::BrandAssetKind::Favicon => "favicon",
+            brand_domain::BrandAssetKind::LoginArtwork => "login_artwork",
+        }
+        .to_owned(),
+        object_key: value.object_key.clone(),
+        sha256: value.sha256.clone(),
+        media_type: value.media_type.clone(),
+        byte_length: value.byte_length,
+        width: value.width.unwrap_or_default(),
+        height: value.height.unwrap_or_default(),
+    }
+}
+
+fn brand_assets_message(value: &brand_domain::BrandAssetManifest) -> BrandAssetManifestMessage {
+    BrandAssetManifestMessage {
+        logo_mark: value.logo_mark.as_ref().map(brand_asset_message),
+        wordmark: value.wordmark.as_ref().map(brand_asset_message),
+        favicon: value.favicon.as_ref().map(brand_asset_message),
+        login_artwork: value.login_artwork.as_ref().map(brand_asset_message),
+    }
+}
+
+fn platform_brand_draft_message(
+    record: &PlatformBrandEditorRecord,
+    action: &CorporateIdentityEditorAction,
+    principal_ref: &str,
+) -> CorporateIdentityProfileMessage {
+    CorporateIdentityProfileMessage {
+        profile_id: record.profile_id.clone(),
+        scope: Some(BrandScopeMessage {
+            scope_kind: "platform".to_owned(),
+            ..BrandScopeMessage::default()
+        }),
+        version: record.base_version.saturating_add(1),
+        parent_published_version: 0,
+        lifecycle: "draft".to_owned(),
+        display_name: action.submission.display_name.clone(),
+        short_name: action.submission.short_name.clone(),
+        tokens: Some(brand_tokens_message(&action.submission.tokens)),
+        assets: Some(brand_assets_message(&record.identity.assets)),
+        overridden_categories: brand_domain::BrandCategory::ALL
+            .into_iter()
+            .map(|category| category.as_str().to_owned())
+            .collect(),
+        locked_categories: action
+            .submission
+            .locked_categories
+            .iter()
+            .map(|category| category.as_str().to_owned())
+            .collect(),
+        updated_by: principal_ref.to_owned(),
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn fetch_platform_brand_editor(
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+) -> Result<PlatformBrandEditorRecord, String> {
+    let channel = tonic_web_wasm_client::Client::new(GRPC_ENDPOINT.to_string());
+    let mut client = DataPlaneControlServiceClient::new(channel);
+    fetch_platform_brand_editor_with_client(&mut client, &access_token, &principal_ref, &session_id)
+        .await
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn fetch_platform_brand_editor(
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+) -> Result<PlatformBrandEditorRecord, String> {
+    let channel = tonic::transport::Endpoint::from_static(GRPC_ENDPOINT)
+        .connect()
+        .await
+        .map_err(|_| "corporate identity connection failed".to_owned())?;
+    let mut client = DataPlaneControlServiceClient::new(channel);
+    fetch_platform_brand_editor_with_client(&mut client, &access_token, &principal_ref, &session_id)
+        .await
+}
+
+async fn fetch_platform_brand_editor_with_client<T>(
+    client: &mut DataPlaneControlServiceClient<T>,
+    access_token: &str,
+    principal_ref: &str,
+    session_id: &str,
+) -> Result<PlatformBrandEditorRecord, String>
+where
+    T: tonic::client::GrpcService<tonic::body::Body>,
+    T::Error: Into<tonic::codegen::StdError>,
+    T::ResponseBody: tonic::codegen::Body<Data = tonic::codegen::Bytes> + Send + 'static,
+    <T::ResponseBody as tonic::codegen::Body>::Error: Into<tonic::codegen::StdError> + Send,
+{
+    let scope = BrandScopeMessage {
+        scope_kind: "platform".to_owned(),
+        ..BrandScopeMessage::default()
+    };
+    let resolved = client
+        .get_resolved_corporate_identity(authenticated_rpc_request(
+            GetResolvedCorporateIdentityRequest {
+                scope: Some(scope.clone()),
+                context: Some(platform_query_context(principal_ref, session_id)),
+            },
+            access_token,
+            principal_ref,
+            session_id,
+        )?)
+        .await
+        .map_err(|_| "corporate identity read failed".to_owned())?
+        .into_inner()
+        .identity
+        .ok_or_else(|| "corporate identity was absent".to_owned())?;
+    let draft_response = client
+        .get_corporate_identity_draft(authenticated_rpc_request(
+            GetCorporateIdentityDraftRequest {
+                scope: Some(scope),
+                context: Some(platform_query_context(principal_ref, session_id)),
+            },
+            access_token,
+            principal_ref,
+            session_id,
+        )?)
+        .await
+        .map_err(|_| "corporate identity draft read failed".to_owned())?
+        .into_inner();
+    decode_platform_brand_editor_record(
+        resolved,
+        draft_response
+            .exists
+            .then_some(draft_response.draft)
+            .flatten(),
+    )
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn mutate_platform_brand(
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+    record: PlatformBrandEditorRecord,
+    action: CorporateIdentityEditorAction,
+) -> Result<String, String> {
+    let channel = tonic_web_wasm_client::Client::new(GRPC_ENDPOINT.to_string());
+    let mut client = DataPlaneControlServiceClient::new(channel);
+    mutate_platform_brand_with_client(
+        &mut client,
+        &access_token,
+        &principal_ref,
+        &session_id,
+        record,
+        action,
+    )
+    .await
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn mutate_platform_brand(
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+    record: PlatformBrandEditorRecord,
+    action: CorporateIdentityEditorAction,
+) -> Result<String, String> {
+    let channel = tonic::transport::Endpoint::from_static(GRPC_ENDPOINT)
+        .connect()
+        .await
+        .map_err(|_| "corporate identity connection failed".to_owned())?;
+    let mut client = DataPlaneControlServiceClient::new(channel);
+    mutate_platform_brand_with_client(
+        &mut client,
+        &access_token,
+        &principal_ref,
+        &session_id,
+        record,
+        action,
+    )
+    .await
+}
+
+async fn mutate_platform_brand_with_client<T>(
+    client: &mut DataPlaneControlServiceClient<T>,
+    access_token: &str,
+    principal_ref: &str,
+    session_id: &str,
+    record: PlatformBrandEditorRecord,
+    action: CorporateIdentityEditorAction,
+) -> Result<String, String>
+where
+    T: tonic::client::GrpcService<tonic::body::Body>,
+    T::Error: Into<tonic::codegen::StdError>,
+    T::ResponseBody: tonic::codegen::Body<Data = tonic::codegen::Bytes> + Send + 'static,
+    <T::ResponseBody as tonic::codegen::Body>::Error: Into<tonic::codegen::StdError> + Send,
+{
+    if matches!(action.kind, CorporateIdentityEditorActionKind::Rollback) {
+        return Err("Select an immutable history version before rollback.".to_owned());
+    }
+    let mut save_context = platform_command_context(
+        principal_ref,
+        session_id,
+        "platform_corporate_identity_draft",
+        &Uuid::new_v4().to_string(),
+    );
+    save_context.mfa_code = action.submission.mfa_code.clone();
+    let draft = platform_brand_draft_message(&record, &action, principal_ref);
+    let saved = client
+        .save_corporate_identity_draft(authenticated_rpc_request(
+            SaveCorporateIdentityDraftRequest {
+                draft: Some(draft),
+                expected_version: record.base_version,
+                reason: action.submission.reason.clone(),
+                context: Some(save_context),
+            },
+            access_token,
+            principal_ref,
+            session_id,
+        )?)
+        .await
+        .map_err(|status| {
+            format!(
+                "Corporate identity draft was not saved: {}",
+                status.message()
+            )
+        })?
+        .into_inner()
+        .draft
+        .ok_or_else(|| "corporate identity draft receipt was absent".to_owned())?;
+    if matches!(action.kind, CorporateIdentityEditorActionKind::SaveDraft) {
+        return Ok(format!("Draft v{} saved.", saved.version));
+    }
+
+    let mut publish_context = platform_command_context(
+        principal_ref,
+        session_id,
+        "platform_corporate_identity_publish",
+        &Uuid::new_v4().to_string(),
+    );
+    publish_context.mfa_code = action.submission.mfa_code;
+    let published = client
+        .publish_corporate_identity_draft(authenticated_rpc_request(
+            PublishCorporateIdentityDraftRequest {
+                profile_id: saved.profile_id,
+                expected_draft_version: saved.version,
+                reason: action.submission.reason,
+                context: Some(publish_context),
+            },
+            access_token,
+            principal_ref,
+            session_id,
+        )?)
+        .await
+        .map_err(|status| format!("Corporate identity was not published: {}", status.message()))?
+        .into_inner()
+        .published
+        .ok_or_else(|| "corporate identity publication receipt was absent".to_owned())?;
+    Ok(format!(
+        "Corporate identity v{} published.",
+        published.version
+    ))
+}
+
+fn decode_navigation_manifest(
+    groups: Vec<erpx_proto::platform::NavigationManifestGroup>,
+) -> Result<Vec<NavGroup>, String> {
+    let mut decoded = Vec::with_capacity(groups.len().min(8));
+    for group in groups.into_iter().take(8) {
+        validate_platform_read_text(&group.label, "navigation group", false, 80)?;
+        let mut items = Vec::with_capacity(group.items.len().min(32));
+        for item in group.items.into_iter().take(32) {
+            validate_platform_read_text(&item.label, "navigation label", false, 96)?;
+            if !item.path.starts_with('/') || item.path.len() > 256 {
+                return Err("navigation path is invalid".to_owned());
+            }
+            items.push(NavItem::new(item.label, item.path, item.icon));
+        }
+        if !items.is_empty() {
+            decoded.push(NavGroup::new(group.label, items));
+        }
+    }
+    if decoded.is_empty() {
+        return Err("authorized navigation manifest is empty".to_owned());
+    }
+    Ok(decoded)
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn fetch_navigation_manifest(
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+) -> Result<Vec<NavGroup>, String> {
+    let channel = tonic_web_wasm_client::Client::new(GRPC_ENDPOINT.to_string());
+    let mut client = DataPlaneControlServiceClient::new(channel);
+    let mut request = tonic::Request::new(GetNavigationManifestRequest {
+        context: Some(platform_query_context(&principal_ref, &session_id)),
+    });
+    request.metadata_mut().insert(
+        "x-erpx-access-token",
+        MetadataValue::try_from(access_token.as_str())
+            .map_err(|_| "access token is not valid transport metadata".to_string())?,
+    );
+    request.metadata_mut().insert(
+        "x-erpx-actor",
+        MetadataValue::try_from(principal_ref.as_str())
+            .map_err(|_| "principal reference is not valid transport metadata".to_string())?,
+    );
+    request.metadata_mut().insert(
+        "x-erpx-session",
+        MetadataValue::try_from(session_id.as_str())
+            .map_err(|_| "session reference is not valid transport metadata".to_string())?,
+    );
+    let response = client
+        .get_navigation_manifest(request)
+        .await
+        .map_err(|_| "authorized navigation read failed".to_string())?
+        .into_inner();
+    decode_navigation_manifest(response.groups)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn fetch_navigation_manifest(
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+) -> Result<Vec<NavGroup>, String> {
+    let channel = tonic::transport::Endpoint::from_static(GRPC_ENDPOINT)
+        .connect()
+        .await
+        .map_err(|_| "authorized navigation connection failed".to_string())?;
+    let mut client = DataPlaneControlServiceClient::new(channel);
+    let mut request = tonic::Request::new(GetNavigationManifestRequest {
+        context: Some(platform_query_context(&principal_ref, &session_id)),
+    });
+    request.metadata_mut().insert(
+        "x-erpx-access-token",
+        MetadataValue::try_from(access_token.as_str())
+            .map_err(|_| "access token is not valid transport metadata".to_string())?,
+    );
+    request.metadata_mut().insert(
+        "x-erpx-actor",
+        MetadataValue::try_from(principal_ref.as_str())
+            .map_err(|_| "principal reference is not valid transport metadata".to_string())?,
+    );
+    request.metadata_mut().insert(
+        "x-erpx-session",
+        MetadataValue::try_from(session_id.as_str())
+            .map_err(|_| "session reference is not valid transport metadata".to_string())?,
+    );
+    let response = client
+        .get_navigation_manifest(request)
+        .await
+        .map_err(|_| "authorized navigation read failed".to_string())?
+        .into_inner();
+    decode_navigation_manifest(response.groups)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -15460,6 +16345,17 @@ enum ConsoleDeepLink {
     ProductContext(ProductContext),
 }
 
+#[derive(Clone, Copy)]
+struct ConsoleRouteSignals {
+    active_route: Signal<PlatformRoute>,
+    support_route: Signal<Option<SupportRoute>>,
+    platform_operations_route: Signal<Option<PlatformOperationsRoute>>,
+    marketing_crm_route: Signal<Option<RouteId>>,
+    directory_route: Signal<bool>,
+    billing_route: Signal<bool>,
+    product_context_route: Signal<Option<ProductContext>>,
+}
+
 /// Resolve one initial browser/native path against the actual console route registries.
 ///
 /// `safe_return_path` removes query/fragment values and rejects credential-bearing or external
@@ -15496,6 +16392,40 @@ fn console_deep_link(path: &str) -> Option<ConsoleDeepLink> {
         .copied()
         .find(|context| context.path() == path)
         .map(ConsoleDeepLink::ProductContext)
+}
+
+impl ConsoleRouteSignals {
+    /// Apply one validated destination to the mounted route signals. Web navigation uses this
+    /// instead of reloading the document because the web target intentionally has no plaintext
+    /// token persistence fallback; a full reload would necessarily discard the in-memory session.
+    fn activate(&mut self, path: &str) -> bool {
+        let Some(destination) = console_deep_link(path) else {
+            return false;
+        };
+
+        // Exactly one surface owns the destination; reset siblings before activating it so a stale
+        // default route cannot win the render race.
+        self.support_route.set(None);
+        self.platform_operations_route.set(None);
+        self.marketing_crm_route.set(None);
+        self.directory_route.set(false);
+        self.billing_route.set(false);
+        self.product_context_route.set(None);
+        match destination {
+            ConsoleDeepLink::Customer(route) => self.active_route.set(route),
+            ConsoleDeepLink::Directory => self.directory_route.set(true),
+            ConsoleDeepLink::Billing => self.billing_route.set(true),
+            ConsoleDeepLink::PlatformOperations(route) => {
+                self.platform_operations_route.set(Some(route));
+            }
+            ConsoleDeepLink::Support(route) => self.support_route.set(Some(route)),
+            ConsoleDeepLink::Marketing(route) => self.marketing_crm_route.set(Some(route)),
+            ConsoleDeepLink::ProductContext(context) => {
+                self.product_context_route.set(Some(context))
+            }
+        }
+        true
+    }
 }
 
 fn customer_route_for(customer_id: &str, view: Customer360View) -> Option<PlatformRoute> {
@@ -15582,6 +16512,7 @@ fn platform_operations_route_for_id(
         PlatformOperationsRouteId::Tenant => {
             tenant_id.map(|tenant_id| PlatformOperationsRoute::Tenant { tenant_id })
         }
+        PlatformOperationsRouteId::TenantWorkspace => None,
         PlatformOperationsRouteId::Projections => Some(PlatformOperationsRoute::Projections),
         PlatformOperationsRouteId::Backups => Some(PlatformOperationsRoute::Backups),
         PlatformOperationsRouteId::Integrations => Some(PlatformOperationsRoute::Integrations),
@@ -15598,6 +16529,9 @@ fn platform_operations_route_description(id: PlatformOperationsRouteId) -> &'sta
         }
         PlatformOperationsRouteId::Tenant => {
             "A validated opaque tenant route; an authorized tenant identifier is required before a detail view can open."
+        }
+        PlatformOperationsRouteId::TenantWorkspace => {
+            "The existing module UI bound to one tenant, one selected organization scope, and one short-lived administrative context."
         }
         PlatformOperationsRouteId::Projections => {
             "Authorized projection freshness and rebuild status from the server-owned read model; rebuild commands remain audited and server-owned."
@@ -15666,9 +16600,9 @@ fn platform_operations_state_copy(state: UiStateKind) -> (&'static str, &'static
 
 fn platform_operations_area_for_route(route: PlatformOperationsRouteId) -> PlatformOperationsArea {
     match route {
-        PlatformOperationsRouteId::Tenants | PlatformOperationsRouteId::Tenant => {
-            PlatformOperationsArea::Tenants
-        }
+        PlatformOperationsRouteId::Tenants
+        | PlatformOperationsRouteId::Tenant
+        | PlatformOperationsRouteId::TenantWorkspace => PlatformOperationsArea::Tenants,
         PlatformOperationsRouteId::Projections => PlatformOperationsArea::Projections,
         PlatformOperationsRouteId::Backups => PlatformOperationsArea::Backups,
         PlatformOperationsRouteId::Integrations => PlatformOperationsArea::Integrations,
@@ -15681,33 +16615,77 @@ fn platform_operations_area_for_route(route: PlatformOperationsRouteId) -> Platf
 #[component]
 fn App() -> Element {
     provide_locale(Locale::En);
-    provide_theme(ThemeMode::Dark);
+    provide_theme(ThemeMode::System);
+    provide_corporate_identity(
+        erpx_domain::corporate_identity::ResolvedCorporateIdentity::neutral_erpx(),
+    );
     let locale = use_locale().current();
+    let corporate_identity = use_corporate_identity();
+    let mut corporate_identity_bootstrap_started = use_signal(|| false);
+    use_effect(move || {
+        if *corporate_identity_bootstrap_started.read() {
+            return;
+        }
+        corporate_identity_bootstrap_started.set(true);
+        spawn(async move {
+            if let Ok(identity) = fetch_public_corporate_identity().await {
+                corporate_identity.set(identity);
+            }
+        });
+    });
 
     // Credentials remain inside this controller unless a target-owned protected adapter is
     // configured. The shell receives only its display-safe snapshot and route state; server
     // authorization remains authoritative for every query and command.
-    let auth = use_signal(SessionController::default);
-    let target_session = TargetSecureSessionAdapter::descriptor();
+    let auth = use_signal(|| {
+        let mut controller = SessionController::default();
+        if cfg!(target_arch = "wasm32") {
+            controller.begin_server_restore("/platform/customers");
+        }
+        controller
+    });
+    let target_session = if cfg!(target_arch = "wasm32") {
+        TargetSessionDescriptor::browser_http_only_cookie()
+    } else {
+        TargetSecureSessionAdapter::descriptor()
+    };
     let target_adapter = TargetSecureSessionAdapter::new();
     let mut restore_started = use_signal(|| false);
     use_effect(move || {
-        if target_session.secure_session() != SecureSessionSupport::Supported
-            || *restore_started.read()
-        {
+        if *restore_started.read() {
             return;
         }
         restore_started.set(true);
         let mut auth_for_task = auth;
-        let adapter = target_adapter;
+        {
+            let mut slot = auth_for_task.write();
+            slot.begin_server_restore("/platform/customers");
+        }
         spawn(async move {
             let mut controller = {
                 let mut slot = auth_for_task.write();
                 std::mem::take(&mut *slot)
             };
+            #[cfg(target_arch = "wasm32")]
             let _ = controller
-                .restore_secure_session(&adapter, "/platform/customers")
-                .await;
+                .complete_server_restore(restore_http_session().await, "/platform/customers");
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                if target_session.secure_session() == SecureSessionSupport::Supported {
+                    let _ = controller
+                        .restore_and_revalidate_secure_session(
+                            &HttpSessionTransport,
+                            &target_adapter,
+                            "/platform/customers",
+                        )
+                        .await;
+                } else {
+                    let _ = controller.complete_server_restore(
+                        Err(AuthTransportError::Unauthorized),
+                        "/platform/customers",
+                    );
+                }
+            }
             let mut slot = auth_for_task.write();
             *slot = controller;
         });
@@ -15741,7 +16719,9 @@ fn App() -> Element {
             let mut result = controller
                 .login(&HttpSessionTransport, request, "/platform/customers")
                 .await;
-            if result.is_ok() && target_session.secure_session() == SecureSessionSupport::Supported
+            if result.is_ok()
+                && !cfg!(target_arch = "wasm32")
+                && target_session.secure_session() == SecureSessionSupport::Supported
             {
                 result = controller.persist_secure_session(&target_adapter).await;
             }
@@ -15767,7 +16747,9 @@ fn App() -> Element {
             let mut result = controller
                 .refresh(&HttpSessionTransport, "/platform/customers")
                 .await;
-            if result.is_ok() && target_session.secure_session() == SecureSessionSupport::Supported
+            if result.is_ok()
+                && !cfg!(target_arch = "wasm32")
+                && target_session.secure_session() == SecureSessionSupport::Supported
             {
                 result = controller.persist_secure_session(&target_adapter).await;
                 if result.is_err() {
@@ -15797,6 +16779,7 @@ fn App() -> Element {
                 .revoke(&HttpSessionTransport, "/platform/customers")
                 .await;
             let result = if result.is_ok()
+                && !cfg!(target_arch = "wasm32")
                 && target_session.secure_session() == SecureSessionSupport::Supported
             {
                 controller.clear_secure_session(&target_adapter).await
@@ -15828,13 +16811,22 @@ fn App() -> Element {
             return;
         }
         deep_link_applied.set(true);
-        let mut active_route = active_route;
-        let mut support_route = support_route;
-        let mut platform_operations_route = platform_operations_route;
-        let mut marketing_crm_route = marketing_crm_route;
-        let mut directory_route = directory_route;
-        let mut billing_route = billing_route;
-        let mut product_context_route = product_context_route;
+        let active_route = active_route;
+        let support_route = support_route;
+        let platform_operations_route = platform_operations_route;
+        let marketing_crm_route = marketing_crm_route;
+        let directory_route = directory_route;
+        let billing_route = billing_route;
+        let product_context_route = product_context_route;
+        let mut route_signals = ConsoleRouteSignals {
+            active_route,
+            support_route,
+            platform_operations_route,
+            marketing_crm_route,
+            directory_route,
+            billing_route,
+            product_context_route,
+        };
         spawn(async move {
             let eval = document::eval(
                 "window.location.hash.startsWith('#/') ? window.location.hash.slice(1) : window.location.pathname + window.location.search",
@@ -15842,31 +16834,7 @@ fn App() -> Element {
             let Ok(path) = eval.join::<String>().await else {
                 return;
             };
-            let Some(destination) = console_deep_link(path.as_str()) else {
-                return;
-            };
-
-            // A single initial link must activate exactly one surface. Resetting every sibling
-            // signal here prevents a stale default route from winning active-path resolution.
-            support_route.set(None);
-            platform_operations_route.set(None);
-            marketing_crm_route.set(None);
-            directory_route.set(false);
-            billing_route.set(false);
-            product_context_route.set(None);
-            match destination {
-                ConsoleDeepLink::Customer(route) => active_route.set(route),
-                ConsoleDeepLink::Directory => directory_route.set(true),
-                ConsoleDeepLink::Billing => billing_route.set(true),
-                ConsoleDeepLink::PlatformOperations(route) => {
-                    platform_operations_route.set(Some(route));
-                }
-                ConsoleDeepLink::Support(route) => support_route.set(Some(route)),
-                ConsoleDeepLink::Marketing(route) => marketing_crm_route.set(Some(route)),
-                ConsoleDeepLink::ProductContext(context) => {
-                    product_context_route.set(Some(context));
-                }
-            }
+            let _ = route_signals.activate(path.as_str());
         });
     });
     let active_route_snapshot = active_route.read().clone();
@@ -16295,6 +17263,42 @@ fn App() -> Element {
         }
     });
 
+    let tenant_infrastructure = use_resource(move || {
+        let tenant_id = match platform_operations_route.read().as_ref() {
+            Some(PlatformOperationsRoute::Tenant { tenant_id }) => {
+                Some(tenant_id.as_str().to_owned())
+            }
+            _ => None,
+        };
+        let (access_token, principal_ref, session_id) = {
+            let controller = auth.read();
+            (
+                controller
+                    .access_token()
+                    .map(|token| token.as_str().to_owned()),
+                controller
+                    .metadata()
+                    .and_then(|metadata| metadata.principal_label.clone()),
+                controller
+                    .session_id()
+                    .map(|session| session.as_str().to_owned()),
+            )
+        };
+        async move {
+            let Some(tenant_id) = tenant_id else {
+                return Ok(None);
+            };
+            match (access_token, principal_ref, session_id) {
+                (Some(access_token), Some(principal_ref), Some(session_id)) => {
+                    fetch_tenant_infrastructure(tenant_id, access_token, principal_ref, session_id)
+                        .await
+                        .map(Some)
+                }
+                _ => Err("authentication_required".to_string()),
+            }
+        }
+    });
+
     let platform_projection_statuses = use_resource(move || {
         let should_fetch = matches!(
             platform_operations_route.read().as_ref(),
@@ -16431,10 +17435,73 @@ fn App() -> Element {
         }
     });
 
+    let navigation_manifest = use_resource(move || {
+        let (access_token, principal_ref, session_id) = {
+            let controller = auth.read();
+            (
+                controller
+                    .access_token()
+                    .map(|token| token.as_str().to_owned()),
+                controller
+                    .metadata()
+                    .and_then(|metadata| metadata.principal_label.clone()),
+                controller
+                    .session_id()
+                    .map(|session| session.as_str().to_owned()),
+            )
+        };
+        async move {
+            match (access_token, principal_ref, session_id) {
+                (Some(access_token), Some(principal_ref), Some(session_id)) => {
+                    fetch_navigation_manifest(access_token, principal_ref, session_id)
+                        .await
+                        .map(Some)
+                }
+                _ => Ok(None),
+            }
+        }
+    });
+
+    let platform_brand_editor = use_resource(move || {
+        let should_fetch = matches!(
+            platform_operations_route.read().as_ref(),
+            Some(PlatformOperationsRoute::Settings | PlatformOperationsRoute::CorporateIdentity)
+        );
+        let (access_token, principal_ref, session_id) = {
+            let controller = auth.read();
+            (
+                controller
+                    .access_token()
+                    .map(|token| token.as_str().to_owned()),
+                controller
+                    .metadata()
+                    .and_then(|metadata| metadata.principal_label.clone()),
+                controller
+                    .session_id()
+                    .map(|session| session.as_str().to_owned()),
+            )
+        };
+        async move {
+            if !should_fetch {
+                return Ok(None);
+            }
+            match (access_token, principal_ref, session_id) {
+                (Some(access_token), Some(principal_ref), Some(session_id)) => {
+                    fetch_platform_brand_editor(access_token, principal_ref, session_id)
+                        .await
+                        .map(Some)
+                }
+                _ => Err("authentication_required".to_owned()),
+            }
+        }
+    });
+    let mut platform_brand_busy = use_signal(|| false);
+    let mut platform_brand_message = use_signal(|| None::<String>);
+
     let platform_settings = use_resource(move || {
         let should_fetch = matches!(
             platform_operations_route.read().as_ref(),
-            Some(PlatformOperationsRoute::Settings)
+            Some(PlatformOperationsRoute::Settings | PlatformOperationsRoute::CorporateIdentity)
         );
         let (access_token, principal_ref, session_id) = {
             let controller = auth.read();
@@ -17009,6 +18076,54 @@ fn App() -> Element {
             }
         }
     });
+    let mut directory_command_busy = use_signal(|| false);
+    let mut directory_command_message = use_signal(|| None::<String>);
+    let on_directory_command = move |command: DirectoryAdministrationCommand| {
+        let (access_token, principal_ref, session_id) = {
+            let controller = auth.read();
+            (
+                controller
+                    .access_token()
+                    .map(|token| token.as_str().to_owned()),
+                controller
+                    .metadata()
+                    .and_then(|metadata| metadata.principal_label.clone()),
+                controller
+                    .session_id()
+                    .map(|session| session.as_str().to_owned()),
+            )
+        };
+        let (Some(access_token), Some(principal_ref), Some(session_id)) =
+            (access_token, principal_ref, session_id)
+        else {
+            directory_command_message.set(Some(
+                "Directory administration requires an authenticated platform session.".into(),
+            ));
+            return;
+        };
+        directory_command_busy.set(true);
+        directory_command_message.set(None);
+        let mut busy_for_task = directory_command_busy;
+        let mut message_for_task = directory_command_message;
+        let mut directory_for_task = directory_administration;
+        spawn(async move {
+            let result = execute_directory_administration_command(
+                command,
+                access_token,
+                principal_ref,
+                session_id,
+            )
+            .await;
+            busy_for_task.set(false);
+            message_for_task.set(Some(match result {
+                Ok(message) => {
+                    directory_for_task.restart();
+                    message
+                }
+                Err(error) => format!("Directory command failed: {error}."),
+            }));
+        });
+    };
 
     let mut billing_customer_input = use_signal(String::new);
     let mut billing_subscription_input = use_signal(String::new);
@@ -19586,6 +20701,17 @@ fn App() -> Element {
         &platform_operations_route_snapshot,
         Some(PlatformOperationsRoute::Tenant { .. })
     ) && platform_tenant_detail_snapshot.is_none();
+    let tenant_infrastructure_snapshot = tenant_infrastructure.read().clone();
+    let tenant_infrastructure_result = tenant_infrastructure_snapshot
+        .as_ref()
+        .and_then(|result| result.clone().ok().flatten());
+    let tenant_infrastructure_error = tenant_infrastructure_snapshot
+        .as_ref()
+        .and_then(|result| result.as_ref().err().cloned());
+    let tenant_infrastructure_loading = matches!(
+        &platform_operations_route_snapshot,
+        Some(PlatformOperationsRoute::Tenant { .. })
+    ) && tenant_infrastructure_snapshot.is_none();
     let platform_projection_statuses_snapshot = platform_projection_statuses.read().clone();
     let platform_projection_statuses_result = platform_projection_statuses_snapshot
         .as_ref()
@@ -19639,8 +20765,64 @@ fn App() -> Element {
         .and_then(|result| result.as_ref().err().cloned());
     let platform_settings_loading = matches!(
         &platform_operations_route_snapshot,
-        Some(PlatformOperationsRoute::Settings)
+        Some(PlatformOperationsRoute::Settings | PlatformOperationsRoute::CorporateIdentity)
     ) && platform_settings_snapshot.is_none();
+    let platform_brand_snapshot = platform_brand_editor.read().clone();
+    let platform_brand_result = platform_brand_snapshot
+        .as_ref()
+        .and_then(|result| result.clone().ok().flatten());
+    let platform_brand_error = platform_brand_snapshot
+        .as_ref()
+        .and_then(|result| result.as_ref().err().cloned());
+    let platform_brand_loading = matches!(
+        &platform_operations_route_snapshot,
+        Some(PlatformOperationsRoute::Settings | PlatformOperationsRoute::CorporateIdentity)
+    ) && platform_brand_snapshot.is_none();
+    let platform_brand_for_action = platform_brand_result.clone();
+    let on_platform_brand_action = move |action: CorporateIdentityEditorAction| {
+        let Some(record) = platform_brand_for_action.clone() else {
+            platform_brand_message.set(Some(
+                "Refresh the corporate identity before editing.".to_owned(),
+            ));
+            return;
+        };
+        let (access_token, principal_ref, session_id) = {
+            let controller = auth.read();
+            (
+                controller
+                    .access_token()
+                    .map(|token| token.as_str().to_owned()),
+                controller
+                    .metadata()
+                    .and_then(|metadata| metadata.principal_label.clone()),
+                controller
+                    .session_id()
+                    .map(|session| session.as_str().to_owned()),
+            )
+        };
+        let (Some(access_token), Some(principal_ref), Some(session_id)) =
+            (access_token, principal_ref, session_id)
+        else {
+            platform_brand_message.set(Some("Authentication is required.".to_owned()));
+            return;
+        };
+        platform_brand_busy.set(true);
+        platform_brand_message.set(None);
+        let mut busy = platform_brand_busy;
+        let mut message = platform_brand_message;
+        let mut resource = platform_brand_editor;
+        spawn(async move {
+            let result =
+                mutate_platform_brand(access_token, principal_ref, session_id, record, action)
+                    .await;
+            busy.set(false);
+            message.set(Some(match result {
+                Ok(receipt) => receipt,
+                Err(error) => error,
+            }));
+            resource.restart();
+        });
+    };
     let platform_role_review_snapshot = platform_role_review.read().clone();
     let platform_role_review_result = platform_role_review_snapshot
         .as_ref()
@@ -19689,6 +20871,8 @@ fn App() -> Element {
     let crm_command_message_snapshot = crm_command_message.read().clone();
     let directory_snapshot = directory_administration.read().clone();
     let directory_loading = directory_route_snapshot && directory_snapshot.is_none();
+    let directory_command_busy_snapshot = *directory_command_busy.read();
+    let directory_command_message_snapshot = directory_command_message.read().clone();
     let entitlement_probe_snapshot = entitlement_probe.read().clone();
     let entitlement_probe_result = entitlement_probe_snapshot
         .as_ref()
@@ -20140,6 +21324,7 @@ fn App() -> Element {
                             && platform_tenant_detail_error.is_none()
                             && platform_tenant_detail_result.is_some()
                     }
+                    PlatformOperationsRoute::TenantWorkspace { .. } => false,
                     PlatformOperationsRoute::Projections => {
                         !platform_projection_statuses_loading
                             && platform_projection_statuses_error.is_none()
@@ -20160,7 +21345,8 @@ fn App() -> Element {
                             && platform_integrations_error.is_none()
                             && platform_integrations_result.is_some()
                     }
-                    PlatformOperationsRoute::Settings => {
+                    PlatformOperationsRoute::Settings
+                    | PlatformOperationsRoute::CorporateIdentity => {
                         !platform_settings_loading
                             && platform_settings_error.is_none()
                             && platform_settings_result.is_some()
@@ -20373,6 +21559,9 @@ fn App() -> Element {
             DirectoryAdministrationRouteSurface {
                 snapshot: directory_snapshot,
                 loading: directory_loading,
+                command_busy: directory_command_busy_snapshot,
+                command_message: directory_command_message_snapshot,
+                on_command: on_directory_command,
             }
         } else if let Some(route) = platform_operations_route_snapshot.clone() {
             PlatformOperationsNavigation {
@@ -20389,6 +21578,9 @@ fn App() -> Element {
                 tenant: platform_tenant_detail_result,
                 tenant_loading: platform_tenant_detail_loading,
                 tenant_error: platform_tenant_detail_error,
+                tenant_infrastructure: tenant_infrastructure_result,
+                tenant_infrastructure_loading,
+                tenant_infrastructure_error,
                 projection_statuses: platform_projection_statuses_result,
                 projection_statuses_loading: platform_projection_statuses_loading,
                 projection_statuses_error: platform_projection_statuses_error,
@@ -20404,6 +21596,12 @@ fn App() -> Element {
                 settings: platform_settings_result,
                 settings_loading: platform_settings_loading,
                 settings_error: platform_settings_error,
+                platform_brand: platform_brand_result,
+                platform_brand_loading,
+                platform_brand_error,
+                platform_brand_busy: *platform_brand_busy.read(),
+                platform_brand_message: platform_brand_message.read().clone(),
+                on_platform_brand_action,
                 role_review: platform_role_review_result,
                 role_review_loading: platform_role_review_loading,
                 role_review_error: platform_role_review_error,
@@ -20874,6 +22072,70 @@ fn App() -> Element {
         }
     };
 
+    let on_navigate = move |path: String| {
+        let mut route_signals = ConsoleRouteSignals {
+            active_route,
+            support_route,
+            platform_operations_route,
+            marketing_crm_route,
+            directory_route,
+            billing_route,
+            product_context_route,
+        };
+        if !route_signals.activate(&path) {
+            return;
+        }
+        let eval = document::eval(
+            "const path = await dioxus.recv(); window.history.pushState({}, '', path);",
+        );
+        let _ = eval.send(path);
+    };
+
+    let show_authenticated_shell = matches!(
+        &auth_state,
+        SessionState::Authenticated(_)
+            | SessionState::Refreshing(_)
+            | SessionState::Revoking(_)
+            | SessionState::Offline {
+                last_known: Some(_),
+                ..
+            }
+    );
+    if matches!(&auth_state, SessionState::Restoring { .. }) {
+        return rsx! {
+            document::Title { "Restoring session · ERPX Platform" }
+            style { "{SHARED_STYLES}" }
+            style { {include_str!("../assets/main.css")} }
+            SessionRestoreSurface {}
+        };
+    }
+    if !show_authenticated_shell {
+        return rsx! {
+            document::Title { "Sign in · ERPX Platform" }
+            style { "{SHARED_STYLES}" }
+            style { {include_str!("../assets/main.css")} }
+            SignInSurface {
+                state: auth_state,
+                principal: login_principal.read().clone(),
+                password: login_password.read().clone(),
+                busy: *auth_busy.read(),
+                message: auth_message.read().clone(),
+                target_session,
+                on_principal: move |value| login_principal.set(value),
+                on_password: move |value| login_password.set(value),
+                on_login,
+                on_refresh,
+                on_revoke,
+            }
+        };
+    }
+    let authorized_nav_groups = navigation_manifest
+        .read()
+        .clone()
+        .and_then(Result::ok)
+        .flatten()
+        .unwrap_or_default();
+
     rsx! {
         document::Title { "ERPX Platform" }
         style { "{SHARED_STYLES}" }
@@ -20881,36 +22143,7 @@ fn App() -> Element {
         AppShell {
             brand: "ERPX Platform",
             subtitle: "Customer Operations Console",
-            nav_items: {
-                let mut items = vec![
-                NavItem::new("Customer 360", "/platform/customers", "◎"),
-                NavItem::new("Directories", "/platform/directories", "◈"),
-                NavItem::new("Support", "/platform/support", "?"),
-                NavItem::new("Billing", "/platform/billing", "¤"),
-                NavItem::new("Marketing & CRM · การตลาดและ CRM", "/crm/leads", "◇"),
-                ];
-                items.extend(
-                    PRODUCT_CONTEXTS.iter().copied().filter(|context| matches!(context,
-                        ProductContext::Operations
-                            | ProductContext::Finance
-                            | ProductContext::Sales
-                            | ProductContext::Procurement
-                            | ProductContext::Inventory
-                            | ProductContext::Maintenance
-                            | ProductContext::Quality
-                            | ProductContext::MarketingCrm
-                            | ProductContext::HrPayroll
-                            | ProductContext::Pos
-                            | ProductContext::Legal
-                    )).map(|context| NavItem::new(context.label(), context.path(), "▸")),
-                );
-                items.extend(
-                    PLATFORM_OPERATIONS_ROUTES
-                        .iter()
-                        .map(|definition| definition.nav_item(locale)),
-                );
-                items
-            },
+            nav_groups: authorized_nav_groups,
             active_path,
             context_banner: None,
             header_note: Some(format!("Global reads are audited · Contract v{CONTRACT_VERSION}")),
@@ -20920,6 +22153,7 @@ fn App() -> Element {
             scope_options: vec![ScopeOption::new("platform", "Platform", ScopeKind::Platform)],
             selected_scope: "platform".to_string(),
             on_scope_change: move |_| {},
+            on_navigate,
             PageHeader {
                 eyebrow: "PLATFORM CUSTOMER CONSOLE".to_string(),
                 title: route_title.to_string(),
@@ -20940,6 +22174,82 @@ fn App() -> Element {
                 on_revoke,
             }
             RouteStateBoundary { state: route_state, children: content }
+        }
+    }
+}
+
+#[component]
+fn SessionRestoreSurface() -> Element {
+    let identity = use_corporate_identity().current();
+    let identity_style = erpx_ui::corporate_identity_style(&identity);
+    rsx! {
+        main { class: "session-restore-surface", style: "{identity_style}",
+            div { class: "session-restore-card", role: "status", aria_live: "polite",
+                span { class: "sign-in-mark", aria_hidden: "true", "{identity.short_name}" }
+                div { class: "eyebrow", "SECURE SESSION" }
+                h1 { "Restoring your workspace" }
+                p { "Verifying the protected browser session with ERPX. No local token storage is used." }
+                span { class: "session-restore-progress", aria_hidden: "true" }
+            }
+        }
+    }
+}
+
+#[component]
+fn SignInSurface(
+    state: SessionState,
+    target_session: TargetSessionDescriptor,
+    principal: String,
+    password: String,
+    busy: bool,
+    message: Option<String>,
+    on_principal: EventHandler<String>,
+    on_password: EventHandler<String>,
+    on_login: EventHandler<(String, String)>,
+    on_refresh: EventHandler<()>,
+    on_revoke: EventHandler<()>,
+) -> Element {
+    let identity = use_corporate_identity().current();
+    let identity_style = erpx_ui::corporate_identity_style(&identity);
+    rsx! {
+        main { class: "sign-in-surface", style: "{identity_style}",
+            section { class: "sign-in-brand", aria_label: "ERPX Platform identity",
+                div { class: "sign-in-brand-content",
+                    span { class: "sign-in-mark", aria_hidden: "true", "{identity.short_name}" }
+                    div { class: "eyebrow", "{identity.display_name}" }
+                    h1 { "One secure operating system for every business unit." }
+                    p { "A governed control plane for customer operations, twelve canonical business units, identity, infrastructure, and auditable access." }
+                    div { class: "sign-in-assurance-grid",
+                        article { strong { "3 layers" } span { "Platform · Holding · Business unit" } }
+                        article { strong { "12 units" } span { "One consistent enterprise catalog" } }
+                        article { strong { "Zero trust" } span { "Scoped, expiring, customer-visible access" } }
+                    }
+                }
+            }
+            section { class: "sign-in-form-region",
+                div { class: "sign-in-form-shell",
+                    header {
+                        div { class: "sign-in-mobile-brand", span { class: "sign-in-mark", "{identity.short_name}" } strong { "{identity.display_name}" } }
+                        div { class: "eyebrow", "SECURE CONSOLE" }
+                        h2 { "Sign in to your workspace" }
+                        p { "Your authorized routes and business-unit scope are resolved by the server after authentication." }
+                    }
+                    AuthSessionPanel {
+                        state,
+                        principal,
+                        password,
+                        busy,
+                        message,
+                        target_session,
+                        on_principal,
+                        on_password,
+                        on_login,
+                        on_refresh,
+                        on_revoke,
+                    }
+                    footer { "Unknown or unverified domains use neutral ERPX identity. Security indicators cannot be customized." }
+                }
+            }
         }
     }
 }
@@ -21094,10 +22404,182 @@ fn entitlement_error_state(category: &str) -> UiStateKind {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DirectoryAdministrationCommand {
+    SaveConnector {
+        configuration_json: String,
+        mfa_code: String,
+    },
+    Preflight {
+        connector_id: String,
+        mfa_code: String,
+    },
+    StartImport {
+        connector_id: String,
+        total_users: String,
+        page_size: String,
+        mfa_code: String,
+    },
+    Transition {
+        connector_id: String,
+        target_lifecycle: String,
+        mfa_code: String,
+    },
+    Reconcile {
+        connector_id: String,
+        mfa_code: String,
+    },
+    SaveRoleMapping {
+        connector_id: String,
+        group_ref: String,
+        role_ref: String,
+        scope_key: String,
+        expected_revision: String,
+        mfa_code: String,
+    },
+    LinkPrincipal {
+        connector_id: String,
+        external_subject: String,
+        principal_ref: String,
+        mfa_code: String,
+    },
+    UnlinkPrincipal {
+        connector_id: String,
+        external_subject: String,
+        mfa_code: String,
+    },
+}
+
+#[component]
+fn DirectoryAdministrationCommandPanel(
+    busy: bool,
+    message: Option<String>,
+    on_command: EventHandler<DirectoryAdministrationCommand>,
+) -> Element {
+    let mut connector_id = use_signal(String::new);
+    let mut mfa_code = use_signal(String::new);
+    let mut target_lifecycle = use_signal(|| "suspended".to_string());
+    let mut total_users = use_signal(|| "1000000".to_string());
+    let mut page_size = use_signal(|| "50".to_string());
+    let mut group_ref = use_signal(String::new);
+    let mut role_ref = use_signal(String::new);
+    let mut scope_key = use_signal(|| "platform".to_string());
+    let mut expected_revision = use_signal(|| "0".to_string());
+    let mut external_subject = use_signal(String::new);
+    let mut principal_ref = use_signal(String::new);
+    let mut configuration_json = use_signal(|| {
+        r#"{
+  "connector_id": "",
+  "provider": "generic_ldap",
+  "scope_key": "platform",
+  "holding_ref": "",
+  "endpoint": "ldaps://directory.example.test:636",
+  "base_dn": "dc=example,dc=test",
+  "tls_mode": "ldaps",
+  "ca_certificate_sha256": "",
+  "server_name": "directory.example.test",
+  "minimum_tls_version": "1.2",
+  "feed_kind": "rfc4533",
+  "credential_ref": "directory-bundle-ref",
+  "enabled": false,
+  "max_import_users": 1000000,
+  "expected_revision": 0,
+  "user_filter": "(objectClass=person)",
+  "page_size": 500,
+  "attribute_mapping": {},
+  "ca_reference": "directory-ca-ref",
+  "feed_configuration": {}
+}"#
+        .to_string()
+    });
+
+    rsx! {
+        section {
+            class: "projection-card erpx-directory-commands",
+            "data-authority": "server-authorized-directory-commands",
+            "data-mfa-gated": "true",
+            aria_label: "Directory administration commands",
+            div { class: "section-caption", "MFA-GATED DIRECTORY COMMANDS" }
+            p { "Connector secret bundles and CA bytes are resolved by server-side references. They are never entered in this console." }
+            label { r#for: "directory-command-mfa", "Fresh MFA code" }
+            input {
+                id: "directory-command-mfa",
+                r#type: "password",
+                autocomplete: "one-time-code",
+                inputmode: "numeric",
+                disabled: busy,
+                value: "{mfa_code}",
+                oninput: move |event| mfa_code.set(event.value()),
+            }
+            label { r#for: "directory-command-connector", "Connector ID" }
+            input {
+                id: "directory-command-connector",
+                autocomplete: "off",
+                disabled: busy,
+                value: "{connector_id}",
+                oninput: move |event| connector_id.set(event.value()),
+            }
+            div { class: "command-grid",
+                button { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::Preflight { connector_id: connector_id.read().clone(), mfa_code: mfa_code.read().clone() }), "Run TLS / bind / feed preflight" }
+                button { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::Reconcile { connector_id: connector_id.read().clone(), mfa_code: mfa_code.read().clone() }), "Reconcile identities" }
+            }
+            div { class: "command-grid",
+                label { r#for: "directory-target-lifecycle", "Target lifecycle" }
+                select { id: "directory-target-lifecycle", disabled: busy, value: "{target_lifecycle}", onchange: move |event| target_lifecycle.set(event.value()),
+                    option { value: "verified", "Verified" }
+                    option { value: "ready", "Ready" }
+                    option { value: "active", "Active" }
+                    option { value: "suspended", "Suspended" }
+                    option { value: "failed", "Failed" }
+                }
+                button { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::Transition { connector_id: connector_id.read().clone(), target_lifecycle: target_lifecycle.read().clone(), mfa_code: mfa_code.read().clone() }), "Apply lifecycle transition" }
+            }
+            div { class: "command-grid",
+                label { r#for: "directory-import-users", "Import user bound" }
+                input { id: "directory-import-users", inputmode: "numeric", disabled: busy, value: "{total_users}", oninput: move |event| total_users.set(event.value()) }
+                label { r#for: "directory-import-page", "Import page size" }
+                input { id: "directory-import-page", inputmode: "numeric", disabled: busy, value: "{page_size}", oninput: move |event| page_size.set(event.value()) }
+                button { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::StartImport { connector_id: connector_id.read().clone(), total_users: total_users.read().clone(), page_size: page_size.read().clone(), mfa_code: mfa_code.read().clone() }), "Start bounded full import" }
+            }
+            h3 { "Role mapping" }
+            div { class: "command-grid",
+                label { r#for: "directory-group-ref", "Directory group reference" }
+                input { id: "directory-group-ref", disabled: busy, value: "{group_ref}", oninput: move |event| group_ref.set(event.value()) }
+                label { r#for: "directory-role-ref", "ERPX role reference" }
+                input { id: "directory-role-ref", disabled: busy, value: "{role_ref}", oninput: move |event| role_ref.set(event.value()) }
+                label { r#for: "directory-mapping-scope", "Scope" }
+                input { id: "directory-mapping-scope", disabled: busy, value: "{scope_key}", oninput: move |event| scope_key.set(event.value()) }
+                label { r#for: "directory-mapping-revision", "Expected revision (0 creates)" }
+                input { id: "directory-mapping-revision", inputmode: "numeric", disabled: busy, value: "{expected_revision}", oninput: move |event| expected_revision.set(event.value()) }
+                button { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::SaveRoleMapping { connector_id: connector_id.read().clone(), group_ref: group_ref.read().clone(), role_ref: role_ref.read().clone(), scope_key: scope_key.read().clone(), expected_revision: expected_revision.read().clone(), mfa_code: mfa_code.read().clone() }), "Save active MFA role mapping" }
+            }
+            h3 { "Canonical principal binding" }
+            div { class: "command-grid",
+                label { r#for: "directory-external-subject", "Immutable external subject" }
+                input { id: "directory-external-subject", disabled: busy, value: "{external_subject}", oninput: move |event| external_subject.set(event.value()) }
+                label { r#for: "directory-principal-ref", "Canonical ERPX principal" }
+                input { id: "directory-principal-ref", disabled: busy, value: "{principal_ref}", oninput: move |event| principal_ref.set(event.value()) }
+                button { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::LinkPrincipal { connector_id: connector_id.read().clone(), external_subject: external_subject.read().clone(), principal_ref: principal_ref.read().clone(), mfa_code: mfa_code.read().clone() }), "Link principal" }
+                button { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::UnlinkPrincipal { connector_id: connector_id.read().clone(), external_subject: external_subject.read().clone(), mfa_code: mfa_code.read().clone() }), "Unlink principal" }
+            }
+            h3 { "Create or revise connector" }
+            p { "The configuration accepts only public endpoint policy and opaque secret/CA references. Lifecycle starts in draft." }
+            label { r#for: "directory-connector-json", "Connector configuration JSON" }
+            textarea { id: "directory-connector-json", rows: "22", disabled: busy, value: "{configuration_json}", oninput: move |event| configuration_json.set(event.value()) }
+            button { class: "button primary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::SaveConnector { configuration_json: configuration_json.read().clone(), mfa_code: mfa_code.read().clone() }), "Save connector as draft" }
+            if busy { p { class: "status-banner warn", "Committing an audited directory command…" } }
+            if let Some(message) = message { p { class: "status-banner", role: "status", "{message}" } }
+        }
+    }
+}
+
 #[component]
 fn DirectoryAdministrationRouteSurface(
     snapshot: Option<Result<DirectoryAdministrationModel, String>>,
     loading: bool,
+    command_busy: bool,
+    command_message: Option<String>,
+    on_command: EventHandler<DirectoryAdministrationCommand>,
 ) -> Element {
     if loading {
         return rsx! {
@@ -21111,7 +22593,10 @@ fn DirectoryAdministrationRouteSurface(
         };
     }
     match snapshot {
-        Some(Ok(model)) => rsx! { DirectoryAdministrationSurface { model } },
+        Some(Ok(model)) => rsx! {
+            DirectoryAdministrationSurface { model }
+            DirectoryAdministrationCommandPanel { busy: command_busy, message: command_message, on_command }
+        },
         Some(Err(error)) => rsx! {
             StatePanel {
                 state: directory_error_state(&error),
@@ -21181,9 +22666,8 @@ fn product_context_projection_name(context: ProductContext) -> &'static str {
         ProductContext::Finance => "finance",
         ProductContext::Sales => "sales",
         ProductContext::Procurement | ProductContext::Inventory => "scm",
-        ProductContext::Maintenance => "asset_maintenance",
+        ProductContext::Assets | ProductContext::Maintenance => "asset_maintenance",
         ProductContext::Quality => "quality",
-        ProductContext::Support => "support",
         ProductContext::MarketingCrm => "marketing",
         ProductContext::HrPayroll => "hr",
         ProductContext::Pos => "pos",
@@ -26300,6 +27784,9 @@ fn directory_contract_from_wire(
         directory_scope(&connector.scope_key)?,
         product_completion::DirectoryConnectorPolicy::strict(vendor),
     )
+    .and_then(|contract| {
+        contract.with_operational_state(&connector.lifecycle, &connector.readiness)
+    })
     .map_err(|_| "directory connector security contract is not compliant".into())
 }
 
@@ -26525,6 +28012,398 @@ async fn fetch_directory_administration(
     _session_id: String,
 ) -> Result<DirectoryAdministrationModel, String> {
     Err("directory administration transport is available only in the web console".into())
+}
+
+#[cfg(target_arch = "wasm32")]
+fn directory_command_value<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    allow_empty: bool,
+) -> Result<&'a str, String> {
+    let value = object
+        .get(field)
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| format!("directory connector {field} must be a string"))?
+        .trim();
+    if (!allow_empty && value.is_empty())
+        || value.len() > 2_048
+        || value.chars().any(char::is_control)
+    {
+        return Err(format!("directory connector {field} is outside its bound"));
+    }
+    Ok(value)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn directory_uuid(value: &str, field: &str) -> Result<String, String> {
+    Uuid::parse_str(value.trim())
+        .map(|value| value.to_string())
+        .map_err(|_| format!("directory {field} must be a UUID"))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn directory_positive_u64(value: &str, field: &str) -> Result<u64, String> {
+    value
+        .trim()
+        .parse::<u64>()
+        .ok()
+        .filter(|value| *value > 0)
+        .ok_or_else(|| format!("directory {field} must be a positive integer"))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn directory_mfa(value: &str) -> Result<String, String> {
+    let value = value.trim();
+    if !(6..=16).contains(&value.len()) || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err("directory administration requires a fresh numeric MFA code".into());
+    }
+    Ok(value.to_owned())
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn execute_directory_administration_command(
+    command: DirectoryAdministrationCommand,
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+) -> Result<String, String> {
+    let channel = tonic_web_wasm_client::Client::new(GRPC_ENDPOINT.to_string());
+    let mut client = DirectoryServiceClient::new(channel);
+    match command {
+        DirectoryAdministrationCommand::SaveConnector {
+            configuration_json,
+            mfa_code,
+        } => {
+            if configuration_json.len() > 64 * 1024 {
+                return Err("directory connector configuration exceeds 64 KiB".into());
+            }
+            let configuration: serde_json::Value = serde_json::from_str(&configuration_json)
+                .map_err(|_| "directory connector configuration is not valid JSON".to_string())?;
+            let object = configuration
+                .as_object()
+                .ok_or_else(|| "directory connector configuration must be an object".to_string())?;
+            if object
+                .get("enabled")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false)
+            {
+                return Err("new or revised connectors must be saved disabled, then activated through lifecycle gates".into());
+            }
+            let endpoint = directory_command_value(object, "endpoint", false)?;
+            if !endpoint.starts_with("ldaps://") && !endpoint.starts_with("https://") {
+                return Err("directory connector endpoint must use LDAPS or HTTPS".into());
+            }
+            let attribute_mapping = object
+                .get("attribute_mapping")
+                .filter(|value| value.is_object())
+                .ok_or_else(|| "directory attribute_mapping must be an object".to_string())?;
+            let feed_configuration = object
+                .get("feed_configuration")
+                .filter(|value| value.is_object())
+                .ok_or_else(|| "directory feed_configuration must be an object".to_string())?;
+            let max_import_users = object
+                .get("max_import_users")
+                .and_then(serde_json::Value::as_u64)
+                .ok_or_else(|| "directory max_import_users must be an integer".to_string())?;
+            let page_size = object
+                .get("page_size")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|value| u32::try_from(value).ok())
+                .ok_or_else(|| "directory page_size must be a bounded integer".to_string())?;
+            let expected_revision = object
+                .get("expected_revision")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or_default();
+            let mut request = tonic::Request::new(SaveDirectoryConnectorRequest {
+                connector_id: directory_uuid(
+                    directory_command_value(object, "connector_id", false)?,
+                    "connector ID",
+                )?,
+                provider: directory_command_value(object, "provider", false)?.to_owned(),
+                scope_key: directory_command_value(object, "scope_key", false)?.to_owned(),
+                holding_ref: directory_command_value(object, "holding_ref", true)?.to_owned(),
+                endpoint: endpoint.to_owned(),
+                base_dn: directory_command_value(object, "base_dn", false)?.to_owned(),
+                tls_mode: directory_command_value(object, "tls_mode", false)?.to_owned(),
+                ca_certificate_sha256: directory_command_value(
+                    object,
+                    "ca_certificate_sha256",
+                    false,
+                )?
+                .to_owned(),
+                server_name: directory_command_value(object, "server_name", false)?.to_owned(),
+                minimum_tls_version: directory_command_value(object, "minimum_tls_version", false)?
+                    .to_owned(),
+                feed_kind: directory_command_value(object, "feed_kind", false)?.to_owned(),
+                credential_ref: directory_command_value(object, "credential_ref", false)?
+                    .to_owned(),
+                enabled: false,
+                max_import_users,
+                expected_revision,
+                context: Some(platform_command_context(
+                    &principal_ref,
+                    &session_id,
+                    "directory_connector_save",
+                    &format!("console-directory-connector-{}", Uuid::new_v4()),
+                )),
+                mfa_code: directory_mfa(&mfa_code)?,
+                user_filter: directory_command_value(object, "user_filter", false)?.to_owned(),
+                page_size,
+                attribute_mapping_json: serde_json::to_vec(attribute_mapping)
+                    .map_err(|_| "directory attribute mapping could not be encoded".to_string())?,
+                ca_reference: directory_command_value(object, "ca_reference", false)?.to_owned(),
+                feed_configuration_json: serde_json::to_vec(feed_configuration)
+                    .map_err(|_| "directory feed configuration could not be encoded".to_string())?,
+            });
+            add_platform_metadata(&mut request, &access_token, &principal_ref, &session_id)?;
+            let response = client
+                .save_directory_connector(request)
+                .await
+                .map_err(directory_rpc_error)?
+                .into_inner();
+            let connector = response
+                .connector
+                .ok_or_else(|| "directory save omitted its connector receipt".to_string())?;
+            Ok(format!(
+                "Connector {} saved in {} lifecycle · correlation {}.",
+                connector.connector_id, connector.lifecycle, response.correlation_id
+            ))
+        }
+        DirectoryAdministrationCommand::Preflight {
+            connector_id,
+            mfa_code,
+        } => {
+            let connector_id = directory_uuid(&connector_id, "connector ID")?;
+            let mut request = tonic::Request::new(PreflightDirectoryConnectorRequest {
+                connector_id: connector_id.clone(),
+                context: Some(platform_command_context(
+                    &principal_ref,
+                    &session_id,
+                    "directory_connector_preflight",
+                    &format!("console-directory-preflight-{}", Uuid::new_v4()),
+                )),
+                mfa_code: directory_mfa(&mfa_code)?,
+            });
+            add_platform_metadata(&mut request, &access_token, &principal_ref, &session_id)?;
+            let response = client
+                .preflight_directory_connector(request)
+                .await
+                .map_err(directory_rpc_error)?
+                .into_inner();
+            Ok(format!(
+                "Connector {} preflight verified TLS={}, bind={}, feed={} · correlation {}.",
+                connector_id,
+                response.tls_verified,
+                response.bind_verified,
+                response.feed_verified,
+                response.correlation_id
+            ))
+        }
+        DirectoryAdministrationCommand::StartImport {
+            connector_id,
+            total_users,
+            page_size,
+            mfa_code,
+        } => {
+            let connector_id = directory_uuid(&connector_id, "connector ID")?;
+            let page_size = u32::try_from(directory_positive_u64(&page_size, "page size")?)
+                .map_err(|_| "directory page size is too large".to_string())?;
+            let mut request = tonic::Request::new(StartDirectoryImportRequest {
+                connector_id: connector_id.clone(),
+                total_users: directory_positive_u64(&total_users, "import user bound")?,
+                page_size,
+                context: Some(platform_command_context(
+                    &principal_ref,
+                    &session_id,
+                    "directory_import_start",
+                    &format!("console-directory-import-{}", Uuid::new_v4()),
+                )),
+                mfa_code: directory_mfa(&mfa_code)?,
+            });
+            add_platform_metadata(&mut request, &access_token, &principal_ref, &session_id)?;
+            let response = client
+                .start_directory_import(request)
+                .await
+                .map_err(directory_rpc_error)?
+                .into_inner();
+            Ok(format!(
+                "Connector {} import {} across {} bounded page(s) · correlation {}.",
+                connector_id, response.status, response.page_count, response.correlation_id
+            ))
+        }
+        DirectoryAdministrationCommand::Transition {
+            connector_id,
+            target_lifecycle,
+            mfa_code,
+        } => {
+            let connector_id = directory_uuid(&connector_id, "connector ID")?;
+            if !matches!(
+                target_lifecycle.as_str(),
+                "verified" | "ready" | "active" | "suspended" | "failed"
+            ) {
+                return Err("directory target lifecycle is not allow-listed".into());
+            }
+            let mut request = tonic::Request::new(TransitionDirectoryConnectorLifecycleRequest {
+                connector_id: connector_id.clone(),
+                target_lifecycle,
+                context: Some(platform_command_context(
+                    &principal_ref,
+                    &session_id,
+                    "directory_lifecycle_transition",
+                    &format!("console-directory-lifecycle-{}", Uuid::new_v4()),
+                )),
+                mfa_code: directory_mfa(&mfa_code)?,
+            });
+            add_platform_metadata(&mut request, &access_token, &principal_ref, &session_id)?;
+            let response = client
+                .transition_directory_connector_lifecycle(request)
+                .await
+                .map_err(directory_rpc_error)?
+                .into_inner();
+            Ok(format!(
+                "Connector {} transitioned to {} · correlation {}.",
+                connector_id, response.lifecycle, response.correlation_id
+            ))
+        }
+        DirectoryAdministrationCommand::Reconcile {
+            connector_id,
+            mfa_code,
+        } => {
+            let connector_id = directory_uuid(&connector_id, "connector ID")?;
+            let mut request = tonic::Request::new(ReconcileDirectoryConnectorRequest {
+                connector_id: connector_id.clone(),
+                context: Some(platform_command_context(
+                    &principal_ref,
+                    &session_id,
+                    "directory_reconciliation",
+                    &format!("console-directory-reconcile-{}", Uuid::new_v4()),
+                )),
+                mfa_code: directory_mfa(&mfa_code)?,
+            });
+            add_platform_metadata(&mut request, &access_token, &principal_ref, &session_id)?;
+            let response = client
+                .reconcile_directory_connector(request)
+                .await
+                .map_err(directory_rpc_error)?
+                .into_inner();
+            Ok(format!(
+                "Connector {} reconciliation is {} with {} unresolved conflict(s) · correlation {}.",
+                connector_id,
+                response.state,
+                response.unresolved_conflicts,
+                response.correlation_id
+            ))
+        }
+        DirectoryAdministrationCommand::SaveRoleMapping {
+            connector_id,
+            group_ref,
+            role_ref,
+            scope_key,
+            expected_revision,
+            mfa_code,
+        } => {
+            let connector_id = directory_uuid(&connector_id, "connector ID")?;
+            let expected_revision = expected_revision
+                .trim()
+                .parse::<u64>()
+                .map_err(|_| "directory mapping revision must be an integer".to_string())?;
+            let mut request = tonic::Request::new(SaveDirectoryRoleMappingRequest {
+                connector_id: connector_id.clone(),
+                group_ref,
+                role_ref,
+                scope_key,
+                requires_mfa: true,
+                active: true,
+                expected_revision,
+                context: Some(platform_command_context(
+                    &principal_ref,
+                    &session_id,
+                    "directory_role_mapping_save",
+                    &format!("console-directory-mapping-{}", Uuid::new_v4()),
+                )),
+                mfa_code: directory_mfa(&mfa_code)?,
+            });
+            add_platform_metadata(&mut request, &access_token, &principal_ref, &session_id)?;
+            let response = client
+                .save_directory_role_mapping(request)
+                .await
+                .map_err(directory_rpc_error)?
+                .into_inner();
+            let revision = response.mapping.map_or(0, |mapping| mapping.revision);
+            Ok(format!(
+                "Connector {} role mapping saved at revision {} · correlation {}.",
+                connector_id, revision, response.correlation_id
+            ))
+        }
+        DirectoryAdministrationCommand::LinkPrincipal {
+            connector_id,
+            external_subject,
+            principal_ref: canonical_principal,
+            mfa_code,
+        } => {
+            let connector_id = directory_uuid(&connector_id, "connector ID")?;
+            let mut request = tonic::Request::new(LinkDirectoryPrincipalRequest {
+                connector_id: connector_id.clone(),
+                external_subject,
+                principal_ref: canonical_principal.clone(),
+                context: Some(platform_command_context(
+                    &principal_ref,
+                    &session_id,
+                    "directory_principal_link",
+                    &format!("console-directory-link-{}", Uuid::new_v4()),
+                )),
+                mfa_code: directory_mfa(&mfa_code)?,
+            });
+            add_platform_metadata(&mut request, &access_token, &principal_ref, &session_id)?;
+            let response = client
+                .link_directory_principal(request)
+                .await
+                .map_err(directory_rpc_error)?
+                .into_inner();
+            Ok(format!(
+                "Connector {} linked canonical principal {} at revision {} · correlation {}.",
+                connector_id, canonical_principal, response.revision, response.correlation_id
+            ))
+        }
+        DirectoryAdministrationCommand::UnlinkPrincipal {
+            connector_id,
+            external_subject,
+            mfa_code,
+        } => {
+            let connector_id = directory_uuid(&connector_id, "connector ID")?;
+            let mut request = tonic::Request::new(UnlinkDirectoryPrincipalRequest {
+                connector_id: connector_id.clone(),
+                external_subject,
+                context: Some(platform_command_context(
+                    &principal_ref,
+                    &session_id,
+                    "directory_principal_unlink",
+                    &format!("console-directory-unlink-{}", Uuid::new_v4()),
+                )),
+                mfa_code: directory_mfa(&mfa_code)?,
+            });
+            add_platform_metadata(&mut request, &access_token, &principal_ref, &session_id)?;
+            let response = client
+                .unlink_directory_principal(request)
+                .await
+                .map_err(directory_rpc_error)?
+                .into_inner();
+            Ok(format!(
+                "Connector {} principal binding unlinked={} · correlation {}.",
+                connector_id, response.unlinked, response.correlation_id
+            ))
+        }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn execute_directory_administration_command(
+    _command: DirectoryAdministrationCommand,
+    _access_token: String,
+    _principal_ref: String,
+    _session_id: String,
+) -> Result<String, String> {
+    Err("directory administration commands are available only in the web console".into())
 }
 
 fn auth_result_message(label: &str, result: Result<(), SessionCommandError>) -> String {
@@ -28316,6 +30195,9 @@ fn PlatformOperationsSurface(
     tenant: Option<PlatformTenantRecord>,
     tenant_loading: bool,
     tenant_error: Option<String>,
+    tenant_infrastructure: Option<TenantInfrastructureRecord>,
+    tenant_infrastructure_loading: bool,
+    tenant_infrastructure_error: Option<String>,
     projection_statuses: Option<Vec<PlatformProjectionStatusRecord>>,
     projection_statuses_loading: bool,
     projection_statuses_error: Option<String>,
@@ -28331,6 +30213,12 @@ fn PlatformOperationsSurface(
     settings: Option<PlatformSettingsRecord>,
     settings_loading: bool,
     settings_error: Option<String>,
+    platform_brand: Option<PlatformBrandEditorRecord>,
+    platform_brand_loading: bool,
+    platform_brand_error: Option<String>,
+    platform_brand_busy: bool,
+    platform_brand_message: Option<String>,
+    on_platform_brand_action: EventHandler<CorporateIdentityEditorAction>,
     role_review: Option<PlatformRoleReviewPage>,
     role_review_loading: bool,
     role_review_error: Option<String>,
@@ -28350,6 +30238,7 @@ fn PlatformOperationsSurface(
         PlatformOperationsRoute::Tenant { .. } => {
             !tenant_loading && tenant_error.is_none() && tenant.is_some()
         }
+        PlatformOperationsRoute::TenantWorkspace { .. } => false,
         PlatformOperationsRoute::Projections => {
             !projection_statuses_loading
                 && projection_statuses_error.is_none()
@@ -28364,7 +30253,7 @@ fn PlatformOperationsSurface(
         PlatformOperationsRoute::Integrations => {
             !integrations_loading && integrations_error.is_none() && integrations.is_some()
         }
-        PlatformOperationsRoute::Settings => {
+        PlatformOperationsRoute::Settings | PlatformOperationsRoute::CorporateIdentity => {
             !settings_loading && settings_error.is_none() && settings.is_some()
         }
         PlatformOperationsRoute::RoleReview => {
@@ -28410,6 +30299,17 @@ fn PlatformOperationsSurface(
                     tenant,
                     loading: tenant_loading,
                     error: tenant_error,
+                    infrastructure: tenant_infrastructure,
+                    infrastructure_loading: tenant_infrastructure_loading,
+                    infrastructure_error: tenant_infrastructure_error,
+                }
+            }
+            if let PlatformOperationsRoute::TenantWorkspace { tenant_id, module } = &route {
+                section { class: "projection-placeholder", aria_label: "Entered tenant workspace",
+                    div { class: "eyebrow", "ENTERED TENANT WORKSPACE" }
+                    h3 { "{module.as_str()} · {tenant_id.as_str()}" }
+                    p { "Begin a fresh MFA-gated administrative context from the tenant detail, then this route reuses the tenant module surface with the server-authorized headquarters, company, or branch scope." }
+                    div { class: "audit-banner", "The platform actor remains visible and is never impersonated. Reloading this console discards the client-held administrative context." }
                 }
             }
             if matches!(&route, PlatformOperationsRoute::Projections) {
@@ -28440,12 +30340,20 @@ fn PlatformOperationsSurface(
                     error: integrations_error,
                 }
             }
-            if matches!(&route, PlatformOperationsRoute::Settings) {
+            if matches!(&route, PlatformOperationsRoute::Settings | PlatformOperationsRoute::CorporateIdentity) {
                 PlatformSettingsView {
                     settings,
                     loading: settings_loading,
                     error: settings_error,
+                    brand: platform_brand,
+                    brand_loading: platform_brand_loading,
+                    brand_error: platform_brand_error,
+                    brand_busy: platform_brand_busy,
+                    brand_message: platform_brand_message,
+                    on_brand_action: on_platform_brand_action,
                 }
+            }
+            if matches!(&route, PlatformOperationsRoute::Settings) {
                 MigrationStatusList {
                     statuses: migration_statuses,
                     loading: migration_statuses_loading,
@@ -29328,6 +31236,12 @@ fn PlatformSettingsView(
     settings: Option<PlatformSettingsRecord>,
     loading: bool,
     error: Option<String>,
+    brand: Option<PlatformBrandEditorRecord>,
+    brand_loading: bool,
+    brand_error: Option<String>,
+    brand_busy: bool,
+    brand_message: Option<String>,
+    on_brand_action: EventHandler<CorporateIdentityEditorAction>,
 ) -> Element {
     if loading {
         return rsx! {
@@ -29375,6 +31289,22 @@ fn PlatformSettingsView(
                 dt { "Command owner" } dd { "{settings.command_owner}" }
             }
             div { class: "audit-banner", "This is a read-only architecture projection. It does not expose environment values, secrets, credentials, mutable feature flags, or operational commands." }
+            if brand_loading {
+                div { class: "status-banner muted", "Loading governed platform identity…" }
+            } else if let Some(error) = brand_error {
+                div { class: "status-banner bad", role: "alert", "Corporate identity unavailable · {error}" }
+            } else if let Some(brand) = brand {
+                CorporateIdentityEditor {
+                    scope_label: "Layer 1 · ERPX Platform".to_owned(),
+                    profile: brand.identity,
+                    parent_locked_categories: Vec::new(),
+                    editable: !brand_busy,
+                    on_action: Some(on_brand_action),
+                }
+            }
+            if let Some(message) = brand_message {
+                div { class: "audit-banner", role: "status", "{message}" }
+            }
         }
     }
 }
@@ -29528,18 +31458,27 @@ fn PlatformTenantList(
                     thead {
                         tr {
                             th { "Tenant" }
+                            th { "Customer" }
+                            th { "Configuration" }
                             th { "State" }
-                            th { "Routing" }
+                            th { "Subscription" }
+                            th { "Plan" }
+                            th { "Modules" }
+                            th { "Seats" }
+                            th { "Companies / branches" }
+                            th { "Renewal" }
                             th { "Projection" }
                             th { "Backup" }
                             th { "Storage" }
-                            th { "Version" }
+                            th { "Integrations" }
+                            th { "Health" }
                         }
                     }
                     tbody {
                         for tenant in tenants {
                             {
                                 let tenant_id = tenant.tenant_id.clone();
+                                let enabled_modules = tenant.enabled_modules.join(", ");
                                 rsx! {
                                     tr {
                                         td {
@@ -29554,12 +31493,20 @@ fn PlatformTenantList(
                                                 "{tenant.tenant_id}"
                                             }
                                         }
+                                        td { if tenant.customer_name.is_empty() { "Unbound" } else { "{tenant.customer_name}" } }
+                                        td { "{tenant.configuration_state}" }
                                         td { "{tenant.state}" }
-                                        td { "{tenant.routing}" }
+                                        td { "{tenant.subscription_state}" }
+                                        td { if tenant.plan_key.is_empty() { "—" } else { "{tenant.plan_key}" } }
+                                        td { "{enabled_modules}" }
+                                        td { "{tenant.used_seats}/{tenant.purchased_seats}" }
+                                        td { "{tenant.company_count}/{tenant.branch_count}" }
+                                        td { if tenant.renewal_at.is_empty() { "—" } else { "{tenant.renewal_at}" } }
                                         td { "{tenant.projection}" }
                                         td { "{tenant.backup_pitr}" }
                                         td { "{tenant.storage}" }
-                                        td { "{tenant.registry_version}" }
+                                        td { "{tenant.integration_health}" }
+                                        td { "{tenant.health}" }
                                     }
                                 }
                             }
@@ -29567,9 +31514,30 @@ fn PlatformTenantList(
                     }
                 }
             }
-            div { class: "audit-banner", "Only safe registry and readiness metadata is rendered. Database keys, storage namespaces, credentials, backup references, and mutation controls remain outside this client contract." }
+            div { class: "audit-banner", "This page is backed by one rebuildable control-plane projection. It never opens tenant databases or combines tenant business records. Configuration-required tenants remain visible but cannot be entered or billed." }
         }
     }
+}
+
+fn tenant_identity_preview(
+    tenant: &PlatformTenantRecord,
+) -> erpx_domain::corporate_identity::ResolvedCorporateIdentity {
+    let mut identity = erpx_domain::corporate_identity::ResolvedCorporateIdentity::neutral_erpx();
+    let display_name = if tenant.customer_name.trim().is_empty() {
+        tenant.tenant_id.clone()
+    } else {
+        tenant.customer_name.clone()
+    };
+    let short_name = display_name
+        .split_whitespace()
+        .filter_map(|part| part.chars().next())
+        .take(3)
+        .collect::<String>();
+    identity.display_name = display_name;
+    if !short_name.is_empty() {
+        identity.short_name = short_name;
+    }
+    identity
 }
 
 #[component]
@@ -29577,7 +31545,13 @@ fn PlatformTenantDetail(
     tenant: Option<PlatformTenantRecord>,
     loading: bool,
     error: Option<String>,
+    infrastructure: Option<TenantInfrastructureRecord>,
+    infrastructure_loading: bool,
+    infrastructure_error: Option<String>,
 ) -> Element {
+    let mut active_tab = use_signal(|| PlatformTenantAdministrationTab::Overview);
+    let mut show_setup = use_signal(|| false);
+    let mut show_access_rules = use_signal(|| false);
     if loading {
         return rsx! {
             StatePanel {
@@ -29611,26 +31585,297 @@ fn PlatformTenantDetail(
             }
         };
     };
+    let enabled_modules = tenant.enabled_modules.join(", ");
+    let selected_tab = *active_tab.read();
+    let contextual_tabs = [
+        (PlatformTenantAdministrationTab::Overview, "Overview"),
+        (
+            PlatformTenantAdministrationTab::Infrastructure,
+            "Infrastructure",
+        ),
+        (PlatformTenantAdministrationTab::Identity, "Identity"),
+        (
+            PlatformTenantAdministrationTab::CorporateIdentity,
+            "Corporate Identity",
+        ),
+        (
+            PlatformTenantAdministrationTab::BusinessUnits,
+            "Business Units",
+        ),
+        (PlatformTenantAdministrationTab::RootAccess, "Root Access"),
+        (
+            PlatformTenantAdministrationTab::ConfigurationHistory,
+            "History",
+        ),
+    ];
     rsx! {
         section { class: "projection-detail", aria_label: "Platform tenant detail",
-            div { class: "projection-meta", "Authorized registry detail · read-only" }
-            dl { class: "detail-grid",
-                dt { "Opaque tenant" }
-                dd { "{tenant.tenant_id}" }
-                dt { "State" }
-                dd { "{tenant.state}" }
-                dt { "Registry version" }
-                dd { "{tenant.registry_version}" }
-                dt { "Routing" }
-                dd { "{tenant.routing}" }
-                dt { "Projection" }
-                dd { "{tenant.projection}" }
-                dt { "Backup / PITR" }
-                dd { "{tenant.backup_pitr}" }
-                dt { "Storage" }
-                dd { "{tenant.storage}" }
+            div { class: "tenant-infrastructure-heading",
+                div {
+                    div { class: "eyebrow", "TENANT CONTROL PLANE" }
+                    h3 { "Tenant: {tenant.tenant_id}" }
+                    p { if tenant.customer_name.is_empty() { "Customer binding requires configuration" } else { "{tenant.customer_name}" } }
+                }
+                if let Some(infrastructure) = infrastructure.as_ref() {
+                    div { class: "tenant-infrastructure-summary",
+                        span { class: "status-pill", if infrastructure.is_customer_hosted() { "Customer data plane" } else { "ERPX managed" } }
+                        span { class: if infrastructure.agent_available() || !infrastructure.is_customer_hosted() { "status-pill good" } else { "status-pill bad" },
+                            if infrastructure.is_customer_hosted() { "Agent: {infrastructure.agent_state}" } else { "Managed runtime" }
+                        }
+                        span { class: if infrastructure.configuration_drifted { "status-pill warn" } else { "status-pill good" },
+                            "Config v{infrastructure.desired_version}"
+                        }
+                    }
+                }
             }
-            div { class: "audit-banner", "Only safe readiness metadata is rendered. Database keys, storage namespaces, credentials, backup references, and mutation controls are excluded from this client contract." }
+            nav { class: "customer-route-tabs", aria_label: "Tenant administration tabs",
+                for (tab, label) in contextual_tabs {
+                    button {
+                        class: if selected_tab == tab { "route-tab active" } else { "route-tab" },
+                        r#type: "button",
+                        aria_current: if selected_tab == tab { "page" } else { "false" },
+                        onclick: move |_| active_tab.set(tab),
+                        "{label}"
+                    }
+                }
+            }
+            if infrastructure_loading {
+                div { class: "status-banner muted", "Loading redacted infrastructure state…" }
+            }
+            if infrastructure_error.is_some() {
+                StatePanel {
+                    state: UiStateKind::Denied,
+                    title: "Infrastructure visibility unavailable".to_string(),
+                    message: "The current role cannot read this tenant's redacted infrastructure state, or the control plane is unavailable.".to_string(),
+                    action_label: None,
+                    on_action: None,
+                }
+            }
+            if let Some(infrastructure) = infrastructure.as_ref() {
+                div { class: "tenant-security-banners", aria_live: "polite",
+                    if infrastructure.is_customer_hosted() && !infrastructure.agent_available() {
+                        div { class: "status-banner bad", strong { "Customer data plane unavailable" } " · New Root sessions and business requests fail closed." }
+                    }
+                    if infrastructure.configuration_drifted {
+                        div { class: "status-banner warn", strong { "Configuration drift" } " · Desired v{infrastructure.desired_version} differs from observed v{infrastructure.observed_version}." }
+                    }
+                    if infrastructure.root_access_active {
+                        div { class: "status-banner warn", strong { "Root session active" } " · Customer-visible, scoped, expiring, and revocable from Root Access." }
+                    }
+                    if infrastructure.is_customer_hosted() && !infrastructure.directory_ready {
+                        div { class: "status-banner bad", strong { "Directory stale" } " · Directory authorization fails closed until a fresh Active observation arrives." }
+                    }
+                    if infrastructure.is_customer_hosted() && !infrastructure.backup_verified {
+                        div { class: "status-banner warn", strong { "Backup verification required" } " · Recovery readiness is degraded." }
+                    }
+                }
+            }
+            if selected_tab == PlatformTenantAdministrationTab::Overview {
+                dl { class: "detail-grid",
+                    dt { "Opaque tenant" }
+                    dd { "{tenant.tenant_id}" }
+                    dt { "Customer" }
+                    dd { if tenant.customer_name.is_empty() { "Configuration required" } else { "{tenant.customer_name}" } }
+                    dt { "Configuration" }
+                    dd { "{tenant.configuration_state}" }
+                    dt { "State" }
+                    dd { "{tenant.state}" }
+                    dt { "Subscription" }
+                    dd { "{tenant.subscription_state}" }
+                    dt { "Plan" }
+                    dd { if tenant.plan_key.is_empty() { "Not configured" } else { "{tenant.plan_key}" } }
+                    dt { "Modules" }
+                    dd { "{enabled_modules}" }
+                    dt { "Seats" }
+                    dd { "{tenant.used_seats} used / {tenant.purchased_seats} purchased" }
+                    dt { "Organization" }
+                    dd { "{tenant.company_count} companies · {tenant.branch_count} branches" }
+                    dt { "Renewal" }
+                    dd { if tenant.renewal_at.is_empty() { "Not configured" } else { "{tenant.renewal_at}" } }
+                    dt { "Projection" }
+                    dd { "{tenant.projection}" }
+                    dt { "Backup / PITR" }
+                    dd { "{tenant.backup_pitr}" }
+                    dt { "Storage" }
+                    dd { "{tenant.storage}" }
+                    dt { "Overall health" }
+                    dd { "{tenant.health}" }
+                }
+                if tenant.enterable {
+                    div { class: "audit-banner", "Enter Workspace requires platform.tenant.enter, a stated reason, and fresh MFA. The 30-minute context is bound to this device, session, tenant, and exact organization scope." }
+                } else {
+                    StatePanel {
+                        state: UiStateKind::Denied,
+                        title: "Workspace entry unavailable".to_string(),
+                        message: "This tenant is inactive or its customer/root-holding binding requires configuration.".to_string(),
+                        action_label: None,
+                        on_action: None,
+                    }
+                }
+            }
+            if selected_tab == PlatformTenantAdministrationTab::Infrastructure {
+                if let Some(infrastructure) = infrastructure.as_ref() {
+                    section { class: "tenant-config-surface", aria_label: "Tenant infrastructure",
+                        div { class: "surface-header",
+                            div {
+                                div { class: "eyebrow", "LAYER 2 · HOLDING INFRASTRUCTURE" }
+                                h3 { if infrastructure.is_customer_hosted() { "Customer-hosted data plane" } else { "ERPX-managed data plane" } }
+                                p { "Only secret references, fingerprints, versions, and redacted health cross this control-plane boundary." }
+                            }
+                            div { class: "tenant-action-row",
+                                button { class: "button secondary", r#type: "button", onclick: move |_| { let next = !*show_setup.read(); show_setup.set(next); }, if *show_setup.read() { "Close setup guide" } else { "Self-host setup" } }
+                                button { class: "button primary", r#type: "button", onclick: move |_| { let next = !*show_access_rules.read(); show_access_rules.set(next); }, "Request access" }
+                            }
+                        }
+                        dl { class: "detail-grid infrastructure-grid",
+                            dt { "Hosting" } dd { if infrastructure.is_customer_hosted() { "Customer data plane" } else { "ERPX managed" } }
+                            dt { "Profile" } dd { "Active v{infrastructure.profile_version}" }
+                            dt { "Agent" } dd { if infrastructure.agent_id.is_empty() { "Not required" } else { "{infrastructure.agent_state} · {infrastructure.agent_version}" } }
+                            dt { "Last check-in" } dd { if infrastructure.last_heartbeat_at.is_empty() { "No observation" } else { "{infrastructure.last_heartbeat_at}" } }
+                            dt { "Write database" } dd { if infrastructure.write_healthy { "Healthy · secret owner redacted" } else { "Not verified" } }
+                            dt { "Read database" } dd { if infrastructure.read_healthy { "Healthy" } else { "Not verified" } }
+                            dt { "Object storage" } dd { if infrastructure.storage_healthy { "Healthy" } else { "Not verified" } }
+                            dt { "Directory" } dd { if infrastructure.directory_ready { "Active" } else { "Not ready · fail-closed" } }
+                            dt { "Projections" } dd { if infrastructure.projections_healthy { "Healthy" } else { "Verification required" } }
+                            dt { "Backup" } dd { if infrastructure.backup_verified { "Verified" } else { "Verification required" } }
+                            dt { "Secret ownership" } dd { if infrastructure.customer_managed_secrets { "Customer-managed; values never enter ERPX" } else { "ERPX-managed registry references" } }
+                            dt { "Root access" } dd { if infrastructure.root_access_active { "Active approved session" } else { "Inactive" } }
+                        }
+                        if *show_setup.read() {
+                            SelfHostSetupGuide {}
+                        }
+                        if *show_access_rules.read() {
+                            RootAccessRules { active: infrastructure.root_access_active }
+                        }
+                    }
+                }
+            }
+            if selected_tab == PlatformTenantAdministrationTab::Identity {
+                if let Some(infrastructure) = infrastructure.as_ref() {
+                    section { class: "tenant-config-surface", aria_label: "Tenant identity configuration",
+                        div { class: "eyebrow", "ONE DIRECTORY BOUNDARY PER HOLDING" }
+                        h3 { "Active Directory / LDAP" }
+                        p { "ERPX Root may propose connector metadata. Customer credentials remain in the holding's secret provider, and activation requires customer approval." }
+                        dl { class: "detail-grid",
+                            dt { "Connector owner" } dd { "Customer holding" }
+                            dt { "Network path" } dd { if infrastructure.is_customer_hosted() { "Local agent → customer directory" } else { "ERPX-managed directory worker" } }
+                            dt { "Readiness" } dd { if infrastructure.directory_ready { "Active and fresh" } else { "Stale or not joined · authorization denied" } }
+                            dt { "Business units" } dd { "Group-to-role mappings only; no independent connector" }
+                            dt { "Root visibility" } dd { "Provider, lifecycle, fingerprint, and redacted evidence" }
+                        }
+                        div { class: "audit-banner", "Platform Root remains local-only and cannot be joined to AD. Directory groups reference allow-listed ERPX role templates, never raw permission sets." }
+                    }
+                }
+            }
+            if selected_tab == PlatformTenantAdministrationTab::CorporateIdentity {
+                CorporateIdentityEditor {
+                    scope_label: format!("Layer 2 · {}", if tenant.customer_name.is_empty() { tenant.tenant_id.as_str() } else { tenant.customer_name.as_str() }),
+                    profile: tenant_identity_preview(&tenant),
+                    parent_locked_categories: Vec::new(),
+                    editable: false,
+                    on_action: None,
+                }
+            }
+            if selected_tab == PlatformTenantAdministrationTab::BusinessUnits {
+                BusinessUnitConfigurationCatalog {}
+            }
+            if selected_tab == PlatformTenantAdministrationTab::RootAccess {
+                RootAccessRules { active: infrastructure.as_ref().is_some_and(|value| value.root_access_active) }
+            }
+            if selected_tab == PlatformTenantAdministrationTab::ConfigurationHistory {
+                section { class: "tenant-config-surface", aria_label: "Configuration history",
+                    div { class: "eyebrow", "IMMUTABLE CONTROL EVIDENCE" }
+                    h3 { "Desired and observed history" }
+                    if let Some(infrastructure) = infrastructure.as_ref() {
+                        dl { class: "detail-grid",
+                            dt { "Profile version" } dd { "{infrastructure.profile_version}" }
+                            dt { "Desired version" } dd { "{infrastructure.desired_version}" }
+                            dt { "Observed version" } dd { "{infrastructure.observed_version}" }
+                            dt { "Last observation" } dd { if infrastructure.observed_at.is_empty() { "No observation" } else { "{infrastructure.observed_at}" } }
+                            dt { "Drift" } dd { if infrastructure.configuration_drifted { "Detected" } else { "None" } }
+                        }
+                    }
+                    div { class: "audit-banner", "Every proposal, approval, rejection, apply result, access grant, revocation, and disconnect is correlated in the platform audit and outbox. Credential values are never audit payloads." }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn SelfHostSetupGuide() -> Element {
+    let steps = [
+        "Select Customer data plane and review responsibilities",
+        "Generate a short-lived enrollment token and signed manifest",
+        "Install the ERPX agent inside the customer network",
+        "Establish the outbound mTLS channel",
+        "Configure local secret-provider references",
+        "Validate the holding write database",
+        "Validate the replaceable read database",
+        "Validate MinIO-compatible object storage",
+        "Configure and test AD / LDAP",
+        "Run signed migration preflight",
+        "Verify backup, WAL archive, and restore target",
+        "Compare desired and observed configuration",
+        "Customer approves activation with fresh MFA",
+        "Activate the tenant data plane",
+    ];
+    rsx! {
+        section { class: "setup-guide", aria_label: "Self-host setup guide",
+            h4 { "Self-host setup · no password enters this browser" }
+            ol {
+                for (index, step) in steps.iter().enumerate() {
+                    li { span { class: "setup-step-number", "{index + 1}" } "{step}" }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn RootAccessRules(active: bool) -> Element {
+    rsx! {
+        section { class: "tenant-config-surface root-access-panel", aria_label: "Root access approval",
+            div { class: "eyebrow", "CUSTOMER-APPROVED · JUST IN TIME" }
+            h3 { if active { "Root session active" } else { "No active Root session" } }
+            p { "Every interactive ERPX Root data-plane session requires a distinct Holding Owner or Security Head approver and fresh customer MFA." }
+            ul { class: "security-rule-list",
+                li { "Exact reason and ticket reference" }
+                li { "Exact infrastructure, organization, and business-unit scope" }
+                li { "Allow-listed typed actions only; no SQL or shell proxy" }
+                li { "Maximum 8 hours diagnostic, 2 hours mutation, or 1 hour recovery" }
+                li { "Bound Root principal, device, session, tenant, and agent" }
+                li { "Customer-visible live audit and immediate revocation" }
+            }
+            if active {
+                div { class: "status-banner warn", "Use the approval inbox to inspect the exact capability and revoke it. Agent disconnect also terminates the session." }
+            } else {
+                div { class: "status-banner good", "The ERPX control plane can request access, but it cannot enter this customer data plane without approval." }
+            }
+        }
+    }
+}
+
+#[component]
+fn BusinessUnitConfigurationCatalog() -> Element {
+    rsx! {
+        section { class: "tenant-config-surface", aria_label: "Canonical business units",
+            div { class: "eyebrow", "LAYER 3 · SAME CATALOG FOR EVERY CUSTOMER" }
+            h3 { "12 canonical business units" }
+            p { "Each unit configures logical scope, AD mappings, integrations, projections, retention, workflow, and approval limits inside the holding boundary." }
+            div { class: "business-unit-grid",
+                for unit in erpx_domain::data_plane::BusinessUnitId::ALL {
+                    article { class: "business-unit-card",
+                        div { class: "business-unit-card-heading",
+                            strong { "{unit.display_name()}" }
+                            span { "{unit.as_str()}" }
+                        }
+                        p { "viewer · operator · approver · admin · auditor" }
+                        small { "Holding / company / branch / subtree scope" }
+                    }
+                }
+            }
+            div { class: "audit-banner", "Business-unit administrators cannot change the core AD connector, holding database pair, database owner credentials, encryption, migrations, or tenant isolation." }
         }
     }
 }
@@ -31735,6 +33980,7 @@ mod tests {
         let expected = [
             "/platform/tenants",
             "/platform/tenants/:id",
+            "/platform/tenants/:id/workspace/:module",
             "/platform/projections",
             "/platform/backups",
             "/platform/integrations",

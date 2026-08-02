@@ -34,6 +34,50 @@ pub const MAX_DIRECTORY_IMPORT_USERS: u64 = 1_000_000;
 pub const MAX_DIRECTORY_PAGE_SIZE: u32 = 10_000;
 pub const MAX_DIRECTORY_BATCH_SIZE: usize = 2_000;
 pub const DIRECTORY_REVOCATION_SLA: Duration = Duration::minutes(5);
+pub const DIRECTORY_PREFLIGHT_MAX_AGE: Duration = Duration::minutes(5);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DirectoryConnectorLifecycle {
+    Draft,
+    Verified,
+    Importing,
+    Ready,
+    Active,
+    Suspended,
+    Failed,
+}
+
+impl DirectoryConnectorLifecycle {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Verified => "verified",
+            Self::Importing => "importing",
+            Self::Ready => "ready",
+            Self::Active => "active",
+            Self::Suspended => "suspended",
+            Self::Failed => "failed",
+        }
+    }
+
+    pub const fn permits_authentication(self) -> bool {
+        matches!(self, Self::Active)
+    }
+
+    pub fn can_transition_to(self, target: Self) -> bool {
+        matches!(
+            (self, target),
+            (Self::Draft, Self::Verified)
+                | (Self::Verified, Self::Importing)
+                | (Self::Importing, Self::Ready)
+                | (Self::Ready, Self::Active)
+                | (Self::Active, Self::Suspended)
+                | (Self::Suspended, Self::Verified | Self::Active)
+                | (Self::Failed, Self::Verified)
+        ) || target == Self::Failed
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -200,10 +244,77 @@ pub struct DirectoryConnectorSnapshot {
     pub tls_mode: DirectoryTlsMode,
     pub feed: DirectoryFeedKind,
     pub enabled: bool,
+    pub lifecycle: DirectoryConnectorLifecycle,
     pub max_import_users: u64,
     pub revision: u64,
     pub status: String,
     pub last_success_at: Option<DateTime<Utc>>,
+    pub last_preflight_at: Option<DateTime<Utc>>,
+    pub last_heartbeat_at: Option<DateTime<Utc>>,
+    pub unresolved_conflicts: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectoryConnectorReadinessSnapshot {
+    pub connector_id: Uuid,
+    pub lifecycle: DirectoryConnectorLifecycle,
+    pub last_preflight_at: Option<DateTime<Utc>>,
+    pub last_import_completed_at: Option<DateTime<Utc>>,
+    pub last_reconciled_at: Option<DateTime<Utc>>,
+    pub last_heartbeat_at: Option<DateTime<Utc>>,
+    pub unresolved_conflicts: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectoryConnectorRuntimeSettings {
+    pub user_filter: String,
+    pub page_size: u32,
+    pub attribute_mapping: serde_json::Value,
+    pub ca_reference: String,
+    pub feed_configuration: serde_json::Value,
+}
+
+impl DirectoryConnectorReadinessSnapshot {
+    pub fn readiness(&self, at: DateTime<Utc>) -> &'static str {
+        if self.lifecycle == DirectoryConnectorLifecycle::Active
+            && self.unresolved_conflicts == 0
+            && self.last_preflight_at.is_some_and(|value| {
+                value <= at && at.signed_duration_since(value) <= DIRECTORY_PREFLIGHT_MAX_AGE
+            })
+            && self.last_import_completed_at.is_some()
+            && self.last_reconciled_at.is_some()
+            && self.last_heartbeat_at.is_some_and(|value| {
+                value <= at && at.signed_duration_since(value) <= DIRECTORY_REVOCATION_SLA
+            })
+        {
+            "ready"
+        } else if self.lifecycle == DirectoryConnectorLifecycle::Draft {
+            "unconfigured"
+        } else {
+            "not_ready"
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectoryPrincipalBindingSnapshot {
+    pub binding_id: Uuid,
+    pub connector_id: Uuid,
+    pub external_object_id: String,
+    pub principal_id: Uuid,
+    pub principal_ref: String,
+    pub active: bool,
+    pub revision: u64,
+    pub linked_at: DateTime<Utc>,
+    pub unlinked_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectorySupervisorClaim {
+    pub connector_id: Uuid,
+    pub owner_ref: Uuid,
+    pub lease_expires_at: DateTime<Utc>,
+    pub consecutive_failures: u32,
 }
 
 /// Bounded read-side representation of one persisted immutable directory
@@ -851,9 +962,11 @@ impl SqlxDirectoryStore {
     pub async fn list_connectors(&self) -> Result<Vec<DirectoryConnectorSnapshot>, DirectoryError> {
         let rows = sqlx::query(
             "SELECT c.id, c.provider, c.scope_key, c.endpoint, c.base_dn,
-                    c.tls_mode, c.feed_kind, c.enabled, c.max_import_users,
+                    c.tls_mode, c.feed_kind, c.enabled, c.lifecycle, c.max_import_users,
                     c.revision, COALESCE(s.status, 'never_synced') AS status,
-                    s.last_success_at
+                    s.last_success_at, c.last_preflight_at, c.last_heartbeat_at,
+                    (SELECT COUNT(*) FROM erpx_identity.directory_identity_conflicts x
+                     WHERE x.connector_id=c.id AND x.state='unresolved') AS unresolved_conflicts
              FROM erpx_identity.directory_connectors c
              LEFT JOIN erpx_identity.directory_sync_checkpoints s ON s.connector_id=c.id
              ORDER BY c.scope_key, c.id",
@@ -876,6 +989,9 @@ impl SqlxDirectoryStore {
                     )?,
                     feed: parse_feed(&row.try_get::<String, _>("feed_kind").map_err(sqlx_error)?)?,
                     enabled: row.try_get("enabled").map_err(sqlx_error)?,
+                    lifecycle: parse_connector_lifecycle(
+                        &row.try_get::<String, _>("lifecycle").map_err(sqlx_error)?,
+                    )?,
                     max_import_users: u64::try_from(
                         row.try_get::<i64, _>("max_import_users")
                             .map_err(sqlx_error)?,
@@ -889,9 +1005,137 @@ impl SqlxDirectoryStore {
                         })?,
                     status: row.try_get("status").map_err(sqlx_error)?,
                     last_success_at: row.try_get("last_success_at").map_err(sqlx_error)?,
+                    last_preflight_at: row.try_get("last_preflight_at").map_err(sqlx_error)?,
+                    last_heartbeat_at: row.try_get("last_heartbeat_at").map_err(sqlx_error)?,
+                    unresolved_conflicts: u32::try_from(
+                        row.try_get::<i64, _>("unresolved_conflicts")
+                            .map_err(sqlx_error)?,
+                    )
+                    .map_err(|_| {
+                        DirectoryError::Persistence(
+                            "stored directory conflict count is invalid".into(),
+                        )
+                    })?,
                 })
             })
             .collect()
+    }
+
+    pub async fn connector_readiness(
+        &self,
+        connector_id: Uuid,
+    ) -> Result<DirectoryConnectorReadinessSnapshot, DirectoryError> {
+        let row = sqlx::query(
+            "SELECT c.id, c.lifecycle, c.last_preflight_at,
+                    c.last_import_completed_at, c.last_reconciled_at,
+                    c.last_heartbeat_at,
+                    (SELECT COUNT(*) FROM erpx_identity.directory_identity_conflicts x
+                     WHERE x.connector_id=c.id AND x.state='unresolved') AS unresolved_conflicts
+             FROM erpx_identity.directory_connectors c WHERE c.id=$1",
+        )
+        .bind(connector_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| DirectoryError::InvalidReference("directory connector not found".into()))?;
+        Ok(DirectoryConnectorReadinessSnapshot {
+            connector_id: row.try_get("id").map_err(sqlx_error)?,
+            lifecycle: parse_connector_lifecycle(
+                &row.try_get::<String, _>("lifecycle").map_err(sqlx_error)?,
+            )?,
+            last_preflight_at: row.try_get("last_preflight_at").map_err(sqlx_error)?,
+            last_import_completed_at: row
+                .try_get("last_import_completed_at")
+                .map_err(sqlx_error)?,
+            last_reconciled_at: row.try_get("last_reconciled_at").map_err(sqlx_error)?,
+            last_heartbeat_at: row.try_get("last_heartbeat_at").map_err(sqlx_error)?,
+            unresolved_conflicts: u32::try_from(
+                row.try_get::<i64, _>("unresolved_conflicts")
+                    .map_err(sqlx_error)?,
+            )
+            .map_err(|_| {
+                DirectoryError::Persistence("stored directory conflict count is invalid".into())
+            })?,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn save_connector_runtime_settings(
+        &self,
+        connector_id: Uuid,
+        user_filter: &str,
+        page_size: u32,
+        attribute_mapping: &serde_json::Value,
+        ca_reference: &str,
+        feed_configuration: &serde_json::Value,
+        at: DateTime<Utc>,
+    ) -> Result<(), DirectoryError> {
+        if connector_id.is_nil()
+            || user_filter.trim().is_empty()
+            || user_filter.len() > 2_048
+            || user_filter.chars().any(char::is_control)
+            || page_size == 0
+            || page_size > 5_000
+            || !attribute_mapping.is_object()
+            || !feed_configuration.is_object()
+        {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory connector runtime settings are invalid".into(),
+            ));
+        }
+        bounded_ref(ca_reference, "ca_reference")?;
+        let page_size = i32::try_from(page_size).map_err(|_| {
+            DirectoryError::InvalidBatch("directory connector page size is invalid".into())
+        })?;
+        let result = sqlx::query(
+            "UPDATE erpx_identity.directory_connectors
+             SET user_filter=$2, page_size=$3, attribute_mapping=$4,
+                 ca_reference=$5, feed_configuration=$6, updated_at=$7
+             WHERE id=$1 AND lifecycle IN ('draft','verified','failed','suspended')",
+        )
+        .bind(connector_id)
+        .bind(user_filter)
+        .bind(page_size)
+        .bind(attribute_mapping)
+        .bind(ca_reference)
+        .bind(feed_configuration)
+        .bind(at)
+        .execute(&self.pool)
+        .await
+        .map_err(sqlx_error)?;
+        if result.rows_affected() != 1 {
+            return Err(DirectoryError::InvalidPolicy(
+                "active connector settings cannot be edited".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub async fn connector_runtime_settings(
+        &self,
+        connector_id: Uuid,
+    ) -> Result<DirectoryConnectorRuntimeSettings, DirectoryError> {
+        let row = sqlx::query(
+            "SELECT user_filter, page_size, attribute_mapping,
+                    ca_reference, feed_configuration
+             FROM erpx_identity.directory_connectors WHERE id=$1",
+        )
+        .bind(connector_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| DirectoryError::InvalidReference("directory connector not found".into()))?;
+        let page_size = u32::try_from(row.try_get::<i32, _>("page_size").map_err(sqlx_error)?)
+            .map_err(|_| {
+                DirectoryError::Persistence("stored directory page size is invalid".into())
+            })?;
+        Ok(DirectoryConnectorRuntimeSettings {
+            user_filter: row.try_get("user_filter").map_err(sqlx_error)?,
+            page_size,
+            attribute_mapping: row.try_get("attribute_mapping").map_err(sqlx_error)?,
+            ca_reference: row.try_get("ca_reference").map_err(sqlx_error)?,
+            feed_configuration: row.try_get("feed_configuration").map_err(sqlx_error)?,
+        })
     }
 
     pub async fn connector(&self, id: Uuid) -> Result<DirectoryConnector, DirectoryError> {
@@ -1161,7 +1405,7 @@ impl SqlxDirectoryStore {
                 ));
             }
         }
-        sqlx::query(
+        let checkpoint = sqlx::query(
             "INSERT INTO erpx_identity.directory_sync_checkpoints
                 (connector_id, feed_kind, sequence, opaque_cookie, last_success_at, status)
              VALUES ($1,$2,$3,$4,$5,'healthy')
@@ -1181,6 +1425,24 @@ impl SqlxDirectoryStore {
         .execute(&mut *tx)
         .await
         .map_err(sqlx_error)?;
+        if checkpoint.rows_affected() == 1 {
+            // A successfully acknowledged native-feed cursor is positive
+            // freshness evidence even when the page contains no object
+            // changes. Without this connector-scoped refresh, an unchanged
+            // healthy directory would deny every linked principal five
+            // minutes after its last mutation.
+            sqlx::query(
+                "UPDATE erpx_identity.directory_identity_projection
+                 SET last_feed_at=$2, updated_at=GREATEST(updated_at,$2)
+                 WHERE connector_id=$1 AND source_revision <= $3",
+            )
+            .bind(cursor.connector_id)
+            .bind(cursor.observed_at)
+            .bind(sequence)
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_error)?;
+        }
         tx.commit().await.map_err(sqlx_error)
     }
 
@@ -1306,6 +1568,24 @@ impl SqlxDirectoryStore {
             .await
             .map_err(|error| DirectoryError::InvalidReference(error.to_string()))?;
         }
+        if mapping.active {
+            sqlx::query(
+                "UPDATE erpx_identity.directory_connectors c
+                 SET lifecycle='ready', updated_at=$2
+                 WHERE c.id=$1 AND c.lifecycle='importing'
+                   AND c.last_import_completed_at IS NOT NULL
+                   AND c.last_reconciled_at IS NOT NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM erpx_identity.directory_identity_conflicts conflict
+                       WHERE conflict.connector_id=c.id AND conflict.state='unresolved'
+                   )",
+            )
+            .bind(mapping.connector_id)
+            .bind(at)
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_error)?;
+        }
         tx.commit().await.map_err(sqlx_error)?;
         Ok(())
     }
@@ -1339,6 +1619,20 @@ impl SqlxDirectoryStore {
             .execute(&mut *tx)
             .await
             .map_err(sqlx_error)?;
+        let lifecycle: String = sqlx::query_scalar(
+            "SELECT lifecycle FROM erpx_identity.directory_connectors
+             WHERE id=$1 FOR UPDATE",
+        )
+        .bind(connector.id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| DirectoryError::InvalidReference("directory connector not found".into()))?;
+        if parse_connector_lifecycle(&lifecycle)? != DirectoryConnectorLifecycle::Verified {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory import requires a verified connector".into(),
+            ));
+        }
         let active_import = sqlx::query_scalar::<_, Uuid>(
             "SELECT id
              FROM erpx_identity.directory_imports
@@ -1384,6 +1678,16 @@ impl SqlxDirectoryStore {
         )
         .bind(cursor)
         .bind(Vec::<u8>::from([0_u8; 32]))
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.directory_connectors
+             SET lifecycle='importing', enabled=true, updated_at=$2
+             WHERE id=$1 AND lifecycle='verified'",
+        )
+        .bind(connector.id)
         .bind(at)
         .execute(&mut *tx)
         .await
@@ -2253,6 +2557,669 @@ impl SqlxDirectoryStore {
             })
         }
     }
+
+    /// Record a real TLS/bind/feed preflight without persisting transport
+    /// evidence, credentials, or directory entries. A failed preflight is a
+    /// fail-closed lifecycle transition.
+    pub async fn record_preflight(
+        &self,
+        connector_id: Uuid,
+        succeeded: bool,
+        failure_category: Option<&str>,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<DirectoryConnectorLifecycle, DirectoryError> {
+        if connector_id.is_nil() || correlation_id.is_nil() {
+            return Err(DirectoryError::InvalidReference(
+                "directory preflight identifier is invalid".into(),
+            ));
+        }
+        if succeeded == failure_category.is_some() {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory preflight outcome is inconsistent".into(),
+            ));
+        }
+        if let Some(category) = failure_category {
+            bounded_ref(category, "failure_category")?;
+        }
+        let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
+        let current: String = sqlx::query_scalar(
+            "SELECT lifecycle FROM erpx_identity.directory_connectors
+             WHERE id=$1 FOR UPDATE",
+        )
+        .bind(connector_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| DirectoryError::InvalidReference("directory connector not found".into()))?;
+        let current = parse_connector_lifecycle(&current)?;
+        let next = if succeeded {
+            if matches!(
+                current,
+                DirectoryConnectorLifecycle::Importing
+                    | DirectoryConnectorLifecycle::Ready
+                    | DirectoryConnectorLifecycle::Active
+            ) {
+                current
+            } else {
+                DirectoryConnectorLifecycle::Verified
+            }
+        } else {
+            DirectoryConnectorLifecycle::Failed
+        };
+        for probe_kind in ["tls", "bind", "feed"] {
+            sqlx::query(
+                "INSERT INTO erpx_identity.directory_connector_probes
+                    (id, connector_id, probe_kind, succeeded, failure_category,
+                     observed_at, correlation_id)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(connector_id)
+            .bind(probe_kind)
+            .bind(succeeded)
+            .bind(failure_category)
+            .bind(at)
+            .bind(correlation_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_error)?;
+        }
+        sqlx::query(
+            "UPDATE erpx_identity.directory_connectors
+             SET lifecycle=$2, enabled=CASE WHEN $3 THEN enabled ELSE false END,
+                 last_preflight_at=CASE WHEN $3 THEN $4 ELSE last_preflight_at END,
+                 failure_category=$5, updated_at=$4
+             WHERE id=$1",
+        )
+        .bind(connector_id)
+        .bind(next.as_str())
+        .bind(succeeded)
+        .bind(at)
+        .bind(failure_category)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        tx.commit().await.map_err(sqlx_error)?;
+        Ok(next)
+    }
+
+    /// Mark a finalized full import and reconciliation ready for explicit
+    /// activation. Role mappings and conflict state are checked in the same
+    /// transaction so readiness cannot be inferred from an import alone.
+    pub async fn mark_import_reconciled(
+        &self,
+        connector_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<(), DirectoryError> {
+        let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
+        let ready: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1 FROM erpx_identity.directory_connectors c
+                 WHERE c.id=$1 AND c.lifecycle='importing'
+                   AND EXISTS (
+                       SELECT 1 FROM erpx_identity.directory_role_mappings m
+                       WHERE m.connector_id=c.id AND m.active
+                   )
+                   AND NOT EXISTS (
+                       SELECT 1 FROM erpx_identity.directory_identity_conflicts x
+                       WHERE x.connector_id=c.id AND x.state='unresolved'
+                   )
+             )",
+        )
+        .bind(connector_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.directory_connectors
+             SET lifecycle=CASE WHEN $3 THEN 'ready' ELSE 'importing' END,
+                 enabled=CASE WHEN $3 THEN true ELSE enabled END,
+                 last_import_completed_at=$2,
+                 last_reconciled_at=$2, failure_category=NULL, updated_at=$2
+             WHERE id=$1 AND lifecycle='importing'",
+        )
+        .bind(connector_id)
+        .bind(at)
+        .bind(ready)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        tx.commit().await.map_err(sqlx_error)?;
+        Ok(())
+    }
+
+    pub async fn transition_lifecycle(
+        &self,
+        connector_id: Uuid,
+        target: DirectoryConnectorLifecycle,
+        actor_ref: &str,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<DirectoryConnectorLifecycle, DirectoryError> {
+        bounded_ref(actor_ref, "actor_ref")?;
+        if connector_id.is_nil() || correlation_id.is_nil() {
+            return Err(DirectoryError::InvalidReference(
+                "directory lifecycle identifier is invalid".into(),
+            ));
+        }
+        let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
+        let row = sqlx::query(
+            "SELECT provider, lifecycle, last_preflight_at,
+                    last_import_completed_at, last_reconciled_at
+             FROM erpx_identity.directory_connectors WHERE id=$1 FOR UPDATE",
+        )
+        .bind(connector_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| DirectoryError::InvalidReference("directory connector not found".into()))?;
+        let provider = parse_provider(&row.try_get::<String, _>("provider").map_err(sqlx_error)?)?;
+        let current =
+            parse_connector_lifecycle(&row.try_get::<String, _>("lifecycle").map_err(sqlx_error)?)?;
+        if !current.can_transition_to(target) {
+            append_rejected_lifecycle_audit(
+                &mut tx,
+                connector_id,
+                target,
+                actor_ref,
+                correlation_id,
+                "invalid_transition",
+                at,
+            )
+            .await?;
+            tx.commit().await.map_err(sqlx_error)?;
+            return Err(DirectoryError::InvalidPolicy(
+                "directory lifecycle transition is invalid".into(),
+            ));
+        }
+        if target == DirectoryConnectorLifecycle::Active {
+            let last_preflight: Option<DateTime<Utc>> =
+                row.try_get("last_preflight_at").map_err(sqlx_error)?;
+            let imported: Option<DateTime<Utc>> = row
+                .try_get("last_import_completed_at")
+                .map_err(sqlx_error)?;
+            let reconciled: Option<DateTime<Utc>> =
+                row.try_get("last_reconciled_at").map_err(sqlx_error)?;
+            let healthy = last_preflight.is_some_and(|value| {
+                value <= at && at.signed_duration_since(value) <= DIRECTORY_PREFLIGHT_MAX_AGE
+            }) && imported.is_some()
+                && reconciled.is_some()
+                && sqlx::query_scalar::<_, bool>(
+                    "SELECT EXISTS(
+                         SELECT 1 FROM erpx_identity.directory_role_mappings
+                         WHERE connector_id=$1 AND active
+                     ) AND NOT EXISTS(
+                         SELECT 1 FROM erpx_identity.directory_identity_conflicts
+                         WHERE connector_id=$1 AND state='unresolved'
+                     )",
+                )
+                .bind(connector_id)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(sqlx_error)?;
+            if !healthy {
+                append_rejected_lifecycle_audit(
+                    &mut tx,
+                    connector_id,
+                    target,
+                    actor_ref,
+                    correlation_id,
+                    "activation_gates",
+                    at,
+                )
+                .await?;
+                tx.commit().await.map_err(sqlx_error)?;
+                return Err(DirectoryError::InvalidPolicy(
+                    "directory connector has not satisfied activation gates".into(),
+                ));
+            }
+            if provider == DirectoryProvider::UniventionCorporateServer
+                && current != DirectoryConnectorLifecycle::Ready
+            {
+                append_rejected_lifecycle_audit(
+                    &mut tx,
+                    connector_id,
+                    target,
+                    actor_ref,
+                    correlation_id,
+                    "ucs_unconfigured",
+                    at,
+                )
+                .await?;
+                tx.commit().await.map_err(sqlx_error)?;
+                return Err(DirectoryError::InvalidPolicy(
+                    "UCS is supported but unconfigured until a genuine provisioning service is verified"
+                        .into(),
+                ));
+            }
+        }
+        sqlx::query(
+            "UPDATE erpx_identity.directory_connectors
+             SET lifecycle=$2, enabled=$3,
+                 failure_category=CASE WHEN $2='failed' THEN failure_category ELSE NULL END,
+                 updated_at=$4
+             WHERE id=$1",
+        )
+        .bind(connector_id)
+        .bind(target.as_str())
+        .bind(target == DirectoryConnectorLifecycle::Active)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "INSERT INTO erpx_identity.directory_administration_audit
+                (id, connector_id, action, actor_ref, correlation_id, outcome, occurred_at)
+             VALUES ($1,$2,$3,$4,$5,'accepted',$6)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(connector_id)
+        .bind(format!("lifecycle:{}", target.as_str()))
+        .bind(actor_ref)
+        .bind(correlation_id)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        tx.commit().await.map_err(sqlx_error)?;
+        Ok(target)
+    }
+
+    /// Explicitly join one immutable directory identity to an existing
+    /// canonical ERPX principal. No username/email matching or principal
+    /// creation occurs in this operation.
+    pub async fn link_principal(
+        &self,
+        connector_id: Uuid,
+        external_object_id: &str,
+        principal_ref: &str,
+        actor_ref: &str,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<DirectoryPrincipalBindingSnapshot, DirectoryError> {
+        for (value, field) in [
+            (external_object_id, "external_object_id"),
+            (principal_ref, "principal_ref"),
+            (actor_ref, "actor_ref"),
+        ] {
+            bounded_ref(value, field)?;
+        }
+        if connector_id.is_nil() || correlation_id.is_nil() {
+            return Err(DirectoryError::InvalidReference(
+                "directory principal binding identifier is invalid".into(),
+            ));
+        }
+        let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
+        let principal_id: Uuid = sqlx::query_scalar(
+            "SELECT id FROM erpx_identity.principals
+             WHERE principal_ref=$1 AND status='active' FOR UPDATE",
+        )
+        .bind(principal_ref)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| DirectoryError::InvalidReference("canonical principal not found".into()))?;
+        if principal_ref == "local:platform-root" {
+            sqlx::query(
+                "INSERT INTO erpx_identity.directory_administration_audit
+                    (id, connector_id, principal_id, action, actor_ref, correlation_id,
+                     outcome, failure_category, occurred_at)
+                 VALUES ($1,$2,$3,'principal_link',$4,$5,'rejected',
+                         'platform_root_unjoinable',$6)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(connector_id)
+            .bind(principal_id)
+            .bind(actor_ref)
+            .bind(correlation_id)
+            .bind(at)
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_error)?;
+            tx.commit().await.map_err(sqlx_error)?;
+            return Err(DirectoryError::InvalidPolicy(
+                "Platform Root cannot be joined to a directory".into(),
+            ));
+        }
+        let link_exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1 FROM erpx_identity.directory_identity_links
+                 WHERE connector_id=$1 AND external_object_id=$2
+             )",
+        )
+        .bind(connector_id)
+        .bind(external_object_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        if !link_exists {
+            return Err(DirectoryError::InvalidReference(
+                "imported immutable directory identity not found".into(),
+            ));
+        }
+        let existing = sqlx::query(
+            "SELECT id, principal_id, revision FROM erpx_identity.directory_principal_bindings
+             WHERE connector_id=$1 AND external_object_id=$2 FOR UPDATE",
+        )
+        .bind(connector_id)
+        .bind(external_object_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        if existing.as_ref().is_some_and(|row| {
+            row.try_get::<Uuid, _>("principal_id")
+                .is_ok_and(|value| value != principal_id)
+        }) {
+            sqlx::query(
+                "INSERT INTO erpx_identity.directory_identity_conflicts
+                    (id, connector_id, external_object_id, principal_id,
+                     conflict_kind, state, detected_at)
+                 VALUES ($1,$2,$3,$4,'canonical_principal','unresolved',$5)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(connector_id)
+            .bind(external_object_id)
+            .bind(principal_id)
+            .bind(at)
+            .execute(&mut *tx)
+            .await
+            .map_err(sqlx_error)?;
+            tx.commit().await.map_err(sqlx_error)?;
+            return Err(DirectoryError::InvalidPolicy(
+                "directory identity is already bound to another canonical principal".into(),
+            ));
+        }
+        let binding_id = existing
+            .as_ref()
+            .and_then(|row| row.try_get("id").ok())
+            .unwrap_or_else(Uuid::new_v4);
+        let revision = existing
+            .as_ref()
+            .and_then(|row| row.try_get::<i64, _>("revision").ok())
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or_else(|| DirectoryError::InvalidReference("binding revision overflow".into()))?;
+        sqlx::query(
+            "INSERT INTO erpx_identity.directory_principal_bindings
+                (id, connector_id, external_object_id, principal_id, active,
+                 revision, linked_by, linked_at, correlation_id)
+             VALUES ($1,$2,$3,$4,true,$5,$6,$7,$8)
+             ON CONFLICT (connector_id, external_object_id) DO UPDATE SET
+                 principal_id=EXCLUDED.principal_id, active=true,
+                 revision=EXCLUDED.revision, linked_by=EXCLUDED.linked_by,
+                 linked_at=EXCLUDED.linked_at, unlinked_by=NULL, unlinked_at=NULL,
+                 correlation_id=EXCLUDED.correlation_id",
+        )
+        .bind(binding_id)
+        .bind(connector_id)
+        .bind(external_object_id)
+        .bind(principal_id)
+        .bind(revision)
+        .bind(actor_ref)
+        .bind(at)
+        .bind(correlation_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.directory_identity_links
+             SET principal_ref=$3 WHERE connector_id=$1 AND external_object_id=$2",
+        )
+        .bind(connector_id)
+        .bind(external_object_id)
+        .bind(principal_ref)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.directory_identity_projection p
+             SET principal_ref=$3, updated_at=$4
+             FROM erpx_identity.directory_identity_links l
+             WHERE l.connector_id=$1 AND l.external_object_id=$2
+               AND p.identity_link=l.identity_link",
+        )
+        .bind(connector_id)
+        .bind(external_object_id)
+        .bind(principal_ref)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "INSERT INTO erpx_identity.directory_administration_audit
+                (id, connector_id, principal_id, action, actor_ref, correlation_id,
+                 outcome, occurred_at)
+             VALUES ($1,$2,$3,'principal_link',$4,$5,'accepted',$6)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(connector_id)
+        .bind(principal_id)
+        .bind(actor_ref)
+        .bind(correlation_id)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        tx.commit().await.map_err(sqlx_error)?;
+        Ok(DirectoryPrincipalBindingSnapshot {
+            binding_id,
+            connector_id,
+            external_object_id: external_object_id.to_owned(),
+            principal_id,
+            principal_ref: principal_ref.to_owned(),
+            active: true,
+            revision: u64::try_from(revision).map_err(|_| {
+                DirectoryError::InvalidReference("binding revision overflow".into())
+            })?,
+            linked_at: at,
+            unlinked_at: None,
+        })
+    }
+
+    pub async fn unlink_principal(
+        &self,
+        connector_id: Uuid,
+        external_object_id: &str,
+        actor_ref: &str,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<(), DirectoryError> {
+        bounded_ref(external_object_id, "external_object_id")?;
+        bounded_ref(actor_ref, "actor_ref")?;
+        let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
+        let principal_id: Uuid = sqlx::query_scalar(
+            "UPDATE erpx_identity.directory_principal_bindings
+             SET active=false, revision=revision+1, unlinked_by=$3,
+                 unlinked_at=$4, correlation_id=$5
+             WHERE connector_id=$1 AND external_object_id=$2 AND active
+             RETURNING principal_id",
+        )
+        .bind(connector_id)
+        .bind(external_object_id)
+        .bind(actor_ref)
+        .bind(at)
+        .bind(correlation_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| {
+            DirectoryError::InvalidReference("active principal binding not found".into())
+        })?;
+        sqlx::query(
+            "INSERT INTO erpx_identity.directory_administration_audit
+                (id, connector_id, principal_id, action, actor_ref, correlation_id,
+                 outcome, occurred_at)
+             VALUES ($1,$2,$3,'principal_unlink',$4,$5,'accepted',$6)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(connector_id)
+        .bind(principal_id)
+        .bind(actor_ref)
+        .bind(correlation_id)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        tx.commit().await.map_err(sqlx_error)
+    }
+
+    /// Claim one due active connector. The row lock and expiring lease prevent
+    /// concurrent cursor execution across supervisor processes.
+    pub async fn claim_supervisor_connector(
+        &self,
+        owner_ref: Uuid,
+        at: DateTime<Utc>,
+        lease_for: Duration,
+    ) -> Result<Option<DirectorySupervisorClaim>, DirectoryError> {
+        if owner_ref.is_nil() || lease_for <= Duration::zero() || lease_for > Duration::minutes(5) {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory supervisor lease is invalid".into(),
+            ));
+        }
+        let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
+        let connector_id: Option<Uuid> = sqlx::query_scalar(
+            "SELECT c.id FROM erpx_identity.directory_connectors c
+             LEFT JOIN erpx_identity.directory_supervisor_leases l ON l.connector_id=c.id
+             WHERE (c.lifecycle='importing' OR (c.lifecycle='active' AND c.enabled))
+               AND (l.connector_id IS NULL OR (l.lease_expires_at <= $1 AND l.next_attempt_at <= $1))
+             ORDER BY COALESCE(l.next_attempt_at, c.updated_at), c.id
+             FOR UPDATE OF c SKIP LOCKED LIMIT 1",
+        )
+        .bind(at)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        let Some(connector_id) = connector_id else {
+            tx.commit().await.map_err(sqlx_error)?;
+            return Ok(None);
+        };
+        let lease_expires_at = at + lease_for;
+        let failures: i32 = sqlx::query_scalar(
+            "INSERT INTO erpx_identity.directory_supervisor_leases
+                (connector_id, owner_ref, lease_expires_at, heartbeat_at,
+                 consecutive_failures, next_attempt_at)
+             VALUES ($1,$2,$3,$4,0,$4)
+             ON CONFLICT (connector_id) DO UPDATE SET owner_ref=EXCLUDED.owner_ref,
+                 lease_expires_at=EXCLUDED.lease_expires_at,
+                 heartbeat_at=EXCLUDED.heartbeat_at
+             RETURNING consecutive_failures",
+        )
+        .bind(connector_id)
+        .bind(owner_ref)
+        .bind(lease_expires_at)
+        .bind(at)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        tx.commit().await.map_err(sqlx_error)?;
+        Ok(Some(DirectorySupervisorClaim {
+            connector_id,
+            owner_ref,
+            lease_expires_at,
+            consecutive_failures: u32::try_from(failures).map_err(|_| {
+                DirectoryError::InvalidReference(
+                    "stored supervisor failure count is invalid".into(),
+                )
+            })?,
+        }))
+    }
+
+    pub async fn complete_supervisor_connector(
+        &self,
+        claim: &DirectorySupervisorClaim,
+        succeeded: bool,
+        failure_category: Option<&str>,
+        next_attempt_at: DateTime<Utc>,
+        at: DateTime<Utc>,
+    ) -> Result<(), DirectoryError> {
+        if claim.connector_id.is_nil()
+            || claim.owner_ref.is_nil()
+            || next_attempt_at <= at
+            || next_attempt_at > at + Duration::minutes(5)
+            || succeeded == failure_category.is_some()
+        {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory supervisor completion is invalid".into(),
+            ));
+        }
+        if let Some(category) = failure_category {
+            bounded_ref(category, "failure_category")?;
+        }
+        let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
+        let result = sqlx::query(
+            "UPDATE erpx_identity.directory_supervisor_leases
+             SET lease_expires_at=$3 + INTERVAL '1 millisecond', heartbeat_at=$3,
+                 consecutive_failures=CASE WHEN $4 THEN 0 ELSE consecutive_failures+1 END,
+                 next_attempt_at=$5, last_error_category=$6
+             WHERE connector_id=$1 AND owner_ref=$2",
+        )
+        .bind(claim.connector_id)
+        .bind(claim.owner_ref)
+        .bind(at)
+        .bind(succeeded)
+        .bind(next_attempt_at)
+        .bind(failure_category)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        if result.rows_affected() != 1 {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory supervisor lease ownership was lost".into(),
+            ));
+        }
+        sqlx::query(
+            "UPDATE erpx_identity.directory_connectors
+             SET last_heartbeat_at=CASE WHEN $2 THEN $3 ELSE last_heartbeat_at END,
+                 lifecycle=CASE
+                     WHEN NOT $2 AND lifecycle='importing' THEN 'failed'
+                     ELSE lifecycle
+                 END,
+                 enabled=CASE
+                     WHEN NOT $2 AND lifecycle='importing' THEN false
+                     ELSE enabled
+                 END,
+                 failure_category=$4, updated_at=$3
+             WHERE id=$1",
+        )
+        .bind(claim.connector_id)
+        .bind(succeeded)
+        .bind(at)
+        .bind(failure_category)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        tx.commit().await.map_err(sqlx_error)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn append_rejected_lifecycle_audit(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    connector_id: Uuid,
+    target: DirectoryConnectorLifecycle,
+    actor_ref: &str,
+    correlation_id: Uuid,
+    failure_category: &str,
+    at: DateTime<Utc>,
+) -> Result<(), DirectoryError> {
+    sqlx::query(
+        "INSERT INTO erpx_identity.directory_administration_audit
+            (id, connector_id, action, actor_ref, correlation_id,
+             outcome, failure_category, occurred_at)
+         VALUES ($1,$2,$3,$4,$5,'rejected',$6,$7)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(connector_id)
+    .bind(format!("lifecycle:{}", target.as_str()))
+    .bind(actor_ref)
+    .bind(correlation_id)
+    .bind(failure_category)
+    .bind(at)
+    .execute(&mut **tx)
+    .await
+    .map_err(sqlx_error)?;
+    Ok(())
 }
 
 async fn append_outbox(
@@ -2376,13 +3343,7 @@ fn validate_endpoint_server_name(
 }
 
 fn validate_import_connector(connector: &DirectoryConnector) -> Result<(), DirectoryError> {
-    if connector.enabled {
-        Ok(())
-    } else {
-        Err(DirectoryError::InvalidPolicy(
-            "a disabled directory connector cannot start an import".into(),
-        ))
-    }
+    connector.validate()
 }
 
 fn hex_lower(value: &[u8]) -> String {
@@ -2411,6 +3372,21 @@ fn parse_provider(value: &str) -> Result<DirectoryProvider, DirectoryError> {
         "univention_corporate_server" => Ok(DirectoryProvider::UniventionCorporateServer),
         _ => Err(DirectoryError::InvalidReference(
             "stored directory provider is invalid".into(),
+        )),
+    }
+}
+
+fn parse_connector_lifecycle(value: &str) -> Result<DirectoryConnectorLifecycle, DirectoryError> {
+    match value {
+        "draft" => Ok(DirectoryConnectorLifecycle::Draft),
+        "verified" => Ok(DirectoryConnectorLifecycle::Verified),
+        "importing" => Ok(DirectoryConnectorLifecycle::Importing),
+        "ready" => Ok(DirectoryConnectorLifecycle::Ready),
+        "active" => Ok(DirectoryConnectorLifecycle::Active),
+        "suspended" => Ok(DirectoryConnectorLifecycle::Suspended),
+        "failed" => Ok(DirectoryConnectorLifecycle::Failed),
+        _ => Err(DirectoryError::InvalidReference(
+            "stored directory connector lifecycle is invalid".into(),
         )),
     }
 }
@@ -2598,16 +3574,31 @@ mod tests {
     }
 
     #[test]
-    fn disabled_connectors_cannot_create_import_plans() {
+    fn import_admission_is_owned_by_the_persisted_lifecycle() {
         let mut value = connector(DirectoryProvider::GenericLdap, DirectoryFeedKind::Polling);
         value.enabled = false;
         assert!(DirectoryImportPlan::new(&value, 1, 1).is_ok());
-        // The pure plan remains usable for rollback/recovery bookkeeping; the
-        // SQLx command boundary is the one that must reject starting work.
-        assert!(matches!(
-            validate_import_connector(&value),
-            Err(DirectoryError::InvalidPolicy(_))
-        ));
+        // The pure connector cannot prove its persisted lifecycle. The SQLx
+        // boundary requires `verified` before it creates durable work.
+        assert!(validate_import_connector(&value).is_ok());
+    }
+
+    #[test]
+    fn connector_lifecycle_is_explicit_and_fail_closed() {
+        assert!(
+            DirectoryConnectorLifecycle::Draft
+                .can_transition_to(DirectoryConnectorLifecycle::Verified)
+        );
+        assert!(
+            DirectoryConnectorLifecycle::Ready
+                .can_transition_to(DirectoryConnectorLifecycle::Active)
+        );
+        assert!(
+            !DirectoryConnectorLifecycle::Draft
+                .can_transition_to(DirectoryConnectorLifecycle::Active)
+        );
+        assert!(DirectoryConnectorLifecycle::Active.permits_authentication());
+        assert!(!DirectoryConnectorLifecycle::Suspended.permits_authentication());
     }
 
     #[test]

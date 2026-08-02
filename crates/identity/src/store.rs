@@ -215,11 +215,9 @@ impl SqlxIdentityStore {
 
         let managed: bool = sqlx::query_scalar(
             "SELECT EXISTS(
-                 SELECT 1
-                 FROM erpx_identity.directory_identity_projection p
-                 JOIN erpx_identity.directory_connectors c
-                   ON c.id = p.connector_id
-                 WHERE p.principal_ref = $1
+                 SELECT 1 FROM erpx_identity.directory_principal_bindings binding
+                 JOIN erpx_identity.principals principal ON principal.id=binding.principal_id
+                 WHERE principal.principal_ref=$1 AND binding.active
              )",
         )
         .bind(principal_ref)
@@ -229,16 +227,62 @@ impl SqlxIdentityStore {
             return Ok(DirectoryRoleAccess::Unmanaged);
         }
 
+        let all_bindings_healthy: bool = sqlx::query_scalar(
+            "SELECT COALESCE(bool_and(
+                    connector.enabled
+                    AND connector.lifecycle='active'
+                    AND link.active
+                    AND link.revoked_at IS NULL
+                    AND projection.identity_link IS NOT NULL
+                    AND projection.active
+                    AND projection.revoked_at IS NULL
+                    AND projection.last_feed_at <= $2
+                    AND projection.last_feed_at >= ($2 - INTERVAL '5 minutes')
+                    AND NOT EXISTS (
+                        SELECT 1 FROM erpx_identity.directory_identity_conflicts conflict
+                        WHERE conflict.state='unresolved'
+                          AND (conflict.principal_id=binding.principal_id OR (
+                              conflict.connector_id=binding.connector_id
+                              AND conflict.external_object_id=binding.external_object_id
+                          ))
+                    )
+                ), false)
+             FROM erpx_identity.directory_principal_bindings binding
+             JOIN erpx_identity.principals principal ON principal.id=binding.principal_id
+             JOIN erpx_identity.directory_identity_links link
+               ON link.connector_id=binding.connector_id
+              AND link.external_object_id=binding.external_object_id
+             JOIN erpx_identity.directory_connectors connector ON connector.id=binding.connector_id
+             LEFT JOIN erpx_identity.directory_identity_projection projection
+               ON projection.identity_link=link.identity_link
+             WHERE principal.principal_ref=$1 AND binding.active",
+        )
+        .bind(principal_ref)
+        .bind(at)
+        .fetch_one(&self.pool)
+        .await?;
+        if !all_bindings_healthy {
+            return Ok(DirectoryRoleAccess::Denied);
+        }
+
         let rows = sqlx::query(
             "SELECT c.scope_key AS connector_scope_key,
                     m.scope_key, m.requires_mfa
-             FROM erpx_identity.directory_identity_projection p
+             FROM erpx_identity.directory_principal_bindings binding
+             JOIN erpx_identity.principals principal ON principal.id=binding.principal_id
+             JOIN erpx_identity.directory_identity_links link
+               ON link.connector_id=binding.connector_id
+              AND link.external_object_id=binding.external_object_id
+             JOIN erpx_identity.directory_identity_projection p
+               ON p.identity_link=link.identity_link
              JOIN erpx_identity.directory_connectors c
                ON c.id = p.connector_id
              JOIN erpx_identity.directory_role_mappings m
                ON m.connector_id = p.connector_id
-             WHERE p.principal_ref = $1
+             WHERE principal.principal_ref = $1
+               AND binding.active
                AND c.enabled
+               AND c.lifecycle='active'
                AND p.active
                AND p.revoked_at IS NULL
                AND p.last_feed_at <= $5
@@ -353,6 +397,56 @@ impl SqlxIdentityStore {
         Ok(id)
     }
 
+    /// Rotate the local development Platform Root password through the
+    /// explicitly guarded break-glass path. This primitive is intentionally
+    /// limited to the unjoinable local principal; it updates the credential
+    /// atomically and revokes all existing sessions before the caller audits
+    /// the administrative action.
+    pub async fn rotate_platform_root_password(
+        &self,
+        new_password: &str,
+        at: DateTime<Utc>,
+    ) -> Result<u64, IdentityStoreError> {
+        validate_password_input(new_password)?;
+        let digest = PasswordService::default().hash(new_password)?;
+        let mut transaction = self.pool.begin().await?;
+        let principal_id: Uuid = sqlx::query_scalar(
+            "SELECT id
+             FROM erpx_identity.principals
+             WHERE principal_ref = 'local:platform-root'
+               AND status = 'active'
+             FOR UPDATE",
+        )
+        .fetch_optional(&mut *transaction)
+        .await?
+        .ok_or(IdentityStoreError::InvalidCredentials)?;
+        sqlx::query(
+            "INSERT INTO erpx_identity.password_credentials
+                (principal_id, argon2id_digest, changed_at)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (principal_id) DO UPDATE
+             SET argon2id_digest = EXCLUDED.argon2id_digest,
+                 changed_at = EXCLUDED.changed_at",
+        )
+        .bind(principal_id)
+        .bind(digest.as_str())
+        .bind(at)
+        .execute(&mut *transaction)
+        .await?;
+        let revoked = sqlx::query(
+            "UPDATE erpx_identity.sessions
+             SET revoked_at = COALESCE(revoked_at, $2), last_used_at = $2
+             WHERE principal_id = $1 AND revoked_at IS NULL",
+        )
+        .bind(principal_id)
+        .bind(at)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected();
+        transaction.commit().await?;
+        Ok(revoked)
+    }
+
     pub async fn login(
         &self,
         signer: &AccessTokenSigner,
@@ -368,8 +462,8 @@ impl SqlxIdentityStore {
              WHERE p.principal_ref = $1
                AND NOT EXISTS (
                    SELECT 1
-                   FROM erpx_identity.directory_identity_links managed
-                   WHERE managed.principal_ref = p.principal_ref
+                   FROM erpx_identity.directory_principal_bindings managed
+                   WHERE managed.principal_id = p.id AND managed.active
                )",
         )
         .bind(principal_ref)
@@ -417,10 +511,11 @@ impl SqlxIdentityStore {
         Ok(issued)
     }
 
-    /// Resolve an already imported directory identity and issue a normal ERPX
-    /// session in one write-side transaction.  The directory link is the
-    /// immutable authority; a mutable username is used only as the current
-    /// principal display/reference value from the projection.
+    /// Resolve an explicitly bound immutable directory identity and issue a
+    /// session for its canonical ERPX principal. Every active binding for the
+    /// principal is evaluated in one transaction; one stale, disabled,
+    /// revoked, suspended, missing, or conflicting provider denies all login
+    /// paths. No principal is created or merged from a username or email.
     pub async fn login_with_directory_link(
         &self,
         signer: &AccessTokenSigner,
@@ -435,20 +530,23 @@ impl SqlxIdentityStore {
         validate_device_label(device_label)?;
         let mut transaction = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT l.identity_id, l.external_object_id, l.principal_ref, l.active, l.revoked_at,
-                    l.immutable_authority, l.immutable_value,
-                    projection.last_feed_at, projection.active AS projection_active,
-                    projection.revoked_at AS projection_revoked_at,
-                    connector.enabled AS connector_enabled
+            "SELECT binding.principal_id, principal.principal_ref, principal.status,
+                    l.external_object_id, l.active, l.revoked_at,
+                    l.immutable_authority, l.immutable_value
              FROM erpx_identity.directory_identity_links l
-             JOIN erpx_identity.directory_identity_projection projection
-               ON projection.identity_link = l.identity_link
              JOIN erpx_identity.directory_connectors connector
                ON connector.id = l.connector_id
+             JOIN erpx_identity.directory_principal_bindings binding
+               ON binding.connector_id=l.connector_id
+              AND binding.external_object_id=l.external_object_id
+              AND binding.active
+             JOIN erpx_identity.principals principal
+               ON principal.id=binding.principal_id
              WHERE l.connector_id=$1
                AND l.identity_link=$2
                AND connector.enabled
-             FOR UPDATE OF l, projection",
+               AND connector.lifecycle='active'
+             FOR UPDATE OF l, binding, principal",
         )
         .bind(connector_id)
         .bind(identity_link)
@@ -456,24 +554,13 @@ impl SqlxIdentityStore {
         .await?
         .ok_or(IdentityStoreError::InvalidCredentials)?;
         let active: bool = row.try_get("active")?;
-        let projection_active: bool = row.try_get("projection_active")?;
         let revoked_at: Option<DateTime<Utc>> = row.try_get("revoked_at")?;
-        let projection_revoked_at: Option<DateTime<Utc>> = row.try_get("projection_revoked_at")?;
-        let last_feed_at: DateTime<Utc> = row.try_get("last_feed_at")?;
-        if !active
-            || !projection_active
-            || revoked_at.is_some()
-            || projection_revoked_at.is_some()
-            || !row.try_get::<bool, _>("connector_enabled")?
-            || last_feed_at > at
-            || at.signed_duration_since(last_feed_at) > Duration::minutes(5)
-        {
+        let status: String = row.try_get("status")?;
+        if !active || revoked_at.is_some() || status != "active" {
             return Err(IdentityStoreError::PrincipalInactive);
         }
-        let principal_ref: String = row
-            .try_get::<Option<String>, _>("principal_ref")?
-            .filter(|value| !value.trim().is_empty())
-            .ok_or(IdentityStoreError::InvalidCredentials)?;
+        let principal_id: Uuid = row.try_get("principal_id")?;
+        let principal_ref: String = row.try_get("principal_ref")?;
         let immutable_authority: String = row.try_get("immutable_authority")?;
         let immutable_value: String = row.try_get("immutable_value")?;
         let canonical_link = ImmutableIdentityLink::new(immutable_authority, immutable_value)
@@ -487,95 +574,45 @@ impl SqlxIdentityStore {
                 "directory identity link does not match its immutable authority/value".into(),
             ));
         }
-        let external_object_id: String = row.try_get("external_object_id")?;
-        let linked_identity_id: Option<Uuid> = row.try_get("identity_id")?;
-        let deterministic_identity_id = directory_identity_id(connector_id, &external_object_id);
-        if linked_identity_id.is_some_and(|id| id != deterministic_identity_id) {
-            return Err(IdentityStoreError::InvalidRecord(
-                "directory identity link is bound to a different immutable identity".into(),
-            ));
-        }
-        let principal_ref_collision = sqlx::query_scalar::<_, Uuid>(
-            "SELECT id
-             FROM erpx_identity.principals
-             WHERE principal_ref=$1 AND id<>$2
-             FOR UPDATE",
+        let health = sqlx::query(
+            "SELECT COUNT(*) > 0 AS has_bindings,
+                    COALESCE(bool_and(
+                        connector.enabled
+                        AND connector.lifecycle='active'
+                        AND link.active
+                        AND link.revoked_at IS NULL
+                        AND projection.identity_link IS NOT NULL
+                        AND projection.active
+                        AND projection.revoked_at IS NULL
+                        AND projection.last_feed_at <= $2
+                        AND projection.last_feed_at >= ($2 - INTERVAL '5 minutes')
+                        AND NOT EXISTS (
+                            SELECT 1 FROM erpx_identity.directory_identity_conflicts conflict
+                            WHERE conflict.state='unresolved'
+                              AND (conflict.principal_id=$1 OR (
+                                  conflict.connector_id=binding.connector_id
+                                  AND conflict.external_object_id=binding.external_object_id
+                              ))
+                        )
+                    ), false) AS all_healthy
+             FROM erpx_identity.directory_principal_bindings binding
+             JOIN erpx_identity.directory_identity_links link
+               ON link.connector_id=binding.connector_id
+              AND link.external_object_id=binding.external_object_id
+             JOIN erpx_identity.directory_connectors connector
+               ON connector.id=binding.connector_id
+             LEFT JOIN erpx_identity.directory_identity_projection projection
+               ON projection.identity_link=link.identity_link
+             WHERE binding.principal_id=$1 AND binding.active",
         )
-        .bind(&principal_ref)
-        .bind(deterministic_identity_id)
-        .fetch_optional(&mut *transaction)
+        .bind(principal_id)
+        .bind(at)
+        .fetch_one(&mut *transaction)
         .await?;
-        if principal_ref_collision.is_some() {
-            return Err(IdentityStoreError::InvalidRecord(
-                "directory identity principal reference is already linked".into(),
-            ));
-        }
-        let identity_id = deterministic_identity_id;
-        let principal_row = sqlx::query(
-            "SELECT id, principal_ref, status
-             FROM erpx_identity.principals
-             WHERE id=$1 FOR UPDATE",
-        )
-        .bind(identity_id)
-        .fetch_optional(&mut *transaction)
-        .await?;
-        let existing_status: Option<String> = principal_row
-            .as_ref()
-            .map(|row| row.try_get("status"))
-            .transpose()?;
-        if existing_status
-            .as_deref()
-            .is_some_and(|status| status != "active")
+        if !health.try_get::<bool, _>("has_bindings")?
+            || !health.try_get::<bool, _>("all_healthy")?
         {
             return Err(IdentityStoreError::PrincipalInactive);
-        }
-        let stored_principal_ref: Option<String> = principal_row
-            .as_ref()
-            .map(|row| row.try_get("principal_ref"))
-            .transpose()?;
-        if linked_identity_id.is_none() {
-            sqlx::query(
-                "UPDATE erpx_identity.directory_identity_links
-                 SET identity_id=$3
-                 WHERE connector_id=$1 AND identity_link=$2 AND identity_id IS NULL",
-            )
-            .bind(connector_id)
-            .bind(identity_link)
-            .bind(identity_id)
-            .execute(&mut *transaction)
-            .await?;
-        }
-        if existing_status.is_none() {
-            sqlx::query(
-                "INSERT INTO erpx_identity.principals
-                (id, principal_ref, status, created_at, updated_at)
-                 VALUES ($1,$2,'active',$3,$3)
-                 ",
-            )
-            .bind(identity_id)
-            .bind(&principal_ref)
-            .bind(at)
-            .execute(&mut *transaction)
-            .await
-            .map_err(|error| match error {
-                sqlx::Error::Database(database_error) if database_error.constraint().is_some() => {
-                    IdentityStoreError::InvalidRecord(
-                        "directory identity principal reference is already linked".into(),
-                    )
-                }
-                other => IdentityStoreError::Database(other),
-            })?;
-        } else if stored_principal_ref.as_deref() != Some(principal_ref.as_str()) {
-            sqlx::query(
-                "UPDATE erpx_identity.principals
-                 SET principal_ref=$2, updated_at=$3
-                 WHERE id=$1 AND status='active'",
-            )
-            .bind(identity_id)
-            .bind(&principal_ref)
-            .bind(at)
-            .execute(&mut *transaction)
-            .await?;
         }
         let device_id = Uuid::new_v4();
         sqlx::query(
@@ -584,7 +621,7 @@ impl SqlxIdentityStore {
              VALUES ($1,$2,$3,$4,$4)",
         )
         .bind(device_id)
-        .bind(identity_id)
+        .bind(principal_id)
         .bind(device_label)
         .bind(at)
         .execute(&mut *transaction)
@@ -596,7 +633,7 @@ impl SqlxIdentityStore {
             at,
             AccessTokenLifetime::five_minutes(),
         )?;
-        insert_session_in_transaction(&mut transaction, identity_id, &issued).await?;
+        insert_session_in_transaction(&mut transaction, principal_id, &issued).await?;
         let event_id = Uuid::new_v4();
         sqlx::query(
             "INSERT INTO erpx_identity.directory_outbox
@@ -644,8 +681,8 @@ impl SqlxIdentityStore {
              WHERE p.principal_ref = $1
                AND NOT EXISTS (
                    SELECT 1
-                   FROM erpx_identity.directory_identity_links managed
-                   WHERE managed.principal_ref = p.principal_ref
+                   FROM erpx_identity.directory_principal_bindings managed
+                   WHERE managed.principal_id = p.id AND managed.active
                )
              FOR UPDATE",
         )
@@ -826,8 +863,9 @@ impl SqlxIdentityStore {
         Ok(sqlx::query_scalar(
             "SELECT EXISTS(
                  SELECT 1
-                 FROM erpx_identity.directory_identity_links
-                 WHERE principal_ref = $1
+                 FROM erpx_identity.directory_principal_bindings binding
+                 JOIN erpx_identity.principals principal ON principal.id=binding.principal_id
+                 WHERE principal.principal_ref=$1 AND binding.active
              )",
         )
         .bind(principal_ref)
@@ -1130,8 +1168,8 @@ impl SqlxIdentityStore {
                AND p.status IN ('active', 'recovery_required')
                AND NOT EXISTS (
                    SELECT 1
-                   FROM erpx_identity.directory_identity_links managed
-                   WHERE managed.principal_ref = p.principal_ref
+                   FROM erpx_identity.directory_principal_bindings managed
+                   WHERE managed.principal_id = p.id AND managed.active
                )
              ORDER BY rc.id
              FOR UPDATE",
@@ -1525,8 +1563,8 @@ impl SqlxIdentityStore {
                AND p.status IN ('active', 'recovery_required')
                AND NOT EXISTS (
                    SELECT 1
-                   FROM erpx_identity.directory_identity_links managed
-                   WHERE managed.principal_ref = p.principal_ref
+                   FROM erpx_identity.directory_principal_bindings managed
+                   WHERE managed.principal_id = p.id AND managed.active
                )
              FOR UPDATE",
         )
@@ -1628,8 +1666,8 @@ impl SqlxIdentityStore {
                AND p.status IN ('active', 'recovery_required')
                AND NOT EXISTS (
                    SELECT 1
-                   FROM erpx_identity.directory_identity_links managed
-                   WHERE managed.principal_ref = p.principal_ref
+                   FROM erpx_identity.directory_principal_bindings managed
+                   WHERE managed.principal_id = p.id AND managed.active
                )
              FOR UPDATE",
         )
@@ -2163,8 +2201,8 @@ impl SqlxIdentityStore {
              WHERE p.principal_ref = $1
                AND NOT EXISTS (
                    SELECT 1
-                   FROM erpx_identity.directory_identity_links managed
-                   WHERE managed.principal_ref = p.principal_ref
+                   FROM erpx_identity.directory_principal_bindings managed
+                   WHERE managed.principal_id = p.id AND managed.active
                )
              FOR UPDATE",
         )
@@ -2190,8 +2228,8 @@ impl SqlxIdentityStore {
              WHERE p.principal_ref = $1
                AND NOT EXISTS (
                    SELECT 1
-                   FROM erpx_identity.directory_identity_links managed
-                   WHERE managed.principal_ref = p.principal_ref
+                   FROM erpx_identity.directory_principal_bindings managed
+                   WHERE managed.principal_id = p.id AND managed.active
                )
              FOR UPDATE",
         )
@@ -2275,13 +2313,6 @@ fn directory_connector_contains_mapping(
         (connector, mapping) if connector.starts_with("holding:") => connector == mapping,
         _ => false,
     }
-}
-
-fn directory_identity_id(connector_id: Uuid, external_object_id: &str) -> Uuid {
-    Uuid::new_v5(
-        &Uuid::NAMESPACE_OID,
-        format!("directory-identity/{connector_id}/{external_object_id}").as_bytes(),
-    )
 }
 
 fn totp_envelope_from_parts(

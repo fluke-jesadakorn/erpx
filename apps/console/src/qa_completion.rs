@@ -1020,7 +1020,7 @@ mod tests {
             (ProductContext::Inventory, "/inventory"),
             (ProductContext::Maintenance, "/maintenance"),
             (ProductContext::Quality, "/quality"),
-            (ProductContext::Support, "/support"),
+            (ProductContext::Assets, "/assets"),
             (ProductContext::MarketingCrm, "/marketing"),
             (ProductContext::HrPayroll, "/hr"),
             (ProductContext::Pos, "/pos"),
@@ -1492,7 +1492,10 @@ mod tests {
                     && !value.to_ascii_lowercase().contains("token"),
                 "configured {name} must not contain credentials"
             );
-            if value.starts_with("http://127.0.0.1:") {
+            if value.starts_with("http://127.0.0.1:")
+                || value.starts_with("http://localhost:")
+                || value.starts_with("http://[::1]:")
+            {
                 eprintln!(
                     "G14 blocker queued: {name} is using the local-development loopback default; packaged deployment must provide HTTPS"
                 );

@@ -155,6 +155,19 @@ pub struct StripeBillingTransition {
     pub customer_id: Uuid,
     pub subscription_id: Uuid,
     pub transition: BillingEvent,
+    pub invoice: Option<StripeInvoiceProjection>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StripeInvoiceProjection {
+    pub tenant_id: String,
+    pub invoice_id: String,
+    pub state: String,
+    pub currency: String,
+    pub amount_due_minor: u64,
+    pub amount_paid_minor: u64,
+    pub due_at: Option<DateTime<Utc>>,
+    pub hosted_invoice_available: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -177,8 +190,26 @@ pub struct StripeSemanticNoOp {
     pub reason: String,
 }
 
+/// A verified Checkout completion may bind provider identifiers, but it is
+/// deliberately not payment authority. Billing and entitlement activation
+/// still require subsequent invoice/subscription/entitlement events.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StripeCheckoutBinding {
+    pub event_id: String,
+    pub event_type: String,
+    pub created_at: DateTime<Utc>,
+    pub tenant_id: String,
+    pub customer_id: Uuid,
+    pub subscription_id: Uuid,
+    pub stripe_customer_ref: String,
+    pub stripe_subscription_ref: String,
+    pub currency: String,
+    pub item_quantities: BTreeMap<String, u32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StripeSemanticEvent {
+    Checkout(StripeCheckoutBinding),
     Billing(StripeBillingTransition),
     Entitlement(StripeEntitlementUpdate),
     NoOp(StripeSemanticNoOp),
@@ -187,6 +218,7 @@ pub enum StripeSemanticEvent {
 impl StripeSemanticEvent {
     pub fn event_id(&self) -> &str {
         match self {
+            Self::Checkout(event) => &event.event_id,
             Self::Billing(event) => &event.event_id,
             Self::Entitlement(event) => &event.event_id,
             Self::NoOp(event) => &event.event_id,
@@ -195,6 +227,7 @@ impl StripeSemanticEvent {
 
     pub fn event_type(&self) -> &str {
         match self {
+            Self::Checkout(event) => &event.event_type,
             Self::Billing(event) => &event.event_type,
             Self::Entitlement(event) => &event.event_type,
             Self::NoOp(event) => &event.event_type,
@@ -218,6 +251,8 @@ pub enum StripeSemanticParseError {
     InvalidNumber(&'static str),
     #[error("Stripe event field {0} is not a valid boolean")]
     InvalidBoolean(&'static str),
+    #[error("Stripe event field {0} is not valid bounded JSON metadata")]
+    InvalidJsonMetadata(&'static str),
     #[error("unsupported Stripe event type {0}")]
     UnsupportedEventType(String),
     #[error("unsupported Stripe subscription status {0}")]
@@ -302,6 +337,7 @@ fn decode_stripe_semantic_event(
                 customer_id: required_uuid(&claim.payload, "erpx_customer_id")?,
                 subscription_id: required_uuid(&claim.payload, "erpx_subscription_id")?,
                 transition: BillingEvent::PaymentRecovered,
+                invoice: optional_invoice_projection(&claim.payload)?,
             }))
         }
         "invoice.payment_failed" => Ok(StripeSemanticEvent::Billing(StripeBillingTransition {
@@ -311,6 +347,7 @@ fn decode_stripe_semantic_event(
             customer_id: required_uuid(&claim.payload, "erpx_customer_id")?,
             subscription_id: required_uuid(&claim.payload, "erpx_subscription_id")?,
             transition: BillingEvent::PaymentFailed,
+            invoice: optional_invoice_projection(&claim.payload)?,
         })),
         "customer.subscription.deleted" => {
             Ok(StripeSemanticEvent::Billing(StripeBillingTransition {
@@ -320,6 +357,7 @@ fn decode_stripe_semantic_event(
                 customer_id: required_uuid(&claim.payload, "erpx_customer_id")?,
                 subscription_id: required_uuid(&claim.payload, "erpx_subscription_id")?,
                 transition: BillingEvent::SubscriptionCanceled,
+                invoice: None,
             }))
         }
         "customer.subscription.created" | "customer.subscription.updated" => {
@@ -343,6 +381,7 @@ fn decode_stripe_semantic_event(
                 customer_id: required_uuid(&claim.payload, "erpx_customer_id")?,
                 subscription_id: required_uuid(&claim.payload, "erpx_subscription_id")?,
                 transition,
+                invoice: None,
             }))
         }
         "entitlements.active_entitlement_summary.updated" => {
@@ -362,7 +401,21 @@ fn decode_stripe_semantic_event(
                 active_until: optional_timestamp_from(object, "active_until")?,
             }))
         }
-        "checkout.session.completed" => Ok(no_op("checkout is not billing authority")),
+        "checkout.session.completed" => {
+            let object = stripe_object(&claim.payload)?;
+            Ok(StripeSemanticEvent::Checkout(StripeCheckoutBinding {
+                event_id,
+                event_type,
+                created_at,
+                tenant_id: required_string_from(object, "erpx_tenant_id")?,
+                customer_id: required_uuid(&claim.payload, "erpx_customer_id")?,
+                subscription_id: required_uuid(&claim.payload, "erpx_subscription_id")?,
+                stripe_customer_ref: required_string(object, "customer")?,
+                stripe_subscription_ref: required_string(object, "subscription")?,
+                currency: required_string_from(object, "erpx_currency")?,
+                item_quantities: required_item_quantities(object)?,
+            }))
+        }
         "customer.subscription.trial_will_end" => Ok(no_op("trial reminder")),
         "invoice.finalized" => Ok(no_op("invoice finalization is not a lifecycle transition")),
         other => Err(StripeSemanticParseError::UnsupportedEventType(other.into())),
@@ -447,6 +500,76 @@ fn required_bool_from(
         Some("false") => Ok(false),
         _ => Err(StripeSemanticParseError::InvalidBoolean(key)),
     }
+}
+
+fn required_item_quantities(
+    object: &serde_json::Map<String, Value>,
+) -> Result<BTreeMap<String, u32>, StripeSemanticParseError> {
+    let value = metadata_value(object, "erpx_items")
+        .and_then(Value::as_str)
+        .ok_or(StripeSemanticParseError::MissingField("erpx_items"))?;
+    let items: BTreeMap<String, u32> = serde_json::from_str(value)
+        .map_err(|_| StripeSemanticParseError::InvalidJsonMetadata("erpx_items"))?;
+    if items.is_empty()
+        || items.len() > 100
+        || items
+            .iter()
+            .any(|(key, quantity)| key.trim().is_empty() || key.len() > 255 || *quantity == 0)
+    {
+        return Err(StripeSemanticParseError::InvalidJsonMetadata("erpx_items"));
+    }
+    Ok(items)
+}
+
+fn optional_invoice_projection(
+    payload: &Value,
+) -> Result<Option<StripeInvoiceProjection>, StripeSemanticParseError> {
+    let object = stripe_object(payload)?;
+    let Some(invoice_id) = object.get("id").and_then(Value::as_str) else {
+        return Ok(None);
+    };
+    let Some(tenant_id) = metadata_value(object, "erpx_tenant_id").and_then(Value::as_str) else {
+        return Ok(None);
+    };
+    let currency = object
+        .get("currency")
+        .and_then(Value::as_str)
+        .map(str::to_ascii_uppercase)
+        .ok_or(StripeSemanticParseError::MissingField("currency"))?;
+    let amount_due_minor = object
+        .get("amount_due")
+        .and_then(Value::as_u64)
+        .ok_or(StripeSemanticParseError::InvalidNumber("amount_due"))?;
+    let amount_paid_minor = object
+        .get("amount_paid")
+        .and_then(Value::as_u64)
+        .ok_or(StripeSemanticParseError::InvalidNumber("amount_paid"))?;
+    let due_at = object
+        .get("due_date")
+        .and_then(Value::as_i64)
+        .map(|timestamp| {
+            DateTime::<Utc>::from_timestamp(timestamp, 0)
+                .ok_or(StripeSemanticParseError::InvalidTimestamp("due_date"))
+        })
+        .transpose()?;
+    let state = object
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown")
+        .to_owned();
+    Ok(Some(StripeInvoiceProjection {
+        tenant_id: tenant_id.to_owned(),
+        invoice_id: invoice_id.to_owned(),
+        state,
+        currency,
+        amount_due_minor,
+        amount_paid_minor,
+        due_at,
+        hosted_invoice_available: object
+            .get("hosted_invoice_url")
+            .and_then(Value::as_str)
+            .is_some_and(|url| !url.is_empty()),
+    }))
 }
 
 fn optional_timestamp_from(
@@ -2826,6 +2949,148 @@ impl SqlxCommercialStore {
         .transpose()
     }
 
+    /// Return the latest published catalog that contains at least one price
+    /// in the requested ISO currency. Catalog reads remain control-plane
+    /// reads and never route through a tenant database.
+    pub async fn get_latest_catalog_revision(
+        &self,
+        currency: &str,
+    ) -> Result<Option<PublishedCommercialCatalogRevision>, PersistenceError> {
+        if currency.len() != 3
+            || !currency
+                .chars()
+                .all(|character| character.is_ascii_uppercase())
+        {
+            return Err(PersistenceError::InvalidData(
+                "catalog currency must be a three-letter uppercase ISO code".into(),
+            ));
+        }
+        let row = sqlx::query(
+            "SELECT payload
+             FROM erpx_control.commercial_catalog_revisions
+             WHERE EXISTS (
+                 SELECT 1
+                 FROM jsonb_array_elements(payload -> 'prices') AS price
+                 WHERE price -> 'amount' ->> 'currency' = $1
+             )
+             ORDER BY revision_number DESC
+             LIMIT 1",
+        )
+        .bind(currency)
+        .fetch_optional(&self.write)
+        .await?;
+        row.map(|row| {
+            let payload: Value = row.try_get("payload")?;
+            let revision: PublishedCommercialCatalogRevision = serde_json::from_value(payload)?;
+            revision
+                .validate()
+                .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+            Ok(revision)
+        })
+        .transpose()
+    }
+
+    /// Persist the provider-owned Product/Price identifiers emitted by a
+    /// successful catalog publication. The identifiers stay private to the
+    /// server and are resolved by item key during Checkout construction.
+    pub async fn persist_stripe_catalog_snapshot(
+        &self,
+        snapshot: &StripeCatalogProviderSnapshot,
+    ) -> Result<(), PersistenceError> {
+        snapshot
+            .validate()
+            .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+        let local = self
+            .get_catalog_revision(snapshot.revision.revision_number)
+            .await?
+            .ok_or_else(|| PersistenceError::InvalidData("catalog revision is missing".into()))?;
+        if !snapshot.reconciliation_against(&local).is_in_sync() {
+            return Err(PersistenceError::InvalidData(
+                "Stripe catalog snapshot does not match the published catalog".into(),
+            ));
+        }
+        let mut transaction = self.write.begin().await?;
+        for provider_price in &snapshot.revision.prices {
+            let identifiers = snapshot
+                .identifiers
+                .get(&provider_price.price.item_key)
+                .ok_or_else(|| {
+                    PersistenceError::InvalidData(
+                        "Stripe catalog snapshot identifier is missing".into(),
+                    )
+                })?;
+            let persisted = sqlx::query(
+                "INSERT INTO erpx_control.stripe_catalog_price_bindings
+                    (catalog_revision, item_key, stripe_product_ref,
+                     stripe_price_ref, currency, active)
+                 VALUES ($1, $2, $3, $4, $5, TRUE)
+                 ON CONFLICT (catalog_revision, item_key) DO UPDATE
+                 SET active = TRUE
+                 WHERE stripe_catalog_price_bindings.stripe_product_ref = EXCLUDED.stripe_product_ref
+                   AND stripe_catalog_price_bindings.stripe_price_ref = EXCLUDED.stripe_price_ref
+                   AND stripe_catalog_price_bindings.currency = EXCLUDED.currency",
+            )
+            .bind(
+                i32::try_from(snapshot.revision.revision_number).map_err(|_| {
+                    PersistenceError::InvalidData("catalog revision exceeds database range".into())
+                })?,
+            )
+            .bind(&provider_price.price.item_key)
+            .bind(identifiers.product.as_str())
+            .bind(identifiers.price.as_str())
+            .bind(&provider_price.price.amount.currency)
+            .execute(&mut *transaction)
+            .await?;
+            if persisted.rows_affected() != 1 {
+                return Err(PersistenceError::InvalidData(
+                    "Stripe catalog binding conflicts with immutable provider identifiers".into(),
+                ));
+            }
+        }
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    /// Resolve UI-safe item keys to typed, private Stripe Price identifiers.
+    pub async fn resolve_stripe_checkout_prices(
+        &self,
+        revision_number: u32,
+        item_keys: &[String],
+    ) -> Result<BTreeMap<String, StripePriceId>, PersistenceError> {
+        if item_keys.is_empty() || item_keys.len() > 100 {
+            return Err(PersistenceError::InvalidData(
+                "checkout item selection is outside its bound".into(),
+            ));
+        }
+        let rows = sqlx::query(
+            "SELECT item_key, stripe_price_ref
+             FROM erpx_control.stripe_catalog_price_bindings
+             WHERE catalog_revision = $1
+               AND item_key = ANY($2)
+               AND active = TRUE",
+        )
+        .bind(i32::try_from(revision_number).map_err(|_| {
+            PersistenceError::InvalidData("catalog revision exceeds database range".into())
+        })?)
+        .bind(item_keys)
+        .fetch_all(&self.write)
+        .await?;
+        let mut prices = BTreeMap::new();
+        for row in rows {
+            let item_key: String = row.try_get("item_key")?;
+            let price_ref: String = row.try_get("stripe_price_ref")?;
+            let price = StripePriceId::parse(price_ref)
+                .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+            prices.insert(item_key, price);
+        }
+        if prices.len() != item_keys.len() {
+            return Err(PersistenceError::InvalidData(
+                "one or more catalog items have no active Stripe price binding".into(),
+            ));
+        }
+        Ok(prices)
+    }
+
     pub async fn reconcile_catalog_revision(
         &self,
         revision_number: u32,
@@ -5196,6 +5461,7 @@ impl StripeSemanticApplier for SqlxCommercialStore {
     ) -> Result<StripeSemanticApplyResult, StripeSemanticApplyError> {
         match event {
             StripeSemanticEvent::NoOp(_) => Ok(StripeSemanticApplyResult::NoOp),
+            StripeSemanticEvent::Checkout(event) => self.apply_checkout_binding(event).await,
             StripeSemanticEvent::Billing(event) => self.apply_billing_transition(event).await,
             StripeSemanticEvent::Entitlement(event) => self.apply_entitlement_update(event).await,
         }
@@ -5203,6 +5469,139 @@ impl StripeSemanticApplier for SqlxCommercialStore {
 }
 
 impl SqlxCommercialStore {
+    async fn apply_checkout_binding(
+        &self,
+        event: &StripeCheckoutBinding,
+    ) -> Result<StripeSemanticApplyResult, StripeSemanticApplyError> {
+        if event.tenant_id.trim().is_empty()
+            || event.tenant_id.len() > 128
+            || event.tenant_id.chars().any(char::is_control)
+            || !event.stripe_customer_ref.starts_with("cus_")
+            || !event.stripe_subscription_ref.starts_with("sub_")
+            || event.currency != erpx_domain::commercial::ACTIVE_CATALOG_CURRENCY
+        {
+            return Err(StripeSemanticApplyError::Permanent(
+                "invalid Checkout subscription binding".into(),
+            ));
+        }
+        let mut transaction = self
+            .write
+            .begin()
+            .await
+            .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
+        let exact_binding: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                SELECT 1 FROM erpx_control.customer_tenant_bindings
+                WHERE customer_id = $1 AND tenant_id = $2
+                  AND binding_state = 'configured'
+             )",
+        )
+        .bind(event.customer_id)
+        .bind(&event.tenant_id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
+        if !exact_binding {
+            return Err(StripeSemanticApplyError::Permanent(
+                "Checkout metadata does not match a configured tenant".into(),
+            ));
+        }
+        let existing = sqlx::query(
+            "SELECT tenant_id, customer_id, subscription_id,
+                    currency::text AS currency
+             FROM erpx_control.stripe_subscription_bindings
+             WHERE stripe_customer_ref = $1
+                OR stripe_subscription_ref = $2
+             FOR UPDATE",
+        )
+        .bind(&event.stripe_customer_ref)
+        .bind(&event.stripe_subscription_ref)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
+        if let Some(existing) = existing {
+            let matches = existing
+                .try_get::<String, _>("tenant_id")
+                .is_ok_and(|tenant_id| tenant_id == event.tenant_id)
+                && existing
+                    .try_get::<Uuid, _>("customer_id")
+                    .is_ok_and(|customer_id| customer_id == event.customer_id)
+                && existing
+                    .try_get::<Uuid, _>("subscription_id")
+                    .is_ok_and(|subscription_id| subscription_id == event.subscription_id)
+                && existing
+                    .try_get::<String, _>("currency")
+                    .is_ok_and(|currency| currency.trim() == event.currency);
+            if !matches {
+                return Err(StripeSemanticApplyError::Permanent(
+                    "Stripe subscription is already bound to another tenant".into(),
+                ));
+            }
+            transaction
+                .commit()
+                .await
+                .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
+            return Ok(StripeSemanticApplyResult::DuplicateOrOutOfOrder);
+        }
+        sqlx::query(
+            "INSERT INTO erpx_control.stripe_subscription_bindings
+                (customer_id, tenant_id, subscription_id, stripe_customer_ref,
+                 stripe_subscription_ref, currency, item_quantities,
+                 created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)",
+        )
+        .bind(event.customer_id)
+        .bind(&event.tenant_id)
+        .bind(event.subscription_id)
+        .bind(&event.stripe_customer_ref)
+        .bind(&event.stripe_subscription_ref)
+        .bind(&event.currency)
+        .bind(
+            serde_json::to_value(&event.item_quantities)
+                .map_err(|error| StripeSemanticApplyError::Permanent(error.to_string()))?,
+        )
+        .bind(event.created_at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
+        sqlx::query(
+            "UPDATE erpx_control.tenant_summary_projection
+             SET subscription_state = 'pending', projected_at = now()
+             WHERE tenant_id = $1",
+        )
+        .bind(&event.tenant_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
+        sqlx::query(
+            "INSERT INTO erpx_control.audit_events
+                (id, actor_ref, customer_account_id, action, purpose,
+                 correlation_id, payload)
+             VALUES ($1, 'stripe', $2,
+                     'commercial.billing.checkout_bound',
+                     'verified Stripe Checkout binding', $3, $4)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(event.customer_id)
+        .bind(Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            event.event_id.as_bytes(),
+        ))
+        .bind(serde_json::json!({
+            "tenant_id": event.tenant_id,
+            "subscription_id": event.subscription_id,
+            "provider_event_id": event.event_id,
+        }))
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
+        transaction
+            .commit()
+            .await
+            .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
+        Ok(StripeSemanticApplyResult::Applied)
+    }
+
     async fn apply_billing_transition(
         &self,
         event: &StripeBillingTransition,
@@ -5224,21 +5623,89 @@ impl SqlxCommercialStore {
             .apply_provider_billing_event(command, provider_event)
             .await
             .map_err(classify_semantic_persistence)?;
+        let CommercialCommandResult::Billing { state, change } = receipt.result else {
+            return Err(StripeSemanticApplyError::Permanent(
+                "provider billing receipt has an invalid result".into(),
+            ));
+        };
+        sqlx::query(
+            "UPDATE erpx_control.tenant_summary_projection AS summary
+             SET subscription_state = $3,
+                 overdue = $4,
+                 projected_at = now()
+             FROM erpx_control.stripe_subscription_bindings AS binding
+             WHERE binding.customer_id = $1
+               AND binding.subscription_id = $2
+               AND summary.tenant_id = binding.tenant_id",
+        )
+        .bind(event.customer_id)
+        .bind(event.subscription_id)
+        .bind(billing_state(state))
+        .bind(matches!(
+            state,
+            BillingState::PastDue | BillingState::Grace | BillingState::ReadOnly
+        ))
+        .execute(&self.write)
+        .await
+        .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
+        if let Some(invoice) = &event.invoice {
+            if invoice.currency != erpx_domain::commercial::ACTIVE_CATALOG_CURRENCY {
+                return Err(StripeSemanticApplyError::Permanent(
+                    "invoice currency does not match the active SaaS currency".into(),
+                ));
+            }
+            let projected = sqlx::query(
+                "INSERT INTO erpx_control.tenant_invoice_summary_projection
+                    (tenant_id, invoice_id, state, currency,
+                     amount_due_minor, amount_paid_minor, due_at,
+                     hosted_invoice_available, projected_at)
+                 SELECT $3, $4, $5, $6, $7, $8, $9, $10, now()
+                 FROM erpx_control.stripe_subscription_bindings AS binding
+                 WHERE binding.customer_id = $1
+                   AND binding.subscription_id = $2
+                   AND binding.tenant_id = $3
+                 ON CONFLICT (tenant_id, invoice_id) DO UPDATE
+                 SET state = EXCLUDED.state,
+                     currency = EXCLUDED.currency,
+                     amount_due_minor = EXCLUDED.amount_due_minor,
+                     amount_paid_minor = EXCLUDED.amount_paid_minor,
+                     due_at = EXCLUDED.due_at,
+                     hosted_invoice_available = EXCLUDED.hosted_invoice_available,
+                     projected_at = EXCLUDED.projected_at",
+            )
+            .bind(event.customer_id)
+            .bind(event.subscription_id)
+            .bind(&invoice.tenant_id)
+            .bind(&invoice.invoice_id)
+            .bind(&invoice.state)
+            .bind(&invoice.currency)
+            .bind(i64::try_from(invoice.amount_due_minor).map_err(|_| {
+                StripeSemanticApplyError::Permanent("invoice amount is outside range".into())
+            })?)
+            .bind(i64::try_from(invoice.amount_paid_minor).map_err(|_| {
+                StripeSemanticApplyError::Permanent("invoice amount is outside range".into())
+            })?)
+            .bind(invoice.due_at)
+            .bind(invoice.hosted_invoice_available)
+            .execute(&self.write)
+            .await
+            .map_err(|error| StripeSemanticApplyError::Retryable(error.to_string()))?;
+            if projected.rows_affected() != 1 {
+                return Err(StripeSemanticApplyError::Permanent(
+                    "invoice metadata does not match its tenant subscription".into(),
+                ));
+            }
+        }
         if receipt.replayed {
             return Ok(StripeSemanticApplyResult::DuplicateOrOutOfOrder);
         }
-        match receipt.result {
-            CommercialCommandResult::Billing { change, .. } => Ok(match change {
-                CommercialCommandChange::Applied => StripeSemanticApplyResult::Applied,
-                CommercialCommandChange::DuplicateOrOutOfOrder => {
-                    StripeSemanticApplyResult::DuplicateOrOutOfOrder
-                }
-                CommercialCommandChange::Unchanged => StripeSemanticApplyResult::NoOp,
-            }),
-            _ => Err(StripeSemanticApplyError::Permanent(
-                "provider billing receipt has an invalid result".into(),
-            )),
-        }
+        Ok(match change {
+            CommercialCommandChange::Applied => StripeSemanticApplyResult::Applied,
+            CommercialCommandChange::DuplicateOrOutOfOrder => {
+                StripeSemanticApplyResult::DuplicateOrOutOfOrder
+            }
+            CommercialCommandChange::Unchanged => StripeSemanticApplyResult::NoOp,
+        })
     }
 
     async fn apply_entitlement_update(
@@ -6682,6 +7149,34 @@ mod tests {
                 ..
             })
         ));
+
+        let checkout = semantic_claim(
+            "checkout.session.completed",
+            serde_json::json!({
+                "customer": "cus_verified",
+                "subscription": "sub_verified",
+                "metadata": {
+                    "erpx_tenant_id": "tenant-a",
+                    "erpx_customer_id": Uuid::new_v4().to_string(),
+                    "erpx_subscription_id": Uuid::new_v4().to_string(),
+                    "erpx_currency": "USD",
+                    "erpx_items": "{\"tenant-base-monthly\":1}"
+                }
+            }),
+        );
+        assert!(matches!(
+            StripeSemanticDispatcher::decode(&checkout).expect("Checkout binding"),
+            StripeSemanticEvent::Checkout(StripeCheckoutBinding {
+                tenant_id,
+                stripe_customer_ref,
+                stripe_subscription_ref,
+                currency,
+                ..
+            }) if tenant_id == "tenant-a"
+                && stripe_customer_ref == "cus_verified"
+                && stripe_subscription_ref == "sub_verified"
+                && currency == "USD"
+        ));
     }
 
     #[test]
@@ -6740,7 +7235,10 @@ mod tests {
         );
         assert_eq!(applier.events.lock().expect("recording lock").len(), 1);
 
-        let no_op = semantic_claim("checkout.session.completed", serde_json::json!({}));
+        let no_op = semantic_claim(
+            "customer.subscription.trial_will_end",
+            serde_json::json!({}),
+        );
         assert_eq!(
             StripeSemanticDispatcher::dispatch(&applier, &no_op)
                 .await
@@ -6801,6 +7299,7 @@ mod tests {
             customer_id,
             subscription_id,
             transition: BillingEvent::PaymentFailed,
+            invoice: None,
         };
         assert_eq!(
             store
@@ -6854,6 +7353,7 @@ mod tests {
             customer_id,
             subscription_id,
             transition: BillingEvent::PaymentRecovered,
+            invoice: None,
         };
         assert_eq!(
             store

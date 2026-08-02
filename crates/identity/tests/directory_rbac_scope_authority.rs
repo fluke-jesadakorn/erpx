@@ -482,11 +482,12 @@ async fn authorization_rejects_a_requested_holding_different_from_the_authorized
             (id, provider, vendor, scope_key, scope_kind, scope_id, holding_ref,
              endpoint, base_dn, tls_mode, security, page_size, max_in_flight_pages,
              ca_certificate_sha256, server_name, minimum_tls_version, feed_kind,
-             credential_ref, enabled, max_import_users, revision, created_at, updated_at)
+             credential_ref, enabled, max_import_users, revision, lifecycle,
+             created_at, updated_at)
          VALUES ($1,'generic_ldap','generic_ldap','platform','platform',NULL,NULL,
                  'ldaps://scope-access.example.test:636','dc=example,dc=test','ldaps','ldaps',
                  500,4,$2,'scope-access.example.test','1.2','polling',
-                 'test-only:rbac-secret',true,1000000,1,$3,$3)",
+                 'test-only:rbac-secret',true,1000000,1,'active',$3,$3)",
     )
     .bind(connector_id)
     .bind("d".repeat(64))
@@ -508,6 +509,46 @@ async fn authorization_rejects_a_requested_holding_different_from_the_authorized
     .execute(&pool)
     .await
     .expect("persist active directory projection");
+    let principal_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO erpx_identity.principals
+            (id, principal_ref, status, created_at, updated_at)
+         VALUES ($1,'scope-access-principal','active',$2,$2)",
+    )
+    .bind(principal_id)
+    .bind(now)
+    .execute(&pool)
+    .await
+    .expect("persist canonical scope-access principal");
+    sqlx::query(
+        "INSERT INTO erpx_identity.directory_identity_links
+            (connector_id, external_object_id, identity_link, principal_ref,
+             active, source_revision, observed_at, revoked_at,
+             immutable_authority, immutable_value, linked_at)
+         VALUES ($1,'scope-access-object','scope-access-immutable',
+                 'scope-access-principal',true,1,$2,NULL,
+                 'ldap:entryUUID','scope-access-object',$2)",
+    )
+    .bind(connector_id)
+    .bind(now)
+    .execute(&pool)
+    .await
+    .expect("persist immutable scope-access identity link");
+    sqlx::query(
+        "INSERT INTO erpx_identity.directory_principal_bindings
+            (id, connector_id, external_object_id, principal_id, active,
+             revision, linked_by, linked_at, correlation_id)
+         VALUES ($1,$2,'scope-access-object',$3,true,1,
+                 'scope-access-admin',$4,$5)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(connector_id)
+    .bind(principal_id)
+    .bind(now)
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await
+    .expect("persist explicit scope-access principal binding");
     sqlx::query(
         "INSERT INTO erpx_identity.directory_role_mappings
             (connector_id, group_ref, role_ref, scope_key, requires_mfa, active, revision, updated_at)

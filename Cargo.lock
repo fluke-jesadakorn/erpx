@@ -1883,6 +1883,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-data-plane-agent"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "erpx-domain",
+ "erpx-proto",
+ "hex",
+ "prost",
+ "ring",
+ "serde",
+ "serde_json",
+ "sha2",
+ "subtle",
+ "thiserror 2.0.19",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "erpx-domain"
 version = "0.1.0"
 dependencies = [
@@ -1993,13 +2018,16 @@ dependencies = [
  "erpx-worker",
  "hex",
  "hmac",
+ "prost",
  "prost-types",
  "rand_core 0.6.4",
+ "ring",
  "serde",
  "serde_json",
  "sha2",
  "sqlx",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-web",
  "tower-http",
@@ -2014,9 +2042,22 @@ version = "0.1.0"
 dependencies = [
  "dioxus",
  "erpx-android-bridge",
+ "erpx-domain",
  "jni 0.21.1",
  "security-framework",
  "security-framework-sys",
+]
+
+[[package]]
+name = "erpx-wal-archive"
+version = "0.1.0"
+dependencies = [
+ "erpx-infrastructure",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
 ]
 
 [[package]]
@@ -6598,6 +6639,7 @@ dependencies = [
  "socket2",
  "sync_wrapper",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tower",
  "tower-layer",
@@ -8023,7 +8065,9 @@ dependencies = [
  "erpx-identity",
  "erpx-infrastructure",
  "erpx-migration",
+ "erpx-worker",
  "reqwest",
+ "serde",
  "serde_json",
  "sha2",
  "sqlx",

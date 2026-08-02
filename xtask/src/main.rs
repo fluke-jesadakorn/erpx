@@ -6,7 +6,10 @@ use std::{
     fs::{self, File, OpenOptions},
     io::{Read, Write},
     net::IpAddr,
-    os::unix::process::CommandExt,
+    os::unix::{
+        fs::{OpenOptionsExt, PermissionsExt},
+        process::CommandExt,
+    },
     path::{Path, PathBuf},
     process::{Command, Stdio},
     str::FromStr,
@@ -24,7 +27,11 @@ use sha2::{Digest, Sha256};
 use sqlx::{Connection, Executor, PgConnection, PgPool, Row, postgres::PgPoolOptions};
 use uuid::Uuid;
 
+mod directory_lab;
+mod infra;
+
 const RESET_CONFIRMATION: &str = "RESET_ERPX_DEV";
+const ROOT_PASSWORD_RESET_CONFIRMATION: &str = "RESET_ERPX_PLATFORM_ROOT";
 const LEGACY_DATABASE: &str = "folio_db";
 const LEGACY_BUCKET: &str = "folio-storage";
 const ERPX_BUCKET: &str = "erpx-demo";
@@ -98,6 +105,7 @@ struct DevConfig {
     legacy_database: String,
     minio_endpoint: String,
     minio_root: Option<PathBuf>,
+    postgres_ca_certificate_path: Option<PathBuf>,
 }
 
 impl DevConfig {
@@ -111,6 +119,7 @@ impl DevConfig {
             "POSTGRES_DB",
             "ERPX_DEV_LEGACY_MINIO_ENDPOINT",
             "ERPX_DEV_LEGACY_MINIO_ROOT",
+            "ERPX_POSTGRES_CA_CERTIFICATE_PATH",
         ] {
             if let Ok(value) = env::var(key) {
                 values.insert(key.to_owned(), value);
@@ -132,6 +141,10 @@ impl DevConfig {
             .get("ERPX_DEV_LEGACY_MINIO_ROOT")
             .filter(|value| !value.trim().is_empty())
             .map(PathBuf::from);
+        let postgres_ca_certificate_path = values
+            .get("ERPX_POSTGRES_CA_CERTIFICATE_PATH")
+            .filter(|value| !value.trim().is_empty())
+            .map(PathBuf::from);
         Ok(Self {
             host,
             port,
@@ -140,6 +153,7 @@ impl DevConfig {
             legacy_database,
             minio_endpoint,
             minio_root,
+            postgres_ca_certificate_path,
         })
     }
 
@@ -152,15 +166,21 @@ impl DevConfig {
         if !is_loopback_host(minio_host) {
             return Err("reset-dev refuses a non-loopback MinIO endpoint".into());
         }
-        if self.legacy_database != LEGACY_DATABASE {
+        if self.legacy_database != LEGACY_DATABASE
+            && !(self.port == 55_432 && self.legacy_database == DATABASES[0])
+        {
             return Err("reset-dev refuses an unexpected legacy database".into());
         }
         Ok(())
     }
 
     fn database_url(&self, database: &str) -> String {
+        let tls = self.postgres_ca_certificate_path.as_ref().map_or_else(
+            || "sslmode=disable".to_owned(),
+            |path| format!("sslmode=verify-full&sslrootcert={}", path.display()),
+        );
         format!(
-            "postgres://{}:{}@{}:{}/{}?sslmode=disable",
+            "postgres://{}:{}@{}:{}/{}?{tls}",
             percent_encode(&self.user),
             percent_encode(&self.password),
             self.host,
@@ -170,8 +190,12 @@ impl DevConfig {
     }
 
     fn database_template(&self) -> String {
+        let tls = self.postgres_ca_certificate_path.as_ref().map_or_else(
+            || "sslmode=disable".to_owned(),
+            |path| format!("sslmode=verify-full&sslrootcert={}", path.display()),
+        );
         format!(
-            "postgres://{}:{}@{}:{}/{{database}}?sslmode=disable",
+            "postgres://{}:{}@{}:{}/{{database}}?{tls}",
             percent_encode(&self.user),
             percent_encode(&self.password),
             self.host,
@@ -192,12 +216,73 @@ async fn run() -> TaskResult {
     let root = workspace_root()?;
     let args = env::args().skip(1).collect::<Vec<_>>();
     match args.as_slice() {
+        [command, subcommand] if command == "infra" && subcommand == "init" => infra::init(&root),
+        [command, subcommand] if command == "directory-lab" && subcommand == "init" => {
+            directory_lab::init(&root)
+        }
+        [command, subcommand] if command == "directory-lab" && subcommand == "start" => {
+            directory_lab::start(&root)
+        }
+        [command, subcommand] if command == "directory-lab" && subcommand == "status" => {
+            directory_lab::status(&root)
+        }
+        [command, subcommand] if command == "directory-lab" && subcommand == "configure" => {
+            let config = DevConfig::load(&root)?;
+            directory_lab::configure(&root, &config.database_url(DATABASES[0])).await
+        }
+        [command, subcommand] if command == "directory-lab" && subcommand == "verify-deny-wins" => {
+            let config = DevConfig::load(&root)?;
+            directory_lab::verify_deny_wins(&root, &config.database_url(DATABASES[0])).await
+        }
+        [command, subcommand] if command == "directory-lab" && subcommand == "stop" => {
+            directory_lab::stop(&root)
+        }
+        [command, subcommand] if command == "infra" && subcommand == "start" => {
+            infra::start(&root).await
+        }
+        [command, subcommand] if command == "infra" && subcommand == "status" => {
+            infra::status(&root)
+        }
+        [command, subcommand] if command == "infra" && subcommand == "stop" => infra::stop(&root),
+        [command, subcommand] if command == "infra" && subcommand == "activate-cutover" => {
+            infra::activate_cutover_config(&root)
+        }
+        [command] if command == "migrate-all-erpx-databases" => {
+            let source = DevConfig::load(&root)?;
+            source.validate_local()?;
+            stop(&root)?;
+            infra::migrate_all_erpx_databases(
+                &root,
+                &source.host,
+                source.port,
+                &source.user,
+                &source.password,
+            )
+            .await
+        }
+        [command, subcommand] if command == "pitr" && subcommand == "rehearsal" => {
+            infra::pitr_rehearsal(&root).await
+        }
+        [command, subcommand] if command == "pitr" && subcommand == "controller" => {
+            infra::pitr_controller(&root).await
+        }
+        [command, subcommand, confirm_flag, confirmation]
+            if command == "pitr" && subcommand == "promote" && confirm_flag == "--confirm" =>
+        {
+            infra::pitr_promote(&root, confirmation).await
+        }
         [command] if command == "status" => status(&root),
         [command] if command == "stop" => stop(&root),
         [command] if command == "seed-demo" => {
             let config = DevConfig::load(&root)?;
             initialize_databases(&config, false).await?;
-            seed_demo(&config).await
+            seed_demo(&root, &config).await
+        }
+        [command, confirm_flag, confirmation]
+            if command == "reset-platform-root" && confirm_flag == "--confirm" =>
+        {
+            let config = DevConfig::load(&root)?;
+            reset_platform_root_password(&config, confirmation).await
         }
         [command, flag] if command == "dev" && flag == "--detach" => {
             let config = DevConfig::load(&root)?;
@@ -216,7 +301,13 @@ async fn run() -> TaskResult {
                  cargo xtask dev --detach\n\
                  cargo xtask status\n\
                  cargo xtask stop\n\
+                 cargo xtask infra init|start|status|stop\n\
+                 cargo xtask directory-lab init|start|configure|verify-deny-wins|status|stop\n\
+                 cargo xtask migrate-all-erpx-databases\n\
+                 cargo xtask pitr rehearsal\n\
+                 cargo xtask pitr promote --confirm PROMOTE_ERPX_PITR\n\
                  cargo xtask reset-dev --confirm {RESET_CONFIRMATION}\n\
+                 cargo xtask reset-platform-root --confirm {ROOT_PASSWORD_RESET_CONFIRMATION}\n\
                  cargo xtask seed-demo\n\
                  cargo xtask verify"
             );
@@ -292,6 +383,9 @@ async fn pool(url: &str) -> Result<PgPool, sqlx::Error> {
 
 async fn reset_dev(root: &Path, config: &DevConfig, confirmation: &str) -> TaskResult {
     config.validate_local()?;
+    if config.port == 55_432 {
+        return Err("reset-dev refuses the dedicated cutover cluster".into());
+    }
     let legacy_url = config.database_url(&config.legacy_database);
     let legacy = pool(&legacy_url).await?;
     let schemas = user_schemas(&legacy).await?;
@@ -433,7 +527,7 @@ fn cleanup_legacy_runtime(root: &Path) -> TaskResult {
     Ok(())
 }
 
-async fn seed_demo(config: &DevConfig) -> TaskResult {
+async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
     let write = pool(&config.database_url(DATABASES[0])).await?;
     let read = pool(&config.database_url(DATABASES[1])).await?;
     let control = std::sync::Arc::new(SqlxControlPlane::new(ControlPlanePools {
@@ -460,6 +554,7 @@ async fn seed_demo(config: &DevConfig) -> TaskResult {
     }
 
     let identity = SqlxIdentityStore::new(write.clone());
+    ensure_native_demo_principal(root, &write, &identity).await?;
     let principal_ref = "local:platform-root";
     let principal_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS(
@@ -593,13 +688,89 @@ async fn seed_demo(config: &DevConfig) -> TaskResult {
         sqlx::query_scalar("SELECT count(*) FROM erpx_identity.directory_connectors")
             .fetch_one(&write)
             .await?;
-    if connector_count != 0 {
-        return Err("development seed refuses pre-existing directory connectors".into());
-    }
     println!(
-        "Demo fixture ready: {context_count} contexts, directory disabled, providers unconfigured."
+        "Demo fixture ready: {context_count} contexts, {connector_count} persisted directory connectors."
     );
     write.close().await;
+    Ok(())
+}
+
+async fn reset_platform_root_password(config: &DevConfig, confirmation: &str) -> TaskResult {
+    if confirmation != ROOT_PASSWORD_RESET_CONFIRMATION {
+        return Err(format!(
+            "reset-platform-root requires the literal confirmation {ROOT_PASSWORD_RESET_CONFIRMATION}"
+        )
+        .into());
+    }
+    config.validate_local()?;
+    if config.port != 55_432 || config.legacy_database != DATABASES[0] {
+        return Err(
+            "reset-platform-root is limited to the dedicated ERPX PostgreSQL cluster".into(),
+        );
+    }
+    let write = pool(&config.database_url(DATABASES[0])).await?;
+    let identity = SqlxIdentityStore::new(write.clone());
+    let new_password = format!(
+        "ERPX-ROOT-{}-{}",
+        Uuid::new_v4().simple(),
+        Uuid::new_v4().simple()
+    );
+    let revoked_sessions = identity
+        .rotate_platform_root_password(&new_password, Utc::now())
+        .await?;
+    let principal_ref = "local:platform-root";
+    sqlx::query(
+        "INSERT INTO erpx_control.audit_events
+            (id, actor_ref, customer_account_id, action, purpose, correlation_id, payload)
+         VALUES ($1, $2, NULL, $3, $4, $5, $6)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(principal_ref)
+    .bind("platform.break_glass.password_rotated")
+    .bind("Local development break-glass Platform Root password rotation")
+    .bind(Uuid::new_v4())
+    .bind(serde_json::json!({
+        "principal_ref": principal_ref,
+        "password_hash_only": true,
+        "revoked_sessions": revoked_sessions
+    }))
+    .execute(&write)
+    .await?;
+    println!("Platform Root password rotated (shown once):");
+    println!("  principal: {principal_ref}");
+    println!("  password: {new_password}");
+    println!("  revoked sessions: {revoked_sessions}");
+    write.close().await;
+    Ok(())
+}
+
+async fn ensure_native_demo_principal(
+    root: &Path,
+    write: &PgPool,
+    identity: &SqlxIdentityStore,
+) -> TaskResult {
+    let secret_root = runtime_dir(root).join("secrets");
+    fs::create_dir_all(&secret_root)?;
+    fs::set_permissions(&secret_root, fs::Permissions::from_mode(0o700))?;
+    let password_component = secret_file(&secret_root.join("native-demo-password.key"))?;
+    let principal_ref = "local:native-demo";
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+             SELECT 1 FROM erpx_identity.principals WHERE principal_ref=$1
+         )",
+    )
+    .bind(principal_ref)
+    .fetch_one(write)
+    .await?;
+    if !exists {
+        identity
+            .create_principal_with_password(
+                principal_ref,
+                &format!("ERPX-NATIVE-{password_component}"),
+                Utc::now(),
+            )
+            .await?;
+    }
     Ok(())
 }
 
@@ -640,9 +811,27 @@ async fn seed_demo_identities_and_roles(
     let platform_permissions = [
         "commercial.entitlement.activate",
         "commercial.entitlement.allocate",
+        "commercial.billing.read",
         "diagnostics:read",
+        "support.read",
+        "operations.read",
+        "finance.read",
+        "sales.read",
+        "procurement.read",
+        "inventory.read",
+        "assets.read",
+        "maintenance.read",
+        "quality.read",
+        "marketing-crm.read",
+        "hr-payroll.read",
+        "point-of-sale.read",
+        "legal.read",
         "platform.customer.access_audit.read",
         "platform.customer.read",
+        "platform.brand.lock",
+        "platform.brand.manage",
+        "platform.brand.publish",
+        "platform.brand.read",
         "platform.directory.manage",
         "platform.directory.read",
         "platform.outbox.replay",
@@ -734,8 +923,14 @@ fn fixture_digest() -> String {
 async fn dev(root: &Path, config: &DevConfig) -> TaskResult {
     config.validate_local()?;
     stop(root)?;
-    initialize_databases(config, false).await?;
-    seed_demo(config).await?;
+    let dedicated = config.port == 55_432;
+    if dedicated {
+        infra::start(root).await?;
+        migrate_all(config).await?;
+    } else {
+        initialize_databases(config, false).await?;
+    }
+    seed_demo(root, config).await?;
     let runtime = runtime_dir(root);
     fs::create_dir_all(&runtime)?;
     run_command(
@@ -752,7 +947,7 @@ async fn dev(root: &Path, config: &DevConfig) -> TaskResult {
     )?;
     let access_key = secret_file(&runtime.join("access-token.key"))?;
     let totp_key = secret_file(&runtime.join("totp.key"))?;
-    let common = vec![
+    let mut common = vec![
         (
             "ERPX_CONTROL_WRITE_DATABASE_URL",
             config.database_url(DATABASES[0]),
@@ -763,7 +958,11 @@ async fn dev(root: &Path, config: &DevConfig) -> TaskResult {
         ),
         (
             "ERPX_TENANT_ADMIN_DATABASE_URL",
-            config.database_url("postgres"),
+            if dedicated {
+                infra::admin_runtime_database_url(root)?
+            } else {
+                config.database_url("postgres")
+            },
         ),
         (
             "ERPX_TENANT_DATABASE_URL_TEMPLATE",
@@ -771,7 +970,10 @@ async fn dev(root: &Path, config: &DevConfig) -> TaskResult {
         ),
         ("ERPX_ACCESS_TOKEN_SIGNING_KEY", access_key),
         ("ERPX_IDENTITY_TOTP_KEY", totp_key),
-        ("ERPX_DIRECTORY_RUNTIME", "disabled".into()),
+        (
+            "ERPX_DIRECTORY_RUNTIME",
+            if dedicated { "enabled" } else { "disabled" }.into(),
+        ),
         ("ERPX_DEVELOPMENT_PROFILE", "local".into()),
         (
             "ERPX_MARKETING_CALLBACK_SECRET_RESOLVER",
@@ -782,6 +984,9 @@ async fn dev(root: &Path, config: &DevConfig) -> TaskResult {
         ("ERPX_WEBAUTHN_RP_ID", "localhost".into()),
         ("ERPX_WEBAUTHN_ORIGINS", "http://localhost:3004".into()),
     ];
+    if dedicated {
+        common.extend(infra::dedicated_common_environment(root)?);
+    }
     spawn_service(
         root,
         &runtime,
@@ -799,11 +1004,50 @@ async fn dev(root: &Path, config: &DevConfig) -> TaskResult {
     spawn_service(
         root,
         &runtime,
-        "worker",
+        "support-worker",
         root.join("target/debug/erpx-worker"),
         ["run"],
         worker_env,
     )?;
+    if dedicated {
+        for (name, handler, worker_id) in [
+            (
+                "directory-supervisor",
+                "directory_supervisor",
+                "8cf8d67f-186e-4b12-9e1c-bc29f5f554a1",
+            ),
+            (
+                "tenant-backup-worker",
+                "tenant_backup",
+                "8cf8d67f-186e-4b12-9e1c-bc29f5f554a2",
+            ),
+            (
+                "backup-retention-worker",
+                "tenant_backup_retention",
+                "8cf8d67f-186e-4b12-9e1c-bc29f5f554a3",
+            ),
+            (
+                "pitr-controller",
+                "cluster_pitr_controller",
+                "8cf8d67f-186e-4b12-9e1c-bc29f5f554a4",
+            ),
+        ] {
+            let mut environment = common.clone();
+            environment.extend([
+                ("ERPX_WORKER_HANDLER", handler.into()),
+                ("ERPX_WORKER_ID", worker_id.into()),
+                ("ERPX_WORKER_POLL_INTERVAL_MS", "500".into()),
+            ]);
+            spawn_service(
+                root,
+                &runtime,
+                name,
+                root.join("target/debug/erpx-worker"),
+                ["run"],
+                environment,
+            )?;
+        }
+    }
     spawn_service(
         root,
         &runtime,
@@ -864,7 +1108,15 @@ where
 
 fn status(root: &Path) -> TaskResult {
     let runtime = runtime_dir(root);
-    for name in ["server", "worker", "web"] {
+    for name in [
+        "server",
+        "support-worker",
+        "directory-supervisor",
+        "tenant-backup-worker",
+        "backup-retention-worker",
+        "pitr-controller",
+        "web",
+    ] {
         let pid = read_pid(&runtime.join(format!("{name}.pid")))?;
         match pid {
             Some(pid) if recorded_process_matches(name, pid) => {
@@ -874,12 +1126,22 @@ fn status(root: &Path) -> TaskResult {
             None => println!("{name}: stopped"),
         }
     }
+    infra::status(root)?;
     Ok(())
 }
 
 fn stop(root: &Path) -> TaskResult {
     let runtime = runtime_dir(root);
-    for name in ["web", "worker", "server"] {
+    for name in [
+        "web",
+        "pitr-controller",
+        "backup-retention-worker",
+        "tenant-backup-worker",
+        "directory-supervisor",
+        "support-worker",
+        "worker",
+        "server",
+    ] {
         let pid_path = runtime.join(format!("{name}.pid"));
         if let Some(pid) = read_pid(&pid_path)? {
             if recorded_process_matches(name, pid) {
@@ -892,7 +1154,7 @@ fn stop(root: &Path) -> TaskResult {
             }
         }
     }
-    Ok(())
+    infra::stop(root)
 }
 
 fn read_pid(path: &Path) -> TaskResult<Option<u32>> {
@@ -916,7 +1178,12 @@ fn recorded_process_matches(name: &str, pid: u32) -> bool {
     let command = String::from_utf8_lossy(&output.stdout);
     match name {
         "server" => command.contains("erpx-server"),
-        "worker" => command.contains("erpx-worker"),
+        "worker"
+        | "support-worker"
+        | "directory-supervisor"
+        | "tenant-backup-worker"
+        | "backup-retention-worker"
+        | "pitr-controller" => command.contains("erpx-worker"),
         "web" => command.contains("dx serve"),
         _ => false,
     }
@@ -1067,18 +1334,30 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
     let organization_read_key = format!("erpx_verify_otr_{stamp}");
     let readiness_write_key = format!("erpx_rdy_w_{stamp}");
     let readiness_read_key = format!("erpx_rdy_r_{stamp}");
-    create_disposable_databases(config, &database_keys).await?;
+    let (admin_url, verification_database_template) = if config.port == 55_432 {
+        (
+            infra::admin_runtime_database_url(root)?,
+            infra::admin_runtime_database_template(root)?,
+        )
+    } else {
+        (config.database_url("postgres"), config.database_template())
+    };
+    create_disposable_databases(config, &admin_url, &database_keys).await?;
 
-    let control_write_url = config.database_url(&database_keys[0]);
-    let control_read_url = config.database_url(&database_keys[1]);
-    let tenant_write_url = config.database_url(&database_keys[2]);
-    let tenant_read_url = config.database_url(&database_keys[3]);
-    let directory_url = config.database_url(&database_keys[4]);
-    let commercial_url = config.database_url(&database_keys[5]);
-    let marketing_url = config.database_url(&database_keys[6]);
-    let support_url = config.database_url(&database_keys[7]);
-    let admin_url = config.database_url("postgres");
-    let template = config.database_template();
+    // The ignored SQLx acceptance suite deliberately performs DDL, creates
+    // temporary roles, and seeds rows beneath FORCE RLS to test the
+    // application boundary. Keep that harness on the dedicated admin role;
+    // the detached ERPX runtime continues to use the least-privilege app role.
+    let verification_url =
+        |database: &str| verification_database_template.replace("{database}", database);
+    let control_write_url = verification_url(&database_keys[0]);
+    let control_read_url = verification_url(&database_keys[1]);
+    let tenant_write_url = verification_url(&database_keys[2]);
+    let tenant_read_url = verification_url(&database_keys[3]);
+    let directory_url = verification_url(&database_keys[4]);
+    let commercial_url = verification_url(&database_keys[5]);
+    let marketing_url = verification_url(&database_keys[6]);
+    let support_url = verification_url(&database_keys[7]);
     let test_environment = vec![
         ("ERPX_TEST_CONTROL_WRITE_DATABASE_URL", control_write_url),
         ("ERPX_TEST_CONTROL_READ_DATABASE_URL", control_read_url),
@@ -1100,8 +1379,14 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
         ("ERPX_SUPPORT_TEST_DATABASE_URL", support_url),
         ("ERPX_TEST_ADMIN_DATABASE_URL", admin_url.clone()),
         ("ERPX_G13_DISPOSABLE_ADMIN_DATABASE_URL", admin_url.clone()),
-        ("ERPX_TEST_STRIPE_SEMANTIC_ADMIN_DATABASE_URL", admin_url),
-        ("ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE", template),
+        (
+            "ERPX_TEST_STRIPE_SEMANTIC_ADMIN_DATABASE_URL",
+            admin_url.clone(),
+        ),
+        (
+            "ERPX_TEST_TENANT_DATABASE_URL_TEMPLATE",
+            verification_database_template,
+        ),
         (
             "ERPX_TEST_PHYSICAL_TENANT_WRITE_KEY",
             physical_write_key.clone(),
@@ -1180,7 +1465,7 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
         readiness_write_key,
         readiness_read_key,
     ]);
-    let cleanup_result = drop_disposable_databases(config, &cleanup_keys).await;
+    let cleanup_result = drop_disposable_databases(&admin_url, &cleanup_keys).await;
     test_result?;
     cleanup_result?;
     println!(
@@ -1189,19 +1474,30 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
     Ok(())
 }
 
-async fn create_disposable_databases(config: &DevConfig, database_keys: &[String]) -> TaskResult {
-    let mut admin = PgConnection::connect(&config.database_url("postgres")).await?;
+async fn create_disposable_databases(
+    config: &DevConfig,
+    admin_url: &str,
+    database_keys: &[String],
+) -> TaskResult {
+    let mut admin = PgConnection::connect(admin_url).await?;
     for database_key in database_keys {
         validate_disposable_database_key(database_key)?;
         admin
-            .execute(format!("CREATE DATABASE \"{database_key}\"").as_str())
+            .execute(
+                format!(
+                    "CREATE DATABASE {} OWNER {}",
+                    quote_postgres_identifier(database_key),
+                    quote_postgres_identifier(&config.user),
+                )
+                .as_str(),
+            )
             .await?;
     }
     Ok(())
 }
 
-async fn drop_disposable_databases(config: &DevConfig, database_keys: &[String]) -> TaskResult {
-    let mut admin = PgConnection::connect(&config.database_url("postgres")).await?;
+async fn drop_disposable_databases(admin_url: &str, database_keys: &[String]) -> TaskResult {
+    let mut admin = PgConnection::connect(admin_url).await?;
     for database_key in database_keys {
         validate_disposable_database_key(database_key)?;
         admin
@@ -1209,6 +1505,10 @@ async fn drop_disposable_databases(config: &DevConfig, database_keys: &[String])
             .await?;
     }
     Ok(())
+}
+
+fn quote_postgres_identifier(value: &str) -> String {
+    format!("\"{}\"", value.replace('"', "\"\""))
 }
 
 fn validate_disposable_database_key(database_key: &str) -> TaskResult {
@@ -1315,10 +1615,17 @@ fn runtime_dir(root: &Path) -> PathBuf {
 
 fn secret_file(path: &Path) -> TaskResult<String> {
     if path.exists() {
+        let metadata = fs::symlink_metadata(path)?;
+        if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+            return Err(format!("refusing unsafe secret file {}", path.display()).into());
+        }
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
         return Ok(fs::read_to_string(path)?.trim().to_owned());
     }
     let secret = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
-    let mut file = OpenOptions::new().create_new(true).write(true).open(path)?;
+    let mut options = OpenOptions::new();
+    options.create_new(true).write(true).mode(0o600);
+    let mut file = options.open(path)?;
     file.write_all(secret.as_bytes())?;
     Ok(secret)
 }

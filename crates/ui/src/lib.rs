@@ -32,9 +32,11 @@ pub use auth::{
     SessionState, SessionTransport, StoredSession,
 };
 pub use components::{
-    AppShell, BannerKind, DataTable, Dialog, Field, FilterBar, LocaleToggle, PageHeader,
-    RouteStateBoundary, ScopeSelector, SessionBanners, StateBoundary, StatePanel, TableColumn,
-    TextField,
+    AppShell, BannerKind, CollectionLayout, CorporateIdentityEditor, CorporateIdentityEditorAction,
+    CorporateIdentityEditorActionKind, CorporateIdentityEditorSubmission, DashboardLayout,
+    DataTable, Dialog, EnterpriseIcon, Field, FilterBar, LocaleToggle, OperationsLayout,
+    PageHeader, RecordLayout, RouteStateBoundary, ScopeSelector, SessionBanners, SettingsLayout,
+    StateBoundary, StatePanel, TableColumn, TextField, WorkflowLayout,
 };
 pub use crm::{
     CRM_SURFACES, CrmAttributionDisplayModel, CrmAttributionModel, CrmDisplayField, CrmFieldInput,
@@ -88,7 +90,7 @@ pub use legal::{
     LegalRoute, LegalRouteDescriptor, LegalRouteId, LegalRouteParseError, LegalRouteRegistry,
     LegalScalar, MAX_LEGAL_DISPLAY_TEXT_BYTES, MAX_LEGAL_IDENTIFIER_BYTES,
 };
-pub use navigation::{NavItem, NavigationState, normalize_path};
+pub use navigation::{NavGroup, NavItem, NavigationState, normalize_path};
 pub use operations::{
     OPERATIONS_PAGES, OperationsDisplayField, OperationsDisplayModel, OperationsFieldInput,
     OperationsPage, OperationsProjectionMetadata, OperationsScope, OperationsScopeKind,
@@ -98,7 +100,9 @@ pub use platform::{
     MAX_PLATFORM_TENANT_ID_BYTES, PLATFORM_OPERATIONS_ROUTES, PlatformOperationsAudience,
     PlatformOperationsPageState, PlatformOperationsProjectionMetadata, PlatformOperationsRoute,
     PlatformOperationsRouteDefinition, PlatformOperationsRouteError, PlatformOperationsRouteId,
-    PlatformOperationsRouteRegistry, PlatformTenantId,
+    PlatformOperationsRouteRegistry, PlatformTenantAdministrationTab, PlatformTenantId,
+    TenantWorkspaceBillingMode, TenantWorkspaceContext, TenantWorkspaceModule,
+    TenantWorkspaceOrganizationScope, TenantWorkspaceViewerKind,
 };
 pub use pos::{
     MAX_POS_DISPLAY_LINES, MAX_POS_DISPLAY_VALUE_BYTES, MAX_POS_LINE_ID_BYTES,
@@ -151,7 +155,10 @@ pub use support_surfaces::{
     IncidentDetailSurface, IncidentListSurface, SupportIncidentSurface,
     SupportIncidentSurfaceState, SupportRouteTabs, SupportSurface, SupportTicketListSurface,
 };
-pub use theme::{ThemeContext, ThemeMode, provide_theme, use_theme};
+pub use theme::{
+    CorporateIdentityContext, ThemeContext, ThemeMode, corporate_identity_style,
+    provide_corporate_identity, provide_theme, use_corporate_identity, use_theme,
+};
 
 /// Shared CSS variables and component styles. Applications can include this once in their root
 /// component and layer client-specific styles on top.

@@ -1,6 +1,7 @@
 use std::{
     env,
     fmt::{self, Display},
+    fs,
     future::Future,
     pin::Pin,
     sync::{
@@ -21,6 +22,8 @@ const ACCESS_KEY_ENV: &str = "ERPX_MINIO_ACCESS_KEY";
 const SECRET_KEY_ENV: &str = "ERPX_MINIO_SECRET_KEY";
 const REGION_ENV: &str = "ERPX_MINIO_REGION";
 const REQUIRED_ENV: &str = "ERPX_MINIO_REQUIRED";
+const CA_CERTIFICATE_PATH_ENV: &str = "ERPX_MINIO_CA_CERTIFICATE_PATH";
+const MAX_CA_CERTIFICATE_BYTES: u64 = 128 * 1024;
 
 type NamespaceFuture<'a> =
     Pin<Box<dyn Future<Output = Result<(), ObjectStorageError>> + Send + 'a>>;
@@ -154,6 +157,7 @@ struct StorageConfigValues {
     access_key: Option<String>,
     secret_key: Option<String>,
     region: Option<String>,
+    ca_certificate_path: Option<String>,
     required: bool,
 }
 
@@ -164,6 +168,7 @@ impl StorageConfigValues {
             access_key: read_env(ACCESS_KEY_ENV)?,
             secret_key: read_env(SECRET_KEY_ENV)?,
             region: read_env(REGION_ENV)?,
+            ca_certificate_path: read_env(CA_CERTIFICATE_PATH_ENV)?,
             required: match read_env(REQUIRED_ENV)?.as_deref() {
                 None | Some("false") => false,
                 Some("true") => true,
@@ -177,6 +182,7 @@ impl StorageConfigValues {
             && self.access_key.is_none()
             && self.secret_key.is_none()
             && self.region.is_none()
+            && self.ca_certificate_path.is_none()
     }
 
     fn into_store(self) -> Result<Option<Arc<dyn ObjectStoreBoundary>>, StorageConfigurationError> {
@@ -191,12 +197,29 @@ impl StorageConfigValues {
         else {
             return Err(StorageConfigurationError::Incomplete);
         };
-        let store = MinioObjectStore::new(MinioObjectStoreConfig {
-            endpoint,
-            access_key,
-            secret_key,
-            region,
-        })
+        let ca_certificate = self
+            .ca_certificate_path
+            .map(|path| {
+                let metadata =
+                    fs::metadata(&path).map_err(|_| StorageConfigurationError::Invalid)?;
+                if !metadata.is_file()
+                    || metadata.len() == 0
+                    || metadata.len() > MAX_CA_CERTIFICATE_BYTES
+                {
+                    return Err(StorageConfigurationError::Invalid);
+                }
+                fs::read(path).map_err(|_| StorageConfigurationError::Invalid)
+            })
+            .transpose()?;
+        let store = MinioObjectStore::new_with_ca_certificate(
+            MinioObjectStoreConfig {
+                endpoint,
+                access_key,
+                secret_key,
+                region,
+            },
+            ca_certificate.as_deref(),
+        )
         .map_err(|_| StorageConfigurationError::Invalid)?;
         Ok(Some(Arc::new(store)))
     }
@@ -726,6 +749,7 @@ mod tests {
             secret_key: Some("private-secret".into()),
             region: Some("us-east-1".into()),
             required: false,
+            ca_certificate_path: None,
         })
         .expect("valid storage configuration");
         assert_eq!(composition.health_signal().status, "unprobed");
@@ -755,6 +779,7 @@ mod tests {
             secret_key: Some("private-secret".into()),
             region: Some("us-east-1".into()),
             required: false,
+            ca_certificate_path: None,
         })
         .expect_err("invalid endpoint must fail startup validation");
         assert_eq!(error, StorageConfigurationError::Invalid);
@@ -785,6 +810,7 @@ mod tests {
             secret_key: Some("private-secret".into()),
             region: Some("us-east-1".into()),
             required: true,
+            ca_certificate_path: None,
         })
         .expect("valid storage configuration");
         assert_eq!(composition.health_signal().status, "unprobed");

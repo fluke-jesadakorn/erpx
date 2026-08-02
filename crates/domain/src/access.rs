@@ -751,6 +751,7 @@ impl RoleAssignment {
 
 pub const PLATFORM_ROOT_ROLE: &str = "platform_root";
 pub const HOLDING_OWNER_ROLE: &str = "holding_owner";
+pub const CUSTOMER_SECURITY_HEAD_ROLE: &str = "customer_security_head";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RoleReviewClassification {
