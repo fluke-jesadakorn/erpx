@@ -9,9 +9,20 @@
 use dioxus::dioxus_core::current_scope_id;
 use dioxus::prelude::*;
 use erpx_ui::{
-    ClientTarget, SecureSessionSupport, UiAccessibilityContract, UiStateKind, redact_deep_link,
+    ClientTarget, Locale, LocaleContext, LocalizedText, SecureSessionSupport,
+    UiAccessibilityContract, UiStateKind, redact_deep_link,
 };
 use std::fmt;
+
+fn product_locale() -> Locale {
+    try_consume_context::<LocaleContext>()
+        .map(LocaleContext::current)
+        .unwrap_or_default()
+}
+
+fn product_copy(en: &'static str, th: &'static str) -> &'static str {
+    LocalizedText::new(en, th).text(product_locale())
+}
 
 /// The revocation budget required by the ERPX security contract.
 pub const FIVE_MINUTE_REVOCATION_SECONDS: u32 = 300;
@@ -1044,6 +1055,20 @@ impl PlatformOperationsArea {
         }
     }
 
+    /// Locale-aware area label while preserving the stable English API.
+    pub const fn label_for(self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (Self::Tenants, Locale::Th) => "ผู้เช่า",
+            (Self::Projections, Locale::Th) => "โพรเจกชัน",
+            (Self::Backups, Locale::Th) => "ข้อมูลสำรอง",
+            (Self::Integrations, Locale::Th) => "การเชื่อมต่อระบบ",
+            (Self::Audit, Locale::Th) => "การตรวจสอบ",
+            (Self::Settings, Locale::Th) => "การตั้งค่า",
+            (Self::RoleReview, Locale::Th) => "การทบทวนบทบาท",
+            (_, Locale::En) => self.label(),
+        }
+    }
+
     /// Canonical read path.
     pub const fn path(self) -> &'static str {
         match self {
@@ -1383,18 +1408,18 @@ impl ProductContext {
     /// Canonical product path prefix.
     pub const fn path(self) -> &'static str {
         match self {
-            Self::Operations => "/operations",
-            Self::Finance => "/finance",
-            Self::Sales => "/sales",
-            Self::Procurement => "/procurement",
-            Self::Inventory => "/inventory",
-            Self::Assets => "/assets",
-            Self::Maintenance => "/maintenance",
-            Self::Quality => "/quality",
-            Self::MarketingCrm => "/marketing",
-            Self::HrPayroll => "/hr",
-            Self::Pos => "/pos",
-            Self::Legal => "/legal",
+            Self::Operations => "/workspaces/operations",
+            Self::Finance => "/workspaces/finance",
+            Self::Sales => "/workspaces/sales",
+            Self::Procurement => "/workspaces/procurement",
+            Self::Inventory => "/workspaces/inventory",
+            Self::Assets => "/workspaces/assets",
+            Self::Maintenance => "/workspaces/maintenance",
+            Self::Quality => "/workspaces/quality",
+            Self::MarketingCrm => "/workspaces/marketing-crm",
+            Self::HrPayroll => "/workspaces/hr-payroll",
+            Self::Pos => "/workspaces/point-of-sale",
+            Self::Legal => "/workspaces/legal",
         }
     }
 
@@ -1413,6 +1438,25 @@ impl ProductContext {
             Self::HrPayroll => "HR and Payroll",
             Self::Pos => "Point of Sale",
             Self::Legal => "Legal",
+        }
+    }
+
+    /// Locale-aware product label without changing the stable English API.
+    pub const fn label_for(self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (Self::Operations, Locale::Th) => "การปฏิบัติการ",
+            (Self::Finance, Locale::Th) => "การเงิน",
+            (Self::Sales, Locale::Th) => "การขาย",
+            (Self::Procurement, Locale::Th) => "การจัดซื้อ",
+            (Self::Inventory, Locale::Th) => "สินค้าคงคลัง",
+            (Self::Assets, Locale::Th) => "สินทรัพย์",
+            (Self::Maintenance, Locale::Th) => "การบำรุงรักษา",
+            (Self::Quality, Locale::Th) => "คุณภาพ",
+            (Self::MarketingCrm, Locale::Th) => "การตลาดและ CRM",
+            (Self::HrPayroll, Locale::Th) => "ทรัพยากรบุคคลและเงินเดือน",
+            (Self::Pos, Locale::Th) => "จุดขาย",
+            (Self::Legal, Locale::Th) => "กฎหมาย",
+            (_, Locale::En) => self.label(),
         }
     }
 }
@@ -1455,6 +1499,15 @@ impl ProjectionFreshness {
             Self::Fresh => "Fresh projection",
             Self::Stale => "Stale projection",
             Self::Unknown => "Projection freshness unavailable",
+        }
+    }
+
+    pub const fn label_for(self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (Self::Fresh, Locale::Th) => "โพรเจกชันเป็นปัจจุบัน",
+            (Self::Stale, Locale::Th) => "โพรเจกชันล้าสมัย",
+            (Self::Unknown, Locale::Th) => "ไม่มีข้อมูลความใหม่ของโพรเจกชัน",
+            (_, Locale::En) => self.label(),
         }
     }
 }
@@ -1510,6 +1563,14 @@ impl PersistenceEvidence {
             Self::Unavailable => "Persistence evidence unavailable",
         }
     }
+
+    pub const fn label_for(self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (Self::AuthoritativeReadModel, Locale::Th) => "ข้อมูลอ่านที่จัดเก็บและเป็นข้อยุติ",
+            (Self::Unavailable, Locale::Th) => "ไม่มีหลักฐานการจัดเก็บ",
+            (_, Locale::En) => self.label(),
+        }
+    }
 }
 
 /// Reconciliation evidence for a context projection.
@@ -1545,6 +1606,16 @@ impl ReconciliationEvidence {
             Self::NotReported => "Reconciliation evidence unavailable",
         }
     }
+
+    pub const fn label_for(self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (Self::Reconciled, Locale::Th) => "กระทบยอดแล้ว",
+            (Self::Pending, Locale::Th) => "รอกระทบยอด",
+            (Self::DriftDetected, Locale::Th) => "พบความคลาดเคลื่อนจากการกระทบยอด",
+            (Self::NotReported, Locale::Th) => "ไม่มีหลักฐานการกระทบยอด",
+            (_, Locale::En) => self.label(),
+        }
+    }
 }
 
 /// Authorization evidence for the product read.
@@ -1578,6 +1649,16 @@ impl AuthorizationEvidence {
             Self::Denied => "Read denied by server",
             Self::Blocked => "Read blocked by policy or dependency",
             Self::Unavailable => "Authorization evidence unavailable",
+        }
+    }
+
+    pub const fn label_for(self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (Self::ServerAuthorized, Locale::Th) => "ข้อมูลอ่านที่เซิร์ฟเวอร์อนุญาต",
+            (Self::Denied, Locale::Th) => "เซิร์ฟเวอร์ปฏิเสธการอ่าน",
+            (Self::Blocked, Locale::Th) => "นโยบายหรือส่วนประกอบที่เกี่ยวข้องบล็อกการอ่าน",
+            (Self::Unavailable, Locale::Th) => "ไม่มีหลักฐานการอนุญาต",
+            (_, Locale::En) => self.label(),
         }
     }
 }
@@ -1827,6 +1908,42 @@ impl ProductSurfaceModel {
         }
     }
 
+    pub fn summary_for(&self, locale: Locale) -> String {
+        if locale == Locale::En {
+            return self.summary();
+        }
+        let number = |value: usize| locale.formatter().format_integer(value as i64);
+        match self {
+            Self::DirectoryAdministration(model) => format!(
+                "คอนเนกเตอร์ {} รายการ, การจับคู่บทบาท {} รายการ, การเชื่อมโยงตัวตนที่แก้ไขไม่ได้ {} รายการ",
+                number(model.connectors().len()),
+                number(model.role_mappings().len()),
+                number(model.identity_links().len())
+            ),
+            Self::PlatformOperations(model) => format!(
+                "พื้นที่ข้อมูลอ่าน {} รายการ, ขอบเขตคอนเนกเตอร์ {} รายการ",
+                number(model.areas().len()),
+                number(model.connector_scopes().len())
+            ),
+            Self::Context(model) => match model.visible_row_count() {
+                Some(visible) => format!(
+                    "แถวที่มองเห็น {} แถว, ฟิลด์ที่ปกปิด {} ฟิลด์",
+                    locale.formatter().format_integer(visible as i64),
+                    locale
+                        .formatter()
+                        .format_integer(i64::from(model.redacted_field_count()))
+                ),
+                None if model.projection_status_count() > 0 => format!(
+                    "สถานะโพรเจกชันที่เป็นข้อยุติ {} แถว; ไม่มีแถวข้อมูลผลิตภัณฑ์",
+                    locale
+                        .formatter()
+                        .format_integer(model.projection_status_count() as i64)
+                ),
+                None => "มีสถานะโพรเจกชัน; ไม่มีแถวข้อมูลผลิตภัณฑ์".into(),
+            },
+        }
+    }
+
     /// Whether this model is explicitly read-only.
     pub const fn is_read_only(&self) -> bool {
         match self {
@@ -1946,6 +2063,15 @@ impl ProductSurface {
             Self::DirectoryAdministration => "Directory administration",
             Self::PlatformOperations => "Platform Operations",
             Self::Context(context) => context.label(),
+        }
+    }
+
+    pub const fn label_for(self, locale: Locale) -> &'static str {
+        match self {
+            Self::DirectoryAdministration if matches!(locale, Locale::Th) => "การจัดการไดเรกทอรี",
+            Self::PlatformOperations if matches!(locale, Locale::Th) => "การปฏิบัติการแพลตฟอร์ม",
+            Self::Context(context) => context.label_for(locale),
+            _ => self.label(),
         }
     }
 }
@@ -2116,6 +2242,35 @@ impl ProductSurfaceState {
             Self::Conflict { .. } => "conflict",
             Self::Error { .. } => "error",
             Self::Offline { .. } => "offline",
+        }
+    }
+
+    pub const fn state_label(&self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (Self::Loading { .. }, Locale::Th) => "กำลังโหลด",
+            (Self::Empty { .. }, Locale::Th) => "ไม่มีรายการ",
+            (Self::Unavailable { .. }, Locale::Th) => "ไม่พร้อมใช้งาน",
+            (Self::Ready { .. }, Locale::Th) => "พร้อมใช้งาน",
+            (Self::Denied { .. }, Locale::Th) => "ปฏิเสธการเข้าถึง",
+            (Self::Blocked { .. }, Locale::Th) => "ถูกบล็อก",
+            (Self::Stale { .. }, Locale::Th) => "ข้อมูลล้าสมัย",
+            (Self::ReadOnly { .. }, Locale::Th) => "อ่านอย่างเดียว",
+            (Self::Conflict { .. }, Locale::Th) => "ข้อมูลขัดแย้ง",
+            (Self::Error { .. }, Locale::Th) => "ข้อผิดพลาด",
+            (Self::Offline { .. }, Locale::Th) => "ออฟไลน์",
+            (_, Locale::En) => match self {
+                Self::Loading { .. } => "Loading",
+                Self::Empty { .. } => "Empty",
+                Self::Unavailable { .. } => "Unavailable",
+                Self::Ready { .. } => "Ready",
+                Self::Denied { .. } => "Access denied",
+                Self::Blocked { .. } => "Blocked",
+                Self::Stale { .. } => "Stale",
+                Self::ReadOnly { .. } => "Read-only",
+                Self::Conflict { .. } => "Conflict",
+                Self::Error { .. } => "Error",
+                Self::Offline { .. } => "Offline",
+            },
         }
     }
 
@@ -2827,43 +2982,133 @@ pub fn safe_return_path(path: &str) -> SafeDisplayText {
 }
 
 fn directory_bool_status(value: bool) -> &'static str {
-    if value { "Compliant" } else { "Not compliant" }
+    if value {
+        product_copy("Compliant", "ปฏิบัติตาม")
+    } else {
+        product_copy("Not compliant", "ไม่ปฏิบัติตาม")
+    }
+}
+
+fn directory_known_status(value: &str) -> &str {
+    match (value, product_locale()) {
+        ("draft", Locale::Th) => "ฉบับร่าง",
+        ("verified", Locale::Th) => "ตรวจสอบแล้ว",
+        ("importing", Locale::Th) => "กำลังนำเข้า",
+        ("ready", Locale::Th) => "พร้อมใช้งาน",
+        ("active", Locale::Th) => "ใช้งานอยู่",
+        ("suspended", Locale::Th) => "ระงับการใช้งาน",
+        ("failed", Locale::Th) => "ล้มเหลว",
+        ("not_ready", Locale::Th) => "ยังไม่พร้อม",
+        ("unconfigured", Locale::Th) => "ยังไม่ได้ตั้งค่า",
+        ("running", Locale::Th) => "กำลังทำงาน",
+        ("finalizing", Locale::Th) => "กำลังดำเนินการขั้นสุดท้าย",
+        ("completed", Locale::Th) => "เสร็จสมบูรณ์",
+        ("rolled_back", Locale::Th) => "ย้อนกลับแล้ว",
+        ("disabled", Locale::Th) => "ปิดใช้งาน",
+        ("enabled", Locale::Th) => "เปิดใช้งาน",
+        _ => value,
+    }
+}
+
+fn directory_scope_label(value: &str) -> &str {
+    match (value, product_locale()) {
+        ("Platform", Locale::Th) => "แพลตฟอร์ม",
+        _ => value,
+    }
+}
+
+/// Localize only ERPX-authored state messages. Unknown text may be supplied by
+/// an authoritative read boundary and is intentionally presented unchanged.
+fn product_state_message(message: &SafeDisplayText, locale: Locale) -> String {
+    if locale == Locale::En {
+        return message.to_string();
+    }
+    match message.as_str() {
+        "Directory facts are server-authorized and read-only." => {
+            "ข้อมูลไดเรกทอรีได้รับอนุญาตจากเซิร์ฟเวอร์และเป็นแบบอ่านอย่างเดียว".into()
+        }
+        "Every Platform Operations area requires a matching authenticated read adapter." => {
+            "ทุกพื้นที่การปฏิบัติการแพลตฟอร์มต้องมีอะแดปเตอร์อ่านที่ยืนยันตัวตนตรงกัน".into()
+        }
+        "Platform Operations reconciliation detected drift; the read remains blocked until the authoritative worker resolves it." => {
+            "การกระทบยอดการปฏิบัติการแพลตฟอร์มพบความคลาดเคลื่อน การอ่านจะถูกบล็อกจนกว่าเวิร์กเกอร์ที่เป็นข้อยุติจะแก้ไข"
+                .into()
+        }
+        "Authoritative stale response omitted its freshness age." => {
+            "การตอบกลับที่ล้าสมัยจากแหล่งข้อมูลที่เป็นข้อยุติไม่มีอายุความใหม่".into()
+        }
+        "This read cannot be rendered until authoritative persistence and server authorization are available." => {
+            "ไม่สามารถแสดงข้อมูลอ่านนี้จนกว่าจะมีการจัดเก็บที่เป็นข้อยุติและการอนุญาตจากเซิร์ฟเวอร์".into()
+        }
+        "The directory read model does not satisfy its authoritative security contract." => {
+            "โมเดลอ่านไดเรกทอรีไม่เป็นไปตามสัญญาความปลอดภัยที่เป็นข้อยุติ".into()
+        }
+        "Directory reconciliation detected drift; the read remains blocked until the authoritative worker resolves it." => {
+            "การกระทบยอดไดเรกทอรีพบความคลาดเคลื่อน การอ่านจะถูกบล็อกจนกว่าเวิร์กเกอร์ที่เป็นข้อยุติจะแก้ไข".into()
+        }
+        "Authoritative reconciliation detected drift; this read remains blocked until the worker resolves it." => {
+            "การกระทบยอดที่เป็นข้อยุติพบความคลาดเคลื่อน การอ่านนี้จะถูกบล็อกจนกว่าเวิร์กเกอร์จะแก้ไข".into()
+        }
+        "Product rows require an explicit tenant/holding binding and validated pagination metadata." => {
+            "แถวผลิตภัณฑ์ต้องระบุการเชื่อมโยงผู้เช่า/โฮลดิ้งและข้อมูลกำกับการแบ่งหน้าที่ตรวจสอบแล้ว".into()
+        }
+        "Product row count does not match the authoritative page metadata." => {
+            "จำนวนแถวผลิตภัณฑ์ไม่ตรงกับข้อมูลกำกับหน้าที่เป็นข้อยุติ".into()
+        }
+        "A stale projection must be rendered with an authoritative stale age." => {
+            "โพรเจกชันที่ล้าสมัยต้องแสดงพร้อมอายุความล้าสมัยจากแหล่งข้อมูลที่เป็นข้อยุติ".into()
+        }
+        "The authoritative projection freshness and stale age are inconsistent." => {
+            "ความใหม่และอายุความล้าสมัยของโพรเจกชันที่เป็นข้อยุติไม่สอดคล้องกัน".into()
+        }
+        _ => message.to_string(),
+    }
 }
 
 fn directory_role_mapping_status(mode: RoleMappingMode) -> &'static str {
     match mode {
-        RoleMappingMode::DirectoryManaged => "Directory-managed",
-        RoleMappingMode::LocalOnly => "Local-only (not allowed)",
+        RoleMappingMode::DirectoryManaged => product_copy("Directory-managed", "จัดการโดยไดเรกทอรี"),
+        RoleMappingMode::LocalOnly => {
+            product_copy("Local-only (not allowed)", "เฉพาะบัญชีภายใน (ไม่อนุญาต)")
+        }
     }
 }
 
 fn directory_identity_linking_status(mode: IdentityLinkingMode) -> &'static str {
     match mode {
-        IdentityLinkingMode::Immutable => "Immutable",
-        IdentityLinkingMode::Mutable => "Mutable (not allowed)",
+        IdentityLinkingMode::Immutable => product_copy("Immutable", "แก้ไขไม่ได้"),
+        IdentityLinkingMode::Mutable => product_copy("Mutable (not allowed)", "แก้ไขได้ (ไม่อนุญาต)"),
     }
 }
 
 fn directory_role_revocation_status(mode: RoleRevocationMode) -> &'static str {
     match mode {
-        RoleRevocationMode::AppendOnly => "Append-only",
-        RoleRevocationMode::Replaceable => "Replaceable (not allowed)",
+        RoleRevocationMode::AppendOnly => product_copy("Append-only", "เพิ่มข้อมูลเท่านั้น"),
+        RoleRevocationMode::Replaceable => {
+            product_copy("Replaceable (not allowed)", "แทนที่ได้ (ไม่อนุญาต)")
+        }
     }
 }
 
 fn directory_fallback_status(mode: LocalFallbackMode) -> &'static str {
     match mode {
-        LocalFallbackMode::BreakGlassOnly => "Break-glass only",
-        LocalFallbackMode::GeneralLocalFallback => "General local fallback (not allowed)",
+        LocalFallbackMode::BreakGlassOnly => product_copy("Break-glass only", "เฉพาะกรณีฉุกเฉิน"),
+        LocalFallbackMode::GeneralLocalFallback => product_copy(
+            "General local fallback (not allowed)",
+            "ใช้บัญชีภายในทั่วไปเป็นทางเลือก (ไม่อนุญาต)",
+        ),
     }
 }
 
 fn directory_mfa_status(policy: HighRiskMfaPolicy) -> String {
     match policy {
-        HighRiskMfaPolicy::Required { max_age_seconds } => {
-            format!("Required; assertion age ≤ {max_age_seconds} seconds")
+        HighRiskMfaPolicy::Required { max_age_seconds } => match product_locale() {
+            Locale::En => format!("Required; assertion age ≤ {max_age_seconds} seconds"),
+            Locale::Th => format!("จำเป็น; คำยืนยันมีอายุ ≤ {max_age_seconds} วินาที"),
+        },
+        HighRiskMfaPolicy::NotRequired => {
+            product_copy("Not required (not allowed)", "ไม่จำเป็น (ไม่อนุญาต)").into()
         }
-        HighRiskMfaPolicy::NotRequired => "Not required (not allowed)".into(),
     }
 }
 
@@ -2919,60 +3164,58 @@ pub fn DirectoryAdministrationSurface(model: DirectoryAdministrationModel) -> El
             "data-persistence": persistence.key(),
             "data-reconciliation": reconciliation.key(),
             "data-authorization": authorization.key(),
-            aria_label: "Directory administration",
+            aria_label: product_copy("Directory administration", "การจัดการไดเรกทอรี"),
             header {
                 class: "erpx-directory-header",
-                span { class: "ui-eyebrow", "ERPX DIRECTORY ADMINISTRATION" }
-                h2 { "Directory administration" }
-                p {
-                    "Authoritative connector and identity facts. This surface is read-only; directory commands remain server-authorized."
-                }
+                span { class: "ui-eyebrow", {product_copy("ERPX DIRECTORY ADMINISTRATION", "การจัดการไดเรกทอรี ERPX")} }
+                h2 { {product_copy("Directory administration", "การจัดการไดเรกทอรี")} }
+                p { {product_copy("Authoritative connector and identity facts. This surface is read-only; directory commands remain server-authorized.", "เชื่อมต่อและข้อมูลประจำตัวที่เป็นที่ยอมรับ. หน้าจอนี้มีเพียงการอ่าน;คำสั่งในรายการไดเรกทอรียังคงถูกอนุญาตโดยเซิร์ฟเวอร์")} }
             }
             if runtime_state == "disabled" {
                 p {
                     class: "status-banner warn",
-                    "Disabled · LDAP, AD DS, and UCS connectors are compiled but no connector or directory worker is active in this development profile."
+                    {product_copy("Disabled · LDAP, AD DS, and UCS connectors are compiled but no connector or directory worker is active in this development profile.", "ปิดใช้งาน · คอมไพล์คอนเนกเตอร์ LDAP, AD DS และ UCS แล้ว แต่ไม่มีคอนเนกเตอร์หรือเวิร์กเกอร์ไดเรกทอรีทำงานในโพรไฟล์การพัฒนานี้")}
                 }
             }
 
             section {
                 class: "erpx-directory-contract-summary",
-                aria_label: "Directory contract summary",
-                h3 { "Connector contract" }
+                aria_label: product_copy("Directory contract summary", "สรุปสัญญา ไดเรกทอรี"),
+                h3 { {product_copy("Connector contract", "ข้อตกลงของคอนเนกเตอร์")} }
                 div {
                     class: "erpx-directory-metric-grid",
                     div { class: "erpx-directory-metric", "data-metric": "connectors",
                         strong { "{connector_count}" }
-                        span { "connector(s)" }
+                        span { {product_copy("connector(s)", "คอนเนกเตอร์")} }
                     }
                     div { class: "erpx-directory-metric", "data-metric": "holding-connectors",
                         strong { "{holding_connector_count}" }
-                        span { "holding connector(s)" }
+                        span { {product_copy("holding connector(s)", "คอนเนกเตอร์ของโฮลดิ้ง")} }
                     }
                     div { class: "erpx-directory-metric", "data-metric": "role-mappings",
                         strong { "{role_mapping_count}" }
-                        span { "directory role mapping(s)" }
+                        span { {product_copy("directory role mapping(s)", "การจับคู่-บทบาทในรายการ")} }
                     }
                     div { class: "erpx-directory-metric", "data-metric": "identity-links",
                         strong { "{identity_link_count}" }
-                        span { if model.identity_links_truncated() { "visible immutable identity link(s)" } else { "immutable identity link(s)" } }
+                        span { if model.identity_links_truncated() { {product_copy("visible immutable identity link(s)", "ลิงก์ประจำตัวที่ไม่สามารถแก้ไขได้")} } else { {product_copy("immutable identity link(s)", "ลิงก์ความเป็นเจ้าของที่ไม่สามารถเปลี่ยนแปลงได้")} } }
                     }
                     div {
                         class: "erpx-directory-metric",
                         "data-metric": "contract-status",
                         "data-status": if model.is_contract_compliant() { "compliant" } else { "not-compliant" },
                         strong { "{contract_status}" }
-                        span { "security contract" }
+                        span { {product_copy("security contract", "สัญญาความปลอดภัย")} }
                     }
                 }
             }
 
             section {
                 class: "erpx-directory-connectors",
-                aria_label: "Directory connectors",
-                h3 { "Connectors" }
+                aria_label: product_copy("Directory connectors", "คอนเนกเตอร์ไดเรกทอรี"),
+                h3 { {product_copy("Connectors", "คอนเนกเตอร์")} }
                 if model.connectors().is_empty() {
-                    p { class: "erpx-directory-empty", "No authorized directory connectors are visible." }
+                    p { class: "erpx-directory-empty", {product_copy("No authorized directory connectors are visible.", "ไม่มีคอนเนกเตอร์ไดเรกทอรีที่ได้รับอนุญาตให้แสดง")} }
                 } else {
                     for connector in model.connectors().iter() {
                         article {
@@ -2981,26 +3224,32 @@ pub fn DirectoryAdministrationSurface(model: DirectoryAdministrationModel) -> El
                             "data-vendor": connector.vendor().label(),
                             "data-scope": connector.scope().label(),
                             "data-native-feed": connector.policy().change_feed.label(),
-                            aria_label: "Directory connector",
+                            aria_label: product_copy("Directory connector", "คอนเนกเตอร์ไดเรกทอรี"),
                             header {
                                 class: "erpx-directory-connector-header",
                                 h4 { "{connector.vendor().label()}" }
-                                span { class: "erpx-directory-connector-id", "Connector {connector.connector_id().as_str()}" }
+                                span { class: "erpx-directory-connector-id", "{product_copy(\"Connector\", \"คอนเนกเตอร์\")} {connector.connector_id().as_str()}" }
                             }
                             dl {
                                 class: "erpx-directory-fact-grid",
-                                div { dt { "Scope" } dd { "{connector.scope().label()}" } }
-                                div { dt { "Lifecycle" } dd { "{connector.lifecycle()}" } }
-                                div { dt { "Readiness" } dd { "{connector.readiness()}" } }
-                                div { dt { "Native change feed" } dd { "{connector.policy().change_feed.label()}" } }
-                                div { dt { "Full import" } dd { "Up to {connector.policy().full_import.max_users()} users" } }
-                                div { dt { "Communication" } dd { "{directory_bool_status(connector.policy().security.tls_only)} · TLS-only" } }
-                                div { dt { "Role mapping" } dd { "{directory_role_mapping_status(connector.policy().role_mapping)}" } }
-                                div { dt { "Identity linking" } dd { "{directory_identity_linking_status(connector.policy().identity_linking)}" } }
-                                div { dt { "Role revocation" } dd { "{directory_role_revocation_status(connector.policy().role_revocation)}" } }
-                                div { dt { "Revocation budget" } dd { "Within {connector.policy().security.revocation.max_seconds()} seconds" } }
-                                div { dt { "High-risk MFA" } dd { "{directory_mfa_status(connector.policy().security.high_risk_mfa)}" } }
-                                div { dt { "Local fallback" } dd { "{directory_fallback_status(connector.policy().security.local_fallback)}" } }
+                                div { dt { {product_copy("Scope", "ขอบเขต")} } dd { "{directory_scope_label(connector.scope().label().as_str())}" } }
+                                div { dt { {product_copy("Lifecycle", "วงจรชีวิต")} } dd { "{directory_known_status(connector.lifecycle().as_str())}" } }
+                                div { dt { {product_copy("Readiness", "ความพร้อม")} } dd { "{directory_known_status(connector.readiness().as_str())}" } }
+                                div { dt { {product_copy("Native change feed", "การเปลี่ยนแปลงแบบท้องถิ่น")} } dd { "{connector.policy().change_feed.label()}" } }
+                                div { dt { {product_copy("Full import", "การนำเข้าแบบเต็ม")} } dd { {match product_locale() {
+                                    Locale::En => format!("Up to {} users", product_locale().formatter().format_integer(connector.policy().full_import.max_users() as i64)),
+                                    Locale::Th => format!("ผู้ใช้สูงสุด {} ราย", product_locale().formatter().format_integer(connector.policy().full_import.max_users() as i64)),
+                                }} } }
+                                div { dt { {product_copy("Communication", "การสื่อสาร")} } dd { "{directory_bool_status(connector.policy().security.tls_only)} · " {product_copy("TLS-only", "TLS เท่านั้น")} } }
+                                div { dt { {product_copy("Role mapping", "การจับคู่-บทบาท")} } dd { "{directory_role_mapping_status(connector.policy().role_mapping)}" } }
+                                div { dt { {product_copy("Identity linking", "การเชื่อมโยงตัวตน")} } dd { "{directory_identity_linking_status(connector.policy().identity_linking)}" } }
+                                div { dt { {product_copy("Role revocation", "การเพิกถอนบทบาท")} } dd { "{directory_role_revocation_status(connector.policy().role_revocation)}" } }
+                                div { dt { {product_copy("Revocation budget", "กรอบเวลาการเพิกถอน")} } dd { {match product_locale() {
+                                    Locale::En => format!("Within {} seconds", connector.policy().security.revocation.max_seconds()),
+                                    Locale::Th => format!("ภายใน {} วินาที", connector.policy().security.revocation.max_seconds()),
+                                }} } }
+                                div { dt { {product_copy("High-risk MFA", "MFA สำหรับความเสี่ยงสูง")} } dd { "{directory_mfa_status(connector.policy().security.high_risk_mfa)}" } }
+                                div { dt { {product_copy("Local fallback", "การใช้บัญชีภายในสำรอง")} } dd { "{directory_fallback_status(connector.policy().security.local_fallback)}" } }
                             }
                         }
                     }
@@ -3009,23 +3258,23 @@ pub fn DirectoryAdministrationSurface(model: DirectoryAdministrationModel) -> El
 
             section {
                 class: "erpx-directory-role-mappings",
-                aria_label: "Directory-managed role mappings",
-                h3 { "Directory-managed role mappings" }
+                aria_label: product_copy("Directory-managed role mappings", "การจับคู่ บทบาท ไดเรกทอรีที่จัดการโดย ไดเรกทอรี"),
+                h3 { {product_copy("Directory-managed role mappings", "การจับคู่ บทบาท ไดเรกทอรีที่จัดการโดย ไดเรกทอรี")} }
                 if model.role_mappings().is_empty() {
-                    p { class: "erpx-directory-empty", "No authorized role mappings are visible." }
+                    p { class: "erpx-directory-empty", {product_copy("No authorized role mappings are visible.", "ไม่มีการจับคู่บทบาทที่ได้รับอนุญาตให้แสดง")} }
                 } else {
                     for mapping in model.role_mappings().iter() {
                         article {
                             class: "erpx-directory-role-mapping",
                             "data-scope": mapping.scope().label(),
                             "data-revocation": directory_role_revocation_status(mapping.revocation()),
-                            aria_label: "Directory role mapping",
+                            aria_label: product_copy("Directory role mapping", "การจับคู่ บทบาท ไดเรกทอรี"),
                             dl {
                                 class: "erpx-directory-fact-grid",
-                                div { dt { "Directory group" } dd { "{mapping.directory_group()}" } }
-                                div { dt { "ERPX role" } dd { "{mapping.erpx_role()}" } }
-                                div { dt { "Scope" } dd { "{mapping.scope().label()}" } }
-                                div { dt { "Revocation history" } dd { "{directory_role_revocation_status(mapping.revocation())}" } }
+                                div { dt { {product_copy("Directory group", "กลุ่ม ไดเรกทอรี")} } dd { "{mapping.directory_group()}" } }
+                                div { dt { {product_copy("ERPX role", "บทบาท ERPX")} } dd { "{mapping.erpx_role()}" } }
+                                div { dt { {product_copy("Scope", "ขอบเขต")} } dd { "{mapping.scope().label()}" } }
+                                div { dt { {product_copy("Revocation history", "ประวัติการยกเลิก")} } dd { "{directory_role_revocation_status(mapping.revocation())}" } }
                             }
                         }
                     }
@@ -3034,10 +3283,10 @@ pub fn DirectoryAdministrationSurface(model: DirectoryAdministrationModel) -> El
 
             section {
                 class: "erpx-directory-import-statuses",
-                aria_label: "Directory full import status",
-                h3 { "Full import status" }
+                aria_label: product_copy("Directory full import status", "สถานะการนำเข้าเต็ม ไดเรกทอรี"),
+                h3 { {product_copy("Full import status", "สถานะการนำเข้าแบบเต็ม")} }
                 if model.import_statuses().is_empty() {
-                    p { class: "erpx-directory-empty", "No authorized full-import checkpoint is visible for these connectors." }
+                    p { class: "erpx-directory-empty", {product_copy("No authorized full-import checkpoint is visible for these connectors.", "ไม่มีจุดตรวจสอบการนำเข้าแบบเต็มที่ได้รับอนุญาตให้แสดงสำหรับคอนเนกเตอร์เหล่านี้")} }
                 } else {
                     for status in model.import_statuses().iter() {
                         article {
@@ -3045,28 +3294,28 @@ pub fn DirectoryAdministrationSurface(model: DirectoryAdministrationModel) -> El
                             "data-connector-id": status.connector_id().as_str(),
                             "data-import-id": status.import_id().as_str(),
                             "data-state": status.state().as_str(),
-                            aria_label: "Directory full import checkpoint",
+                            aria_label: product_copy("Directory full import checkpoint", "จุดตรวจสอบเต็ม ไดเรกทอรี"),
                             header {
                                 class: "erpx-directory-import-status-header",
-                                h4 { "Import {status.import_id().as_str()}" }
-                                span { "{status.state()}" }
+                                h4 { "{product_copy(\"Import\", \"การนำเข้า\")} {status.import_id().as_str()}" }
+                                span { "{directory_known_status(status.state().as_str())}" }
                             }
                             dl {
                                 class: "erpx-directory-fact-grid",
-                                div { dt { "Connector" } dd { "{status.connector_id().as_str()}" } }
-                                div { dt { "Cursor protocol" } dd { "{status.cursor_kind()}" } }
-                                div { dt { "Users" } dd { "{status.users_seen()} of {status.max_users()}" } }
-                                div { dt { "Pages" } dd { "{status.pages_applied()} of {status.page_count()}" } }
-                                div { dt { "Started" } dd { "{status.started_at()}" } }
-                                div { dt { "Updated" } dd { "{status.updated_at()}" } }
+                                div { dt { {product_copy("Connector", "คอนเนกเตอร์")} } dd { "{status.connector_id().as_str()}" } }
+                                div { dt { {product_copy("Cursor protocol", "โปรโตคอลเคอร์เซอร์")} } dd { "{status.cursor_kind()}" } }
+                                div { dt { {product_copy("Users", "ผู้ใช้")} } dd { "{product_locale().formatter().format_integer(status.users_seen() as i64)} / {product_locale().formatter().format_integer(status.max_users() as i64)}" } }
+                                div { dt { {product_copy("Pages", "หน้า")} } dd { "{product_locale().formatter().format_integer(status.pages_applied() as i64)} {product_copy(\"of\", \"จาก\")} {product_locale().formatter().format_integer(status.page_count() as i64)}" } }
+                                div { dt { {product_copy("Started", "เริ่มเมื่อ")} } dd { "{product_locale().formatter().format_timestamp(status.started_at().as_str())}" } }
+                                div { dt { {product_copy("Updated", "อัปเดต")} } dd { "{product_locale().formatter().format_timestamp(status.updated_at().as_str())}" } }
                                 if let Some(finalized_at) = status.finalized_at() {
-                                    div { dt { "Finalized" } dd { "{finalized_at}" } }
+                                    div { dt { {product_copy("Finalized", "เสร็จสิ้นเมื่อ")} } dd { "{product_locale().formatter().format_timestamp(finalized_at.as_str())}" } }
                                 }
                                 if let Some(failure_category) = status.failure_category() {
-                                    div { dt { "Failure category" } dd { "{failure_category}" } }
+                                    div { dt { {product_copy("Failure category", "หมวดหมู่ความล้มเหลว")} } dd { "{failure_category}" } }
                                 }
                             }
-                            small { "Checkpoint is authoritative and secret-free; source cursors, external IDs, and failure details remain server-side." }
+                            small { {product_copy("Checkpoint is authoritative and secret-free; source cursors, external IDs, and failure details remain server-side.", "จุดตรวจสอบเป็นที่ยอมรับและไม่มีความลับ; ข้อมูลต้นทาง, ID ภายนอก และรายละเอียดการผิดพลาดยังคงอยู่บนเซิร์ฟเวอร์")} }
                         }
                     }
                 }
@@ -3074,50 +3323,48 @@ pub fn DirectoryAdministrationSurface(model: DirectoryAdministrationModel) -> El
 
             section {
                 class: "erpx-directory-identity-links",
-                aria_label: "Immutable identity links",
-                h3 { "Immutable identity links" }
+                aria_label: product_copy("Immutable identity links", "การเชื่อมโยงตัวตนที่แก้ไขไม่ได้"),
+                h3 { {product_copy("Immutable identity links", "การเชื่อมโยงตัวตนที่แก้ไขไม่ได้")} }
                 if model.identity_links().is_empty() {
-                    p { class: "erpx-directory-empty", "No authorized identity links are visible." }
+                    p { class: "erpx-directory-empty", {product_copy("No authorized identity links are visible.", "ไม่มีลิงก์ข้อมูลประจำตัวที่ได้รับอนุญาตให้แสดง")} }
                 } else {
                     for link in model.identity_links().iter() {
                         article {
                             class: "erpx-directory-identity-link",
                             "data-immutable": if link.is_immutable() { "true" } else { "false" },
-                            aria_label: "Immutable identity link",
+                            aria_label: product_copy("Immutable identity link", "การเชื่อมโยงตัวตนที่แก้ไขไม่ได้"),
                             dl {
                                 class: "erpx-directory-fact-grid",
-                                div { dt { "External subject" } dd { "{link.external_subject()}" } }
-                                div { dt { "ERPX principal" } dd { "{link.erpx_principal_id().as_str()}" } }
-                                div { dt { "Link policy" } dd { if link.is_immutable() { "Immutable" } else { "Mutable (not allowed)" } } }
+                                div { dt { {product_copy("External subject", "ตัวตนภายนอก")} } dd { "{link.external_subject()}" } }
+                                div { dt { {product_copy("ERPX principal", "ผู้มีสิทธิ์หลัก ERPX")} } dd { "{link.erpx_principal_id().as_str()}" } }
+                                div { dt { {product_copy("Link policy", "นโยบายการเชื่อมโยง")} } dd { if link.is_immutable() { {product_copy("Immutable", "แก้ไขไม่ได้")} } else { {product_copy("Mutable (not allowed)", "แก้ไขได้ (ไม่อนุญาต)")} } } }
                             }
                         }
                     }
                 }
                 if model.identity_links_truncated() {
-                    small { "This is a bounded first page. Additional immutable identity links remain server-side and require the read cursor; the visible count is not the connector total." }
+                    small { {product_copy("This is a bounded first page. Additional immutable identity links remain server-side and require the read cursor; the visible count is not the connector total.", "นี่คือหน้าแรกแบบจำกัด การเชื่อมโยงตัวตนเพิ่มเติมยังอยู่ที่เซิร์ฟเวอร์และต้องใช้เคอร์เซอร์อ่าน จำนวนที่เห็นไม่ใช่จำนวนทั้งหมดของคอนเนกเตอร์")} }
                 }
             }
 
             section {
                 class: "erpx-directory-read-evidence",
-                aria_label: "Directory read evidence",
-                h3 { "Read evidence" }
+                aria_label: product_copy("Directory read evidence", "หลักฐานการอ่าน ไดเรกทอรี"),
+                h3 { {product_copy("Read evidence", "หลักฐานข้อมูลอ่าน")} }
                 dl {
                     class: "erpx-directory-fact-grid",
-                    div { dt { "Data authority" } dd { "{persistence.label()}" } }
-                    div { dt { "Reconciliation" } dd { "{reconciliation.label()}" } }
-                    div { dt { "Authorization" } dd { "{authorization.label()}" } }
-                    div { dt { "Rollback" } dd { "{DIRECTORY_ROLLBACK_BOUNDARY}" } }
+                    div { dt { {product_copy("Data authority", "แหล่งข้อมูลที่เป็นข้อยุติ")} } dd { "{persistence.label_for(product_locale())}" } }
+                    div { dt { {product_copy("Reconciliation", "การกระทบยอด")} } dd { "{reconciliation.label_for(product_locale())}" } }
+                    div { dt { {product_copy("Authorization", "การอนุญาต")} } dd { "{authorization.label_for(product_locale())}" } }
+                    div { dt { {product_copy("Rollback", "การย้อนกลับ")} } dd { "{DIRECTORY_ROLLBACK_BOUNDARY}" } }
                 }
-                small {
-                    "Pending reconciliation remains read-only; detected drift blocks this surface. No local rollback or fallback action is exposed."
-                }
+                small { {product_copy("Pending reconciliation remains read-only; detected drift blocks this surface. No local rollback or fallback action is exposed.", "การกระทบยอดยังคงเป็นอ่าน-only; การตรวจพบความไม่สอดคล้องหยุดการทำงานพื้นที่นี้ ไม่มีการกลับเข้าถิ่นที่มีการปิดบัญชีหรือการฟื้นฟูอย่างเปิดเผย")} }
             }
 
             footer {
                 class: "erpx-directory-read-only-note",
                 "data-mutations": "disabled",
-                "Read-only presentation. Secrets, credentials, provider endpoints, and local fallback commands are never rendered."
+                {product_copy("Read-only presentation. Secrets, credentials, provider endpoints, and local fallback commands are never rendered.", "การแสดงผลเป็นแบบอ่านอย่างเดียว และจะไม่แสดงความลับ ข้อมูลประจำตัว ปลายทางของผู้ให้บริการ หรือคำสั่งสำรองภายใน")}
             }
         }
     }
@@ -3164,13 +3411,13 @@ pub fn PlatformOperationsEvidenceSurface(model: PlatformOperationsModel) -> Elem
             "data-persistence": model.persistence().key(),
             "data-reconciliation": model.reconciliation().key(),
             "data-authorization": model.authorization().key(),
-            aria_label: "Platform Operations authenticated read evidence",
+            aria_label: product_copy("Platform Operations authenticated read evidence", "หลักฐานการอ่านที่ได้รับการยืนยันของ Platform Operations"),
             header {
                 class: "erpx-platform-operations-evidence-header",
-                span { class: "ui-eyebrow", "ERPX PLATFORM OPERATIONS" }
-                h2 { "Authenticated read evidence" }
+                span { class: "ui-eyebrow", {product_copy("ERPX PLATFORM OPERATIONS", "การปฏิบัติการแพลตฟอร์ม ERPX")} }
+                h2 { {product_copy("Authenticated read evidence", "หลักฐานข้อมูลอ่านที่ยืนยันตัวตนแล้ว")} }
                 p {
-                    "Each area below is bound to its coordinator-owned adapter. This surface is read-only and exposes no operational command or provider material."
+                    {product_copy("Each area below is bound to its coordinator-owned adapter. This surface is read-only and exposes no operational command or provider material.", "แต่ละพื้นที่ด้านล่างผูกกับอะแดปเตอร์ที่ผู้ประสานงานเป็นเจ้าของ หน้านี้อ่านอย่างเดียวและไม่แสดงคำสั่งปฏิบัติการหรือข้อมูลของผู้ให้บริการ")}
                 }
             }
             div {
@@ -3184,13 +3431,13 @@ pub fn PlatformOperationsEvidenceSurface(model: PlatformOperationsModel) -> Elem
                         "data-reconciliation": attestation.reconciliation().key(),
                         "data-authorization": attestation.authorization().key(),
                         "data-read-only": "true",
-                        h3 { "{attestation.area().label()}" }
+                        h3 { "{attestation.area().label_for(product_locale())}" }
                         p { "{attestation.area().path()}" }
                         dl {
-                            div { dt { "Authenticated adapter" } dd { "{attestation.adapter().id()}" } }
-                            div { dt { "Data authority" } dd { "{attestation.persistence().label()}" } }
-                            div { dt { "Reconciliation" } dd { "{attestation.reconciliation().label()}" } }
-                            div { dt { "Authorization" } dd { "{attestation.authorization().label()}" } }
+                            div { dt { {product_copy("Authenticated adapter", "อะแดปเตอร์ที่ยืนยันตัวตนแล้ว")} } dd { "{attestation.adapter().id()}" } }
+                            div { dt { {product_copy("Data authority", "แหล่งข้อมูลที่เป็นข้อยุติ")} } dd { "{attestation.persistence().label_for(product_locale())}" } }
+                            div { dt { {product_copy("Reconciliation", "การกระทบยอด")} } dd { "{attestation.reconciliation().label_for(product_locale())}" } }
+                            div { dt { {product_copy("Authorization", "การอนุญาต")} } dd { "{attestation.authorization().label_for(product_locale())}" } }
                         }
                     }
                 }
@@ -3198,7 +3445,7 @@ pub fn PlatformOperationsEvidenceSurface(model: PlatformOperationsModel) -> Elem
             footer {
                 class: "erpx-platform-operations-evidence-footer",
                 "data-mutations": "disabled",
-                "Read-only evidence only. Commands, credentials, endpoints, and raw provider payloads remain outside the client boundary."
+                {product_copy("Read-only evidence only. Commands, credentials, endpoints, and raw provider payloads remain outside the client boundary.", "แสดงเฉพาะหลักฐานแบบอ่านอย่างเดียว คำสั่ง ข้อมูลประจำตัว ปลายทาง และเพย์โหลดดิบของผู้ให้บริการอยู่นอกขอบเขตไคลเอนต์")}
             }
         }
     }
@@ -3210,13 +3457,25 @@ pub fn PlatformOperationsEvidenceSurface(model: PlatformOperationsModel) -> Elem
 /// command callbacks, secrets, provider endpoints, or client-side permission grants here.
 #[component]
 pub fn ProductCompletionSurface(state: ProductSurfaceState) -> Element {
+    let locale = product_locale();
     let state = state.fail_closed_for_render();
     let accessibility = state.accessibility_contract();
     let surface = state.surface();
     let state_key = state.state_key();
-    let title = surface.label();
-    let message = state.message();
-    let summary = state.model().map(ProductSurfaceModel::summary);
+    let title = surface.label_for(locale);
+    let state_label = state.state_label(locale);
+    let message = match &state {
+        ProductSurfaceState::Loading { .. } => {
+            product_copy("Loading authorized data…", "กำลังโหลดข้อมูลที่ได้รับอนุญาต…").to_string()
+        }
+        ProductSurfaceState::Ready { .. } => product_copy(
+            "Authorized read model available.",
+            "ข้อมูลอ่านที่ได้รับอนุญาตพร้อมใช้งาน",
+        )
+        .to_string(),
+        _ => product_state_message(&state.message(), locale),
+    };
+    let summary = state.model().map(|model| model.summary_for(locale));
     let has_model = state.has_model();
     // This component never renders commands. A missing model is therefore still a
     // read-only/blocked boundary, rather than an editable empty state.
@@ -3276,7 +3535,7 @@ pub fn ProductCompletionSurface(state: ProductSurfaceState) -> Element {
             aria_labelledby: "{surface_title_id}",
             aria_describedby: "{state_message_id}",
             header {
-                span { class: "ui-eyebrow", "ERPX PRODUCT SURFACE" }
+                span { class: "ui-eyebrow", {product_copy("ERPX PRODUCT SURFACE", "หน้าจอผลิตภัณฑ์ ERPX")} }
                 h2 { id: "{surface_title_id}", "{title}" }
             }
             div {
@@ -3288,55 +3547,60 @@ pub fn ProductCompletionSurface(state: ProductSurfaceState) -> Element {
                 aria_labelledby: "{state_title_id}",
                 aria_describedby: "{state_message_id}",
                 "data-has-model": if has_model { "true" } else { "false" },
-                strong { id: "{state_title_id}", "{state_key}" }
+                strong { id: "{state_title_id}", "{state_label}" }
                 p { id: "{state_message_id}", "{message}" }
             }
             if let Some(summary) = summary {
                 div {
                     class: "erpx-product-summary",
-                    aria_label: "Authorized read model summary",
+                    aria_label: product_copy("Authorized read model summary", "สรุปโมเดลอ่านที่ได้รับอนุมัติ"),
                     p { "{summary}" }
-                    small { "Read-only presentation; server authorization remains authoritative." }
+                    small { {product_copy("Read-only presentation; server authorization remains authoritative.", "การแสดงผลอ่านอย่างเดียว โดยการอนุญาตจากเซิร์ฟเวอร์ยังเป็นข้อยุติ")} }
                 }
             }
             section {
                 class: "erpx-product-evidence",
-                aria_label: "Persistence reconciliation and authorization evidence",
-                h3 { "Read evidence" }
+                aria_label: product_copy("Persistence reconciliation and authorization evidence", "ความยืนยันและการอนุมัติของ reconciliation และหลักฐานของ authorization"),
+                h3 { {product_copy("Read evidence", "หลักฐานข้อมูลอ่าน")} }
                 dl {
                     div {
                         class: "erpx-product-evidence-item",
                         "data-evidence": "persistence",
-                        dt { "Data authority" }
-                        dd { "{persistence.label()}" }
+                        dt { {product_copy("Data authority", "แหล่งข้อมูลที่เป็นข้อยุติ")} }
+                        dd { "{persistence.label_for(locale)}" }
                     }
                     div {
                         class: "erpx-product-evidence-item",
                         "data-evidence": "reconciliation",
-                        dt { "Reconciliation" }
-                        dd { "{reconciliation.label()}" }
+                        dt { {product_copy("Reconciliation", "การกระทบยอด")} }
+                        dd { "{reconciliation.label_for(locale)}" }
                     }
                     div {
                         class: "erpx-product-evidence-item",
                         "data-evidence": "authorization",
-                        dt { "Authorization" }
-                        dd { "{authorization.label()}" }
+                        dt { {product_copy("Authorization", "การอนุญาต")} }
+                        dd { "{authorization.label_for(locale)}" }
                     }
                     div {
                         class: "erpx-product-evidence-item",
                         "data-evidence": "projection-freshness",
-                        dt { "Projection freshness" }
-                        dd { "{projection.label()}" }
+                        dt { {product_copy("Projection freshness", "ความใหม่ของโพรเจกชัน")} }
+                        dd { "{projection.label_for(locale)}" }
                     }
                     div {
                         class: "erpx-product-evidence-item",
                         "data-evidence": "stale-age",
-                        dt { "Stale age" }
-                        dd { if let Some(age) = state.stale_age_seconds() { "{age} seconds" } else { "Not stale" } }
+                        dt { {product_copy("Stale age", "อายุข้อมูลล้าสมัย")} }
+                        dd { if let Some(age) = state.stale_age_seconds() {
+                            {match locale {
+                                Locale::En => format!("{} seconds", locale.formatter().format_integer(age as i64)),
+                                Locale::Th => format!("{} วินาที", locale.formatter().format_integer(age as i64)),
+                            }}
+                        } else { {product_copy("Not stale", "ไม่ล้าสมัย")} } }
                     }
                 }
                 small {
-                    "Evidence is display-only. Missing, pending, drifted, denied, or blocked facts never enable commands."
+                    {product_copy("Evidence is display-only. Missing, pending, drifted, denied, or blocked facts never enable commands.", "หลักฐานใช้เพื่อแสดงผลเท่านั้น ข้อมูลที่ขาดหาย รอดำเนินการ คลาดเคลื่อน ถูกปฏิเสธ หรือถูกบล็อกจะไม่เปิดใช้คำสั่ง")}
                 }
             }
         }
@@ -3439,18 +3703,22 @@ impl fmt::Display for ProductContractError {
             Self::PlatformAdapterCoverageIncomplete => {
                 "every Platform Operations area requires an authenticated adapter attestation"
             }
-            Self::PlatformAdapterEvidenceMismatch => {
-                "Platform Operations adapter evidence does not match its area"
-            }
-            Self::ProductContextScopeRequired => {
-                "product rows require an explicit tenant and holding scope"
-            }
-            Self::ProductPageMetadataRequired => {
-                "product rows require validated pagination metadata"
-            }
-            Self::ProductPageCountConflict => {
-                "product row count conflicts with authoritative page metadata"
-            }
+            Self::PlatformAdapterEvidenceMismatch => product_copy(
+                "Platform Operations adapter evidence does not match its area",
+                "เครื่องมือ Platform Operations ไม่ตรงกับพื้นที่ของมัน",
+            ),
+            Self::ProductContextScopeRequired => product_copy(
+                "product rows require an explicit tenant and holding scope",
+                "แถวผลิตภัณฑ์ต้องระบุชัดเจน tenant และขอบเขตการถือครอง",
+            ),
+            Self::ProductPageMetadataRequired => product_copy(
+                "product rows require validated pagination metadata",
+                "แถวผลิตภัณฑ์ต้องมีข้อมูล pagination ที่ได้รับการยืนยัน",
+            ),
+            Self::ProductPageCountConflict => product_copy(
+                "product row count conflicts with authoritative page metadata",
+                "จำนวนแถวของผลิตภัณฑ์ขัดแย้งกับข้อมูลที่มาจากแหล่งน่าเชื่อถือ",
+            ),
         };
         formatter.write_str(message)
     }
@@ -3617,15 +3885,35 @@ mod tests {
     #[test]
     fn all_g9_through_g11_contexts_have_bounded_read_only_surfaces() {
         let expected = [
-            (ProductContext::Sales, "/sales", "sales"),
-            (ProductContext::Procurement, "/procurement", "procurement"),
-            (ProductContext::Inventory, "/inventory", "inventory"),
-            (ProductContext::Maintenance, "/maintenance", "maintenance"),
-            (ProductContext::Quality, "/quality", "quality"),
-            (ProductContext::MarketingCrm, "/marketing", "marketing-crm"),
-            (ProductContext::HrPayroll, "/hr", "hr-payroll"),
-            (ProductContext::Pos, "/pos", "pos"),
-            (ProductContext::Legal, "/legal", "legal"),
+            (ProductContext::Sales, "/workspaces/sales", "sales"),
+            (
+                ProductContext::Procurement,
+                "/workspaces/procurement",
+                "procurement",
+            ),
+            (
+                ProductContext::Inventory,
+                "/workspaces/inventory",
+                "inventory",
+            ),
+            (
+                ProductContext::Maintenance,
+                "/workspaces/maintenance",
+                "maintenance",
+            ),
+            (ProductContext::Quality, "/workspaces/quality", "quality"),
+            (
+                ProductContext::MarketingCrm,
+                "/workspaces/marketing-crm",
+                "marketing-crm",
+            ),
+            (
+                ProductContext::HrPayroll,
+                "/workspaces/hr-payroll",
+                "hr-payroll",
+            ),
+            (ProductContext::Pos, "/workspaces/point-of-sale", "pos"),
+            (ProductContext::Legal, "/workspaces/legal", "legal"),
         ];
 
         for (context, path, key) in expected {

@@ -602,12 +602,15 @@ impl<T> OperationsViewState<T> {
     pub const fn state_label(&self, locale: Locale) -> Option<&'static str> {
         let key = match self.kind() {
             Some(UiStateKind::Loading) => TranslationKey::Loading,
+            Some(UiStateKind::Submitting) => TranslationKey::Loading,
             Some(UiStateKind::Empty) => TranslationKey::Empty,
+            Some(UiStateKind::Success) => TranslationKey::Empty,
             Some(UiStateKind::Denied) => TranslationKey::AccessDenied,
             Some(UiStateKind::Stale) => TranslationKey::Stale,
             Some(UiStateKind::ReadOnly) => TranslationKey::ReadOnly,
             Some(UiStateKind::Conflict) => TranslationKey::Conflict,
             Some(UiStateKind::Offline) => TranslationKey::Offline,
+            Some(UiStateKind::RetryableError | UiStateKind::Unavailable) => TranslationKey::Error,
             Some(UiStateKind::Error) => TranslationKey::Error,
             None => return None,
         };

@@ -5,8 +5,11 @@
 //! implementation backed by an OS-protected credential facility before session restoration is
 //! enabled. Until then, the explicit `Unsupported` result is fail-closed.
 
+#[cfg(any(test, target_os = "android", target_os = "ios", target_os = "macos"))]
+use crate::StoredSessionBundle;
 use crate::{
-    SafeUiText, SecureSessionError, SecureSessionFuture, SecureSessionStore, StoredSession,
+    Locale, SafeUiText, SecureSessionBundleStore, SecureSessionError, SecureSessionFuture,
+    SecureSessionStore, SessionId, StoredAccountSummary, StoredSession,
 };
 
 /// Client target selected at compile time.
@@ -35,6 +38,18 @@ impl ClientTarget {
             Self::Unsupported => "Unsupported target",
         }
     }
+
+    /// Locale-aware target label without changing the stable diagnostic API.
+    pub const fn label_for(self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (Self::Desktop, Locale::Th) => "เดสก์ท็อป",
+            (Self::Unsupported, Locale::Th) => "เป้าหมายที่ไม่รองรับ",
+            (Self::Web, Locale::Th) => "เว็บ",
+            (Self::Android, Locale::Th) => "Android",
+            (Self::Ios, Locale::Th) => "iOS",
+            (_, Locale::En) => self.label(),
+        }
+    }
 }
 
 /// Whether this build has an OS-protected session implementation wired into its target adapter.
@@ -52,6 +67,15 @@ impl SecureSessionSupport {
         match self {
             Self::Supported => "secure storage configured",
             Self::Unsupported => "secure storage unavailable in this build",
+        }
+    }
+
+    /// Locale-aware protected-session status.
+    pub const fn label_for(self, locale: Locale) -> &'static str {
+        match (self, locale) {
+            (Self::Supported, Locale::Th) => "กำหนดค่าการจัดเก็บที่ปลอดภัยแล้ว",
+            (Self::Unsupported, Locale::Th) => "รุ่นนี้ไม่มีการจัดเก็บที่ปลอดภัย",
+            (_, Locale::En) => self.label(),
         }
     }
 }
@@ -138,6 +162,11 @@ impl TargetSessionDescriptor {
         self.secure_session.label()
     }
 
+    /// Return locale-aware protected-session status copy.
+    pub const fn status_label_for(self, locale: Locale) -> &'static str {
+        self.secure_session.label_for(locale)
+    }
+
     /// Return bounded, target-neutral copy for secure-storage status surfaces.
     pub fn status_copy(self) -> SafeUiText {
         let message = match self.secure_session {
@@ -170,7 +199,7 @@ const fn compiled_secure_session_support() -> SecureSessionSupport {
 pub struct TargetSecureSessionAdapter;
 
 #[cfg(any(target_os = "android", test))]
-const MAX_ANDROID_CIPHERTEXT_BYTES: usize = StoredSession::MAX_SECURE_STORE_BYTES + 256;
+const MAX_ANDROID_CIPHERTEXT_BYTES: usize = StoredSessionBundle::MAX_SECURE_STORE_BYTES + 256;
 #[cfg(any(target_os = "android", test))]
 const MAX_ANDROID_ENCODED_BYTES: usize = MAX_ANDROID_CIPHERTEXT_BYTES.div_ceil(3) * 4;
 #[cfg(any(target_os = "android", test))]
@@ -227,7 +256,9 @@ fn base64_sextet(byte: u8) -> Option<u8> {
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 mod apple_keychain {
-    use super::{SecureSessionError, StoredSession};
+    use super::{
+        SecureSessionError, SessionId, StoredAccountSummary, StoredSession, StoredSessionBundle,
+    };
     use security_framework::passwords::{
         PasswordOptions, delete_generic_password_options, generic_password,
         set_generic_password_options,
@@ -256,25 +287,81 @@ mod apple_keychain {
         }
     }
 
-    pub fn load() -> Result<Option<StoredSession>, SecureSessionError> {
+    fn load_bundle() -> Result<Option<StoredSessionBundle>, SecureSessionError> {
         match generic_password(keychain_options()) {
-            Ok(bytes) => StoredSession::decode_secure_store(&bytes).map(Some),
+            Ok(bytes) => StoredSessionBundle::decode_secure_store(&bytes).map(Some),
             Err(error) if error.code() == errSecItemNotFound => Ok(None),
             Err(error) => Err(map_error(error)),
         }
     }
 
-    pub fn save(session: &StoredSession) -> Result<(), SecureSessionError> {
-        let bytes = session.encode_secure_store()?;
+    fn save_bundle(bundle: &StoredSessionBundle) -> Result<(), SecureSessionError> {
+        let bytes = bundle.encode_secure_store()?;
         set_generic_password_options(&bytes, keychain_options()).map_err(map_error)
     }
 
-    pub fn clear() -> Result<(), SecureSessionError> {
+    fn delete_bundle() -> Result<(), SecureSessionError> {
         match delete_generic_password_options(keychain_options()) {
             Ok(()) => Ok(()),
             Err(error) if error.code() == errSecItemNotFound => Ok(()),
             Err(error) => Err(map_error(error)),
         }
+    }
+
+    pub fn load() -> Result<Option<StoredSession>, SecureSessionError> {
+        Ok(load_bundle()?.map(|bundle| bundle.active().clone()))
+    }
+
+    pub fn save(session: &StoredSession) -> Result<(), SecureSessionError> {
+        let mut bundle =
+            load_bundle()?.unwrap_or_else(|| StoredSessionBundle::new(session.clone()));
+        bundle.upsert(session.clone());
+        save_bundle(&bundle)
+    }
+
+    pub fn clear() -> Result<(), SecureSessionError> {
+        let Some(bundle) = load_bundle()? else {
+            return delete_bundle();
+        };
+        let active_id = bundle.active().session_id().clone();
+        remove_account(&active_id).map(|_| ())
+    }
+
+    pub(super) fn accounts() -> Result<Vec<StoredAccountSummary>, SecureSessionError> {
+        Ok(load_bundle()?
+            .map(|bundle| bundle.account_summaries())
+            .unwrap_or_default())
+    }
+
+    pub(super) fn replacement_candidates(
+        session: &StoredSession,
+    ) -> Result<Vec<StoredSession>, SecureSessionError> {
+        let Some(mut bundle) = load_bundle()? else {
+            return Ok(Vec::new());
+        };
+        Ok(bundle.upsert(session.clone()))
+    }
+
+    pub(super) fn load_account(
+        session_id: &SessionId,
+    ) -> Result<Option<StoredSession>, SecureSessionError> {
+        Ok(load_bundle()?.and_then(|bundle| bundle.session(session_id).cloned()))
+    }
+
+    pub(super) fn remove_account(session_id: &SessionId) -> Result<bool, SecureSessionError> {
+        let Some(mut bundle) = load_bundle()? else {
+            return Ok(false);
+        };
+        let removed = bundle.remove(session_id).is_some();
+        if !removed {
+            return Ok(false);
+        }
+        if bundle.is_empty() {
+            delete_bundle()?;
+        } else {
+            save_bundle(&bundle)?;
+        }
+        Ok(true)
     }
 }
 
@@ -285,10 +372,13 @@ mod android_keystore {
     use erpx_android_bridge::with_attached as bridge_with_attached;
     use jni::{JNIEnv, objects::JByteArray, objects::JObject, objects::JValue};
 
-    use super::{SecureSessionError, StoredSession};
+    use super::{
+        SecureSessionError, SessionId, StoredAccountSummary, StoredSession, StoredSessionBundle,
+    };
 
     const PREFERENCES_NAME: &str = "com.legacy.erpx.secure_session";
-    const PREFERENCES_KEY: &str = "encrypted_session_v1";
+    const PREFERENCES_KEY: &str = "encrypted_session_bundle_v2";
+    const LEGACY_PREFERENCES_KEY: &str = "encrypted_session_v1";
     const KEY_ALIAS: &str = "com.legacy.erpx.session.aes_gcm.v1";
     const BASE64_NO_WRAP: i32 = 2;
     const CIPHER_VERSION: u8 = 1;
@@ -629,17 +719,30 @@ mod android_keystore {
         bytes(env, plaintext_object).map_err(|_| StoreError::Corrupt)
     }
 
-    pub fn load() -> Result<Option<StoredSession>, SecureSessionError> {
+    fn load_bundle() -> Result<Option<StoredSessionBundle>, SecureSessionError> {
         with_attached(|env, context| {
             let preferences = preferences(env, &context)?;
             let key = string(env, PREFERENCES_KEY)?;
-            let value = object_call(
+            let mut value = object_call(
                 env,
                 &preferences,
                 "getString",
                 "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
                 &[JValue::Object(&key), JValue::Object(&JObject::null())],
             )?;
+            if value.is_null() {
+                let legacy_key = string(env, LEGACY_PREFERENCES_KEY)?;
+                value = object_call(
+                    env,
+                    &preferences,
+                    "getString",
+                    "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;",
+                    &[
+                        JValue::Object(&legacy_key),
+                        JValue::Object(&JObject::null()),
+                    ],
+                )?;
+            }
             if value.is_null() {
                 return Ok(None);
             }
@@ -651,14 +754,14 @@ mod android_keystore {
             let store = key_store(env)?;
             let key = ensure_key(env, &store)?;
             let plaintext = decrypt(env, &key, &payload)?;
-            StoredSession::decode_secure_store(&plaintext)
+            StoredSessionBundle::decode_secure_store(&plaintext)
                 .map(Some)
                 .map_err(|_| StoreError::Corrupt)
         })
     }
 
-    pub fn save(session: &StoredSession) -> Result<(), SecureSessionError> {
-        let plaintext = session.encode_secure_store()?;
+    fn save_bundle(bundle: &StoredSessionBundle) -> Result<(), SecureSessionError> {
+        let plaintext = bundle.encode_secure_store()?;
         with_attached(|env, context| {
             let store = key_store(env)?;
             let key = ensure_key(env, &store)?;
@@ -681,6 +784,14 @@ mod android_keystore {
                 "(Ljava/lang/String;Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;",
                 &[JValue::Object(&name), JValue::Object(&value)],
             )?;
+            let legacy_name = string(env, LEGACY_PREFERENCES_KEY)?;
+            let editor = object_call(
+                env,
+                &editor,
+                "remove",
+                "(Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;",
+                &[JValue::Object(&legacy_name)],
+            )?;
             let committed = env.call_method(&editor, "commit", "()Z", &[])?.z()?;
             if committed {
                 Ok(())
@@ -690,7 +801,18 @@ mod android_keystore {
         })
     }
 
-    pub fn clear() -> Result<(), SecureSessionError> {
+    pub fn load() -> Result<Option<StoredSession>, SecureSessionError> {
+        Ok(load_bundle()?.map(|bundle| bundle.active().clone()))
+    }
+
+    pub fn save(session: &StoredSession) -> Result<(), SecureSessionError> {
+        let mut bundle =
+            load_bundle()?.unwrap_or_else(|| StoredSessionBundle::new(session.clone()));
+        bundle.upsert(session.clone());
+        save_bundle(&bundle)
+    }
+
+    fn delete_bundle() -> Result<(), SecureSessionError> {
         with_attached(|env, context| {
             let preferences = preferences(env, &context)?;
             let key = string(env, PREFERENCES_KEY)?;
@@ -708,6 +830,14 @@ mod android_keystore {
                 "(Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;",
                 &[JValue::Object(&key)],
             )?;
+            let legacy_key = string(env, LEGACY_PREFERENCES_KEY)?;
+            let editor = object_call(
+                env,
+                &editor,
+                "remove",
+                "(Ljava/lang/String;)Landroid/content/SharedPreferences$Editor;",
+                &[JValue::Object(&legacy_key)],
+            )?;
             let committed = env.call_method(&editor, "commit", "()Z", &[])?.z()?;
             if committed {
                 Ok(())
@@ -715,6 +845,51 @@ mod android_keystore {
                 Err(StoreError::Failed)
             }
         })
+    }
+
+    pub fn clear() -> Result<(), SecureSessionError> {
+        let Some(bundle) = load_bundle()? else {
+            return delete_bundle();
+        };
+        let active_id = bundle.active().session_id().clone();
+        remove_account(&active_id).map(|_| ())
+    }
+
+    pub(super) fn accounts() -> Result<Vec<StoredAccountSummary>, SecureSessionError> {
+        Ok(load_bundle()?
+            .map(|bundle| bundle.account_summaries())
+            .unwrap_or_default())
+    }
+
+    pub(super) fn replacement_candidates(
+        session: &StoredSession,
+    ) -> Result<Vec<StoredSession>, SecureSessionError> {
+        let Some(mut bundle) = load_bundle()? else {
+            return Ok(Vec::new());
+        };
+        Ok(bundle.upsert(session.clone()))
+    }
+
+    pub(super) fn load_account(
+        session_id: &SessionId,
+    ) -> Result<Option<StoredSession>, SecureSessionError> {
+        Ok(load_bundle()?.and_then(|bundle| bundle.session(session_id).cloned()))
+    }
+
+    pub(super) fn remove_account(session_id: &SessionId) -> Result<bool, SecureSessionError> {
+        let Some(mut bundle) = load_bundle()? else {
+            return Ok(false);
+        };
+        let removed = bundle.remove(session_id).is_some();
+        if !removed {
+            return Ok(false);
+        }
+        if bundle.is_empty() {
+            delete_bundle()?;
+        } else {
+            save_bundle(&bundle)?;
+        }
+        Ok(true)
     }
 }
 
@@ -778,6 +953,80 @@ impl SecureSessionStore for TargetSecureSessionAdapter {
         }
         #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "android")))]
         {
+            Box::pin(async { Err(SecureSessionError::Unsupported) })
+        }
+    }
+}
+
+impl SecureSessionBundleStore for TargetSecureSessionAdapter {
+    fn accounts(&self) -> SecureSessionFuture<'_, Vec<StoredAccountSummary>> {
+        #[cfg(target_os = "android")]
+        {
+            Box::pin(async { android_keystore::accounts() })
+        }
+        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        {
+            Box::pin(async { apple_keychain::accounts() })
+        }
+        #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "android")))]
+        {
+            Box::pin(async { Err(SecureSessionError::Unsupported) })
+        }
+    }
+
+    fn replacement_candidates(
+        &self,
+        session: &StoredSession,
+    ) -> SecureSessionFuture<'_, Vec<StoredSession>> {
+        let session = session.clone();
+        #[cfg(target_os = "android")]
+        {
+            Box::pin(async move { android_keystore::replacement_candidates(&session) })
+        }
+        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        {
+            Box::pin(async move { apple_keychain::replacement_candidates(&session) })
+        }
+        #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "android")))]
+        {
+            let _ = session;
+            Box::pin(async { Err(SecureSessionError::Unsupported) })
+        }
+    }
+
+    fn load_account(
+        &self,
+        session_id: &SessionId,
+    ) -> SecureSessionFuture<'_, Option<StoredSession>> {
+        let session_id = session_id.clone();
+        #[cfg(target_os = "android")]
+        {
+            Box::pin(async move { android_keystore::load_account(&session_id) })
+        }
+        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        {
+            Box::pin(async move { apple_keychain::load_account(&session_id) })
+        }
+        #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "android")))]
+        {
+            let _ = session_id;
+            Box::pin(async { Err(SecureSessionError::Unsupported) })
+        }
+    }
+
+    fn remove_account(&self, session_id: &SessionId) -> SecureSessionFuture<'_, bool> {
+        let session_id = session_id.clone();
+        #[cfg(target_os = "android")]
+        {
+            Box::pin(async move { android_keystore::remove_account(&session_id) })
+        }
+        #[cfg(any(target_os = "ios", target_os = "macos"))]
+        {
+            Box::pin(async move { apple_keychain::remove_account(&session_id) })
+        }
+        #[cfg(not(any(target_os = "ios", target_os = "macos", target_os = "android")))]
+        {
+            let _ = session_id;
             Box::pin(async { Err(SecureSessionError::Unsupported) })
         }
     }

@@ -583,6 +583,10 @@ fn connector(config: &LiveConfig, connector_id: Uuid) -> DirectoryConnector {
                 Vendor::Ucs => "SUBSCRIPTION_PASSWORD",
             }
         ),
+        credential_profile_key: format!("legacy-{}", connector_id.simple()),
+        parent_connector_id: None,
+        directory_authority_fingerprint: None,
+        fallback_to_holding: false,
         enabled: true,
         max_import_users: config.max_import_users,
         revision: 1,

@@ -1,0 +1,159 @@
+syntax = "proto3";
+
+package erpx.platform.v1;
+
+import "erpx/common/v1/context.proto";
+
+// Read-only Customer 360 composition. Each field comes from an owner-qualified
+// integration fact; unavailable legacy sections are reported explicitly and
+// never synthesized from another context's aggregate.
+enum Customer360SectionAvailabilityState {
+  CUSTOMER360_SECTION_AVAILABILITY_STATE_UNSPECIFIED = 0;
+  CUSTOMER360_SECTION_AVAILABILITY_STATE_READY = 1;
+  CUSTOMER360_SECTION_AVAILABILITY_STATE_AWAITING_SOURCE = 2;
+  CUSTOMER360_SECTION_AVAILABILITY_STATE_NOT_PROJECTED = 3;
+}
+
+enum Customer360CustomerStatus {
+  CUSTOMER360_CUSTOMER_STATUS_UNSPECIFIED = 0;
+  CUSTOMER360_CUSTOMER_STATUS_PROSPECT = 1;
+  CUSTOMER360_CUSTOMER_STATUS_ACTIVE = 2;
+  CUSTOMER360_CUSTOMER_STATUS_DORMANT = 3;
+  CUSTOMER360_CUSTOMER_STATUS_BLOCKED = 4;
+  CUSTOMER360_CUSTOMER_STATUS_CLOSED = 5;
+}
+
+enum Customer360SubscriptionStatus {
+  CUSTOMER360_SUBSCRIPTION_STATUS_UNSPECIFIED = 0;
+  CUSTOMER360_SUBSCRIPTION_STATUS_TRIAL = 1;
+  CUSTOMER360_SUBSCRIPTION_STATUS_ACTIVE = 2;
+  CUSTOMER360_SUBSCRIPTION_STATUS_PAST_DUE = 3;
+  CUSTOMER360_SUBSCRIPTION_STATUS_SUSPENDED = 4;
+  CUSTOMER360_SUBSCRIPTION_STATUS_ENDED = 5;
+}
+
+enum Customer360OpportunityStage {
+  CUSTOMER360_OPPORTUNITY_STAGE_UNSPECIFIED = 0;
+  CUSTOMER360_OPPORTUNITY_STAGE_QUALIFIED = 1;
+  CUSTOMER360_OPPORTUNITY_STAGE_DISCOVERY = 2;
+  CUSTOMER360_OPPORTUNITY_STAGE_PROPOSAL = 3;
+  CUSTOMER360_OPPORTUNITY_STAGE_NEGOTIATION = 4;
+  CUSTOMER360_OPPORTUNITY_STAGE_WON = 5;
+  CUSTOMER360_OPPORTUNITY_STAGE_LOST = 6;
+}
+
+enum Customer360SalesOrderStatus {
+  CUSTOMER360_SALES_ORDER_STATUS_UNSPECIFIED = 0;
+  CUSTOMER360_SALES_ORDER_STATUS_CONFIRMED = 1;
+  CUSTOMER360_SALES_ORDER_STATUS_PARTIALLY_FULFILLED = 2;
+  CUSTOMER360_SALES_ORDER_STATUS_FULFILLED = 3;
+  CUSTOMER360_SALES_ORDER_STATUS_CANCELLED = 4;
+}
+
+enum Customer360SupportCaseStatus {
+  CUSTOMER360_SUPPORT_CASE_STATUS_UNSPECIFIED = 0;
+  CUSTOMER360_SUPPORT_CASE_STATUS_OPEN = 1;
+  CUSTOMER360_SUPPORT_CASE_STATUS_PENDING_CUSTOMER = 2;
+  CUSTOMER360_SUPPORT_CASE_STATUS_PENDING_INTERNAL = 3;
+  CUSTOMER360_SUPPORT_CASE_STATUS_RESOLVED = 4;
+  CUSTOMER360_SUPPORT_CASE_STATUS_CLOSED = 5;
+}
+
+message Customer360MoneyAmount {
+  int64 minor_units = 1;
+  string currency = 2;
+}
+message Customer360Quantity {
+  int64 units = 1;
+  uint32 scale = 2;
+}
+message Customer360CustomerProfile {
+  string customer_id = 1;
+  string account_id = 2;
+  string customer_code = 3;
+  string display_name = 4;
+  string owning_company_id = 5;
+  Customer360CustomerStatus status = 6;
+}
+message Customer360Subscription {
+  string subscription_id = 1;
+  string customer_id = 2;
+  string plan_id = 3;
+  Customer360SubscriptionStatus status = 4;
+  Customer360MoneyAmount recurring_amount = 5;
+  string effective_at = 6;
+}
+message Customer360Opportunity {
+  string opportunity_id = 1;
+  string customer_id = 2;
+  Customer360OpportunityStage stage = 3;
+  Customer360MoneyAmount expected_value = 4;
+}
+message Customer360SalesOrderLine {
+  string line_id = 1;
+  string item_code = 2;
+  Customer360Quantity quantity = 3;
+  Customer360MoneyAmount line_value = 4;
+}
+message Customer360SalesOrder {
+  string sales_order_id = 1;
+  string order_code = 2;
+  string customer_id = 3;
+  Customer360SalesOrderStatus status = 4;
+  Customer360MoneyAmount total = 5;
+  repeated Customer360SalesOrderLine lines = 6;
+}
+message Customer360SupportCase {
+  string support_case_id = 1;
+  string case_code = 2;
+  string customer_id = 3;
+  Customer360SupportCaseStatus status = 4;
+  string category = 5;
+  string updated_at = 6;
+}
+message Customer360SourceCoverage {
+  bool customer_profile = 1;
+  bool commercial_subscriptions = 2;
+  bool crm_opportunities = 3;
+  bool sales_orders = 4;
+  bool support_cases = 5;
+}
+message Customer360Availability {
+  Customer360SectionAvailabilityState overview = 1;
+  Customer360SectionAvailabilityState commercial = 2;
+  Customer360SectionAvailabilityState relationship_activity = 3;
+  Customer360SectionAvailabilityState sales_activity = 4;
+  Customer360SectionAvailabilityState support = 5;
+  Customer360SectionAvailabilityState organization = 6;
+  Customer360SectionAvailabilityState contacts = 7;
+  Customer360SectionAvailabilityState entitlements = 8;
+  Customer360SectionAvailabilityState onboarding = 9;
+  Customer360SectionAvailabilityState health = 10;
+  Customer360SectionAvailabilityState access_audit = 11;
+  Customer360SectionAvailabilityState notes = 12;
+}
+message Customer360Record {
+  string customer_id = 1;
+  optional Customer360CustomerProfile profile = 2;
+  repeated Customer360Subscription subscriptions = 3;
+  repeated Customer360Opportunity opportunities = 4;
+  repeated Customer360SalesOrder sales_orders = 5;
+  repeated Customer360SupportCase support_cases = 6;
+  Customer360SourceCoverage coverage = 7;
+  Customer360Availability availability = 8;
+}
+message GetCustomer360Request {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  string customer_id = 2;
+  optional string tenant_id = 3;
+}
+message GetCustomer360Response {
+  optional Customer360Record customer = 1;
+  erpx.common.v1.QueryMetadata metadata = 2;
+  erpx.common.v1.ProjectionMetadata control_customers = 3;
+  erpx.common.v1.ProjectionMetadata tenant_activity = 4;
+}
+
+service Customer360QueryService {
+  rpc GetCustomer360(GetCustomer360Request) returns (GetCustomer360Response);
+}

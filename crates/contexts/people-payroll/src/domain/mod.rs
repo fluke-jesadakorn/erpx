@@ -1,0 +1,1150 @@
+use std::collections::HashSet;
+
+use chrono::{DateTime, NaiveDate, Utc};
+use erpx_kernel::TenantScope;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use uuid::Uuid;
+
+pub const MAX_REFERENCE_BYTES: usize = 128;
+pub const MAX_NAME_BYTES: usize = 255;
+pub const MAX_REASON_BYTES: usize = 1_024;
+pub const MAX_PAYROLL_LINES: usize = 100_000;
+
+macro_rules! context_id {
+    ($name:ident, $field:literal) => {
+        #[derive(
+            Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+        )]
+        #[serde(transparent)]
+        pub struct $name(Uuid);
+
+        impl $name {
+            pub fn try_from_uuid(value: Uuid) -> Result<Self, PeoplePayrollDomainError> {
+                if value.is_nil() {
+                    return Err(PeoplePayrollDomainError::NilIdentifier { field: $field });
+                }
+                Ok(Self(value))
+            }
+
+            pub const fn as_uuid(self) -> Uuid {
+                self.0
+            }
+        }
+
+        impl TryFrom<Uuid> for $name {
+            type Error = PeoplePayrollDomainError;
+
+            fn try_from(value: Uuid) -> Result<Self, Self::Error> {
+                Self::try_from_uuid(value)
+            }
+        }
+
+        impl From<$name> for Uuid {
+            fn from(value: $name) -> Self {
+                value.0
+            }
+        }
+    };
+}
+
+context_id!(EmployeeId, "employee_id");
+context_id!(LeaveRequestId, "leave_request_id");
+context_id!(ExpenseClaimId, "expense_claim_id");
+context_id!(PayrollRunId, "payroll_run_id");
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum PeoplePayrollDomainError {
+    #[error("{field} is required")]
+    Required { field: &'static str },
+    #[error("{field} exceeds the maximum length of {maximum} bytes")]
+    TooLong { field: &'static str, maximum: usize },
+    #[error("{field} contains a control character")]
+    ControlCharacter { field: &'static str },
+    #[error("{field} cannot be nil")]
+    NilIdentifier { field: &'static str },
+    #[error("People & Payroll records require an exact company or branch scope")]
+    InvalidScope,
+    #[error("the lifecycle transition is not allowed")]
+    InvalidTransition,
+    #[error("the approval actor must be distinct from prior lifecycle actors")]
+    ApprovalSeparation,
+    #[error("the date or timestamp window is invalid")]
+    InvalidWindow,
+    #[error("currency must be a three-letter uppercase ASCII code")]
+    InvalidCurrency,
+    #[error("monetary amounts must be non-negative and reconcile")]
+    InvalidAmount,
+    #[error("a payroll run must contain between 1 and 100,000 unique employee lines")]
+    InvalidPayrollLines,
+    #[error("People & Payroll aggregate version overflowed")]
+    VersionOverflow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Currency([u8; 3]);
+
+impl Currency {
+    pub fn try_new(value: &str) -> Result<Self, PeoplePayrollDomainError> {
+        let bytes: [u8; 3] = value
+            .as_bytes()
+            .try_into()
+            .map_err(|_| PeoplePayrollDomainError::InvalidCurrency)?;
+        if !bytes.iter().all(u8::is_ascii_uppercase) {
+            return Err(PeoplePayrollDomainError::InvalidCurrency);
+        }
+        Ok(Self(bytes))
+    }
+
+    pub fn as_str(&self) -> &str {
+        std::str::from_utf8(&self.0).expect("validated ASCII currency")
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EmployeeStatus {
+    Draft,
+    Active,
+    OnLeave,
+    Suspended,
+    Terminated,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "transition", rename_all = "snake_case")]
+pub enum EmployeeTransition {
+    Activate,
+    PutOnLeave,
+    ReturnFromLeave,
+    Suspend,
+    Terminate { terminated_on: NaiveDate },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LeaveStatus {
+    Draft,
+    Submitted,
+    Approved,
+    Rejected,
+    Cancelled,
+    Taken,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LeaveTransition {
+    Submit,
+    Approve,
+    Reject,
+    Cancel,
+    MarkTaken,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExpenseStatus {
+    Draft,
+    Submitted,
+    Approved,
+    Rejected,
+    Reimbursed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ExpenseTransition {
+    Submit,
+    Approve,
+    Reject,
+    Reimburse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PayrollStatus {
+    Draft,
+    Review,
+    Approved,
+    Posted,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PayrollTransition {
+    SubmitForReview,
+    Review,
+    Post,
+    Cancel,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum DomainEvent {
+    EmployeeStatusChanged {
+        employee_id: EmployeeId,
+        employee_code: String,
+        display_name: String,
+        status: EmployeeStatus,
+        at: DateTime<Utc>,
+    },
+    LeaveStatusChanged {
+        leave_request_id: LeaveRequestId,
+        status: LeaveStatus,
+        at: DateTime<Utc>,
+    },
+    ExpenseStatusChanged {
+        expense_claim_id: ExpenseClaimId,
+        status: ExpenseStatus,
+        at: DateTime<Utc>,
+    },
+    PayrollStatusChanged {
+        payroll_run_id: PayrollRunId,
+        status: PayrollStatus,
+        at: DateTime<Utc>,
+    },
+    PayrollFinalized {
+        payroll_run_id: PayrollRunId,
+        period_code: String,
+        currency: Currency,
+        total_gross_minor: i64,
+        total_deductions_minor: i64,
+        total_net_minor: i64,
+        at: DateTime<Utc>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Employee {
+    id: EmployeeId,
+    version: u64,
+    scope: TenantScope,
+    employee_code: String,
+    display_name: String,
+    hired_on: NaiveDate,
+    terminated_on: Option<NaiveDate>,
+    status: EmployeeStatus,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    #[serde(skip)]
+    uncommitted_events: Vec<DomainEvent>,
+}
+
+impl Employee {
+    #[allow(clippy::too_many_arguments)]
+    pub fn hire(
+        id: EmployeeId,
+        scope: TenantScope,
+        employee_code: String,
+        display_name: String,
+        hired_on: NaiveDate,
+        at: DateTime<Utc>,
+    ) -> Result<Self, PeoplePayrollDomainError> {
+        validate_scope(&scope)?;
+        validate_text(&employee_code, "employee_code", MAX_REFERENCE_BYTES)?;
+        validate_text(&display_name, "display_name", MAX_NAME_BYTES)?;
+        let value = Self {
+            id,
+            version: 1,
+            scope,
+            employee_code,
+            display_name,
+            hired_on,
+            terminated_on: None,
+            status: EmployeeStatus::Draft,
+            created_at: at,
+            updated_at: at,
+            uncommitted_events: vec![DomainEvent::EmployeeStatusChanged {
+                employee_id: id,
+                employee_code: String::new(),
+                display_name: String::new(),
+                status: EmployeeStatus::Draft,
+                at,
+            }],
+        };
+        // Build the publication payload only after all owned values are validated.
+        let mut value = value;
+        value.uncommitted_events[0] = value.status_event(at);
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn transition(
+        &mut self,
+        transition: EmployeeTransition,
+        at: DateTime<Utc>,
+    ) -> Result<(), PeoplePayrollDomainError> {
+        let (next, terminated_on) = match transition {
+            EmployeeTransition::Activate
+                if matches!(
+                    self.status,
+                    EmployeeStatus::Draft | EmployeeStatus::Suspended
+                ) =>
+            {
+                (EmployeeStatus::Active, None)
+            }
+            EmployeeTransition::PutOnLeave if self.status == EmployeeStatus::Active => {
+                (EmployeeStatus::OnLeave, None)
+            }
+            EmployeeTransition::ReturnFromLeave if self.status == EmployeeStatus::OnLeave => {
+                (EmployeeStatus::Active, None)
+            }
+            EmployeeTransition::Suspend
+                if matches!(
+                    self.status,
+                    EmployeeStatus::Active | EmployeeStatus::OnLeave
+                ) =>
+            {
+                (EmployeeStatus::Suspended, None)
+            }
+            EmployeeTransition::Terminate { terminated_on }
+                if self.status != EmployeeStatus::Terminated && terminated_on >= self.hired_on =>
+            {
+                (EmployeeStatus::Terminated, Some(terminated_on))
+            }
+            _ => return Err(PeoplePayrollDomainError::InvalidTransition),
+        };
+        self.advance(at)?;
+        self.status = next;
+        self.terminated_on = terminated_on;
+        self.uncommitted_events.push(self.status_event(at));
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), PeoplePayrollDomainError> {
+        validate_scope(&self.scope)?;
+        validate_text(&self.employee_code, "employee_code", MAX_REFERENCE_BYTES)?;
+        validate_text(&self.display_name, "display_name", MAX_NAME_BYTES)?;
+        validate_common(self.version, self.created_at, self.updated_at)?;
+        match (self.status, self.terminated_on) {
+            (EmployeeStatus::Terminated, Some(date)) if date >= self.hired_on => Ok(()),
+            (EmployeeStatus::Terminated, _) | (_, Some(_)) => {
+                Err(PeoplePayrollDomainError::InvalidWindow)
+            }
+            _ => Ok(()),
+        }
+    }
+
+    fn status_event(&self, at: DateTime<Utc>) -> DomainEvent {
+        DomainEvent::EmployeeStatusChanged {
+            employee_id: self.id,
+            employee_code: self.employee_code.clone(),
+            display_name: self.display_name.clone(),
+            status: self.status,
+            at,
+        }
+    }
+
+    fn advance(&mut self, at: DateTime<Utc>) -> Result<(), PeoplePayrollDomainError> {
+        advance(&mut self.version, &mut self.updated_at, at)
+    }
+
+    pub const fn id(&self) -> EmployeeId {
+        self.id
+    }
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+    pub fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+    pub fn employee_code(&self) -> &str {
+        &self.employee_code
+    }
+    pub fn display_name(&self) -> &str {
+        &self.display_name
+    }
+    pub const fn hired_on(&self) -> NaiveDate {
+        self.hired_on
+    }
+    pub const fn terminated_on(&self) -> Option<NaiveDate> {
+        self.terminated_on
+    }
+    pub const fn status(&self) -> EmployeeStatus {
+        self.status
+    }
+    pub const fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+    pub const fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        std::mem::take(&mut self.uncommitted_events)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LeaveRequest {
+    id: LeaveRequestId,
+    version: u64,
+    scope: TenantScope,
+    employee_id: EmployeeId,
+    starts_on: NaiveDate,
+    ends_on: NaiveDate,
+    reason: String,
+    status: LeaveStatus,
+    requested_by: String,
+    approved_by: Option<String>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    #[serde(skip)]
+    uncommitted_events: Vec<DomainEvent>,
+}
+
+impl LeaveRequest {
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        id: LeaveRequestId,
+        scope: TenantScope,
+        employee_id: EmployeeId,
+        starts_on: NaiveDate,
+        ends_on: NaiveDate,
+        reason: String,
+        requested_by: String,
+        at: DateTime<Utc>,
+    ) -> Result<Self, PeoplePayrollDomainError> {
+        validate_scope(&scope)?;
+        validate_window(starts_on, ends_on)?;
+        validate_text(&reason, "leave_reason", MAX_REASON_BYTES)?;
+        validate_text(&requested_by, "requested_by", MAX_REFERENCE_BYTES)?;
+        let value = Self {
+            id,
+            version: 1,
+            scope,
+            employee_id,
+            starts_on,
+            ends_on,
+            reason,
+            status: LeaveStatus::Draft,
+            requested_by,
+            approved_by: None,
+            created_at: at,
+            updated_at: at,
+            uncommitted_events: vec![DomainEvent::LeaveStatusChanged {
+                leave_request_id: id,
+                status: LeaveStatus::Draft,
+                at,
+            }],
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn transition(
+        &mut self,
+        transition: LeaveTransition,
+        actor: &str,
+        at: DateTime<Utc>,
+    ) -> Result<(), PeoplePayrollDomainError> {
+        validate_text(actor, "actor", MAX_REFERENCE_BYTES)?;
+        let (next, approver) = match transition {
+            LeaveTransition::Submit if self.status == LeaveStatus::Draft => {
+                (LeaveStatus::Submitted, None)
+            }
+            LeaveTransition::Approve
+                if self.status == LeaveStatus::Submitted && actor != self.requested_by =>
+            {
+                (LeaveStatus::Approved, Some(actor.to_owned()))
+            }
+            LeaveTransition::Reject if self.status == LeaveStatus::Submitted => {
+                (LeaveStatus::Rejected, None)
+            }
+            LeaveTransition::Cancel
+                if matches!(self.status, LeaveStatus::Submitted | LeaveStatus::Approved) =>
+            {
+                (LeaveStatus::Cancelled, None)
+            }
+            LeaveTransition::MarkTaken if self.status == LeaveStatus::Approved => {
+                (LeaveStatus::Taken, self.approved_by.clone())
+            }
+            LeaveTransition::Approve => return Err(PeoplePayrollDomainError::ApprovalSeparation),
+            _ => return Err(PeoplePayrollDomainError::InvalidTransition),
+        };
+        self.advance(at)?;
+        self.status = next;
+        if approver.is_some() {
+            self.approved_by = approver;
+        }
+        self.uncommitted_events
+            .push(DomainEvent::LeaveStatusChanged {
+                leave_request_id: self.id,
+                status: self.status,
+                at,
+            });
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), PeoplePayrollDomainError> {
+        validate_scope(&self.scope)?;
+        validate_window(self.starts_on, self.ends_on)?;
+        validate_text(&self.reason, "leave_reason", MAX_REASON_BYTES)?;
+        validate_text(&self.requested_by, "requested_by", MAX_REFERENCE_BYTES)?;
+        validate_common(self.version, self.created_at, self.updated_at)?;
+        if let Some(approver) = &self.approved_by {
+            validate_text(approver, "approved_by", MAX_REFERENCE_BYTES)?;
+            if approver == &self.requested_by {
+                return Err(PeoplePayrollDomainError::ApprovalSeparation);
+            }
+        }
+        if matches!(self.status, LeaveStatus::Approved | LeaveStatus::Taken)
+            && self.approved_by.is_none()
+        {
+            return Err(PeoplePayrollDomainError::InvalidTransition);
+        }
+        Ok(())
+    }
+
+    fn advance(&mut self, at: DateTime<Utc>) -> Result<(), PeoplePayrollDomainError> {
+        advance(&mut self.version, &mut self.updated_at, at)
+    }
+    pub const fn id(&self) -> LeaveRequestId {
+        self.id
+    }
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+    pub fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+    pub const fn employee_id(&self) -> EmployeeId {
+        self.employee_id
+    }
+    pub const fn starts_on(&self) -> NaiveDate {
+        self.starts_on
+    }
+    pub const fn ends_on(&self) -> NaiveDate {
+        self.ends_on
+    }
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+    pub const fn status(&self) -> LeaveStatus {
+        self.status
+    }
+    pub fn requested_by(&self) -> &str {
+        &self.requested_by
+    }
+    pub fn approved_by(&self) -> Option<&str> {
+        self.approved_by.as_deref()
+    }
+    pub const fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+    pub const fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        std::mem::take(&mut self.uncommitted_events)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExpenseClaim {
+    id: ExpenseClaimId,
+    version: u64,
+    scope: TenantScope,
+    employee_id: EmployeeId,
+    currency: Currency,
+    amount_minor: i64,
+    reason: String,
+    status: ExpenseStatus,
+    claimed_by: String,
+    approved_by: Option<String>,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    #[serde(skip)]
+    uncommitted_events: Vec<DomainEvent>,
+}
+
+impl ExpenseClaim {
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        id: ExpenseClaimId,
+        scope: TenantScope,
+        employee_id: EmployeeId,
+        currency: Currency,
+        amount_minor: i64,
+        reason: String,
+        claimed_by: String,
+        at: DateTime<Utc>,
+    ) -> Result<Self, PeoplePayrollDomainError> {
+        validate_scope(&scope)?;
+        if amount_minor < 0 {
+            return Err(PeoplePayrollDomainError::InvalidAmount);
+        }
+        validate_text(&reason, "expense_reason", MAX_REASON_BYTES)?;
+        validate_text(&claimed_by, "claimed_by", MAX_REFERENCE_BYTES)?;
+        let value = Self {
+            id,
+            version: 1,
+            scope,
+            employee_id,
+            currency,
+            amount_minor,
+            reason,
+            status: ExpenseStatus::Draft,
+            claimed_by,
+            approved_by: None,
+            created_at: at,
+            updated_at: at,
+            uncommitted_events: vec![DomainEvent::ExpenseStatusChanged {
+                expense_claim_id: id,
+                status: ExpenseStatus::Draft,
+                at,
+            }],
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn transition(
+        &mut self,
+        transition: ExpenseTransition,
+        actor: &str,
+        at: DateTime<Utc>,
+    ) -> Result<(), PeoplePayrollDomainError> {
+        validate_text(actor, "actor", MAX_REFERENCE_BYTES)?;
+        let (next, approver) = match transition {
+            ExpenseTransition::Submit if self.status == ExpenseStatus::Draft => {
+                (ExpenseStatus::Submitted, None)
+            }
+            ExpenseTransition::Approve
+                if self.status == ExpenseStatus::Submitted && actor != self.claimed_by =>
+            {
+                (ExpenseStatus::Approved, Some(actor.to_owned()))
+            }
+            ExpenseTransition::Reject if self.status == ExpenseStatus::Submitted => {
+                (ExpenseStatus::Rejected, None)
+            }
+            ExpenseTransition::Reimburse if self.status == ExpenseStatus::Approved => {
+                (ExpenseStatus::Reimbursed, self.approved_by.clone())
+            }
+            ExpenseTransition::Approve => return Err(PeoplePayrollDomainError::ApprovalSeparation),
+            _ => return Err(PeoplePayrollDomainError::InvalidTransition),
+        };
+        self.advance(at)?;
+        self.status = next;
+        if approver.is_some() {
+            self.approved_by = approver;
+        }
+        self.uncommitted_events
+            .push(DomainEvent::ExpenseStatusChanged {
+                expense_claim_id: self.id,
+                status: self.status,
+                at,
+            });
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), PeoplePayrollDomainError> {
+        validate_scope(&self.scope)?;
+        if self.amount_minor < 0 {
+            return Err(PeoplePayrollDomainError::InvalidAmount);
+        }
+        validate_text(&self.reason, "expense_reason", MAX_REASON_BYTES)?;
+        validate_text(&self.claimed_by, "claimed_by", MAX_REFERENCE_BYTES)?;
+        validate_common(self.version, self.created_at, self.updated_at)?;
+        if let Some(approver) = &self.approved_by {
+            validate_text(approver, "approved_by", MAX_REFERENCE_BYTES)?;
+            if approver == &self.claimed_by {
+                return Err(PeoplePayrollDomainError::ApprovalSeparation);
+            }
+        }
+        if matches!(
+            self.status,
+            ExpenseStatus::Approved | ExpenseStatus::Reimbursed
+        ) && self.approved_by.is_none()
+        {
+            return Err(PeoplePayrollDomainError::InvalidTransition);
+        }
+        Ok(())
+    }
+
+    fn advance(&mut self, at: DateTime<Utc>) -> Result<(), PeoplePayrollDomainError> {
+        advance(&mut self.version, &mut self.updated_at, at)
+    }
+    pub const fn id(&self) -> ExpenseClaimId {
+        self.id
+    }
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+    pub fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+    pub const fn employee_id(&self) -> EmployeeId {
+        self.employee_id
+    }
+    pub const fn currency(&self) -> Currency {
+        self.currency
+    }
+    pub const fn amount_minor(&self) -> i64 {
+        self.amount_minor
+    }
+    pub fn reason(&self) -> &str {
+        &self.reason
+    }
+    pub const fn status(&self) -> ExpenseStatus {
+        self.status
+    }
+    pub fn claimed_by(&self) -> &str {
+        &self.claimed_by
+    }
+    pub fn approved_by(&self) -> Option<&str> {
+        self.approved_by.as_deref()
+    }
+    pub const fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+    pub const fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        std::mem::take(&mut self.uncommitted_events)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PayrollLine {
+    pub employee_id: EmployeeId,
+    pub gross_minor: i64,
+    pub deductions_minor: i64,
+    pub net_minor: i64,
+}
+
+impl PayrollLine {
+    pub fn try_new(
+        employee_id: EmployeeId,
+        gross_minor: i64,
+        deductions_minor: i64,
+    ) -> Result<Self, PeoplePayrollDomainError> {
+        if gross_minor < 0 || deductions_minor < 0 || deductions_minor > gross_minor {
+            return Err(PeoplePayrollDomainError::InvalidAmount);
+        }
+        Ok(Self {
+            employee_id,
+            gross_minor,
+            deductions_minor,
+            net_minor: gross_minor - deductions_minor,
+        })
+    }
+
+    pub fn validate(&self) -> Result<(), PeoplePayrollDomainError> {
+        if self.gross_minor < 0
+            || self.deductions_minor < 0
+            || self.deductions_minor > self.gross_minor
+            || self.net_minor != self.gross_minor - self.deductions_minor
+        {
+            return Err(PeoplePayrollDomainError::InvalidAmount);
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PayrollRun {
+    id: PayrollRunId,
+    version: u64,
+    scope: TenantScope,
+    period_code: String,
+    starts_on: NaiveDate,
+    ends_on: NaiveDate,
+    currency: Currency,
+    lines: Vec<PayrollLine>,
+    status: PayrollStatus,
+    prepared_by: String,
+    reviewed_by: Option<String>,
+    approved_by: Option<String>,
+    total_gross_minor: i64,
+    total_deductions_minor: i64,
+    total_net_minor: i64,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    #[serde(skip)]
+    uncommitted_events: Vec<DomainEvent>,
+}
+
+impl PayrollRun {
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        id: PayrollRunId,
+        scope: TenantScope,
+        period_code: String,
+        starts_on: NaiveDate,
+        ends_on: NaiveDate,
+        currency: Currency,
+        lines: Vec<PayrollLine>,
+        prepared_by: String,
+        at: DateTime<Utc>,
+    ) -> Result<Self, PeoplePayrollDomainError> {
+        validate_scope(&scope)?;
+        validate_text(&period_code, "period_code", MAX_REFERENCE_BYTES)?;
+        validate_window(starts_on, ends_on)?;
+        validate_text(&prepared_by, "prepared_by", MAX_REFERENCE_BYTES)?;
+        validate_payroll_lines(&lines)?;
+        let (gross, deductions, net) = payroll_totals(&lines)?;
+        let value = Self {
+            id,
+            version: 1,
+            scope,
+            period_code,
+            starts_on,
+            ends_on,
+            currency,
+            lines,
+            status: PayrollStatus::Draft,
+            prepared_by,
+            reviewed_by: None,
+            approved_by: None,
+            total_gross_minor: gross,
+            total_deductions_minor: deductions,
+            total_net_minor: net,
+            created_at: at,
+            updated_at: at,
+            uncommitted_events: vec![DomainEvent::PayrollStatusChanged {
+                payroll_run_id: id,
+                status: PayrollStatus::Draft,
+                at,
+            }],
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn transition(
+        &mut self,
+        transition: PayrollTransition,
+        actor: &str,
+        at: DateTime<Utc>,
+    ) -> Result<(), PeoplePayrollDomainError> {
+        validate_text(actor, "actor", MAX_REFERENCE_BYTES)?;
+        let (next, reviewer, approver) = match transition {
+            PayrollTransition::SubmitForReview if self.status == PayrollStatus::Draft => {
+                (PayrollStatus::Review, None, None)
+            }
+            PayrollTransition::Review
+                if self.status == PayrollStatus::Review && actor != self.prepared_by =>
+            {
+                (PayrollStatus::Approved, Some(actor.to_owned()), None)
+            }
+            PayrollTransition::Post
+                if self.status == PayrollStatus::Approved
+                    && actor != self.prepared_by
+                    && self.reviewed_by.as_deref() != Some(actor) =>
+            {
+                (
+                    PayrollStatus::Posted,
+                    self.reviewed_by.clone(),
+                    Some(actor.to_owned()),
+                )
+            }
+            PayrollTransition::Cancel
+                if matches!(self.status, PayrollStatus::Draft | PayrollStatus::Review) =>
+            {
+                (PayrollStatus::Cancelled, self.reviewed_by.clone(), None)
+            }
+            PayrollTransition::Review | PayrollTransition::Post => {
+                return Err(PeoplePayrollDomainError::ApprovalSeparation);
+            }
+            _ => return Err(PeoplePayrollDomainError::InvalidTransition),
+        };
+        self.advance(at)?;
+        self.status = next;
+        if reviewer.is_some() {
+            self.reviewed_by = reviewer;
+        }
+        if approver.is_some() {
+            self.approved_by = approver;
+        }
+        self.uncommitted_events
+            .push(DomainEvent::PayrollStatusChanged {
+                payroll_run_id: self.id,
+                status: self.status,
+                at,
+            });
+        if self.status == PayrollStatus::Posted {
+            self.uncommitted_events.push(DomainEvent::PayrollFinalized {
+                payroll_run_id: self.id,
+                period_code: self.period_code.clone(),
+                currency: self.currency,
+                total_gross_minor: self.total_gross_minor,
+                total_deductions_minor: self.total_deductions_minor,
+                total_net_minor: self.total_net_minor,
+                at,
+            });
+        }
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), PeoplePayrollDomainError> {
+        validate_scope(&self.scope)?;
+        validate_text(&self.period_code, "period_code", MAX_REFERENCE_BYTES)?;
+        validate_window(self.starts_on, self.ends_on)?;
+        validate_text(&self.prepared_by, "prepared_by", MAX_REFERENCE_BYTES)?;
+        validate_payroll_lines(&self.lines)?;
+        validate_common(self.version, self.created_at, self.updated_at)?;
+        if self.reviewed_by.as_deref() == Some(self.prepared_by.as_str())
+            || self.approved_by.as_deref() == Some(self.prepared_by.as_str())
+            || (self.reviewed_by.is_some() && self.reviewed_by == self.approved_by)
+        {
+            return Err(PeoplePayrollDomainError::ApprovalSeparation);
+        }
+        if matches!(self.status, PayrollStatus::Approved | PayrollStatus::Posted)
+            && self.reviewed_by.is_none()
+        {
+            return Err(PeoplePayrollDomainError::InvalidTransition);
+        }
+        if self.status == PayrollStatus::Posted && self.approved_by.is_none() {
+            return Err(PeoplePayrollDomainError::InvalidTransition);
+        }
+        if payroll_totals(&self.lines)?
+            != (
+                self.total_gross_minor,
+                self.total_deductions_minor,
+                self.total_net_minor,
+            )
+        {
+            return Err(PeoplePayrollDomainError::InvalidAmount);
+        }
+        Ok(())
+    }
+
+    fn advance(&mut self, at: DateTime<Utc>) -> Result<(), PeoplePayrollDomainError> {
+        advance(&mut self.version, &mut self.updated_at, at)
+    }
+    pub const fn id(&self) -> PayrollRunId {
+        self.id
+    }
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+    pub fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+    pub fn period_code(&self) -> &str {
+        &self.period_code
+    }
+    pub const fn starts_on(&self) -> NaiveDate {
+        self.starts_on
+    }
+    pub const fn ends_on(&self) -> NaiveDate {
+        self.ends_on
+    }
+    pub const fn currency(&self) -> Currency {
+        self.currency
+    }
+    pub fn lines(&self) -> &[PayrollLine] {
+        &self.lines
+    }
+    pub const fn status(&self) -> PayrollStatus {
+        self.status
+    }
+    pub fn prepared_by(&self) -> &str {
+        &self.prepared_by
+    }
+    pub fn reviewed_by(&self) -> Option<&str> {
+        self.reviewed_by.as_deref()
+    }
+    pub fn approved_by(&self) -> Option<&str> {
+        self.approved_by.as_deref()
+    }
+    pub const fn total_gross_minor(&self) -> i64 {
+        self.total_gross_minor
+    }
+    pub const fn total_deductions_minor(&self) -> i64 {
+        self.total_deductions_minor
+    }
+    pub const fn total_net_minor(&self) -> i64 {
+        self.total_net_minor
+    }
+    pub const fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+    pub const fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        std::mem::take(&mut self.uncommitted_events)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "aggregate", content = "value", rename_all = "snake_case")]
+pub enum Aggregate {
+    Employee(Employee),
+    LeaveRequest(LeaveRequest),
+    ExpenseClaim(ExpenseClaim),
+    PayrollRun(PayrollRun),
+}
+
+impl Aggregate {
+    pub fn validate(&self) -> Result<(), PeoplePayrollDomainError> {
+        match self {
+            Self::Employee(value) => value.validate(),
+            Self::LeaveRequest(value) => value.validate(),
+            Self::ExpenseClaim(value) => value.validate(),
+            Self::PayrollRun(value) => value.validate(),
+        }
+    }
+
+    pub const fn version(&self) -> u64 {
+        match self {
+            Self::Employee(value) => value.version(),
+            Self::LeaveRequest(value) => value.version(),
+            Self::ExpenseClaim(value) => value.version(),
+            Self::PayrollRun(value) => value.version(),
+        }
+    }
+
+    pub fn scope(&self) -> &TenantScope {
+        match self {
+            Self::Employee(value) => value.scope(),
+            Self::LeaveRequest(value) => value.scope(),
+            Self::ExpenseClaim(value) => value.scope(),
+            Self::PayrollRun(value) => value.scope(),
+        }
+    }
+
+    pub const fn aggregate_type(&self) -> &'static str {
+        match self {
+            Self::Employee(_) => "employee",
+            Self::LeaveRequest(_) => "leave_request",
+            Self::ExpenseClaim(_) => "expense_claim",
+            Self::PayrollRun(_) => "payroll_run",
+        }
+    }
+
+    pub const fn id_uuid(&self) -> Uuid {
+        match self {
+            Self::Employee(value) => value.id().as_uuid(),
+            Self::LeaveRequest(value) => value.id().as_uuid(),
+            Self::ExpenseClaim(value) => value.id().as_uuid(),
+            Self::PayrollRun(value) => value.id().as_uuid(),
+        }
+    }
+
+    pub const fn updated_at(&self) -> DateTime<Utc> {
+        match self {
+            Self::Employee(value) => value.updated_at(),
+            Self::LeaveRequest(value) => value.updated_at(),
+            Self::ExpenseClaim(value) => value.updated_at(),
+            Self::PayrollRun(value) => value.updated_at(),
+        }
+    }
+
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        match self {
+            Self::Employee(value) => value.take_uncommitted_events(),
+            Self::LeaveRequest(value) => value.take_uncommitted_events(),
+            Self::ExpenseClaim(value) => value.take_uncommitted_events(),
+            Self::PayrollRun(value) => value.take_uncommitted_events(),
+        }
+    }
+}
+
+fn validate_scope(scope: &TenantScope) -> Result<(), PeoplePayrollDomainError> {
+    match scope {
+        TenantScope::Company { .. } | TenantScope::Branch { .. } if scope.validate().is_ok() => {
+            Ok(())
+        }
+        _ => Err(PeoplePayrollDomainError::InvalidScope),
+    }
+}
+
+fn validate_text(
+    value: &str,
+    field: &'static str,
+    maximum: usize,
+) -> Result<(), PeoplePayrollDomainError> {
+    if value.trim().is_empty() {
+        return Err(PeoplePayrollDomainError::Required { field });
+    }
+    if value.len() > maximum {
+        return Err(PeoplePayrollDomainError::TooLong { field, maximum });
+    }
+    if value.chars().any(char::is_control) {
+        return Err(PeoplePayrollDomainError::ControlCharacter { field });
+    }
+    Ok(())
+}
+
+fn validate_window(
+    starts_on: NaiveDate,
+    ends_on: NaiveDate,
+) -> Result<(), PeoplePayrollDomainError> {
+    if ends_on < starts_on {
+        Err(PeoplePayrollDomainError::InvalidWindow)
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_common(
+    version: u64,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+) -> Result<(), PeoplePayrollDomainError> {
+    if version == 0 {
+        return Err(PeoplePayrollDomainError::VersionOverflow);
+    }
+    if updated_at < created_at {
+        return Err(PeoplePayrollDomainError::InvalidWindow);
+    }
+    Ok(())
+}
+
+fn advance(
+    version: &mut u64,
+    updated_at: &mut DateTime<Utc>,
+    at: DateTime<Utc>,
+) -> Result<(), PeoplePayrollDomainError> {
+    if at < *updated_at {
+        return Err(PeoplePayrollDomainError::InvalidWindow);
+    }
+    *version = version
+        .checked_add(1)
+        .ok_or(PeoplePayrollDomainError::VersionOverflow)?;
+    *updated_at = at;
+    Ok(())
+}
+
+fn validate_payroll_lines(lines: &[PayrollLine]) -> Result<(), PeoplePayrollDomainError> {
+    if lines.is_empty() || lines.len() > MAX_PAYROLL_LINES {
+        return Err(PeoplePayrollDomainError::InvalidPayrollLines);
+    }
+    let mut employees = HashSet::with_capacity(lines.len());
+    for line in lines {
+        line.validate()?;
+        if !employees.insert(line.employee_id) {
+            return Err(PeoplePayrollDomainError::InvalidPayrollLines);
+        }
+    }
+    Ok(())
+}
+
+fn payroll_totals(lines: &[PayrollLine]) -> Result<(i64, i64, i64), PeoplePayrollDomainError> {
+    let mut gross = 0_i64;
+    let mut deductions = 0_i64;
+    let mut net = 0_i64;
+    for line in lines {
+        gross = gross
+            .checked_add(line.gross_minor)
+            .ok_or(PeoplePayrollDomainError::InvalidAmount)?;
+        deductions = deductions
+            .checked_add(line.deductions_minor)
+            .ok_or(PeoplePayrollDomainError::InvalidAmount)?;
+        net = net
+            .checked_add(line.net_minor)
+            .ok_or(PeoplePayrollDomainError::InvalidAmount)?;
+    }
+    if gross.checked_sub(deductions) != Some(net) {
+        return Err(PeoplePayrollDomainError::InvalidAmount);
+    }
+    Ok((gross, deductions, net))
+}
+
+#[cfg(test)]
+mod tests;

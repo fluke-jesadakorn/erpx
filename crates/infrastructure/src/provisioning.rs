@@ -12,19 +12,24 @@ use std::{
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
-use erpx_domain::platform_completion::PitrRecoveryPoint;
+use erpx_domain::{
+    contracts::{ActorAttribution, ActorKind},
+    operations::{AggregateMetadata, Branch, OrganizationStatus, event_for},
+    platform_completion::PitrRecoveryPoint,
+};
 use erpx_migration::{migrate_tenant_read, migrate_tenant_write};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sqlx::{
-    Postgres, Row, Transaction,
+    PgPool, Postgres, Row, Transaction,
     postgres::{PgConnectOptions, PgPoolOptions, PgSslMode},
 };
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{
-    PersistenceError, SqlxControlPlane, SqlxTenantStoreRegistry, TenantStoreRegistration,
+    BranchDatabaseRoute, BranchProvisioningJob, BranchProvisioningState, PersistenceError,
+    SqlxControlPlane, SqlxOperationsStore, SqlxTenantStoreRegistry, TenantStoreRegistration,
     object_storage::{
         MinioObjectStore, MinioObjectStoreConfig, ObjectInventoryEntry, ObjectStorageError,
     },
@@ -536,6 +541,113 @@ impl TenantDatabaseProvisioningConfig {
                 )
             })?;
         Self::from_values(admin_database_url, database_url_template)
+    }
+}
+
+/// In-memory connection material resolved from one approved database profile.
+/// Only the profile key is printable; URL, username, and password are retained
+/// inside `PgConnectOptions` and never rendered back into a DSN.
+#[derive(Clone)]
+pub struct ApprovedDatabaseProfileConnection {
+    profile_key: String,
+    options: PgConnectOptions,
+}
+
+impl fmt::Debug for ApprovedDatabaseProfileConnection {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ApprovedDatabaseProfileConnection")
+            .field("profile_key", &self.profile_key)
+            .field("connection", &"<redacted>")
+            .finish()
+    }
+}
+
+impl ApprovedDatabaseProfileConnection {
+    pub fn from_values(
+        profile_key: impl Into<String>,
+        credential_free_url: &str,
+        username: &str,
+        password: &str,
+    ) -> Result<Self, PersistenceError> {
+        let profile_key = profile_key.into();
+        if profile_key.is_empty()
+            || profile_key.len() > 64
+            || !profile_key.starts_with(|value: char| value.is_ascii_lowercase())
+            || profile_key.chars().any(|value| {
+                !(value.is_ascii_lowercase()
+                    || value.is_ascii_digit()
+                    || matches!(value, '_' | '-'))
+            })
+        {
+            return Err(PersistenceError::Configuration(
+                "database profile key is invalid",
+            ));
+        }
+        reject_database_profile_url_credentials(credential_free_url)?;
+        if username.is_empty()
+            || username.len() > 63
+            || username.chars().any(char::is_control)
+            || password.is_empty()
+            || password.len() > 4096
+        {
+            return Err(PersistenceError::Configuration(
+                "database credential profile is invalid",
+            ));
+        }
+        let mut options = PgConnectOptions::from_str(credential_free_url).map_err(|_| {
+            PersistenceError::Configuration("database profile URL must be a PostgreSQL URL")
+        })?;
+        options = options.username(username).password(password);
+        if !is_loopback_database_host(options.get_host()) {
+            options = options.ssl_mode(PgSslMode::VerifyFull);
+        }
+        Ok(Self {
+            profile_key,
+            options,
+        })
+    }
+
+    pub fn from_environment(
+        profile_key: &str,
+        credential_profile_key: &str,
+    ) -> Result<Self, PersistenceError> {
+        let token = database_profile_environment_token(credential_profile_key)?;
+        let required = |suffix: &str| {
+            env::var(format!("ERPX_DATABASE_PROFILE_{token}_{suffix}")).map_err(|_| {
+                PersistenceError::Configuration(
+                    "approved database credential profile is not configured",
+                )
+            })
+        };
+        let url = required("URL")?;
+        let username = required("USERNAME")?;
+        let password = required("PASSWORD")?;
+        Self::from_values(profile_key, &url, &username, &password)
+    }
+
+    pub fn profile_key(&self) -> &str {
+        &self.profile_key
+    }
+
+    pub fn username(&self) -> &str {
+        self.options.get_username()
+    }
+
+    pub async fn connect(&self, database_key: &str) -> Result<PgPool, PersistenceError> {
+        validate_database_key(database_key, "database_key")?;
+        Ok(PgPoolOptions::new()
+            .max_connections(4)
+            .connect_with(self.database_options(database_key))
+            .await?)
+    }
+
+    fn admin_options(&self) -> PgConnectOptions {
+        self.options.clone()
+    }
+
+    fn database_options(&self, database_key: &str) -> PgConnectOptions {
+        self.options.clone().database(database_key)
     }
 }
 
@@ -2524,7 +2636,9 @@ fn map_object_storage_error(error: ObjectStorageError) -> BackupAdapterError {
         {
             BackupAdapterError::Transient
         }
-        ObjectStorageError::HttpStatus { .. } => BackupAdapterError::Permanent,
+        ObjectStorageError::HttpStatus { .. } | ObjectStorageError::NamespaceAlreadyExists => {
+            BackupAdapterError::Permanent
+        }
         ObjectStorageError::Url(_) | ObjectStorageError::ProbeTimeout => {
             BackupAdapterError::Transient
         }
@@ -2796,6 +2910,16 @@ pub struct TenantDatabaseRouter {
 pub enum RoutedDatabaseSide {
     Write,
     Read,
+}
+
+/// Organization scope used to select a physical tenant route. Holding and
+/// company operations remain on the holding pair; a branch route is selected
+/// only by an exact, active control-plane binding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TenantDataRouteScope {
+    Holding,
+    Company { company_id: Uuid },
+    Branch { company_id: Uuid, branch_id: Uuid },
 }
 
 pub(crate) const TENANT_SOURCE_REBUILD_LOCK_PREFIX: &str = "erpx.source-rebuild:";
@@ -3200,6 +3324,103 @@ impl TenantDatabaseRouter {
         Ok(routed)
     }
 
+    /// Resolve a physical database from an authenticated organization scope.
+    /// Caller-provided database identifiers are never accepted. Branch routes
+    /// fail closed unless the tenant opted into branch isolation and the exact
+    /// tenant/holding/company/branch binding is active.
+    pub async fn route_scoped(
+        &self,
+        tenant_id: &str,
+        holding_ref: &str,
+        scope: TenantDataRouteScope,
+        side: RoutedDatabaseSide,
+    ) -> Result<RoutedTenantDatabase, PersistenceError> {
+        match scope {
+            TenantDataRouteScope::Holding => self.route(tenant_id, holding_ref, side).await,
+            TenantDataRouteScope::Company { company_id } => {
+                if company_id.is_nil() {
+                    return Err(PersistenceError::InvalidData(
+                        "company route scope cannot be nil".into(),
+                    ));
+                }
+                self.route(tenant_id, holding_ref, side).await
+            }
+            TenantDataRouteScope::Branch {
+                company_id,
+                branch_id,
+            } => {
+                validate_ref(tenant_id, "tenant_id")?;
+                validate_ref(holding_ref, "holding_ref")?;
+                if company_id.is_nil() || branch_id.is_nil() {
+                    return Err(PersistenceError::InvalidData(
+                        "branch route scope cannot contain nil identifiers".into(),
+                    ));
+                }
+                let row = sqlx::query(
+                    "SELECT r.write_database_key, r.read_database_key,
+                            p.profile_key, p.credential_profile_key, p.deployment_mode
+                     FROM erpx_control.branch_database_routes r
+                     JOIN erpx_control.tenant_registry t
+                       ON t.tenant_id=r.tenant_id AND t.holding_ref=r.holding_ref
+                     JOIN erpx_control.database_profiles p
+                       ON p.profile_key=r.profile_key
+                     JOIN erpx_control.tenant_database_profile_bindings b
+                       ON b.tenant_id=r.tenant_id AND b.profile_key=r.profile_key
+                     WHERE r.tenant_id=$1 AND r.holding_ref=$2
+                       AND r.company_id=$3 AND r.branch_id=$4
+                       AND r.state='active' AND t.state='active'
+                       AND t.isolation_mode='holding_and_branch_pairs'
+                       AND p.state='active' AND b.active",
+                )
+                .bind(tenant_id)
+                .bind(holding_ref)
+                .bind(company_id)
+                .bind(branch_id)
+                .fetch_optional(&self.control.pools().write)
+                .await?
+                .ok_or_else(|| {
+                    PersistenceError::InvalidData(
+                        "active branch database route is unavailable".into(),
+                    )
+                })?;
+                let deployment_mode: String = row.try_get("deployment_mode")?;
+                if deployment_mode != "erpx_managed" {
+                    return Err(PersistenceError::InvalidData(
+                        "customer branch data plane requests must route through the enrolled agent"
+                            .into(),
+                    ));
+                }
+                let database_key: String = match side {
+                    RoutedDatabaseSide::Write => row.try_get("write_database_key")?,
+                    RoutedDatabaseSide::Read => row.try_get("read_database_key")?,
+                };
+                validate_database_key(&database_key, "database_key")?;
+                let profile_key: String = row.try_get("profile_key")?;
+                let credential_profile_key: String = row.try_get("credential_profile_key")?;
+                let profile = ApprovedDatabaseProfileConnection::from_environment(
+                    &profile_key,
+                    &credential_profile_key,
+                )?;
+                let pool = PgPoolOptions::new()
+                    .max_connections(10)
+                    .connect_with(profile.database_options(&database_key))
+                    .await?;
+                let routed = RoutedTenantDatabase {
+                    pool,
+                    tenant_id: tenant_id.into(),
+                    holding_ref: holding_ref.into(),
+                    database_key,
+                    side,
+                };
+                if let Err(error) = routed.probe().await {
+                    routed.close().await;
+                    return Err(error);
+                }
+                Ok(routed)
+            }
+        }
+    }
+
     /// Resolve a replacement read database only after the control-plane
     /// switch state has bound the candidate to this tenant. The candidate is
     /// never selected from caller-supplied credentials or an arbitrary URL;
@@ -3599,6 +3820,19 @@ impl TenantDatabaseProvisioner {
         Ok(Self { control, config })
     }
 
+    /// Construct the branch-only profile runtime. Its connection methods
+    /// require an `ApprovedDatabaseProfileConnection`; the inert local
+    /// fallback is private state and is never used to route a database.
+    pub fn for_approved_profiles(control: Arc<SqlxControlPlane>) -> Self {
+        Self {
+            control,
+            config: TenantDatabaseProvisioningConfig {
+                admin_database_url: "postgresql://localhost/postgres?sslmode=disable".into(),
+                database_url_template: "postgresql://localhost/{database}?sslmode=disable".into(),
+            },
+        }
+    }
+
     /// Create and migrate the two physical per-holding databases. A partial
     /// failure is left in the control plane's provisioning state so a retry
     /// can complete it; no database is dropped implicitly.
@@ -3697,6 +3931,528 @@ impl TenantDatabaseProvisioner {
         )
     }
 
+    /// Create, migrate, and verify an already-reserved branch database pair.
+    /// The route and keys must come from the control-plane provisioning job;
+    /// this method never accepts a URL or creates/activates route metadata.
+    pub async fn provision_branch_databases(
+        &self,
+        route: &BranchDatabaseRoute,
+    ) -> Result<(), PersistenceError> {
+        if route.state != BranchProvisioningState::Provisioning {
+            return Err(PersistenceError::InvalidData(
+                "branch databases require a claimed provisioning route".into(),
+            ));
+        }
+        validate_ref(&route.tenant_id, "tenant_id")?;
+        validate_ref(&route.holding_ref, "holding_ref")?;
+        validate_database_key(&route.write_database_key, "write_database_key")?;
+        validate_database_key(&route.read_database_key, "read_database_key")?;
+        if route.holding_id != tenant_holding_scope_id(&route.holding_ref)
+            || route.company_id.is_nil()
+            || route.branch_id.is_nil()
+            || route.write_database_key == route.read_database_key
+        {
+            return Err(PersistenceError::InvalidData(
+                "branch database route binding is invalid".into(),
+            ));
+        }
+        let mut tx = self.control.pools().write.begin().await?;
+        let mut keys = [
+            route.write_database_key.as_str(),
+            route.read_database_key.as_str(),
+        ];
+        keys.sort_unstable();
+        for key in keys {
+            sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+                .bind(key)
+                .execute(&mut *tx)
+                .await?;
+        }
+        let collision: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                 SELECT 1 FROM erpx_control.tenant_registry
+                 WHERE write_database_key IN ($1,$2) OR read_database_key IN ($1,$2)
+             ) OR EXISTS (
+                 SELECT 1 FROM erpx_control.branch_database_routes
+                 WHERE NOT (tenant_id=$3 AND branch_id=$4)
+                   AND (write_database_key IN ($1,$2) OR read_database_key IN ($1,$2))
+             )",
+        )
+        .bind(&route.write_database_key)
+        .bind(&route.read_database_key)
+        .bind(&route.tenant_id)
+        .bind(route.branch_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if collision {
+            return Err(PersistenceError::Configuration(
+                "branch database key is already owned by another route",
+            ));
+        }
+        tx.commit().await?;
+        self.create_database_if_missing(&route.write_database_key)
+            .await?;
+        self.create_database_if_missing(&route.read_database_key)
+            .await?;
+        self.migrate_database(&route.write_database_key, DatabaseSide::Write)
+            .await?;
+        self.migrate_database(&route.read_database_key, DatabaseSide::Read)
+            .await?;
+        let checked_at = Utc::now();
+        for (side, key, schema_version) in [
+            ("write", &route.write_database_key, "tenant-write-current"),
+            ("read", &route.read_database_key, "tenant-read-current"),
+        ] {
+            sqlx::query(
+                "INSERT INTO erpx_control.branch_database_health
+                    (tenant_id, branch_id, side, database_key, schema_version,
+                     reachable, checked_at, failure_category)
+                 VALUES ($1,$2,$3,$4,$5,TRUE,$6,NULL)
+                 ON CONFLICT (tenant_id, branch_id, side) DO UPDATE
+                 SET database_key=EXCLUDED.database_key,
+                     schema_version=EXCLUDED.schema_version,
+                     reachable=TRUE, checked_at=EXCLUDED.checked_at,
+                     failure_category=NULL",
+            )
+            .bind(&route.tenant_id)
+            .bind(route.branch_id)
+            .bind(side)
+            .bind(key)
+            .bind(schema_version)
+            .bind(checked_at)
+            .execute(&self.control.pools().write)
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// Provision a branch through the exact tenant-approved profile whose
+    /// credentials were resolved outside ERPX storage.
+    pub async fn provision_branch_databases_with_profile(
+        &self,
+        route: &BranchDatabaseRoute,
+        profile: &ApprovedDatabaseProfileConnection,
+    ) -> Result<(), PersistenceError> {
+        if route.profile_key != profile.profile_key() {
+            return Err(PersistenceError::InvalidData(
+                "resolved database profile does not match the branch route".into(),
+            ));
+        }
+        if route.state != BranchProvisioningState::Provisioning {
+            return Err(PersistenceError::InvalidData(
+                "branch databases require a claimed provisioning route".into(),
+            ));
+        }
+        validate_ref(&route.tenant_id, "tenant_id")?;
+        validate_ref(&route.holding_ref, "holding_ref")?;
+        validate_database_key(&route.write_database_key, "write_database_key")?;
+        validate_database_key(&route.read_database_key, "read_database_key")?;
+        if route.holding_id != tenant_holding_scope_id(&route.holding_ref)
+            || route.company_id.is_nil()
+            || route.branch_id.is_nil()
+            || route.write_database_key == route.read_database_key
+        {
+            return Err(PersistenceError::InvalidData(
+                "branch database route binding is invalid".into(),
+            ));
+        }
+        let mut tx = self.control.pools().write.begin().await?;
+        let mut keys = [
+            route.write_database_key.as_str(),
+            route.read_database_key.as_str(),
+        ];
+        keys.sort_unstable();
+        for key in keys {
+            sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
+                .bind(key)
+                .execute(&mut *tx)
+                .await?;
+        }
+        let collision: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                 SELECT 1 FROM erpx_control.tenant_registry
+                 WHERE write_database_key IN ($1,$2) OR read_database_key IN ($1,$2)
+             ) OR EXISTS (
+                 SELECT 1 FROM erpx_control.branch_database_routes
+                 WHERE NOT (tenant_id=$3 AND branch_id=$4)
+                   AND (write_database_key IN ($1,$2) OR read_database_key IN ($1,$2))
+             )",
+        )
+        .bind(&route.write_database_key)
+        .bind(&route.read_database_key)
+        .bind(&route.tenant_id)
+        .bind(route.branch_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if collision {
+            return Err(PersistenceError::Configuration(
+                "branch database key is already owned by another route",
+            ));
+        }
+        tx.commit().await?;
+
+        let admin = PgPoolOptions::new()
+            .max_connections(1)
+            .connect_with(profile.admin_options())
+            .await?;
+        for database_key in [&route.write_database_key, &route.read_database_key] {
+            let exists: bool =
+                sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname=$1)")
+                    .bind(database_key)
+                    .fetch_one(&admin)
+                    .await?;
+            if !exists {
+                let statement = format!(
+                    "CREATE DATABASE {} OWNER {}",
+                    quote_identifier(database_key),
+                    quote_identifier(profile.options.get_username()),
+                );
+                if let Err(error) = sqlx::query(&statement).execute(&admin).await
+                    && !is_duplicate_database(&error)
+                {
+                    admin.close().await;
+                    return Err(PersistenceError::Database(error));
+                }
+            }
+        }
+        admin.close().await;
+
+        for (side, database_key, schema_version) in [
+            (
+                DatabaseSide::Write,
+                &route.write_database_key,
+                "tenant-write-current",
+            ),
+            (
+                DatabaseSide::Read,
+                &route.read_database_key,
+                "tenant-read-current",
+            ),
+        ] {
+            let pool = PgPoolOptions::new()
+                .max_connections(3)
+                .connect_with(profile.database_options(database_key))
+                .await?;
+            let migration = match side {
+                DatabaseSide::Write => migrate_tenant_write(&pool).await,
+                DatabaseSide::Read => migrate_tenant_read(&pool).await,
+            }
+            .map_err(PersistenceError::Migration);
+            if migration.is_ok() {
+                let relation = match side {
+                    DatabaseSide::Write => "erpx_tenant.aggregate_snapshots",
+                    DatabaseSide::Read => "erpx_tenant.customer_summary",
+                };
+                verify_tenant_database_contract(&pool, database_key, relation).await?;
+            }
+            pool.close().await;
+            migration?;
+            sqlx::query(
+                "INSERT INTO erpx_control.branch_database_health
+                    (tenant_id, branch_id, side, database_key, schema_version,
+                     reachable, checked_at, failure_category)
+                 VALUES ($1,$2,$3,$4,$5,TRUE,$6,NULL)
+                 ON CONFLICT (tenant_id, branch_id, side) DO UPDATE
+                 SET database_key=EXCLUDED.database_key,
+                     schema_version=EXCLUDED.schema_version,
+                     reachable=TRUE, checked_at=EXCLUDED.checked_at,
+                     failure_category=NULL",
+            )
+            .bind(&route.tenant_id)
+            .bind(route.branch_id)
+            .bind(side.as_str())
+            .bind(database_key)
+            .bind(schema_version)
+            .bind(Utc::now())
+            .execute(&self.control.pools().write)
+            .await?;
+        }
+        Ok(())
+    }
+
+    /// Seed the authoritative branch aggregate and its local read projection
+    /// before the route is made active. The deterministic event and
+    /// idempotency identifiers make interrupted worker retries safe.
+    pub async fn initialize_branch_organization(
+        &self,
+        route: &BranchDatabaseRoute,
+        job: &BranchProvisioningJob,
+        worker_id: Uuid,
+    ) -> Result<(), PersistenceError> {
+        if route.state != BranchProvisioningState::Provisioning
+            || route.tenant_id != job.tenant_id
+            || route.branch_id != job.branch_id
+            || worker_id.is_nil()
+        {
+            return Err(PersistenceError::InvalidData(
+                "branch organization provisioning binding is invalid".into(),
+            ));
+        }
+        let write_url = render_database_url(
+            &self.config.database_url_template,
+            &route.write_database_key,
+        )?;
+        let read_url =
+            render_database_url(&self.config.database_url_template, &route.read_database_key)?;
+        let write_pool = PgPoolOptions::new()
+            .max_connections(3)
+            .connect(&write_url)
+            .await?;
+        let read_pool = match PgPoolOptions::new()
+            .max_connections(3)
+            .connect(&read_url)
+            .await
+        {
+            Ok(pool) => pool,
+            Err(error) => {
+                write_pool.close().await;
+                return Err(PersistenceError::Database(error));
+            }
+        };
+        let at = Utc::now();
+        let mut metadata = AggregateMetadata::new(
+            route.branch_id,
+            route.holding_ref.clone(),
+            erpx_domain::access::Scope::Branch {
+                holding_id: route.holding_id,
+                company_id: route.company_id,
+                branch_id: route.branch_id,
+            },
+            at,
+        )
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+        metadata.version = 1;
+        let branch = Branch {
+            meta: metadata,
+            holding_id: route.holding_id,
+            company_id: route.company_id,
+            code: job.branch_code.clone(),
+            name: job.branch_name.clone(),
+            status: OrganizationStatus::Active,
+        };
+        let mut event = event_for(
+            &branch,
+            "organization.branch.provisioned",
+            1,
+            ActorAttribution {
+                principal_ref: format!("erpx-worker:{worker_id}"),
+                kind: ActorKind::SystemWorker,
+                session_id: None,
+                represented_principal_ref: Some(route.requested_by.clone()),
+                support_capability_id: None,
+            },
+            Some(format!(
+                "erpx:branch-organization:v1:{}:{}",
+                route.tenant_id, route.branch_id
+            )),
+            job.correlation_id,
+            None,
+            at,
+        )
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+        let event_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!(
+                "erpx:branch-organization:event:v1:{}:{}",
+                route.tenant_id, route.branch_id
+            )
+            .as_bytes(),
+        );
+        event.envelope.event_id = event_id;
+        event.projection.event_id = event_id;
+        let operations =
+            SqlxOperationsStore::from_pools(&write_pool, &read_pool, route.holding_ref.clone())?;
+        let write_initialized: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1 FROM erpx_tenant.operations_aggregate_snapshots
+                 WHERE aggregate_type='organization.branch' AND aggregate_id=$1
+             ) OR EXISTS(
+                 SELECT 1 FROM erpx_tenant.operations_events WHERE event_id=$2
+             )",
+        )
+        .bind(route.branch_id)
+        .bind(event_id)
+        .fetch_one(&write_pool)
+        .await?;
+        let read_initialized: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1 FROM erpx_tenant.operations_read_rows
+                 WHERE projection_name='operations_read_model'
+                   AND aggregate_type='organization.branch' AND aggregate_id=$1
+             )",
+        )
+        .bind(route.branch_id)
+        .fetch_one(&read_pool)
+        .await?;
+        let result = async {
+            if !write_initialized {
+                operations.apply_event(&event, &branch, None, &[]).await?;
+            }
+            if !read_initialized {
+                operations.project_event(&event, &branch).await?;
+            }
+            for unit in &job.enabled_business_units {
+                sqlx::query(
+                    "INSERT INTO erpx_control.branch_business_unit_configurations
+                        (tenant_id, branch_id, business_unit, active,
+                         configuration_version, updated_by)
+                     VALUES ($1,$2,$3,TRUE,1,$4)
+                     ON CONFLICT (tenant_id, branch_id, business_unit) DO UPDATE
+                     SET active=TRUE, updated_at=now()",
+                )
+                .bind(&route.tenant_id)
+                .bind(route.branch_id)
+                .bind(unit.as_str())
+                .bind(format!("erpx-worker:{worker_id}"))
+                .execute(&self.control.pools().write)
+                .await?;
+            }
+            Ok::<_, PersistenceError>(())
+        }
+        .await;
+        write_pool.close().await;
+        read_pool.close().await;
+        result
+    }
+
+    pub async fn initialize_branch_organization_with_profile(
+        &self,
+        route: &BranchDatabaseRoute,
+        job: &BranchProvisioningJob,
+        worker_id: Uuid,
+        profile: &ApprovedDatabaseProfileConnection,
+    ) -> Result<(), PersistenceError> {
+        if route.profile_key != profile.profile_key()
+            || route.state != BranchProvisioningState::Provisioning
+            || route.tenant_id != job.tenant_id
+            || route.branch_id != job.branch_id
+            || worker_id.is_nil()
+        {
+            return Err(PersistenceError::InvalidData(
+                "branch organization provisioning profile is invalid".into(),
+            ));
+        }
+        let write_pool = PgPoolOptions::new()
+            .max_connections(3)
+            .connect_with(profile.database_options(&route.write_database_key))
+            .await?;
+        let read_pool = match PgPoolOptions::new()
+            .max_connections(3)
+            .connect_with(profile.database_options(&route.read_database_key))
+            .await
+        {
+            Ok(pool) => pool,
+            Err(error) => {
+                write_pool.close().await;
+                return Err(PersistenceError::Database(error));
+            }
+        };
+        let at = Utc::now();
+        let mut metadata = AggregateMetadata::new(
+            route.branch_id,
+            route.holding_ref.clone(),
+            erpx_domain::access::Scope::Branch {
+                holding_id: route.holding_id,
+                company_id: route.company_id,
+                branch_id: route.branch_id,
+            },
+            at,
+        )
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+        metadata.version = 1;
+        let branch = Branch {
+            meta: metadata,
+            holding_id: route.holding_id,
+            company_id: route.company_id,
+            code: job.branch_code.clone(),
+            name: job.branch_name.clone(),
+            status: OrganizationStatus::Active,
+        };
+        let mut event = event_for(
+            &branch,
+            "organization.branch.provisioned",
+            1,
+            ActorAttribution {
+                principal_ref: format!("erpx-worker:{worker_id}"),
+                kind: ActorKind::SystemWorker,
+                session_id: None,
+                represented_principal_ref: Some(route.requested_by.clone()),
+                support_capability_id: None,
+            },
+            Some(format!(
+                "erpx:branch-organization:v1:{}:{}",
+                route.tenant_id, route.branch_id
+            )),
+            job.correlation_id,
+            None,
+            at,
+        )
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+        let event_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!(
+                "erpx:branch-organization:event:v1:{}:{}",
+                route.tenant_id, route.branch_id
+            )
+            .as_bytes(),
+        );
+        event.envelope.event_id = event_id;
+        event.projection.event_id = event_id;
+        let operations =
+            SqlxOperationsStore::from_pools(&write_pool, &read_pool, route.holding_ref.clone())?;
+        let write_initialized: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1 FROM erpx_tenant.operations_aggregate_snapshots
+                 WHERE aggregate_type='organization.branch' AND aggregate_id=$1
+             ) OR EXISTS(
+                 SELECT 1 FROM erpx_tenant.operations_events WHERE event_id=$2
+             )",
+        )
+        .bind(route.branch_id)
+        .bind(event_id)
+        .fetch_one(&write_pool)
+        .await?;
+        let read_initialized: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1 FROM erpx_tenant.operations_read_rows
+                 WHERE projection_name='operations_read_model'
+                   AND aggregate_type='organization.branch' AND aggregate_id=$1
+             )",
+        )
+        .bind(route.branch_id)
+        .fetch_one(&read_pool)
+        .await?;
+        let result = async {
+            if !write_initialized {
+                operations.apply_event(&event, &branch, None, &[]).await?;
+            }
+            if !read_initialized {
+                operations.project_event(&event, &branch).await?;
+            }
+            for unit in &job.enabled_business_units {
+                sqlx::query(
+                    "INSERT INTO erpx_control.branch_business_unit_configurations
+                        (tenant_id, branch_id, business_unit, active,
+                         configuration_version, updated_by)
+                     VALUES ($1,$2,$3,TRUE,1,$4)
+                     ON CONFLICT (tenant_id, branch_id, business_unit) DO UPDATE
+                     SET active=TRUE, updated_at=now()",
+                )
+                .bind(&route.tenant_id)
+                .bind(route.branch_id)
+                .bind(unit.as_str())
+                .bind(format!("erpx-worker:{worker_id}"))
+                .execute(&self.control.pools().write)
+                .await?;
+            }
+            Ok::<_, PersistenceError>(())
+        }
+        .await;
+        write_pool.close().await;
+        read_pool.close().await;
+        result
+    }
+
     /// Initialize the tenant-local organization root after both physical
     /// databases have migrated. The write database receives the authoritative
     /// holding snapshot and event; the read database receives the same
@@ -3709,7 +4465,7 @@ impl TenantDatabaseProvisioner {
         owner_principal_ref: &str,
     ) -> Result<TenantOrganizationBootstrap, PersistenceError> {
         validate_ref(tenant_id, "tenant_id")?;
-        validate_ref(owner_principal_ref, "owner_principal_ref")?;
+        validate_principal_ref(owner_principal_ref, "owner_principal_ref")?;
         if holding_id.is_nil() {
             return Err(PersistenceError::InvalidData(
                 "organization holding ID cannot be nil".into(),
@@ -4094,8 +4850,8 @@ impl TenantProvisioner {
         approver_ref: &str,
     ) -> Result<TenantOwnerSeed, PersistenceError> {
         validate_ref(tenant_id, "tenant_id")?;
-        validate_ref(principal_ref, "owner_principal_ref")?;
-        validate_ref(approver_ref, "owner_approver_ref")?;
+        validate_principal_ref(principal_ref, "owner_principal_ref")?;
+        validate_principal_ref(approver_ref, "owner_approver_ref")?;
         if principal_ref == approver_ref {
             return Err(PersistenceError::InvalidData(
                 "owner principal and approver must differ".into(),
@@ -7521,6 +8277,20 @@ fn validate_ref(value: &str, field: &'static str) -> Result<(), PersistenceError
     Ok(())
 }
 
+fn validate_principal_ref(value: &str, field: &'static str) -> Result<(), PersistenceError> {
+    if value.trim().is_empty()
+        || value.len() > 255
+        || value.chars().any(|character| {
+            character.is_control() || matches!(character, '/' | '\\') || character.is_whitespace()
+        })
+    {
+        return Err(PersistenceError::InvalidData(format!(
+            "{field} must be opaque, path-safe, and non-empty"
+        )));
+    }
+    Ok(())
+}
+
 fn validate_health_details(details: &Value) -> Result<(), PersistenceError> {
     if !details.is_object() {
         return Err(PersistenceError::InvalidData(
@@ -7718,6 +8488,39 @@ async fn initialize_tenant_organization_rows(
     })
 }
 
+/// Initialize the first tenant organization using already-authenticated,
+/// in-memory pools. This entry point exists for the installation CLI so its
+/// credential-free database URL never has to be rendered into a DSN containing
+/// a username or password.
+pub async fn initialize_tenant_organization_in_pools(
+    write_pool: &sqlx::PgPool,
+    read_pool: &sqlx::PgPool,
+    tenant_id: &str,
+    holding_ref: &str,
+    holding_id: Uuid,
+    owner_principal_ref: &str,
+    at: DateTime<Utc>,
+) -> Result<TenantOrganizationBootstrap, PersistenceError> {
+    validate_ref(tenant_id, "tenant_id")?;
+    validate_ref(holding_ref, "holding_ref")?;
+    validate_principal_ref(owner_principal_ref, "owner_principal_ref")?;
+    if holding_id.is_nil() || tenant_holding_scope_id(holding_ref) != holding_id {
+        return Err(PersistenceError::InvalidData(
+            "organization holding ID does not match the holding reference".into(),
+        ));
+    }
+    initialize_tenant_organization_rows(
+        write_pool,
+        read_pool,
+        tenant_id,
+        holding_ref,
+        holding_id,
+        owner_principal_ref,
+        at,
+    )
+    .await
+}
+
 fn tenant_owner_seed_from_row(
     row: &sqlx::postgres::PgRow,
 ) -> Result<TenantOwnerSeed, PersistenceError> {
@@ -7763,6 +8566,52 @@ fn validate_database_config(
         .replace("{database}", "erpx_tls_validation_database");
     validate_tls_database_url(&rendered_template, "tenant database URL template")?;
     database_owner_from_template(&config.database_url_template)?;
+    Ok(())
+}
+
+fn database_profile_environment_token(value: &str) -> Result<String, PersistenceError> {
+    if value.is_empty()
+        || value.len() > 64
+        || !value.starts_with(|character: char| character.is_ascii_lowercase())
+        || value.chars().any(|character| {
+            !(character.is_ascii_lowercase()
+                || character.is_ascii_digit()
+                || matches!(character, '_' | '-'))
+        })
+    {
+        return Err(PersistenceError::Configuration(
+            "database credential profile key is invalid",
+        ));
+    }
+    let mut token = String::with_capacity(value.len() * 2);
+    for character in value.chars() {
+        match character {
+            '-' => token.push_str("__"),
+            '_' => token.push('_'),
+            value => token.push(value.to_ascii_uppercase()),
+        }
+    }
+    Ok(token)
+}
+
+fn reject_database_profile_url_credentials(value: &str) -> Result<(), PersistenceError> {
+    let rest = value
+        .strip_prefix("postgresql://")
+        .or_else(|| value.strip_prefix("postgres://"))
+        .ok_or(PersistenceError::Configuration(
+            "database profile URL must use postgresql://",
+        ))?;
+    let authority = rest.split(['/', '?']).next().unwrap_or_default();
+    let lower = rest.to_ascii_lowercase();
+    if authority.contains('@')
+        || lower.contains("password=")
+        || lower.contains("user=")
+        || lower.contains("username=")
+    {
+        return Err(PersistenceError::Configuration(
+            "database profile URL must not contain credentials",
+        ));
+    }
     Ok(())
 }
 
@@ -7877,6 +8726,33 @@ mod tests {
     }
 
     #[test]
+    fn approved_database_profile_keeps_credentials_out_of_urls_and_debug() {
+        let profile = ApprovedDatabaseProfileConnection::from_values(
+            "default",
+            "postgresql://localhost/postgres?sslmode=disable",
+            "erpx_owner",
+            "not-rendered-password",
+        )
+        .expect("credential-free loopback profile");
+        let debug = format!("{profile:?}");
+        assert!(debug.contains("default"));
+        assert!(!debug.contains("not-rendered-password"));
+        assert!(
+            ApprovedDatabaseProfileConnection::from_values(
+                "default",
+                "postgresql://embedded:password@localhost/postgres?sslmode=disable",
+                "erpx_owner",
+                "external-password",
+            )
+            .is_err()
+        );
+        assert_eq!(
+            database_profile_environment_token("customer-prod").expect("environment token"),
+            "CUSTOMER__PROD"
+        );
+    }
+
+    #[test]
     fn tenant_routing_config_allows_plaintext_only_on_loopback() {
         assert!(
             TenantDatabaseProvisioningConfig::from_values(
@@ -7974,6 +8850,14 @@ mod tests {
         };
         let debug = format!("{seed:?}");
         assert!(!debug.contains("recovery_code"));
+    }
+
+    #[test]
+    fn owner_principal_validation_accepts_namespaced_identity_refs() {
+        assert!(validate_principal_ref("local:holding-owner-v2", "principal_ref").is_ok());
+        assert!(validate_principal_ref("directory:tenant:owner", "principal_ref").is_ok());
+        assert!(validate_principal_ref("owner/ref", "principal_ref").is_err());
+        assert!(validate_principal_ref("owner ref", "principal_ref").is_err());
     }
 
     #[test]

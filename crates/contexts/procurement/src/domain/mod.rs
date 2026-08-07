@@ -1,0 +1,446 @@
+use chrono::{DateTime, Utc};
+use erpx_kernel::TenantScope;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use uuid::Uuid;
+
+pub const MAX_LINES: usize = 10_000;
+pub const MAX_CODE_BYTES: usize = 128;
+pub const MAX_TEXT_BYTES: usize = 255;
+
+macro_rules! domain_id {
+    ($name:ident, $field:literal) => {
+        #[derive(
+            Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+        )]
+        #[serde(transparent)]
+        pub struct $name(Uuid);
+
+        impl $name {
+            pub fn try_from_uuid(value: Uuid) -> Result<Self, ProcurementDomainError> {
+                if value.is_nil() {
+                    return Err(ProcurementDomainError::NilIdentifier { field: $field });
+                }
+                Ok(Self(value))
+            }
+
+            pub const fn as_uuid(self) -> Uuid {
+                self.0
+            }
+        }
+
+        impl TryFrom<Uuid> for $name {
+            type Error = ProcurementDomainError;
+
+            fn try_from(value: Uuid) -> Result<Self, Self::Error> {
+                Self::try_from_uuid(value)
+            }
+        }
+    };
+}
+
+domain_id!(PurchaseOrderId, "purchase_order_id");
+domain_id!(PurchaseOrderLineId, "purchase_order_line_id");
+domain_id!(SupplierId, "supplier_id");
+
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum ProcurementDomainError {
+    #[error("{field} cannot be nil")]
+    NilIdentifier { field: &'static str },
+    #[error("Procurement records require an explicit company or branch scope")]
+    InvalidScope,
+    #[error("{field} is required or exceeds its safe length")]
+    InvalidText { field: &'static str },
+    #[error("purchase order requires between one and 10,000 lines")]
+    InvalidLineCount,
+    #[error("purchase order line identifiers must be unique")]
+    DuplicateLine,
+    #[error("purchase order quantities and unit prices must be positive")]
+    InvalidAmount,
+    #[error("all purchase order lines must use the order currency")]
+    CurrencyMismatch,
+    #[error("currency must be a three-letter uppercase ASCII code")]
+    InvalidCurrency,
+    #[error("purchase order arithmetic overflowed")]
+    ArithmeticOverflow,
+    #[error("purchase order lifecycle transition is not allowed")]
+    InvalidTransition,
+    #[error("purchase order timestamp cannot move backwards")]
+    InvalidTime,
+    #[error("aggregate version overflowed")]
+    VersionOverflow,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PurchaseOrderLine {
+    pub line_id: PurchaseOrderLineId,
+    pub item_code: String,
+    pub ordered_quantity: i64,
+    pub unit_price_minor: i64,
+    pub currency: String,
+    pub destination_code: String,
+}
+
+impl PurchaseOrderLine {
+    pub fn validate(&self) -> Result<(), ProcurementDomainError> {
+        validate_code(&self.item_code, "item_code")?;
+        validate_code(&self.destination_code, "destination_code")?;
+        validate_currency(&self.currency)?;
+        if self.ordered_quantity <= 0 || self.unit_price_minor <= 0 {
+            return Err(ProcurementDomainError::InvalidAmount);
+        }
+        self.line_value_minor()?;
+        Ok(())
+    }
+
+    pub fn line_value_minor(&self) -> Result<i64, ProcurementDomainError> {
+        self.ordered_quantity
+            .checked_mul(self.unit_price_minor)
+            .ok_or(ProcurementDomainError::ArithmeticOverflow)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PurchaseOrderStatus {
+    Draft,
+    Released,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReleasedPurchaseOrderState {
+    pub purchase_order_id: PurchaseOrderId,
+    pub supplier_id: SupplierId,
+    pub order_code: String,
+    pub lines: Vec<PurchaseOrderLine>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum DomainEvent {
+    Created,
+    Released {
+        state: ReleasedPurchaseOrderState,
+        at: DateTime<Utc>,
+    },
+    Cancelled {
+        purchase_order_id: PurchaseOrderId,
+        at: DateTime<Utc>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PurchaseOrder {
+    id: PurchaseOrderId,
+    version: u64,
+    scope: TenantScope,
+    order_code: String,
+    supplier_id: SupplierId,
+    currency: String,
+    lines: Vec<PurchaseOrderLine>,
+    status: PurchaseOrderStatus,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    #[serde(skip)]
+    uncommitted_events: Vec<DomainEvent>,
+}
+
+impl PurchaseOrder {
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        id: PurchaseOrderId,
+        scope: TenantScope,
+        order_code: String,
+        supplier_id: SupplierId,
+        currency: String,
+        lines: Vec<PurchaseOrderLine>,
+        at: DateTime<Utc>,
+    ) -> Result<Self, ProcurementDomainError> {
+        validate_record_scope(&scope)?;
+        validate_code(&order_code, "order_code")?;
+        validate_currency(&currency)?;
+        validate_lines(&lines, &currency)?;
+        let value = Self {
+            id,
+            version: 1,
+            scope,
+            order_code,
+            supplier_id,
+            currency,
+            lines,
+            status: PurchaseOrderStatus::Draft,
+            created_at: at,
+            updated_at: at,
+            uncommitted_events: vec![DomainEvent::Created],
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn validate(&self) -> Result<(), ProcurementDomainError> {
+        validate_record_scope(&self.scope)?;
+        validate_code(&self.order_code, "order_code")?;
+        validate_currency(&self.currency)?;
+        validate_lines(&self.lines, &self.currency)?;
+        if self.version == 0 {
+            return Err(ProcurementDomainError::VersionOverflow);
+        }
+        if self.updated_at < self.created_at {
+            return Err(ProcurementDomainError::InvalidTime);
+        }
+        Ok(())
+    }
+
+    pub fn release(&mut self, at: DateTime<Utc>) -> Result<(), ProcurementDomainError> {
+        if self.status != PurchaseOrderStatus::Draft {
+            return Err(ProcurementDomainError::InvalidTransition);
+        }
+        self.advance(at)?;
+        self.status = PurchaseOrderStatus::Released;
+        self.uncommitted_events.push(DomainEvent::Released {
+            state: ReleasedPurchaseOrderState {
+                purchase_order_id: self.id,
+                supplier_id: self.supplier_id,
+                order_code: self.order_code.clone(),
+                lines: self.lines.clone(),
+            },
+            at,
+        });
+        Ok(())
+    }
+
+    pub fn cancel(&mut self, at: DateTime<Utc>) -> Result<(), ProcurementDomainError> {
+        if self.status == PurchaseOrderStatus::Cancelled {
+            return Err(ProcurementDomainError::InvalidTransition);
+        }
+        self.advance(at)?;
+        self.status = PurchaseOrderStatus::Cancelled;
+        self.uncommitted_events.push(DomainEvent::Cancelled {
+            purchase_order_id: self.id,
+            at,
+        });
+        Ok(())
+    }
+
+    fn advance(&mut self, at: DateTime<Utc>) -> Result<(), ProcurementDomainError> {
+        if at < self.updated_at {
+            return Err(ProcurementDomainError::InvalidTime);
+        }
+        self.version = self
+            .version
+            .checked_add(1)
+            .ok_or(ProcurementDomainError::VersionOverflow)?;
+        self.updated_at = at;
+        Ok(())
+    }
+
+    pub const fn id(&self) -> PurchaseOrderId {
+        self.id
+    }
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+    pub fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+    pub fn order_code(&self) -> &str {
+        &self.order_code
+    }
+    pub const fn supplier_id(&self) -> SupplierId {
+        self.supplier_id
+    }
+    pub fn currency(&self) -> &str {
+        &self.currency
+    }
+    pub fn lines(&self) -> &[PurchaseOrderLine] {
+        &self.lines
+    }
+    pub const fn status(&self) -> PurchaseOrderStatus {
+        self.status
+    }
+    pub const fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+    pub const fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        std::mem::take(&mut self.uncommitted_events)
+    }
+}
+
+fn validate_record_scope(scope: &TenantScope) -> Result<(), ProcurementDomainError> {
+    scope
+        .validate()
+        .map_err(|_| ProcurementDomainError::InvalidScope)?;
+    if matches!(
+        scope,
+        TenantScope::Company { .. } | TenantScope::Branch { .. }
+    ) {
+        Ok(())
+    } else {
+        Err(ProcurementDomainError::InvalidScope)
+    }
+}
+
+fn validate_lines(
+    lines: &[PurchaseOrderLine],
+    currency: &str,
+) -> Result<(), ProcurementDomainError> {
+    if lines.is_empty() || lines.len() > MAX_LINES {
+        return Err(ProcurementDomainError::InvalidLineCount);
+    }
+    let mut ids = std::collections::BTreeSet::new();
+    for line in lines {
+        line.validate()?;
+        if !ids.insert(line.line_id) {
+            return Err(ProcurementDomainError::DuplicateLine);
+        }
+        if line.currency != currency {
+            return Err(ProcurementDomainError::CurrencyMismatch);
+        }
+    }
+    Ok(())
+}
+
+fn validate_code(value: &str, field: &'static str) -> Result<(), ProcurementDomainError> {
+    if value.trim().is_empty()
+        || value.len() > MAX_CODE_BYTES
+        || value.chars().any(char::is_control)
+    {
+        Err(ProcurementDomainError::InvalidText { field })
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_currency(value: &str) -> Result<(), ProcurementDomainError> {
+    if value.len() == 3 && value.bytes().all(|byte| byte.is_ascii_uppercase()) {
+        Ok(())
+    } else {
+        Err(ProcurementDomainError::InvalidCurrency)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::{TimeZone, Utc};
+
+    use super::*;
+
+    fn id(value: u128) -> Uuid {
+        Uuid::from_u128(value)
+    }
+
+    fn scope() -> TenantScope {
+        TenantScope::Company {
+            holding_id: id(1),
+            company_id: id(2),
+        }
+    }
+
+    fn at(hour: u32) -> DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 8, 5, hour, 0, 0)
+            .single()
+            .unwrap()
+    }
+
+    fn line(line_id: u128) -> PurchaseOrderLine {
+        PurchaseOrderLine {
+            line_id: PurchaseOrderLineId::try_from_uuid(id(line_id)).unwrap(),
+            item_code: "ITEM-1".into(),
+            ordered_quantity: 5,
+            unit_price_minor: 120,
+            currency: "THB".into(),
+            destination_code: "WH-BKK".into(),
+        }
+    }
+
+    fn order() -> PurchaseOrder {
+        PurchaseOrder::create(
+            PurchaseOrderId::try_from_uuid(id(10)).unwrap(),
+            scope(),
+            "PO-1".into(),
+            SupplierId::try_from_uuid(id(11)).unwrap(),
+            "THB".into(),
+            vec![line(12)],
+            at(9),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn order_requires_exact_company_or_branch_scope() {
+        assert_eq!(
+            PurchaseOrder::create(
+                PurchaseOrderId::try_from_uuid(id(10)).unwrap(),
+                TenantScope::Holding { holding_id: id(1) },
+                "PO-1".into(),
+                SupplierId::try_from_uuid(id(11)).unwrap(),
+                "THB".into(),
+                vec![line(12)],
+                at(9),
+            ),
+            Err(ProcurementDomainError::InvalidScope)
+        );
+    }
+
+    #[test]
+    fn duplicate_lines_and_currency_mismatch_are_rejected() {
+        let duplicate = vec![line(12), line(12)];
+        assert!(matches!(
+            PurchaseOrder::create(
+                PurchaseOrderId::try_from_uuid(id(10)).unwrap(),
+                scope(),
+                "PO-1".into(),
+                SupplierId::try_from_uuid(id(11)).unwrap(),
+                "THB".into(),
+                duplicate,
+                at(9),
+            ),
+            Err(ProcurementDomainError::DuplicateLine)
+        ));
+        let mut mismatched = line(13);
+        mismatched.currency = "USD".into();
+        assert!(matches!(
+            PurchaseOrder::create(
+                PurchaseOrderId::try_from_uuid(id(10)).unwrap(),
+                scope(),
+                "PO-1".into(),
+                SupplierId::try_from_uuid(id(11)).unwrap(),
+                "THB".into(),
+                vec![mismatched],
+                at(9),
+            ),
+            Err(ProcurementDomainError::CurrencyMismatch)
+        ));
+    }
+
+    #[test]
+    fn release_is_one_way_and_cancel_is_terminal() {
+        let mut order = order();
+        order.take_uncommitted_events();
+        order.release(at(10)).unwrap();
+        assert_eq!(order.status(), PurchaseOrderStatus::Released);
+        assert_eq!(order.version(), 2);
+        assert_eq!(
+            order.release(at(11)),
+            Err(ProcurementDomainError::InvalidTransition)
+        );
+        order.cancel(at(11)).unwrap();
+        assert_eq!(
+            order.cancel(at(12)),
+            Err(ProcurementDomainError::InvalidTransition)
+        );
+    }
+
+    #[test]
+    fn timestamp_cannot_move_backwards() {
+        let mut order = order();
+        assert_eq!(
+            order.release(at(8)),
+            Err(ProcurementDomainError::InvalidTime)
+        );
+        assert_eq!(order.version(), 1);
+    }
+}

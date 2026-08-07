@@ -422,7 +422,7 @@ impl SqlxCorporateIdentityStore {
              WHERE scope_key = $1",
         )
         .bind(parts.scope_key)
-        .fetch_optional(&self.control.pools.read)
+        .fetch_optional(&self.control.pools.write)
         .await?;
         let Some(row) = row else { return Ok(None) };
         let version = required_u64(&row, "current_draft_version")?;
@@ -430,7 +430,7 @@ impl SqlxCorporateIdentityStore {
             return Ok(None);
         }
         load_version_from_pool(
-            &self.control.pools.read,
+            &self.control.pools.write,
             row.try_get("profile_id")?,
             version,
         )
@@ -450,7 +450,7 @@ impl SqlxCorporateIdentityStore {
              WHERE profile_id = $1",
         )
         .bind(profile_id)
-        .fetch_optional(&self.control.pools.read)
+        .fetch_optional(&self.control.pools.write)
         .await?
         .ok_or(PersistenceError::NotFound {
             entity: "corporate identity profile",
@@ -512,7 +512,7 @@ impl SqlxCorporateIdentityStore {
                AND profile.suspended_at IS NULL",
         )
         .bind(hostname)
-        .fetch_optional(&self.control.pools.read)
+        .fetch_optional(&self.control.pools.write)
         .await?;
         let Some(row) = row else { return Ok(None) };
         let tenant_id: String = row.try_get("tenant_id")?;
@@ -592,7 +592,7 @@ impl SqlxCorporateIdentityStore {
         )
         .bind(parts.scope_key)
         .bind(i64::from(limit))
-        .fetch_all(&self.control.pools.read)
+        .fetch_all(&self.control.pools.write)
         .await?;
         rows.iter().map(decode_history).collect()
     }
@@ -609,14 +609,14 @@ impl SqlxCorporateIdentityStore {
              WHERE scope_key = $1 AND suspended_at IS NULL",
         )
         .bind(parts.scope_key)
-        .fetch_optional(&self.control.pools.read)
+        .fetch_optional(&self.control.pools.write)
         .await?;
         let Some(row) = row else { return Ok(None) };
         let Some(version) = optional_u64(&row, "current_published_version")? else {
             return Ok(None);
         };
         load_version_from_pool(
-            &self.control.pools.read,
+            &self.control.pools.write,
             row.try_get("profile_id")?,
             version,
         )

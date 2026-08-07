@@ -1,0 +1,11 @@
+pub mod gateway;
+pub mod models;
+pub mod presenter;
+pub mod view;
+
+pub use gateway::{
+    InventoryGateway, InventoryProtoTransport, present_inventory_item, present_inventory_items,
+};
+pub use models::{InventoryReservationItem, InventoryStockItem, InventoryStockItems};
+pub use presenter::{InventoryContent, InventoryPresenter};
+pub use view::{InventoryRenderedState, render_inventory_state};

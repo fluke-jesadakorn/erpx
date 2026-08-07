@@ -11,8 +11,9 @@ const SALES_DOMAIN: &str = include_str!("../../../crates/domain/src/sales.rs");
 const SALES_PERSISTENCE: &str =
     include_str!("../../../crates/infrastructure/src/sales_persistence.rs");
 const PLATFORM_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/platform.proto");
-const SERVER_MAIN: &str = include_str!("../../server/src/main.rs");
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/sales.proto");
+const SERVER_TRANSPORTS: &str = include_str!("../../server/src/lib.rs");
+const SERVER_COMPOSITION: &str = include_str!("../../server/src/lib.rs");
 
 const SALES_AGGREGATE_TYPES: [&str; 7] = [
     "lead",
@@ -124,12 +125,12 @@ fn sales_proto_and_server_transport_surfaces_have_save_read_parity() {
     let proto = section(
         PLATFORM_PROTO,
         "service SalesService {",
-        "\n}\n\nservice ScmService",
-        "platform.proto SalesService",
+        "\n}\n",
+        "sales.proto SalesService",
     );
     require_markers(
         proto,
-        "platform.proto SalesService",
+        "sales.proto SalesService",
         &[
             "rpc SaveSalesAggregate(SaveSalesAggregateRequest)",
             "returns (SaveSalesAggregateResponse);",
@@ -139,7 +140,7 @@ fn sales_proto_and_server_transport_surfaces_have_save_read_parity() {
     );
     require_markers(
         PLATFORM_PROTO,
-        "platform.proto Sales messages",
+        "sales.proto Sales messages",
         &[
             "message SaveSalesAggregateRequest",
             "message SaveSalesAggregateResponse",
@@ -150,7 +151,7 @@ fn sales_proto_and_server_transport_surfaces_have_save_read_parity() {
     );
 
     let server_impl = section(
-        SERVER_MAIN,
+        SERVER_TRANSPORTS,
         "impl SalesService for SalesRpcImpl",
         "#[derive(Clone)]\nstruct ScmRpcImpl",
         "server SalesService implementation",
@@ -176,11 +177,13 @@ fn sales_proto_and_server_transport_surfaces_have_save_read_parity() {
         ],
     );
     require_markers(
-        SERVER_MAIN,
+        SERVER_COMPOSITION,
         "server SalesService registration",
         &[
             "SalesServiceServer::new(SalesRpcImpl {",
-            ".add_service(SalesServiceServer::new",
+            ".add_optional_service(",
+            "v1_service_authority",
+            ".is_legacy()",
         ],
     );
     eprintln!(

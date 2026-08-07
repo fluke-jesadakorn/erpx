@@ -731,6 +731,10 @@ impl ProjectionJobRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectionClaimRequest {
     pub binding: TenantHoldingBinding,
+    /// Optional exact projection owner for a single-context worker. A missing
+    /// filter is reserved for catalog-aware executors that can dispatch every
+    /// claimed projection safely.
+    pub projection_name: Option<String>,
     pub worker_id: Uuid,
     pub claim_key: String,
     pub now: DateTime<Utc>,
@@ -741,6 +745,9 @@ pub struct ProjectionClaimRequest {
 impl ProjectionClaimRequest {
     pub fn validate(&self) -> Result<(), TenantProjectionSchedulerError> {
         self.binding.validate()?;
+        if let Some(projection_name) = self.projection_name.as_deref() {
+            validate_projection_name(projection_name)?;
+        }
         if self.worker_id == Uuid::nil() {
             return Err(TenantProjectionSchedulerError::InvalidRequest(
                 "worker_id is required".into(),
@@ -1512,6 +1519,17 @@ impl TenantProjectionSchedulerRepository {
             .claims_for_key(&mut transaction, &request.binding, &request.claim_key)
             .await?;
         if sealed {
+            if request
+                .projection_name
+                .as_deref()
+                .is_some_and(|projection| {
+                    existing
+                        .iter()
+                        .any(|claim| claim.job.projection_name != projection)
+                })
+            {
+                return Err(TenantProjectionSchedulerError::ClaimKeyConflict);
+            }
             let replayed = existing
                 .into_iter()
                 .map(|mut claim| {
@@ -1532,14 +1550,16 @@ impl TenantProjectionSchedulerRepository {
                     dead_lettered_at, rebuild_id, version, created_at, updated_at
              FROM erpx_control.tenant_projection_jobs
              WHERE tenant_id=$1 AND holding_ref=$2
-               AND ((state IN ('pending','retryable','rebuild_pending') AND available_at <= $3)
-                    OR (state='claimed' AND lease_until IS NOT NULL AND lease_until <= $3))
+               AND ($3::text IS NULL OR projection_name=$3)
+               AND ((state IN ('pending','retryable','rebuild_pending') AND available_at <= $4)
+                    OR (state='claimed' AND lease_until IS NOT NULL AND lease_until <= $4))
              ORDER BY available_at, id
-             LIMIT $4
+             LIMIT $5
              FOR UPDATE SKIP LOCKED",
         )
         .bind(&request.binding.tenant_id)
         .bind(&request.binding.holding_ref)
+        .bind(request.projection_name.as_deref())
         .bind(request.now)
         .bind(i64::from(request.max_jobs))
         .fetch_all(&mut *transaction)
@@ -2797,6 +2817,28 @@ mod tests {
             request.validate(),
             Err(TenantProjectionSchedulerError::InvalidRequest(message))
                 if message.contains("payload")
+        ));
+    }
+
+    #[test]
+    fn claim_filter_is_optional_but_exact_when_present() {
+        let base = ProjectionClaimRequest {
+            binding: binding(),
+            projection_name: None,
+            worker_id: Uuid::new_v4(),
+            claim_key: "claim-filter".into(),
+            now: Utc::now(),
+            lease: Duration::seconds(30),
+            max_jobs: 10,
+        };
+        assert!(base.validate().is_ok());
+        let mut filtered = base.clone();
+        filtered.projection_name = Some("support.capabilities".into());
+        assert!(filtered.validate().is_ok());
+        filtered.projection_name = Some("support capabilities".into());
+        assert!(matches!(
+            filtered.validate(),
+            Err(TenantProjectionSchedulerError::InvalidRequest(_))
         ));
     }
 

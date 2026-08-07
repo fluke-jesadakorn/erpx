@@ -354,7 +354,16 @@ impl StorageComposition {
     /// cross this boundary.
     pub(crate) fn integration_health(&self) -> (&'static str, &'static str) {
         let signal = self.health_signal();
-        (signal.status, signal.live_connectivity)
+        // The durable integration observation contract has a deliberately
+        // smaller state vocabulary than the detailed storage diagnostic. Map
+        // disabled/unprobed into that vocabulary before persistence instead of
+        // letting a healthy RPC fail a database CHECK constraint.
+        let state = match signal.status {
+            "disabled" => "not_configured",
+            "unprobed" => "not_probed",
+            value => value,
+        };
+        (state, signal.live_connectivity)
     }
 
     /// A disabled optional store does not block server readiness. A configured
@@ -723,6 +732,7 @@ mod tests {
             }
         );
         assert!(composition.configuration_ready());
+        assert_eq!(composition.integration_health().0, "not_configured");
         let debug = format!("{composition:?}");
         assert!(!debug.contains("access"));
         assert!(!debug.contains("secret"));
@@ -755,6 +765,7 @@ mod tests {
         assert_eq!(composition.health_signal().status, "unprobed");
         assert!(!composition.health_signal().required);
         assert_eq!(composition.health_signal().live_connectivity, "not_probed");
+        assert_eq!(composition.integration_health().0, "not_probed");
         assert!(!composition.configuration_ready());
         let debug = format!("{composition:?}");
         assert!(!debug.contains("access-secret"));

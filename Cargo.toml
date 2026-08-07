@@ -1,6 +1,55 @@
 [workspace]
 members = [
   "xtask",
+  "crates/kernel",
+  "crates/cqrs",
+  "crates/integration-contracts",
+  "crates/web-session",
+  "crates/ui-foundation",
+  "crates/adapters/cqrs-sqlx",
+  "crates/adapters/finance-sqlx",
+  "crates/adapters/legal-sqlx",
+  "crates/adapters/brand-sqlx",
+  "crates/adapters/assets-sqlx",
+  "crates/adapters/commercial-sqlx",
+  "crates/adapters/crm-sqlx",
+  "crates/adapters/customer-360-sqlx",
+  "crates/adapters/customer-authority-sqlx",
+  "crates/adapters/identity-access-sqlx",
+  "crates/adapters/inventory-sqlx",
+  "crates/adapters/maintenance-sqlx",
+  "crates/adapters/marketing-sqlx",
+  "crates/adapters/organization-sqlx",
+  "crates/adapters/operations-sqlx",
+  "crates/adapters/platform-administration-sqlx",
+  "crates/adapters/people-payroll-sqlx",
+  "crates/adapters/pos-sqlx",
+  "crates/adapters/quality-sqlx",
+  "crates/adapters/procurement-sqlx",
+  "crates/adapters/sales-sqlx",
+  "crates/adapters/support-sqlx",
+  "crates/adapters/web-session-sqlx",
+  "crates/contexts/assets",
+  "crates/contexts/commercial",
+  "crates/contexts/brand",
+  "crates/contexts/crm",
+  "crates/contexts/customer-360",
+  "crates/contexts/customer-authority",
+  "crates/contexts/finance",
+  "crates/contexts/identity-access",
+  "crates/contexts/inventory",
+  "crates/contexts/legal",
+  "crates/contexts/marketing",
+  "crates/contexts/maintenance",
+  "crates/contexts/organization",
+  "crates/contexts/operations",
+  "crates/contexts/people-payroll",
+  "crates/contexts/platform-administration",
+  "crates/contexts/pos",
+  "crates/contexts/procurement",
+  "crates/contexts/quality",
+  "crates/contexts/sales",
+  "crates/contexts/support",
   "crates/domain",
   "crates/identity",
   "crates/application",
@@ -15,6 +64,8 @@ members = [
   "apps/migrator",
   "apps/wal-archive",
   "apps/data-plane-agent",
+  "apps/bootstrap",
+  "apps/ucs-lab",
 ]
 resolver = "2"
 
@@ -30,29 +81,99 @@ async-trait = "0.1.91"
 argon2 = "0.5.3"
 base64 = "0.22.1"
 chrono = { version = "0.4.42", features = ["serde"] }
-dioxus = { version = "0.7.3", default-features = false }
+dioxus = { version = "=0.7.9", default-features = false }
+erpx-android-bridge = { path = "crates/android-bridge" }
+erpx-application = { path = "crates/application" }
+erpx-assets = { path = "crates/contexts/assets" }
+erpx-assets-sqlx = { path = "crates/adapters/assets-sqlx" }
+erpx-brand = { path = "crates/contexts/brand" }
+erpx-brand-sqlx = { path = "crates/adapters/brand-sqlx" }
+erpx-commercial = { path = "crates/contexts/commercial" }
+erpx-commercial-sqlx = { path = "crates/adapters/commercial-sqlx" }
+erpx-cqrs = { path = "crates/cqrs" }
+erpx-cqrs-sqlx = { path = "crates/adapters/cqrs-sqlx" }
+erpx-crm = { path = "crates/contexts/crm" }
+erpx-crm-sqlx = { path = "crates/adapters/crm-sqlx" }
+erpx-customer-360 = { path = "crates/contexts/customer-360" }
+erpx-customer-360-sqlx = { path = "crates/adapters/customer-360-sqlx" }
+erpx-customer-authority = { path = "crates/contexts/customer-authority" }
+erpx-customer-authority-sqlx = { path = "crates/adapters/customer-authority-sqlx" }
+erpx-domain = { path = "crates/domain" }
+erpx-finance = { path = "crates/contexts/finance" }
+erpx-finance-sqlx = { path = "crates/adapters/finance-sqlx" }
+erpx-identity = { path = "crates/identity" }
+erpx-identity-access = { path = "crates/contexts/identity-access" }
+erpx-identity-access-sqlx = { path = "crates/adapters/identity-access-sqlx" }
+erpx-infrastructure = { path = "crates/infrastructure" }
+erpx-integration-contracts = { path = "crates/integration-contracts" }
+erpx-inventory = { path = "crates/contexts/inventory" }
+erpx-inventory-sqlx = { path = "crates/adapters/inventory-sqlx" }
+erpx-kernel = { path = "crates/kernel" }
+erpx-legal = { path = "crates/contexts/legal" }
+erpx-legal-sqlx = { path = "crates/adapters/legal-sqlx" }
+erpx-maintenance = { path = "crates/contexts/maintenance" }
+erpx-maintenance-sqlx = { path = "crates/adapters/maintenance-sqlx" }
+erpx-marketing = { path = "crates/contexts/marketing" }
+erpx-marketing-sqlx = { path = "crates/adapters/marketing-sqlx" }
+erpx-migration = { path = "crates/migration" }
+erpx-operations = { path = "crates/contexts/operations" }
+erpx-operations-sqlx = { path = "crates/adapters/operations-sqlx" }
+erpx-organization = { path = "crates/contexts/organization" }
+erpx-organization-sqlx = { path = "crates/adapters/organization-sqlx" }
+erpx-people-payroll = { path = "crates/contexts/people-payroll" }
+erpx-people-payroll-sqlx = { path = "crates/adapters/people-payroll-sqlx" }
+erpx-platform-administration = { path = "crates/contexts/platform-administration" }
+erpx-platform-administration-sqlx = { path = "crates/adapters/platform-administration-sqlx" }
+erpx-pos = { path = "crates/contexts/pos" }
+erpx-pos-sqlx = { path = "crates/adapters/pos-sqlx" }
+erpx-procurement = { path = "crates/contexts/procurement" }
+erpx-procurement-sqlx = { path = "crates/adapters/procurement-sqlx" }
+erpx-proto = { path = "crates/proto" }
+erpx-quality = { path = "crates/contexts/quality" }
+erpx-quality-sqlx = { path = "crates/adapters/quality-sqlx" }
+erpx-sales = { path = "crates/contexts/sales" }
+erpx-sales-sqlx = { path = "crates/adapters/sales-sqlx" }
+erpx-support = { path = "crates/contexts/support" }
+erpx-support-sqlx = { path = "crates/adapters/support-sqlx" }
+erpx-ui = { path = "crates/ui" }
+erpx-ui-foundation = { path = "crates/ui-foundation" }
+erpx-web-session = { path = "crates/web-session" }
+erpx-web-session-sqlx = { path = "crates/adapters/web-session-sqlx" }
+erpx-worker = { path = "apps/worker" }
+fs2 = "0.4.3"
 hex = "0.4.3"
 hmac = "0.12.1"
+jni = "0.21.1"
 ldap3 = { version = "0.12.1", default-features = false, features = ["tls-rustls-ring"] }
+ndk-context = "0.1.1"
 prost = "0.14.4"
 prost-types = "0.14.4"
 rand_core = { version = "0.6.4", features = ["getrandom"] }
 reqwest = { version = "0.12.28", default-features = false, features = ["json", "rustls-tls"] }
+ring = "0.17.14"
 rustls = { version = "0.23.31", default-features = false, features = ["logging", "std", "tls12", "ring"] }
+security-framework = "3.7.0"
+security-framework-sys = "2.17.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "macros", "migrate"] }
 thiserror = "2.0.17"
 tokio = { version = "1.48.0", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-stream = "0.1.17"
+tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring"] }
 tonic = { version = "0.14.6", default-features = false, features = ["codegen"] }
 tonic-prost = "0.14.6"
+tonic-prost-build = "0.14.6"
 tonic-web = "0.14.6"
+tonic-web-wasm-client = "=0.8.0"
 tower-http = { version = "0.6.11", features = ["cors"] }
 sha2 = "0.10.9"
 subtle = "2.6.1"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
 uuid = { version = "1.18.1", features = ["v4", "v5", "serde"] }
+web-sys = "0.3.103"
+webauthn-rs = "=0.5.5"
 zeroize = "1.9.0"
 
 [workspace.lints.rust]
@@ -64,3 +185,19 @@ all = { level = "warn", priority = -1 }
 pedantic = { level = "allow", priority = -1 }
 module_name_repetitions = "allow"
 must_use_candidate = "allow"
+
+[profile.dev]
+debug = "line-tables-only"
+incremental = true
+split-debuginfo = "off"
+
+[profile.dev.package."*"]
+debug = false
+
+[profile.test]
+debug = "line-tables-only"
+incremental = false
+split-debuginfo = "off"
+
+[profile.test.package."*"]
+debug = false

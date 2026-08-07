@@ -10,6 +10,9 @@ pub struct NavItem {
     pub path: String,
     /// Short icon token interpreted by the client theme.
     pub icon: String,
+    /// Server-owned workflow/action discoverability metadata. This can hide or
+    /// disable controls, but it is never treated as command authorization.
+    pub action_capabilities: Vec<String>,
 }
 
 impl NavItem {
@@ -21,8 +24,47 @@ impl NavItem {
             label: label.into(),
             path: redact_deep_link(&path),
             icon: icon.into(),
+            action_capabilities: Vec::new(),
         }
     }
+
+    /// Attach bounded capability identifiers supplied by the navigation
+    /// manifest. Invalid or credential-looking values are dropped before they
+    /// can reach rendered attributes or diagnostic output.
+    pub fn with_action_capabilities(
+        mut self,
+        capabilities: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
+        self.action_capabilities = capabilities
+            .into_iter()
+            .map(Into::into)
+            .filter(|value| valid_action_capability(value))
+            .take(64)
+            .collect();
+        self.action_capabilities.sort();
+        self.action_capabilities.dedup();
+        self
+    }
+
+    /// Whether the manifest advertised a workflow action for this route.
+    pub fn allows_action(&self, capability: &str) -> bool {
+        valid_action_capability(capability)
+            && self
+                .action_capabilities
+                .binary_search_by(|candidate| candidate.as_str().cmp(capability))
+                .is_ok()
+    }
+}
+
+fn valid_action_capability(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 96
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b':'))
+        && !value.to_ascii_lowercase().contains("token")
+        && !value.to_ascii_lowercase().contains("secret")
+        && !value.to_ascii_lowercase().contains("password")
 }
 
 /// A named primary-navigation work area. Grouping is presentation metadata;
@@ -150,6 +192,24 @@ mod tests {
             "◎",
         );
         assert_eq!(query_only.path, "/platform/customers");
+    }
+
+    #[test]
+    fn action_capabilities_are_bounded_sorted_and_never_authorization_material() {
+        let item = NavItem::new("Quality", "/workspaces/quality", "quality")
+            .with_action_capabilities([
+                "TransitionQualityInspection",
+                "CreateQualityInspection",
+                "CreateQualityInspection",
+                "access_token",
+                "bad capability",
+            ]);
+        assert_eq!(
+            item.action_capabilities,
+            ["CreateQualityInspection", "TransitionQualityInspection"]
+        );
+        assert!(item.allows_action("CreateQualityInspection"));
+        assert!(!item.allows_action("DeleteQualityInspection"));
     }
 
     #[test]

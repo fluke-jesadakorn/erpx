@@ -8,10 +8,14 @@
 
 use std::env;
 
-const PLATFORM_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/platform.proto");
-const SERVER_MAIN: &str = include_str!("../../server/src/main.rs");
-const WORKER_MAIN: &str = include_str!("../../worker/src/main.rs");
+const SALES_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/platform/v1/sales.proto");
+const SCM_PROTO: &str =
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/supply_chain.proto");
+const ASSET_MAINTENANCE_PROTO: &str =
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/asset_maintenance.proto");
+const SERVER_TRANSPORTS: &str = include_str!("../../server/src/lib.rs");
+const SERVER_COMPOSITION: &str = include_str!("../../server/src/lib.rs");
+const WORKER_COMPOSITION: &str = include_str!("../../worker/src/app.rs");
 
 fn require_markers(surface: &str, surface_name: &str, markers: &[&str]) {
     let missing = markers
@@ -101,11 +105,20 @@ const PRODUCT_TRANSPORTS: [ProductTransport; 3] = [
     },
 ];
 
+fn product_proto(name: &str) -> &'static str {
+    match name {
+        "Sales" => SALES_PROTO,
+        "SCM" => SCM_PROTO,
+        "Asset/Maintenance" => ASSET_MAINTENANCE_PROTO,
+        _ => panic!("unknown G9 product proto: {name}"),
+    }
+}
+
 #[test]
 fn g9_services_are_registered_in_proto_server_and_worker_composition() {
     for product in PRODUCT_TRANSPORTS {
         require_markers(
-            PLATFORM_PROTO,
+            product_proto(product.name),
             product.name,
             &[
                 &format!("service {}", product.proto_service),
@@ -115,17 +128,21 @@ fn g9_services_are_registered_in_proto_server_and_worker_composition() {
             ],
         );
         require_markers(
-            SERVER_MAIN,
-            product.name,
+            SERVER_TRANSPORTS,
+            &format!("{} server transport", product.name),
             &[
                 &format!("impl {} for", product.proto_service),
-                &format!("{}Server::new", product.proto_service),
                 product.aggregate_type,
             ],
         );
         require_markers(
-            WORKER_MAIN,
-            product.name,
+            SERVER_COMPOSITION,
+            &format!("{} server composition", product.name),
+            &[&format!("{}Server::new", product.proto_service)],
+        );
+        require_markers(
+            WORKER_COMPOSITION,
+            &format!("{} worker composition", product.name),
             &[
                 product.worker_kind,
                 product.worker_executor,
@@ -144,7 +161,7 @@ fn g9_services_are_registered_in_proto_server_and_worker_composition() {
 fn g9_transports_enforce_typed_bounded_json_and_tenant_auth_routing() {
     for product in PRODUCT_TRANSPORTS {
         require_markers(
-            SERVER_MAIN,
+            SERVER_TRANSPORTS,
             product.name,
             &[
                 "aggregate_json.is_empty() || input.aggregate_json.len() > 1024 * 1024",
@@ -176,7 +193,7 @@ fn g9_transports_enforce_typed_bounded_json_and_tenant_auth_routing() {
 #[test]
 fn g9_product_rpc_boundaries_are_exactly_scoped_and_read_only() {
     for product in PRODUCT_TRANSPORTS {
-        let write_rpc = rpc_region(SERVER_MAIN, product.write_rpc, product.name);
+        let write_rpc = rpc_region(SERVER_TRANSPORTS, product.write_rpc, product.name);
         require_markers(
             write_rpc,
             product.name,
@@ -194,7 +211,7 @@ fn g9_product_rpc_boundaries_are_exactly_scoped_and_read_only() {
             ],
         );
 
-        let read_rpc = rpc_region(SERVER_MAIN, product.read_rpc, product.name);
+        let read_rpc = rpc_region(SERVER_TRANSPORTS, product.read_rpc, product.name);
         require_markers(
             read_rpc,
             product.name,

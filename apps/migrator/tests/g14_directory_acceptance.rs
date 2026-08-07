@@ -20,8 +20,8 @@ const DIRECTORY_LIVE: &str = include_str!("../../worker/src/directory_live.rs");
 const DIRECTORY_WORKER: &str = include_str!("../../worker/src/directory_sync.rs");
 const GENERIC_LDAP_LIVE: &str = include_str!("../../worker/tests/generic_ldap_live.rs");
 const DIRECTORY_VENDOR_LIVE: &str = include_str!("../../worker/tests/directory_vendor_live.rs");
-const DIRECTORY_SERVER: &str = include_str!("../../server/src/main.rs");
-const WORKER_MAIN: &str = include_str!("../../worker/src/main.rs");
+const DIRECTORY_SERVER: &str = include_str!("../../server/src/lib.rs");
+const WORKER_APP: &str = include_str!("../../worker/src/app.rs");
 
 const GENERIC_LDAP_CERTIFICATION_ENVIRONMENT: &[&str] = &[
     "ERPX_G14_GENERIC_LDAP_TEST_DATABASE_URL",
@@ -552,8 +552,8 @@ fn g14_runs_the_identity_crate_public_directory_acceptance_tests() {
 #[test]
 fn g14_worker_registrations_match_the_current_composition_root() {
     require_markers(
-        WORKER_MAIN,
-        "apps/worker/src/main.rs",
+        WORKER_APP,
+        "apps/worker/src/app.rs",
         &[
             "handler_name == DIRECTORY_SYNC_HANDLER_NAME",
             "handler_name == OPERATIONS_COMPLETION_HANDLER_NAME",
@@ -582,10 +582,10 @@ fn g14_worker_registrations_match_the_current_composition_root() {
     // These assertions only bind the acceptance record to the checked-in
     // registration boundary. They do not claim that a worker has connected to
     // a tenant database or completed a live projection/reconciliation pass.
-    assert!(WORKER_MAIN.contains("DirectorySyncRuntimeHandler::from_env"));
-    assert!(WORKER_MAIN.contains("OperationsCompletionRuntimeHandler::from_env"));
-    assert!(WORKER_MAIN.contains("FinanceCompletionRuntimeHandler::from_env"));
-    assert!(WORKER_MAIN.contains("HrCompletionRuntimeHandler::from_env"));
+    assert!(WORKER_APP.contains("DirectorySyncRuntimeHandler::from_env"));
+    assert!(WORKER_APP.contains("OperationsCompletionRuntimeHandler::from_env"));
+    assert!(WORKER_APP.contains("FinanceCompletionRuntimeHandler::from_env"));
+    assert!(WORKER_APP.contains("HrCompletionRuntimeHandler::from_env"));
 }
 
 #[test]
@@ -597,7 +597,7 @@ fn g14_directory_transport_preserves_platform_and_holding_connector_scopes() {
     );
     require_markers(
         DIRECTORY_SERVER,
-        "apps/server/src/main.rs",
+        "apps/server/src/lib.rs",
         &[
             "fn directory_scope_access(scope: &Scope, connector_scope: &DirectoryScope)",
             "directory_scope_access(&scope, &connector.scope)?",

@@ -1,9 +1,10 @@
 use chrono::{Duration, TimeZone, Utc};
 use erpx_identity::{
-    AccessTokenSigner, AssertionRequest, AssertionVerification, ConfiguredWebAuthnProvider,
-    IdentityStoreError, PasskeyCeremonyService, PasskeyCredential, RateLimitDecision,
-    RateLimitPolicy, RegistrationRequest, SqlxIdentityStore, TotpKeyResolver, VerifiedRegistration,
-    WebAuthnProvider, WebAuthnProviderConfig, apply_identity_migration,
+    AccessTokenLifetime, AccessTokenSigner, ActiveRoleClaim, AssertionRequest,
+    AssertionVerification, ConfiguredWebAuthnProvider, IdentityStoreError, PasskeyCeremonyService,
+    PasskeyCredential, RateLimitDecision, RateLimitPolicy, RegistrationRequest, SqlxIdentityStore,
+    TotpKeyResolver, VerifiedRegistration, WebAuthnProvider, WebAuthnProviderConfig,
+    apply_identity_migration,
 };
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
@@ -131,6 +132,102 @@ async fn identity_store_persists_and_revokes_sessions() {
         .await
         .expect_err("reuse revokes the entire session family");
     assert!(matches!(revoked, IdentityStoreError::SessionInactive));
+}
+
+#[tokio::test]
+#[ignore = "requires a disposable PostgreSQL database"]
+async fn authorization_context_fence_invalidates_old_tokens_and_refresh_preserves_selection() {
+    let write_url = std::env::var("ERPX_TEST_CONTROL_WRITE_DATABASE_URL")
+        .expect("ERPX_TEST_CONTROL_WRITE_DATABASE_URL is required");
+    let write = sqlx::PgPool::connect(&write_url).await.expect("write pool");
+    apply_identity_migration(&write)
+        .await
+        .expect("identity migration");
+    let store = SqlxIdentityStore::new(write.clone());
+    let at = Utc
+        .with_ymd_and_hms(2026, 8, 4, 12, 0, 0)
+        .single()
+        .expect("fixed time");
+    let principal = format!("context-principal-{}", uuid::Uuid::new_v4());
+    store
+        .create_principal_with_password(&principal, "correct horse", at)
+        .await
+        .expect("principal");
+    let signer = AccessTokenSigner::new(b"01234567890123456789012345678901").expect("signer");
+    let issued = store
+        .login(&signer, &principal, "correct horse", "context-device", at)
+        .await
+        .expect("login");
+    assert_eq!(
+        issued.access_token().claims().authorization_context_version,
+        Some(1)
+    );
+    assert!(issued.access_token().claims().active_role.is_none());
+
+    let selection_id = uuid::Uuid::new_v4().to_string();
+    sqlx::query(
+        "UPDATE erpx_identity.sessions
+         SET active_role_source='local', active_role_selection_id=$2,
+             authorization_context_version=2
+         WHERE id=$1",
+    )
+    .bind(issued.record().id())
+    .bind(&selection_id)
+    .execute(&write)
+    .await
+    .expect("select role context");
+
+    assert!(matches!(
+        store
+            .authorize_access_token(
+                &signer,
+                issued.access_token().token(),
+                at + Duration::seconds(1),
+            )
+            .await,
+        Err(IdentityStoreError::SessionInactive)
+    ));
+    let matching = signer
+        .issue_with_context(
+            &principal,
+            issued.record().id(),
+            Some(ActiveRoleClaim {
+                source: "local".into(),
+                selection_id: selection_id.clone(),
+            }),
+            Some(2),
+            at + Duration::seconds(1),
+            AccessTokenLifetime::five_minutes(),
+        )
+        .expect("matching selected-role token");
+    store
+        .authorize_access_token(&signer, matching.token(), at + Duration::seconds(2))
+        .await
+        .expect("matching authorization context");
+
+    let rotated = store
+        .refresh(
+            &signer,
+            issued.record().id(),
+            issued.refresh_token().as_str(),
+            at + Duration::seconds(2),
+        )
+        .await
+        .expect("refresh selected session");
+    assert_eq!(
+        rotated.access_token().claims().active_role,
+        Some(ActiveRoleClaim {
+            source: "local".into(),
+            selection_id,
+        })
+    );
+    assert_eq!(
+        rotated
+            .access_token()
+            .claims()
+            .authorization_context_version,
+        Some(2)
+    );
 }
 
 #[tokio::test]

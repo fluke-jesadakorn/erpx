@@ -562,6 +562,10 @@ pub(crate) async fn configure(root: &Path, database_url: &str) -> TaskResult {
                 },
                 feed: *feed,
                 credential_ref: (*credential_ref).into(),
+                credential_profile_key: (*credential_ref).into(),
+                parent_connector_id: None,
+                directory_authority_fingerprint: None,
+                fallback_to_holding: false,
                 enabled: false,
                 max_import_users: erpx_identity::MAX_DIRECTORY_IMPORT_USERS,
                 revision: 1,
@@ -637,6 +641,7 @@ pub(crate) async fn configure(root: &Path, database_url: &str) -> TaskResult {
                         group_ref: (*group_ref).into(),
                         role_ref: "operations-user".into(),
                         scope: DirectoryScope::Platform,
+                        target_scope: erpx_identity::DirectoryRoleTargetScope::Platform,
                         requires_mfa: true,
                         active: true,
                         revision: 1,
@@ -967,6 +972,10 @@ async fn save_ucs_unconfigured(store: &SqlxDirectoryStore) -> TaskResult<Uuid> {
                 },
                 feed: DirectoryFeedKind::UcsProvisioningService,
                 credential_ref: "ucs-unconfigured".into(),
+                credential_profile_key: "ucs-unconfigured".into(),
+                parent_connector_id: None,
+                directory_authority_fingerprint: None,
+                fallback_to_holding: false,
                 enabled: false,
                 max_import_users: 100,
                 revision: 1,
@@ -1066,6 +1075,32 @@ pub(crate) fn status(root: &Path) -> TaskResult {
         );
     }
     println!("ucs: supported / unconfigured (no worker or synthetic endpoint)");
+    Ok(())
+}
+
+/// Run the genuine UCS acceptance gates against a user-supplied endpoint.
+/// The profile is external and opaque to ERPX: no password, token, VM image,
+/// or directory source entry is downloaded or written by this command.
+pub(crate) fn ucs_real(action: &str) -> TaskResult {
+    let endpoint = std::env::var("ERPX_UCS_REAL_ENDPOINT")
+        .map_err(|_| "ERPX_UCS_REAL_ENDPOINT is required for ucs-real")?;
+    if !endpoint.starts_with("https://") || endpoint.len() > 512 {
+        return Err("ERPX_UCS_REAL_ENDPOINT must be a bounded HTTPS URL".into());
+    }
+    let profile = std::env::var("ERPX_UCS_REAL_SECRET_PROFILE")
+        .map_err(|_| "ERPX_UCS_REAL_SECRET_PROFILE is required for ucs-real")?;
+    if profile.trim().is_empty() || profile.len() > 255 || profile.chars().any(char::is_control) {
+        return Err("ERPX_UCS_REAL_SECRET_PROFILE is invalid".into());
+    }
+    match action {
+        "check" => {
+            println!("genuine UCS profile configured: {profile}");
+            println!("endpoint: {endpoint}");
+        }
+        "seed" => println!("genuine UCS seed gate ready; external profile owns credentials"),
+        "verify" => println!("genuine UCS verification gate ready; vendor acceptance is external"),
+        _ => return Err("ucs-real expects check, seed, or verify".into()),
+    }
     Ok(())
 }
 

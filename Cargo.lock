@@ -136,6 +136,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "askama_escape"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3df27b8d5ddb458c5fb1bbc1ce172d4a38c614a97d550b0ac89003897fb01de4"
+
+[[package]]
 name = "asn1-rs"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -345,12 +351,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "31b698c5f9a010f6573133b09e0de5408834d0c82f8d7475a89fc1867a71cd90"
 dependencies = [
  "axum-core",
+ "axum-macros",
+ "base64 0.22.1",
  "bytes",
  "form_urlencoded",
  "futures-util",
  "http",
  "http-body",
  "http-body-util",
+ "hyper",
+ "hyper-util",
  "itoa",
  "matchit",
  "memchr",
@@ -362,10 +372,14 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_urlencoded",
+ "sha1",
  "sync_wrapper",
+ "tokio",
+ "tokio-tungstenite 0.29.0",
  "tower",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]
@@ -384,7 +398,48 @@ dependencies = [
  "sync_wrapper",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
+
+[[package]]
+name = "axum-extra"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9963ff19f40c6102c76756ef0a46004c0d58957d87259fc9208ff8441c12ab96"
+dependencies = [
+ "axum",
+ "axum-core",
+ "bytes",
+ "futures-util",
+ "headers",
+ "http",
+ "http-body",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "rustversion",
+ "serde_core",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "axum-macros"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7aa268c23bfbbd2c4363b9cd302a4f504fb2a9dfe7e3451d66f35dd392e20aca"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "base16"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d27c3610c36aee21ce8ac510e6224498de4228ad772a171ed65643a24693a5a8"
 
 [[package]]
 name = "base64"
@@ -674,7 +729,7 @@ dependencies = [
  "bitflags 2.13.1",
  "block",
  "cocoa-foundation",
- "core-foundation",
+ "core-foundation 0.10.1",
  "core-graphics 0.24.0",
  "foreign-types 0.5.0",
  "libc",
@@ -689,7 +744,7 @@ checksum = "81411967c50ee9a1fc11365f8c585f863a22a9697c89239c452292c40ba79b0d"
 dependencies = [
  "bitflags 2.13.1",
  "block",
- "core-foundation",
+ "core-foundation 0.10.1",
  "core-graphics-types",
  "objc",
 ]
@@ -858,6 +913,16 @@ dependencies = [
 
 [[package]]
 name = "core-foundation"
+version = "0.9.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91e195e091a93c46f7102ec7818a2aa394e1e1771c3ab4825963fa03e45afb8f"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+]
+
+[[package]]
+name = "core-foundation"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b2a6cd9ae233e7f62ba4e9353e81a88df7fc8a5987b8d445b4d90c879bd156f6"
@@ -879,7 +944,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fa95a34622365fa5bbf40b20b75dba8dfa8c94c734aea8ac9a5ca38af14316f1"
 dependencies = [
  "bitflags 2.13.1",
- "core-foundation",
+ "core-foundation 0.10.1",
  "core-graphics-types",
  "foreign-types 0.5.0",
  "libc",
@@ -892,7 +957,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "064badf302c3194842cf2c5d61f56cc88e54a759313879cdf03abdd27d0c3b97"
 dependencies = [
  "bitflags 2.13.1",
- "core-foundation",
+ "core-foundation 0.10.1",
  "core-graphics-types",
  "foreign-types 0.5.0",
  "libc",
@@ -905,7 +970,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d44a101f213f6c4cdc1853d4b78aef6db6bdfa3468798cc1d9912f4735013eb"
 dependencies = [
  "bitflags 2.13.1",
- "core-foundation",
+ "core-foundation 0.10.1",
  "libc",
 ]
 
@@ -1082,6 +1147,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "6.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
+]
+
+[[package]]
 name = "data-encoding"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1196,13 +1275,19 @@ dependencies = [
  "dioxus-devtools",
  "dioxus-document",
  "dioxus-fullstack",
+ "dioxus-fullstack-macro",
  "dioxus-history",
  "dioxus-hooks",
  "dioxus-html",
+ "dioxus-liveview",
+ "dioxus-router",
+ "dioxus-server",
  "dioxus-signals",
+ "dioxus-ssr",
  "dioxus-stores",
  "dioxus-web",
  "manganis",
+ "serde",
  "subsecond",
  "warnings",
 ]
@@ -1305,7 +1390,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "cocoa",
- "core-foundation",
+ "core-foundation 0.10.1",
  "dioxus-asset-resolver",
  "dioxus-cli-config",
  "dioxus-core",
@@ -1361,6 +1446,8 @@ dependencies = [
  "dioxus-core",
  "dioxus-devtools-types",
  "dioxus-signals",
+ "futures-channel",
+ "futures-util",
  "serde",
  "serde_json",
  "subsecond",
@@ -1410,6 +1497,7 @@ dependencies = [
  "async-tungstenite",
  "axum",
  "axum-core",
+ "axum-extra",
  "base64 0.22.1",
  "bytes",
  "ciborium",
@@ -1434,6 +1522,7 @@ dependencies = [
  "http",
  "http-body",
  "http-body-util",
+ "inventory",
  "js-sys",
  "mime",
  "pin-project",
@@ -1445,13 +1534,19 @@ dependencies = [
  "serde_qs",
  "serde_urlencoded",
  "thiserror 2.0.19",
+ "tokio",
+ "tokio-stream",
+ "tokio-tungstenite 0.28.0",
  "tokio-util",
+ "tower",
+ "tower-http",
+ "tower-layer",
  "tracing",
  "tungstenite 0.27.0",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-streams 0.4.2",
+ "wasm-streams",
  "web-sys",
  "xxhash-rust",
 ]
@@ -1584,6 +1679,82 @@ dependencies = [
 ]
 
 [[package]]
+name = "dioxus-liveview"
+version = "0.7.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7344b8f174967c7d2f6ad0103d680ab57daea83ebe3368f7f011c402fd6aaf77"
+dependencies = [
+ "axum",
+ "dioxus-cli-config",
+ "dioxus-core",
+ "dioxus-devtools",
+ "dioxus-document",
+ "dioxus-history",
+ "dioxus-html",
+ "dioxus-interpreter-js",
+ "futures-channel",
+ "futures-util",
+ "generational-box",
+ "rustc-hash 2.1.3",
+ "serde",
+ "serde_json",
+ "slab",
+ "thiserror 2.0.19",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "dioxus-logger"
+version = "0.7.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a28ccdfe36d2cb830a2784e40f7e6f7199805a2c6da99bd65b1ca308f11aed28"
+dependencies = [
+ "dioxus-cli-config",
+ "tracing",
+ "tracing-subscriber",
+ "tracing-wasm",
+]
+
+[[package]]
+name = "dioxus-router"
+version = "0.7.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38e47f62d680429badfcb99bf5dec17ee92b0cb9623f264e36bc003a1359bfdc"
+dependencies = [
+ "dioxus-cli-config",
+ "dioxus-core",
+ "dioxus-core-macro",
+ "dioxus-fullstack-core",
+ "dioxus-history",
+ "dioxus-hooks",
+ "dioxus-html",
+ "dioxus-router-macro",
+ "dioxus-signals",
+ "percent-encoding",
+ "rustversion",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "dioxus-router-macro"
+version = "0.7.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56d20cf2173183946fdf8ab069b606a840a9d06e949050619355fc8cb97aafb6"
+dependencies = [
+ "base16",
+ "digest",
+ "proc-macro2",
+ "quote",
+ "sha2",
+ "slab",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "dioxus-rsx"
 version = "0.7.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1594,6 +1765,64 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "dioxus-server"
+version = "0.7.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5ba2095c16f847d3f680a94cc9b0637d190aace651ecfad0feda180da13634b"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "ciborium",
+ "dashmap",
+ "dioxus-cli-config",
+ "dioxus-core",
+ "dioxus-core-macro",
+ "dioxus-devtools",
+ "dioxus-document",
+ "dioxus-fullstack-core",
+ "dioxus-history",
+ "dioxus-hooks",
+ "dioxus-html",
+ "dioxus-interpreter-js",
+ "dioxus-logger",
+ "dioxus-router",
+ "dioxus-signals",
+ "dioxus-ssr",
+ "enumset",
+ "futures",
+ "futures-channel",
+ "futures-util",
+ "generational-box",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "inventory",
+ "lru",
+ "parking_lot",
+ "pin-project",
+ "rustc-hash 2.1.3",
+ "serde",
+ "serde_json",
+ "serde_qs",
+ "subsecond",
+ "thiserror 2.0.19",
+ "tokio",
+ "tokio-tungstenite 0.28.0",
+ "tokio-util",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-futures",
+ "url",
+ "walkdir",
 ]
 
 [[package]]
@@ -1610,6 +1839,18 @@ dependencies = [
  "rustc-hash 2.1.3",
  "tracing",
  "warnings",
+]
+
+[[package]]
+name = "dioxus-ssr"
+version = "0.7.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d261c5c9907b84fb1ed52f59f46d68c84a4ae860a65cc5effd0cea740ee428af"
+dependencies = [
+ "askama_escape",
+ "dioxus-core",
+ "dioxus-core-types",
+ "rustc-hash 2.1.3",
 ]
 
 [[package]]
@@ -1647,6 +1888,7 @@ dependencies = [
  "dioxus-core-types",
  "dioxus-devtools",
  "dioxus-document",
+ "dioxus-fullstack-core",
  "dioxus-history",
  "dioxus-html",
  "dioxus-interpreter-js",
@@ -1665,7 +1907,7 @@ dependencies = [
  "tracing",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-streams 0.4.2",
+ "wasm-streams",
  "web-sys",
 ]
 
@@ -1868,17 +2110,299 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-assets"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-assets-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-assets",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-bootstrap"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-application",
+ "erpx-brand",
+ "erpx-brand-sqlx",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-domain",
+ "erpx-identity",
+ "erpx-infrastructure",
+ "erpx-kernel",
+ "erpx-migration",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-brand"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-brand-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-brand",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-commercial"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-commercial-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-commercial",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-console"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
  "dioxus",
+ "erpx-assets",
+ "erpx-brand",
+ "erpx-commercial",
+ "erpx-cqrs",
+ "erpx-crm",
+ "erpx-customer-360",
+ "erpx-customer-authority",
  "erpx-domain",
+ "erpx-finance",
+ "erpx-identity-access",
+ "erpx-integration-contracts",
+ "erpx-inventory",
+ "erpx-kernel",
+ "erpx-legal",
+ "erpx-maintenance",
+ "erpx-marketing",
+ "erpx-operations",
+ "erpx-organization",
+ "erpx-people-payroll",
+ "erpx-platform-administration",
+ "erpx-pos",
+ "erpx-procurement",
  "erpx-proto",
+ "erpx-quality",
+ "erpx-sales",
+ "erpx-support",
  "erpx-ui",
+ "erpx-ui-foundation",
+ "erpx-web-session",
+ "erpx-web-session-sqlx",
  "prost-types",
+ "reqwest",
+ "serde",
  "serde_json",
+ "sha2",
+ "sqlx",
+ "tokio",
  "tonic",
  "tonic-web-wasm-client",
+ "uuid",
+ "web-sys",
+]
+
+[[package]]
+name = "erpx-cqrs"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-cqrs-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-crm"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-crm-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-crm",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-customer-360"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-customer-360-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-customer-360",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-customer-authority"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-customer-authority-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-customer-authority",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tokio",
  "uuid",
 ]
 
@@ -1921,15 +2445,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-finance"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-finance-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-finance",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-identity"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
  "argon2",
+ "async-trait",
  "base64 0.22.1",
  "chrono",
+ "erpx-domain",
+ "hex",
  "hmac",
+ "ldap3",
  "rand_core 0.6.4",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "sha2",
@@ -1940,6 +2502,38 @@ dependencies = [
  "uuid",
  "webauthn-rs",
  "zeroize",
+]
+
+[[package]]
+name = "erpx-identity-access"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-identity-access-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-identity-access",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
 ]
 
 [[package]]
@@ -1964,6 +2558,157 @@ dependencies = [
  "tracing",
  "uuid",
  "zeroize",
+]
+
+[[package]]
+name = "erpx-integration-contracts"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-inventory"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-inventory-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-inventory",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-kernel"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-legal"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-legal-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-legal",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-maintenance"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-maintenance-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-maintenance",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-marketing"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-marketing-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-marketing",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
 ]
 
 [[package]]
@@ -1994,6 +2739,203 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-operations"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-operations-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-operations",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-organization"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-organization-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-organization",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-people-payroll"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-people-payroll-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-people-payroll",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-platform-administration"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-platform-administration-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-platform-administration",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-pos"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-pos-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-pos",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-procurement"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-procurement-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-procurement",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-proto"
 version = "0.1.0"
 dependencies = [
@@ -2005,17 +2947,128 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-quality"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-quality-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-quality",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-sales"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-sales-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-sales",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
 name = "erpx-server"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "base64 0.22.1",
  "chrono",
  "erpx-application",
+ "erpx-assets",
+ "erpx-assets-sqlx",
+ "erpx-brand",
+ "erpx-brand-sqlx",
+ "erpx-commercial",
+ "erpx-commercial-sqlx",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-crm",
+ "erpx-crm-sqlx",
+ "erpx-customer-360",
+ "erpx-customer-360-sqlx",
+ "erpx-customer-authority",
+ "erpx-customer-authority-sqlx",
  "erpx-domain",
+ "erpx-finance",
+ "erpx-finance-sqlx",
  "erpx-identity",
+ "erpx-identity-access",
+ "erpx-identity-access-sqlx",
  "erpx-infrastructure",
+ "erpx-integration-contracts",
+ "erpx-inventory",
+ "erpx-inventory-sqlx",
+ "erpx-kernel",
+ "erpx-legal",
+ "erpx-legal-sqlx",
+ "erpx-maintenance",
+ "erpx-maintenance-sqlx",
+ "erpx-marketing",
+ "erpx-marketing-sqlx",
  "erpx-migration",
+ "erpx-operations",
+ "erpx-operations-sqlx",
+ "erpx-organization",
+ "erpx-organization-sqlx",
+ "erpx-people-payroll",
+ "erpx-people-payroll-sqlx",
+ "erpx-platform-administration",
+ "erpx-platform-administration-sqlx",
+ "erpx-pos",
+ "erpx-pos-sqlx",
+ "erpx-procurement",
+ "erpx-procurement-sqlx",
  "erpx-proto",
- "erpx-worker",
+ "erpx-quality",
+ "erpx-quality-sqlx",
+ "erpx-sales",
+ "erpx-sales-sqlx",
+ "erpx-support",
+ "erpx-support-sqlx",
  "hex",
  "hmac",
  "prost",
@@ -2026,6 +3079,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sqlx",
+ "subtle",
  "tokio",
  "tokio-stream",
  "tonic",
@@ -2034,18 +3088,78 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "zeroize",
+]
+
+[[package]]
+name = "erpx-support"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-support-sqlx"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "erpx-cqrs",
+ "erpx-cqrs-sqlx",
+ "erpx-integration-contracts",
+ "erpx-kernel",
+ "erpx-support",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
+name = "erpx-ucs-lab"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-rustls",
+ "uuid",
 ]
 
 [[package]]
 name = "erpx-ui"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "dioxus",
  "erpx-android-bridge",
  "erpx-domain",
  "jni 0.21.1",
  "security-framework",
  "security-framework-sys",
+]
+
+[[package]]
+name = "erpx-ui-foundation"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "erpx-cqrs",
+ "erpx-kernel",
+ "serde",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -2061,6 +3175,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-web-session"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.19",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
+name = "erpx-web-session-sqlx"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "erpx-web-session",
+ "rand_core 0.6.4",
+ "sqlx",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "erpx-worker"
 version = "0.1.0"
 dependencies = [
@@ -2068,10 +3212,37 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "erpx-application",
+ "erpx-assets-sqlx",
+ "erpx-brand-sqlx",
+ "erpx-commercial-sqlx",
+ "erpx-cqrs-sqlx",
+ "erpx-crm-sqlx",
+ "erpx-customer-360",
+ "erpx-customer-360-sqlx",
+ "erpx-customer-authority-sqlx",
  "erpx-domain",
+ "erpx-finance-sqlx",
  "erpx-identity",
+ "erpx-identity-access-sqlx",
  "erpx-infrastructure",
+ "erpx-integration-contracts",
+ "erpx-inventory-sqlx",
+ "erpx-kernel",
+ "erpx-legal-sqlx",
+ "erpx-maintenance",
+ "erpx-maintenance-sqlx",
+ "erpx-marketing-sqlx",
  "erpx-migration",
+ "erpx-operations",
+ "erpx-operations-sqlx",
+ "erpx-organization-sqlx",
+ "erpx-people-payroll-sqlx",
+ "erpx-platform-administration-sqlx",
+ "erpx-pos-sqlx",
+ "erpx-procurement-sqlx",
+ "erpx-quality-sqlx",
+ "erpx-sales-sqlx",
+ "erpx-support-sqlx",
  "hex",
  "ldap3",
  "reqwest",
@@ -2224,6 +3395,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
+
+[[package]]
 name = "foreign-types"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2272,6 +3449,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb4cb245038516f5f85277875cdaa4f7d2c9a0fa0468de06ed190163b1581fcf"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "fs2"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
+dependencies = [
+ "libc",
+ "winapi",
 ]
 
 [[package]]
@@ -2814,13 +4001,30 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
+
+[[package]]
+name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.1.5",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
 ]
 
 [[package]]
@@ -2953,6 +4157,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "http-range-header"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9171a2ea8a68358193d15dd5d70c1c10a2afc3e7e4c5bc92bc9f025cebd7359c"
+
+[[package]]
 name = "httparse"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3033,9 +4243,12 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "socket2",
+ "system-configuration",
  "tokio",
+ "tower-layer",
  "tower-service",
  "tracing",
+ "windows-registry",
 ]
 
 [[package]]
@@ -3645,6 +4858,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fae87c125b03c1d2c0150c90365d7d6bcc53fb73a9acaef207d2d065860f062"
 dependencies = [
  "imgref",
+]
+
+[[package]]
+name = "lru"
+version = "0.16.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f66e8d5d03f609abc3a39e6f08e4164ebf1447a732906d39eb9b99b7919ef39"
+dependencies = [
+ "hashbrown 0.16.1",
 ]
 
 [[package]]
@@ -5335,7 +6557,7 @@ dependencies = [
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-streams 0.4.2",
+ "wasm-streams",
  "web-sys",
  "webpki-roots 1.0.9",
 ]
@@ -5538,7 +6760,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b7f4bc775c73d9a02cde8bf7b2ec4c9d12743edf609006c7facc23998404cd1d"
 dependencies = [
  "bitflags 2.13.1",
- "core-foundation",
+ "core-foundation 0.10.1",
  "core-foundation-sys",
  "libc",
  "security-framework-sys",
@@ -6268,6 +7490,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "system-configuration"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a13f3d0daba03132c0aa9767f98351b3488edc2c100cda2d2ec2b04f3d8d3c8b"
+dependencies = [
+ "bitflags 2.13.1",
+ "core-foundation 0.9.4",
+ "system-configuration-sys",
+]
+
+[[package]]
+name = "system-configuration-sys"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e1d1b10ced5ca923a1fcb8d03e96b8d3268065d724548c0211415ff6ac6bac4"
+dependencies = [
+ "core-foundation-sys",
+ "libc",
+]
+
+[[package]]
 name = "system-deps"
 version = "6.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6288,7 +7531,7 @@ checksum = "9103edf55f2da3c82aea4c7fab7c4241032bfeea0e71fa557d98e00e7ce7cc20"
 dependencies = [
  "bitflags 2.13.1",
  "block2",
- "core-foundation",
+ "core-foundation 0.10.1",
  "core-graphics 0.25.0",
  "crossbeam-channel",
  "dispatch2",
@@ -6524,6 +7767,31 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
+]
+
+[[package]]
+name = "tokio-tungstenite"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
+dependencies = [
+ "futures-util",
+ "log",
+ "tokio",
+ "tungstenite 0.28.0",
+]
+
+[[package]]
+name = "tokio-tungstenite"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f72a05e828585856dacd553fba484c242c46e391fb0e58917c942ee9202915c"
+dependencies = [
+ "futures-util",
+ "log",
+ "tokio",
+ "tungstenite 0.29.0",
 ]
 
 [[package]]
@@ -6706,9 +7974,9 @@ dependencies = [
 
 [[package]]
 name = "tonic-web-wasm-client"
-version = "0.9.1"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c0469c353de5f665c95f898074b5b004b500c6722214c3249f1dc79c0a2a3f6"
+checksum = "898cd44be5e23e59d2956056538f1d6b3c5336629d384ffd2d92e76f87fb98ff"
 dependencies = [
  "base64 0.22.1",
  "byteorder",
@@ -6725,7 +7993,7 @@ dependencies = [
  "tower-service",
  "wasm-bindgen",
  "wasm-bindgen-futures",
- "wasm-streams 0.5.0",
+ "wasm-streams",
  "web-sys",
 ]
 
@@ -6756,10 +8024,19 @@ checksum = "4cfcf7e2740e6fc6d4d688b4ef00650406bb94adf4731e43c096c3a19fe40840"
 dependencies = [
  "bitflags 2.13.1",
  "bytes",
+ "futures-core",
  "futures-util",
  "http",
  "http-body",
+ "http-body-util",
+ "http-range-header",
+ "httpdate",
+ "mime",
+ "mime_guess",
+ "percent-encoding",
  "pin-project-lite",
+ "tokio",
+ "tokio-util",
  "tower",
  "tower-layer",
  "tower-service",
@@ -6812,6 +8089,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-futures"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
+dependencies = [
+ "pin-project",
+ "tracing",
+]
+
+[[package]]
 name = "tracing-log"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6838,6 +8125,17 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "tracing-wasm"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4575c663a174420fa2d78f4108ff68f65bf2fbb7dd89f33749b6e826b3626e07"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -6901,6 +8199,22 @@ dependencies = [
  "sha1",
  "thiserror 2.0.19",
  "utf-8",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.29.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c01152af293afb9c7c2a57e4b559c5620b421f6d133261c60dd2d0cdb38e6b8"
+dependencies = [
+ "bytes",
+ "data-encoding",
+ "http",
+ "httparse",
+ "log",
+ "rand 0.9.5",
+ "sha1",
+ "thiserror 2.0.19",
 ]
 
 [[package]]
@@ -7180,19 +8494,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasm-streams"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d1ec4f6517c9e11ae630e200b2b65d193279042e28edd4a2cda233e46670bbb"
-dependencies = [
- "futures-util",
- "js-sys",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
 name = "web-sys"
 version = "0.3.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7286,7 +8587,7 @@ version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fc95580916af1e68ff6a7be07446fc5db73ebf71cf092de939bbf5f7e189f72"
 dependencies = [
- "core-foundation",
+ "core-foundation 0.10.1",
  "jni 0.22.4",
  "log",
  "ndk-context",
@@ -7542,6 +8843,17 @@ checksum = "9150af68066c4c5c07ddc0ce30421554771e528bde427614c61038bc2c92c2b1"
 dependencies = [
  "windows-core 0.61.2",
  "windows-link 0.1.3",
+]
+
+[[package]]
+name = "windows-registry"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02752bf7fbdcce7f2a27a742f798510f3e5ad88dbe84871e5168e2120c3d5720"
+dependencies = [
+ "windows-link 0.2.1",
+ "windows-result 0.4.1",
+ "windows-strings 0.5.1",
 ]
 
 [[package]]
@@ -8059,6 +9371,7 @@ checksum = "b9cc00251562a284751c9973bace760d86c0276c471b4be569fe6b068ee97a56"
 name = "xtask"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "erpx-application",
  "erpx-domain",
@@ -8066,6 +9379,7 @@ dependencies = [
  "erpx-infrastructure",
  "erpx-migration",
  "erpx-worker",
+ "fs2",
  "reqwest",
  "serde",
  "serde_json",

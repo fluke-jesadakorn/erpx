@@ -1,0 +1,657 @@
+syntax = "proto3";
+
+package erpx.platform.v1;
+
+import "google/protobuf/empty.proto";
+import "erpx/common/v1/context.proto";
+
+message CreateTicketRequest {
+  string customer_id = 1;
+  string severity = 2;
+  string description = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message Ticket {
+  string id = 1;
+  string customer_id = 2;
+  string status = 3;
+  string severity = 4;
+  string description = 5;
+  repeated TicketReply customer_replies = 6;
+}
+message TicketReply {
+  string id = 1;
+  string author_ref = 2;
+  string body = 3;
+  string created_at = 4;
+}
+message CreateTicketResponse { Ticket ticket = 1; }
+message UpdateTicketRequest {
+  string ticket_id = 1;
+  string next_status = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message UpdateTicketResponse { Ticket ticket = 1; }
+message GetTicketRequest {
+  string ticket_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetTicketResponse {
+  Ticket ticket = 1;
+  string correlation_id = 2;
+  bool present = 3;
+}
+message ListTicketsRequest {
+  uint32 page_size = 1;
+  string status = 2;
+  string customer_id = 3;
+  erpx.common.v1.QueryContext context = 4;
+  string after_cursor = 5;
+}
+message ListTicketsResponse {
+  repeated Ticket tickets = 1;
+  bool has_more = 2;
+  string correlation_id = 3;
+  string next_cursor = 4;
+}
+message CreateTicketRecurrenceRequest {
+  string closed_ticket_id = 1;
+  string severity = 2;
+  string description = 3;
+  erpx.common.v1.CommandContext context = 4;
+}
+message CreateTicketRecurrenceResponse { Ticket ticket = 1; }
+message AddTicketReplyRequest {
+  string ticket_id = 1;
+  string body = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message AddTicketReplyResponse { Ticket ticket = 1; }
+message AddTicketInternalNoteRequest {
+  string ticket_id = 1;
+  string body = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message AddTicketInternalNoteResponse { Ticket ticket = 1; }
+
+// Safe incident transport DTO. Internal timeline, broadcasts, mitigation,
+// root-cause, and corrective-action details remain server-side until their
+// dedicated disclosure policy exists.
+message Incident {
+  string id = 1;
+  string status = 2;
+  string commander_ref = 3;
+  repeated string leads = 4;
+  repeated string affected_services = 5;
+  repeated string affected_customer_accounts = 6;
+  uint64 version = 7;
+}
+message CreateIncidentRequest {
+  string commander_ref = 1;
+  repeated string leads = 2;
+  repeated string affected_services = 3;
+  repeated string affected_customer_accounts = 4;
+  erpx.common.v1.CommandContext context = 5;
+}
+message CreateIncidentResponse {
+  Incident incident = 1;
+  string correlation_id = 2;
+}
+message UpdateIncidentRequest {
+  string incident_id = 1;
+  string next_status = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+message UpdateIncidentResponse {
+  Incident incident = 1;
+  string correlation_id = 2;
+}
+message GetIncidentRequest {
+  string incident_id = 1;
+  erpx.common.v1.QueryContext context = 2;
+}
+message GetIncidentResponse {
+  Incident incident = 1;
+  string correlation_id = 2;
+  bool present = 3;
+}
+message ListIncidentsRequest {
+  uint32 page_size = 1;
+  string status = 2;
+  erpx.common.v1.QueryContext context = 3;
+}
+message ListIncidentsResponse {
+  repeated Incident incidents = 1;
+  bool has_more = 2;
+  string correlation_id = 3;
+}
+
+message RequestSupportSessionRequest {
+  string ticket_id = 1;
+  string customer_id = 2;
+  string agent_ref = 3;
+  string mode = 4;
+  repeated string permissions = 5;
+  string scope = 6;
+  string reason = 7;
+  uint32 duration_minutes = 8;
+  string represented_tenant_user = 9;
+  erpx.common.v1.CommandContext context = 10;
+  string module = 11;
+}
+message SupportSession {
+  string id = 1;
+  string ticket_id = 2;
+  string customer_id = 3;
+  string mode = 4;
+  string status = 5;
+  string expires_at = 6;
+  string approval_state = 7;
+  string capability_id = 8;
+  string capability_secret = 9;
+  string module = 10;
+}
+message RequestSupportSessionResponse { SupportSession session = 1; }
+message ApproveSupportSessionRequest {
+  string session_id = 1;
+  string customer_approver = 2;
+  erpx.common.v1.CommandContext context = 3;
+  string device_ref = 4;
+}
+message RevokeSupportSessionRequest {
+  string session_id = 1;
+  string actor_ref = 2;
+  erpx.common.v1.CommandContext context = 3;
+}
+// The diagnostics boundary has two deliberately distinct modes. Platform
+// diagnostics never carry tenant capability material. Customer-support
+// diagnostics must carry the complete immutable capability binding so the
+// server can authorize it against current write-side state.
+message SupportDiagnosticsAccess {
+  enum Mode {
+    MODE_UNSPECIFIED = 0;
+    PLATFORM = 1;
+    CUSTOMER_SUPPORT = 2;
+  }
+
+  Mode mode = 1;
+  string customer_id = 2;
+  string capability_id = 3;
+  string capability_secret = 4;
+  string support_session_id = 5;
+  string support_ticket_id = 6;
+  string support_mode = 7;
+  string support_scope = 8;
+  string module = 9;
+  string subscription_id = 10;
+  string device_ref = 11;
+}
+message GetSupportDiagnosticsRequest {
+  string purpose = 1;
+  erpx.common.v1.QueryContext context = 2;
+  SupportDiagnosticsAccess access = 3;
+}
+message SupportDiagnosticField {
+  string key = 1;
+  string value = 2;
+}
+message GetSupportDiagnosticsResponse {
+  bytes payload_json = 1;
+  string schema_version = 2;
+  string correlation_id = 3;
+  repeated SupportDiagnosticField fields = 4;
+  string captured_at = 5;
+}
+
+service SupportService {
+  rpc CreateTicket(CreateTicketRequest) returns (CreateTicketResponse);
+  rpc UpdateTicket(UpdateTicketRequest) returns (UpdateTicketResponse);
+  rpc GetTicket(GetTicketRequest) returns (GetTicketResponse);
+  rpc ListTickets(ListTicketsRequest) returns (ListTicketsResponse);
+  rpc CreateTicketRecurrence(CreateTicketRecurrenceRequest) returns (CreateTicketRecurrenceResponse);
+  rpc AddTicketReply(AddTicketReplyRequest) returns (AddTicketReplyResponse);
+  rpc AddTicketInternalNote(AddTicketInternalNoteRequest) returns (AddTicketInternalNoteResponse);
+  rpc CreateIncident(CreateIncidentRequest) returns (CreateIncidentResponse);
+  rpc UpdateIncident(UpdateIncidentRequest) returns (UpdateIncidentResponse);
+  rpc GetIncident(GetIncidentRequest) returns (GetIncidentResponse);
+  rpc ListIncidents(ListIncidentsRequest) returns (ListIncidentsResponse);
+  rpc RequestSupportSession(RequestSupportSessionRequest) returns (RequestSupportSessionResponse);
+  rpc ApproveSupportSession(ApproveSupportSessionRequest) returns (SupportSession);
+  rpc RevokeSupportSession(RevokeSupportSessionRequest) returns (google.protobuf.Empty);
+  rpc GetSupportDiagnostics(GetSupportDiagnosticsRequest) returns (GetSupportDiagnosticsResponse);
+}
+
+// Typed Support CQRS contract. It deliberately excludes bearer credentials,
+// secret hashes, and provider credential material from every request/response.
+
+enum SupportTicketStatus {
+  SUPPORT_TICKET_STATUS_UNSPECIFIED = 0;
+  SUPPORT_TICKET_STATUS_NEW = 1;
+  SUPPORT_TICKET_STATUS_TRIAGED = 2;
+  SUPPORT_TICKET_STATUS_WAITING_FOR_CUSTOMER = 3;
+  SUPPORT_TICKET_STATUS_ACCESS_REQUESTED = 4;
+  SUPPORT_TICKET_STATUS_APPROVED = 5;
+  SUPPORT_TICKET_STATUS_IN_PROGRESS = 6;
+  SUPPORT_TICKET_STATUS_RESOLVED = 7;
+  SUPPORT_TICKET_STATUS_CUSTOMER_CONFIRMED = 8;
+  SUPPORT_TICKET_STATUS_CLOSED = 9;
+}
+
+enum SupportMessageAudience {
+  SUPPORT_MESSAGE_AUDIENCE_UNSPECIFIED = 0;
+  SUPPORT_MESSAGE_AUDIENCE_CUSTOMER_VISIBLE = 1;
+  SUPPORT_MESSAGE_AUDIENCE_INTERNAL = 2;
+}
+
+enum SupportMode {
+  SUPPORT_MODE_UNSPECIFIED = 0;
+  SUPPORT_MODE_DIAGNOSTIC_READ = 1;
+  SUPPORT_MODE_TENANT_MUTATION = 2;
+  SUPPORT_MODE_IMPERSONATION = 3;
+}
+
+enum SupportSessionStatus {
+  SUPPORT_SESSION_STATUS_UNSPECIFIED = 0;
+  SUPPORT_SESSION_STATUS_REQUESTED = 1;
+  SUPPORT_SESSION_STATUS_APPROVED = 2;
+  SUPPORT_SESSION_STATUS_REVOKED = 3;
+}
+
+enum SupportCapabilityRevocationReason {
+  SUPPORT_CAPABILITY_REVOCATION_REASON_UNSPECIFIED = 0;
+  SUPPORT_CAPABILITY_REVOCATION_REASON_CUSTOMER_REQUESTED = 1;
+  SUPPORT_CAPABILITY_REVOCATION_REASON_AGENT_DISABLED = 2;
+  SUPPORT_CAPABILITY_REVOCATION_REASON_DEVICE_REVOKED = 3;
+  SUPPORT_CAPABILITY_REVOCATION_REASON_SESSION_REVOKED = 4;
+  SUPPORT_CAPABILITY_REVOCATION_REASON_TICKET_CLOSED = 5;
+  SUPPORT_CAPABILITY_REVOCATION_REASON_ADMINISTRATIVE = 6;
+}
+
+enum SupportIncidentStatus {
+  SUPPORT_INCIDENT_STATUS_UNSPECIFIED = 0;
+  SUPPORT_INCIDENT_STATUS_INVESTIGATING = 1;
+  SUPPORT_INCIDENT_STATUS_IDENTIFIED = 2;
+  SUPPORT_INCIDENT_STATUS_MONITORING = 3;
+  SUPPORT_INCIDENT_STATUS_RESOLVED = 4;
+  SUPPORT_INCIDENT_STATUS_POSTMORTEM_COMPLETE = 5;
+}
+
+enum SupportBroadcastAudience {
+  SUPPORT_BROADCAST_AUDIENCE_UNSPECIFIED = 0;
+  SUPPORT_BROADCAST_AUDIENCE_CUSTOMER_VISIBLE = 1;
+  SUPPORT_BROADCAST_AUDIENCE_INTERNAL = 2;
+}
+
+message SupportCustomerMessageRecord {
+  string message_id = 1;
+  string author_ref = 2;
+  string body = 3;
+  string created_at = 4;
+}
+
+message SupportInternalMessageRecord {
+  string message_id = 1;
+  string author_ref = 2;
+  SupportMessageAudience audience = 3;
+  string body = 4;
+  string created_at = 5;
+}
+
+message SupportCustomerTicketRecord {
+  string ticket_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string customer_id = 4;
+  string customer_account_id = 5;
+  string case_code = 6;
+  string category = 7;
+  string severity = 8;
+  string description = 9;
+  SupportTicketStatus status = 10;
+  repeated SupportCustomerMessageRecord messages = 11;
+  string created_at = 12;
+  string updated_at = 13;
+  string projected_at = 14;
+}
+
+message SupportInternalTicketRecord {
+  string ticket_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string customer_id = 4;
+  string customer_account_id = 5;
+  string case_code = 6;
+  string category = 7;
+  string severity = 8;
+  string description = 9;
+  SupportTicketStatus status = 10;
+  repeated SupportInternalMessageRecord messages = 11;
+  string created_at = 12;
+  string updated_at = 13;
+  string projected_at = 14;
+}
+
+message SupportIncidentTimelineRecord {
+  string message = 1;
+  string author_ref = 2;
+  string created_at = 3;
+}
+
+message SupportIncidentBroadcastRecord {
+  SupportBroadcastAudience audience = 1;
+  string message = 2;
+  string author_ref = 3;
+  string created_at = 4;
+}
+
+message SupportIncidentRecord {
+  string incident_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string incident_code = 4;
+  string severity = 5;
+  string commander_ref = 6;
+  repeated string affected_services = 7;
+  repeated string affected_customer_accounts = 8;
+  SupportIncidentStatus status = 9;
+  string created_at = 10;
+  string updated_at = 11;
+  string projected_at = 12;
+  repeated SupportIncidentTimelineRecord timeline = 13;
+  repeated SupportIncidentBroadcastRecord broadcasts = 14;
+}
+
+message SupportSessionRecord {
+  string session_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v1.TenantScope approved_scope = 3;
+  string ticket_id = 4;
+  string customer_id = 5;
+  string customer_account_id = 6;
+  string agent_principal_id = 7;
+  optional string represented_principal_id = 8;
+  SupportMode mode = 9;
+  repeated string permissions = 10;
+  string module = 11;
+  string reason = 12;
+  SupportSessionStatus status = 13;
+  string requested_at = 14;
+  string expires_at = 15;
+  optional string approved_by = 16;
+  optional string approved_at = 17;
+  optional string revoked_at = 18;
+  optional string revoked_reason = 19;
+  string projected_at = 20;
+}
+
+message SupportCapabilityRecord {
+  string capability_id = 1;
+  uint64 source_version = 2;
+  string session_id = 3;
+  string ticket_id = 4;
+  string customer_id = 5;
+  string customer_account_id = 6;
+  string agent_principal_id = 7;
+  string device_ref = 8;
+  SupportMode mode = 9;
+  repeated string permissions = 10;
+  erpx.common.v1.TenantScope approved_scope = 11;
+  string module = 12;
+  string issued_at = 13;
+  string expires_at = 14;
+  optional SupportCapabilityRevocationReason revocation_reason = 15;
+  optional string revoked_at = 16;
+  string projected_at = 17;
+}
+
+message OpenSupportTicketCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string ticket_id = 2;
+  string customer_id = 3;
+  string customer_account_id = 4;
+  string case_code = 5;
+  string category = 6;
+  string severity = 7;
+  string description = 8;
+}
+
+message TransitionSupportTicketCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string ticket_id = 2;
+  SupportTicketStatus next = 3;
+}
+
+message AddSupportTicketMessageCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string ticket_id = 2;
+  string message_id = 3;
+  string body = 4;
+}
+
+message SupportInternalTicketMutationResponse {
+  erpx.common.v1.CommandReceipt receipt = 1;
+  SupportInternalTicketRecord ticket = 2;
+}
+
+message SupportCustomerTicketMutationResponse {
+  erpx.common.v1.CommandReceipt receipt = 1;
+  SupportCustomerTicketRecord ticket = 2;
+}
+
+message RequestTypedSupportSessionCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string session_id = 2;
+  string ticket_id = 3;
+  optional string represented_principal_id = 4;
+  SupportMode mode = 5;
+  repeated string permissions = 6;
+  erpx.common.v1.TenantScope approved_scope = 7;
+  string module = 8;
+  string reason = 9;
+  int64 duration_seconds = 10;
+}
+
+message SupportSessionIdentityCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string session_id = 2;
+}
+
+message RevokeTypedSupportSessionCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string session_id = 2;
+  string reason = 3;
+}
+
+message SupportSessionMutationResponse {
+  erpx.common.v1.CommandReceipt receipt = 1;
+  SupportSessionRecord session = 2;
+}
+
+message IssueSupportCapabilityCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string capability_id = 2;
+  string session_id = 3;
+  string device_ref = 4;
+}
+
+message RevokeSupportCapabilityCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string capability_id = 2;
+  SupportCapabilityRevocationReason reason = 3;
+}
+
+message SupportCapabilityMutationResponse {
+  erpx.common.v1.CommandReceipt receipt = 1;
+  SupportCapabilityRecord capability = 2;
+}
+
+message OpenSupportIncidentCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string incident_id = 2;
+  string incident_code = 3;
+  string severity = 4;
+  repeated string affected_services = 5;
+  repeated string affected_customer_account_ids = 6;
+}
+
+message TransitionSupportIncidentCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string incident_id = 2;
+  SupportIncidentStatus next = 3;
+}
+
+message AddSupportIncidentTimelineCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string incident_id = 2;
+  string message = 3;
+}
+
+message BroadcastSupportIncidentCommandRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string incident_id = 2;
+  SupportBroadcastAudience audience = 3;
+  string message = 4;
+}
+
+message SupportIncidentMutationResponse {
+  erpx.common.v1.CommandReceipt receipt = 1;
+  SupportIncidentRecord incident = 2;
+}
+
+message GetSupportCustomerTicketRecordRequest {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  string ticket_id = 2;
+}
+
+message GetSupportCustomerTicketRecordResponse {
+  optional SupportCustomerTicketRecord ticket = 1;
+  erpx.common.v1.QueryMetadata metadata = 2;
+}
+
+message ListSupportCustomerTicketRecordsRequest {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  optional SupportTicketStatus status = 2;
+  optional string customer_id = 3;
+  uint32 page_size = 4;
+  optional string cursor = 5;
+}
+
+message ListSupportCustomerTicketRecordsResponse {
+  repeated SupportCustomerTicketRecord tickets = 1;
+  optional string next_cursor = 2;
+  erpx.common.v1.QueryMetadata metadata = 3;
+}
+
+message GetSupportInternalTicketRecordRequest {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  string ticket_id = 2;
+}
+
+message GetSupportInternalTicketRecordResponse {
+  optional SupportInternalTicketRecord ticket = 1;
+  erpx.common.v1.QueryMetadata metadata = 2;
+}
+
+message ListSupportInternalTicketRecordsRequest {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  optional SupportTicketStatus status = 2;
+  optional string customer_id = 3;
+  uint32 page_size = 4;
+  optional string cursor = 5;
+}
+
+message ListSupportInternalTicketRecordsResponse {
+  repeated SupportInternalTicketRecord tickets = 1;
+  optional string next_cursor = 2;
+  erpx.common.v1.QueryMetadata metadata = 3;
+}
+
+message GetSupportIncidentRecordRequest {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  string incident_id = 2;
+}
+
+message GetSupportIncidentRecordResponse {
+  optional SupportIncidentRecord incident = 1;
+  erpx.common.v1.QueryMetadata metadata = 2;
+}
+
+message ListSupportIncidentRecordsRequest {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  optional SupportIncidentStatus status = 2;
+  uint32 page_size = 3;
+  optional string cursor = 4;
+}
+
+message ListSupportIncidentRecordsResponse {
+  repeated SupportIncidentRecord incidents = 1;
+  optional string next_cursor = 2;
+  erpx.common.v1.QueryMetadata metadata = 3;
+}
+
+message GetSupportSessionRecordRequest {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  string session_id = 2;
+}
+
+message GetSupportSessionRecordResponse {
+  optional SupportSessionRecord session = 1;
+  erpx.common.v1.QueryMetadata metadata = 2;
+}
+
+message GetSupportCapabilityRecordRequest {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  string capability_id = 2;
+}
+
+message GetSupportCapabilityRecordResponse {
+  optional SupportCapabilityRecord capability = 1;
+  erpx.common.v1.QueryMetadata metadata = 2;
+}
+
+service SupportCommandService {
+  rpc OpenTicket(OpenSupportTicketCommandRequest)
+      returns (SupportInternalTicketMutationResponse);
+  rpc TransitionTicket(TransitionSupportTicketCommandRequest)
+      returns (SupportInternalTicketMutationResponse);
+  rpc AddCustomerReply(AddSupportTicketMessageCommandRequest)
+      returns (SupportCustomerTicketMutationResponse);
+  rpc AddInternalNote(AddSupportTicketMessageCommandRequest)
+      returns (SupportInternalTicketMutationResponse);
+  rpc RequestSession(RequestTypedSupportSessionCommandRequest)
+      returns (SupportSessionMutationResponse);
+  rpc ApproveSession(SupportSessionIdentityCommandRequest)
+      returns (SupportSessionMutationResponse);
+  rpc RevokeSession(RevokeTypedSupportSessionCommandRequest)
+      returns (SupportSessionMutationResponse);
+  rpc IssueCapability(IssueSupportCapabilityCommandRequest)
+      returns (SupportCapabilityMutationResponse);
+  rpc RevokeCapability(RevokeSupportCapabilityCommandRequest)
+      returns (SupportCapabilityMutationResponse);
+  rpc OpenIncident(OpenSupportIncidentCommandRequest)
+      returns (SupportIncidentMutationResponse);
+  rpc TransitionIncident(TransitionSupportIncidentCommandRequest)
+      returns (SupportIncidentMutationResponse);
+  rpc AddIncidentTimeline(AddSupportIncidentTimelineCommandRequest)
+      returns (SupportIncidentMutationResponse);
+  rpc BroadcastIncident(BroadcastSupportIncidentCommandRequest)
+      returns (SupportIncidentMutationResponse);
+}
+
+service SupportQueryService {
+  rpc GetCustomerTicket(GetSupportCustomerTicketRecordRequest)
+      returns (GetSupportCustomerTicketRecordResponse);
+  rpc ListCustomerTickets(ListSupportCustomerTicketRecordsRequest)
+      returns (ListSupportCustomerTicketRecordsResponse);
+  rpc GetInternalTicket(GetSupportInternalTicketRecordRequest)
+      returns (GetSupportInternalTicketRecordResponse);
+  rpc ListInternalTickets(ListSupportInternalTicketRecordsRequest)
+      returns (ListSupportInternalTicketRecordsResponse);
+  rpc GetIncident(GetSupportIncidentRecordRequest)
+      returns (GetSupportIncidentRecordResponse);
+  rpc ListIncidents(ListSupportIncidentRecordsRequest)
+      returns (ListSupportIncidentRecordsResponse);
+  rpc GetSession(GetSupportSessionRecordRequest) returns (GetSupportSessionRecordResponse);
+  rpc GetCapability(GetSupportCapabilityRecordRequest)
+      returns (GetSupportCapabilityRecordResponse);
+}

@@ -4,22 +4,51 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+autobins = false
+
+[features]
+default = ["heavy"]
+heavy = [
+  "dep:base64",
+  "dep:chrono",
+  "dep:erpx-application",
+  "dep:erpx-domain",
+  "dep:erpx-identity",
+  "dep:erpx-infrastructure",
+  "dep:erpx-migration",
+  "dep:erpx-worker",
+  "dep:reqwest",
+  "dep:sqlx",
+  "dep:tokio",
+  "dep:uuid",
+]
+
+[[bin]]
+name = "xtask"
+path = "src/bin/xtask.rs"
+
+[[bin]]
+name = "xtask-heavy"
+path = "src/main.rs"
+required-features = ["heavy"]
 
 [dependencies]
-chrono.workspace = true
-erpx-application = { path = "../crates/application" }
-erpx-domain = { path = "../crates/domain" }
-erpx-identity = { path = "../crates/identity" }
-erpx-infrastructure = { path = "../crates/infrastructure" }
-erpx-migration = { path = "../crates/migration" }
-erpx-worker = { path = "../apps/worker" }
-reqwest.workspace = true
+base64 = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
+erpx-application = { workspace = true, optional = true }
+erpx-domain = { workspace = true, optional = true }
+erpx-identity = { workspace = true, optional = true }
+erpx-infrastructure = { workspace = true, optional = true }
+erpx-migration = { workspace = true, optional = true }
+erpx-worker = { workspace = true, optional = true }
+fs2.workspace = true
+reqwest = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-sqlx.workspace = true
-tokio.workspace = true
-uuid.workspace = true
+sqlx = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
 
 [lints]
 workspace = true

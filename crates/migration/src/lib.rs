@@ -99,6 +99,39 @@ pub mod g13;
 /// configuration state, customer approval records, and canonical business-unit
 /// configuration. It stores secret references only and defaults already-bound
 /// tenants to ERPX-managed execution without changing routing.
+/// Control migration 0072 adds secret-free database profiles, opt-in
+/// holding-plus-branch routing, durable branch provisioning jobs and health,
+/// and resumable first-install receipts. It stores no connection URLs or
+/// credential values.
+/// Control migration 0073 adds durable, categorical Platform integration
+/// observations. It stores no endpoints, database keys, provider payloads, or
+/// credential material and is refreshed only from server-owned probes.
+/// Tenant-write migration 0057 introduces the shared atomic CQRS snapshot,
+/// receipt, audit, and outbox schema. Tenant-read migration 0048 introduces
+/// disposable projection generations, checkpoints, command receipts, retries,
+/// and dead letters. Context-owned read tables remain separate migrations and
+/// include a generation fence so rebuilds can switch atomically. Tenant-read
+/// migration 0049 is the first such table: the typed Quality inspection view.
+/// Control write migration 0075 and control read migration 0015 install the
+/// same CQRS durability/rebuild primitives for platform-scoped aggregates and
+/// keep the authoritative Commercial catalog outside tenant databases.
+/// Control write migration 0076 adds atomic Wave 5 guards for Platform
+/// Administration, Brand, and Customer Authority; control read migration 0016
+/// adds their disposable generation-scoped projections.
+/// Tenant-write migration 0060 adds Wave 6 context guards plus the typed Assets
+/// fact inbox used by Maintenance; tenant-read migration 0052 adds disposable,
+/// generation-scoped projections for all six paired contexts.
+/// Tenant-write migration 0061 adds Sales, People & Payroll, and POS command
+/// guards; tenant-read migration 0053 adds their disposable, generation-scoped
+/// projections for the Wave 7 transactional-context cutover.
+/// Tenant-write migration 0062 adds Finance, Legal, and Support guards;
+/// tenant-read migration 0054 adds their disposable projections. Capability
+/// secrets remain hash-only on the write side and never enter a read model.
+/// Tenant-write migration 0063 adds Operations exception/source-receipt/policy
+/// guards; tenant-read migration 0055 adds its disposable projections and
+/// source-qualified cursor foundation. Control-read migration 0017 adds the
+/// composed Customer 360 projections with an independent cursor per tenant
+/// source database, so global sequences are never compared across databases.
 pub static CONTROL_PLANE_MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 /// The control read database receives only rebuildable projection tables.
@@ -1625,5 +1658,161 @@ mod tests {
                 .sql
                 .contains("UNIQUE (provider_account_ref)")
         );
+    }
+
+    #[test]
+    fn wave6_paired_context_migrations_keep_write_and_read_models_separate() {
+        let write = TENANT_WRITE_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 60)
+            .expect("Wave 6 tenant write guards");
+        let read = TENANT_READ_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 52)
+            .expect("Wave 6 tenant read projections");
+
+        for schema in [
+            "erpx_marketing_write",
+            "erpx_crm_write",
+            "erpx_procurement_write",
+            "erpx_inventory_write",
+            "erpx_assets_write",
+            "erpx_maintenance_write",
+        ] {
+            assert!(write.sql.contains(schema), "missing write schema {schema}");
+            assert!(
+                !read.sql.contains(schema),
+                "write schema leaked into read DDL"
+            );
+        }
+        for projection in [
+            "marketing.lead_candidates",
+            "crm.leads",
+            "crm.opportunities",
+            "procurement.purchase_orders",
+            "inventory.stock_items",
+            "assets.assets",
+            "maintenance.work_orders",
+        ] {
+            assert!(read.sql.contains(projection), "missing {projection}");
+            assert!(
+                !write.sql.contains(projection),
+                "read projection leaked into write DDL"
+            );
+        }
+        assert!(write.sql.contains("asset_fact_inbox"));
+        assert!(write.sql.contains("source_event_id UUID NOT NULL UNIQUE"));
+        assert!(write.sql.contains("'discovery'"));
+        assert!(read.sql.contains("'discovery'"));
+        assert!(read.sql.contains("generation UUID NOT NULL"));
+        assert!(read.sql.contains("projection_generations"));
+    }
+
+    #[test]
+    fn wave7_transactional_context_migrations_keep_write_and_read_models_separate() {
+        let write = TENANT_WRITE_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 61)
+            .expect("Wave 7 tenant write guards");
+        let read = TENANT_READ_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 53)
+            .expect("Wave 7 tenant read projections");
+
+        for schema in [
+            "erpx_sales_write",
+            "erpx_people_payroll_write",
+            "erpx_pos_write",
+        ] {
+            assert!(write.sql.contains(schema), "missing write schema {schema}");
+            assert!(
+                !read.sql.contains(schema),
+                "write schema leaked into read DDL"
+            );
+        }
+        for projection in [
+            "sales.quotes",
+            "sales.orders",
+            "people_payroll.employees",
+            "people_payroll.leave_requests",
+            "people_payroll.expense_claims",
+            "people_payroll.payroll_runs",
+            "pos.sales",
+            "pos.refunds",
+        ] {
+            assert!(read.sql.contains(projection), "missing {projection}");
+            assert!(
+                !write.sql.contains(projection),
+                "read projection leaked into write DDL"
+            );
+        }
+        assert!(
+            write
+                .sql
+                .contains("reviewer_principal_ref <> requester_principal_ref")
+        );
+        assert!(
+            write
+                .sql
+                .contains("total_gross_minor - total_deductions_minor = total_net_minor")
+        );
+        assert!(write.sql.contains("payroll_status <> 'approved'"));
+        assert!(write.sql.contains("payroll_status <> 'posted'"));
+        assert!(read.sql.contains("generation UUID NOT NULL"));
+        assert!(read.sql.contains("projection_generations"));
+    }
+
+    #[test]
+    fn wave8_dependent_context_migrations_enforce_privacy_and_read_separation() {
+        let write = TENANT_WRITE_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 62)
+            .expect("Wave 8 tenant write guards");
+        let read = TENANT_READ_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 54)
+            .expect("Wave 8 tenant read projections");
+
+        for schema in [
+            "erpx_finance_write",
+            "erpx_legal_write",
+            "erpx_support_write",
+        ] {
+            assert!(write.sql.contains(schema), "missing write schema {schema}");
+            assert!(
+                !read.sql.contains(schema),
+                "write schema leaked into read DDL"
+            );
+        }
+        for projection in [
+            "finance.charts",
+            "finance.periods",
+            "finance.journals",
+            "finance.subledger",
+            "finance.trial_balance",
+            "finance.bank_transactions",
+            "finance.statutory_tax",
+            "legal.contracts",
+            "legal.documents",
+            "legal.access_history",
+            "support.tickets",
+            "support.incidents",
+            "support.sessions",
+            "support.capabilities",
+        ] {
+            assert!(read.sql.contains(projection), "missing {projection}");
+            assert!(
+                !write.sql.contains(projection),
+                "read projection leaked into write DDL"
+            );
+        }
+
+        assert!(write.sql.contains("secret_hash_sha256 BYTEA"));
+        assert!(!read.sql.contains("secret_hash_sha256"));
+        assert!(!read.sql.contains("capability_secret"));
+        assert!(write.sql.contains("DEFERRABLE INITIALLY DEFERRED"));
+        assert!(write.sql.contains("Finance source facts are append-only"));
+        assert!(write.sql.contains("Legal evidence is append-only"));
+        assert!(read.sql.contains("projection_generations"));
     }
 }

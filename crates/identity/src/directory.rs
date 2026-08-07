@@ -14,6 +14,7 @@ use sqlx::{PgPool, Row};
 use thiserror::Error;
 use uuid::Uuid;
 
+use super::development_access::DirectoryRoleTargetScope;
 use feeds::FeedCursor;
 use rbac::{
     DirectoryGroupRef, DirectoryRoleFact as RbacRoleFact,
@@ -25,8 +26,10 @@ use sync::ConnectorScope as RbacConnectorScope;
 
 pub mod auth;
 pub mod feeds;
+pub mod live;
 pub mod rbac;
 pub mod revocation;
+pub mod secrets;
 pub mod sync;
 pub mod tls;
 
@@ -125,7 +128,14 @@ impl DirectoryFeedKind {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DirectoryScope {
     Platform,
-    Holding { holding_ref: String },
+    Holding {
+        holding_ref: String,
+    },
+    Branch {
+        holding_ref: String,
+        company_id: Uuid,
+        branch_id: Uuid,
+    },
 }
 
 impl DirectoryScope {
@@ -136,6 +146,19 @@ impl DirectoryScope {
                 "holding:{}",
                 bounded_ref(holding_ref, "holding_ref")?
             )),
+            Self::Branch {
+                holding_ref,
+                company_id,
+                branch_id,
+            } => {
+                let holding_ref = bounded_ref(holding_ref, "holding_ref")?;
+                if company_id.is_nil() || branch_id.is_nil() {
+                    return Err(DirectoryError::InvalidReference(
+                        "branch directory scope requires non-nil company and branch IDs".into(),
+                    ));
+                }
+                Ok(format!("branch:{holding_ref}:{company_id}:{branch_id}"))
+            }
         }
     }
 
@@ -147,11 +170,9 @@ impl DirectoryScope {
     pub fn holding_id(&self) -> Option<Uuid> {
         match self {
             Self::Platform => None,
-            Self::Holding { holding_ref } => Some(
-                holding_ref
-                    .parse::<Uuid>()
-                    .unwrap_or_else(|_| Uuid::new_v5(&Uuid::NAMESPACE_URL, holding_ref.as_bytes())),
-            ),
+            Self::Holding { holding_ref } | Self::Branch { holding_ref, .. } => {
+                Some(sync::directory_holding_id(holding_ref))
+            }
         }
     }
 
@@ -168,6 +189,15 @@ impl DirectoryScope {
                 self.holding_id()
                     .expect("holding scope has a stable holding identity")
             )),
+            Self::Branch {
+                company_id,
+                branch_id,
+                ..
+            } => Ok(format!(
+                "branch:{}:{company_id}:{branch_id}",
+                self.holding_id()
+                    .expect("branch scope has a stable holding identity")
+            )),
         }
     }
 
@@ -177,11 +207,45 @@ impl DirectoryScope {
     /// connector's role-management scope.
     pub fn permits(&self, requested: &Self) -> bool {
         match (self, requested) {
-            (Self::Platform, Self::Platform | Self::Holding { .. }) => true,
+            (Self::Platform, Self::Platform | Self::Holding { .. } | Self::Branch { .. }) => true,
             (Self::Holding { .. }, Self::Holding { .. }) => {
                 self.holding_id() == requested.holding_id()
             }
+            (Self::Holding { .. }, Self::Branch { .. }) => {
+                self.holding_id() == requested.holding_id()
+            }
+            (
+                Self::Branch {
+                    company_id: expected_company,
+                    branch_id: expected_branch,
+                    ..
+                },
+                Self::Branch {
+                    company_id: requested_company,
+                    branch_id: requested_branch,
+                    ..
+                },
+            ) => {
+                self.holding_id() == requested.holding_id()
+                    && expected_company == requested_company
+                    && expected_branch == requested_branch
+            }
             (Self::Holding { .. }, Self::Platform) => false,
+            (Self::Branch { .. }, Self::Platform | Self::Holding { .. }) => false,
+        }
+    }
+
+    pub const fn company_id(&self) -> Option<Uuid> {
+        match self {
+            Self::Branch { company_id, .. } => Some(*company_id),
+            Self::Platform | Self::Holding { .. } => None,
+        }
+    }
+
+    pub const fn branch_id(&self) -> Option<Uuid> {
+        match self {
+            Self::Branch { branch_id, .. } => Some(*branch_id),
+            Self::Platform | Self::Holding { .. } => None,
         }
     }
 }
@@ -229,6 +293,14 @@ pub struct DirectoryConnector {
     pub tls: DirectoryTlsPolicy,
     pub feed: DirectoryFeedKind,
     pub credential_ref: String,
+    /// Approved server/agent-side resolver key. It is never a bind password.
+    pub credential_profile_key: String,
+    /// Branch views must reference their holding connector.
+    pub parent_connector_id: Option<Uuid>,
+    /// Verified directory/forest identity. Draft connectors may omit it until
+    /// preflight; activation requires it for branch views.
+    pub directory_authority_fingerprint: Option<String>,
+    pub fallback_to_holding: bool,
     pub enabled: bool,
     pub max_import_users: u64,
     pub revision: u64,
@@ -252,6 +324,13 @@ pub struct DirectoryConnectorSnapshot {
     pub last_preflight_at: Option<DateTime<Utc>>,
     pub last_heartbeat_at: Option<DateTime<Utc>>,
     pub unresolved_conflicts: u32,
+    pub credential_profile_key: String,
+    pub parent_connector_id: Option<Uuid>,
+    pub directory_authority_fingerprint: Option<String>,
+    pub fallback_to_holding: bool,
+    pub holding_ref: Option<String>,
+    pub company_id: Option<Uuid>,
+    pub branch_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -272,6 +351,20 @@ pub struct DirectoryConnectorRuntimeSettings {
     pub attribute_mapping: serde_json::Value,
     pub ca_reference: String,
     pub feed_configuration: serde_json::Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectoryIdentityConflictSnapshot {
+    pub conflict_id: Uuid,
+    pub connector_id: Uuid,
+    pub local_principal_ref: String,
+    pub match_reasons: Vec<String>,
+    pub state: String,
+    pub proposal_state: Option<String>,
+    pub proposed_by: Option<String>,
+    pub conflict_version: u64,
+    pub detected_at: DateTime<Utc>,
+    pub proposed_at: Option<DateTime<Utc>>,
 }
 
 impl DirectoryConnectorReadinessSnapshot {
@@ -385,6 +478,52 @@ impl DirectoryConnector {
             ));
         }
         bounded_ref(&self.credential_ref, "credential_ref")?;
+        bounded_ref(&self.credential_profile_key, "credential_profile_key")?;
+        if !self
+            .credential_profile_key
+            .bytes()
+            .enumerate()
+            .all(|(index, value)| match value {
+                b'a'..=b'z' => true,
+                b'0'..=b'9' | b'_' | b'-' => index > 0,
+                _ => false,
+            })
+            || self.credential_profile_key.len() > 64
+        {
+            return Err(DirectoryError::InvalidReference(
+                "directory credential profile key is invalid".into(),
+            ));
+        }
+        match &self.scope {
+            DirectoryScope::Branch { .. } => {
+                if self.parent_connector_id.is_none() {
+                    return Err(DirectoryError::InvalidPolicy(
+                        "branch directory view requires a holding connector".into(),
+                    ));
+                }
+                if self.enabled && self.directory_authority_fingerprint.is_none() {
+                    return Err(DirectoryError::InvalidPolicy(
+                        "active branch directory view requires a verified authority fingerprint"
+                            .into(),
+                    ));
+                }
+            }
+            DirectoryScope::Platform | DirectoryScope::Holding { .. } => {
+                if self.parent_connector_id.is_some() || self.fallback_to_holding {
+                    return Err(DirectoryError::InvalidPolicy(
+                        "only branch directory views may reference holding fallback".into(),
+                    ));
+                }
+            }
+        }
+        if let Some(fingerprint) = &self.directory_authority_fingerprint
+            && (fingerprint.len() != 64
+                || !fingerprint.chars().all(|value| value.is_ascii_hexdigit()))
+        {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory authority fingerprint must be SHA-256 hexadecimal".into(),
+            ));
+        }
         if self.max_import_users == 0 || self.max_import_users > MAX_DIRECTORY_IMPORT_USERS {
             return Err(DirectoryError::ImportLimitExceeded {
                 requested: self.max_import_users,
@@ -524,11 +663,23 @@ pub fn immutable_identity_link(
     Ok(hex_lower(&digest.finalize()))
 }
 
-fn directory_identity_id(connector_id: Uuid, external_object_id: &str) -> Uuid {
+fn directory_identity_id(directory_authority: &str, external_object_id: &str) -> Uuid {
     Uuid::new_v5(
         &Uuid::NAMESPACE_OID,
-        format!("directory-identity/{connector_id}/{external_object_id}").as_bytes(),
+        format!("directory-identity/{directory_authority}/{external_object_id}").as_bytes(),
     )
+}
+
+pub fn directory_authority_key(connector: &DirectoryConnector) -> Result<String, DirectoryError> {
+    connector.validate()?;
+    let provider = provider_key(connector.provider);
+    let authority = connector
+        .directory_authority_fingerprint
+        .as_ref()
+        .map(|fingerprint| fingerprint.to_ascii_lowercase())
+        .unwrap_or_else(|| format!("connector:{}", connector.id));
+    bounded_ref(&authority, "directory_authority")?;
+    Ok(format!("{provider}:{authority}"))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -767,6 +918,9 @@ pub struct DirectoryRoleMapping {
     pub group_ref: String,
     pub role_ref: String,
     pub scope: DirectoryScope,
+    /// Preferred role-assignment target scope. `scope` is retained as a
+    /// deprecated compatibility input for legacy connector mappings.
+    pub target_scope: DirectoryRoleTargetScope,
     pub requires_mfa: bool,
     pub active: bool,
     pub revision: u64,
@@ -802,6 +956,31 @@ impl DirectoryRoleMapping {
         if !connector_scope.permits(&self.scope) {
             return Err(DirectoryError::InvalidReference(
                 "role mapping scope is outside the connector scope".into(),
+            ));
+        }
+        let target_allowed = matches!(
+            (connector_scope, self.target_scope),
+            (DirectoryScope::Platform, _)
+                | (
+                    DirectoryScope::Holding { .. },
+                    DirectoryRoleTargetScope::Holding
+                )
+                | (
+                    DirectoryScope::Holding { .. },
+                    DirectoryRoleTargetScope::Company
+                )
+                | (
+                    DirectoryScope::Holding { .. },
+                    DirectoryRoleTargetScope::Branch
+                )
+                | (
+                    DirectoryScope::Branch { .. },
+                    DirectoryRoleTargetScope::Branch
+                )
+        );
+        if !target_allowed {
+            return Err(DirectoryError::InvalidReference(
+                "role mapping target scope is outside the connector authority".into(),
             ));
         }
         Ok(())
@@ -959,12 +1138,557 @@ impl SqlxDirectoryStore {
         &self.pool
     }
 
+    /// Verify that a branch connector is a narrowed view of its holding
+    /// connector, never an unrelated directory authority. Draft saves require
+    /// structural compatibility; preflight/activation additionally require an
+    /// identical immutable authority fingerprint.
+    pub async fn validate_branch_parent_authority(
+        &self,
+        connector: &DirectoryConnector,
+        require_verified_fingerprint: bool,
+    ) -> Result<(), DirectoryError> {
+        let DirectoryScope::Branch { holding_ref, .. } = &connector.scope else {
+            return Ok(());
+        };
+        let parent_id = connector.parent_connector_id.ok_or_else(|| {
+            DirectoryError::InvalidReference("branch connector parent is required".into())
+        })?;
+        if parent_id == connector.id {
+            return Err(DirectoryError::InvalidReference(
+                "branch connector cannot parent itself".into(),
+            ));
+        }
+        let parent = self.connector(parent_id).await?;
+        let DirectoryScope::Holding {
+            holding_ref: parent_holding,
+        } = &parent.scope
+        else {
+            return Err(DirectoryError::InvalidReference(
+                "branch connector parent must be holding-scoped".into(),
+            ));
+        };
+        let naming_context_compatible = connector
+            .base_dn
+            .to_ascii_lowercase()
+            .ends_with(&parent.base_dn.to_ascii_lowercase());
+        if parent_holding != holding_ref
+            || parent.provider != connector.provider
+            || !naming_context_compatible
+            || parent.tls.server_name != connector.tls.server_name
+            || parent.tls.ca_certificate_sha256 != connector.tls.ca_certificate_sha256
+        {
+            return Err(DirectoryError::InvalidReference(
+                "branch connector does not match its holding directory authority".into(),
+            ));
+        }
+        if require_verified_fingerprint
+            && (parent.directory_authority_fingerprint.is_none()
+                || connector.directory_authority_fingerprint.is_none()
+                || parent.directory_authority_fingerprint
+                    != connector.directory_authority_fingerprint)
+        {
+            return Err(DirectoryError::InvalidReference(
+                "branch and holding directory authority fingerprints do not match".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub async fn bind_verified_hostname(
+        &self,
+        hostname: &str,
+        connector_id: Uuid,
+        verified_by: &str,
+        verified_at: DateTime<Utc>,
+    ) -> Result<(), DirectoryError> {
+        let hostname = normalize_directory_hostname(hostname)?;
+        if verified_by.trim().is_empty()
+            || verified_by.len() > 255
+            || verified_by.chars().any(char::is_control)
+            || connector_id.is_nil()
+            || verified_at > Utc::now()
+        {
+            return Err(DirectoryError::InvalidReference(
+                "verified directory hostname binding is invalid".into(),
+            ));
+        }
+        sqlx::query(
+            "INSERT INTO erpx_identity.directory_connector_hostnames
+                (hostname, connector_id, verified_by, verified_at, revoked_at)
+             VALUES ($1,$2,$3,$4,NULL)
+             ON CONFLICT (hostname) DO UPDATE
+             SET connector_id=EXCLUDED.connector_id, verified_by=EXCLUDED.verified_by,
+                 verified_at=EXCLUDED.verified_at, revoked_at=NULL",
+        )
+        .bind(hostname)
+        .bind(connector_id)
+        .bind(verified_by)
+        .bind(verified_at)
+        .execute(&self.pool)
+        .await
+        .map_err(sqlx_error)?;
+        Ok(())
+    }
+
+    pub async fn connector_for_verified_hostname(
+        &self,
+        hostname: &str,
+    ) -> Result<Option<DirectoryConnector>, DirectoryError> {
+        let hostname = normalize_directory_hostname(hostname)?;
+        let connector_id: Option<Uuid> = sqlx::query_scalar(
+            "SELECT h.connector_id
+             FROM erpx_identity.directory_connector_hostnames h
+             JOIN erpx_identity.directory_connectors c ON c.id=h.connector_id
+             WHERE h.hostname=$1 AND h.revoked_at IS NULL
+               AND c.enabled AND c.lifecycle='active'",
+        )
+        .bind(hostname)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sqlx_error)?;
+        match connector_id {
+            Some(connector_id) => self.connector(connector_id).await.map(Some),
+            None => Ok(None),
+        }
+    }
+
+    pub async fn record_holding_fallback(
+        &self,
+        branch: &DirectoryConnector,
+        holding_connector_id: Uuid,
+        accepted: bool,
+        failure_category: Option<&str>,
+        correlation_id: Uuid,
+        occurred_at: DateTime<Utc>,
+    ) -> Result<(), DirectoryError> {
+        let DirectoryScope::Branch { branch_id, .. } = branch.scope else {
+            return Err(DirectoryError::InvalidReference(
+                "directory fallback requires branch scope".into(),
+            ));
+        };
+        let fingerprint = branch
+            .directory_authority_fingerprint
+            .as_deref()
+            .ok_or_else(|| {
+                DirectoryError::InvalidReference(
+                    "directory fallback authority fingerprint is unavailable".into(),
+                )
+            })?;
+        if holding_connector_id.is_nil()
+            || correlation_id.is_nil()
+            || accepted == failure_category.is_some()
+        {
+            return Err(DirectoryError::InvalidReference(
+                "directory fallback audit shape is invalid".into(),
+            ));
+        }
+        sqlx::query(
+            "INSERT INTO erpx_identity.directory_fallback_audit
+                (id, branch_connector_id, holding_connector_id, branch_id,
+                 authority_fingerprint, outcome, failure_category,
+                 correlation_id, occurred_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(branch.id)
+        .bind(holding_connector_id)
+        .bind(branch_id)
+        .bind(fingerprint)
+        .bind(if accepted { "accepted" } else { "rejected" })
+        .bind(failure_category)
+        .bind(correlation_id)
+        .bind(occurred_at)
+        .execute(&self.pool)
+        .await
+        .map_err(sqlx_error)?;
+        Ok(())
+    }
+
+    pub async fn list_identity_conflicts(
+        &self,
+        connector_id: Uuid,
+        page_size: u32,
+    ) -> Result<Vec<DirectoryIdentityConflictSnapshot>, DirectoryError> {
+        if connector_id.is_nil() || !(1..=100).contains(&page_size) {
+            return Err(DirectoryError::InvalidReference(
+                "directory conflict query is invalid".into(),
+            ));
+        }
+        let rows = sqlx::query(
+            "SELECT c.id, c.connector_id, p.principal_ref, c.match_reasons,
+                    c.state, approval.state AS proposal_state, c.proposed_by,
+                    c.conflict_version, c.detected_at, c.proposed_at
+             FROM erpx_identity.directory_identity_conflicts c
+             JOIN erpx_identity.principals p ON p.id=c.principal_id
+             LEFT JOIN erpx_identity.directory_identity_replacement_approvals approval
+               ON approval.conflict_id=c.id
+             WHERE c.connector_id=$1
+             ORDER BY c.detected_at DESC, c.id DESC LIMIT $2",
+        )
+        .bind(connector_id)
+        .bind(i64::from(page_size))
+        .fetch_all(&self.pool)
+        .await
+        .map_err(sqlx_error)?;
+        rows.iter().map(conflict_from_row).collect()
+    }
+
+    pub async fn propose_identity_replacement(
+        &self,
+        conflict_id: Uuid,
+        expected_version: u64,
+        initiator_ref: &str,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<DirectoryIdentityConflictSnapshot, DirectoryError> {
+        validate_replacement_request(conflict_id, expected_version, initiator_ref, correlation_id)?;
+        let version = as_conflict_version(expected_version)?;
+        let next_version =
+            as_conflict_version(expected_version.checked_add(1).ok_or_else(|| {
+                DirectoryError::InvalidReference("conflict version overflow".into())
+            })?)?;
+        let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
+        let row = sqlx::query(
+            "SELECT c.principal_id, p.principal_ref,
+                    EXISTS(SELECT 1 FROM erpx_identity.protected_local_principals protected
+                           WHERE protected.principal_id=c.principal_id) AS protected
+             FROM erpx_identity.directory_identity_conflicts c
+             JOIN erpx_identity.principals p ON p.id=c.principal_id
+             WHERE c.id=$1 AND c.state='unresolved'
+               AND c.conflict_kind='local_identity_collision'
+               AND c.conflict_version=$2 FOR UPDATE OF c, p",
+        )
+        .bind(conflict_id)
+        .bind(version)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| {
+            DirectoryError::InvalidPolicy("directory conflict proposal is stale".into())
+        })?;
+        if row.try_get::<bool, _>("protected").map_err(sqlx_error)? {
+            return Err(DirectoryError::InvalidPolicy(
+                "protected local principal cannot enter replacement workflow".into(),
+            ));
+        }
+        let local_ref: String = row.try_get("principal_ref").map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.directory_identity_conflicts
+             SET proposed_by=$2, proposed_at=$3, proposed_principal_ref=$4,
+                 correlation_id=$5, conflict_version=$6 WHERE id=$1",
+        )
+        .bind(conflict_id)
+        .bind(initiator_ref)
+        .bind(at)
+        .bind(local_ref)
+        .bind(correlation_id)
+        .bind(next_version)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "INSERT INTO erpx_identity.directory_identity_replacement_approvals
+                (conflict_id, initiator_ref, state, expected_conflict_version,
+                 initiated_at, correlation_id)
+             VALUES ($1,$2,'awaiting_approval',$3,$4,$5)
+             ON CONFLICT (conflict_id) DO UPDATE SET
+                 initiator_ref=EXCLUDED.initiator_ref, approver_ref=NULL,
+                 state='awaiting_approval',
+                 expected_conflict_version=EXCLUDED.expected_conflict_version,
+                 initiated_at=EXCLUDED.initiated_at, approved_at=NULL,
+                 rejected_at=NULL, correlation_id=EXCLUDED.correlation_id",
+        )
+        .bind(conflict_id)
+        .bind(initiator_ref)
+        .bind(next_version)
+        .bind(at)
+        .bind(correlation_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        tx.commit().await.map_err(sqlx_error)?;
+        self.identity_conflict(conflict_id).await
+    }
+
+    pub async fn reject_identity_replacement(
+        &self,
+        conflict_id: Uuid,
+        expected_version: u64,
+        approver_ref: &str,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<DirectoryIdentityConflictSnapshot, DirectoryError> {
+        validate_replacement_request(conflict_id, expected_version, approver_ref, correlation_id)?;
+        let result = sqlx::query(
+            "UPDATE erpx_identity.directory_identity_replacement_approvals approval
+             SET state='rejected', approver_ref=$3, rejected_at=$4,
+                 correlation_id=$5
+             FROM erpx_identity.directory_identity_conflicts conflict
+             WHERE approval.conflict_id=$1 AND conflict.id=approval.conflict_id
+               AND conflict.conflict_version=$2
+               AND approval.expected_conflict_version=$2
+               AND approval.state='awaiting_approval'
+               AND approval.initiator_ref<>$3",
+        )
+        .bind(conflict_id)
+        .bind(as_conflict_version(expected_version)?)
+        .bind(approver_ref)
+        .bind(at)
+        .bind(correlation_id)
+        .execute(&self.pool)
+        .await
+        .map_err(sqlx_error)?;
+        if result.rows_affected() != 1 {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory replacement rejection is stale or not independent".into(),
+            ));
+        }
+        self.identity_conflict(conflict_id).await
+    }
+
+    pub async fn approve_identity_replacement(
+        &self,
+        conflict_id: Uuid,
+        expected_version: u64,
+        approver_ref: &str,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<DirectoryIdentityConflictSnapshot, DirectoryError> {
+        validate_replacement_request(conflict_id, expected_version, approver_ref, correlation_id)?;
+        let version = as_conflict_version(expected_version)?;
+        let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
+        let row = sqlx::query(
+            "SELECT c.connector_id, c.external_object_id, c.principal_id,
+                    approval.initiator_ref,
+                    EXISTS(SELECT 1 FROM erpx_identity.protected_local_principals protected
+                           WHERE protected.principal_id=c.principal_id) AS protected
+             FROM erpx_identity.directory_identity_conflicts c
+             JOIN erpx_identity.directory_identity_replacement_approvals approval
+               ON approval.conflict_id=c.id
+             WHERE c.id=$1 AND c.state='unresolved' AND c.conflict_version=$2
+               AND approval.state='awaiting_approval'
+               AND approval.expected_conflict_version=$2
+             FOR UPDATE OF c, approval",
+        )
+        .bind(conflict_id)
+        .bind(version)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| {
+            DirectoryError::InvalidPolicy("directory replacement approval is stale".into())
+        })?;
+        let initiator_ref: String = row.try_get("initiator_ref").map_err(sqlx_error)?;
+        if initiator_ref == approver_ref {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory replacement requires a distinct approver".into(),
+            ));
+        }
+        if row.try_get::<bool, _>("protected").map_err(sqlx_error)? {
+            return Err(DirectoryError::InvalidPolicy(
+                "protected local principal cannot be replaced".into(),
+            ));
+        }
+        let connector_id: Uuid = row.try_get("connector_id").map_err(sqlx_error)?;
+        let external_object_id: String = row.try_get("external_object_id").map_err(sqlx_error)?;
+        let local_id: Uuid = row.try_get("principal_id").map_err(sqlx_error)?;
+        let identity_link: String = sqlx::query_scalar(
+            "SELECT identity_link FROM erpx_identity.directory_identity_links
+             WHERE connector_id=$1 AND external_object_id=$2 AND active FOR UPDATE",
+        )
+        .bind(connector_id)
+        .bind(&external_object_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| {
+            DirectoryError::InvalidPolicy("directory immutable identity is unavailable".into())
+        })?;
+        let directory_principal_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("erpx:directory-principal:v1:{identity_link}").as_bytes(),
+        );
+        let directory_principal_ref = format!(
+            "directory:{}:{}",
+            &connector_id.simple().to_string()[..12],
+            &directory_principal_id.simple().to_string()[..20]
+        );
+        sqlx::query(
+            "INSERT INTO erpx_identity.principals
+                (id, principal_ref, status, created_at, updated_at)
+             VALUES ($1,$2,'active',$3,$3) ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(directory_principal_id)
+        .bind(&directory_principal_ref)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.principals
+             SET status='suspended', updated_at=$2 WHERE id=$1",
+        )
+        .bind(local_id)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        for statement in [
+            "DELETE FROM erpx_identity.password_credentials WHERE principal_id=$1",
+            "DELETE FROM erpx_identity.recovery_codes WHERE principal_id=$1",
+            "DELETE FROM erpx_identity.totp_secrets WHERE principal_id=$1",
+            "DELETE FROM erpx_identity.totp_enrollments WHERE principal_id=$1",
+            "DELETE FROM erpx_identity.recovery_sessions WHERE principal_id=$1",
+            "DELETE FROM erpx_identity.webauthn_challenges WHERE principal_id=$1",
+        ] {
+            sqlx::query(statement)
+                .bind(local_id)
+                .execute(&mut *tx)
+                .await
+                .map_err(sqlx_error)?;
+        }
+        sqlx::query(
+            "UPDATE erpx_identity.sessions SET revoked_at=$2
+             WHERE principal_id=$1 AND revoked_at IS NULL",
+        )
+        .bind(local_id)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.passkeys SET revoked_at=$2
+             WHERE principal_id=$1 AND revoked_at IS NULL",
+        )
+        .bind(local_id)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.devices SET revoked_at=$2
+             WHERE principal_id=$1 AND revoked_at IS NULL",
+        )
+        .bind(local_id)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "INSERT INTO erpx_identity.directory_principal_bindings
+                (id, connector_id, external_object_id, principal_id, active,
+                 revision, linked_by, linked_at, correlation_id)
+             VALUES ($1,$2,$3,$4,TRUE,1,$5,$6,$7)
+             ON CONFLICT (connector_id, external_object_id) DO UPDATE SET
+                 principal_id=EXCLUDED.principal_id, active=TRUE,
+                 revision=erpx_identity.directory_principal_bindings.revision+1,
+                 linked_by=EXCLUDED.linked_by, linked_at=EXCLUDED.linked_at,
+                 unlinked_by=NULL, unlinked_at=NULL,
+                 correlation_id=EXCLUDED.correlation_id",
+        )
+        .bind(Uuid::new_v4())
+        .bind(connector_id)
+        .bind(&external_object_id)
+        .bind(directory_principal_id)
+        .bind(approver_ref)
+        .bind(at)
+        .bind(correlation_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.directory_identity_links SET principal_ref=$3
+             WHERE connector_id=$1 AND external_object_id=$2",
+        )
+        .bind(connector_id)
+        .bind(&external_object_id)
+        .bind(&directory_principal_ref)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.directory_identity_projection
+             SET principal_ref=$2, updated_at=$3 WHERE identity_link=$1",
+        )
+        .bind(&identity_link)
+        .bind(&directory_principal_ref)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "INSERT INTO erpx_identity.principal_supersession_aliases
+                (local_principal_id, directory_principal_id, conflict_id,
+                 approved_by, superseded_at, correlation_id)
+             VALUES ($1,$2,$3,$4,$5,$6)",
+        )
+        .bind(local_id)
+        .bind(directory_principal_id)
+        .bind(conflict_id)
+        .bind(approver_ref)
+        .bind(at)
+        .bind(correlation_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.directory_identity_replacement_approvals
+             SET state='approved', approver_ref=$2, approved_at=$3
+             WHERE conflict_id=$1",
+        )
+        .bind(conflict_id)
+        .bind(approver_ref)
+        .bind(at)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        sqlx::query(
+            "UPDATE erpx_identity.directory_identity_conflicts
+             SET state='resolved', resolved_at=$2, resolution_ref=$3,
+                 replacement_principal_ref=$4, conflict_version=conflict_version+1
+             WHERE id=$1",
+        )
+        .bind(conflict_id)
+        .bind(at)
+        .bind(format!("replacement-approved:{correlation_id}"))
+        .bind(directory_principal_ref)
+        .execute(&mut *tx)
+        .await
+        .map_err(sqlx_error)?;
+        tx.commit().await.map_err(sqlx_error)?;
+        self.identity_conflict(conflict_id).await
+    }
+
+    pub async fn identity_conflict(
+        &self,
+        conflict_id: Uuid,
+    ) -> Result<DirectoryIdentityConflictSnapshot, DirectoryError> {
+        let row = sqlx::query(
+            "SELECT c.id, c.connector_id, p.principal_ref, c.match_reasons,
+                    c.state, approval.state AS proposal_state, c.proposed_by,
+                    c.conflict_version, c.detected_at, c.proposed_at
+             FROM erpx_identity.directory_identity_conflicts c
+             JOIN erpx_identity.principals p ON p.id=c.principal_id
+             LEFT JOIN erpx_identity.directory_identity_replacement_approvals approval
+               ON approval.conflict_id=c.id WHERE c.id=$1",
+        )
+        .bind(conflict_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(sqlx_error)?
+        .ok_or_else(|| DirectoryError::InvalidReference("directory conflict not found".into()))?;
+        conflict_from_row(&row)
+    }
+
     pub async fn list_connectors(&self) -> Result<Vec<DirectoryConnectorSnapshot>, DirectoryError> {
         let rows = sqlx::query(
             "SELECT c.id, c.provider, c.scope_key, c.endpoint, c.base_dn,
                     c.tls_mode, c.feed_kind, c.enabled, c.lifecycle, c.max_import_users,
                     c.revision, COALESCE(s.status, 'never_synced') AS status,
                     s.last_success_at, c.last_preflight_at, c.last_heartbeat_at,
+                    c.credential_profile_key, c.parent_connector_id,
+                    c.directory_authority_fingerprint, c.fallback_to_holding,
+                    c.holding_ref, c.company_id, c.branch_id,
                     (SELECT COUNT(*) FROM erpx_identity.directory_identity_conflicts x
                      WHERE x.connector_id=c.id AND x.state='unresolved') AS unresolved_conflicts
              FROM erpx_identity.directory_connectors c
@@ -1016,6 +1740,17 @@ impl SqlxDirectoryStore {
                             "stored directory conflict count is invalid".into(),
                         )
                     })?,
+                    credential_profile_key: row
+                        .try_get("credential_profile_key")
+                        .map_err(sqlx_error)?,
+                    parent_connector_id: row.try_get("parent_connector_id").map_err(sqlx_error)?,
+                    directory_authority_fingerprint: row
+                        .try_get("directory_authority_fingerprint")
+                        .map_err(sqlx_error)?,
+                    fallback_to_holding: row.try_get("fallback_to_holding").map_err(sqlx_error)?,
+                    holding_ref: row.try_get("holding_ref").map_err(sqlx_error)?,
+                    company_id: row.try_get("company_id").map_err(sqlx_error)?,
+                    branch_id: row.try_get("branch_id").map_err(sqlx_error)?,
                 })
             })
             .collect()
@@ -1142,7 +1877,9 @@ impl SqlxDirectoryStore {
         let row = sqlx::query(
             "SELECT id, provider, scope_key, holding_ref, endpoint, base_dn,
                     tls_mode, ca_certificate_sha256, server_name, minimum_tls_version,
-                    feed_kind, credential_ref, enabled, max_import_users, revision
+                    feed_kind, credential_ref, credential_profile_key,
+                    parent_connector_id, directory_authority_fingerprint,
+                    fallback_to_holding, enabled, max_import_users, revision
              FROM erpx_identity.directory_connectors WHERE id=$1",
         )
         .bind(id)
@@ -1166,6 +1903,12 @@ impl SqlxDirectoryStore {
             },
             feed: parse_feed(&row.try_get::<String, _>("feed_kind").map_err(sqlx_error)?)?,
             credential_ref: row.try_get("credential_ref").map_err(sqlx_error)?,
+            credential_profile_key: row.try_get("credential_profile_key").map_err(sqlx_error)?,
+            parent_connector_id: row.try_get("parent_connector_id").map_err(sqlx_error)?,
+            directory_authority_fingerprint: row
+                .try_get("directory_authority_fingerprint")
+                .map_err(sqlx_error)?,
+            fallback_to_holding: row.try_get("fallback_to_holding").map_err(sqlx_error)?,
             enabled: row.try_get("enabled").map_err(sqlx_error)?,
             max_import_users: u64::try_from(
                 row.try_get::<i64, _>("max_import_users")
@@ -1184,7 +1927,7 @@ impl SqlxDirectoryStore {
         connector_id: Uuid,
     ) -> Result<Vec<DirectoryRoleMapping>, DirectoryError> {
         let rows = sqlx::query(
-            "SELECT connector_id, group_ref, role_ref, scope_key, requires_mfa,
+            "SELECT connector_id, group_ref, role_ref, scope_key, target_scope_key, requires_mfa,
                     active, revision
              FROM erpx_identity.directory_role_mappings
              WHERE connector_id=$1 ORDER BY group_ref, role_ref, scope_key",
@@ -1201,6 +1944,10 @@ impl SqlxDirectoryStore {
                     role_ref: row.try_get("role_ref").map_err(sqlx_error)?,
                     scope: parse_scope(
                         &row.try_get::<String, _>("scope_key").map_err(sqlx_error)?,
+                    )?,
+                    target_scope: parse_role_target_scope(
+                        &row.try_get::<String, _>("target_scope_key")
+                            .map_err(sqlx_error)?,
                     )?,
                     requires_mfa: row.try_get("requires_mfa").map_err(sqlx_error)?,
                     active: row.try_get("active").map_err(sqlx_error)?,
@@ -1462,6 +2209,7 @@ impl SqlxDirectoryStore {
             ));
         }
         let scope_key = mapping.scope.authorization_key()?;
+        let target_scope_key = mapping.target_scope.as_str();
         let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
         let connector_scope = sqlx::query(
             "SELECT scope_key
@@ -1479,7 +2227,7 @@ impl SqlxDirectoryStore {
         let connector_scope = parse_scope(&connector_scope)?;
         mapping.validate_for_connector(mapping.connector_id, &connector_scope)?;
         let previous_mapping = sqlx::query(
-            "SELECT active
+            "SELECT active, target_scope_key
              FROM erpx_identity.directory_role_mappings
              WHERE connector_id=$1 AND group_ref=$2 AND role_ref=$3 AND scope_key=$4
              FOR UPDATE",
@@ -1499,10 +2247,11 @@ impl SqlxDirectoryStore {
             .unwrap_or(false);
         let result = sqlx::query(
             "INSERT INTO erpx_identity.directory_role_mappings
-                (connector_id, group_ref, role_ref, scope_key, requires_mfa,
-                 active, revision, updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                (connector_id, group_ref, role_ref, scope_key, target_scope_key,
+                 requires_mfa, active, revision, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
              ON CONFLICT (connector_id, group_ref, role_ref, scope_key) DO UPDATE SET
+                target_scope_key=EXCLUDED.target_scope_key,
                 requires_mfa=EXCLUDED.requires_mfa, active=EXCLUDED.active,
                 revision=EXCLUDED.revision, updated_at=EXCLUDED.updated_at
              WHERE erpx_identity.directory_role_mappings.revision < EXCLUDED.revision",
@@ -1511,6 +2260,7 @@ impl SqlxDirectoryStore {
         .bind(&mapping.group_ref)
         .bind(&mapping.role_ref)
         .bind(&scope_key)
+        .bind(target_scope_key)
         .bind(mapping.requires_mfa)
         .bind(mapping.active)
         .bind(i64::try_from(mapping.revision).map_err(|_| {
@@ -1536,6 +2286,7 @@ impl SqlxDirectoryStore {
                 "group_ref": mapping.group_ref,
                 "role_ref": mapping.role_ref,
                 "scope": scope_key,
+                "target_scope": target_scope_key,
                 "requires_mfa": mapping.requires_mfa,
                 "active": mapping.active,
                 "revision": mapping.revision,
@@ -1546,7 +2297,7 @@ impl SqlxDirectoryStore {
         if was_active && !mapping.active {
             let role_scope = match &mapping.scope {
                 DirectoryScope::Platform => RbacConnectorScope::Platform,
-                DirectoryScope::Holding { .. } => {
+                DirectoryScope::Holding { .. } | DirectoryScope::Branch { .. } => {
                     RbacConnectorScope::Holding(mapping.scope.holding_id().ok_or_else(|| {
                         DirectoryError::InvalidReference(
                             "holding role mapping has no stable holding identity".into(),
@@ -1656,6 +2407,7 @@ impl SqlxDirectoryStore {
         let (scope_kind, scope_id) = match &connector.scope {
             DirectoryScope::Platform => ("platform", None),
             DirectoryScope::Holding { .. } => ("holding", scope_id_for(&connector.scope)),
+            DirectoryScope::Branch { .. } => ("branch", scope_id_for(&connector.scope)),
         };
         sqlx::query(
             "INSERT INTO erpx_identity.directory_imports
@@ -1810,17 +2562,26 @@ impl SqlxDirectoryStore {
         let result = sqlx::query(
             "INSERT INTO erpx_identity.directory_connectors
                 (id, provider, vendor, scope_key, scope_kind, scope_id, holding_ref,
-                 endpoint, base_dn,
+                 company_id, branch_id, parent_connector_id,
+                 directory_authority_fingerprint, credential_profile_key,
+                 fallback_to_holding, endpoint, base_dn,
                  tls_mode, ca_certificate_sha256, server_name, minimum_tls_version,
                  feed_kind, security, page_size, max_in_flight_pages,
                  credential_ref, enabled, max_import_users, revision,
                  created_at, updated_at)
-             VALUES ($1,$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,500,4,$15,$16,$17,$18,$19,$19)
+             VALUES ($1,$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
+                     $15,$16,$17,$18,$19,$20,500,4,$21,$22,$23,$24,$25,$25)
              ON CONFLICT (id) DO UPDATE SET
                 provider=EXCLUDED.provider, vendor=EXCLUDED.vendor,
                 scope_key=EXCLUDED.scope_key, scope_kind=EXCLUDED.scope_kind,
                 scope_id=EXCLUDED.scope_id,
-                holding_ref=EXCLUDED.holding_ref, endpoint=EXCLUDED.endpoint,
+                holding_ref=EXCLUDED.holding_ref,
+                company_id=EXCLUDED.company_id, branch_id=EXCLUDED.branch_id,
+                parent_connector_id=EXCLUDED.parent_connector_id,
+                directory_authority_fingerprint=EXCLUDED.directory_authority_fingerprint,
+                credential_profile_key=EXCLUDED.credential_profile_key,
+                fallback_to_holding=EXCLUDED.fallback_to_holding,
+                endpoint=EXCLUDED.endpoint,
                 base_dn=EXCLUDED.base_dn, tls_mode=EXCLUDED.tls_mode,
                 ca_certificate_sha256=EXCLUDED.ca_certificate_sha256,
                 server_name=EXCLUDED.server_name,
@@ -1836,12 +2597,23 @@ impl SqlxDirectoryStore {
         .bind(connector.id)
         .bind(provider_key(connector.provider))
         .bind(&scope_key)
-        .bind(match &connector.scope { DirectoryScope::Platform => "platform", DirectoryScope::Holding { .. } => "holding" })
+        .bind(match &connector.scope {
+            DirectoryScope::Platform => "platform",
+            DirectoryScope::Holding { .. } => "holding",
+            DirectoryScope::Branch { .. } => "branch",
+        })
         .bind(scope_id_for(&connector.scope))
         .bind(match &connector.scope {
-            DirectoryScope::Holding { holding_ref } => Some(holding_ref),
+            DirectoryScope::Holding { holding_ref }
+            | DirectoryScope::Branch { holding_ref, .. } => Some(holding_ref),
             DirectoryScope::Platform => None::<&String>,
         })
+        .bind(connector.scope.company_id())
+        .bind(connector.scope.branch_id())
+        .bind(connector.parent_connector_id)
+        .bind(connector.directory_authority_fingerprint.as_deref())
+        .bind(&connector.credential_profile_key)
+        .bind(connector.fallback_to_holding)
         .bind(&connector.endpoint)
         .bind(&connector.base_dn)
         .bind(tls_key(connector.tls.mode))
@@ -1902,7 +2674,8 @@ impl SqlxDirectoryStore {
             .await
             .map_err(sqlx_error)?;
         let connector_row = sqlx::query(
-            "SELECT provider, feed_kind, scope_key, enabled
+            "SELECT provider, feed_kind, scope_key, enabled,
+                    directory_authority_fingerprint
              FROM erpx_identity.directory_connectors
              WHERE id=$1 FOR SHARE",
         )
@@ -1941,6 +2714,17 @@ impl SqlxDirectoryStore {
                 "a disabled directory connector cannot apply a feed page".into(),
             ));
         }
+        let directory_authority_fingerprint: Option<String> = connector_row
+            .try_get("directory_authority_fingerprint")
+            .map_err(sqlx_error)?;
+        let immutable_authority = format!(
+            "{}:{}",
+            provider_key(provider),
+            directory_authority_fingerprint
+                .map(|value| value.to_ascii_lowercase())
+                .unwrap_or_else(|| format!("connector:{}", page.connector_id))
+        );
+        bounded_ref(&immutable_authority, "directory_authority")?;
         let persisted_cursor = sqlx::query(
             "SELECT feed_kind, sequence, opaque_cookie, last_success_at
              FROM erpx_identity.directory_sync_checkpoints
@@ -1997,8 +2781,9 @@ impl SqlxDirectoryStore {
         }
         for mapping in role_mappings {
             let scope_key = mapping.scope.authorization_key()?;
+            let target_scope_key = mapping.target_scope.as_str();
             let existing_mapping = sqlx::query(
-                "SELECT requires_mfa, active, revision
+                "SELECT requires_mfa, active, revision, target_scope_key
                  FROM erpx_identity.directory_role_mappings
                  WHERE connector_id=$1 AND group_ref=$2 AND role_ref=$3 AND scope_key=$4
                  FOR UPDATE",
@@ -2038,10 +2823,11 @@ impl SqlxDirectoryStore {
             }
             let result = sqlx::query(
                 "INSERT INTO erpx_identity.directory_role_mappings
-                    (connector_id, group_ref, role_ref, scope_key, requires_mfa,
-                     active, revision, updated_at)
-                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                    (connector_id, group_ref, role_ref, scope_key, target_scope_key,
+                     requires_mfa, active, revision, updated_at)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
                  ON CONFLICT (connector_id, group_ref, role_ref, scope_key) DO UPDATE SET
+                    target_scope_key=EXCLUDED.target_scope_key,
                     requires_mfa=EXCLUDED.requires_mfa, active=EXCLUDED.active,
                     revision=EXCLUDED.revision, updated_at=EXCLUDED.updated_at
                  WHERE erpx_identity.directory_role_mappings.revision < EXCLUDED.revision",
@@ -2050,6 +2836,7 @@ impl SqlxDirectoryStore {
             .bind(&mapping.group_ref)
             .bind(&mapping.role_ref)
             .bind(&scope_key)
+            .bind(target_scope_key)
             .bind(mapping.requires_mfa)
             .bind(mapping.active)
             .bind(i64::try_from(mapping.revision).map_err(|_| {
@@ -2070,6 +2857,7 @@ impl SqlxDirectoryStore {
                         "group_ref": mapping.group_ref,
                         "role_ref": mapping.role_ref,
                         "scope": scope_key,
+                        "target_scope": target_scope_key,
                         "requires_mfa": mapping.requires_mfa,
                         "active": mapping.active,
                         "revision": mapping.revision,
@@ -2080,13 +2868,6 @@ impl SqlxDirectoryStore {
             }
         }
         for change in &page.changes {
-            let immutable_authority = match provider {
-                DirectoryProvider::GenericLdap => "generic_ldap",
-                DirectoryProvider::ActiveDirectoryDomainServices => {
-                    "active_directory_domain_services"
-                }
-                DirectoryProvider::UniventionCorporateServer => "univention_corporate_server",
-            };
             let (principal_ref, active, groups, source_revision) = match change {
                 DirectoryChange::Upsert(user) => (
                     Some(user.principal_ref.clone()),
@@ -2178,7 +2959,8 @@ impl SqlxDirectoryStore {
                     continue;
                 }
             }
-            let identity_id = directory_identity_id(page.connector_id, change.external_object_id());
+            let identity_id =
+                directory_identity_id(&immutable_authority, change.external_object_id());
             if existing_identity
                 .as_ref()
                 .and_then(|row| row.try_get::<Option<Uuid>, _>("identity_id").ok())
@@ -2190,7 +2972,7 @@ impl SqlxDirectoryStore {
                 ));
             }
             let canonical_identity_link =
-                sync::ImmutableIdentityLink::new(immutable_authority, change.external_object_id())
+                sync::ImmutableIdentityLink::new(&immutable_authority, change.external_object_id())
                     .map(|link| sync::immutable_identity_database_key(&link))
                     .map_err(|error| DirectoryError::InvalidReference(error.to_string()))?;
             let identity_link = existing_identity
@@ -2223,7 +3005,7 @@ impl SqlxDirectoryStore {
             .bind(i64::try_from(source_revision).map_err(|_| DirectoryError::InvalidReference("source revision overflow".into()))?)
             .bind(&source_payload_hash)
             .bind(page.cursor.observed_at)
-            .bind(immutable_authority)
+            .bind(&immutable_authority)
             .bind(change.external_object_id())
             .execute(&mut *tx)
             .await
@@ -2234,6 +3016,59 @@ impl SqlxDirectoryStore {
             // gate for this identity.
             if identity_result.rows_affected() == 0 {
                 continue;
+            }
+            if let DirectoryChange::Upsert(user) = change {
+                let local_principals = sqlx::query(
+                    "SELECT id, principal_ref
+                     FROM erpx_identity.principals
+                     WHERE status='active'
+                       AND (
+                         lower(principal_ref)=lower($1)
+                         OR lower(principal_ref)=lower('local:' || $1)
+                         OR ($2::TEXT IS NOT NULL AND lower(principal_ref)=lower($2))
+                       )
+                       AND NOT EXISTS (
+                         SELECT 1 FROM erpx_identity.directory_principal_bindings b
+                         WHERE b.principal_id=principals.id AND b.active
+                       )
+                     FOR SHARE",
+                )
+                .bind(&user.principal_ref)
+                .bind(&user.email)
+                .fetch_all(&mut *tx)
+                .await
+                .map_err(sqlx_error)?;
+                for local in local_principals {
+                    let local_id: Uuid = local.try_get("id").map_err(sqlx_error)?;
+                    let local_ref: String = local.try_get("principal_ref").map_err(sqlx_error)?;
+                    let mut match_reasons = vec!["normalized_username".to_owned()];
+                    if user
+                        .email
+                        .as_deref()
+                        .is_some_and(|email| email.eq_ignore_ascii_case(&local_ref))
+                    {
+                        match_reasons.push("normalized_email".to_owned());
+                    }
+                    sqlx::query(
+                        "INSERT INTO erpx_identity.directory_identity_conflicts
+                            (id, connector_id, external_object_id, principal_id,
+                             conflict_kind, state, detected_at, match_reasons,
+                             conflict_version)
+                         VALUES ($1,$2,$3,$4,'local_identity_collision','unresolved',$5,$6,1)
+                         ON CONFLICT (connector_id, external_object_id, principal_id,
+                                      conflict_kind) WHERE state='unresolved'
+                         DO NOTHING",
+                    )
+                    .bind(Uuid::new_v4())
+                    .bind(page.connector_id)
+                    .bind(change.external_object_id())
+                    .bind(local_id)
+                    .bind(page.cursor.observed_at)
+                    .bind(match_reasons)
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(sqlx_error)?;
+                }
             }
             let event_type = match change {
                 DirectoryChange::Upsert(user) if user.active => "directory.identity_upserted.v1",
@@ -2323,13 +3158,15 @@ impl SqlxDirectoryStore {
                 };
                 let role_scope = match &mapping.scope {
                     DirectoryScope::Platform => RbacConnectorScope::Platform,
-                    DirectoryScope::Holding { .. } => RbacConnectorScope::Holding(
-                        mapping.scope.holding_id().ok_or_else(|| {
-                            DirectoryError::InvalidReference(
-                                "holding role mapping has no stable holding identity".into(),
-                            )
-                        })?,
-                    ),
+                    DirectoryScope::Holding { .. } | DirectoryScope::Branch { .. } => {
+                        RbacConnectorScope::Holding(mapping.scope.holding_id().ok_or_else(
+                            || {
+                                DirectoryError::InvalidReference(
+                                    "holding role mapping has no stable holding identity".into(),
+                                )
+                            },
+                        )?)
+                    }
                 };
                 let role_action = match action {
                     DirectoryRoleAction::Grant => RbacRoleFactAction::Grant,
@@ -2347,7 +3184,7 @@ impl SqlxDirectoryStore {
                     DirectoryChange::Upsert(_) => DirectoryRoleFactReason::GroupRemoved,
                 };
                 let immutable_link = sync::ImmutableIdentityLink::new(
-                    immutable_authority,
+                    &immutable_authority,
                     change.external_object_id(),
                 )
                 .map_err(|error| DirectoryError::InvalidReference(error.to_string()))?;
@@ -2491,7 +3328,7 @@ impl SqlxDirectoryStore {
                 .bind(event_id)
                 .bind(page.connector_id)
                 .bind(change.external_object_id())
-                .bind(immutable_authority)
+                .bind(&immutable_authority)
                 .bind(change.external_object_id())
                 .bind(page.cursor.observed_at)
                 .bind(reason)
@@ -2569,6 +3406,26 @@ impl SqlxDirectoryStore {
         correlation_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<DirectoryConnectorLifecycle, DirectoryError> {
+        self.record_preflight_evidence(
+            connector_id,
+            succeeded,
+            failure_category,
+            None,
+            correlation_id,
+            at,
+        )
+        .await
+    }
+
+    pub async fn record_preflight_evidence(
+        &self,
+        connector_id: Uuid,
+        succeeded: bool,
+        failure_category: Option<&str>,
+        authority_fingerprint: Option<&str>,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<DirectoryConnectorLifecycle, DirectoryError> {
         if connector_id.is_nil() || correlation_id.is_nil() {
             return Err(DirectoryError::InvalidReference(
                 "directory preflight identifier is invalid".into(),
@@ -2581,6 +3438,19 @@ impl SqlxDirectoryStore {
         }
         if let Some(category) = failure_category {
             bounded_ref(category, "failure_category")?;
+        }
+        if let Some(fingerprint) = authority_fingerprint
+            && (fingerprint.len() != 64
+                || !fingerprint.chars().all(|value| value.is_ascii_hexdigit()))
+        {
+            return Err(DirectoryError::InvalidPolicy(
+                "observed directory authority fingerprint is invalid".into(),
+            ));
+        }
+        if !succeeded && authority_fingerprint.is_some() {
+            return Err(DirectoryError::InvalidPolicy(
+                "failed directory preflight cannot persist authority evidence".into(),
+            ));
         }
         let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
         let current: String = sqlx::query_scalar(
@@ -2629,7 +3499,12 @@ impl SqlxDirectoryStore {
             "UPDATE erpx_identity.directory_connectors
              SET lifecycle=$2, enabled=CASE WHEN $3 THEN enabled ELSE false END,
                  last_preflight_at=CASE WHEN $3 THEN $4 ELSE last_preflight_at END,
-                 failure_category=$5, updated_at=$4
+                 failure_category=$5,
+                 directory_authority_fingerprint=CASE
+                     WHEN $3 AND $6::TEXT IS NOT NULL THEN lower($6)
+                     ELSE directory_authority_fingerprint
+                 END,
+                 updated_at=$4
              WHERE id=$1",
         )
         .bind(connector_id)
@@ -2637,6 +3512,7 @@ impl SqlxDirectoryStore {
         .bind(succeeded)
         .bind(at)
         .bind(failure_category)
+        .bind(authority_fingerprint)
         .execute(&mut *tx)
         .await
         .map_err(sqlx_error)?;
@@ -2705,8 +3581,9 @@ impl SqlxDirectoryStore {
         }
         let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
         let row = sqlx::query(
-            "SELECT provider, lifecycle, last_preflight_at,
-                    last_import_completed_at, last_reconciled_at
+            "SELECT provider, scope_kind, lifecycle, last_preflight_at,
+                    last_import_completed_at, last_reconciled_at,
+                    directory_authority_fingerprint
              FROM erpx_identity.directory_connectors WHERE id=$1 FOR UPDATE",
         )
         .bind(connector_id)
@@ -2741,10 +3618,15 @@ impl SqlxDirectoryStore {
                 .map_err(sqlx_error)?;
             let reconciled: Option<DateTime<Utc>> =
                 row.try_get("last_reconciled_at").map_err(sqlx_error)?;
+            let scope_kind: String = row.try_get("scope_kind").map_err(sqlx_error)?;
+            let authority_fingerprint: Option<String> = row
+                .try_get("directory_authority_fingerprint")
+                .map_err(sqlx_error)?;
             let healthy = last_preflight.is_some_and(|value| {
                 value <= at && at.signed_duration_since(value) <= DIRECTORY_PREFLIGHT_MAX_AGE
             }) && imported.is_some()
                 && reconciled.is_some()
+                && (scope_kind == "platform" || authority_fingerprint.is_some())
                 && sqlx::query_scalar::<_, bool>(
                     "SELECT EXISTS(
                          SELECT 1 FROM erpx_identity.directory_role_mappings
@@ -3354,6 +4236,11 @@ fn rbac_scope_key(scope: &RbacConnectorScope) -> String {
     match scope {
         RbacConnectorScope::Platform => "platform".to_owned(),
         RbacConnectorScope::Holding(holding_id) => format!("holding:{holding_id}"),
+        RbacConnectorScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => format!("branch:{holding_id}:{company_id}:{branch_id}"),
     }
 }
 
@@ -3363,6 +4250,74 @@ fn provider_key(provider: DirectoryProvider) -> &'static str {
         DirectoryProvider::ActiveDirectoryDomainServices => "active_directory_domain_services",
         DirectoryProvider::UniventionCorporateServer => "univention_corporate_server",
     }
+}
+
+fn normalize_directory_hostname(value: &str) -> Result<String, DirectoryError> {
+    let hostname = value.trim().trim_end_matches('.').to_ascii_lowercase();
+    let labels = hostname.split('.').collect::<Vec<_>>();
+    if hostname.len() > 253
+        || labels.len() < 2
+        || labels.iter().any(|label| {
+            label.is_empty()
+                || label.len() > 63
+                || label.starts_with('-')
+                || label.ends_with('-')
+                || !label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        })
+    {
+        return Err(DirectoryError::InvalidReference(
+            "directory hostname is invalid".into(),
+        ));
+    }
+    Ok(hostname)
+}
+
+fn validate_replacement_request(
+    conflict_id: Uuid,
+    expected_version: u64,
+    actor_ref: &str,
+    correlation_id: Uuid,
+) -> Result<(), DirectoryError> {
+    if conflict_id.is_nil()
+        || expected_version == 0
+        || correlation_id.is_nil()
+        || actor_ref.trim().is_empty()
+        || actor_ref.len() > 255
+        || actor_ref.chars().any(char::is_control)
+    {
+        return Err(DirectoryError::InvalidReference(
+            "directory replacement request is invalid".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn as_conflict_version(value: u64) -> Result<i64, DirectoryError> {
+    i64::try_from(value)
+        .map_err(|_| DirectoryError::InvalidReference("conflict version overflow".into()))
+}
+
+fn conflict_from_row(
+    row: &sqlx::postgres::PgRow,
+) -> Result<DirectoryIdentityConflictSnapshot, DirectoryError> {
+    Ok(DirectoryIdentityConflictSnapshot {
+        conflict_id: row.try_get("id").map_err(sqlx_error)?,
+        connector_id: row.try_get("connector_id").map_err(sqlx_error)?,
+        local_principal_ref: row.try_get("principal_ref").map_err(sqlx_error)?,
+        match_reasons: row.try_get("match_reasons").map_err(sqlx_error)?,
+        state: row.try_get("state").map_err(sqlx_error)?,
+        proposal_state: row.try_get("proposal_state").map_err(sqlx_error)?,
+        proposed_by: row.try_get("proposed_by").map_err(sqlx_error)?,
+        conflict_version: u64::try_from(
+            row.try_get::<i64, _>("conflict_version")
+                .map_err(sqlx_error)?,
+        )
+        .map_err(|_| DirectoryError::Persistence("stored conflict version is invalid".into()))?,
+        detected_at: row.try_get("detected_at").map_err(sqlx_error)?,
+        proposed_at: row.try_get("proposed_at").map_err(sqlx_error)?,
+    })
 }
 
 fn parse_provider(value: &str) -> Result<DirectoryProvider, DirectoryError> {
@@ -3418,12 +4373,49 @@ fn parse_scope(value: &str) -> Result<DirectoryScope, DirectoryError> {
     if value == "platform" {
         return Ok(DirectoryScope::Platform);
     }
-    let holding_ref = value.strip_prefix("holding:").ok_or_else(|| {
-        DirectoryError::InvalidReference("stored directory scope is invalid".into())
-    })?;
-    Ok(DirectoryScope::Holding {
-        holding_ref: bounded_ref(holding_ref, "holding_ref")?.to_owned(),
-    })
+    if let Some(holding_ref) = value.strip_prefix("holding:") {
+        return Ok(DirectoryScope::Holding {
+            holding_ref: bounded_ref(holding_ref, "holding_ref")?.to_owned(),
+        });
+    }
+    if let Some(branch_scope) = value.strip_prefix("branch:") {
+        let mut parts = branch_scope.rsplitn(3, ':');
+        let branch_id = parts
+            .next()
+            .and_then(|part| Uuid::parse_str(part).ok())
+            .ok_or_else(|| {
+                DirectoryError::InvalidReference("stored branch directory scope is invalid".into())
+            })?;
+        let company_id = parts
+            .next()
+            .and_then(|part| Uuid::parse_str(part).ok())
+            .ok_or_else(|| {
+                DirectoryError::InvalidReference("stored branch directory scope is invalid".into())
+            })?;
+        let holding_ref = parts.next().ok_or_else(|| {
+            DirectoryError::InvalidReference("stored branch directory scope is invalid".into())
+        })?;
+        return Ok(DirectoryScope::Branch {
+            holding_ref: bounded_ref(holding_ref, "holding_ref")?.to_owned(),
+            company_id,
+            branch_id,
+        });
+    }
+    Err(DirectoryError::InvalidReference(
+        "stored directory scope is invalid".into(),
+    ))
+}
+
+fn parse_role_target_scope(value: &str) -> Result<DirectoryRoleTargetScope, DirectoryError> {
+    match value {
+        "platform" => Ok(DirectoryRoleTargetScope::Platform),
+        "holding" => Ok(DirectoryRoleTargetScope::Holding),
+        "company" => Ok(DirectoryRoleTargetScope::Company),
+        "branch" => Ok(DirectoryRoleTargetScope::Branch),
+        _ => Err(DirectoryError::InvalidReference(
+            "stored directory role target scope is invalid".into(),
+        )),
+    }
 }
 
 fn scope_id_for(scope: &DirectoryScope) -> Option<Uuid> {
@@ -3432,6 +4424,7 @@ fn scope_id_for(scope: &DirectoryScope) -> Option<Uuid> {
         DirectoryScope::Holding { holding_ref } => Uuid::parse_str(holding_ref)
             .ok()
             .or_else(|| Some(Uuid::new_v5(&Uuid::NAMESPACE_URL, holding_ref.as_bytes()))),
+        DirectoryScope::Branch { branch_id, .. } => Some(*branch_id),
     }
 }
 
@@ -3483,6 +4476,10 @@ mod tests {
             tls: tls(),
             feed,
             credential_ref: "secret://directory/bind".into(),
+            credential_profile_key: "default-directory".into(),
+            parent_connector_id: None,
+            directory_authority_fingerprint: None,
+            fallback_to_holding: false,
             enabled: true,
             max_import_users: MAX_DIRECTORY_IMPORT_USERS,
             revision: 1,
@@ -3602,6 +4599,40 @@ mod tests {
     }
 
     #[test]
+    fn holding_and_branch_views_share_one_canonical_directory_authority() {
+        let fingerprint = "b".repeat(64);
+        let holding_ref = Uuid::from_u128(10).to_string();
+        let mut holding = connector(
+            DirectoryProvider::ActiveDirectoryDomainServices,
+            DirectoryFeedKind::AdDirSync,
+        );
+        holding.scope = DirectoryScope::Holding {
+            holding_ref: holding_ref.clone(),
+        };
+        holding.directory_authority_fingerprint = Some(fingerprint.clone());
+
+        let mut branch = holding.clone();
+        branch.id = Uuid::from_u128(2);
+        branch.scope = DirectoryScope::Branch {
+            holding_ref,
+            company_id: Uuid::from_u128(3),
+            branch_id: Uuid::from_u128(4),
+        };
+        branch.parent_connector_id = Some(holding.id);
+
+        assert_eq!(
+            directory_authority_key(&holding).expect("holding authority"),
+            directory_authority_key(&branch).expect("branch authority")
+        );
+
+        branch.directory_authority_fingerprint = Some("c".repeat(64));
+        assert_ne!(
+            directory_authority_key(&holding).expect("holding authority"),
+            directory_authority_key(&branch).expect("drifted branch authority")
+        );
+    }
+
+    #[test]
     fn role_mapping_and_fact_revisions_cannot_start_at_zero() {
         let connector = connector(DirectoryProvider::GenericLdap, DirectoryFeedKind::Polling);
         let mut mapping = DirectoryRoleMapping {
@@ -3609,6 +4640,7 @@ mod tests {
             group_ref: "group:directory-users".into(),
             role_ref: "role:directory-reader".into(),
             scope: connector.scope.clone(),
+            target_scope: DirectoryRoleTargetScope::Platform,
             requires_mfa: false,
             active: true,
             revision: 0,
@@ -3841,19 +4873,31 @@ mod tests {
         assert_eq!(uuid_scope.holding_id(), Some(holding_id));
         assert_eq!(
             opaque_scope.holding_id(),
-            Some(Uuid::new_v5(&Uuid::NAMESPACE_URL, b"holding-ref-42"))
+            Some(Uuid::new_v5(
+                &Uuid::NAMESPACE_URL,
+                b"erpx:holding-scope:v1:holding-ref-42"
+            ))
         );
         assert_eq!(
             opaque_scope.authorization_key().expect("stable scope key"),
             format!(
                 "holding:{}",
-                Uuid::new_v5(&Uuid::NAMESPACE_URL, b"holding-ref-42")
+                Uuid::new_v5(
+                    &Uuid::NAMESPACE_URL,
+                    b"erpx:holding-scope:v1:holding-ref-42"
+                )
             )
         );
         assert!(!uuid_scope.permits(&opaque_scope));
-        assert!(opaque_scope.permits(&DirectoryScope::Holding {
-            holding_ref: Uuid::new_v5(&Uuid::NAMESPACE_URL, b"holding-ref-42").to_string(),
-        }));
+        assert!(
+            opaque_scope.permits(&DirectoryScope::Holding {
+                holding_ref: Uuid::new_v5(
+                    &Uuid::NAMESPACE_URL,
+                    b"erpx:holding-scope:v1:holding-ref-42",
+                )
+                .to_string(),
+            })
+        );
         assert_eq!(opaque_scope.holding_id(), opaque_scope.holding_id());
     }
 }

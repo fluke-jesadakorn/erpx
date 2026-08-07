@@ -48,6 +48,8 @@ pub enum ObjectStorageError {
     Url(#[from] reqwest::Error),
     #[error("object storage request failed with HTTP status {status}")]
     HttpStatus { status: u16 },
+    #[error("object storage namespace already exists")]
+    NamespaceAlreadyExists,
     #[error("object storage readiness probe timed out")]
     ProbeTimeout,
     #[error("object exceeds the configured size bound")]
@@ -160,6 +162,18 @@ impl MinioObjectStore {
     /// Create a bucket/namespace if it does not exist. An already-owned
     /// bucket response is treated as idempotent success.
     pub async fn ensure_namespace(&self, namespace: &str) -> Result<(), ObjectStorageError> {
+        if self.namespace_exists(namespace).await? {
+            return Ok(());
+        }
+        match self.create_namespace_exclusive(namespace).await {
+            Ok(()) | Err(ObjectStorageError::NamespaceAlreadyExists) => Ok(()),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Return whether an exact namespace already exists. Authorization and
+    /// transport failures are never collapsed into `false`.
+    pub async fn namespace_exists(&self, namespace: &str) -> Result<bool, ObjectStorageError> {
         validate_namespace(namespace)?;
         let now = Utc::now();
         let head = self
@@ -168,20 +182,38 @@ impl MinioObjectStore {
             .send()
             .await?;
         if head.status().is_success() {
-            return Ok(());
+            return Ok(true);
         }
         if head.status() != StatusCode::NOT_FOUND {
             return Err(ObjectStorageError::HttpStatus {
                 status: head.status().as_u16(),
             });
         }
+        Ok(false)
+    }
+
+    /// Create one namespace and fail when it existed before this operation or
+    /// was concurrently allocated. Fresh-state bootstrap uses this instead of
+    /// the idempotent ensure path so an old namespace cannot be adopted.
+    pub async fn create_namespace_exclusive(
+        &self,
+        namespace: &str,
+    ) -> Result<(), ObjectStorageError> {
+        validate_namespace(namespace)?;
+        if self.namespace_exists(namespace).await? {
+            return Err(ObjectStorageError::NamespaceAlreadyExists);
+        }
+        let now = Utc::now();
         let put = self
             .client
             .put(self.presigned_url("PUT", namespace, None, 900, now)?.url)
             .send()
             .await?;
-        if put.status().is_success() || put.status() == StatusCode::CONFLICT {
+        if put.status().is_success() {
             return Ok(());
+        }
+        if put.status() == StatusCode::CONFLICT {
+            return Err(ObjectStorageError::NamespaceAlreadyExists);
         }
         Err(ObjectStorageError::HttpStatus {
             status: put.status().as_u16(),

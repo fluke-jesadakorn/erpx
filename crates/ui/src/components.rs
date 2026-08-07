@@ -7,10 +7,28 @@ use erpx_domain::corporate_identity::{
 };
 
 use crate::{
-    Locale, LocaleContext, NavGroup, NavItem, RouteState, SafeSessionMetadata, SafeUiText,
-    ScopeOption, TranslationKey, UiStateKind, corporate_identity_style, redact_deep_link,
-    use_corporate_identity, use_locale, use_theme,
+    Locale, LocaleContext, LocalizedText, NavGroup, NavItem, RouteState, SafeSessionMetadata,
+    SafeUiText, ScopeOption, ThemeMode, TranslationKey, UiStateKind, corporate_identity_style,
+    redact_deep_link, use_corporate_identity, use_locale, use_theme,
 };
+
+const fn shared_text(locale: Locale, en: &'static str, th: &'static str) -> &'static str {
+    LocalizedText::new(en, th).text(locale)
+}
+
+fn current_locale() -> Locale {
+    try_consume_context::<LocaleContext>()
+        .map(|locale| locale.current())
+        .unwrap_or(Locale::En)
+}
+
+const fn theme_mode_label(locale: Locale, mode: ThemeMode) -> &'static str {
+    match mode {
+        ThemeMode::System => shared_text(locale, "System", "ตามระบบ"),
+        ThemeMode::Light => shared_text(locale, "Light", "สว่าง"),
+        ThemeMode::Dark => shared_text(locale, "Dark", "มืด"),
+    }
+}
 
 /// A top-level responsive shell shared by web, desktop, and mobile clients.
 #[component]
@@ -29,12 +47,18 @@ pub fn AppShell(
     header_note: Option<String>,
     /// Safe, non-secret metadata supplied by the authenticated application boundary.
     session_metadata: Option<SafeSessionMetadata>,
+    /// Display-safe principal label for the account control.
+    profile_principal: String,
+    /// Display-safe exact active-role label for the account control.
+    profile_role: String,
     /// Scope options supplied by the authenticated application boundary.
     scope_options: Vec<ScopeOption>,
     /// Selected non-secret scope key.
     selected_scope: String,
     /// Callback for requesting a scope change. The server remains authoritative.
     on_scope_change: EventHandler<String>,
+    /// Callback for opening the application-owned account and session tools.
+    on_account_session: EventHandler<()>,
     /// Callback for client-side navigation. Keeping navigation inside the mounted application
     /// preserves the in-memory session on web targets that intentionally have no browser token
     /// storage fallback.
@@ -59,6 +83,13 @@ pub fn AppShell(
     let subtitle = safe_display_text(&subtitle);
     let active_path = redact_deep_link(&active_path);
     let header_note = header_note.map(|note| safe_display_text(&note));
+    let profile_principal = safe_display_text(&profile_principal);
+    let profile_role = safe_display_text(&profile_role);
+    let profile_avatar = profile_principal
+        .chars()
+        .find(|character| character.is_alphanumeric())
+        .map(|character| character.to_uppercase().to_string())
+        .unwrap_or_else(|| "?".to_owned());
     let nav_groups = nav_groups
         .into_iter()
         .map(|group| NavGroup {
@@ -70,6 +101,7 @@ pub fn AppShell(
                     label: safe_display_text(&item.label),
                     path: redact_deep_link(&item.path),
                     icon: safe_display_text(&item.icon),
+                    action_capabilities: item.action_capabilities,
                 })
                 .collect(),
         })
@@ -83,7 +115,12 @@ pub fn AppShell(
                 .find(|item| is_active(&active_path, &item.path))
                 .map(|item| (group.label.clone(), item.label.clone()))
         })
-        .unwrap_or_else(|| ("Workspace".to_owned(), brand.clone()));
+        .unwrap_or_else(|| {
+            (
+                shared_text(current_locale, "Workspace", "พื้นที่ทำงาน").to_owned(),
+                brand.clone(),
+            )
+        });
     let mut nav_collapsed = use_signal(|| !identity.tokens.navigation_expanded_by_default);
     let mut mobile_nav_open = use_signal(|| false);
     let mut command_open = use_signal(|| false);
@@ -129,7 +166,7 @@ pub fn AppShell(
             button {
                 class: if *mobile_nav_open.read() { "ui-nav-scrim visible" } else { "ui-nav-scrim" },
                 r#type: "button",
-                aria_label: "Close navigation",
+                aria_label: shared_text(current_locale, "Close navigation", "ปิดเมนูนำทาง"),
                 onclick: move |_| mobile_nav_open.set(false),
             }
             nav {
@@ -146,7 +183,11 @@ pub fn AppShell(
                     button {
                         class: "ui-icon-button ui-collapse-button",
                         r#type: "button",
-                        aria_label: if *nav_collapsed.read() { "Expand navigation" } else { "Collapse navigation" },
+                        aria_label: if *nav_collapsed.read() {
+                            shared_text(current_locale, "Expand navigation", "ขยายเมนูนำทาง")
+                        } else {
+                            shared_text(current_locale, "Collapse navigation", "ย่อเมนูนำทาง")
+                        },
                         aria_expanded: (!*nav_collapsed.read()).to_string(),
                         onclick: move |_| {
                             let next = !*nav_collapsed.read();
@@ -161,7 +202,7 @@ pub fn AppShell(
                     aria_keyshortcuts: "Control+K Meta+K",
                     onclick: move |_| command_open.set(true),
                     EnterpriseIcon { name: "search".to_owned() }
-                    span { "Search workspaces" }
+                    span { {shared_text(current_locale, "Search workspaces", "ค้นหาพื้นที่ทำงาน")} }
                     kbd { "⌘K" }
                 }
                 div { class: "ui-nav-items",
@@ -203,10 +244,10 @@ pub fn AppShell(
                     button {
                         class: "ui-icon-button ui-theme-button",
                         r#type: "button",
-                        aria_label: "Change color mode",
+                        aria_label: shared_text(current_locale, "Change color mode", "เปลี่ยนโหมดสี"),
                         onclick: move |_| theme.toggle(),
                         EnterpriseIcon { name: "theme".to_owned() }
-                        span { class: "ui-nav-label", "{theme.current().css_token()}" }
+                        span { class: "ui-nav-label", {theme_mode_label(current_locale, theme.current())} }
                     }
                 }
             }
@@ -216,12 +257,12 @@ pub fn AppShell(
                         button {
                             class: "ui-icon-button ui-mobile-menu",
                             r#type: "button",
-                            aria_label: "Open navigation",
+                            aria_label: shared_text(current_locale, "Open navigation", "เปิดเมนูนำทาง"),
                             aria_expanded: mobile_nav_open.read().to_string(),
                             onclick: move |_| mobile_nav_open.set(true),
                             EnterpriseIcon { name: "menu".to_owned() }
                         }
-                        nav { class: "ui-breadcrumbs", aria_label: "Breadcrumb",
+                        nav { class: "ui-breadcrumbs", aria_label: shared_text(current_locale, "Breadcrumb", "เส้นทางนำทาง"),
                             span { "{active_context.0}" }
                             EnterpriseIcon { name: "chevron".to_owned() }
                             strong { "{active_context.1}" }
@@ -240,11 +281,12 @@ pub fn AppShell(
                         button {
                             class: "ui-profile-button",
                             r#type: "button",
-                            aria_label: "Account and session",
-                            span { class: "ui-profile-avatar", aria_hidden: "true", "A" }
+                            aria_label: shared_text(current_locale, "Account and session", "บัญชีและเซสชัน"),
+                            onclick: move |_| on_account_session.call(()),
+                            span { class: "ui-profile-avatar", aria_hidden: "true", "{profile_avatar}" }
                             span { class: "ui-profile-copy",
-                                strong { "Administrator" }
-                                small { "Secure session" }
+                                strong { "{profile_principal}" }
+                                small { "{profile_role}" }
                             }
                         }
                     }
@@ -261,24 +303,24 @@ pub fn AppShell(
             }
             Dialog {
                 open: *command_open.read(),
-                title: "Find a workspace".to_owned(),
+                title: shared_text(current_locale, "Find a workspace", "ค้นหาพื้นที่ทำงาน").to_owned(),
                 on_close: move |_| command_open.set(false),
                 div { class: "ui-command-palette",
                     div { class: "ui-command-input",
                         EnterpriseIcon { name: "search".to_owned() }
-                        label { class: "sr-only", r#for: "erpx-command-search", "Search authorized routes" }
+                        label { class: "sr-only", r#for: "erpx-command-search", {shared_text(current_locale, "Search authorized routes", "ค้นหาเส้นทางที่ได้รับอนุญาต")} }
                         input {
                             id: "erpx-command-search",
                             r#type: "search",
                             value: "{command_query}",
-                            placeholder: "Search authorized workspaces and settings",
+                            placeholder: shared_text(current_locale, "Search authorized workspaces and settings", "ค้นหาพื้นที่ทำงานและการตั้งค่าที่ได้รับอนุญาต"),
                             autofocus: true,
                             oninput: move |event| command_query.set(event.value()),
                         }
                     }
                     div { class: "ui-command-results", role: "listbox",
                         if command_items.is_empty() {
-                            div { class: "ui-command-empty", "No authorized route matches this search." }
+                            div { class: "ui-command-empty", {shared_text(current_locale, "No authorized route matches this search.", "ไม่มีเส้นทางที่ได้รับอนุญาตตรงกับการค้นหานี้")} }
                         }
                         for item in command_items {
                             {
@@ -301,7 +343,7 @@ pub fn AppShell(
                             }
                         }
                     }
-                    p { class: "ui-safe-note", "Search is limited to server-authorized navigation. It does not index customer business records." }
+                    p { class: "ui-safe-note", {shared_text(current_locale, "Search is limited to server-authorized navigation. It does not index customer business records.", "การค้นหาจำกัดเฉพาะเมนูนำทางที่เซิร์ฟเวอร์อนุญาต และไม่จัดทำดัชนีระเบียนธุรกิจของลูกค้า")} }
                 }
             }
         }
@@ -428,6 +470,7 @@ pub fn ScopeSelector(
 /// Render persistent support, impersonation, and read-only banners from safe session metadata.
 #[component]
 pub fn SessionBanners(metadata: SafeSessionMetadata) -> Element {
+    let locale = current_locale();
     rsx! {
         div { class: "ui-session-banners", aria_live: "polite",
             if let Some(support) = metadata.support.as_ref() {
@@ -441,11 +484,10 @@ pub fn SessionBanners(metadata: SafeSessionMetadata) -> Element {
             if let Some(impersonation) = metadata.impersonation.as_ref() {
                 ContextBanner {
                     kind: BannerKind::Impersonation {
-                        message: format!(
-                            "Representing {} · {}",
-                            impersonation.represented_label,
-                            impersonation.reason
-                        ),
+                        message: match locale {
+                            Locale::En => format!("Representing {} · {}", impersonation.represented_label, impersonation.reason),
+                            Locale::Th => format!("กำลังเป็นตัวแทน {} · {}", impersonation.represented_label, impersonation.reason),
+                        },
                     }
                 }
             }
@@ -473,18 +515,34 @@ pub enum BannerKind {
 
 #[component]
 fn ContextBanner(kind: BannerKind) -> Element {
+    let locale = current_locale();
     let (class, label, message) = match kind {
-        BannerKind::ReadOnly { message } => ("readonly", "READ-ONLY", message),
+        BannerKind::ReadOnly { message } => (
+            "readonly",
+            shared_text(locale, "READ-ONLY", "อ่านอย่างเดียว"),
+            message,
+        ),
         BannerKind::Support {
             message,
             expires_at,
         } => (
             "support",
-            "SUPPORT ACCESS",
-            format!("{message} · Expires {expires_at}"),
+            shared_text(locale, "SUPPORT ACCESS", "สิทธิ์เข้าถึงเพื่อสนับสนุน"),
+            match locale {
+                Locale::En => format!("{message} · Expires {expires_at}"),
+                Locale::Th => format!("{message} · หมดอายุ {expires_at}"),
+            },
         ),
-        BannerKind::Impersonation { message } => ("impersonation", "IMPERSONATION", message),
-        BannerKind::Stale { message } => ("stale", "STALE READ MODEL", message),
+        BannerKind::Impersonation { message } => (
+            "impersonation",
+            shared_text(locale, "IMPERSONATION", "การสวมสิทธิ์"),
+            message,
+        ),
+        BannerKind::Stale { message } => (
+            "stale",
+            shared_text(locale, "STALE READ MODEL", "แบบจำลองการอ่านล้าสมัย"),
+            message,
+        ),
     };
     let message = safe_banner_text(&message);
     rsx! {
@@ -555,13 +613,19 @@ fn safe_field_name(value: &str) -> String {
 pub fn LocaleToggle() -> Element {
     let locale = use_locale();
     let current = locale.current();
+    let target = current.toggled();
+    let accessible_label = match target {
+        Locale::En => shared_text(current, "Switch to English", "เปลี่ยนเป็นภาษาอังกฤษ"),
+        Locale::Th => shared_text(current, "Switch to Thai", "เปลี่ยนเป็นภาษาไทย"),
+    };
     rsx! {
         button {
-            class: "ui-icon-button",
+            class: "ui-icon-button ui-locale-toggle",
             r#type: "button",
-            aria_label: locale.text(TranslationKey::SwitchLanguage),
-            onclick: move |_| locale.set(current.toggled()),
-            "{current.toggled().native_name()}"
+            aria_label: accessible_label,
+            title: accessible_label,
+            onclick: move |_| locale.set(target),
+            "{target.native_name()}"
         }
     }
 }
@@ -693,6 +757,7 @@ pub struct CorporateIdentityEditorSubmission {
     pub locked_categories: BTreeSet<BrandCategory>,
     pub reason: String,
     pub mfa_code: String,
+    pub rollback_source_version: Option<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -729,6 +794,7 @@ pub fn CorporateIdentityEditor(
     editable: bool,
     on_action: Option<EventHandler<CorporateIdentityEditorAction>>,
 ) -> Element {
+    let locale = current_locale();
     let mut display_name = use_signal(|| profile.display_name.clone());
     let mut short_name = use_signal(|| profile.short_name.clone());
     let mut light_primary = use_signal(|| profile.tokens.light.primary.as_str().to_owned());
@@ -747,6 +813,7 @@ pub fn CorporateIdentityEditor(
     let mut preview_device = use_signal(|| "desktop".to_owned());
     let mut reason = use_signal(String::new);
     let mut mfa_code = use_signal(String::new);
+    let mut rollback_source_version = use_signal(String::new);
 
     let parent_locked = parent_locked_categories
         .into_iter()
@@ -768,8 +835,18 @@ pub fn CorporateIdentityEditor(
     let token_validation = colors_valid.then(|| preview.tokens.validate()).transpose();
     let publication_error = match token_validation {
         Ok(Some(())) => None,
-        Err(error) => Some(format!("Publication blocked: {error:?}")),
-        Ok(None) => Some("Publication blocked: colors must use #RRGGBB.".to_owned()),
+        Err(error) => Some(format!(
+            "{}: {error:?}",
+            shared_text(locale, "Publication blocked", "ไม่สามารถเผยแพร่ได้")
+        )),
+        Ok(None) => Some(
+            shared_text(
+                locale,
+                "Publication blocked: colors must use #RRGGBB.",
+                "ไม่สามารถเผยแพร่ได้: สีต้องอยู่ในรูปแบบ #RRGGBB",
+            )
+            .to_owned(),
+        ),
     };
     let preview_style = corporate_identity_style(&preview);
     let preview_class = format!(
@@ -788,65 +865,78 @@ pub fn CorporateIdentityEditor(
         locked_categories: locked_categories.read().clone(),
         reason: safe_display_text(&reason.read()).to_string(),
         mfa_code: mfa_code.read().trim().to_owned(),
+        rollback_source_version: rollback_source_version
+            .read()
+            .trim()
+            .parse::<u64>()
+            .ok()
+            .filter(|version| *version > 0),
     };
     let publish_disabled = !editable
         || publication_error.is_some()
         || submission.reason.is_empty()
         || submission.mfa_code.is_empty();
     let save_disabled = !editable || publication_error.is_some() || submission.reason.is_empty();
+    let rollback_disabled = !editable
+        || submission.reason.is_empty()
+        || submission.mfa_code.is_empty()
+        || submission.rollback_source_version.is_none();
 
     rsx! {
         SettingsLayout {
-            title: "Corporate identity".to_owned(),
-            description: format!("{scope_label} · published v{version} · {inherited_count} inherited categories"),
+            title: shared_text(locale, "Corporate identity", "อัตลักษณ์องค์กร").to_owned(),
+            description: match locale {
+                Locale::En => format!("{scope_label} · published v{version} · {inherited_count} inherited categories"),
+                Locale::Th => format!("{scope_label} · เผยแพร่ v{version} · หมวดหมู่ที่สืบทอด {inherited_count} รายการ"),
+            },
             actions: None,
             div { class: "ui-brand-editor",
-                aside { class: "ui-brand-controls", aria_label: "Corporate identity tokens",
+                aside { class: "ui-brand-controls", aria_label: shared_text(locale, "Corporate identity tokens", "โทเค็นอัตลักษณ์องค์กร"),
                     section { class: "ui-brand-control-section",
-                        div { class: "ui-brand-section-heading", h4 { "Identity" } span { "Typed display fields" } }
-                        label { "Display name" input { value: "{display_name}", maxlength: "96", disabled: !editable, oninput: move |event| display_name.set(event.value()) } }
-                        label { "Short name" input { value: "{short_name}", maxlength: "16", disabled: !editable, oninput: move |event| short_name.set(event.value()) } }
+                        div { class: "ui-brand-section-heading", h4 { {shared_text(locale, "Identity", "อัตลักษณ์")} } span { {shared_text(locale, "Typed display fields", "ฟิลด์แสดงผลที่กำหนดชนิด")} } }
+                        label { {shared_text(locale, "Display name", "ชื่อที่แสดง")} input { value: "{display_name}", maxlength: "96", disabled: !editable, oninput: move |event| display_name.set(event.value()) } }
+                        label { {shared_text(locale, "Short name", "ชื่อย่อ")} input { value: "{short_name}", maxlength: "16", disabled: !editable, oninput: move |event| short_name.set(event.value()) } }
                     }
                     section { class: "ui-brand-control-section",
-                        div { class: "ui-brand-section-heading", h4 { "Color" } span { "Light and dark required" } }
+                        div { class: "ui-brand-section-heading", h4 { {shared_text(locale, "Color", "สี")} } span { {shared_text(locale, "Light and dark required", "ต้องกำหนดทั้งโหมดสว่างและมืด")} } }
                         div { class: "ui-brand-color-grid",
-                            label { "Light primary" input { r#type: "color", value: "{light_primary}", disabled: !editable, oninput: move |event| light_primary.set(event.value()) } }
-                            label { "Light accent" input { r#type: "color", value: "{light_accent}", disabled: !editable, oninput: move |event| light_accent.set(event.value()) } }
-                            label { "Dark primary" input { r#type: "color", value: "{dark_primary}", disabled: !editable, oninput: move |event| dark_primary.set(event.value()) } }
-                            label { "Dark accent" input { r#type: "color", value: "{dark_accent}", disabled: !editable, oninput: move |event| dark_accent.set(event.value()) } }
+                            label { {shared_text(locale, "Light primary", "สีหลักโหมดสว่าง")} input { r#type: "color", value: "{light_primary}", disabled: !editable, oninput: move |event| light_primary.set(event.value()) } }
+                            label { {shared_text(locale, "Light accent", "สีเน้นโหมดสว่าง")} input { r#type: "color", value: "{light_accent}", disabled: !editable, oninput: move |event| light_accent.set(event.value()) } }
+                            label { {shared_text(locale, "Dark primary", "สีหลักโหมดมืด")} input { r#type: "color", value: "{dark_primary}", disabled: !editable, oninput: move |event| dark_primary.set(event.value()) } }
+                            label { {shared_text(locale, "Dark accent", "สีเน้นโหมดมืด")} input { r#type: "color", value: "{dark_accent}", disabled: !editable, oninput: move |event| dark_accent.set(event.value()) } }
                         }
                     }
                     section { class: "ui-brand-control-section",
-                        div { class: "ui-brand-section-heading", h4 { "Presentation" } span { "Curated values only" } }
-                        label { "Font pack" select { value: font_pack.read().as_str(), disabled: !editable, onchange: move |event| if let Ok(value) = BrandFontPack::parse(&event.value()) { font_pack.set(value); },
+                        div { class: "ui-brand-section-heading", h4 { {shared_text(locale, "Presentation", "การนำเสนอ")} } span { {shared_text(locale, "Curated values only", "ใช้เฉพาะค่าที่กำหนดไว้")} } }
+                        label { {shared_text(locale, "Font pack", "ชุดแบบอักษร")} select { value: font_pack.read().as_str(), disabled: !editable, onchange: move |event| if let Ok(value) = BrandFontPack::parse(&event.value()) { font_pack.set(value); },
                             option { value: "erpx_sans", "ERPX Sans" }
                             option { value: "corporate_sans", "Corporate Sans" }
                             option { value: "thai_formal", "Thai Formal" }
                             option { value: "system_ui", "System UI" }
                         } }
-                        label { "Density" select { value: density.read().as_str(), disabled: !editable, onchange: move |event| density.set(match event.value().as_str() { "compact" => BrandDensity::Compact, "spacious" => BrandDensity::Spacious, _ => BrandDensity::Comfortable }),
-                            option { value: "compact", "Compact" } option { value: "comfortable", "Comfortable" } option { value: "spacious", "Spacious" }
+                        label { {shared_text(locale, "Density", "ความหนาแน่น")} select { value: density.read().as_str(), disabled: !editable, onchange: move |event| density.set(match event.value().as_str() { "compact" => BrandDensity::Compact, "spacious" => BrandDensity::Spacious, _ => BrandDensity::Comfortable }),
+                            option { value: "compact", {shared_text(locale, "Compact", "กระชับ")} } option { value: "comfortable", {shared_text(locale, "Comfortable", "สบายตา")} } option { value: "spacious", {shared_text(locale, "Spacious", "โปร่ง")} }
                         } }
-                        label { "Shape" select { value: radius.read().as_str(), disabled: !editable, onchange: move |event| radius.set(match event.value().as_str() { "square" => BrandRadius::Square, "rounded" => BrandRadius::Rounded, _ => BrandRadius::Soft }),
-                            option { value: "square", "Square" } option { value: "soft", "Soft" } option { value: "rounded", "Rounded" }
+                        label { {shared_text(locale, "Shape", "รูปทรง")} select { value: radius.read().as_str(), disabled: !editable, onchange: move |event| radius.set(match event.value().as_str() { "square" => BrandRadius::Square, "rounded" => BrandRadius::Rounded, _ => BrandRadius::Soft }),
+                            option { value: "square", {shared_text(locale, "Square", "เหลี่ยม")} } option { value: "soft", {shared_text(locale, "Soft", "นุ่มนวล")} } option { value: "rounded", {shared_text(locale, "Rounded", "โค้งมน")} }
                         } }
-                        label { "Elevation" select { value: elevation.read().as_str(), disabled: !editable, onchange: move |event| elevation.set(match event.value().as_str() { "flat" => BrandElevation::Flat, "elevated" => BrandElevation::Elevated, _ => BrandElevation::Subtle }),
-                            option { value: "flat", "Flat" } option { value: "subtle", "Subtle" } option { value: "elevated", "Elevated" }
+                        label { {shared_text(locale, "Elevation", "ระดับเงา")} select { value: elevation.read().as_str(), disabled: !editable, onchange: move |event| elevation.set(match event.value().as_str() { "flat" => BrandElevation::Flat, "elevated" => BrandElevation::Elevated, _ => BrandElevation::Subtle }),
+                            option { value: "flat", {shared_text(locale, "Flat", "เรียบ")} } option { value: "subtle", {shared_text(locale, "Subtle", "บางเบา")} } option { value: "elevated", {shared_text(locale, "Elevated", "ยกขึ้น")} }
                         } }
-                        label { "Navigation" select { value: navigation.read().as_str(), disabled: !editable, onchange: move |event| navigation.set(if event.value() == "solid" { BrandNavigation::Solid } else { BrandNavigation::Tinted }),
-                            option { value: "solid", "Solid rail" } option { value: "tinted", "Tinted rail" }
+                        label { {shared_text(locale, "Navigation", "การนำทาง")} select { value: navigation.read().as_str(), disabled: !editable, onchange: move |event| navigation.set(if event.value() == "solid" { BrandNavigation::Solid } else { BrandNavigation::Tinted }),
+                            option { value: "solid", {shared_text(locale, "Solid rail", "แถบสีทึบ")} } option { value: "tinted", {shared_text(locale, "Tinted rail", "แถบสีอ่อน")} }
                         } }
-                        label { "Motion" select { value: motion.read().as_str(), disabled: !editable, onchange: move |event| motion.set(match event.value().as_str() { "none" => BrandMotion::None, "standard" => BrandMotion::Standard, _ => BrandMotion::Subtle }),
-                            option { value: "none", "None" } option { value: "subtle", "Subtle" } option { value: "standard", "Standard" }
+                        label { {shared_text(locale, "Motion", "การเคลื่อนไหว")} select { value: motion.read().as_str(), disabled: !editable, onchange: move |event| motion.set(match event.value().as_str() { "none" => BrandMotion::None, "standard" => BrandMotion::Standard, _ => BrandMotion::Subtle }),
+                            option { value: "none", {shared_text(locale, "None", "ไม่มี")} } option { value: "subtle", {shared_text(locale, "Subtle", "นุ่มนวล")} } option { value: "standard", {shared_text(locale, "Standard", "มาตรฐาน")} }
                         } }
                     }
                 }
-                section { class: "ui-brand-preview-region", aria_label: "Live corporate identity preview",
+                section { class: "ui-brand-preview-region", aria_label: shared_text(locale, "Live corporate identity preview", "ตัวอย่างอัตลักษณ์องค์กรแบบสด"),
                     div { class: "ui-brand-preview-toolbar",
-                        div { role: "group", aria_label: "Preview device",
-                            for device in ["desktop", "tablet", "mobile"] { button { class: if preview_device.read().as_str() == device { "active" } else { "" }, r#type: "button", onclick: move |_| preview_device.set(device.to_owned()), "{device}" } }
+                        div { role: "group", aria_label: shared_text(locale, "Preview device", "อุปกรณ์ตัวอย่าง"),
+                            for (device, label) in [("desktop", shared_text(locale, "Desktop", "เดสก์ท็อป")), ("tablet", shared_text(locale, "Tablet", "แท็บเล็ต")), ("mobile", shared_text(locale, "Mobile", "มือถือ"))] { button { class: if preview_device.read().as_str() == device { "active" } else { "" }, r#type: "button", onclick: move |_| preview_device.set(device.to_owned()), "{label}" } }
                         }
-                        div { role: "group", aria_label: "Preview language and mode",
+                        div { role: "group", aria_label: shared_text(locale, "Preview language and mode", "ภาษาและโหมดตัวอย่าง"),
                             button { r#type: "button", onclick: move |_| preview_locale.set(if preview_locale.read().as_str() == "English" { "ไทย".to_owned() } else { "English".to_owned() }), "{preview_locale}" }
                             button { r#type: "button", onclick: move |_| preview_theme.set(if preview_theme.read().as_str() == "light" { "dark".to_owned() } else { "light".to_owned() }), "{preview_theme}" }
                         }
@@ -854,25 +944,25 @@ pub fn CorporateIdentityEditor(
                     div { class: "{preview_class}", style: "{preview_style}",
                         div { class: "ui-brand-preview-shell",
                             aside { span { class: "ui-brand-preview-mark", "{preview.short_name}" } strong { "{preview.display_name}" }
-                                nav { span { class: "active", "Dashboard" } span { "Finance" } span { "People & roles" } span { "Settings" } }
+                                nav { span { class: "active", {if preview_locale.read().as_str() == "ไทย" { "แดชบอร์ด" } else { "Dashboard" }} } span { {if preview_locale.read().as_str() == "ไทย" { "การเงิน" } else { "Finance" }} } span { {if preview_locale.read().as_str() == "ไทย" { "บุคลากรและบทบาท" } else { "People & roles" }} } span { {if preview_locale.read().as_str() == "ไทย" { "การตั้งค่า" } else { "Settings" }} } }
                             }
                             main {
-                                header { small { "{preview_locale} · {scope_label}" } button { "Primary action" } }
+                                header { small { "{preview_locale} · {scope_label}" } button { {if preview_locale.read().as_str() == "ไทย" { "การดำเนินการหลัก" } else { "Primary action" }} } }
                                 div { class: "ui-brand-preview-content",
-                                    div { class: "ui-brand-preview-kpis", for (label, value) in [("Open approvals", "12"), ("Healthy services", "9/10"), ("Directory freshness", "30s")] { article { small { "{label}" } strong { "{value}" } } } }
-                                    article { class: "ui-brand-preview-table", h5 { "Recent work" }
-                                        div { strong { "Quarter close review" } span { "Ready for approval" } }
-                                        div { strong { "Directory synchronization" } span { "Healthy" } }
+                                    div { class: "ui-brand-preview-kpis", for (label, value) in if preview_locale.read().as_str() == "ไทย" { [("รายการอนุมัติที่เปิดอยู่", "12"), ("บริการที่ปกติ", "9/10"), ("ความใหม่ของไดเรกทอรี", "30 วินาที")] } else { [("Open approvals", "12"), ("Healthy services", "9/10"), ("Directory freshness", "30s")] } { article { small { "{label}" } strong { "{value}" } } } }
+                                    article { class: "ui-brand-preview-table", h5 { {if preview_locale.read().as_str() == "ไทย" { "งานล่าสุด" } else { "Recent work" }} }
+                                        div { strong { {if preview_locale.read().as_str() == "ไทย" { "ตรวจสอบการปิดไตรมาส" } else { "Quarter close review" }} } span { {if preview_locale.read().as_str() == "ไทย" { "พร้อมอนุมัติ" } else { "Ready for approval" }} } }
+                                        div { strong { {if preview_locale.read().as_str() == "ไทย" { "ซิงโครไนซ์ไดเรกทอรี" } else { "Directory synchronization" }} } span { {if preview_locale.read().as_str() == "ไทย" { "ปกติ" } else { "Healthy" }} } }
                                     }
-                                    div { class: "ui-brand-preview-safety", strong { "Security status" } " · Mandatory ERPX safety colors are not brand configurable." }
+                                    div { class: "ui-brand-preview-safety", strong { {if preview_locale.read().as_str() == "ไทย" { "สถานะความปลอดภัย" } else { "Security status" }} } {if preview_locale.read().as_str() == "ไทย" { " · สีความปลอดภัยที่ ERPX กำหนดไม่สามารถปรับตามแบรนด์ได้" } else { " · Mandatory ERPX safety colors are not brand configurable." }} }
                                 }
                             }
                         }
                     }
                 }
-                aside { class: "ui-brand-governance", aria_label: "Identity inheritance and publication",
-                    section { h4 { "Inheritance & locks" }
-                        p { "A child can specialize only categories left unlocked by its parent." }
+                aside { class: "ui-brand-governance", aria_label: shared_text(locale, "Identity inheritance and publication", "การสืบทอดและเผยแพร่อัตลักษณ์"),
+                    section { h4 { {shared_text(locale, "Inheritance & locks", "การสืบทอดและการล็อก")} }
+                        p { {shared_text(locale, "A child can specialize only categories left unlocked by its parent.", "ระดับลูกปรับเฉพาะหมวดหมู่ที่ระดับแม่ไม่ได้ล็อกไว้เท่านั้น")} }
                         div { class: "ui-brand-category-list",
                             for category in BrandCategory::ALL {
                                 {
@@ -883,28 +973,30 @@ pub fn CorporateIdentityEditor(
                                             onchange: move |event| { let mut next = locked_categories.read().clone(); if event.checked() { next.insert(category); } else { next.remove(&category); } locked_categories.set(next); }
                                         }
                                         span { "{category.as_str()}" }
-                                        if is_parent_locked { small { "Inherited · locked by parent" } }
+                                        if is_parent_locked { small { {shared_text(locale, "Inherited · locked by parent", "สืบทอด · ล็อกโดยระดับแม่")} } }
                                     } }
                                 }
                             }
                         }
                     }
-                    section { h4 { "Validation" }
+                    section { h4 { {shared_text(locale, "Validation", "การตรวจสอบ")} }
                         if let Some(error) = publication_error.as_ref() { div { class: "ui-brand-validation bad", role: "alert", "{error}" } }
-                        else { div { class: "ui-brand-validation good", role: "status", "Both palettes pass typed token and WCAG publication checks." } }
-                        p { "Safety banners, focus visibility, destructive actions, and Root/support identity always remain ERPX controlled." }
+                        else { div { class: "ui-brand-validation good", role: "status", {shared_text(locale, "Both palettes pass typed token and WCAG publication checks.", "ชุดสีทั้งสองผ่านการตรวจสอบโทเค็นและ WCAG สำหรับการเผยแพร่")} } }
+                        p { {shared_text(locale, "Safety banners, focus visibility, destructive actions, and Root/support identity always remain ERPX controlled.", "แบนเนอร์ความปลอดภัย การมองเห็นโฟกัส การดำเนินการที่มีผลกระทบ และอัตลักษณ์ Root/ฝ่ายสนับสนุนยังอยู่ภายใต้การควบคุมของ ERPX เสมอ")} }
                     }
                     if editable {
-                        section { h4 { "Publish" }
-                            label { "Reason" textarea { value: "{reason}", maxlength: "240", oninput: move |event| reason.set(event.value()), placeholder: "Required publication reason" } }
-                            label { "Fresh MFA" input { r#type: "password", value: "{mfa_code}", autocomplete: "one-time-code", oninput: move |event| mfa_code.set(event.value()) } }
+                        section { h4 { {shared_text(locale, "Publish", "เผยแพร่")} }
+                            label { {shared_text(locale, "Reason", "เหตุผล")} textarea { value: "{reason}", maxlength: "240", oninput: move |event| reason.set(event.value()), placeholder: shared_text(locale, "Required publication reason", "ระบุเหตุผลที่ต้องเผยแพร่") } }
+                            label { {shared_text(locale, "Fresh MFA", "MFA ล่าสุด")} input { r#type: "password", value: "{mfa_code}", autocomplete: "one-time-code", oninput: move |event| mfa_code.set(event.value()) } }
+                            label { {shared_text(locale, "Immutable rollback source version", "เวอร์ชันต้นทางแบบแก้ไขไม่ได้สำหรับ rollback")} input { r#type: "number", min: "1", value: "{rollback_source_version}", oninput: move |event| rollback_source_version.set(event.value()) } }
                             div { class: "ui-brand-action-row",
-                                button { class: "ui-button", r#type: "button", disabled: save_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::SaveDraft, submission: submission.clone() }); } }, "Save draft" }
-                                button { class: "ui-button primary", r#type: "button", disabled: publish_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Publish, submission: submission.clone() }); } }, "Publish with MFA" }
+                                button { class: "ui-button", r#type: "button", disabled: save_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::SaveDraft, submission: submission.clone() }); } }, {shared_text(locale, "Save draft", "บันทึกฉบับร่าง")} }
+                                button { class: "ui-button primary", r#type: "button", disabled: publish_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Publish, submission: submission.clone() }); } }, {shared_text(locale, "Publish with MFA", "เผยแพร่ด้วย MFA")} }
+                                button { class: "ui-button danger", r#type: "button", disabled: rollback_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Rollback, submission: submission.clone() }); } }, {shared_text(locale, "Rollback with MFA", "Rollback ด้วย MFA")} }
                             }
                         }
                     } else {
-                        div { class: "ui-brand-validation neutral", "Read-only effective identity. Platform Root changes to a customer profile must use an audited proposal activated by a holding-authorized publisher." }
+                        div { class: "ui-brand-validation neutral", {shared_text(locale, "Read-only effective identity. Platform Root changes to a customer profile must use an audited proposal activated by a holding-authorized publisher.", "อัตลักษณ์ที่มีผลเป็นแบบอ่านอย่างเดียว การเปลี่ยนโปรไฟล์ลูกค้าโดย Platform Root ต้องใช้ข้อเสนอที่ตรวจสอบได้และเปิดใช้โดยผู้เผยแพร่ที่โฮลดิ้งอนุญาต")} }
                     }
                 }
             }
@@ -924,6 +1016,7 @@ pub fn TextField(
     required: bool,
     oninput: EventHandler<FormEvent>,
 ) -> Element {
+    let locale = current_locale();
     let name = safe_field_name(&name);
     let label = safe_display_text(&label);
     let value = safe_input_value(&value);
@@ -946,7 +1039,7 @@ pub fn TextField(
         div { class: "ui-field",
             label { r#for: "{input_id}", class: "ui-field-label",
                 "{label}"
-                if required { span { class: "ui-required", aria_label: "required", " *" } }
+                if required { span { class: "ui-required", aria_label: shared_text(locale, "required", "จำเป็น"), " *" } }
             }
             input {
                 id: "{input_id}",
@@ -979,6 +1072,7 @@ pub fn Field(
     required: bool,
     children: Element,
 ) -> Element {
+    let locale = current_locale();
     let name = safe_field_name(&name);
     let label = safe_display_text(&label);
     let error = error.map(|value| safe_display_text(&value));
@@ -1002,7 +1096,7 @@ pub fn Field(
             aria_describedby: described_by,
             label { id: "{label_id}", class: "ui-field-label",
                 "{label}"
-                if required { span { class: "ui-required", aria_label: "required", " *" } }
+                if required { span { class: "ui-required", aria_label: shared_text(locale, "required", "จำเป็น"), " *" } }
             }
             {children}
             if let Some(help) = help {
@@ -1035,6 +1129,7 @@ pub fn DataTable(
     empty: bool,
     children: Element,
 ) -> Element {
+    let locale = current_locale();
     let caption = safe_display_text(&caption);
     let columns = columns
         .into_iter()
@@ -1061,7 +1156,7 @@ pub fn DataTable(
                 }
                 tbody {
                     if empty {
-                        tr { td { colspan: "{column_count}", class: "ui-table-empty", "No records" } }
+                        tr { td { colspan: "{column_count}", class: "ui-table-empty", {shared_text(locale, "No records", "ไม่มีระเบียน")} } }
                     } else {
                         {children}
                     }
@@ -1112,6 +1207,7 @@ pub fn Dialog(
     #[props(default)] restore_focus: ReadSignal<Option<Rc<MountedData>>>,
     children: Element,
 ) -> Element {
+    let locale = current_locale();
     // Scope IDs are stable for the lifetime of a mounted component and avoid duplicate
     // aria-labelledby/aria-describedby targets when a page renders more than one dialog.
     let scope_id = current_scope_id().0;
@@ -1152,7 +1248,7 @@ pub fn Dialog(
     } else {
         "caller-target-required"
     };
-    let focus_guard_label = "Dialog focus boundary";
+    let focus_guard_label = shared_text(locale, "Dialog focus boundary", "ขอบเขตโฟกัสของกล่องโต้ตอบ");
     let start_focus_guard = "start";
     let end_focus_guard = "end";
     rsx! {
@@ -1252,12 +1348,16 @@ pub fn StatePanel(
     let message_id = format!("erpx-state-message-{scope_id}");
     let class = match state {
         UiStateKind::Loading => "loading",
+        UiStateKind::Submitting => "submitting",
         UiStateKind::Empty => "empty",
+        UiStateKind::Success => "success",
         UiStateKind::Denied => "denied",
         UiStateKind::Stale => "stale",
         UiStateKind::ReadOnly => "readonly",
         UiStateKind::Conflict => "conflict",
         UiStateKind::Offline => "offline",
+        UiStateKind::RetryableError => "retryable-error",
+        UiStateKind::Unavailable => "unavailable",
         UiStateKind::Error => "error",
     };
     rsx! {
@@ -1275,12 +1375,16 @@ pub fn StatePanel(
             div { class: "ui-state-icon", aria_hidden: "true",
                 match state {
                     UiStateKind::Loading => "◌",
+                    UiStateKind::Submitting => "◌",
                     UiStateKind::Empty => "○",
+                    UiStateKind::Success => "✓",
                     UiStateKind::Denied => "⊘",
                     UiStateKind::Stale => "◷",
                     UiStateKind::ReadOnly => "▣",
                     UiStateKind::Conflict => "↯",
                     UiStateKind::Offline => "⌁",
+                    UiStateKind::RetryableError => "↻",
+                    UiStateKind::Unavailable => "—",
                     UiStateKind::Error => "!",
                 }
             }
@@ -1317,6 +1421,7 @@ pub fn StateBoundary(
 /// never authenticates, refreshes, or stores credentials.
 #[component]
 pub fn RouteStateBoundary(state: RouteState, children: Element) -> Element {
+    let locale = current_locale();
     match state {
         RouteState::Authenticated { session } => rsx! {
             SessionBanners { metadata: session }
@@ -1329,51 +1434,73 @@ pub fn RouteStateBoundary(state: RouteState, children: Element) -> Element {
         },
         RouteState::Unauthenticated { return_to } => route_state_panel(
             UiStateKind::Denied,
-            "Sign-in required",
-            format!("Sign in to continue to {}.", redact_deep_link(&return_to)),
+            shared_text(locale, "Sign-in required", "ต้องเข้าสู่ระบบ"),
+            match locale {
+                Locale::En => format!("Sign in to continue to {}.", redact_deep_link(&return_to)),
+                Locale::Th => format!("เข้าสู่ระบบเพื่อไปยัง {} ต่อ", redact_deep_link(&return_to)),
+            },
         ),
         RouteState::SessionExpired { return_to } => route_state_panel(
             UiStateKind::Denied,
-            "Session expired",
-            format!(
-                "Sign in again to return to {}.",
-                redact_deep_link(&return_to)
-            ),
+            shared_text(locale, "Session expired", "เซสชันหมดอายุ"),
+            match locale {
+                Locale::En => format!(
+                    "Sign in again to return to {}.",
+                    redact_deep_link(&return_to)
+                ),
+                Locale::Th => format!("เข้าสู่ระบบอีกครั้งเพื่อกลับไปยัง {}", redact_deep_link(&return_to)),
+            },
         ),
         RouteState::SessionRevoked { return_to } => route_state_panel(
             UiStateKind::Denied,
-            "Session revoked",
-            format!(
-                "This session is no longer active. Return path: {}.",
-                redact_deep_link(&return_to)
-            ),
+            shared_text(locale, "Session revoked", "เซสชันถูกเพิกถอน"),
+            match locale {
+                Locale::En => format!(
+                    "This session is no longer active. Return path: {}.",
+                    redact_deep_link(&return_to)
+                ),
+                Locale::Th => format!(
+                    "เซสชันนี้ไม่ทำงานแล้ว เส้นทางกลับ: {}",
+                    redact_deep_link(&return_to)
+                ),
+            },
         ),
         RouteState::Offline {
             cached_view_available,
             reason,
         } => route_state_panel(
             UiStateKind::Offline,
-            "Offline",
-            if cached_view_available {
-                format!("{reason} Cached content may be available; writes remain disabled.")
-            } else {
-                format!("{reason} No cached content is available.")
+            shared_text(locale, "Offline", "ออฟไลน์"),
+            match (locale, cached_view_available) {
+                (Locale::En, true) => {
+                    format!("{reason} Cached content may be available; writes remain disabled.")
+                }
+                (Locale::En, false) => format!("{reason} No cached content is available."),
+                (Locale::Th, true) => format!("{reason} อาจมีเนื้อหาที่แคชไว้ แต่ยังปิดใช้งานการเขียน"),
+                (Locale::Th, false) => format!("{reason} ไม่มีเนื้อหาที่แคชไว้"),
             },
         ),
-        RouteState::Denied { reason } => {
-            route_state_panel(UiStateKind::Denied, "Access denied", reason)
-        }
+        RouteState::Denied { reason } => route_state_panel(
+            UiStateKind::Denied,
+            shared_text(locale, "Access denied", "ไม่มีสิทธิ์เข้าถึง"),
+            reason,
+        ),
         RouteState::Stale {
             age_seconds,
             reason,
         } => route_state_panel(
             UiStateKind::Stale,
-            "Read model may be stale",
-            format!("{reason} Last known projection age: {age_seconds} seconds."),
+            shared_text(locale, "Read model may be stale", "แบบจำลองการอ่านอาจล้าสมัย"),
+            match locale {
+                Locale::En => format!("{reason} Last known projection age: {age_seconds} seconds."),
+                Locale::Th => format!("{reason} อายุภาพฉายล่าสุดที่ทราบ: {age_seconds} วินาที"),
+            },
         ),
-        RouteState::Conflict { reason } => {
-            route_state_panel(UiStateKind::Conflict, "Changes need review", reason)
-        }
+        RouteState::Conflict { reason } => route_state_panel(
+            UiStateKind::Conflict,
+            shared_text(locale, "Changes need review", "ต้องตรวจสอบการเปลี่ยนแปลง"),
+            reason,
+        ),
     }
 }
 

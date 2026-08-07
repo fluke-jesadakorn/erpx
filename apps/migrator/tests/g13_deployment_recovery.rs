@@ -23,13 +23,17 @@ const PROTO_LIB: &str = include_str!("../../../crates/proto/src/lib.rs");
 const COMMON_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/common/v1/context.proto");
 const PLATFORM_PROTO: &str =
     include_str!("../../../crates/proto/proto/erpx/platform/v1/platform.proto");
+const IDENTITY_ACCESS_PROTO: &str =
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/identity_access.proto");
+const PLATFORM_ADMINISTRATION_PROTO: &str =
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/platform_administration.proto");
 const MIGRATOR_MAIN: &str = include_str!("../src/main.rs");
 const WORKER_LIB: &str = include_str!("../../worker/src/lib.rs");
-const WORKER_MAIN: &str = include_str!("../../worker/src/main.rs");
+const WORKER_APP: &str = include_str!("../../worker/src/app.rs");
 const PROJECTION_SCHEDULER: &str =
     include_str!("../../../crates/infrastructure/src/tenant_projection_scheduler.rs");
 const G13_TARGET_RUNTIME: &str = include_str!("../../worker/src/g13_target_runtime.rs");
-const SERVER_MAIN: &str = include_str!("../../server/src/main.rs");
+const SERVER_LIB: &str = include_str!("../../server/src/lib.rs");
 
 fn require_markers(surface: &str, name: &str, markers: &[&str]) {
     for marker in markers {
@@ -135,13 +139,15 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         PROTO_BUILD,
         "crates/proto/build.rs",
         &[
-            "rerun-if-changed=proto/erpx/common/v1/context.proto",
-            "rerun-if-changed=proto/erpx/platform/v1/platform.proto",
+            "const PROTO_SOURCE_FILES",
+            "const PROTO_ENTRYPOINTS",
+            "proto/erpx/common/v1/context.proto",
+            "proto/erpx/platform/v1/platform.proto",
+            "for proto_file in PROTO_SOURCE_FILES",
+            "cargo:rerun-if-changed={proto_file}",
             "build_client(true)",
             "build_server(true)",
-            "compile_protos(",
-            "\"proto/erpx/common/v1/context.proto\"",
-            "\"proto/erpx/platform/v1/platform.proto\"",
+            "compile_protos(PROTO_ENTRYPOINTS",
         ],
     );
     require_markers(
@@ -162,7 +168,23 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         "platform/v1/platform.proto",
         &[
             "package erpx.platform.v1;",
+            "import public \"erpx/platform/v1/identity_access.proto\"",
+            "import public \"erpx/platform/v1/platform_administration.proto\"",
+        ],
+    );
+    require_markers(
+        PLATFORM_ADMINISTRATION_PROTO,
+        "platform/v1/platform_administration.proto",
+        &[
+            "package erpx.platform.v1;",
             "service PlatformOperationsService",
+        ],
+    );
+    require_markers(
+        IDENTITY_ACCESS_PROTO,
+        "platform/v1/identity_access.proto",
+        &[
+            "package erpx.platform.v1;",
             "service DirectoryService",
             "reserved",
             "wire compatibility",
@@ -189,8 +211,8 @@ fn g13_worker_restart_idempotency_and_observability_seams_are_present() {
         ],
     );
     require_markers(
-        WORKER_MAIN,
-        "apps/worker/src/main.rs",
+        WORKER_APP,
+        "apps/worker/src/app.rs",
         &[
             "tracing_subscriber::fmt::init()",
             "run_registered_until_shutdown",
@@ -213,8 +235,8 @@ fn g13_worker_restart_idempotency_and_observability_seams_are_present() {
         ],
     );
     require_markers(
-        SERVER_MAIN,
-        "apps/server/src/main.rs",
+        SERVER_LIB,
+        "apps/server/src/lib.rs",
         &[
             "\"/healthz\"",
             "\"/readyz\"",

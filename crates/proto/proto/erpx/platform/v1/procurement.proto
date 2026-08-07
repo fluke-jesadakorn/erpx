@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package erpx.platform.v1;
+
+import "erpx/common/v1/context.proto";
+
+enum PurchaseOrderStatus {
+  PURCHASE_ORDER_STATUS_UNSPECIFIED = 0;
+  PURCHASE_ORDER_STATUS_DRAFT = 1;
+  PURCHASE_ORDER_STATUS_RELEASED = 2;
+  PURCHASE_ORDER_STATUS_CANCELLED = 3;
+}
+message PurchaseOrderLineRecord {
+  string line_id = 1;
+  string item_code = 2;
+  int64 ordered_quantity = 3;
+  int64 unit_price_minor = 4;
+  string currency = 5;
+  string destination_code = 6;
+}
+message PurchaseOrderRecord {
+  string purchase_order_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string order_code = 4;
+  string supplier_id = 5;
+  string currency = 6;
+  repeated PurchaseOrderLineRecord lines = 7;
+  PurchaseOrderStatus status = 8;
+  string created_at = 9;
+  string updated_at = 10;
+  string projected_at = 11;
+}
+message CreatePurchaseOrderRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string purchase_order_id = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string order_code = 4;
+  string supplier_id = 5;
+  string currency = 6;
+  repeated PurchaseOrderLineRecord lines = 7;
+}
+message ReleasePurchaseOrderRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string purchase_order_id = 2;
+}
+message CancelPurchaseOrderRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string purchase_order_id = 2;
+}
+message PurchaseOrderMutationResponse {
+  erpx.common.v1.CommandReceipt receipt = 1;
+  PurchaseOrderRecord order = 2;
+}
+message GetPurchaseOrderRequest {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  string purchase_order_id = 2;
+}
+message GetPurchaseOrderResponse {
+  optional PurchaseOrderRecord order = 1;
+  erpx.common.v1.QueryMetadata metadata = 2;
+}
+message ListPurchaseOrdersRequest {
+  erpx.common.v1.QueryRequestMetadata metadata = 1;
+  optional PurchaseOrderStatus status = 2;
+  optional string supplier_id = 3;
+  uint32 page_size = 4;
+  optional string cursor = 5;
+}
+message ListPurchaseOrdersResponse {
+  repeated PurchaseOrderRecord orders = 1;
+  optional string next_cursor = 2;
+  erpx.common.v1.QueryMetadata metadata = 3;
+}
+service ProcurementCommandService {
+  rpc Create(CreatePurchaseOrderRequest) returns (PurchaseOrderMutationResponse);
+  rpc Release(ReleasePurchaseOrderRequest) returns (PurchaseOrderMutationResponse);
+  rpc Cancel(CancelPurchaseOrderRequest) returns (PurchaseOrderMutationResponse);
+}
+service ProcurementQueryService {
+  rpc Get(GetPurchaseOrderRequest) returns (GetPurchaseOrderResponse);
+  rpc List(ListPurchaseOrdersRequest) returns (ListPurchaseOrdersResponse);
+}

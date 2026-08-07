@@ -17,6 +17,56 @@ use uuid::Uuid;
 use crate::{PersistenceError, SqlxControlPlane, tenant_holding_scope_id};
 
 pub const MAX_TENANT_SUMMARY_PAGE_SIZE: u32 = 100;
+pub const MAX_TENANT_CONTROL_HISTORY_PAGE_SIZE: u32 = 100;
+
+const SAFE_TENANT_CONTROL_OUTBOX_ACTIONS: &[&str] = &[
+    "corporate_identity.draft.saved",
+    "corporate_identity.published",
+    "corporate_identity.rolled_back",
+    "tenant.agent.enrolled",
+    "tenant.agent.enrollment.issued",
+    "tenant.agent.observation.recorded",
+    "tenant.agent.offline",
+    "tenant.configuration.active",
+    "tenant.configuration.approved",
+    "tenant.configuration.proposed",
+    "tenant.configuration.rejected",
+    "tenant.infrastructure.profile.updated",
+    "tenant.root_access.activated",
+    "tenant.root_access.rejected",
+    "tenant.root_access.requested",
+    "tenant.root_access.revoked",
+];
+
+const SAFE_TENANT_CONTROL_AUDIT_ACTIONS: &[&str] = &[
+    "organization.units.discover",
+    "platform.tenant.enter",
+    "platform.tenant.exit",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TenantControlHistoryCursor {
+    pub occurred_at: DateTime<Utc>,
+    pub event_id: Uuid,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TenantControlHistoryEntry {
+    pub event_id: Uuid,
+    pub event_category: String,
+    pub safe_action: String,
+    pub aggregate_version: u64,
+    pub actor_ref: String,
+    pub correlation_id: Uuid,
+    pub occurred_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TenantControlHistoryPage {
+    pub entries: Vec<TenantControlHistoryEntry>,
+    pub has_more: bool,
+    pub next_cursor: Option<TenantControlHistoryCursor>,
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TenantRegistryFilter {
@@ -128,6 +178,132 @@ pub struct SqlxTenantAdministrationStore {
 }
 
 impl SqlxTenantAdministrationStore {
+    pub async fn tenant_id_for_root_holding(
+        &self,
+        root_holding_id: Uuid,
+    ) -> Result<Option<String>, PersistenceError> {
+        if root_holding_id.is_nil() {
+            return Err(PersistenceError::InvalidData(
+                "root holding ID is required".into(),
+            ));
+        }
+        let rows: Vec<String> = sqlx::query_scalar(
+            "SELECT tenant_id
+             FROM erpx_control.customer_tenant_bindings
+             WHERE root_holding_id=$1
+             ORDER BY tenant_id
+             LIMIT 2",
+        )
+        .bind(root_holding_id)
+        .fetch_all(&self.control.pools.read)
+        .await?;
+        match rows.as_slice() {
+            [] => Ok(None),
+            [tenant_id] => Ok(Some(tenant_id.clone())),
+            _ => Err(PersistenceError::InvalidData(
+                "root holding is bound to multiple tenants".into(),
+            )),
+        }
+    }
+
+    pub async fn list_control_history(
+        &self,
+        tenant_id: &str,
+        cursor: Option<TenantControlHistoryCursor>,
+        page_size: u32,
+    ) -> Result<TenantControlHistoryPage, PersistenceError> {
+        validate_reference(tenant_id, "tenant_id", 128)?;
+        if page_size == 0 || page_size > MAX_TENANT_CONTROL_HISTORY_PAGE_SIZE {
+            return Err(PersistenceError::InvalidData(
+                "tenant control history page size must be between 1 and 100".into(),
+            ));
+        }
+        let limit = i64::from(page_size) + 1;
+        let cursor_at = cursor.map(|value| value.occurred_at);
+        let cursor_id = cursor.map(|value| value.event_id);
+        let rows = sqlx::query(
+            "WITH safe_history AS (
+                 SELECT id AS event_id,
+                        CASE
+                          WHEN event_type LIKE 'tenant.root_access.%' THEN 'root_access'
+                          WHEN event_type LIKE 'corporate_identity.%' THEN 'corporate_identity'
+                          ELSE 'infrastructure'
+                        END AS event_category,
+                        event_type AS safe_action,
+                        aggregate_version,
+                        COALESCE(actor->>'principal_ref', 'system') AS actor_ref,
+                        correlation_id,
+                        occurred_at
+                 FROM erpx_control.outbox_events
+                 WHERE tenant_scope->>'tenant_id' = $1
+                   AND event_type = ANY($4)
+                 UNION ALL
+                 SELECT id AS event_id,
+                        CASE WHEN module_key='organization' THEN 'organization' ELSE 'administration' END,
+                        action AS safe_action,
+                        0::BIGINT AS aggregate_version,
+                        platform_actor_ref AS actor_ref,
+                        correlation_id,
+                        occurred_at
+                 FROM erpx_control.tenant_platform_access_audit
+                 WHERE tenant_id = $1
+                   AND action = ANY($5)
+             )
+             SELECT event_id, event_category, safe_action, aggregate_version,
+                    actor_ref, correlation_id, occurred_at
+             FROM safe_history
+             WHERE $2::TIMESTAMPTZ IS NULL
+                OR (occurred_at, event_id) < ($2, $3)
+             ORDER BY occurred_at DESC, event_id DESC
+             LIMIT $6",
+        )
+        .bind(tenant_id)
+        .bind(cursor_at)
+        .bind(cursor_id)
+        .bind(SAFE_TENANT_CONTROL_OUTBOX_ACTIONS)
+        .bind(SAFE_TENANT_CONTROL_AUDIT_ACTIONS)
+        .bind(limit)
+        .fetch_all(&self.control.pools.write)
+        .await?;
+
+        let mut entries = rows
+            .iter()
+            .map(|row| {
+                let aggregate_version = u64::try_from(row.try_get::<i64, _>("aggregate_version")?)
+                    .map_err(|_| {
+                        PersistenceError::InvalidData(
+                            "tenant control history aggregate version is invalid".into(),
+                        )
+                    })?;
+                Ok(TenantControlHistoryEntry {
+                    event_id: row.try_get("event_id")?,
+                    event_category: row.try_get("event_category")?,
+                    safe_action: row.try_get("safe_action")?,
+                    aggregate_version,
+                    actor_ref: row.try_get("actor_ref")?,
+                    correlation_id: row.try_get("correlation_id")?,
+                    occurred_at: row.try_get("occurred_at")?,
+                })
+            })
+            .collect::<Result<Vec<_>, PersistenceError>>()?;
+        let has_more = entries.len() > page_size as usize;
+        if has_more {
+            entries.truncate(page_size as usize);
+        }
+        let next_cursor = has_more && !entries.is_empty();
+        Ok(TenantControlHistoryPage {
+            next_cursor: next_cursor.then(|| {
+                let last = entries.last().expect("non-empty history page");
+                TenantControlHistoryCursor {
+                    occurred_at: last.occurred_at,
+                    event_id: last.event_id,
+                }
+            }),
+            entries,
+            has_more,
+        })
+    }
+
     pub fn new(control: Arc<SqlxControlPlane>) -> Self {
         Self { control }
     }

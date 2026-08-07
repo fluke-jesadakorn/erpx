@@ -1,0 +1,8 @@
+-- Quality commands use the shared CQRS write schema. The migration owner must
+-- install the foundation contract before enabling this adapter:
+--   erpx_cqrs_write.aggregate_snapshots
+--   erpx_cqrs_write.command_receipts
+--   erpx_cqrs_write.audit_log
+--   erpx_cqrs_write.outbox_events
+-- No context-specific write table is required because the authoritative
+-- Quality aggregate is persisted as a validated typed snapshot.

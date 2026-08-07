@@ -13,9 +13,10 @@ const ASSET_PERSISTENCE: &str =
 const ASSET_LIVE_TEST: &str =
     include_str!("../../../crates/infrastructure/tests/asset_maintenance_persistence.rs");
 const PLATFORM_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/platform.proto");
-const SERVER_MAIN: &str = include_str!("../../server/src/main.rs");
-const WORKER_MAIN: &str = include_str!("../../worker/src/main.rs");
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/asset_maintenance.proto");
+const SERVER_RUNTIME: &str = include_str!("../../server/src/lib.rs");
+const SERVER_WAVE6_COMPOSITION: &str = include_str!("../../server/src/wave6_composition.rs");
+const WORKER_APP: &str = include_str!("../../worker/src/app.rs");
 
 fn require_markers(surface: &str, name: &str, markers: &[&str]) {
     let missing = markers
@@ -231,11 +232,17 @@ fn asset_maintenance_coordinator_transport_is_present() {
         ],
     );
     require_markers(
-        SERVER_MAIN,
-        "server/main.rs",
+        SERVER_RUNTIME,
+        "server/lib.rs transport and registration",
         &[
             "impl AssetMaintenanceService for AssetMaintenanceRpcImpl",
             "AssetMaintenanceServiceServer::new",
+        ],
+    );
+    require_markers(
+        SERVER_WAVE6_COMPOSITION,
+        "server/wave6_composition.rs routing and authorization",
+        &[
             "asset_maintenance.write",
             "asset_maintenance.read",
             "RoutedDatabaseSide::Write",
@@ -243,8 +250,8 @@ fn asset_maintenance_coordinator_transport_is_present() {
         ],
     );
     require_markers(
-        WORKER_MAIN,
-        "worker/main.rs",
+        WORKER_APP,
+        "worker/app.rs",
         &[
             "ProductProjectionExecutor::AssetMaintenance",
             "\"asset_maintenance\" =>",

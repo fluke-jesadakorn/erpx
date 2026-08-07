@@ -7,22 +7,78 @@ license.workspace = true
 
 [features]
 default = ["web"]
-web = ["dioxus/web", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
+web = [
+    "dioxus/web",
+    "dioxus/fullstack",
+    "dioxus/router",
+    "dioxus/lib",
+    "dioxus/launch",
+    "dioxus/devtools",
+]
+server = [
+    "dioxus/server",
+    "dioxus/fullstack",
+    "dioxus/router",
+    "dioxus/lib",
+    "dioxus/launch",
+    "dep:base64",
+    "dep:erpx-web-session",
+    "dep:erpx-web-session-sqlx",
+    "dep:reqwest",
+    "dep:sqlx",
+    "dep:tokio",
+]
 desktop = ["dioxus/desktop", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
 mobile = ["dioxus/mobile", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
 
 [dependencies]
+async-trait.workspace = true
+base64 = { workspace = true, optional = true }
+chrono.workspace = true
 dioxus = { workspace = true, features = ["signals"] }
-erpx-domain = { path = "../../crates/domain" }
-erpx-proto = { path = "../../crates/proto" }
-erpx-ui = { path = "../../crates/ui" }
-prost-types = "0.14.4"
+erpx-assets.workspace = true
+erpx-brand.workspace = true
+erpx-commercial.workspace = true
+erpx-domain.workspace = true
+erpx-finance.workspace = true
+erpx-cqrs.workspace = true
+erpx-crm.workspace = true
+erpx-customer-authority.workspace = true
+erpx-customer-360.workspace = true
+erpx-identity-access.workspace = true
+erpx-integration-contracts.workspace = true
+erpx-inventory.workspace = true
+erpx-kernel.workspace = true
+erpx-legal.workspace = true
+erpx-maintenance.workspace = true
+erpx-marketing.workspace = true
+erpx-organization.workspace = true
+erpx-operations.workspace = true
+erpx-people-payroll.workspace = true
+erpx-pos.workspace = true
+erpx-platform-administration.workspace = true
+erpx-procurement.workspace = true
+erpx-proto.workspace = true
+erpx-quality.workspace = true
+erpx-sales.workspace = true
+erpx-support.workspace = true
+erpx-ui.workspace = true
+erpx-ui-foundation.workspace = true
+erpx-web-session = { workspace = true, optional = true }
+erpx-web-session-sqlx = { workspace = true, optional = true }
+prost-types.workspace = true
+reqwest = { workspace = true, optional = true }
+serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
+sqlx = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tonic.workspace = true
-tonic-web-wasm-client = "0.9.1"
+tonic-web-wasm-client.workspace = true
 uuid = { workspace = true, features = ["js"] }
+web-sys = { workspace = true, features = ["Location", "Window"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tonic = { workspace = true, features = ["transport"] }

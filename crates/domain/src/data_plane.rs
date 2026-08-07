@@ -22,6 +22,7 @@ pub const TENANT_INFRASTRUCTURE_APPROVE: &str = "tenant.infrastructure.approve";
 pub const TENANT_INFRASTRUCTURE_APPLY: &str = "tenant.infrastructure.apply";
 pub const TENANT_AGENT_ENROLL: &str = "tenant.agent.enroll";
 pub const TENANT_AGENT_ROTATE: &str = "tenant.agent.rotate";
+pub const TENANT_ROOT_ACCESS_READ: &str = "tenant.root-access.read";
 pub const TENANT_ROOT_ACCESS_REQUEST: &str = "tenant.root-access.request";
 pub const TENANT_ROOT_ACCESS_APPROVE: &str = "tenant.root-access.approve";
 pub const TENANT_ROOT_ACCESS_REVOKE: &str = "tenant.root-access.revoke";
@@ -647,14 +648,33 @@ pub struct RootAccessApproval {
     pub fresh_mfa: bool,
 }
 
+/// Separation-of-duty policy applied by the persistence boundary. The local
+/// exception is deliberately explicit so production callers cannot acquire it
+/// through an omitted or permissive default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ApprovalPolicy {
+    #[default]
+    Strict,
+    LocalDevelopmentException,
+}
+
 impl RootAccessApproval {
     pub fn validate_for(&self, request: &RootAccessRequest) -> Result<(), DataPlaneContractError> {
+        self.validate_for_with_policy(request, ApprovalPolicy::Strict)
+    }
+
+    pub fn validate_for_with_policy(
+        &self,
+        request: &RootAccessRequest,
+        policy: ApprovalPolicy,
+    ) -> Result<(), DataPlaneContractError> {
         request.validate()?;
         if self.request_id != request.id {
             return Err(DataPlaneContractError::ApprovalRequestMismatch);
         }
         validate_reference(&self.approver, "approver")?;
-        if self.approver == request.requester {
+        if self.approver == request.requester && matches!(policy, ApprovalPolicy::Strict) {
             return Err(DataPlaneContractError::ApproverMustDifferFromRequester);
         }
         if !self.fresh_mfa {
@@ -1338,6 +1358,9 @@ mod tests {
             approval.validate_for(&request),
             Err(DataPlaneContractError::ApproverMustDifferFromRequester)
         );
+        approval
+            .validate_for_with_policy(&request, ApprovalPolicy::LocalDevelopmentException)
+            .expect("explicit local policy permits self-approval");
         approval.approver = "holding-owner".into();
         approval.fresh_mfa = false;
         assert_eq!(

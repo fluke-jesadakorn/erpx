@@ -39,6 +39,7 @@ use reqwest::{Client, Url, header};
 use rustls::{ClientConfig, RootCertStore, pki_types::CertificateDer};
 use serde::Deserialize;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
@@ -67,6 +68,10 @@ pub enum LiveDirectoryError {
     Configuration,
     #[error("directory live transport failed")]
     Transport,
+    #[error("directory credentials were rejected")]
+    InvalidCredentials,
+    #[error("directory account policy denied authentication")]
+    AccountDenied,
     #[error("directory live protocol response was rejected")]
     Protocol,
     #[error("directory live response exceeded its bound")]
@@ -899,11 +904,28 @@ fn auth_connector_config(
             erpx_identity::directory::auth::ConnectorScope::Platform
         }
         erpx_identity::DirectoryScope::Holding { holding_ref } => {
-            let holding_id = holding_ref
-                .parse::<uuid::Uuid>()
-                .map_err(|_| LiveDirectoryError::Configuration)?;
+            let holding_id = holding_ref.parse::<uuid::Uuid>().unwrap_or_else(|_| {
+                uuid::Uuid::new_v5(
+                    &uuid::Uuid::NAMESPACE_URL,
+                    format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+                )
+            });
             erpx_identity::directory::auth::ConnectorScope::Holding(holding_id)
         }
+        erpx_identity::DirectoryScope::Branch {
+            holding_ref,
+            company_id,
+            branch_id,
+        } => erpx_identity::directory::auth::ConnectorScope::Branch {
+            holding_id: holding_ref.parse::<uuid::Uuid>().unwrap_or_else(|_| {
+                uuid::Uuid::new_v5(
+                    &uuid::Uuid::NAMESPACE_URL,
+                    format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+                )
+            }),
+            company_id: *company_id,
+            branch_id: *branch_id,
+        },
     };
     let provider = auth_provider(connector.provider);
     let feed = match connector.provider {
@@ -927,15 +949,20 @@ fn auth_connector_config(
 /// Perform a real, non-mutating TLS/bind/feed capability probe using the
 /// connector's persisted credential reference. LDAP probes read RootDSE;
 /// UCS probes request the next message without popping or confirming it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DirectoryPreflightEvidence {
+    pub authority_fingerprint: String,
+}
+
 pub async fn preflight_directory_connector(
     connector: &DirectoryConnector,
     resolver: &dyn DirectorySecretResolver,
-) -> Result<(), LiveDirectoryError> {
+) -> Result<DirectoryPreflightEvidence, LiveDirectoryError> {
     connector
         .validate()
         .map_err(|_| LiveDirectoryError::Configuration)?;
     let secret = resolver
-        .resolve(&connector.credential_ref)
+        .resolve(directory_credential_resolver_key(connector))
         .await
         .map_err(|_| LiveDirectoryError::Configuration)?;
     if connector.provider == DirectoryProvider::UniventionCorporateServer {
@@ -955,7 +982,12 @@ pub async fn preflight_directory_connector(
             .map_err(|_| LiveDirectoryError::Transport)?;
         verify_https_peer_trust_evidence(&response, connector)?;
         if response.status().is_success() || response.status() == reqwest::StatusCode::NO_CONTENT {
-            return Ok(());
+            return Ok(DirectoryPreflightEvidence {
+                authority_fingerprint: directory_authority_fingerprint(
+                    connector,
+                    &[connector.tls.server_name.as_str()],
+                )?,
+            });
         }
         return Err(LiveDirectoryError::Transport);
     }
@@ -971,7 +1003,13 @@ pub async fn preflight_directory_connector(
             "",
             Scope::Base,
             "(objectClass=*)",
-            vec!["supportedControl", "namingContexts"],
+            vec![
+                "supportedControl",
+                "namingContexts",
+                "rootDomainNamingContext",
+                "configurationNamingContext",
+                "schemaNamingContext",
+            ],
         )
         .await
         .map_err(|_| LiveDirectoryError::Transport)?
@@ -1000,9 +1038,81 @@ pub async fn preflight_directory_connector(
         DirectoryFeedKind::UcsProvisioningService => false,
     };
     if feed_supported {
-        Ok(())
+        let mut authority_values = root
+            .attrs
+            .iter()
+            .filter(|(key, _)| {
+                matches!(
+                    key.to_ascii_lowercase().as_str(),
+                    "namingcontexts"
+                        | "rootdomainnamingcontext"
+                        | "configurationnamingcontext"
+                        | "schemanamingcontext"
+                )
+            })
+            .flat_map(|(_, values)| values.iter().map(String::as_str))
+            .collect::<Vec<_>>();
+        authority_values.sort_unstable_by_key(|value| value.to_ascii_lowercase());
+        authority_values.dedup_by(|left, right| left.eq_ignore_ascii_case(right));
+        if authority_values.is_empty() {
+            return Err(LiveDirectoryError::Protocol);
+        }
+        Ok(DirectoryPreflightEvidence {
+            authority_fingerprint: directory_authority_fingerprint(connector, &authority_values)?,
+        })
     } else {
         Err(LiveDirectoryError::Protocol)
+    }
+}
+
+fn directory_authority_fingerprint(
+    connector: &DirectoryConnector,
+    values: &[&str],
+) -> Result<String, LiveDirectoryError> {
+    if values.is_empty()
+        || values.iter().any(|value| {
+            value.trim().is_empty() || value.len() > 2_048 || value.chars().any(char::is_control)
+        })
+    {
+        return Err(LiveDirectoryError::Protocol);
+    }
+    let mut normalized_values = values
+        .iter()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .collect::<Vec<_>>();
+    normalized_values.sort_unstable();
+    normalized_values.dedup();
+    let mut digest = Sha256::new();
+    digest.update(b"erpx-directory-authority-v1\0");
+    digest.update(match connector.provider {
+        DirectoryProvider::GenericLdap => b"generic_ldap".as_slice(),
+        DirectoryProvider::ActiveDirectoryDomainServices => {
+            b"active_directory_domain_services".as_slice()
+        }
+        DirectoryProvider::UniventionCorporateServer => b"univention_corporate_server".as_slice(),
+    });
+    for value in normalized_values {
+        digest.update([0]);
+        digest.update(value.as_bytes());
+    }
+    Ok(hex_lower(&digest.finalize()))
+}
+
+/// Migration 0007 assigns this deterministic marker to connectors that
+/// predate named credential profiles. Only those rows may resolve the legacy
+/// server-side reference; all new connectors resolve the approved profile.
+fn directory_credential_resolver_key(connector: &DirectoryConnector) -> &str {
+    let is_migrated_legacy = connector.credential_profile_key == "legacy-unconfigured"
+        || connector
+            .credential_profile_key
+            .strip_prefix("legacy-")
+            .is_some_and(|suffix| {
+                suffix.len() == 32 && suffix.bytes().all(|byte| byte.is_ascii_hexdigit())
+            });
+    if is_migrated_legacy {
+        &connector.credential_ref
+    } else {
+        &connector.credential_profile_key
     }
 }
 
@@ -1034,7 +1144,7 @@ pub async fn authenticate_directory_user_with_resolver(
     resolver: &dyn DirectorySecretResolver,
 ) -> Result<AuthenticatedDirectoryIdentity, LiveDirectoryError> {
     let secret = resolver
-        .resolve(&connector.credential_ref)
+        .resolve(directory_credential_resolver_key(connector))
         .await
         .map_err(|_| LiveDirectoryError::Configuration)?;
     authenticate_directory_user_with_ca(
@@ -1061,7 +1171,7 @@ pub async fn authenticate_directory_user_with_runtime(
 ) -> Result<AuthenticatedDirectoryIdentity, LiveDirectoryError> {
     validate_runtime_settings(connector, settings)?;
     let secret = resolver
-        .resolve(&connector.credential_ref)
+        .resolve(directory_credential_resolver_key(connector))
         .await
         .map_err(|_| LiveDirectoryError::Configuration)?;
     authenticate_directory_user_with_ca(
@@ -1111,9 +1221,16 @@ async fn authenticate_directory_user_with_ca(
         )
         .await
         .map_err(|error| match error {
-            erpx_identity::directory::auth::DirectoryAuthError::BindRejected
-            | erpx_identity::directory::auth::DirectoryAuthError::AccountDisabled
+            erpx_identity::directory::auth::DirectoryAuthError::BindRejected => {
+                LiveDirectoryError::InvalidCredentials
+            }
+            erpx_identity::directory::auth::DirectoryAuthError::AccountDisabled
+            | erpx_identity::directory::auth::DirectoryAuthError::AccountDeleted
             | erpx_identity::directory::auth::DirectoryAuthError::AccountLocked => {
+                LiveDirectoryError::AccountDenied
+            }
+            erpx_identity::directory::auth::DirectoryAuthError::Timeout(_)
+            | erpx_identity::directory::auth::DirectoryAuthError::TransportUnavailable => {
                 LiveDirectoryError::Transport
             }
             erpx_identity::directory::auth::DirectoryAuthError::TlsCertificateValidationFailed
@@ -2924,7 +3041,7 @@ pub async fn fetch_with_runtime(
     validate_previous_cursor(connector, previous)?;
     validate_runtime_settings(connector, settings)?;
     let secret = resolver
-        .resolve(&connector.credential_ref)
+        .resolve(directory_credential_resolver_key(connector))
         .await
         .map_err(|_| LiveDirectoryError::Configuration)?;
     fetch_with_resolved_runtime(connector, settings, &secret, previous, full_import).await
@@ -3024,7 +3141,7 @@ pub async fn confirm_ucs_with_resolver(
         return Err(LiveDirectoryError::Protocol);
     }
     let secret = resolver
-        .resolve(&connector.credential_ref)
+        .resolve(directory_credential_resolver_key(connector))
         .await
         .map_err(|_| LiveDirectoryError::Configuration)?;
     let subscription = secret
@@ -3115,6 +3232,10 @@ mod tests {
             },
             feed: DirectoryFeedKind::Rfc4533,
             credential_ref: "secret-ref".into(),
+            credential_profile_key: "default-directory".into(),
+            parent_connector_id: None,
+            directory_authority_fingerprint: None,
+            fallback_to_holding: false,
             enabled: true,
             max_import_users: 1_000_000,
             revision: 1,
@@ -3157,6 +3278,62 @@ mod tests {
             validate_tls_policy(&with_path, "ldaps"),
             Err(LiveDirectoryError::Configuration)
         ));
+    }
+
+    #[test]
+    fn directory_authority_fingerprint_is_stable_and_provider_bound() {
+        let mut ldap = connector(
+            "ldaps://ldap.example.test:636",
+            "ldap.example.test",
+            &"a".repeat(64),
+        );
+        let ordered = directory_authority_fingerprint(
+            &ldap,
+            &["DC=example,DC=test", "CN=Configuration,DC=example,DC=test"],
+        )
+        .expect("LDAP authority fingerprint");
+        let normalized = directory_authority_fingerprint(
+            &ldap,
+            &["cn=configuration,dc=example,dc=test", "dc=example,dc=test"],
+        )
+        .expect("normalized LDAP authority fingerprint");
+        assert_eq!(ordered, normalized);
+
+        ldap.provider = DirectoryProvider::ActiveDirectoryDomainServices;
+        ldap.feed = DirectoryFeedKind::AdDirSync;
+        let active_directory = directory_authority_fingerprint(
+            &ldap,
+            &["dc=example,dc=test", "cn=configuration,dc=example,dc=test"],
+        )
+        .expect("AD authority fingerprint");
+        assert_ne!(ordered, active_directory);
+    }
+
+    #[test]
+    fn credential_resolution_uses_profiles_except_for_migrated_legacy_rows() {
+        let mut value = connector(
+            "ldaps://ldap.example.test:636",
+            "ldap.example.test",
+            &"a".repeat(64),
+        );
+        value.credential_ref = "legacy-server-side-reference".into();
+        value.credential_profile_key = "directory-bind-default".into();
+        assert_eq!(
+            directory_credential_resolver_key(&value),
+            "directory-bind-default"
+        );
+
+        value.credential_profile_key = format!("legacy-{}", "a".repeat(32));
+        assert_eq!(
+            directory_credential_resolver_key(&value),
+            "legacy-server-side-reference"
+        );
+
+        value.credential_profile_key = "legacy-unconfigured".into();
+        assert_eq!(
+            directory_credential_resolver_key(&value),
+            "legacy-server-side-reference"
+        );
     }
 
     #[test]
@@ -3893,6 +4070,10 @@ mod tests {
             scope: erpx_identity::directory::DirectoryScope::Platform,
             base_dn: "dc=example,dc=test".into(),
             credential_ref: "ucs-secret".into(),
+            credential_profile_key: "default-directory".into(),
+            parent_connector_id: None,
+            directory_authority_fingerprint: None,
+            fallback_to_holding: false,
             enabled: true,
             max_import_users: 1_000_000,
             revision: 1,

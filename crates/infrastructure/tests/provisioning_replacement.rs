@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, time::Duration};
 
 use erpx_infrastructure::{
     ControlPlaneDatabaseConfig, ControlPlanePoolSettings, ControlPlanePools, PersistenceError,
@@ -14,6 +14,25 @@ type TestResult = Result<(), Box<dyn std::error::Error + Send + Sync>>;
 
 fn test_error(message: &'static str) -> Box<dyn std::error::Error + Send + Sync> {
     io::Error::other(message).into()
+}
+
+async fn connect_database_with_retry(
+    url: &str,
+    failure: &'static str,
+) -> Result<PgPool, Box<dyn std::error::Error + Send + Sync>> {
+    const ATTEMPTS: u32 = 5;
+
+    for attempt in 0..ATTEMPTS {
+        match PgPoolOptions::new().max_connections(2).connect(url).await {
+            Ok(pool) => return Ok(pool),
+            Err(_) if attempt + 1 < ATTEMPTS => {
+                tokio::time::sleep(Duration::from_millis(100 * (1 << attempt))).await;
+            }
+            Err(_) => return Err(test_error(failure)),
+        }
+    }
+
+    unreachable!("the bounded connection loop always returns")
 }
 
 fn database_url(
@@ -236,16 +255,12 @@ async fn run_real_provisioning_replacement() -> TestResult {
 
         let write_url = template_url(&tenant_template, &tenant_write_key)?;
         let read_url = template_url(&tenant_template, &tenant_read_key)?;
-        let write_pool = PgPoolOptions::new()
-            .max_connections(2)
-            .connect(&write_url)
-            .await
-            .map_err(|_| test_error("connect provisioned tenant write database"))?;
-        let read_pool = PgPoolOptions::new()
-            .max_connections(2)
-            .connect(&read_url)
-            .await
-            .map_err(|_| test_error("connect provisioned tenant read database"))?;
+        let write_pool =
+            connect_database_with_retry(&write_url, "connect provisioned tenant write database")
+                .await?;
+        let read_pool =
+            connect_database_with_retry(&read_url, "connect provisioned tenant read database")
+                .await?;
         assert_forced_rls(&write_pool).await?;
         assert_forced_rls(&read_pool).await?;
         let write_database: String = sqlx::query_scalar("SELECT current_database()")

@@ -974,11 +974,28 @@ fn durable_connector(
     };
     let scope = match &connector.scope {
         erpx_identity::DirectoryScope::Platform => ConnectorScope::Platform,
-        erpx_identity::DirectoryScope::Holding { holding_ref } => ConnectorScope::Holding(
-            holding_ref
-                .parse()
-                .unwrap_or_else(|_| Uuid::new_v5(&Uuid::NAMESPACE_URL, holding_ref.as_bytes())),
-        ),
+        erpx_identity::DirectoryScope::Holding { holding_ref } => {
+            ConnectorScope::Holding(holding_ref.parse().unwrap_or_else(|_| {
+                Uuid::new_v5(
+                    &Uuid::NAMESPACE_URL,
+                    format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+                )
+            }))
+        }
+        erpx_identity::DirectoryScope::Branch {
+            holding_ref,
+            company_id,
+            branch_id,
+        } => ConnectorScope::Branch {
+            holding_id: holding_ref.parse().unwrap_or_else(|_| {
+                Uuid::new_v5(
+                    &Uuid::NAMESPACE_URL,
+                    format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+                )
+            }),
+            company_id: *company_id,
+            branch_id: *branch_id,
+        },
     };
     let security = match connector.tls.mode {
         erpx_identity::DirectoryTlsMode::Ldaps => TransportSecurity::Ldaps,
@@ -1275,6 +1292,10 @@ mod tests {
             },
             feed: DirectoryFeedKind::Rfc4533,
             credential_ref: "directory-secret".into(),
+            credential_profile_key: "directory-default".into(),
+            parent_connector_id: None,
+            directory_authority_fingerprint: None,
+            fallback_to_holding: false,
             enabled: true,
             max_import_users: 1_000_000,
             revision: 1,
@@ -1319,6 +1340,10 @@ mod tests {
             },
             feed: erpx_identity::DirectoryFeedKind::UcsProvisioningService,
             credential_ref: "ucs-secret".into(),
+            credential_profile_key: "directory-default".into(),
+            parent_connector_id: None,
+            directory_authority_fingerprint: None,
+            fallback_to_holding: false,
             enabled: true,
             max_import_users: 1_000_000,
             revision: 1,
@@ -1377,6 +1402,10 @@ mod tests {
             },
             feed: erpx_identity::DirectoryFeedKind::UcsProvisioningService,
             credential_ref: "ucs-secret".into(),
+            credential_profile_key: "directory-default".into(),
+            parent_connector_id: None,
+            directory_authority_fingerprint: None,
+            fallback_to_holding: false,
             enabled: true,
             max_import_users: 1_000_000,
             revision: 1,
@@ -1425,6 +1454,10 @@ mod tests {
             },
             feed: DirectoryFeedKind::Polling,
             credential_ref: "directory-secret".into(),
+            credential_profile_key: "directory-default".into(),
+            parent_connector_id: None,
+            directory_authority_fingerprint: None,
+            fallback_to_holding: false,
             enabled: true,
             max_import_users: 1_000_000,
             revision: 1,
@@ -1514,6 +1547,10 @@ mod tests {
             },
             feed: DirectoryFeedKind::Rfc4533,
             credential_ref: "directory-secret".into(),
+            credential_profile_key: "directory-default".into(),
+            parent_connector_id: None,
+            directory_authority_fingerprint: None,
+            fallback_to_holding: false,
             enabled: true,
             max_import_users: 1_000_000,
             revision: 1,

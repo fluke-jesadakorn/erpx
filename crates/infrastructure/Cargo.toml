@@ -4,16 +4,49 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+autotests = false
+
+[[test]]
+name = "infra_platform"
+path = "tests/infra_platform.rs"
+
+[[test]]
+name = "infra_tenant_runtime"
+path = "tests/infra_tenant_runtime.rs"
+
+[[test]]
+name = "infra_finance"
+path = "tests/infra_finance.rs"
+
+[[test]]
+name = "infra_marketing"
+path = "tests/infra_marketing.rs"
+
+[[test]]
+name = "infra_operations"
+path = "tests/infra_operations.rs"
+
+[[test]]
+name = "infra_people_support"
+path = "tests/infra_people_support.rs"
+
+[[test]]
+name = "infra_backup"
+path = "tests/infra_backup.rs"
+
+[[test]]
+name = "infra_migration"
+path = "tests/infra_migration.rs"
 
 [dependencies]
 async-trait.workspace = true
 chrono.workspace = true
-erpx-application = { path = "../application" }
-erpx-domain = { path = "../domain" }
-erpx-migration = { path = "../migration" }
+erpx-application.workspace = true
+erpx-domain.workspace = true
+erpx-migration.workspace = true
 hex.workspace = true
 hmac.workspace = true
-reqwest = { version = "0.12.28", default-features = false, features = ["rustls-tls"] }
+reqwest = { workspace = true, default-features = false, features = ["rustls-tls"] }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

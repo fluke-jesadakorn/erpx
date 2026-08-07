@@ -25,9 +25,10 @@ use erpx_identity::directory::sync::{
 use erpx_identity::{
     AccessTokenSigner, DirectoryChange as LegacyDirectoryChange, DirectoryConnector,
     DirectoryConnectorLifecycle, DirectoryError, DirectoryFeedKind, DirectoryProvider,
-    DirectoryRoleAccess, DirectoryRoleMapping, DirectoryScope, DirectorySyncCursor,
-    DirectorySyncPage, DirectoryTlsMode, DirectoryTlsPolicy, DirectoryUser, PasswordService,
-    SqlxDirectoryStore, SqlxIdentityStore, apply_identity_migration, immutable_identity_link,
+    DirectoryRoleAccess, DirectoryRoleMapping, DirectoryRoleTargetScope, DirectoryScope,
+    DirectorySyncCursor, DirectorySyncPage, DirectoryTlsMode, DirectoryTlsPolicy, DirectoryUser,
+    PasswordService, SqlxDirectoryStore, SqlxIdentityStore, apply_identity_migration,
+    immutable_identity_link,
 };
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -88,6 +89,10 @@ fn root_connector(
         tls: tls(tls_mode, server_name),
         feed,
         credential_ref: "test-only:directory-bind-secret".into(),
+        credential_profile_key: "test-directory".into(),
+        parent_connector_id: None,
+        directory_authority_fingerprint: None,
+        fallback_to_holding: false,
         enabled: true,
         max_import_users: 1_000_000,
         revision: 1,
@@ -210,6 +215,9 @@ async fn g14_local_directory_sqlx_acceptance() {
     let legacy_id = Uuid::new_v4();
     let platform_id = Uuid::new_v4();
     let run_suffix = generic_id.simple().to_string();
+    let generic_authority_fingerprint = "a".repeat(64);
+    let generic_directory_authority = format!("generic_ldap:{generic_authority_fingerprint}");
+    let legacy_directory_authority = format!("generic_ldap:connector:{legacy_id}");
     let generic_entry_001 = format!("entry-001-{run_suffix}");
     let generic_entry_002 = format!("entry-002-{run_suffix}");
     let generic_entry_003 = format!("entry-003-{run_suffix}");
@@ -296,6 +304,7 @@ async fn g14_local_directory_sqlx_acceptance() {
         scope: DirectoryScope::Holding {
             holding_ref: "platform-contained-holding".into(),
         },
+        target_scope: DirectoryRoleTargetScope::Holding,
         requires_mfa: false,
         active: true,
         revision: 1,
@@ -324,6 +333,7 @@ async fn g14_local_directory_sqlx_acceptance() {
         group_ref: "group:directory-users".into(),
         role_ref: "role:directory-reader".into(),
         scope: generic.scope.clone(),
+        target_scope: DirectoryRoleTargetScope::Holding,
         requires_mfa: false,
         active: true,
         revision: 1,
@@ -334,7 +344,14 @@ async fn g14_local_directory_sqlx_acceptance() {
         .expect("persist full-import role mapping");
     assert_eq!(
         directory_store
-            .record_preflight(generic_id, true, None, Uuid::new_v4(), fixed_at(),)
+            .record_preflight_evidence(
+                generic_id,
+                true,
+                None,
+                Some(&generic_authority_fingerprint),
+                Uuid::new_v4(),
+                fixed_at(),
+            )
             .await
             .expect("record local connector preflight"),
         DirectoryConnectorLifecycle::Verified
@@ -366,6 +383,7 @@ async fn g14_local_directory_sqlx_acceptance() {
             Uuid::new_v5(&Uuid::NAMESPACE_URL, holding_ref.as_bytes())
         }
         DirectoryScope::Platform => panic!("generic local fixture must be holding-scoped"),
+        DirectoryScope::Branch { .. } => panic!("generic local fixture must be holding-scoped"),
     };
     let sync_connector = make_sync_connector(
         generic_id,
@@ -586,7 +604,7 @@ async fn g14_local_directory_sqlx_acceptance() {
     .await
     .expect("read canonical immutable identity link");
     let expected_identity_link = erpx_identity::directory::sync::immutable_identity_database_key(
-        &ImmutableIdentityLink::new("ldap:entryUUID", &generic_entry_001)
+        &ImmutableIdentityLink::new(&generic_directory_authority, &generic_entry_001)
             .expect("immutable LDAP identity link"),
     );
     assert_eq!(stored_identity_link, expected_identity_link);
@@ -747,7 +765,10 @@ async fn g14_local_directory_sqlx_acceptance() {
     // opaque holding references were normalized at the authorization edge.
     // The durable role mapping remains append-only history; authorization
     // resolves its raw reference to the same immutable holding identity.
-    let platform_holding_id = Uuid::new_v5(&Uuid::NAMESPACE_URL, b"platform-contained-holding");
+    let platform_holding_id = platform_holding_mapping
+        .scope
+        .holding_id()
+        .expect("holding mapping has a stable holding identity");
     sqlx::query(
         "UPDATE erpx_identity.directory_role_mappings
             SET scope_key='holding:platform-contained-holding'
@@ -882,6 +903,7 @@ async fn g14_local_directory_sqlx_acceptance() {
         group_ref: "group:directory-users".into(),
         role_ref: "role:directory-high-risk".into(),
         scope: role_mapping.scope.clone(),
+        target_scope: DirectoryRoleTargetScope::Holding,
         requires_mfa: true,
         active: true,
         revision: 1,
@@ -1326,6 +1348,7 @@ async fn g14_local_directory_sqlx_acceptance() {
         group_ref: "directory-admins".into(),
         role_ref: "role:directory-admin".into(),
         scope: legacy_scope.clone(),
+        target_scope: DirectoryRoleTargetScope::Holding,
         requires_mfa: true,
         active: true,
         revision: 1,
@@ -1436,7 +1459,7 @@ async fn g14_local_directory_sqlx_acceptance() {
         .await
         .expect("apply generic LDAP disable and revoke role");
     let legacy_link = erpx_identity::directory::sync::immutable_identity_database_key(
-        &ImmutableIdentityLink::new("generic_ldap", "legacy-user-001")
+        &ImmutableIdentityLink::new(&legacy_directory_authority, "legacy-user-001")
             .expect("canonical native-feed immutable link"),
     );
     let revoked = directory_store
@@ -1519,7 +1542,7 @@ async fn g14_local_directory_sqlx_acceptance() {
     .expect("read projected role event evidence");
     assert_eq!(projected_current_role_events, current_role_events);
     let generic_role_identity = DirectoryRoleIdentity::from_immutable_link(
-        ImmutableIdentityLink::new("ldap:entryUUID", &generic_entry_001)
+        ImmutableIdentityLink::new(&generic_directory_authority, &generic_entry_001)
             .expect("generic immutable role identity"),
     );
     let projected_generic_roles = rbac_store
@@ -1535,7 +1558,7 @@ async fn g14_local_directory_sqlx_acceptance() {
         Some("role:directory-reader")
     );
     let legacy_role_identity = DirectoryRoleIdentity::from_immutable_link(
-        ImmutableIdentityLink::new("generic_ldap", "legacy-user-001")
+        ImmutableIdentityLink::new(&legacy_directory_authority, "legacy-user-001")
             .expect("legacy immutable role identity"),
     );
     assert!(
@@ -1594,7 +1617,14 @@ async fn api_started_import_is_claimable_by_the_native_worker_contract() {
         .expect("persist API/native-worker handoff connector");
     assert_eq!(
         store
-            .record_preflight(connector.id, true, None, Uuid::new_v4(), fixed_at(),)
+            .record_preflight_evidence(
+                connector.id,
+                true,
+                None,
+                Some(&"a".repeat(64)),
+                Uuid::new_v4(),
+                fixed_at(),
+            )
             .await
             .expect("record API/native-worker connector preflight"),
         DirectoryConnectorLifecycle::Verified
@@ -1712,6 +1742,7 @@ async fn role_mapping_save_rejects_scope_escape_without_side_effects() {
         group_ref: "directory-admins".into(),
         role_ref: "role:directory-admin".into(),
         scope: DirectoryScope::Platform,
+        target_scope: DirectoryRoleTargetScope::Platform,
         requires_mfa: true,
         active: true,
         revision: 1,
@@ -1741,6 +1772,7 @@ async fn role_mapping_save_rejects_scope_escape_without_side_effects() {
 
     let valid_mapping = DirectoryRoleMapping {
         scope: connector.scope.clone(),
+        target_scope: DirectoryRoleTargetScope::Holding,
         revision: 1,
         ..escaped_mapping
     };

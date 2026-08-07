@@ -8,6 +8,8 @@
 
 use std::{error::Error, fmt};
 
+use crate::Locale;
+
 /// Maximum bytes retained by any opaque POS identifier.
 pub const MAX_OPAQUE_ID_BYTES: usize = 128;
 /// Maximum bytes retained by a scalar presentation value.
@@ -22,6 +24,24 @@ pub enum PosCommandLocale {
     En,
     /// Thai copy.
     Th,
+}
+
+impl From<Locale> for PosCommandLocale {
+    fn from(locale: Locale) -> Self {
+        match locale {
+            Locale::En => Self::En,
+            Locale::Th => Self::Th,
+        }
+    }
+}
+
+impl From<PosCommandLocale> for Locale {
+    fn from(locale: PosCommandLocale) -> Self {
+        match locale {
+            PosCommandLocale::En => Self::En,
+            PosCommandLocale::Th => Self::Th,
+        }
+    }
 }
 
 /// A bounded opaque identifier safe to place in a presentation model.

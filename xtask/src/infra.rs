@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs::{self, OpenOptions},
     io::Write,
     os::unix::{
@@ -37,6 +37,13 @@ const RUNTIME_DATABASES: [&str; 4] = [
     "erpx_tenant_write",
     "erpx_tenant_read",
 ];
+const LOGICAL_PROFILE_SECRET_FILE: &str = "secrets/infra-profiles.json";
+const LOCAL_TOPOLOGY_FILE: &str = "infra/local-topology.json";
+const PROFILE_PLATFORM: &str = "platform";
+const PROFILE_HOLDING_DEMO: &str = "dev_holding_demo";
+const PROFILE_HOLDING_RESTRICTED: &str = "dev_holding_restricted";
+const PROFILE_BACKUP: &str = "backup";
+const PROFILE_PITR: &str = "pitr";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct InfraSecrets {
@@ -46,6 +53,54 @@ struct InfraSecrets {
     postgres_restore_password: String,
     minio_access_key: String,
     minio_secret_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct LegacyLogicalProfileSecret {
+    #[allow(dead_code)]
+    postgres_password: String,
+    minio_access_key: String,
+    #[allow(dead_code)]
+    minio_secret_key: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct LegacyLogicalProfileSecrets {
+    version: u32,
+    profiles: BTreeMap<String, LegacyLogicalProfileSecret>,
+}
+
+#[derive(Debug, Serialize)]
+struct LocalTopologyManifest {
+    version: u32,
+    physical: PhysicalTopology,
+    profiles: Vec<LogicalTopologyProfile>,
+    business_units: BusinessUnitTopology,
+}
+
+#[derive(Debug, Serialize)]
+struct PhysicalTopology {
+    postgres_endpoint: String,
+    minio_endpoint: String,
+    ucs_endpoint: String,
+}
+
+#[derive(Debug, Serialize)]
+struct LogicalTopologyProfile {
+    profile: &'static str,
+    scope: &'static str,
+    postgres_role: &'static str,
+    databases: &'static [&'static str],
+    minio_namespaces: &'static [&'static str],
+    ucs_authority: Option<&'static str>,
+    credential_ref: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+struct BusinessUnitTopology {
+    database_routing: &'static str,
+    object_prefix: &'static str,
+    directory_routing: &'static str,
 }
 
 #[derive(Debug, Serialize)]
@@ -79,6 +134,14 @@ fn secret_path(root: &Path) -> PathBuf {
     runtime(root).join("secrets/infra.json")
 }
 
+fn logical_profile_secret_path(root: &Path) -> PathBuf {
+    runtime(root).join(LOGICAL_PROFILE_SECRET_FILE)
+}
+
+pub(crate) fn local_topology_path(root: &Path) -> PathBuf {
+    runtime(root).join(LOCAL_TOPOLOGY_FILE)
+}
+
 fn ca_path(root: &Path) -> PathBuf {
     infra_runtime(root).join("certificates/ca.crt")
 }
@@ -103,6 +166,19 @@ fn write_private(path: &Path, bytes: &[u8]) -> TaskResult {
     Ok(())
 }
 
+fn replace_private(path: &Path, bytes: &[u8]) -> TaskResult {
+    if path.is_symlink() {
+        return Err(format!("refusing symlinked private file: {}", path.display()).into());
+    }
+    let parent = path.parent().ok_or("private file has no parent")?;
+    create_private_directory(parent)?;
+    let temporary = parent.join(format!(".private.{}.tmp", Uuid::new_v4().simple()));
+    write_private(&temporary, bytes)?;
+    fs::rename(temporary, path)?;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
+    Ok(())
+}
+
 fn fresh_secret() -> String {
     format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple())
 }
@@ -117,6 +193,109 @@ fn read_secrets(root: &Path) -> TaskResult<InfraSecrets> {
         return Err("ERPX infrastructure secret bundle is not a private 0600 file".into());
     }
     Ok(serde_json::from_slice(&fs::read(path)?)?)
+}
+
+fn read_legacy_logical_profile_secrets(root: &Path) -> TaskResult<LegacyLogicalProfileSecrets> {
+    let path = logical_profile_secret_path(root);
+    let metadata = fs::symlink_metadata(&path)?;
+    if !metadata.file_type().is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.permissions().mode() & 0o777 != 0o600
+    {
+        return Err("ERPX logical profile secret bundle is not a private 0600 file".into());
+    }
+    let secrets: LegacyLogicalProfileSecrets = serde_json::from_slice(&fs::read(path)?)?;
+    if secrets.version != 1 {
+        return Err("ERPX logical profile secret version is unsupported".into());
+    }
+    Ok(secrets)
+}
+
+fn required_logical_profiles() -> [&'static str; 5] {
+    [
+        PROFILE_PLATFORM,
+        PROFILE_HOLDING_DEMO,
+        PROFILE_HOLDING_RESTRICTED,
+        PROFILE_BACKUP,
+        PROFILE_PITR,
+    ]
+}
+
+fn write_local_topology(root: &Path) -> TaskResult {
+    let path = local_topology_path(root);
+    if path.is_symlink() {
+        return Err("refusing symlinked local topology manifest".into());
+    }
+    let manifest = LocalTopologyManifest {
+        version: 1,
+        physical: PhysicalTopology {
+            postgres_endpoint: format!("postgresql://localhost:{POSTGRES_PORT}"),
+            minio_endpoint: format!("https://localhost:{MINIO_API_PORT}"),
+            ucs_endpoint: "https://localhost:15443".into(),
+        },
+        profiles: vec![
+            LogicalTopologyProfile {
+                profile: PROFILE_PLATFORM,
+                scope: "platform",
+                postgres_role: "erpx_app",
+                databases: &["erpx_control_write", "erpx_control_read"],
+                minio_namespaces: &["erpx-platform-assets"],
+                ucs_authority: Some("platform"),
+                credential_ref: "local_shared",
+            },
+            LogicalTopologyProfile {
+                profile: PROFILE_HOLDING_DEMO,
+                scope: "holding",
+                postgres_role: "erpx_app",
+                databases: &["erpx_tenant_write", "erpx_tenant_read"],
+                minio_namespaces: &["erpx-demo"],
+                ucs_authority: Some("demo-tenant"),
+                credential_ref: "local_shared",
+            },
+            LogicalTopologyProfile {
+                profile: PROFILE_HOLDING_RESTRICTED,
+                scope: "holding",
+                postgres_role: "erpx_app",
+                databases: &[
+                    "erpx_restricted_tenant_write",
+                    "erpx_restricted_tenant_read",
+                ],
+                minio_namespaces: &["erpx-demo-restricted"],
+                ucs_authority: Some("demo-tenant-restricted"),
+                credential_ref: "local_shared",
+            },
+            LogicalTopologyProfile {
+                profile: PROFILE_BACKUP,
+                scope: "service",
+                postgres_role: "erpx_backup",
+                databases: &[],
+                minio_namespaces: &["erpx-logical-backups"],
+                ucs_authority: None,
+                credential_ref: "local_shared",
+            },
+            LogicalTopologyProfile {
+                profile: PROFILE_PITR,
+                scope: "service",
+                postgres_role: "erpx_backup",
+                databases: &[],
+                minio_namespaces: &["erpx-platform-pitr"],
+                ucs_authority: None,
+                credential_ref: "local_shared",
+            },
+        ],
+        business_units: BusinessUnitTopology {
+            database_routing: "inherit_holding_pair_with_rls_scope",
+            object_prefix: "business-units/{unit-key}/",
+            directory_routing: "inherit_holding_authority_with_group_role_mapping",
+        },
+    };
+    let directory = path.parent().ok_or("invalid local topology path")?;
+    create_private_directory(directory)?;
+    let temporary = directory.join(format!(".local-topology.{}.tmp", Uuid::new_v4().simple()));
+    fs::write(&temporary, serde_json::to_vec_pretty(&manifest)?)?;
+    fs::set_permissions(&temporary, fs::Permissions::from_mode(0o600))?;
+    fs::rename(temporary, path)?;
+    Ok(())
 }
 
 fn run(program: impl AsRef<Path>, args: &[&str]) -> TaskResult {
@@ -140,6 +319,25 @@ fn validate_fixed_roots() -> TaskResult {
         if path.exists() && path.is_symlink() {
             return Err(format!("ERPX dedicated root is symlinked: {}", path.display()).into());
         }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_wal_spool() -> TaskResult {
+    let path = Path::new(WAL_SPOOL);
+    if !path.is_absolute() || path.parent().is_none() || path == Path::new("/") {
+        return Err("ERPX PITR WAL spool root is unsafe".into());
+    }
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_dir()
+        || metadata.file_type().is_symlink()
+        || metadata.permissions().mode() & 0o077 != 0
+    {
+        return Err(format!(
+            "ERPX PITR WAL spool must be a private directory: {}",
+            path.display()
+        )
+        .into());
     }
     Ok(())
 }
@@ -181,6 +379,7 @@ pub(crate) fn init(root: &Path) -> TaskResult {
         write_private(&secret_path(root), &serde_json::to_vec_pretty(&secrets)?)?;
         secrets
     };
+    write_local_topology(root)?;
 
     let ca_key = certificates.join("ca.key");
     let ca_cert = certificates.join("ca.crt");
@@ -255,19 +454,17 @@ pub(crate) fn init(root: &Path) -> TaskResult {
     }
 
     let archive_secret = runtime.join("secrets/pitr/minio.json");
-    if !archive_secret.exists() {
-        let body = serde_json::json!({
-            "endpoint": format!("https://127.0.0.1:{MINIO_API_PORT}"),
-            "access_key": secrets.minio_access_key,
-            "secret_key": secrets.minio_secret_key,
-            "region": "us-east-1",
-            "ca_certificate_path": ca_cert,
-            "namespace": "erpx-platform-pitr",
-            "cluster_ref": CLUSTER_REF,
-            "chain_ref": CHAIN_REF,
-        });
-        write_private(&archive_secret, &serde_json::to_vec_pretty(&body)?)?;
-    }
+    let body = serde_json::json!({
+        "endpoint": format!("https://127.0.0.1:{MINIO_API_PORT}"),
+        "access_key": secrets.minio_access_key,
+        "secret_key": secrets.minio_secret_key,
+        "region": "us-east-1",
+        "ca_certificate_path": ca_cert,
+        "namespace": "erpx-platform-pitr",
+        "cluster_ref": CLUSTER_REF,
+        "chain_ref": CHAIN_REF,
+    });
+    replace_private(&archive_secret, &serde_json::to_vec_pretty(&body)?)?;
     println!("Initialized dedicated ERPX PostgreSQL 18 and HTTPS MinIO roots.");
     println!("PostgreSQL: 127.0.0.1:{POSTGRES_PORT} ({POSTGRES_DATA})");
     println!("MinIO: https://127.0.0.1:{MINIO_API_PORT} ({MINIO_DATA})");
@@ -346,7 +543,7 @@ fn configure_postgres(root: &Path) -> TaskResult {
         .open(Path::new(POSTGRES_DATA).join("postgresql.conf"))?;
     writeln!(
         config,
-        "\n# ERPX dedicated local cluster\nport={POSTGRES_PORT}\nlisten_addresses='127.0.0.1'\nssl=on\nssl_cert_file='{}'\nssl_key_file='{}'\nssl_ca_file='{}'\nwal_level=replica\narchive_mode=on\narchive_timeout='60s'\narchive_command='ERPX_WAL_ARCHIVE_SECRET_FILE={} {} %p %f'\nmax_wal_senders=8\nwal_keep_size='256MB'\n",
+        "\n# ERPX dedicated local cluster\nport={POSTGRES_PORT}\nlisten_addresses='127.0.0.1'\nssl=on\nssl_cert_file='{}'\nssl_key_file='{}'\nssl_ca_file='{}'\nwal_level=replica\narchive_mode=on\narchive_timeout='60s'\narchive_command='ERPX_WAL_ARCHIVE_SECRET_FILE={} {} %p %f'\nmax_connections=256\nmax_wal_senders=8\nwal_keep_size='256MB'\n",
         certificates.join("postgres.crt").display(),
         certificates.join("postgres.key").display(),
         certificates.join("ca.crt").display(),
@@ -358,9 +555,73 @@ fn configure_postgres(root: &Path) -> TaskResult {
         .open(Path::new(POSTGRES_DATA).join("pg_hba.conf"))?;
     writeln!(
         hba,
-        "\n# ERPX dedicated TLS roles\nhostssl all erpx_admin 127.0.0.1/32 scram-sha-256\nhostssl erpx_control_write,erpx_control_read,erpx_tenant_write,erpx_tenant_read erpx_app 127.0.0.1/32 scram-sha-256\nhostssl replication erpx_backup 127.0.0.1/32 scram-sha-256\nhostssl all erpx_restore 127.0.0.1/32 scram-sha-256\n"
+        "\n# ERPX dedicated TLS roles\nhostssl all erpx_admin 127.0.0.1/32 scram-sha-256\nhostssl all erpx_app 127.0.0.1/32 scram-sha-256\nhostssl replication erpx_backup 127.0.0.1/32 scram-sha-256\nhostssl all erpx_restore 127.0.0.1/32 scram-sha-256\n"
     )?;
     Ok(())
+}
+
+pub(crate) fn ensure_postgres_hba_for_databases(additional: &[String]) -> TaskResult {
+    let path = Path::new(POSTGRES_DATA).join("pg_hba.conf");
+    let metadata = fs::symlink_metadata(&path)?;
+    if metadata.file_type().is_symlink() || !metadata.file_type().is_file() {
+        return Err("dedicated PostgreSQL pg_hba.conf is not a regular file".into());
+    }
+    for database in additional {
+        if !database.starts_with("devbranch_")
+            || database.len() > 63
+            || !database
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+        {
+            return Err("development branch database name is outside the ERPX allowlist".into());
+        }
+    }
+    // Database CONNECT privileges remain the resource-level allowlist. HBA
+    // permits the non-CREATEDB runtime role to reach newly bootstrapped and
+    // explicitly provisioned database names without rewriting retained data.
+    let new = "hostssl all erpx_app 127.0.0.1/32 scram-sha-256";
+    let contents = fs::read_to_string(&path)?;
+    let mut found = false;
+    let mut updated_lines = Vec::new();
+    for line in contents.lines() {
+        if (line.trim_start().starts_with("hostssl erpx_control_write")
+            || line.trim_start().starts_with("hostssl all erpx_app"))
+            && line.contains(" erpx_app 127.0.0.1/32 scram-sha-256")
+        {
+            updated_lines.push(new);
+            found = true;
+        } else {
+            updated_lines.push(line);
+        }
+    }
+    let mut updated = if found {
+        let mut value = updated_lines.join("\n");
+        if contents.ends_with('\n') {
+            value.push('\n');
+        }
+        value
+    } else {
+        format!("{contents}\n# ERPX development branch access\n{new}\n")
+    };
+    updated = updated
+        .lines()
+        .filter(|line| {
+            !line.contains(" erpx_dev_platform ")
+                && !line.contains(" erpx_dev_holding_demo ")
+                && !line.contains(" erpx_dev_holding_restricted ")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    updated.push('\n');
+    if updated != contents {
+        fs::write(&path, updated)?;
+        run(postgres_program("pg_ctl"), &["-D", POSTGRES_DATA, "reload"])?;
+    }
+    Ok(())
+}
+
+pub(crate) fn ensure_runtime_postgres_hba() -> TaskResult {
+    ensure_postgres_hba_for_databases(&[])
 }
 
 pub(crate) async fn start(root: &Path) -> TaskResult {
@@ -420,7 +681,9 @@ pub(crate) async fn start(root: &Path) -> TaskResult {
             &["-D", POSTGRES_DATA, "-w", "-t", "60", "start"],
         )?;
     }
+    ensure_runtime_postgres_hba()?;
     ensure_roles(root, &secrets).await?;
+    reconcile_logical_profiles(root).await?;
     status(root)
 }
 
@@ -444,6 +707,93 @@ async fn ensure_roles(root: &Path, secrets: &InfraSecrets) -> TaskResult {
         "ALTER ROLE erpx_restore NOSUPERUSER CREATEDB NOCREATEROLE NOREPLICATION".into(),
     ] {
         connection.execute(statement.as_str()).await?;
+    }
+    Ok(())
+}
+
+fn postgres_profile_databases(profile: &str) -> &'static [&'static str] {
+    match profile {
+        PROFILE_PLATFORM => &["erpx_control_write", "erpx_control_read"],
+        PROFILE_HOLDING_DEMO => &["erpx_tenant_write", "erpx_tenant_read"],
+        PROFILE_HOLDING_RESTRICTED => &[
+            "erpx_restricted_tenant_write",
+            "erpx_restricted_tenant_read",
+        ],
+        _ => &[],
+    }
+}
+
+pub(crate) async fn reconcile_logical_profiles(root: &Path) -> TaskResult {
+    let infra_secrets = read_secrets(root)?;
+    let legacy_profiles = if logical_profile_secret_path(root).exists() {
+        Some(read_legacy_logical_profile_secrets(root)?)
+    } else {
+        None
+    };
+    write_local_topology(root)?;
+    replace_private(
+        &runtime(root).join("secrets/pitr/minio.json"),
+        &serde_json::to_vec_pretty(&serde_json::json!({
+            "endpoint": format!("https://127.0.0.1:{MINIO_API_PORT}"),
+            "access_key": infra_secrets.minio_access_key,
+            "secret_key": infra_secrets.minio_secret_key,
+            "region": "us-east-1",
+            "ca_certificate_path": ca_path(root),
+            "namespace": "erpx-platform-pitr",
+            "cluster_ref": CLUSTER_REF,
+            "chain_ref": CHAIN_REF,
+        }))?,
+    )?;
+    let mut admin = PgConnection::connect(&admin_url(root, &infra_secrets, "postgres")).await?;
+    let existing = sqlx::query_scalar::<_, String>(
+        "SELECT datname FROM pg_database WHERE datallowconn ORDER BY datname",
+    )
+    .fetch_all(&mut admin)
+    .await?
+    .into_iter()
+    .collect::<BTreeSet<_>>();
+    for (profile, role) in [
+        (PROFILE_PLATFORM, "erpx_dev_platform"),
+        (PROFILE_HOLDING_DEMO, "erpx_dev_holding_demo"),
+        (PROFILE_HOLDING_RESTRICTED, "erpx_dev_holding_restricted"),
+    ] {
+        let role_exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_roles WHERE rolname=$1)")
+                .bind(role)
+                .fetch_one(&mut admin)
+                .await?;
+        if !role_exists {
+            continue;
+        }
+        for database in &existing {
+            let mut database_admin =
+                PgConnection::connect(&admin_url(root, &infra_secrets, database)).await?;
+            database_admin
+                .execute(format!("REASSIGN OWNED BY {role} TO erpx_app").as_str())
+                .await?;
+            database_admin
+                .execute(format!("DROP OWNED BY {role}").as_str())
+                .await?;
+        }
+        for database in postgres_profile_databases(profile) {
+            if existing.contains(*database) {
+                admin
+                    .execute(
+                        format!(
+                            "ALTER DATABASE \"{database}\" OWNER TO erpx_app; REVOKE CONNECT ON DATABASE \"{database}\" FROM PUBLIC; GRANT CONNECT ON DATABASE \"{database}\" TO erpx_app"
+                        )
+                        .as_str(),
+                    )
+                    .await?;
+            }
+        }
+        admin
+            .execute(format!("REVOKE {role} FROM erpx_app; DROP ROLE {role}").as_str())
+            .await?;
+    }
+    cleanup_legacy_minio_profiles(root, legacy_profiles.as_ref())?;
+    if logical_profile_secret_path(root).exists() {
+        fs::remove_file(logical_profile_secret_path(root))?;
     }
     Ok(())
 }
@@ -498,6 +848,10 @@ fn postgres_running() -> bool {
         .is_ok_and(|status| status.success())
 }
 
+pub(crate) fn is_running(root: &Path) -> bool {
+    postgres_running() && minio_running(root)
+}
+
 fn wait_minio(root: &Path, secrets: &InfraSecrets) -> TaskResult {
     for _ in 0..60 {
         let status = Command::new("mc")
@@ -533,7 +887,9 @@ fn ensure_buckets(root: &Path, _secrets: &InfraSecrets) -> TaskResult {
         "erpx-tenant-objects",
         "erpx-logical-backups",
         "erpx-platform-pitr",
+        "erpx-platform-assets",
         "erpx-demo",
+        "erpx-demo-restricted",
     ] {
         let status = Command::new("mc")
             .args([
@@ -555,6 +911,68 @@ fn ensure_buckets(root: &Path, _secrets: &InfraSecrets) -> TaskResult {
     Ok(())
 }
 
+#[cfg(test)]
+fn minio_profile_namespaces(profile: &str) -> &'static [&'static str] {
+    match profile {
+        PROFILE_PLATFORM => &["erpx-platform-assets"],
+        PROFILE_HOLDING_DEMO => &["erpx-demo"],
+        PROFILE_HOLDING_RESTRICTED => &["erpx-demo-restricted"],
+        PROFILE_BACKUP => &["erpx-logical-backups"],
+        PROFILE_PITR => &["erpx-platform-pitr"],
+        _ => &[],
+    }
+}
+
+fn cleanup_legacy_minio_profiles(
+    root: &Path,
+    profiles: Option<&LegacyLogicalProfileSecrets>,
+) -> TaskResult {
+    let Some(profiles) = profiles else {
+        return Ok(());
+    };
+    let config = infra_runtime(root).join("mc-config");
+    for profile in required_logical_profiles() {
+        let secret = profiles
+            .profiles
+            .get(profile)
+            .ok_or("legacy logical MinIO profile is missing")?;
+        let policy_name = format!("erpx-{}", profile.replace('_', "-"));
+        for arguments in [
+            vec![
+                "admin",
+                "policy",
+                "detach",
+                "erpx-dedicated",
+                &policy_name,
+                "--user",
+                &secret.minio_access_key,
+            ],
+            vec![
+                "admin",
+                "user",
+                "remove",
+                "erpx-dedicated",
+                &secret.minio_access_key,
+            ],
+            vec!["admin", "policy", "remove", "erpx-dedicated", &policy_name],
+        ] {
+            let _ = Command::new("mc")
+                .arg("--config-dir")
+                .arg(config.to_str().ok_or("invalid MinIO client config path")?)
+                .args(arguments)
+                .env("SSL_CERT_FILE", ca_path(root))
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()?;
+        }
+        let policy_path = infra_runtime(root).join(format!("policy-{profile}.json"));
+        if policy_path.is_file() {
+            fs::remove_file(policy_path)?;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn status(root: &Path) -> TaskResult {
     validate_fixed_roots()?;
     println!(
@@ -571,6 +989,14 @@ pub(crate) fn status(root: &Path) -> TaskResult {
             "running"
         } else {
             "stopped"
+        }
+    );
+    println!(
+        "infra-logical-topology: {} (one shared credential/endpoint; platform + 2 holdings + backup/PITR use logical database, bucket, and authority routing)",
+        if local_topology_path(root).is_file() {
+            "ready"
+        } else {
+            "unconfigured"
         }
     );
     Ok(())
@@ -909,21 +1335,44 @@ pub(crate) fn admin_runtime_database_template(root: &Path) -> TaskResult<String>
     Ok(admin_url(root, &secrets, "{database}"))
 }
 
+/// Return a credential-free URL and the local administrator credentials used
+/// by the development-only branch fixture reconciler. The credentials stay in
+/// memory and are passed to SQLx as separate fields.
+pub(crate) fn dedicated_branch_profile(root: &Path) -> TaskResult<(String, String, String)> {
+    let secrets = read_secrets(root)?;
+    Ok((
+        format!(
+            "postgres://localhost:{POSTGRES_PORT}/postgres?sslmode=verify-full&sslrootcert={}",
+            ca_path(root).display()
+        ),
+        "erpx_admin".into(),
+        secrets.postgres_admin_password,
+    ))
+}
+
 pub(crate) fn dedicated_common_environment(root: &Path) -> TaskResult<Vec<(&'static str, String)>> {
     let secrets = read_secrets(root)?;
+    let endpoint = format!("https://localhost:{MINIO_API_PORT}");
+    let ca = ca_path(root).display().to_string();
     Ok(vec![
         (
-            "ERPX_MINIO_ENDPOINT",
-            format!("https://localhost:{MINIO_API_PORT}"),
+            "ERPX_CONTROL_WRITE_DATABASE_URL",
+            app_url(root, &secrets, "erpx_control_write"),
         ),
+        (
+            "ERPX_CONTROL_READ_DATABASE_URL",
+            app_url(root, &secrets, "erpx_control_read"),
+        ),
+        (
+            "ERPX_LOCAL_INFRA_PROFILE_MANIFEST",
+            local_topology_path(root).display().to_string(),
+        ),
+        ("ERPX_MINIO_ENDPOINT", endpoint.clone()),
         ("ERPX_MINIO_ACCESS_KEY", secrets.minio_access_key.clone()),
         ("ERPX_MINIO_SECRET_KEY", secrets.minio_secret_key.clone()),
         ("ERPX_MINIO_REGION", "us-east-1".into()),
         ("ERPX_MINIO_REQUIRED", "true".into()),
-        (
-            "ERPX_MINIO_CA_CERTIFICATE_PATH",
-            ca_path(root).display().to_string(),
-        ),
+        ("ERPX_MINIO_CA_CERTIFICATE_PATH", ca.clone()),
         ("ERPX_DIRECTORY_RUNTIME", "enabled".into()),
         ("ERPX_DIRECTORY_SECRET_RESOLVER", "local".into()),
         (
@@ -933,10 +1382,7 @@ pub(crate) fn dedicated_common_environment(root: &Path) -> TaskResult<Vec<(&'sta
                 .display()
                 .to_string(),
         ),
-        (
-            "ERPX_BACKUP_MINIO_ENDPOINT",
-            format!("https://localhost:{MINIO_API_PORT}"),
-        ),
+        ("ERPX_BACKUP_MINIO_ENDPOINT", endpoint),
         (
             "ERPX_BACKUP_MINIO_ACCESS_KEY",
             secrets.minio_access_key.clone(),
@@ -947,14 +1393,8 @@ pub(crate) fn dedicated_common_environment(root: &Path) -> TaskResult<Vec<(&'sta
         ),
         ("ERPX_BACKUP_MINIO_REGION", "us-east-1".into()),
         ("ERPX_BACKUP_MINIO_NAMESPACE", "erpx-logical-backups".into()),
-        (
-            "ERPX_BACKUP_MINIO_CA_CERT_PATH",
-            ca_path(root).display().to_string(),
-        ),
-        (
-            "ERPX_BACKUP_DATABASE_CA_CERT_PATH",
-            ca_path(root).display().to_string(),
-        ),
+        ("ERPX_BACKUP_MINIO_CA_CERT_PATH", ca.clone()),
+        ("ERPX_BACKUP_DATABASE_CA_CERT_PATH", ca),
         (
             "ERPX_BACKUP_PG_DUMP_PROGRAM",
             postgres_program("pg_dump").display().to_string(),
@@ -1703,4 +2143,40 @@ fn percent_encode(value: &str) -> String {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn logical_profiles_share_instances_but_not_resource_sets() {
+        let platform = postgres_profile_databases(PROFILE_PLATFORM);
+        let demo = postgres_profile_databases(PROFILE_HOLDING_DEMO);
+        let restricted = postgres_profile_databases(PROFILE_HOLDING_RESTRICTED);
+        assert!(platform.iter().all(|database| !demo.contains(database)));
+        assert!(
+            platform
+                .iter()
+                .all(|database| !restricted.contains(database))
+        );
+        assert!(demo.iter().all(|database| !restricted.contains(database)));
+
+        let mut namespaces = BTreeSet::new();
+        for profile in required_logical_profiles() {
+            for namespace in minio_profile_namespaces(profile) {
+                assert!(
+                    namespaces.insert(*namespace),
+                    "duplicate namespace {namespace}"
+                );
+            }
+        }
+        assert_eq!(namespaces.len(), required_logical_profiles().len());
+    }
+
+    #[test]
+    fn business_units_have_no_independent_physical_profile() {
+        assert!(!required_logical_profiles().contains(&"business_unit"));
+        assert!(minio_profile_namespaces("business_unit").is_empty());
+    }
 }

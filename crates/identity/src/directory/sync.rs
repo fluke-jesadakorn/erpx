@@ -18,6 +18,8 @@ use sqlx::{PgPool, Postgres, QueryBuilder, Row};
 use thiserror::Error;
 use uuid::Uuid;
 
+#[cfg(not(test))]
+use super::DirectoryRoleTargetScope;
 use super::feeds::{
     ChangeFeedRequest, DirectoryFeed, FeedCursor, FeedError, FeedKind, FullImportPageRequest,
 };
@@ -30,6 +32,8 @@ use super::sync::ConnectorScope as RbacConnectorScope;
 use super::{
     DirectoryRoleAction as LegacyDirectoryRoleAction, DirectoryRoleMapping, DirectoryScope,
 };
+#[cfg(test)]
+use erpx_identity::DirectoryRoleTargetScope;
 
 pub const MAX_FULL_IMPORT_USERS: u64 = 1_000_000;
 pub const DEFAULT_DIRECTORY_PAGE_SIZE: u32 = 500;
@@ -40,6 +44,15 @@ pub const REVOCATION_SLA_MINUTES: i64 = 5;
 pub const DIRECTORY_EVENT_VERSION: i32 = 1;
 pub const DIRECTORY_IMPORT_AGGREGATE: &str = "directory_import";
 pub const DIRECTORY_IDENTITY_AGGREGATE: &str = "directory_identity";
+
+pub(crate) fn directory_holding_id(holding_ref: &str) -> Uuid {
+    holding_ref.parse::<Uuid>().unwrap_or_else(|_| {
+        Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
+        )
+    })
+}
 
 /// The stable, non-secret authority name for an immutable directory key.
 /// Usernames, email addresses, DNs, and UPNs are intentionally not accepted as
@@ -294,16 +307,31 @@ impl DirectoryUserRecordBuilder {
 pub enum ConnectorScope {
     Platform,
     Holding(Uuid),
+    Branch {
+        holding_id: Uuid,
+        company_id: Uuid,
+        branch_id: Uuid,
+    },
 }
 
 impl ConnectorScope {
     pub fn validate(&self) -> Result<(), SyncError> {
-        if let Self::Holding(holding_id) = self
-            && holding_id.is_nil()
-        {
-            return Err(SyncError::InvalidConnector(
-                "holding connector scope must contain a non-nil holding ID".into(),
-            ));
+        match self {
+            Self::Holding(holding_id) if holding_id.is_nil() => {
+                return Err(SyncError::InvalidConnector(
+                    "holding connector scope must contain a non-nil holding ID".into(),
+                ));
+            }
+            Self::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            } if holding_id.is_nil() || company_id.is_nil() || branch_id.is_nil() => {
+                return Err(SyncError::InvalidConnector(
+                    "branch connector scope must contain non-nil hierarchy IDs".into(),
+                ));
+            }
+            _ => {}
         }
         Ok(())
     }
@@ -312,6 +340,7 @@ impl ConnectorScope {
         match self {
             Self::Platform => ("platform", None),
             Self::Holding(holding_id) => ("holding", Some(*holding_id)),
+            Self::Branch { branch_id, .. } => ("branch", Some(*branch_id)),
         }
     }
 
@@ -319,8 +348,32 @@ impl ConnectorScope {
         match (self, requested) {
             (Self::Platform, Self::Platform) => true,
             (Self::Platform, Self::Holding(_)) => true,
+            (Self::Platform, Self::Branch { .. }) => true,
             (Self::Holding(expected), Self::Holding(actual)) => expected == actual,
+            (
+                Self::Holding(expected),
+                Self::Branch {
+                    holding_id: actual, ..
+                },
+            ) => expected == actual,
+            (
+                Self::Branch {
+                    holding_id: expected_holding,
+                    company_id: expected_company,
+                    branch_id: expected_branch,
+                },
+                Self::Branch {
+                    holding_id: actual_holding,
+                    company_id: actual_company,
+                    branch_id: actual_branch,
+                },
+            ) => {
+                expected_holding == actual_holding
+                    && expected_company == actual_company
+                    && expected_branch == actual_branch
+            }
             (Self::Holding(_), Self::Platform) => false,
+            (Self::Branch { .. }, Self::Platform | Self::Holding(_)) => false,
         }
     }
 }
@@ -1850,6 +1903,45 @@ impl SqlxDirectorySyncStore {
         &self.pool
     }
 
+    async fn load_directory_authority(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        connector_id: Uuid,
+    ) -> Result<String, SyncStoreError> {
+        let row = sqlx::query(
+            "SELECT provider, directory_authority_fingerprint
+             FROM erpx_identity.directory_connectors WHERE id=$1",
+        )
+        .bind(connector_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or_else(|| SyncStoreError::Conflict("directory connector is unavailable".into()))?;
+        let provider: String = row.try_get("provider")?;
+        if !matches!(
+            provider.as_str(),
+            "generic_ldap" | "active_directory_domain_services" | "univention_corporate_server"
+        ) {
+            return Err(SyncStoreError::InvalidRecord(
+                "persisted directory provider is invalid".into(),
+            ));
+        }
+        let fingerprint: Option<String> = row.try_get("directory_authority_fingerprint")?;
+        if let Some(fingerprint) = fingerprint.as_deref()
+            && (fingerprint.len() != 64
+                || !fingerprint.chars().all(|value| value.is_ascii_hexdigit()))
+        {
+            return Err(SyncStoreError::InvalidRecord(
+                "persisted directory authority fingerprint is invalid".into(),
+            ));
+        }
+        Ok(format!(
+            "{}:{}",
+            provider,
+            fingerprint
+                .map(|value| value.to_ascii_lowercase())
+                .unwrap_or_else(|| format!("connector:{connector_id}"))
+        ))
+    }
+
     /// Returns the only resumable import for a connector.  Finalizing is
     /// included so a worker crash after the terminal page resumes the durable
     /// tombstoning transaction instead of starting a second snapshot.
@@ -2479,6 +2571,19 @@ impl SqlxDirectorySyncStore {
                         )
                     })?)
                 }
+                DirectoryScope::Branch {
+                    company_id,
+                    branch_id,
+                    ..
+                } => RbacConnectorScope::Branch {
+                    holding_id: mapping.scope.holding_id().ok_or_else(|| {
+                        SyncStoreError::InvalidRecord(
+                            "branch role mapping has no stable holding identity".into(),
+                        )
+                    })?,
+                    company_id: *company_id,
+                    branch_id: *branch_id,
+                },
             };
             let role_action = match row.action {
                 LegacyDirectoryRoleAction::Grant => RbacRoleFactAction::Grant,
@@ -2583,9 +2688,18 @@ impl SqlxDirectorySyncStore {
             ConnectorScope::Holding(holding_id) => DirectoryScope::Holding {
                 holding_ref: holding_id.to_string(),
             },
+            ConnectorScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            } => DirectoryScope::Branch {
+                holding_ref: holding_id.to_string(),
+                company_id: *company_id,
+                branch_id: *branch_id,
+            },
         };
         let rows = sqlx::query(
-            "SELECT group_ref, role_ref, scope_key, requires_mfa, active, revision
+            "SELECT group_ref, role_ref, scope_key, target_scope_key, requires_mfa, active, revision
              FROM erpx_identity.directory_role_mappings
              WHERE connector_id=$1
              ORDER BY group_ref, role_ref, scope_key",
@@ -2601,6 +2715,9 @@ impl SqlxDirectorySyncStore {
                     group_ref: row.try_get("group_ref")?,
                     role_ref: row.try_get("role_ref")?,
                     scope: directory_scope_from_key(&scope_key)?,
+                    target_scope: parse_role_target_scope(
+                        &row.try_get::<String, _>("target_scope_key")?,
+                    )?,
                     requires_mfa: row.try_get("requires_mfa")?,
                     active: row.try_get("active")?,
                     revision: u64::try_from(row.try_get::<i64, _>("revision")?).map_err(|_| {
@@ -2917,6 +3034,8 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
                     "checkpoint is not bound to this import".into(),
                 ));
             }
+            let directory_authority =
+                Self::load_directory_authority(&mut tx, plan.connector.id).await?;
             for record in &page.records {
                 let record_digest = record
                     .record_digest()
@@ -2954,7 +3073,7 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
                 .bind(identity_id)
                 .bind(plan.connector.id)
                 .bind(record.external_id())
-                .bind(record.immutable_link().authority())
+                .bind(&directory_authority)
                 .bind(record.immutable_link().value())
                 .bind(record.state().as_str())
                 .bind(Vec::from(record_digest))
@@ -3883,6 +4002,11 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
                     "directory connector is disabled".into(),
                 ));
             }
+            let directory_authority =
+                Self::load_directory_authority(&mut tx, change.connector_id).await?;
+            let canonical_immutable_link =
+                ImmutableIdentityLink::new(directory_authority, change.immutable_link.value())
+                    .map_err(|error| SyncStoreError::InvalidRecord(error.to_string()))?;
             // Full-import finalization and native-feed delivery share one
             // connector-wide fence.  Without it, a snapshot finalizer can
             // commit an older identity observation while a native change is
@@ -3963,8 +4087,8 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
                 if let Some(row) = current {
                     let existing_authority: String = row.try_get("immutable_authority")?;
                     let existing_value: String = row.try_get("immutable_value")?;
-                    if existing_authority != change.immutable_link.authority
-                        || existing_value != change.immutable_link.value
+                    if existing_authority != canonical_immutable_link.authority()
+                        || existing_value != canonical_immutable_link.value()
                     {
                         return Err(SyncStoreError::Conflict(
                             "native change attempted to mutate immutable identity link".into(),
@@ -4055,11 +4179,12 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
             let existing_immutable_identity: Option<Uuid> = sqlx::query_scalar(
                 "SELECT id
                    FROM erpx_identity.directory_identities
-                  WHERE immutable_authority=$1 AND immutable_value=$2
+                  WHERE connector_id=$1 AND immutable_authority=$2 AND immutable_value=$3
                   FOR SHARE",
             )
-            .bind(change.immutable_link.authority())
-            .bind(change.immutable_link.value())
+            .bind(change.connector_id)
+            .bind(canonical_immutable_link.authority())
+            .bind(canonical_immutable_link.value())
             .fetch_optional(&mut *tx)
             .await?;
             if existing_immutable_identity.is_some_and(|linked| linked != identity_id) {
@@ -4067,7 +4192,7 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
                     "immutable directory link is already bound to another identity".into(),
                 ));
             }
-            let immutable_identity_key = immutable_identity_database_key(&change.immutable_link);
+            let immutable_identity_key = immutable_identity_database_key(&canonical_immutable_link);
             sqlx::query(
                 "INSERT INTO erpx_identity.directory_identities
                     (id, connector_id, scope_kind, scope_id, external_id,
@@ -4084,8 +4209,8 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
             .bind(scope.storage_parts().0)
             .bind(scope.storage_parts().1)
             .bind(&change.external_id)
-            .bind(change.immutable_link.authority())
-            .bind(change.immutable_link.value())
+            .bind(canonical_immutable_link.authority())
+            .bind(canonical_immutable_link.value())
             .bind(state)
             .bind(&record)
             .bind(version)
@@ -4095,10 +4220,11 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
             let linked_identity: Option<Uuid> = sqlx::query_scalar(
                 "SELECT identity_id
                  FROM erpx_identity.directory_identity_links
-                 WHERE immutable_authority=$1 AND immutable_value=$2",
+                 WHERE connector_id=$1 AND immutable_authority=$2 AND immutable_value=$3",
             )
-            .bind(change.immutable_link.authority())
-            .bind(change.immutable_link.value())
+            .bind(change.connector_id)
+            .bind(canonical_immutable_link.authority())
+            .bind(canonical_immutable_link.value())
             .fetch_optional(&mut *tx)
             .await?;
             if linked_identity.is_some_and(|linked| linked != identity_id) {
@@ -4115,8 +4241,8 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
                  ON CONFLICT DO NOTHING",
             )
             .bind(&immutable_identity_key)
-            .bind(change.immutable_link.authority())
-            .bind(change.immutable_link.value())
+            .bind(canonical_immutable_link.authority())
+            .bind(canonical_immutable_link.value())
             .bind(change.connector_id)
             .bind(&change.external_id)
             .bind(identity_id)
@@ -4163,7 +4289,7 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
                 change,
                 &scope,
                 &immutable_identity_key,
-                change.immutable_link(),
+                &canonical_immutable_link,
                 record.as_ref(),
                 source_revision,
                 change.observed_at,
@@ -4189,8 +4315,8 @@ impl DirectorySyncStore for SqlxDirectorySyncStore {
                 .bind(event.event_id)
                 .bind(signal.connector_id)
                 .bind(signal.external_id)
-                .bind(signal.immutable_link.authority())
-                .bind(signal.immutable_link.value())
+                .bind(canonical_immutable_link.authority())
+                .bind(canonical_immutable_link.value())
                 .bind(signal.observed_at)
                 .bind(signal.deadline)
                 .bind(match signal.change_kind {
@@ -4242,6 +4368,11 @@ fn rbac_scope_key(scope: &RbacConnectorScope) -> String {
     match scope {
         RbacConnectorScope::Platform => "platform".to_owned(),
         RbacConnectorScope::Holding(holding_id) => format!("holding:{holding_id}"),
+        RbacConnectorScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => format!("branch:{holding_id}:{company_id}:{branch_id}"),
     }
 }
 
@@ -4377,6 +4508,18 @@ fn validate_immutable_part(
 
 fn hex_digest(bytes: &[u8; 32]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn parse_role_target_scope(value: &str) -> Result<DirectoryRoleTargetScope, SyncStoreError> {
+    match value {
+        "platform" => Ok(DirectoryRoleTargetScope::Platform),
+        "holding" => Ok(DirectoryRoleTargetScope::Holding),
+        "company" => Ok(DirectoryRoleTargetScope::Company),
+        "branch" => Ok(DirectoryRoleTargetScope::Branch),
+        _ => Err(SyncStoreError::InvalidRecord(
+            "stored directory role target scope is invalid".into(),
+        )),
+    }
 }
 
 #[cfg(test)]

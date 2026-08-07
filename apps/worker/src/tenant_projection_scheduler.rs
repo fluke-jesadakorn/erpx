@@ -153,6 +153,12 @@ impl TenantProjectionSchedulerSource for TenantProjectionSchedulerRepository {
 
 #[async_trait]
 pub trait TenantProjectionExecutor: Send + Sync + 'static {
+    /// Restricts claims to one exact projection. Executors returning `None`
+    /// must be able to dispatch every projection in the shared catalog.
+    fn projection_name_filter(&self) -> Option<&str> {
+        None
+    }
+
     async fn execute(
         &self,
         claim: &ProjectionClaimRecord,
@@ -723,6 +729,7 @@ where
         let now = Utc::now();
         let request = ProjectionClaimRequest {
             binding: self.binding.clone(),
+            projection_name: self.executor.projection_name_filter().map(str::to_owned),
             worker_id,
             claim_key: format!("{}:{worker_id}:{}", self.claim_key_prefix, Uuid::new_v4()),
             now,
@@ -830,6 +837,7 @@ where
         for binding in bindings {
             let request = ProjectionClaimRequest {
                 binding: binding.clone(),
+                projection_name: self.executor.projection_name_filter().map(str::to_owned),
                 worker_id,
                 claim_key: format!("{}:{worker_id}:{}", self.claim_key_prefix, Uuid::new_v4()),
                 now: Utc::now(),

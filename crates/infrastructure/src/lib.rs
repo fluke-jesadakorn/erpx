@@ -2,6 +2,7 @@
 
 mod asset_maintenance_persistence;
 mod backup_retention;
+mod branch_provisioning;
 mod cluster_pitr;
 mod commands;
 mod commercial;
@@ -9,6 +10,7 @@ mod corporate_identity;
 mod data_plane;
 mod error;
 mod finance_bank_credentials;
+mod finance_bank_provider_import_jobs;
 mod finance_banking_persistence;
 mod finance_banking_provider;
 mod finance_budget_persistence;
@@ -54,6 +56,7 @@ mod provisioning;
 mod quality_persistence;
 mod repositories;
 mod role_review;
+mod runtime_readiness;
 mod sales_persistence;
 mod scm_persistence;
 mod stripe_client;
@@ -85,6 +88,12 @@ pub use backup_retention::{
     TenantBackupInventoryObservation, TenantBackupInventoryReport, TenantBackupRetentionClaim,
     TenantBackupRetentionObject, TenantBackupRetentionReceipt, TenantBackupRetentionReport,
     TenantBackupRetentionRequest, validate_tenant_backup_retention_request_at,
+};
+pub use branch_provisioning::{
+    BRANCH_INFRASTRUCTURE_PROVISION, BRANCH_PROVISIONING_LEASE_SECONDS, BranchDatabaseRoute,
+    BranchProvisioningClaim, BranchProvisioningJob, BranchProvisioningState,
+    DatabaseProfileRegistration, ProvisionBranchRequest, SqlxBranchProvisioningStore,
+    branch_database_keys,
 };
 pub use cluster_pitr::{
     ClusterPitrChain, ClusterPitrError, ClusterPitrRepository, ClusterRecoveryPoint,
@@ -129,6 +138,11 @@ pub use finance_bank_credentials::{
     BankProviderCredentialError, BankProviderCredentialKey, BankProviderCredentialResolver,
     MAX_BANK_PROVIDER_CREDENTIAL_BYTES, MAX_BANK_PROVIDER_CREDENTIAL_KEY_REF_BYTES,
     ResolvedBankProviderCredential, UnconfiguredBankProviderCredentialResolver,
+};
+pub use finance_bank_provider_import_jobs::{
+    FINANCE_BANK_PROVIDER_IMPORT_MAX_ATTEMPTS, FinanceBankProviderImportAuthorization,
+    FinanceBankProviderImportError, FinanceBankProviderImportJobStatus,
+    FinanceBankProviderImportRequest, SqlxFinanceBankProviderImportJobSource,
 };
 pub use finance_banking_persistence::{
     BankAccountWriteReceipt, BankMatchDecisionWriteReceipt, BankMatchProposalWriteReceipt,
@@ -392,29 +406,30 @@ pub use pos_projection::{
     PosSourceEvent, PosSourceEventCursor, PosSourceEventPage, SqlxPosProjectionStore,
 };
 pub use provisioning::{
-    BackupAdapterError, BackupExecutionRequest, BackupExecutionResult, BackupExecutor,
-    BackupExecutorError, BackupFailureClass, BackupObjectTransport, BackupPitrObservation,
-    BackupProcessCommand, BackupProcessRunner, BackupRunKind, DatabaseReadinessObservation,
-    DatabaseSide, MAX_RESTORE_TEST_ATTEMPTS, MAX_RESTORE_TEST_SCHEDULE_BATCH_SIZE,
-    MAX_TENANT_BACKUP_JOB_ATTEMPTS, MAX_TENANT_BACKUP_JOB_LEASE_SECONDS,
-    MAX_TENANT_BACKUP_JOB_PAGE_SIZE, MAX_TENANT_BACKUP_JOB_PROJECTION_BATCH_SIZE,
-    MAX_TENANT_PITR_INVENTORY_ENTRIES, MIN_TENANT_BACKUP_JOB_LEASE_SECONDS,
-    MinioBackupObjectTransport, PhysicalTenantDatabases, PostgresMinioBackupAdapter,
-    PostgresMinioBackupConfig, PostgresRestoredDatabaseVerifier, ProjectionFreshnessObservation,
-    ProvisioningState, ReadinessComponentObservation, ReadinessObservationPolicy,
-    ReadinessObservationState, RecoveryHistoryClassification, RestoreExecutor,
-    RestoreExecutorError, RestoreTestClaim, RestoreTestClaimResult, RestoreTestExecutionRequest,
-    RestoreTestExecutionResult, RestoreTestHistoryEntry, RestoreTestOutcome, RestoreTestSchedule,
-    RestoreTestScheduleError, RestoreTestScheduleReceipt, RestoreTestScheduleRequest,
-    RestoreTestScheduleState, RestoreTestScheduler, RestoredDatabaseVerifier, RoutedDatabaseSide,
-    RoutedTenantDatabase, SystemBackupProcessRunner, TenantBackupJobClaim, TenantBackupJobReceipt,
-    TenantBackupJobRequest, TenantBackupJobSummary, TenantBackupRun, TenantBackupTarget,
-    TenantDatabaseHealth, TenantDatabaseProvisioner, TenantDatabaseProvisioningConfig,
-    TenantDatabaseRouter, TenantOrganizationBootstrap, TenantOwnerSeed, TenantProvisioner,
-    TenantReadDatabaseReplacement, TenantReadinessMetadata, TenantReadinessObservation,
-    TenantRestoreTestActivation, TenantRestoreTestTarget, TenantRoutingObservation,
-    TenantSourceProjection, TenantSourceRebuildLock, TenantStorageHealth,
-    ValidatedBackupExecutionResult, ValidatedRestoreTestResult, tenant_holding_scope_id,
+    ApprovedDatabaseProfileConnection, BackupAdapterError, BackupExecutionRequest,
+    BackupExecutionResult, BackupExecutor, BackupExecutorError, BackupFailureClass,
+    BackupObjectTransport, BackupPitrObservation, BackupProcessCommand, BackupProcessRunner,
+    BackupRunKind, DatabaseReadinessObservation, DatabaseSide, MAX_RESTORE_TEST_ATTEMPTS,
+    MAX_RESTORE_TEST_SCHEDULE_BATCH_SIZE, MAX_TENANT_BACKUP_JOB_ATTEMPTS,
+    MAX_TENANT_BACKUP_JOB_LEASE_SECONDS, MAX_TENANT_BACKUP_JOB_PAGE_SIZE,
+    MAX_TENANT_BACKUP_JOB_PROJECTION_BATCH_SIZE, MAX_TENANT_PITR_INVENTORY_ENTRIES,
+    MIN_TENANT_BACKUP_JOB_LEASE_SECONDS, MinioBackupObjectTransport, PhysicalTenantDatabases,
+    PostgresMinioBackupAdapter, PostgresMinioBackupConfig, PostgresRestoredDatabaseVerifier,
+    ProjectionFreshnessObservation, ProvisioningState, ReadinessComponentObservation,
+    ReadinessObservationPolicy, ReadinessObservationState, RecoveryHistoryClassification,
+    RestoreExecutor, RestoreExecutorError, RestoreTestClaim, RestoreTestClaimResult,
+    RestoreTestExecutionRequest, RestoreTestExecutionResult, RestoreTestHistoryEntry,
+    RestoreTestOutcome, RestoreTestSchedule, RestoreTestScheduleError, RestoreTestScheduleReceipt,
+    RestoreTestScheduleRequest, RestoreTestScheduleState, RestoreTestScheduler,
+    RestoredDatabaseVerifier, RoutedDatabaseSide, RoutedTenantDatabase, SystemBackupProcessRunner,
+    TenantBackupJobClaim, TenantBackupJobReceipt, TenantBackupJobRequest, TenantBackupJobSummary,
+    TenantBackupRun, TenantBackupTarget, TenantDataRouteScope, TenantDatabaseHealth,
+    TenantDatabaseProvisioner, TenantDatabaseProvisioningConfig, TenantDatabaseRouter,
+    TenantOrganizationBootstrap, TenantOwnerSeed, TenantProvisioner, TenantReadDatabaseReplacement,
+    TenantReadinessMetadata, TenantReadinessObservation, TenantRestoreTestActivation,
+    TenantRestoreTestTarget, TenantRoutingObservation, TenantSourceProjection,
+    TenantSourceRebuildLock, TenantStorageHealth, ValidatedBackupExecutionResult,
+    ValidatedRestoreTestResult, initialize_tenant_organization_in_pools, tenant_holding_scope_id,
     tenant_owner_assignment_id,
 };
 pub use quality_persistence::{
@@ -427,16 +442,23 @@ pub use quality_persistence::{
 pub use repositories::{
     Customer360ReadReconciliation, FinanceBankProviderAccountBinding,
     MARKETING_PUBLIC_ABUSE_WINDOW_SECONDS, MAX_MARKETING_PROVIDER_ACCOUNTS_PER_HOLDING,
-    MAX_MARKETING_PUBLIC_ABUSE_LIMIT, MAX_PLATFORM_AUDIT_PAGE_SIZE, MAX_TENANT_REGISTRY_PAGE_SIZE,
+    MAX_MARKETING_PUBLIC_ABUSE_LIMIT, MAX_PLATFORM_AUDIT_PAGE_SIZE,
+    MAX_PLATFORM_INTEGRATION_OBSERVATIONS, MAX_TENANT_REGISTRY_PAGE_SIZE,
     MarketingProviderAccountBinding, MarketingProviderChannelRouteBinding,
     MarketingPublicAbuseWindowRequest, ObjectAccessBindingRequest, PlatformAuditEntry,
-    PlatformAuditPage, ProjectionAuthorizationRequest, SodDecision, SqlxControlPlane,
-    SqlxTenantStoreRegistry, SupportCapabilityAuthorizationRequest, TenantStoreRegistration,
-    TenantStoreRegistrationDetail, TenantStoreRegistrationPage,
+    PlatformAuditPage, PlatformIntegrationObservation, ProjectionAuthorizationRequest, SodDecision,
+    SqlxControlPlane, SqlxTenantStoreRegistry, SupportCapabilityAuthorizationRequest,
+    TenantStoreRegistration, TenantStoreRegistrationDetail, TenantStoreRegistrationPage,
 };
 pub use role_review::{
     ClaimedRoleExpiryNotification, ROLE_EXPIRY_NOTIFICATION_EVENT_TYPE, RoleRecoveryReceipt,
     RoleReviewPersistence, RoleReviewPersistenceError, RoleReviewSnapshotReceipt,
+};
+pub use runtime_readiness::{
+    ReadinessState, WorkerHeartbeat, WorkerHeartbeatObservation, WorkerHeartbeatReadiness,
+    WorkerLiveReadinessObservation, WorkerLiveReadinessPolicy, WorkerReadinessComposition,
+    WorkerReadinessMetadata, WorkerReadinessObserver, aggregate_readiness_states,
+    backup_pitr_readiness, projection_freshness_readiness, tenant_routing_readiness,
 };
 pub use sales_persistence::{
     MAX_SALES_PROJECTION_EVENTS, MAX_SALES_READ_PAGE_SIZE, MAX_SALES_SOURCE_EVENT_PAGE_SIZE,
@@ -489,10 +511,11 @@ pub use support_workflow::{
     SupportWorkflowPersistenceError, SupportWorkflowReconciliation, SupportWorkflowStore,
 };
 pub use tenant_administration::{
-    MAX_TENANT_SUMMARY_PAGE_SIZE, SqlxTenantAdministrationStore, TenantAdminContextIssue,
-    TenantBillingGraceExtensionGrant, TenantInvoicePage, TenantInvoiceSummary,
-    TenantRegistryFilter, TenantRegistryPage, TenantRegistrySummary,
-    TenantStripeSubscriptionBinding,
+    MAX_TENANT_CONTROL_HISTORY_PAGE_SIZE, MAX_TENANT_SUMMARY_PAGE_SIZE,
+    SqlxTenantAdministrationStore, TenantAdminContextIssue, TenantBillingGraceExtensionGrant,
+    TenantControlHistoryCursor, TenantControlHistoryEntry, TenantControlHistoryPage,
+    TenantInvoicePage, TenantInvoiceSummary, TenantRegistryFilter, TenantRegistryPage,
+    TenantRegistrySummary, TenantStripeSubscriptionBinding,
 };
 pub use tenant_projection_scheduler::{
     ClaimKeyDecision, ClaimKeyRegistry, DeadLetterRecord, MAX_BACKOFF_SECONDS,

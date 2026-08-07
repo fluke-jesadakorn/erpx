@@ -134,6 +134,25 @@ pub enum NativeChangeFeed {
 pub enum ConnectorScope {
     Platform,
     Holding(Uuid),
+    Branch {
+        holding_id: Uuid,
+        company_id: Uuid,
+        branch_id: Uuid,
+    },
+}
+
+impl ConnectorScope {
+    const fn is_invalid(self) -> bool {
+        match self {
+            Self::Platform => false,
+            Self::Holding(holding_id) => holding_id.is_nil(),
+            Self::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            } => holding_id.is_nil() || company_id.is_nil() || branch_id.is_nil(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -241,9 +260,7 @@ impl DirectoryConnectorConfig {
         break_glass: BreakGlassPolicy,
     ) -> Result<Self, DirectoryAuthError> {
         let endpoint = endpoint.into();
-        if connector_ref.is_nil()
-            || matches!(scope, ConnectorScope::Holding(holding_ref) if holding_ref.is_nil())
-        {
+        if connector_ref.is_nil() || scope.is_invalid() {
             return Err(DirectoryAuthError::InvalidConfiguration);
         }
         tls.validate_endpoint(&endpoint)
@@ -272,9 +289,7 @@ impl DirectoryConnectorConfig {
     /// evidence only; it intentionally does not turn configuration presence
     /// into live LDAP, AD DS, or UCS certification.
     pub fn preflight(&self) -> Result<DirectoryAuthenticationPreflight, DirectoryAuthError> {
-        if self.connector_ref.is_nil()
-            || matches!(self.scope, ConnectorScope::Holding(holding_ref) if holding_ref.is_nil())
-        {
+        if self.connector_ref.is_nil() || self.scope.is_invalid() {
             return Err(DirectoryAuthError::InvalidConfiguration);
         }
         self.tls

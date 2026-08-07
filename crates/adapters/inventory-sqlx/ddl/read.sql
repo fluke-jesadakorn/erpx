@@ -1,0 +1,2 @@
+-- Evidence contract: canonical installation is tenant-read migration 0052.
+-- Projection: erpx_inventory_read.stock_item_projection.

@@ -967,6 +967,7 @@ impl<T> IncidentViewState<T> {
             Some(UiStateKind::Conflict) => TranslationKey::Conflict,
             Some(UiStateKind::Offline) => TranslationKey::Offline,
             Some(UiStateKind::Error) => TranslationKey::Error,
+            Some(_) => TranslationKey::Error,
             None => return None,
         };
         Some(key.text(locale))
@@ -1571,6 +1572,7 @@ impl<T> SupportViewState<T> {
             Some(UiStateKind::Conflict) => TranslationKey::Conflict,
             Some(UiStateKind::Offline) => TranslationKey::Offline,
             Some(UiStateKind::Error) => TranslationKey::Error,
+            Some(_) => TranslationKey::Error,
             None => return None,
         };
         Some(key.text(locale))

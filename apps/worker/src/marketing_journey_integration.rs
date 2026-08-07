@@ -246,7 +246,7 @@ pub struct HttpMarketingJourneyIntegrationProvider {
     control: Arc<SqlxControlPlane>,
     credentials: MarketingDeliverySecretManagerResolver,
     expected_holding_ref: String,
-    configured_provider_key: String,
+    configured_provider_key: Option<String>,
     client: Client,
 }
 
@@ -266,16 +266,18 @@ impl HttpMarketingJourneyIntegrationProvider {
         credentials: MarketingDeliverySecretManagerResolver,
         expected_holding_ref: impl Into<String>,
     ) -> Result<Self, WorkerRuntimeError> {
-        let configured_provider_key = env::var("ERPX_MARKETING_PROVIDER_KEY").map_err(|_| {
-            WorkerRuntimeError::Configuration(
-                "ERPX_MARKETING_PROVIDER_KEY is required for approved integrations".into(),
-            )
-        })?;
-        if configured_provider_key.trim().is_empty() || configured_provider_key.len() > 255 {
-            return Err(WorkerRuntimeError::Configuration(
-                "ERPX_MARKETING_PROVIDER_KEY is invalid".into(),
-            ));
-        }
+        let configured_provider_key = env::var("ERPX_MARKETING_PROVIDER_KEY")
+            .ok()
+            .map(|value| {
+                if value.trim().is_empty() || value.len() > 255 {
+                    Err(WorkerRuntimeError::Configuration(
+                        "ERPX_MARKETING_PROVIDER_KEY is invalid".into(),
+                    ))
+                } else {
+                    Ok(value)
+                }
+            })
+            .transpose()?;
         let client = Client::builder()
             .redirect(Policy::none())
             .timeout(StdDuration::from_secs(REQUEST_TIMEOUT_SECONDS))
@@ -303,9 +305,13 @@ impl HttpMarketingJourneyIntegrationProvider {
             .await
             .map_err(|_| MarketingJourneyIntegrationProviderError::Retryable)?
             .ok_or(MarketingJourneyIntegrationProviderError::Permanent)?;
+        let configured_provider_key = self
+            .configured_provider_key
+            .as_deref()
+            .ok_or(MarketingJourneyIntegrationProviderError::Configuration)?;
         let holding_id = holding_id_for_scope(scope)
             .ok_or(MarketingJourneyIntegrationProviderError::Permanent)?;
-        if binding.provider_key != self.configured_provider_key
+        if binding.provider_key != configured_provider_key
             || binding.holding_ref != self.expected_holding_ref
             || binding.holding_id != holding_id
         {

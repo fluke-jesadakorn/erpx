@@ -9,6 +9,8 @@ use std::{
     fs,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    time::{Duration, Instant, SystemTime},
 };
 
 use chrono::Utc;
@@ -20,6 +22,40 @@ use crate::{NamedWorkerHandler, WorkerHandlerReport, WorkerRuntimeError};
 
 pub const CLUSTER_PITR_CONTROLLER_HANDLER_NAME: &str = "cluster_pitr_controller";
 const MAX_WAL_SEGMENTS_PER_PASS: usize = 128;
+const FORCED_WAL_RESCAN_INTERVAL: Duration = Duration::from_secs(60);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WalSpoolFingerprint {
+    modified: SystemTime,
+    len: u64,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct SuccessfulWalSpoolScan {
+    fingerprint: WalSpoolFingerprint,
+    completed_at: Instant,
+}
+
+#[derive(Debug, Default)]
+struct WalSpoolScanState {
+    successful: Option<SuccessfulWalSpoolScan>,
+}
+
+impl WalSpoolScanState {
+    fn should_scan(&self, fingerprint: WalSpoolFingerprint, now: Instant) -> bool {
+        self.successful.is_none_or(|successful| {
+            successful.fingerprint != fingerprint
+                || now.duration_since(successful.completed_at) >= FORCED_WAL_RESCAN_INTERVAL
+        })
+    }
+
+    fn record_success(&mut self, fingerprint: WalSpoolFingerprint, completed_at: Instant) {
+        self.successful = Some(SuccessfulWalSpoolScan {
+            fingerprint,
+            completed_at,
+        });
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ClusterPitrControllerRuntimeHandler {
@@ -27,6 +63,7 @@ pub struct ClusterPitrControllerRuntimeHandler {
     wal_spool: PathBuf,
     cluster_ref: String,
     chain_ref: String,
+    scan_state: Arc<Mutex<WalSpoolScanState>>,
 }
 
 impl ClusterPitrControllerRuntimeHandler {
@@ -41,6 +78,7 @@ impl ClusterPitrControllerRuntimeHandler {
             wal_spool,
             cluster_ref,
             chain_ref,
+            scan_state: Arc::new(Mutex::new(WalSpoolScanState::default())),
         })
     }
 
@@ -157,7 +195,34 @@ impl NamedWorkerHandler for ClusterPitrControllerRuntimeHandler {
     }
 
     async fn run_once(&self, _worker_id: Uuid) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
+        let fingerprint = wal_spool_fingerprint(&self.wal_spool)?;
+        let should_scan = {
+            let state = self.scan_state.lock().map_err(|_| {
+                WorkerRuntimeError::Configuration("cluster PITR scan state is unavailable".into())
+            })?;
+            state.should_scan(fingerprint, Instant::now())
+        };
+        if !should_scan {
+            return Ok(WorkerHandlerReport {
+                claimed: 0,
+                processed: 0,
+                published: 0,
+                retried: 0,
+                dead_lettered: 0,
+                has_work: false,
+            });
+        }
         let recorded = self.inventory_verified_wal().await?;
+        if recorded < MAX_WAL_SEGMENTS_PER_PASS {
+            self.scan_state
+                .lock()
+                .map_err(|_| {
+                    WorkerRuntimeError::Configuration(
+                        "cluster PITR scan state is unavailable".into(),
+                    )
+                })?
+                .record_success(fingerprint, Instant::now());
+        }
         let recorded = u64::try_from(recorded).map_err(|_| {
             WorkerRuntimeError::Configuration("WAL inventory count is invalid".into())
         })?;
@@ -210,6 +275,15 @@ fn validate_spool_root(path: &Path) -> Result<(), WorkerRuntimeError> {
     Ok(())
 }
 
+fn wal_spool_fingerprint(path: &Path) -> Result<WalSpoolFingerprint, WorkerRuntimeError> {
+    validate_spool_root(path)?;
+    let metadata = fs::symlink_metadata(path).map_err(configuration_error)?;
+    Ok(WalSpoolFingerprint {
+        modified: metadata.modified().map_err(configuration_error)?,
+        len: metadata.len(),
+    })
+}
+
 fn valid_wal_segment(value: &str) -> bool {
     value.len() == 24
         && value
@@ -232,5 +306,47 @@ mod tests {
         assert!(!valid_wal_segment("0000000100000000000000af"));
         assert!(!valid_wal_segment("000000010000000000000001.backup"));
         assert!(!valid_wal_segment("../0000000100000000000001"));
+    }
+
+    #[test]
+    fn unchanged_spool_skips_until_the_forced_rescan() {
+        let fingerprint = WalSpoolFingerprint {
+            modified: SystemTime::UNIX_EPOCH,
+            len: 96,
+        };
+        let started = Instant::now();
+        let mut state = WalSpoolScanState::default();
+        assert!(state.should_scan(fingerprint, started));
+        state.record_success(fingerprint, started);
+        assert!(!state.should_scan(fingerprint, started + Duration::from_secs(59)));
+        assert!(state.should_scan(fingerprint, started + Duration::from_secs(60)));
+    }
+
+    #[test]
+    fn changed_spool_forces_an_immediate_scan() {
+        let started = Instant::now();
+        let original = WalSpoolFingerprint {
+            modified: SystemTime::UNIX_EPOCH,
+            len: 96,
+        };
+        let changed = WalSpoolFingerprint {
+            modified: SystemTime::UNIX_EPOCH + Duration::from_secs(1),
+            len: 128,
+        };
+        let mut state = WalSpoolScanState::default();
+        state.record_success(original, started);
+        assert!(state.should_scan(changed, started + Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn failed_scan_does_not_advance_the_gate() {
+        let fingerprint = WalSpoolFingerprint {
+            modified: SystemTime::UNIX_EPOCH,
+            len: 96,
+        };
+        let started = Instant::now();
+        let state = WalSpoolScanState::default();
+        assert!(state.should_scan(fingerprint, started));
+        assert!(state.should_scan(fingerprint, started + Duration::from_secs(1)));
     }
 }

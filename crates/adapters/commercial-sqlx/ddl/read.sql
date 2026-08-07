@@ -1,0 +1,7 @@
+-- Frozen Commercial read contract is installed by tenant-read migration 0050:
+--   erpx_commercial_read.catalog_plan_projection
+--   erpx_commercial_read.subscription_projection
+--   erpx_commercial_read.entitlement_projection
+-- Catalog rows/generations live in control-read. Subscription and entitlement
+-- rows/generations live in tenant-read. Every row is generation scoped and
+-- references the projection_generations table in that same physical database.

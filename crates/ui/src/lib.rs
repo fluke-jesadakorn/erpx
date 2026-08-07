@@ -24,12 +24,14 @@ mod state;
 mod support;
 mod support_surfaces;
 mod theme;
+mod workflows;
 
 pub use auth::{
-    AccessToken, AuthTransportError, ExpiryTimestamp, IssuedSession, LoginRequest, RefreshToken,
-    SecretInput, SecureSessionError, SecureSessionFuture, SecureSessionStore, SessionCommandError,
-    SessionController, SessionFuture, SessionId, SessionMaterialError, SessionSnapshot,
-    SessionState, SessionTransport, StoredSession,
+    AccessToken, ActiveRoleMetadata, AuthTransportError, ExpiryTimestamp, IssuedSession,
+    LoginRequest, RefreshToken, SecretInput, SecureSessionBundleStore, SecureSessionError,
+    SecureSessionFuture, SecureSessionStore, SessionCommandError, SessionController, SessionFuture,
+    SessionId, SessionMaterialError, SessionSnapshot, SessionState, SessionTransport,
+    StoredAccountSummary, StoredSession, StoredSessionBundle,
 };
 pub use components::{
     AppShell, BannerKind, CollectionLayout, CorporateIdentityEditor, CorporateIdentityEditorAction,
@@ -76,7 +78,10 @@ pub use hr::{
     HrWorkflowRef, MAX_HR_DISPLAY_VALUE_BYTES, MAX_HR_IDENTIFIER_BYTES, MAX_HR_PAGE_ROWS,
     MAX_HR_PAYROLL_LINES,
 };
-pub use i18n::{Locale, LocaleContext, TranslationKey, provide_locale, use_locale};
+pub use i18n::{
+    Locale, LocaleContext, LocaleFormatter, LocalizedText, TranslationKey, provide_locale,
+    use_locale,
+};
 pub use legal::{
     LEGAL_ROUTE_REGISTRY, LEGAL_ROUTES, LegalAccessAction, LegalAccessHistoryEntryDisplayModel,
     LegalAccessHistoryEntryId, LegalAccessHistoryEntryState, LegalApprovalDisplayModel,
@@ -158,6 +163,10 @@ pub use support_surfaces::{
 pub use theme::{
     CorporateIdentityContext, ThemeContext, ThemeMode, corporate_identity_style,
     provide_corporate_identity, provide_theme, use_corporate_identity, use_theme,
+};
+pub use workflows::{
+    HUMAN_UI_STATES, HumanAdapterKind, HumanUiState, RPC_WORKFLOW_SERVICES, RpcClassification,
+    RpcServiceWorkflow, RpcWorkflow, rpc_workflow,
 };
 
 /// Shared CSS variables and component styles. Applications can include this once in their root

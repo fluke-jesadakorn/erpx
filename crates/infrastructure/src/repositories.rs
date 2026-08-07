@@ -42,10 +42,26 @@ use crate::{
     ControlPlanePools, ControlPlaneWriteTransaction, IdempotencyReservation, PersistenceError,
 };
 
+mod finance;
+mod marketing;
+mod platform_integration;
+mod tenant_registry;
+
+pub use finance::FinanceBankProviderAccountBinding;
+pub use marketing::{
+    MARKETING_PUBLIC_ABUSE_WINDOW_SECONDS, MAX_MARKETING_PROVIDER_ACCOUNTS_PER_HOLDING,
+    MAX_MARKETING_PUBLIC_ABUSE_LIMIT, MarketingProviderAccountBinding,
+    MarketingProviderChannelRouteBinding, MarketingPublicAbuseWindowRequest,
+};
+pub use platform_integration::{
+    MAX_PLATFORM_INTEGRATION_OBSERVATIONS, PlatformIntegrationObservation,
+};
+pub use tenant_registry::{
+    MAX_TENANT_REGISTRY_PAGE_SIZE, ProjectionAuthorizationRequest, SqlxTenantStoreRegistry,
+    TenantStoreRegistration, TenantStoreRegistrationDetail, TenantStoreRegistrationPage,
+};
+
 const SUPPORT_CAPABILITY_REVOKE_BATCH_SIZE: i64 = 1_000;
-pub const MARKETING_PUBLIC_ABUSE_WINDOW_SECONDS: i64 = 60;
-pub const MAX_MARKETING_PUBLIC_ABUSE_LIMIT: u32 = 1_000;
-pub const MAX_MARKETING_PROVIDER_ACCOUNTS_PER_HOLDING: usize = 100;
 
 #[derive(Debug, Clone)]
 pub struct SqlxControlPlane {
@@ -61,109 +77,6 @@ pub struct ObjectAccessBindingRequest<'a> {
     pub scope: &'a Scope,
     pub actor_ref: &'a str,
     pub for_write: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MarketingProviderChannelRouteBinding {
-    pub channel: String,
-    pub endpoint: String,
-    pub reconciliation_endpoint: Option<String>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub struct MarketingProviderAccountBinding {
-    pub provider_account_ref: String,
-    pub provider_key: String,
-    pub provider_priority: u32,
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub holding_id: Uuid,
-    pub verifier_key_ref: String,
-    pub outbound_credential_ref: String,
-    pub channels: Vec<String>,
-    pub channel_routes: Vec<MarketingProviderChannelRouteBinding>,
-    pub version: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MarketingPublicAbuseWindowRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub hostname: String,
-    pub resource_kind: String,
-    pub resource_id: Uuid,
-}
-
-impl fmt::Debug for MarketingProviderAccountBinding {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("MarketingProviderAccountBinding")
-            .field("provider_account_ref", &self.provider_account_ref)
-            .field("provider_key", &self.provider_key)
-            .field("provider_priority", &self.provider_priority)
-            .field("tenant_id", &self.tenant_id)
-            .field("holding_ref", &self.holding_ref)
-            .field("holding_id", &self.holding_id)
-            .field("verifier_key_ref", &"[redacted]")
-            .field("outbound_credential_ref", &"[redacted]")
-            .field("channels", &self.channels)
-            .field(
-                "channel_routes",
-                &self
-                    .channel_routes
-                    .iter()
-                    .map(|route| &route.channel)
-                    .collect::<Vec<_>>(),
-            )
-            .field("version", &self.version)
-            .finish()
-    }
-}
-
-fn decode_marketing_provider_channel_routes(
-    row: &PgRow,
-) -> Result<Vec<MarketingProviderChannelRouteBinding>, PersistenceError> {
-    Ok(serde_json::from_value(row.try_get("channel_routes")?)?)
-}
-
-/// Control-plane routing metadata for a Finance bank-provider account.
-///
-/// `credential_key_ref` is only an opaque secret-manager lookup key. The
-/// binding contains no credential bytes, provider payload, access token, or
-/// payment instrument. Its `Debug` implementation deliberately redacts the
-/// key reference so accidental diagnostics cannot disclose it.
-#[derive(Clone, PartialEq, Eq)]
-pub struct FinanceBankProviderAccountBinding {
-    pub provider_account_ref: String,
-    pub provider_key: String,
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub holding_id: Uuid,
-    pub credential_key_ref: String,
-    pub state: String,
-    pub version: u64,
-}
-
-impl fmt::Debug for FinanceBankProviderAccountBinding {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("FinanceBankProviderAccountBinding")
-            .field("provider_account_ref", &self.provider_account_ref)
-            .field("provider_key", &self.provider_key)
-            .field("tenant_id", &self.tenant_id)
-            .field("holding_ref", &self.holding_ref)
-            .field("holding_id", &self.holding_id)
-            .field("credential_key_ref", &"[redacted]")
-            .field("state", &self.state)
-            .field("version", &self.version)
-            .finish()
-    }
-}
-
-impl FinanceBankProviderAccountBinding {
-    pub fn credential_key_ref(&self) -> &str {
-        &self.credential_key_ref
-    }
 }
 
 pub const MAX_PLATFORM_AUDIT_PAGE_SIZE: u32 = 100;
@@ -262,8 +175,10 @@ impl SqlxControlPlane {
 
     /// Read only the allow-listed audit columns needed by Platform Operations.
     /// Payload JSON and customer identifiers never cross this repository
-    /// boundary. The read side is independently replaceable from the audit
-    /// write side and uses a stable descending `(recorded_at, id)` cursor.
+    /// boundary. Audit events are append-only control-plane authority and do
+    /// not have a separate read projection, so this query intentionally uses
+    /// the authoritative write pool with a stable descending `(recorded_at,
+    /// id)` cursor.
     pub async fn list_platform_audit_page(
         &self,
         before: Option<(DateTime<Utc>, Uuid)>,
@@ -290,7 +205,7 @@ impl SqlxControlPlane {
         .bind(before_at)
         .bind(before_id)
         .bind(fetch_limit)
-        .fetch_all(&self.pools.read)
+        .fetch_all(&self.pools.write)
         .await?;
         let has_more = rows.len() > usize::try_from(page_size).unwrap_or(usize::MAX);
         let mut entries =
@@ -321,426 +236,6 @@ impl SqlxControlPlane {
             has_more,
             next_before,
         })
-    }
-
-    /// Atomically consume one anonymous Marketing request in a durable
-    /// control-plane window. The bucket deliberately excludes client IP and
-    /// contact data, so it is a coarse public-resource fence rather than a
-    /// user identity store.
-    pub async fn consume_marketing_public_abuse_window(
-        &self,
-        request: &MarketingPublicAbuseWindowRequest,
-        now: DateTime<Utc>,
-        limit: u32,
-    ) -> Result<bool, PersistenceError> {
-        validate_tenant_reference(&request.tenant_id, "tenant_id")?;
-        validate_tenant_reference(&request.holding_ref, "holding_ref")?;
-        validate_public_hostname(&request.hostname)?;
-        if !matches!(request.resource_kind.as_str(), "form" | "preview")
-            || request.resource_id.is_nil()
-        {
-            return Err(PersistenceError::InvalidData(
-                "Marketing public abuse resource is invalid".into(),
-            ));
-        }
-        if limit == 0 || limit > MAX_MARKETING_PUBLIC_ABUSE_LIMIT {
-            return Err(PersistenceError::InvalidData(
-                "Marketing public abuse limit is outside its bound".into(),
-            ));
-        }
-        let window_seconds = MARKETING_PUBLIC_ABUSE_WINDOW_SECONDS;
-        let window_started_at = DateTime::<Utc>::from_timestamp(
-            now.timestamp().div_euclid(window_seconds) * window_seconds,
-            0,
-        )
-        .ok_or_else(|| {
-            PersistenceError::InvalidData("Marketing public abuse timestamp is invalid".into())
-        })?;
-        let mut transaction = self.pools.write.begin().await?;
-        let active = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS (
-                SELECT 1 FROM erpx_control.tenant_registry
-                 WHERE tenant_id=$1 AND holding_ref=$2 AND state='active'
-            )",
-        )
-        .bind(&request.tenant_id)
-        .bind(&request.holding_ref)
-        .fetch_one(&mut *transaction)
-        .await?;
-        if !active {
-            transaction.commit().await?;
-            return Ok(false);
-        }
-        let count: i64 = sqlx::query_scalar(
-            "INSERT INTO erpx_control.marketing_public_abuse_windows
-                (tenant_id, holding_ref, hostname, resource_kind, resource_id,
-                 window_started_at, request_count, last_seen_at)
-             VALUES ($1,$2,$3,$4,$5,$6,1,$7)
-             ON CONFLICT (tenant_id, holding_ref, hostname, resource_kind,
-                          resource_id, window_started_at)
-             DO UPDATE SET request_count =
-                               erpx_control.marketing_public_abuse_windows.request_count + 1,
-                           last_seen_at = EXCLUDED.last_seen_at
-             RETURNING request_count",
-        )
-        .bind(&request.tenant_id)
-        .bind(&request.holding_ref)
-        .bind(&request.hostname)
-        .bind(&request.resource_kind)
-        .bind(request.resource_id)
-        .bind(window_started_at)
-        .bind(now)
-        .fetch_one(&mut *transaction)
-        .await?;
-        transaction.commit().await?;
-        Ok(count <= i64::from(limit))
-    }
-
-    /// Bound cleanup for expired public abuse windows. It is safe to run from
-    /// multiple workers because deletion is idempotent and resource-scoped.
-    pub async fn purge_marketing_public_abuse_windows(
-        &self,
-        before: DateTime<Utc>,
-        limit: u32,
-    ) -> Result<u64, PersistenceError> {
-        if limit == 0 || limit > MAX_MARKETING_PUBLIC_ABUSE_LIMIT {
-            return Err(PersistenceError::InvalidData(
-                "Marketing public abuse cleanup limit is outside its bound".into(),
-            ));
-        }
-        let result = sqlx::query(
-            "DELETE FROM erpx_control.marketing_public_abuse_windows
-              WHERE ctid IN (
-                SELECT ctid FROM erpx_control.marketing_public_abuse_windows
-                 WHERE last_seen_at < $1
-                 ORDER BY last_seen_at
-                 LIMIT $2
-              )",
-        )
-        .bind(before)
-        .bind(i64::from(limit))
-        .execute(&self.pools.write)
-        .await?;
-        Ok(result.rows_affected())
-    }
-
-    /// Resolve callback routing from the control plane. The caller must still
-    /// verify the raw provider signature with the deployment secret before
-    /// using this result to touch a tenant database.
-    pub async fn resolve_marketing_provider_account(
-        &self,
-        provider_account_ref: &str,
-        tenant_id: &str,
-        holding_ref: &str,
-        verifier_key_ref: &str,
-    ) -> Result<Option<MarketingProviderAccountBinding>, PersistenceError> {
-        validate_tenant_reference(provider_account_ref, "provider_account_ref")?;
-        validate_tenant_reference(tenant_id, "tenant_id")?;
-        validate_tenant_reference(holding_ref, "holding_ref")?;
-        validate_tenant_reference(verifier_key_ref, "verifier_key_ref")?;
-        let row = sqlx::query(
-            "SELECT account.provider_account_ref, account.provider_key,
-                    account.provider_priority,
-                    account.tenant_id,
-                    account.holding_ref, account.holding_id,
-                    account.verifier_key_ref, account.outbound_credential_ref,
-                    account.channels, account.channel_routes, account.version
-             FROM erpx_control.marketing_provider_accounts account
-             INNER JOIN erpx_control.tenant_registry tenant
-                 ON tenant.tenant_id = account.tenant_id
-                AND tenant.holding_ref = account.holding_ref
-             WHERE account.provider_account_ref = $1
-               AND account.tenant_id = $2
-               AND account.holding_ref = $3
-               AND account.verifier_key_ref = $4
-               AND account.state = 'active'
-               AND account.onboarding_state = 'verified'
-               AND tenant.state = 'active'",
-        )
-        .bind(provider_account_ref)
-        .bind(tenant_id)
-        .bind(holding_ref)
-        .bind(verifier_key_ref)
-        .fetch_optional(&self.pools.write)
-        .await?;
-        row.map(|row| {
-            let holding_id: Uuid = row.try_get("holding_id")?;
-            if holding_id.is_nil() {
-                return Err(PersistenceError::InvalidData(
-                    "marketing provider account holding is invalid".into(),
-                ));
-            }
-            let version = positive_u64(
-                row.try_get("version")?,
-                "marketing provider account version",
-            )?;
-            let channel_routes = decode_marketing_provider_channel_routes(&row)?;
-            Ok(MarketingProviderAccountBinding {
-                provider_account_ref: row.try_get("provider_account_ref")?,
-                provider_key: row.try_get("provider_key")?,
-                provider_priority: positive_provider_priority(row.try_get("provider_priority")?)?,
-                tenant_id: row.try_get("tenant_id")?,
-                holding_ref: row.try_get("holding_ref")?,
-                holding_id,
-                verifier_key_ref: row.try_get("verifier_key_ref")?,
-                outbound_credential_ref: row.try_get("outbound_credential_ref")?,
-                channels: row.try_get("channels")?,
-                channel_routes,
-                version,
-            })
-        })
-        .transpose()
-    }
-
-    /// Resolve the exact active outbound account route for a tenant-routed
-    /// delivery worker. Callback verifier material is intentionally not part
-    /// of this lookup; outbound workers receive only the opaque credential
-    /// reference and still re-resolve this binding before each provider call.
-    pub async fn resolve_marketing_provider_account_for_outbound(
-        &self,
-        provider_account_ref: &str,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<Option<MarketingProviderAccountBinding>, PersistenceError> {
-        validate_tenant_reference(provider_account_ref, "provider_account_ref")?;
-        validate_tenant_reference(tenant_id, "tenant_id")?;
-        validate_tenant_reference(holding_ref, "holding_ref")?;
-        let row = sqlx::query(
-            "SELECT account.provider_account_ref, account.provider_key,
-                    account.provider_priority,
-                    account.tenant_id, account.holding_ref, account.holding_id,
-                    account.verifier_key_ref, account.outbound_credential_ref,
-                    account.channels, account.channel_routes, account.version
-             FROM erpx_control.marketing_provider_accounts account
-             INNER JOIN erpx_control.tenant_registry tenant
-                 ON tenant.tenant_id = account.tenant_id
-                AND tenant.holding_ref = account.holding_ref
-             WHERE account.provider_account_ref = $1
-               AND account.tenant_id = $2
-               AND account.holding_ref = $3
-               AND account.state = 'active'
-               AND account.onboarding_state = 'verified'
-               AND tenant.state = 'active'",
-        )
-        .bind(provider_account_ref)
-        .bind(tenant_id)
-        .bind(holding_ref)
-        .fetch_optional(&self.pools.write)
-        .await?;
-        row.map(|row| {
-            let holding_id: Uuid = row.try_get("holding_id")?;
-            if holding_id.is_nil() {
-                return Err(PersistenceError::InvalidData(
-                    "marketing provider account holding is invalid".into(),
-                ));
-            }
-            let channel_routes = decode_marketing_provider_channel_routes(&row)?;
-            Ok(MarketingProviderAccountBinding {
-                provider_account_ref: row.try_get("provider_account_ref")?,
-                provider_key: row.try_get("provider_key")?,
-                provider_priority: positive_provider_priority(row.try_get("provider_priority")?)?,
-                tenant_id: row.try_get("tenant_id")?,
-                holding_ref: row.try_get("holding_ref")?,
-                holding_id,
-                verifier_key_ref: row.try_get("verifier_key_ref")?,
-                outbound_credential_ref: row.try_get("outbound_credential_ref")?,
-                channels: row.try_get("channels")?,
-                channel_routes,
-                version: positive_u64(
-                    row.try_get("version")?,
-                    "marketing provider account version",
-                )?,
-            })
-        })
-        .transpose()
-    }
-
-    /// List active outbound provider accounts for one active tenant holding.
-    /// Provider account discovery remains control-plane authoritative; no
-    /// tenant database or deployment environment value supplies this set.
-    pub async fn list_marketing_provider_accounts_for_outbound(
-        &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<Vec<MarketingProviderAccountBinding>, PersistenceError> {
-        validate_tenant_reference(tenant_id, "tenant_id")?;
-        validate_tenant_reference(holding_ref, "holding_ref")?;
-        let rows = sqlx::query(
-            "SELECT account.provider_account_ref, account.provider_key,
-                    account.provider_priority,
-                    account.tenant_id, account.holding_ref, account.holding_id,
-                    account.verifier_key_ref, account.outbound_credential_ref,
-                    account.channels, account.channel_routes, account.version
-             FROM erpx_control.marketing_provider_accounts account
-             INNER JOIN erpx_control.tenant_registry tenant
-                 ON tenant.tenant_id = account.tenant_id
-                AND tenant.holding_ref = account.holding_ref
-             WHERE account.tenant_id = $1
-               AND account.holding_ref = $2
-               AND account.state = 'active'
-               AND account.onboarding_state = 'verified'
-               AND tenant.state = 'active'
-             ORDER BY account.provider_priority, account.provider_account_ref
-             LIMIT $3",
-        )
-        .bind(tenant_id)
-        .bind(holding_ref)
-        .bind((MAX_MARKETING_PROVIDER_ACCOUNTS_PER_HOLDING + 1) as i64)
-        .fetch_all(&self.pools.write)
-        .await?;
-        if rows.len() > MAX_MARKETING_PROVIDER_ACCOUNTS_PER_HOLDING {
-            return Err(PersistenceError::InvalidData(
-                "marketing provider account count is unbounded".into(),
-            ));
-        }
-        rows.into_iter()
-            .map(|row| {
-                let holding_id: Uuid = row.try_get("holding_id")?;
-                if holding_id.is_nil() {
-                    return Err(PersistenceError::InvalidData(
-                        "marketing provider account holding is invalid".into(),
-                    ));
-                }
-                let channel_routes = decode_marketing_provider_channel_routes(&row)?;
-                Ok(MarketingProviderAccountBinding {
-                    provider_account_ref: row.try_get("provider_account_ref")?,
-                    provider_key: row.try_get("provider_key")?,
-                    provider_priority: positive_provider_priority(
-                        row.try_get("provider_priority")?,
-                    )?,
-                    tenant_id: row.try_get("tenant_id")?,
-                    holding_ref: row.try_get("holding_ref")?,
-                    holding_id,
-                    verifier_key_ref: row.try_get("verifier_key_ref")?,
-                    outbound_credential_ref: row.try_get("outbound_credential_ref")?,
-                    channels: row.try_get("channels")?,
-                    channel_routes,
-                    version: positive_u64(
-                        row.try_get("version")?,
-                        "marketing provider account version",
-                    )?,
-                })
-            })
-            .collect()
-    }
-
-    /// Resolve callback routing by the provider account identifier alone.
-    /// Tenant and holding values are returned from the control plane rather
-    /// than accepted from callback headers.
-    pub async fn resolve_marketing_provider_account_for_callback(
-        &self,
-        provider_account_ref: &str,
-    ) -> Result<Option<MarketingProviderAccountBinding>, PersistenceError> {
-        validate_tenant_reference(provider_account_ref, "provider_account_ref")?;
-        let row = sqlx::query(
-            "SELECT account.provider_account_ref, account.provider_key,
-                    account.provider_priority,
-                    account.tenant_id, account.holding_ref, account.holding_id,
-                    account.verifier_key_ref, account.outbound_credential_ref,
-                    account.channels, account.channel_routes, account.version
-             FROM erpx_control.marketing_provider_accounts account
-             INNER JOIN erpx_control.tenant_registry tenant
-                 ON tenant.tenant_id = account.tenant_id
-                AND tenant.holding_ref = account.holding_ref
-             WHERE account.provider_account_ref = $1
-               AND account.state = 'active'
-               AND account.onboarding_state = 'verified'
-               AND tenant.state = 'active'",
-        )
-        .bind(provider_account_ref)
-        .fetch_optional(&self.pools.write)
-        .await?;
-        row.map(|row| {
-            let holding_id: Uuid = row.try_get("holding_id")?;
-            if holding_id.is_nil() {
-                return Err(PersistenceError::InvalidData(
-                    "marketing provider account holding is invalid".into(),
-                ));
-            }
-            let channel_routes = decode_marketing_provider_channel_routes(&row)?;
-            Ok(MarketingProviderAccountBinding {
-                provider_account_ref: row.try_get("provider_account_ref")?,
-                provider_key: row.try_get("provider_key")?,
-                provider_priority: positive_provider_priority(row.try_get("provider_priority")?)?,
-                tenant_id: row.try_get("tenant_id")?,
-                holding_ref: row.try_get("holding_ref")?,
-                holding_id,
-                verifier_key_ref: row.try_get("verifier_key_ref")?,
-                outbound_credential_ref: row.try_get("outbound_credential_ref")?,
-                channels: row.try_get("channels")?,
-                channel_routes,
-                version: positive_u64(
-                    row.try_get("version")?,
-                    "marketing provider account version",
-                )?,
-            })
-        })
-        .transpose()
-    }
-
-    /// Resolve an exact Finance bank-provider route from authoritative
-    /// control-plane state. Every route component is matched, and both the
-    /// account and its tenant must be active before the binding is returned.
-    /// The credential value is only an opaque secret-manager key reference.
-    pub async fn resolve_finance_bank_provider_account(
-        &self,
-        provider_account_ref: &str,
-        provider_key: &str,
-        tenant_id: &str,
-        holding_ref: &str,
-        credential_key_ref: &str,
-    ) -> Result<Option<FinanceBankProviderAccountBinding>, PersistenceError> {
-        validate_tenant_reference(provider_account_ref, "provider_account_ref")?;
-        validate_tenant_reference(provider_key, "provider_key")?;
-        validate_tenant_reference(tenant_id, "tenant_id")?;
-        validate_tenant_reference(holding_ref, "holding_ref")?;
-        validate_tenant_reference(credential_key_ref, "credential_key_ref")?;
-
-        let row = sqlx::query(
-            "SELECT account.provider_account_ref, account.provider_key,
-                    account.tenant_id, account.holding_ref, account.holding_id,
-                    account.credential_key_ref, account.state, account.version
-             FROM erpx_control.finance_bank_provider_accounts account
-             INNER JOIN erpx_control.tenant_registry tenant
-                 ON tenant.tenant_id = account.tenant_id
-                AND tenant.holding_ref = account.holding_ref
-             WHERE account.provider_account_ref = $1
-               AND account.provider_key = $2
-               AND account.tenant_id = $3
-               AND account.holding_ref = $4
-               AND account.credential_key_ref = $5
-               AND account.state = 'active'
-               AND tenant.state = 'active'",
-        )
-        .bind(provider_account_ref)
-        .bind(provider_key)
-        .bind(tenant_id)
-        .bind(holding_ref)
-        .bind(credential_key_ref)
-        .fetch_optional(&self.pools.write)
-        .await?;
-
-        row.map(|row| {
-            let holding_id: Uuid = row.try_get("holding_id")?;
-            if holding_id.is_nil() {
-                return Err(PersistenceError::InvalidData(
-                    "finance provider account holding is invalid".into(),
-                ));
-            }
-            let version =
-                positive_u64(row.try_get("version")?, "finance provider account version")?;
-            Ok(FinanceBankProviderAccountBinding {
-                provider_account_ref: row.try_get("provider_account_ref")?,
-                provider_key: row.try_get("provider_key")?,
-                tenant_id: row.try_get("tenant_id")?,
-                holding_ref: row.try_get("holding_ref")?,
-                holding_id,
-                credential_key_ref: row.try_get("credential_key_ref")?,
-                state: row.try_get("state")?,
-                version,
-            })
-        })
-        .transpose()
     }
 
     /// Bind an object key to its authoritative customer and organization
@@ -3511,10 +3006,31 @@ impl SupportStore for SqlxControlPlane {
     }
 }
 
+const DEVELOPMENT_ONLY_ROLE_PERMISSIONS: [&str; 2] =
+    ["development.mfa.bypass", "development.sod.self-approve"];
+
+fn contains_development_only_role_permission(permissions: &[String]) -> bool {
+    permissions
+        .iter()
+        .any(|permission| DEVELOPMENT_ONLY_ROLE_PERMISSIONS.contains(&permission.as_str()))
+}
+
 #[async_trait]
 impl RoleAssignmentStore for SqlxControlPlane {
     async fn create(&self, assignment: RoleAssignment) -> Result<(), ApplicationError> {
+        if contains_development_only_role_permission(&assignment.permissions) {
+            return Err(app_error(PersistenceError::InvalidData(
+                "development-only authorization exceptions cannot be granted through role lifecycle"
+                    .into(),
+            )));
+        }
         let payload = serde_json::to_value(&assignment).map_err(|error| app_error(error.into()))?;
+        let mut transaction = self
+            .pools
+            .write
+            .begin()
+            .await
+            .map_err(|error| app_error(PersistenceError::Database(error)))?;
         sqlx::query(
             "INSERT INTO erpx_control.role_assignments
                 (id, principal_ref, role_key, parent_assignment_id, valid_from, valid_until, assignment_version, payload)
@@ -3532,9 +3048,23 @@ impl RoleAssignmentStore for SqlxControlPlane {
             ))
         })?)
         .bind(payload)
-        .execute(&self.pools.write)
+        .execute(&mut *transaction)
         .await
         .map_err(|error| app_error(PersistenceError::Database(error)))?;
+        sqlx::query(
+            "INSERT INTO erpx_control.role_assignment_target_policies
+                (assignment_id, policy_kind, environment_gate, configured_by)
+             VALUES ($1, 'unrestricted', NULL, $2)",
+        )
+        .bind(assignment.id)
+        .bind(&assignment.grantor)
+        .execute(&mut *transaction)
+        .await
+        .map_err(|error| app_error(PersistenceError::Database(error)))?;
+        transaction
+            .commit()
+            .await
+            .map_err(|error| app_error(PersistenceError::Database(error)))?;
         Ok(())
     }
 
@@ -3620,408 +3150,6 @@ impl<'a> From<&'a AuditEvent> for AuditEventPayload<'a> {
             purpose: &event.purpose,
             correlation_id: event.correlation_id,
         }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantStoreRegistration {
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub write_database_key: String,
-    pub read_database_key: String,
-    pub storage_namespace: String,
-    pub credential_key_ref: String,
-    pub backup_chain_ref: String,
-    pub state: String,
-    pub registry_version: u64,
-}
-
-/// Maximum number of tenant registry rows exposed by one platform read.
-pub const MAX_TENANT_REGISTRY_PAGE_SIZE: u32 = 100;
-
-/// A bounded, deterministic page of tenant registry rows.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantStoreRegistrationPage {
-    pub registrations: Vec<TenantStoreRegistration>,
-    pub has_more: bool,
-    pub next_after_tenant_id: Option<String>,
-}
-
-/// Safe detail metadata for Platform Operations. Credential/database/storage
-/// values are intentionally represented only as presence flags.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TenantStoreRegistrationDetail {
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub state: String,
-    pub registry_version: u64,
-    pub write_registered: bool,
-    pub read_registered: bool,
-    pub storage_registered: bool,
-    pub credential_binding_registered: bool,
-    pub backup_binding_registered: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ProjectionAuthorizationRequest<'a> {
-    pub tenant_id: &'a str,
-    pub holding_ref: &'a str,
-    pub actor_ref: &'a str,
-    pub permission: &'a str,
-    pub operation: &'a str,
-    pub purpose: &'a str,
-    pub correlation_id: Uuid,
-    pub at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone)]
-pub struct SqlxTenantStoreRegistry {
-    control: Arc<SqlxControlPlane>,
-}
-
-impl SqlxTenantStoreRegistry {
-    pub fn new(control: Arc<SqlxControlPlane>) -> Self {
-        Self { control }
-    }
-
-    pub async fn register(
-        &self,
-        registration: TenantStoreRegistration,
-    ) -> Result<(), PersistenceError> {
-        validate_tenant_reference(&registration.tenant_id, "tenant_id")?;
-        validate_tenant_reference(&registration.holding_ref, "holding_ref")?;
-        validate_tenant_reference(&registration.write_database_key, "write_database_key")?;
-        validate_tenant_reference(&registration.read_database_key, "read_database_key")?;
-        validate_tenant_reference(&registration.storage_namespace, "storage_namespace")?;
-        validate_tenant_reference(&registration.credential_key_ref, "credential_key_ref")?;
-        validate_tenant_reference(&registration.backup_chain_ref, "backup_chain_ref")?;
-        if registration.write_database_key == registration.read_database_key {
-            return Err(PersistenceError::Configuration(
-                "tenant write/read database keys must be distinct",
-            ));
-        }
-        if !matches!(
-            registration.state.as_str(),
-            "provisioning" | "active" | "suspended" | "recovery"
-        ) {
-            return Err(PersistenceError::InvalidData(
-                "invalid tenant registry state".into(),
-            ));
-        }
-        let result = sqlx::query(
-            "INSERT INTO erpx_control.tenant_registry
-                (tenant_id, holding_ref, write_database_key, read_database_key,
-                 storage_namespace, credential_key_ref, backup_chain_ref, state,
-                 registry_version)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
-        )
-        .bind(&registration.tenant_id)
-        .bind(&registration.holding_ref)
-        .bind(&registration.write_database_key)
-        .bind(&registration.read_database_key)
-        .bind(&registration.storage_namespace)
-        .bind(&registration.credential_key_ref)
-        .bind(&registration.backup_chain_ref)
-        .bind(&registration.state)
-        .bind(i64::try_from(registration.registry_version).map_err(|_| {
-            PersistenceError::InvalidData("tenant registry version exceeds database range".into())
-        })?)
-        .execute(&self.control.pools.write)
-        .await?;
-        if result.rows_affected() != 1 {
-            return Err(PersistenceError::InvalidData(
-                "tenant registration was not inserted".into(),
-            ));
-        }
-        Ok(())
-    }
-
-    pub async fn get(
-        &self,
-        tenant_id: &str,
-    ) -> Result<Option<TenantStoreRegistration>, PersistenceError> {
-        let row = sqlx::query(
-            "SELECT tenant_id, holding_ref, write_database_key, read_database_key,
-                    storage_namespace, credential_key_ref, backup_chain_ref, state,
-                    registry_version
-             FROM erpx_control.tenant_registry WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_optional(&self.control.pools.write)
-        .await?;
-        row.map(|row| {
-            Ok(TenantStoreRegistration {
-                tenant_id: row.try_get("tenant_id")?,
-                holding_ref: row.try_get("holding_ref")?,
-                write_database_key: row.try_get("write_database_key")?,
-                read_database_key: row.try_get("read_database_key")?,
-                storage_namespace: row.try_get("storage_namespace")?,
-                credential_key_ref: row.try_get("credential_key_ref")?,
-                backup_chain_ref: row.try_get("backup_chain_ref")?,
-                state: row.try_get("state")?,
-                registry_version: positive_u64(
-                    row.try_get("registry_version")?,
-                    "tenant registry version",
-                )?,
-            })
-        })
-        .transpose()
-    }
-
-    /// Read one safe registry detail without exposing any opaque database,
-    /// storage, credential, or backup reference to the caller.
-    pub async fn get_detail(
-        &self,
-        tenant_id: &str,
-    ) -> Result<Option<TenantStoreRegistrationDetail>, PersistenceError> {
-        validate_tenant_reference(tenant_id, "tenant_id")?;
-        let row = sqlx::query(
-            "SELECT tenant_id, holding_ref, state, registry_version,
-                    (write_database_key <> '') AS write_registered,
-                    (read_database_key <> '') AS read_registered,
-                    (storage_namespace <> '') AS storage_registered,
-                    (credential_key_ref <> '') AS credential_binding_registered,
-                    (backup_chain_ref <> '') AS backup_binding_registered
-             FROM erpx_control.tenant_registry
-             WHERE tenant_id = $1",
-        )
-        .bind(tenant_id)
-        .fetch_optional(&self.control.pools.write)
-        .await?;
-        row.map(|row| {
-            Ok(TenantStoreRegistrationDetail {
-                tenant_id: row.try_get("tenant_id")?,
-                holding_ref: row.try_get("holding_ref")?,
-                state: row.try_get("state")?,
-                registry_version: positive_u64(
-                    row.try_get("registry_version")?,
-                    "tenant registry version",
-                )?,
-                write_registered: row.try_get("write_registered")?,
-                read_registered: row.try_get("read_registered")?,
-                storage_registered: row.try_get("storage_registered")?,
-                credential_binding_registered: row.try_get("credential_binding_registered")?,
-                backup_binding_registered: row.try_get("backup_binding_registered")?,
-            })
-        })
-        .transpose()
-    }
-
-    pub async fn list_active(&self) -> Result<Vec<TenantStoreRegistration>, PersistenceError> {
-        let rows = sqlx::query(
-            "SELECT tenant_id, holding_ref, write_database_key, read_database_key,
-                    storage_namespace, credential_key_ref, backup_chain_ref, state,
-                    registry_version
-             FROM erpx_control.tenant_registry
-             WHERE state = 'active'
-             ORDER BY tenant_id",
-        )
-        .fetch_all(&self.control.pools.write)
-        .await?;
-        rows.into_iter()
-            .map(|row| {
-                Ok(TenantStoreRegistration {
-                    tenant_id: row.try_get("tenant_id")?,
-                    holding_ref: row.try_get("holding_ref")?,
-                    write_database_key: row.try_get("write_database_key")?,
-                    read_database_key: row.try_get("read_database_key")?,
-                    storage_namespace: row.try_get("storage_namespace")?,
-                    credential_key_ref: row.try_get("credential_key_ref")?,
-                    backup_chain_ref: row.try_get("backup_chain_ref")?,
-                    state: row.try_get("state")?,
-                    registry_version: positive_u64(
-                        row.try_get("registry_version")?,
-                        "tenant registry version",
-                    )?,
-                })
-            })
-            .collect()
-    }
-
-    /// List active tenant registrations with a caller-supplied hard bound.
-    /// The limit is enforced in SQL with one sentinel row so a worker never
-    /// has to fetch an unbounded active registry into memory before rejecting
-    /// it.
-    pub async fn list_active_bounded(
-        &self,
-        limit: usize,
-    ) -> Result<Vec<TenantStoreRegistration>, PersistenceError> {
-        if limit == 0 {
-            return Err(PersistenceError::InvalidData(
-                "active tenant registry limit must be positive".into(),
-            ));
-        }
-        let query_limit = i64::try_from(limit)
-            .ok()
-            .and_then(|value| value.checked_add(1))
-            .ok_or_else(|| {
-                PersistenceError::InvalidData(
-                    "active tenant registry limit exceeds database range".into(),
-                )
-            })?;
-        let rows = sqlx::query(
-            "SELECT tenant_id, holding_ref, write_database_key, read_database_key,
-                    storage_namespace, credential_key_ref, backup_chain_ref, state,
-                    registry_version
-             FROM erpx_control.tenant_registry
-             WHERE state = 'active'
-             ORDER BY tenant_id
-             LIMIT $1",
-        )
-        .bind(query_limit)
-        .fetch_all(&self.control.pools.write)
-        .await?;
-        if rows.len() > limit {
-            return Err(PersistenceError::InvalidData(
-                "active tenant registry set exceeds its worker bound".into(),
-            ));
-        }
-        rows.into_iter()
-            .map(|row| {
-                Ok(TenantStoreRegistration {
-                    tenant_id: row.try_get("tenant_id")?,
-                    holding_ref: row.try_get("holding_ref")?,
-                    write_database_key: row.try_get("write_database_key")?,
-                    read_database_key: row.try_get("read_database_key")?,
-                    storage_namespace: row.try_get("storage_namespace")?,
-                    credential_key_ref: row.try_get("credential_key_ref")?,
-                    backup_chain_ref: row.try_get("backup_chain_ref")?,
-                    state: row.try_get("state")?,
-                    registry_version: positive_u64(
-                        row.try_get("registry_version")?,
-                        "tenant registry version",
-                    )?,
-                })
-            })
-            .collect()
-    }
-
-    /// List all tenant registry states for the platform operations read path.
-    /// The cursor is an opaque registry identifier and the query never
-    /// returns database, storage, credential, or backup references to callers.
-    pub async fn list_page(
-        &self,
-        after_tenant_id: Option<&str>,
-        page_size: u32,
-    ) -> Result<TenantStoreRegistrationPage, PersistenceError> {
-        if page_size == 0 || page_size > MAX_TENANT_REGISTRY_PAGE_SIZE {
-            return Err(PersistenceError::InvalidData(
-                "tenant registry page size is outside the allowed bound".into(),
-            ));
-        }
-        if let Some(after) = after_tenant_id {
-            validate_tenant_reference(after, "after_tenant_id")?;
-        }
-        let rows = sqlx::query(
-            "SELECT tenant_id, holding_ref, write_database_key, read_database_key,
-                    storage_namespace, credential_key_ref, backup_chain_ref, state,
-                    registry_version
-             FROM erpx_control.tenant_registry
-             WHERE ($1::text IS NULL OR tenant_id > $1)
-             ORDER BY tenant_id
-             LIMIT $2",
-        )
-        .bind(after_tenant_id)
-        .bind(i64::from(page_size) + 1)
-        .fetch_all(&self.control.pools.write)
-        .await?;
-        let has_more = rows.len() > page_size as usize;
-        let mut registrations = rows
-            .into_iter()
-            .take(page_size as usize)
-            .map(|row| {
-                Ok(TenantStoreRegistration {
-                    tenant_id: row.try_get("tenant_id")?,
-                    holding_ref: row.try_get("holding_ref")?,
-                    write_database_key: row.try_get("write_database_key")?,
-                    read_database_key: row.try_get("read_database_key")?,
-                    storage_namespace: row.try_get("storage_namespace")?,
-                    credential_key_ref: row.try_get("credential_key_ref")?,
-                    backup_chain_ref: row.try_get("backup_chain_ref")?,
-                    state: row.try_get("state")?,
-                    registry_version: positive_u64(
-                        row.try_get("registry_version")?,
-                        "tenant registry version",
-                    )?,
-                })
-            })
-            .collect::<Result<Vec<_>, PersistenceError>>()?;
-        let next_after_tenant_id = if has_more {
-            registrations
-                .last()
-                .map(|registration| registration.tenant_id.clone())
-        } else {
-            None
-        };
-        Ok(TenantStoreRegistrationPage {
-            registrations: std::mem::take(&mut registrations),
-            has_more,
-            next_after_tenant_id,
-        })
-    }
-
-    /// Authorize an internal projection operation against the control-plane
-    /// role assignment aggregate, then record the decision in the durable
-    /// audit stream. Tenant registry membership alone is not authorization.
-    /// The holding reference is intentionally required to be a UUID here so
-    /// the scheduler cannot widen a role decision from an opaque string.
-    pub async fn authorize_and_audit_projection(
-        &self,
-        request: ProjectionAuthorizationRequest<'_>,
-    ) -> Result<(), PersistenceError> {
-        validate_tenant_reference(request.tenant_id, "tenant_id")?;
-        validate_tenant_reference(request.holding_ref, "holding_ref")?;
-        validate_tenant_reference(request.actor_ref, "actor_ref")?;
-        if request.permission.trim().is_empty()
-            || request.permission.len() > 128
-            || request.permission.chars().any(char::is_control)
-            || request.operation.trim().is_empty()
-            || request.operation.len() > 64
-            || request.operation.chars().any(char::is_control)
-            || request.purpose.trim().is_empty()
-            || request.purpose.len() > 128
-            || request.purpose.chars().any(char::is_control)
-            || request.correlation_id == Uuid::nil()
-        {
-            return Err(PersistenceError::InvalidData(
-                "projection authorization metadata is invalid".into(),
-            ));
-        }
-        let holding_id = Uuid::parse_str(request.holding_ref).map_err(|_| {
-            PersistenceError::InvalidData("holding reference is not an authoritative UUID".into())
-        })?;
-        let scope = Scope::Holding { holding_id };
-        if !self
-            .control
-            .principal_has_role(request.actor_ref, &scope, request.permission, request.at)
-            .await?
-        {
-            return Err(PersistenceError::InvalidData(
-                "projection authorization denied".into(),
-            ));
-        }
-        let action = format!("projection.scheduler.{}", request.operation);
-        let payload = serde_json::json!({
-            "tenant_id": request.tenant_id,
-            "holding_ref": request.holding_ref,
-            "permission": request.permission,
-            "operation": request.operation,
-        });
-        sqlx::query(
-            "INSERT INTO erpx_control.audit_events
-                (id, actor_ref, action, purpose, correlation_id, recorded_at, payload)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)",
-        )
-        .bind(Uuid::new_v4())
-        .bind(request.actor_ref)
-        .bind(action)
-        .bind(request.purpose)
-        .bind(request.correlation_id)
-        .bind(request.at)
-        .bind(payload)
-        .execute(&self.control.pools.write)
-        .await?;
-        Ok(())
     }
 }
 
@@ -4115,5 +3243,56 @@ mod tests {
         assert!(report.healthy());
         report.orphan_binding_count = 1;
         assert!(!report.healthy());
+    }
+
+    #[test]
+    fn normal_role_lifecycle_rejects_development_authorization_exceptions() {
+        assert!(contains_development_only_role_permission(&[
+            "platform.tenant.read".into(),
+            "development.mfa.bypass".into(),
+        ]));
+        assert!(contains_development_only_role_permission(&[
+            "development.sod.self-approve".into(),
+        ]));
+        assert!(!contains_development_only_role_permission(&[
+            "platform.tenant.read".into(),
+            "tenant.root-access.approve".into(),
+        ]));
+    }
+
+    #[test]
+    fn platform_integration_observations_are_bounded_and_categorical() {
+        let checked_at = Utc::now();
+        let valid = PlatformIntegrationObservation {
+            integration_key: "object_storage".into(),
+            state: "ready".into(),
+            capability: "Tenant object storage".into(),
+            checked_at,
+        };
+        assert!(valid.validate().is_ok());
+        assert!(
+            PlatformIntegrationObservation {
+                integration_key: "object/storage".into(),
+                ..valid.clone()
+            }
+            .validate()
+            .is_err()
+        );
+        assert!(
+            PlatformIntegrationObservation {
+                state: "secret-provider-error".into(),
+                ..valid.clone()
+            }
+            .validate()
+            .is_err()
+        );
+        assert!(
+            PlatformIntegrationObservation {
+                capability: "x".repeat(257),
+                ..valid
+            }
+            .validate()
+            .is_err()
+        );
     }
 }

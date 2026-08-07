@@ -25,15 +25,18 @@ use prost_types::{
 };
 
 const PROTO_BUILD: &str = include_str!("../../../crates/proto/build.rs");
-const PLATFORM_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/platform.proto");
+const IDENTITY_ACCESS_PROTO: &str =
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/identity_access.proto");
+const PLATFORM_ADMINISTRATION_PROTO: &str =
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/platform_administration.proto");
 const MOBILE_AUTH: &str = include_str!("../../../crates/ui/src/auth.rs");
 const MOBILE_SESSION_TARGET: &str = include_str!("../../../crates/ui/src/session_target.rs");
 const ANDROID_BRIDGE: &str = include_str!("../../../crates/android-bridge/src/lib.rs");
-const MOBILE_CONSOLE: &str = include_str!("../../console/src/main.rs");
+const CONSOLE_LIB: &str = include_str!("../../console/src/lib.rs");
+const CONSOLE_TRANSPORT: &str = include_str!("../../console/src/transport/mod.rs");
 const PITR: &str = include_str!("../../../crates/infrastructure/src/pitr.rs");
 const BACKUP_RUNTIME: &str = include_str!("../../worker/src/backup_runtime.rs");
-const WORKER_MAIN: &str = include_str!("../../worker/src/main.rs");
+const WORKER_APP: &str = include_str!("../../worker/src/app.rs");
 
 const APPROVED_DESCRIPTOR_ENV: &str = "ERPX_G14_APPROVED_PROTO_DESCRIPTOR";
 const APPROVED_DESCRIPTOR_SHA256_ENV: &str = "ERPX_G14_APPROVED_PROTO_DESCRIPTOR_SHA256";
@@ -909,6 +912,13 @@ fn g14_real_generated_directory_and_pitr_messages_round_trip_without_loss() {
         readiness: "unconfigured".into(),
         last_preflight_at: String::new(),
         last_heartbeat_at: String::new(),
+        credential_profile_key: "directory-bind-default".into(),
+        parent_connector_id: String::new(),
+        directory_authority_fingerprint: String::new(),
+        fallback_to_holding: false,
+        holding_ref: "holding-1".into(),
+        company_id: String::new(),
+        branch_id: String::new(),
     };
     let pitr = PitrRecoveryPoint {
         target_time: "2026-07-28T10:00:00Z".into(),
@@ -1260,8 +1270,8 @@ fn g14_mobile_and_pitr_boundaries_are_source_verified_and_external_proof_is_queu
         ],
     );
     require_markers(
-        MOBILE_CONSOLE,
-        "apps/console/src/main.rs",
+        CONSOLE_LIB,
+        "apps/console/src/lib.rs",
         &[
             "TargetSecureSessionAdapter::new",
             "restore_and_revalidate_secure_session",
@@ -1333,8 +1343,8 @@ fn g14_mobile_and_pitr_boundaries_are_source_verified_and_external_proof_is_queu
         ],
     );
     assert!(
-        !WORKER_MAIN.contains("physical_restore_executor")
-            && !WORKER_MAIN.contains("PostgresPhysicalPitrRestoreExecutor"),
+        !WORKER_APP.contains("physical_restore_executor")
+            && !WORKER_APP.contains("PostgresPhysicalPitrRestoreExecutor"),
         "physical PITR restore must remain unregistered until external rehearsal"
     );
 
@@ -1352,20 +1362,24 @@ fn g14_mobile_and_pitr_boundaries_are_source_verified_and_external_proof_is_queu
 #[test]
 fn g14_console_deployment_inputs_are_source_bound_and_tls_when_configured() {
     require_ordered_markers(
-        MOBILE_CONSOLE,
-        "apps/console/src/main.rs",
+        CONSOLE_TRANSPORT,
+        "apps/console/src/transport/mod.rs",
         &[
             "const GRPC_ENDPOINT",
             "option_env!(\"ERPX_CONSOLE_GRPC_ENDPOINT\")",
             "const AUTH_HTTP_ORIGIN",
             "option_env!(\"ERPX_CONSOLE_AUTH_HTTP_ORIGIN\")",
-            "Endpoint::from_static(GRPC_ENDPOINT)",
         ],
     );
     require_markers(
-        MOBILE_CONSOLE,
-        "apps/console/src/main.rs",
-        &["cache: \"no-store\"", "credentials: \"omit\""],
+        CONSOLE_LIB,
+        "apps/console/src/lib.rs",
+        &[
+            "use transport::GRPC_ENDPOINT",
+            "Endpoint::from_static(GRPC_ENDPOINT)",
+            "cache: \"no-store\"",
+            "credentials: \"omit\"",
+        ],
     );
 
     for (name, value) in [
@@ -1402,24 +1416,28 @@ fn g14_console_deployment_inputs_are_source_bound_and_tls_when_configured() {
 #[test]
 fn g14_console_startup_deep_link_contract_is_bound_and_hash_restore_is_queued_if_absent() {
     require_ordered_markers(
-        MOBILE_CONSOLE,
-        "apps/console/src/main.rs",
+        CONSOLE_LIB,
+        "apps/console/src/lib.rs",
         &[
+            "let initial_destination = authorized_console_deep_link(&initial_path)",
             "let mut active_route = use_signal",
-            "let mut deep_link_applied = use_signal",
-            "window.location.hash.startsWith",
-            "route_signals.activate(path.as_str())",
+            "while let Ok(path) = eval.recv::<String>().await",
+            "route_signals.activate(&path)",
         ],
     );
     require_markers(
-        MOBILE_CONSOLE,
-        "apps/console/src/main.rs",
+        CONSOLE_LIB,
+        "apps/console/src/lib.rs",
         &[
-            "let Some(destination) = console_deep_link(path)",
+            "let Some(destination) = authorized_console_deep_link(path)",
             "ConsoleDeepLink::Customer(route) => self.active_route.set(route)",
+            "window.location.hash.startsWith",
+            "window.addEventListener('popstate', emitPath)",
+            "window.addEventListener('hashchange', emitPath)",
+            "emitPath();",
         ],
     );
-    if !MOBILE_CONSOLE.contains("window.location.hash") {
+    if !CONSOLE_LIB.contains("window.location.hash") {
         eprintln!(
             "G14 blocker queued: console startup restores pathname deep links, but hash-style web deep-link restoration is not source-proven"
         );
@@ -1436,17 +1454,22 @@ fn g14_descriptor_build_is_bound_to_the_checked_in_inputs() {
             "erpx_descriptor_set.bin",
             "proto/erpx/common/v1/context.proto",
             "proto/erpx/platform/v1/platform.proto",
+            "proto/erpx/platform/v1/identity_access.proto",
+            "proto/erpx/platform/v1/platform_administration.proto",
             "compile_protos(",
         ],
     );
     require_markers(
-        PLATFORM_PROTO,
-        "proto/erpx/platform/v1/platform.proto",
+        PLATFORM_ADMINISTRATION_PROTO,
+        "proto/erpx/platform/v1/platform_administration.proto",
+        &["message PitrRecoveryPoint", "rpc ScheduleTenantBackup"],
+    );
+    require_markers(
+        IDENTITY_ACCESS_PROTO,
+        "proto/erpx/platform/v1/identity_access.proto",
         &[
-            "message PitrRecoveryPoint",
             "message DirectoryConnectorSummary",
             "service DirectoryService",
-            "rpc ScheduleTenantBackup",
         ],
     );
 }

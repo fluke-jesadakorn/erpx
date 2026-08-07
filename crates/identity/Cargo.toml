@@ -4,14 +4,29 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
+autotests = false
+
+[[test]]
+name = "identity_core"
+path = "tests/identity_core.rs"
+
+[[test]]
+name = "identity_acceptance"
+path = "tests/identity_acceptance.rs"
 
 [dependencies]
 aes-gcm.workspace = true
+async-trait.workspace = true
 argon2.workspace = true
 base64.workspace = true
 chrono.workspace = true
+erpx-domain.workspace = true
+hex.workspace = true
 hmac.workspace = true
+ldap3.workspace = true
 rand_core.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -19,7 +34,7 @@ sqlx.workspace = true
 subtle.workspace = true
 thiserror.workspace = true
 uuid.workspace = true
-webauthn-rs = { version = "=0.5.5", features = ["danger-allow-state-serialisation"] }
+webauthn-rs = { workspace = true, features = ["danger-allow-state-serialisation"] }
 zeroize.workspace = true
 
 [lints]

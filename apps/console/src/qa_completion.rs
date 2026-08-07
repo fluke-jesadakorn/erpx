@@ -167,7 +167,8 @@ mod tests {
         prelude::*,
     };
 
-    const CONSOLE_MAIN_SOURCE: &str = include_str!("main.rs");
+    const CONSOLE_MAIN_SOURCE: &str =
+        concat!(include_str!("lib.rs"), include_str!("transport/mod.rs"));
 
     #[test]
     fn directory_contract_covers_all_approved_vendors_and_native_feeds() {
@@ -856,7 +857,7 @@ mod tests {
         let adapter = ProductRouteStateAdapter;
 
         let fresh = adapter.adapt_operations_projection_status(2, "fresh", Some(120));
-        assert_eq!(fresh.surface().path(), "/operations");
+        assert_eq!(fresh.surface().path(), "/workspaces/operations");
         assert_eq!(fresh.state_key(), "read-only");
         assert_eq!(fresh.projection_freshness(), ProjectionFreshness::Fresh);
         assert_eq!(
@@ -1013,18 +1014,18 @@ mod tests {
         assert!(!directory_state.mutations_enabled());
 
         let expected_context_paths = [
-            (ProductContext::Operations, "/operations"),
-            (ProductContext::Finance, "/finance"),
-            (ProductContext::Sales, "/sales"),
-            (ProductContext::Procurement, "/procurement"),
-            (ProductContext::Inventory, "/inventory"),
-            (ProductContext::Maintenance, "/maintenance"),
-            (ProductContext::Quality, "/quality"),
-            (ProductContext::Assets, "/assets"),
-            (ProductContext::MarketingCrm, "/marketing"),
-            (ProductContext::HrPayroll, "/hr"),
-            (ProductContext::Pos, "/pos"),
-            (ProductContext::Legal, "/legal"),
+            (ProductContext::Operations, "/workspaces/operations"),
+            (ProductContext::Finance, "/workspaces/finance"),
+            (ProductContext::Sales, "/workspaces/sales"),
+            (ProductContext::Procurement, "/workspaces/procurement"),
+            (ProductContext::Inventory, "/workspaces/inventory"),
+            (ProductContext::Maintenance, "/workspaces/maintenance"),
+            (ProductContext::Quality, "/workspaces/quality"),
+            (ProductContext::Assets, "/workspaces/assets"),
+            (ProductContext::MarketingCrm, "/workspaces/marketing-crm"),
+            (ProductContext::HrPayroll, "/workspaces/hr-payroll"),
+            (ProductContext::Pos, "/workspaces/point-of-sale"),
+            (ProductContext::Legal, "/workspaces/legal"),
         ];
 
         assert_eq!(PRODUCT_CONTEXTS.len(), expected_context_paths.len());
@@ -1477,7 +1478,7 @@ mod tests {
         ] {
             assert!(
                 CONSOLE_MAIN_SOURCE.contains(marker),
-                "G14 deployment/access marker missing from apps/console/src/main.rs: {marker}"
+                "G14 deployment/access marker missing from the Console library/transport boundary: {marker}"
             );
         }
 
@@ -1511,17 +1512,19 @@ mod tests {
     #[test]
     fn g14_console_startup_hash_deep_links_restore_and_delegate_redaction() {
         for marker in [
+            "let initial_destination = authorized_console_deep_link(&initial_path)",
+            "typed_console_destination_allowed",
             "let mut active_route = use_signal",
-            "let mut deep_link_applied = use_signal",
             "window.location.pathname",
             "window.location.hash.startsWith('#/')",
             "window.location.hash.slice(1)",
-            "PlatformRoute::parse",
-            "active_route.set(route)",
+            "emitPath();",
+            "while let Ok(path) = eval.recv::<String>().await",
+            "route_signals.activate(&path)",
         ] {
             assert!(
                 CONSOLE_MAIN_SOURCE.contains(marker),
-                "G14 deep-link startup marker missing from apps/console/src/main.rs: {marker}"
+                "G14 deep-link startup marker missing from Console composition: {marker}"
             );
         }
         let credential_bearing_hash =

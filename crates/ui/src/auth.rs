@@ -240,6 +240,15 @@ pub struct IssuedSession {
     refresh_token: RefreshToken,
     access_expires_at: ExpiryTimestamp,
     refresh_expires_at: ExpiryTimestamp,
+    role_selection_required: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActiveRoleMetadata {
+    pub source: String,
+    pub selection_id: String,
+    pub role_key: Option<String>,
+    pub scope_key: Option<String>,
 }
 
 impl IssuedSession {
@@ -257,7 +266,26 @@ impl IssuedSession {
             refresh_token: RefreshToken::new(refresh_token)?,
             access_expires_at: ExpiryTimestamp::new(access_expires_at)?,
             refresh_expires_at: ExpiryTimestamp::new(refresh_expires_at)?,
+            role_selection_required: false,
         })
+    }
+
+    pub fn new_unselected(
+        session_id: impl Into<String>,
+        access_token: impl Into<String>,
+        refresh_token: impl Into<String>,
+        access_expires_at: impl Into<String>,
+        refresh_expires_at: impl Into<String>,
+    ) -> Result<Self, SessionMaterialError> {
+        let mut session = Self::new(
+            session_id,
+            access_token,
+            refresh_token,
+            access_expires_at,
+            refresh_expires_at,
+        )?;
+        session.role_selection_required = true;
+        Ok(session)
     }
 
     fn into_parts(
@@ -268,6 +296,7 @@ impl IssuedSession {
         RefreshToken,
         ExpiryTimestamp,
         ExpiryTimestamp,
+        bool,
     ) {
         (
             self.session_id,
@@ -275,6 +304,7 @@ impl IssuedSession {
             self.refresh_token,
             self.access_expires_at,
             self.refresh_expires_at,
+            self.role_selection_required,
         )
     }
 }
@@ -479,6 +509,279 @@ impl StoredSession {
     }
 }
 
+/// Device-local bundle of independently revocable sessions. Entries are kept
+/// in most-recently-used order, with exactly one active session and at most
+/// five unique principals. Bearer values remain redacted and this type has no
+/// general-purpose serialization implementation.
+#[derive(Clone, PartialEq, Eq)]
+pub struct StoredSessionBundle {
+    sessions: Vec<StoredSession>,
+    active_session_id: SessionId,
+}
+
+impl fmt::Debug for StoredSessionBundle {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("StoredSessionBundle")
+            .field("account_count", &self.sessions.len())
+            .field("active_session_id", &self.active_session_id)
+            .field(
+                "principals",
+                &self
+                    .sessions
+                    .iter()
+                    .map(|session| SafeUiText::new(session.principal_ref()))
+                    .collect::<Vec<_>>(),
+            )
+            .finish()
+    }
+}
+
+impl StoredSessionBundle {
+    pub const MAX_ACCOUNTS: usize = 5;
+    #[allow(dead_code)]
+    pub(crate) const SECURE_STORE_MAGIC: &'static [u8] = b"ERPX-SESSION-BUNDLE-2\0";
+    #[allow(dead_code)]
+    pub(crate) const MAX_SECURE_STORE_BYTES: usize = 320 * 1024;
+
+    pub fn new(active: StoredSession) -> Self {
+        Self {
+            active_session_id: active.session_id.clone(),
+            sessions: vec![active],
+        }
+    }
+
+    pub fn active(&self) -> &StoredSession {
+        self.sessions
+            .iter()
+            .find(|session| session.session_id == self.active_session_id)
+            .expect("validated bundles always contain their active session")
+    }
+
+    pub fn sessions_mru(&self) -> &[StoredSession] {
+        &self.sessions
+    }
+
+    /// Insert or replace one principal only after the caller has obtained a
+    /// complete server-issued session. Duplicate and capacity evictions are
+    /// returned so the caller can revoke them server-side.
+    pub fn upsert(&mut self, session: StoredSession) -> Vec<StoredSession> {
+        let mut removed = Vec::new();
+        self.sessions.retain(|current| {
+            let duplicate = current.principal_ref == session.principal_ref
+                || current.session_id == session.session_id;
+            if duplicate && current.session_id != session.session_id {
+                removed.push(current.clone());
+            }
+            !duplicate
+        });
+        self.active_session_id = session.session_id.clone();
+        self.sessions.insert(0, session);
+        while self.sessions.len() > Self::MAX_ACCOUNTS {
+            if let Some(evicted) = self.sessions.pop() {
+                removed.push(evicted);
+            }
+        }
+        removed
+    }
+
+    pub fn activate(&mut self, session_id: &SessionId) -> bool {
+        let Some(index) = self
+            .sessions
+            .iter()
+            .position(|session| &session.session_id == session_id)
+        else {
+            return false;
+        };
+        let session = self.sessions.remove(index);
+        self.active_session_id = session.session_id.clone();
+        self.sessions.insert(0, session);
+        true
+    }
+
+    pub fn remove(&mut self, session_id: &SessionId) -> Option<StoredSession> {
+        let index = self
+            .sessions
+            .iter()
+            .position(|session| &session.session_id == session_id)?;
+        let removed = self.sessions.remove(index);
+        if removed.session_id == self.active_session_id
+            && let Some(next) = self.sessions.first()
+        {
+            self.active_session_id = next.session_id.clone();
+        }
+        Some(removed)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.sessions.is_empty()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn encode_secure_store(&self) -> Result<Vec<u8>, SecureSessionError> {
+        if !self.valid() {
+            return Err(SecureSessionError::Corrupt);
+        }
+        let mut encoded = Vec::with_capacity(1024);
+        encoded.extend_from_slice(Self::SECURE_STORE_MAGIC);
+        encoded.push(self.sessions.len() as u8);
+        encode_bounded_field(&mut encoded, self.active_session_id.as_str().as_bytes())?;
+        for session in &self.sessions {
+            let value = session.encode_secure_store()?;
+            encode_bounded_field(&mut encoded, &value)?;
+        }
+        if encoded.len() > Self::MAX_SECURE_STORE_BYTES {
+            return Err(SecureSessionError::Failed);
+        }
+        Ok(encoded)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn decode_secure_store(bytes: &[u8]) -> Result<Self, SecureSessionError> {
+        if bytes.len() > Self::MAX_SECURE_STORE_BYTES {
+            return Err(SecureSessionError::Corrupt);
+        }
+        // A v1 protected item is accepted only as a one-account migration
+        // input. The next successful save writes v2.
+        if bytes.starts_with(StoredSession::SECURE_STORE_MAGIC) {
+            return StoredSession::decode_secure_store(bytes).map(Self::new);
+        }
+        if !bytes.starts_with(Self::SECURE_STORE_MAGIC) {
+            return Err(SecureSessionError::Corrupt);
+        }
+        let mut cursor = Self::SECURE_STORE_MAGIC.len();
+        let count = usize::from(*bytes.get(cursor).ok_or(SecureSessionError::Corrupt)?);
+        cursor += 1;
+        if !(1..=Self::MAX_ACCOUNTS).contains(&count) {
+            return Err(SecureSessionError::Corrupt);
+        }
+        let active = SessionId::new(decode_bounded_field(bytes, &mut cursor)?)
+            .map_err(|_| SecureSessionError::Corrupt)?;
+        let mut sessions = Vec::with_capacity(count);
+        for _ in 0..count {
+            let field = decode_bounded_bytes(bytes, &mut cursor)?;
+            sessions.push(StoredSession::decode_secure_store(field)?);
+        }
+        if cursor != bytes.len() {
+            return Err(SecureSessionError::Corrupt);
+        }
+        let bundle = Self {
+            sessions,
+            active_session_id: active,
+        };
+        bundle
+            .valid()
+            .then_some(bundle)
+            .ok_or(SecureSessionError::Corrupt)
+    }
+
+    #[allow(dead_code)]
+    fn valid(&self) -> bool {
+        if self.sessions.is_empty() || self.sessions.len() > Self::MAX_ACCOUNTS {
+            return false;
+        }
+        let mut principals = std::collections::BTreeSet::new();
+        let mut session_ids = std::collections::BTreeSet::new();
+        for session in &self.sessions {
+            if !principals.insert(session.principal_ref.as_str())
+                || !session_ids.insert(session.session_id.as_str())
+            {
+                return false;
+            }
+        }
+        session_ids.contains(self.active_session_id.as_str())
+    }
+}
+
+/// Credential-free projection of one protected native account entry.
+#[derive(Clone, PartialEq, Eq)]
+pub struct StoredAccountSummary {
+    principal_ref: String,
+    session_id: SessionId,
+    active: bool,
+}
+
+impl fmt::Debug for StoredAccountSummary {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("StoredAccountSummary")
+            .field("principal_ref", &SafeUiText::new(&self.principal_ref))
+            .field("session_id", &self.session_id)
+            .field("active", &self.active)
+            .finish()
+    }
+}
+
+impl StoredAccountSummary {
+    pub fn principal_ref(&self) -> &str {
+        &self.principal_ref
+    }
+
+    pub fn session_id(&self) -> &SessionId {
+        &self.session_id
+    }
+
+    pub const fn active(&self) -> bool {
+        self.active
+    }
+}
+
+impl StoredSessionBundle {
+    pub fn account_summaries(&self) -> Vec<StoredAccountSummary> {
+        self.sessions
+            .iter()
+            .map(|session| StoredAccountSummary {
+                principal_ref: session.principal_ref.clone(),
+                session_id: session.session_id.clone(),
+                active: session.session_id == self.active_session_id,
+            })
+            .collect()
+    }
+
+    pub fn session(&self, session_id: &SessionId) -> Option<&StoredSession> {
+        self.sessions
+            .iter()
+            .find(|session| session.session_id() == session_id)
+    }
+}
+
+#[allow(dead_code)]
+fn encode_bounded_field(encoded: &mut Vec<u8>, field: &[u8]) -> Result<(), SecureSessionError> {
+    let length = u32::try_from(field.len()).map_err(|_| SecureSessionError::Failed)?;
+    encoded.extend_from_slice(&length.to_be_bytes());
+    encoded.extend_from_slice(field);
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn decode_bounded_bytes<'a>(
+    bytes: &'a [u8],
+    cursor: &mut usize,
+) -> Result<&'a [u8], SecureSessionError> {
+    let length_bytes = bytes
+        .get(*cursor..(*cursor).saturating_add(4))
+        .ok_or(SecureSessionError::Corrupt)?;
+    let length = u32::from_be_bytes(
+        length_bytes
+            .try_into()
+            .map_err(|_| SecureSessionError::Corrupt)?,
+    ) as usize;
+    *cursor = (*cursor).saturating_add(4);
+    let end = (*cursor)
+        .checked_add(length)
+        .ok_or(SecureSessionError::Corrupt)?;
+    let field = bytes.get(*cursor..end).ok_or(SecureSessionError::Corrupt)?;
+    *cursor = end;
+    Ok(field)
+}
+
+#[allow(dead_code)]
+fn decode_bounded_field(bytes: &[u8], cursor: &mut usize) -> Result<String, SecureSessionError> {
+    std::str::from_utf8(decode_bounded_bytes(bytes, cursor)?)
+        .map(str::to_owned)
+        .map_err(|_| SecureSessionError::Corrupt)
+}
+
 /// Typed boundary for OS-backed secure session storage.
 ///
 /// Implementations belong to target applications and must use platform-protected storage. This
@@ -491,6 +794,24 @@ pub trait SecureSessionStore {
     fn save(&self, session: &StoredSession) -> SecureSessionFuture<'_, ()>;
     /// Remove protected session material after explicit sign-out or revocation.
     fn clear(&self) -> SecureSessionFuture<'_, ()>;
+}
+
+/// Extended protected-store boundary used by Apple and Android account switching.
+/// Implementations must keep all bundle mutations atomic in the platform store.
+pub trait SecureSessionBundleStore: SecureSessionStore {
+    fn accounts(&self) -> SecureSessionFuture<'_, Vec<StoredAccountSummary>>;
+    /// Return the duplicate-principal and capacity-eviction sessions that a
+    /// later atomic save would remove. The caller uses their protected refresh
+    /// material to revalidate and revoke them before committing the new bundle.
+    fn replacement_candidates(
+        &self,
+        session: &StoredSession,
+    ) -> SecureSessionFuture<'_, Vec<StoredSession>>;
+    fn load_account(
+        &self,
+        session_id: &SessionId,
+    ) -> SecureSessionFuture<'_, Option<StoredSession>>;
+    fn remove_account(&self, session_id: &SessionId) -> SecureSessionFuture<'_, bool>;
 }
 
 /// Display-safe session information retained by the shell.
@@ -735,7 +1056,7 @@ pub trait SessionTransport {
     fn revoke(&self, session_id: &SessionId, access_token: &AccessToken) -> SessionFuture<'_, ()>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct SessionCredentials {
     access_token: AccessToken,
     refresh_token: RefreshToken,
@@ -747,6 +1068,7 @@ struct SessionCredentials {
 pub struct SessionController {
     state: SessionState,
     credentials: Option<SessionCredentials>,
+    role_selection_required: bool,
 }
 
 impl SessionController {
@@ -768,11 +1090,61 @@ impl SessionController {
         self.credentials.as_ref().map(|value| &value.access_token)
     }
 
+    /// Return the target transport credential. Web callers receive only the
+    /// non-secret BFF marker installed from the safe session snapshot; native
+    /// callers retain the server-issued bearer held in secure client memory.
+    pub fn request_credential(&self) -> Option<&AccessToken> {
+        self.credentials.as_ref().map(|value| &value.access_token)
+    }
+
     /// Return the current session identifier for transport attribution.
     pub fn session_id(&self) -> Option<&SessionId> {
         self.credentials
             .as_ref()
             .map(|value| &value.snapshot.session_id)
+    }
+
+    pub const fn requires_role_selection(&self) -> bool {
+        self.role_selection_required
+    }
+
+    /// Block business surfaces while the user deliberately chooses a different
+    /// exact role. Credentials remain available only for the role-options and
+    /// role-selection auth exchange.
+    pub fn require_role_selection(&mut self) -> Result<(), SessionCommandError> {
+        if self.credentials.is_none() {
+            return Err(SessionCommandError::NotAuthenticated);
+        }
+        self.role_selection_required = true;
+        Ok(())
+    }
+
+    pub fn complete_role_selection(
+        &mut self,
+        access_token: impl Into<String>,
+        access_expires_at: impl Into<String>,
+        role: ActiveRoleMetadata,
+    ) -> Result<(), SessionCommandError> {
+        if !matches!(role.source.as_str(), "local" | "directory")
+            || role.selection_id.trim().is_empty()
+        {
+            return Err(SessionCommandError::InvalidSession(
+                "active role metadata is invalid".into(),
+            ));
+        }
+        let credentials = self
+            .credentials
+            .as_mut()
+            .ok_or(SessionCommandError::NotAuthenticated)?;
+        credentials.access_token = AccessToken::new(access_token)
+            .map_err(|error| SessionCommandError::InvalidSession(error.to_string()))?;
+        credentials.snapshot.access_expires_at = ExpiryTimestamp::new(access_expires_at)
+            .map_err(|error| SessionCommandError::InvalidSession(error.to_string()))?;
+        credentials.snapshot.metadata.role_label = role.role_key;
+        credentials.snapshot.metadata.scope_label = role.scope_key;
+        self.state = SessionState::Authenticated(credentials.snapshot.clone());
+        self.role_selection_required = false;
+        Ok(())
     }
 
     /// Replace display-only metadata supplied by the authenticated application boundary.
@@ -797,6 +1169,7 @@ impl SessionController {
     /// complete this flow using an authoritative server response.
     pub fn begin_server_restore(&mut self, return_to: impl AsRef<str>) {
         self.credentials = None;
+        self.role_selection_required = false;
         self.state = SessionState::Restoring {
             return_to: safe_return_to(return_to.as_ref()),
         };
@@ -821,11 +1194,13 @@ impl SessionController {
             }
             Err(AuthTransportError::Unauthorized) => {
                 self.credentials = None;
+                self.role_selection_required = false;
                 self.state = SessionState::SignedOut { return_to };
                 Ok(false)
             }
             Err(error) => {
                 self.credentials = None;
+                self.role_selection_required = false;
                 self.state = state_for_transport_error(error.clone(), return_to);
                 Err(SessionCommandError::Transport(error))
             }
@@ -850,6 +1225,71 @@ impl SessionController {
             .map_err(SessionCommandError::SecureStorage)
     }
 
+    /// Revoke every session displaced by a newly issued native account before
+    /// atomically committing the replacement bundle. A failed refresh/revoke
+    /// leaves the existing protected bundle in place and revokes the new
+    /// session best-effort, so a failed add-account operation cannot silently
+    /// replace the active account.
+    pub async fn persist_new_secure_account<
+        T: SessionTransport + ?Sized,
+        S: SecureSessionBundleStore + ?Sized,
+    >(
+        &self,
+        transport: &T,
+        store: &S,
+    ) -> Result<(), SessionCommandError> {
+        let session = self
+            .secure_session()
+            .ok_or(SessionCommandError::NotAuthenticated)?;
+        let candidates = store
+            .replacement_candidates(&session)
+            .await
+            .map_err(SessionCommandError::SecureStorage)?;
+        for candidate in candidates {
+            let issued = match transport
+                .refresh(candidate.session_id(), candidate.refresh_token())
+                .await
+            {
+                Ok(issued) => issued,
+                Err(AuthTransportError::Unauthorized | AuthTransportError::InvalidRequest) => {
+                    continue;
+                }
+                Err(error) => {
+                    let _ = transport
+                        .revoke(session.session_id(), session.access_token())
+                        .await;
+                    return Err(SessionCommandError::Transport(error));
+                }
+            };
+            let (session_id, access_token, _, _, _, _) = issued.into_parts();
+            if session_id != *candidate.session_id() {
+                let _ = transport
+                    .revoke(session.session_id(), session.access_token())
+                    .await;
+                return Err(SessionCommandError::InvalidSession(
+                    "replacement refresh changed session identity".into(),
+                ));
+            }
+            match transport.revoke(&session_id, &access_token).await {
+                Ok(())
+                | Err(AuthTransportError::Unauthorized | AuthTransportError::InvalidRequest) => {}
+                Err(error) => {
+                    let _ = transport
+                        .revoke(session.session_id(), session.access_token())
+                        .await;
+                    return Err(SessionCommandError::Transport(error));
+                }
+            }
+        }
+        if let Err(error) = store.save(&session).await {
+            let _ = transport
+                .revoke(session.session_id(), session.access_token())
+                .await;
+            return Err(SessionCommandError::SecureStorage(error));
+        }
+        Ok(())
+    }
+
     /// Restore a session from a target-owned secure adapter without trusting route or display
     /// metadata from storage.
     ///
@@ -865,6 +1305,7 @@ impl SessionController {
     ) -> Result<bool, SessionCommandError> {
         let return_to = safe_return_to(return_to.as_ref());
         self.credentials = None;
+        self.role_selection_required = false;
         self.state = SessionState::Restoring {
             return_to: return_to.clone(),
         };
@@ -921,6 +1362,66 @@ impl SessionController {
             }
             Err(error) => Err(error),
         }
+    }
+
+    /// Refresh a protected target account before making it active. Offline
+    /// failures preserve both the current account and the target entry;
+    /// terminal rejection removes only the rejected target.
+    pub async fn activate_secure_account<
+        T: SessionTransport + ?Sized,
+        S: SecureSessionBundleStore + ?Sized,
+    >(
+        &mut self,
+        transport: &T,
+        store: &S,
+        target_session_id: &SessionId,
+    ) -> Result<(), SessionCommandError> {
+        if self
+            .session_id()
+            .is_some_and(|current| current == target_session_id)
+        {
+            return Ok(());
+        }
+        let target = store
+            .load_account(target_session_id)
+            .await
+            .map_err(SessionCommandError::SecureStorage)?
+            .ok_or_else(|| {
+                SessionCommandError::InvalidSession("target account is unavailable".into())
+            })?;
+        let principal_ref = target.principal_ref.clone();
+        let issued = match transport
+            .refresh(target.session_id(), target.refresh_token())
+            .await
+        {
+            Ok(issued) => issued,
+            Err(
+                error @ (AuthTransportError::Unauthorized | AuthTransportError::InvalidRequest),
+            ) => {
+                store
+                    .remove_account(target_session_id)
+                    .await
+                    .map_err(SessionCommandError::SecureStorage)?;
+                return Err(SessionCommandError::Transport(error));
+            }
+            Err(error) => return Err(SessionCommandError::Transport(error)),
+        };
+
+        let mut next = SessionController::default();
+        next.install(issued, principal_ref)?;
+        let rotated = next
+            .secure_session()
+            .ok_or(SessionCommandError::NotAuthenticated)?;
+        if let Err(storage_error) = store.save(&rotated).await {
+            if let (Some(session_id), Some(access_token)) = (next.session_id(), next.access_token())
+            {
+                let _ = transport.revoke(session_id, access_token).await;
+            }
+            let _ = store.remove_account(target_session_id).await;
+            return Err(SessionCommandError::SecureStorage(storage_error));
+        }
+        *self = next;
+        Ok(())
     }
 
     /// Clear only the target-owned secure store. The controller has no plaintext persistence
@@ -984,7 +1485,10 @@ impl SessionController {
     ) -> Result<(), SessionCommandError> {
         let return_to = safe_return_to(return_to.as_ref());
         let principal_ref = request.principal_ref.clone();
-        self.credentials = None;
+        let previous_credentials = self.credentials.take();
+        let previous_state = self.state.clone();
+        let previous_role_selection_required = self.role_selection_required;
+        self.role_selection_required = false;
         self.state = SessionState::Authenticating {
             return_to: return_to.clone(),
         };
@@ -994,7 +1498,13 @@ impl SessionController {
                 Ok(())
             }
             Err(error) => {
-                self.state = state_for_transport_error(error.clone(), return_to);
+                if let Some(previous_credentials) = previous_credentials {
+                    self.credentials = Some(previous_credentials);
+                    self.role_selection_required = previous_role_selection_required;
+                    self.state = previous_state;
+                } else {
+                    self.state = state_for_transport_error(error.clone(), return_to);
+                }
                 Err(SessionCommandError::Transport(error))
             }
         }
@@ -1109,6 +1619,7 @@ impl SessionController {
             refresh_token: stored.refresh_token,
             snapshot: snapshot.clone(),
         });
+        self.role_selection_required = true;
         self.state = SessionState::Restoring { return_to };
     }
 
@@ -1118,8 +1629,14 @@ impl SessionController {
         principal_ref: String,
         existing_metadata: Option<SafeSessionMetadata>,
     ) -> Result<(), SessionCommandError> {
-        let (session_id, access_token, refresh_token, access_expires_at, refresh_expires_at) =
-            issued.into_parts();
+        let (
+            session_id,
+            access_token,
+            refresh_token,
+            access_expires_at,
+            refresh_expires_at,
+            role_selection_required,
+        ) = issued.into_parts();
         let metadata = existing_metadata.unwrap_or_else(|| SafeSessionMetadata {
             principal_label: Some(principal_ref.clone()),
             session_expires_at: Some(refresh_expires_at.as_str().to_string()),
@@ -1137,6 +1654,7 @@ impl SessionController {
             refresh_token,
             snapshot: snapshot.clone(),
         });
+        self.role_selection_required = role_selection_required;
         self.state = SessionState::Authenticated(snapshot);
         Ok(())
     }
@@ -1309,6 +1827,11 @@ mod tests {
         value: RefCell<Option<StoredSession>>,
     }
 
+    #[derive(Debug)]
+    struct InMemoryBundleStore {
+        value: RefCell<StoredSessionBundle>,
+    }
+
     impl SecureSessionStore for InMemorySessionStore {
         fn load(&self) -> SecureSessionFuture<'_, Option<StoredSession>> {
             let value = self.value.borrow().clone();
@@ -1324,6 +1847,53 @@ mod tests {
         fn clear(&self) -> SecureSessionFuture<'_, ()> {
             self.value.replace(None);
             Box::pin(async { Ok(()) })
+        }
+    }
+
+    impl SecureSessionStore for InMemoryBundleStore {
+        fn load(&self) -> SecureSessionFuture<'_, Option<StoredSession>> {
+            let value = self.value.borrow().active().clone();
+            Box::pin(async move { Ok(Some(value)) })
+        }
+
+        fn save(&self, session: &StoredSession) -> SecureSessionFuture<'_, ()> {
+            self.value.borrow_mut().upsert(session.clone());
+            Box::pin(async { Ok(()) })
+        }
+
+        fn clear(&self) -> SecureSessionFuture<'_, ()> {
+            let active = self.value.borrow().active().session_id().clone();
+            self.value.borrow_mut().remove(&active);
+            Box::pin(async { Ok(()) })
+        }
+    }
+
+    impl SecureSessionBundleStore for InMemoryBundleStore {
+        fn accounts(&self) -> SecureSessionFuture<'_, Vec<StoredAccountSummary>> {
+            let accounts = self.value.borrow().account_summaries();
+            Box::pin(async move { Ok(accounts) })
+        }
+
+        fn replacement_candidates(
+            &self,
+            session: &StoredSession,
+        ) -> SecureSessionFuture<'_, Vec<StoredSession>> {
+            let mut bundle = self.value.borrow().clone();
+            let removed = bundle.upsert(session.clone());
+            Box::pin(async move { Ok(removed) })
+        }
+
+        fn load_account(
+            &self,
+            session_id: &SessionId,
+        ) -> SecureSessionFuture<'_, Option<StoredSession>> {
+            let session = self.value.borrow().session(session_id).cloned();
+            Box::pin(async move { Ok(session) })
+        }
+
+        fn remove_account(&self, session_id: &SessionId) -> SecureSessionFuture<'_, bool> {
+            let removed = self.value.borrow_mut().remove(session_id).is_some();
+            Box::pin(async move { Ok(removed) })
         }
     }
 
@@ -1381,6 +1951,345 @@ mod tests {
                 std::task::Poll::Pending => std::thread::yield_now(),
             }
         }
+    }
+
+    fn stored_session(principal: &str, suffix: usize) -> StoredSession {
+        StoredSession::new(
+            principal,
+            format!("session-{suffix}"),
+            format!("access-secret-{suffix}"),
+            format!("refresh-secret-{suffix}"),
+            "access-expiry",
+            "refresh-expiry",
+        )
+        .expect("stored session")
+    }
+
+    #[test]
+    fn secure_bundle_migrates_v1_and_round_trips_v2_atomically() {
+        let legacy = stored_session("principal-legacy", 1);
+        let legacy_bytes = legacy.encode_secure_store().expect("legacy encoding");
+        let migrated = StoredSessionBundle::decode_secure_store(&legacy_bytes)
+            .expect("legacy one-account migration");
+        assert_eq!(migrated.sessions_mru().len(), 1);
+        assert_eq!(migrated.active().principal_ref(), "principal-legacy");
+
+        let v2 = migrated.encode_secure_store().expect("v2 encoding");
+        assert!(v2.starts_with(StoredSessionBundle::SECURE_STORE_MAGIC));
+        let round_trip = StoredSessionBundle::decode_secure_store(&v2).expect("v2 round trip");
+        assert_eq!(round_trip, migrated);
+
+        let mut corrupt = v2;
+        corrupt.push(0);
+        assert_eq!(
+            StoredSessionBundle::decode_secure_store(&corrupt),
+            Err(SecureSessionError::Corrupt)
+        );
+    }
+
+    #[test]
+    fn secure_bundle_enforces_unique_principals_cap_and_mru_fallback() {
+        let first = stored_session("principal-0", 0);
+        let first_id = first.session_id().clone();
+        let mut bundle = StoredSessionBundle::new(first);
+        for index in 1..=5 {
+            bundle.upsert(stored_session(&format!("principal-{index}"), index));
+        }
+        assert_eq!(
+            bundle.sessions_mru().len(),
+            StoredSessionBundle::MAX_ACCOUNTS
+        );
+        assert!(
+            bundle
+                .sessions_mru()
+                .iter()
+                .all(|session| session.session_id() != &first_id)
+        );
+        assert_eq!(bundle.active().session_id().as_str(), "session-5");
+
+        let replacement = stored_session("principal-3", 30);
+        let removed = bundle.upsert(replacement);
+        assert!(
+            removed
+                .iter()
+                .any(|session| session.session_id().as_str() == "session-3")
+        );
+        assert_eq!(bundle.active().session_id().as_str(), "session-30");
+        assert_eq!(
+            bundle
+                .sessions_mru()
+                .iter()
+                .filter(|session| session.principal_ref() == "principal-3")
+                .count(),
+            1
+        );
+
+        let active_id = bundle.active().session_id().clone();
+        bundle.remove(&active_id).expect("remove active account");
+        assert_eq!(bundle.active().session_id().as_str(), "session-5");
+        assert!(bundle.encode_secure_store().is_ok());
+    }
+
+    #[test]
+    fn native_duplicate_principal_is_revalidated_revoked_then_replaced() {
+        #[derive(Debug, Default)]
+        struct TrackingTransport {
+            refreshed: RefCell<Vec<String>>,
+            revoked: RefCell<Vec<String>>,
+        }
+
+        impl SessionTransport for TrackingTransport {
+            fn login(&self, _request: LoginRequest) -> SessionFuture<'_, IssuedSession> {
+                Box::pin(async { Err(AuthTransportError::InvalidRequest) })
+            }
+
+            fn refresh(
+                &self,
+                session_id: &SessionId,
+                _refresh_token: &RefreshToken,
+            ) -> SessionFuture<'_, IssuedSession> {
+                let session_id = session_id.as_str().to_owned();
+                self.refreshed.borrow_mut().push(session_id.clone());
+                Box::pin(async move {
+                    IssuedSession::new(
+                        session_id,
+                        "rotated-old-access",
+                        "rotated-old-refresh",
+                        "access-expiry",
+                        "refresh-expiry",
+                    )
+                    .map_err(|error| AuthTransportError::Server {
+                        code: error.to_string(),
+                    })
+                })
+            }
+
+            fn revoke(
+                &self,
+                session_id: &SessionId,
+                _access_token: &AccessToken,
+            ) -> SessionFuture<'_, ()> {
+                self.revoked
+                    .borrow_mut()
+                    .push(session_id.as_str().to_owned());
+                Box::pin(async { Ok(()) })
+            }
+        }
+
+        let old = stored_session("principal-duplicate", 1);
+        let store = InMemoryBundleStore {
+            value: RefCell::new(StoredSessionBundle::new(old)),
+        };
+        let mut controller = SessionController::default();
+        controller
+            .complete_server_restore(
+                Ok((
+                    "principal-duplicate".into(),
+                    IssuedSession::new(
+                        "session-2",
+                        "new-access",
+                        "new-refresh",
+                        "access-expiry",
+                        "refresh-expiry",
+                    )
+                    .expect("new session"),
+                )),
+                "/platform",
+            )
+            .expect("install new session");
+        let transport = TrackingTransport::default();
+
+        block_on(controller.persist_new_secure_account(&transport, &store))
+            .expect("revoke and replace duplicate");
+
+        assert_eq!(transport.refreshed.borrow().as_slice(), ["session-1"]);
+        assert_eq!(transport.revoked.borrow().as_slice(), ["session-1"]);
+        let bundle = store.value.borrow();
+        assert_eq!(bundle.sessions_mru().len(), 1);
+        assert_eq!(bundle.active().session_id().as_str(), "session-2");
+    }
+
+    #[test]
+    fn native_account_switch_refreshes_target_before_atomic_activation() {
+        let current = stored_session("principal-1", 1);
+        let current_id = current.session_id().clone();
+        let target = StoredSession::new(
+            "principal-2",
+            "session-target",
+            "target-access",
+            "target-refresh",
+            "access-expiry",
+            "refresh-expiry",
+        )
+        .expect("target session");
+        let target_id = target.session_id().clone();
+        let mut bundle = StoredSessionBundle::new(current);
+        bundle.upsert(target);
+        assert!(bundle.activate(&current_id));
+        let store = InMemoryBundleStore {
+            value: RefCell::new(bundle),
+        };
+        let mut controller = SessionController::default();
+        block_on(controller.login(
+            &FakeTransport {
+                result: Ok(
+                    IssuedSession::new("ignored", "ignored", "ignored", "a", "r").expect("issued"),
+                ),
+            },
+            LoginRequest::new("principal-1", "password", "native").expect("request"),
+            "/platform",
+        ))
+        .expect("current login");
+
+        block_on(controller.activate_secure_account(
+            &FakeTransport {
+                result: Ok(
+                    IssuedSession::new("ignored", "ignored", "ignored", "a", "r").expect("issued"),
+                ),
+            },
+            &store,
+            &target_id,
+        ))
+        .expect("target activation");
+        assert_eq!(
+            controller.session_id().map(SessionId::as_str),
+            Some("session-2")
+        );
+        assert_eq!(
+            controller
+                .metadata()
+                .and_then(|metadata| metadata.principal_label.as_deref()),
+            Some("principal-2")
+        );
+        assert_eq!(
+            store.value.borrow().active().session_id().as_str(),
+            "session-2"
+        );
+        assert!(
+            !format!("{:?}", store.value.borrow().account_summaries()).contains("target-refresh")
+        );
+    }
+
+    #[test]
+    fn terminal_target_rejection_removes_only_that_native_account() {
+        #[derive(Debug)]
+        struct RejectedRefresh;
+
+        impl SessionTransport for RejectedRefresh {
+            fn login(&self, _request: LoginRequest) -> SessionFuture<'_, IssuedSession> {
+                Box::pin(async { Err(AuthTransportError::Unauthorized) })
+            }
+
+            fn refresh(
+                &self,
+                _session_id: &SessionId,
+                _refresh_token: &RefreshToken,
+            ) -> SessionFuture<'_, IssuedSession> {
+                Box::pin(async { Err(AuthTransportError::Unauthorized) })
+            }
+
+            fn revoke(
+                &self,
+                _session_id: &SessionId,
+                _access_token: &AccessToken,
+            ) -> SessionFuture<'_, ()> {
+                Box::pin(async { Ok(()) })
+            }
+        }
+
+        let current = stored_session("principal-1", 1);
+        let current_id = current.session_id().clone();
+        let target = stored_session("principal-2", 2);
+        let target_id = target.session_id().clone();
+        let mut bundle = StoredSessionBundle::new(current);
+        bundle.upsert(target);
+        assert!(bundle.activate(&current_id));
+        let store = InMemoryBundleStore {
+            value: RefCell::new(bundle),
+        };
+        let mut controller = SessionController::default();
+        block_on(controller.login(
+            &FakeTransport {
+                result: Ok(
+                    IssuedSession::new("ignored", "ignored", "ignored", "a", "r").expect("issued"),
+                ),
+            },
+            LoginRequest::new("principal-1", "password", "native").expect("request"),
+            "/platform",
+        ))
+        .expect("current login");
+
+        assert!(matches!(
+            block_on(controller.activate_secure_account(&RejectedRefresh, &store, &target_id)),
+            Err(SessionCommandError::Transport(
+                AuthTransportError::Unauthorized
+            ))
+        ));
+        assert_eq!(
+            controller.session_id().map(SessionId::as_str),
+            Some("session-1")
+        );
+        let accounts = block_on(store.accounts()).expect("remaining accounts");
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].session_id().as_str(), "session-1");
+        assert!(accounts[0].active());
+    }
+
+    #[test]
+    fn failed_add_account_login_preserves_active_session_and_role() {
+        let mut controller = SessionController::default();
+        block_on(controller.login(
+            &FakeTransport {
+                result: Ok(
+                    IssuedSession::new("ignored", "ignored", "ignored", "a", "r").expect("issued"),
+                ),
+            },
+            LoginRequest::new("principal-1", "password", "desktop").expect("request"),
+            "/platform",
+        ))
+        .expect("initial login");
+        controller
+            .complete_role_selection(
+                "selected-access-token",
+                "selected-access-expiry",
+                ActiveRoleMetadata {
+                    source: "local".into(),
+                    selection_id: "assignment-1".into(),
+                    role_key: Some("finance.read".into()),
+                    scope_key: Some("platform".into()),
+                },
+            )
+            .expect("role selection");
+
+        let failure = block_on(controller.login(
+            &FakeTransport {
+                result: Err(AuthTransportError::Unauthorized),
+            },
+            LoginRequest::new("principal-2", "wrong-password", "desktop").expect("request"),
+            "/platform",
+        ));
+        assert!(matches!(
+            failure,
+            Err(SessionCommandError::Transport(
+                AuthTransportError::Unauthorized
+            ))
+        ));
+        assert!(matches!(controller.state(), SessionState::Authenticated(_)));
+        assert_eq!(
+            controller.session_id().map(SessionId::as_str),
+            Some("session-1")
+        );
+        assert_eq!(
+            controller.access_token().map(AccessToken::as_str),
+            Some("selected-access-token")
+        );
+        assert_eq!(
+            controller
+                .metadata()
+                .and_then(|metadata| metadata.role_label.as_deref()),
+            Some("finance.read")
+        );
+        assert!(!controller.requires_role_selection());
     }
 
     #[test]

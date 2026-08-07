@@ -1,0 +1,3 @@
+-- Evidence contract: canonical installation is tenant-write migration 0060.
+-- Commands atomically update erpx_assets_write.asset_guards with shared
+-- snapshots, receipts, audit rows, and outbox events.

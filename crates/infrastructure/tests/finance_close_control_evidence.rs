@@ -5,26 +5,9 @@
 //! infrastructure helper and does not bypass the real SQLx boundary.
 
 use chrono::Utc;
-use erpx_infrastructure::PersistenceError;
 use serde_json::Value;
-use sqlx::{PgPool, Postgres, Row, Transaction};
+use sqlx::{PgPool, Row};
 use uuid::Uuid;
-
-mod finance_persistence {
-    use super::*;
-
-    pub(crate) async fn begin_scoped<'a>(
-        pool: &'a PgPool,
-        holding_ref: &str,
-    ) -> Result<Transaction<'a, Postgres>, PersistenceError> {
-        let mut tx = pool.begin().await?;
-        sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-            .bind(holding_ref)
-            .execute(&mut *tx)
-            .await?;
-        Ok(tx)
-    }
-}
 
 #[path = "../src/finance_close_control_evidence.rs"]
 mod adapter;

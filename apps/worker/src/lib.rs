@@ -4,12 +4,7 @@
 //! provide handlers through [`OutboxHandler`]; the default executable refuses
 //! to claim events until such a handler is explicitly installed.
 
-use std::{
-    collections::BTreeMap,
-    env, fmt,
-    sync::{Arc, Mutex},
-    time::Duration as StdDuration,
-};
+use std::{collections::BTreeMap, env, fmt, sync::Arc, time::Duration as StdDuration};
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::asset_maintenance::AssetMaintenanceProjectionReconciliation;
@@ -28,29 +23,44 @@ use erpx_domain::support::Incident;
 use erpx_infrastructure::{
     AssetMaintenanceProjectionRebuildPreparation, AssetMaintenanceSourceEventCursor,
     AssetMaintenanceSourceEventPage, BankProviderCredentialResolver, CapabilityMetadata,
-    ControlPlaneDatabaseConfig, ControlPlanePools, Customer360ReadReconciliation, DatabaseSide,
-    MAX_OPERATIONS_EVENT_PAGE_SIZE, MAX_QUALITY_PROJECTION_EVENTS, MAX_QUALITY_SOURCE_PAGE_SIZE,
-    MAX_RESTORE_TEST_SCHEDULE_BATCH_SIZE, MarketingSourceEvent as InfraMarketingSourceEvent,
+    ControlPlaneDatabaseConfig, ControlPlanePoolSettings, ControlPlanePools,
+    Customer360ReadReconciliation, MAX_OPERATIONS_EVENT_PAGE_SIZE, MAX_QUALITY_PROJECTION_EVENTS,
+    MAX_QUALITY_SOURCE_PAGE_SIZE, MAX_RESTORE_TEST_SCHEDULE_BATCH_SIZE,
+    MarketingSourceEvent as InfraMarketingSourceEvent,
     MarketingSourceEventCursor as InfraMarketingSourceEventCursor, OperationsEventCursor,
     OperationsEventPage, OperationsProjectionApplication, OperationsProjectionRebuildPreparation,
-    OutboxEnvelope, PersistenceError, ProjectionClaimRecord, ProjectionJobKind,
-    ReadinessObservationPolicy, ReadinessObservationState, RestoreTestClaim,
+    OutboxEnvelope, PersistenceError, ProjectionClaimRecord, ProjectionJobKind, RestoreTestClaim,
     RestoreTestScheduleError, RestoreTestScheduler, RoleReviewPersistence, RoutedDatabaseSide,
     RoutedTenantDatabase, SalesProjectionRebuildPreparation, SalesSourceEventCursor,
     SqlxAssetMaintenanceStore, SqlxCommercialStore, SqlxControlPlane, SqlxMarketingStore,
     SqlxOperationsStore, SqlxSalesStore, SqlxTenantProjectionStatusProjectionStore,
     StripeInboxRetryPolicy, StripeInboxTransition, StripeSemanticApplyError,
     StripeSemanticDispatchError, StripeSemanticDispatcher, SupportPersistence,
-    SupportPersistenceError, SupportWorkflowStore, TenantBackupRun, TenantDatabaseHealth,
-    TenantDatabaseProvisioner, TenantDatabaseRouter, TenantProvisioner, TenantReadinessObservation,
-    TenantStorageHealth,
+    SupportPersistenceError, SupportWorkflowStore, TenantDatabaseProvisioner, TenantDatabaseRouter,
+    TenantProvisioner,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use thiserror::Error;
 use uuid::Uuid;
 
+#[cfg(test)]
+use erpx_infrastructure::{
+    DatabaseSide, ReadinessObservationState, TenantBackupRun, TenantDatabaseHealth,
+    TenantStorageHealth,
+};
+#[cfg(test)]
+use std::sync::Mutex;
+
+pub use erpx_infrastructure::{
+    ReadinessState, WorkerHeartbeat, WorkerHeartbeatObservation, WorkerHeartbeatReadiness,
+    WorkerLiveReadinessObservation, WorkerLiveReadinessPolicy, WorkerReadinessComposition,
+    WorkerReadinessMetadata, WorkerReadinessObserver, backup_pitr_readiness,
+    projection_freshness_readiness, tenant_routing_readiness,
+};
+
 mod backup_retention;
 mod backup_runtime;
+mod branch_provisioning_runtime;
 mod cluster_pitr_runtime;
 pub mod directory_adapters;
 mod directory_live;
@@ -102,13 +112,16 @@ pub use backup_retention::{
 pub use backup_runtime::{
     BackupRuntime, TENANT_BACKUP_HANDLER_NAME, TenantBackupJobRuntimeHandler,
 };
+pub use branch_provisioning_runtime::{
+    BRANCH_PROVISIONING_HANDLER_NAME, BranchProvisioningRuntimeHandler,
+};
 pub use cluster_pitr_runtime::{
     CLUSTER_PITR_CONTROLLER_HANDLER_NAME, ClusterPitrControllerRuntimeHandler,
 };
 pub use directory_live::{
-    LiveDirectoryError, authenticate_directory_user, authenticate_directory_user_with_resolver,
-    authenticate_directory_user_with_runtime, confirm_ucs_with_resolver, fetch_with_runtime,
-    preflight_directory_connector,
+    DirectoryPreflightEvidence, LiveDirectoryError, authenticate_directory_user,
+    authenticate_directory_user_with_resolver, authenticate_directory_user_with_runtime,
+    confirm_ucs_with_resolver, fetch_with_runtime, preflight_directory_connector,
 };
 pub use directory_secrets::{
     DirectorySecretBundle, DirectorySecretError, DirectorySecretResolver,
@@ -2308,219 +2321,9 @@ fn validate_asset_source_event_page(
     }
 }
 
-/// Fail-closed state used by the worker/server readiness composition seam.
-/// `Ready` is reserved for an observed healthy state; configuration or absent
-/// metadata alone maps to `NotProbed`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ReadinessState {
-    Ready,
-    NotProbed,
-    Unavailable,
-}
-
-impl ReadinessState {
-    pub fn from_status(status: &str) -> Self {
-        match status {
-            "ready" => Self::Ready,
-            "not_probed" | "unprobed" => Self::NotProbed,
-            _ => Self::Unavailable,
-        }
-    }
-
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Ready => "ready",
-            Self::NotProbed => "not_probed",
-            Self::Unavailable => "unavailable",
-        }
-    }
-
-    pub const fn is_ready(self) -> bool {
-        matches!(self, Self::Ready)
-    }
-}
-
+#[cfg(test)]
 fn readiness_state_from_observation(state: ReadinessObservationState) -> ReadinessState {
-    match state {
-        ReadinessObservationState::Ready => ReadinessState::Ready,
-        ReadinessObservationState::NotProbed => ReadinessState::NotProbed,
-        ReadinessObservationState::Unavailable => ReadinessState::Unavailable,
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WorkerHeartbeatReadiness {
-    pub state: ReadinessState,
-}
-
-impl WorkerHeartbeatReadiness {
-    /// Classify an injected heartbeat observation. No timestamp means the
-    /// worker has not proved liveness; future or stale timestamps fail closed.
-    pub fn from_last_seen(
-        last_seen: Option<DateTime<Utc>>,
-        now: DateTime<Utc>,
-        max_age: chrono::Duration,
-    ) -> Self {
-        let state = match last_seen {
-            None => ReadinessState::NotProbed,
-            Some(last_seen)
-                if last_seen <= now
-                    && max_age >= chrono::Duration::zero()
-                    && now.signed_duration_since(last_seen) <= max_age =>
-            {
-                ReadinessState::Ready
-            }
-            Some(_) => ReadinessState::Unavailable,
-        };
-        Self { state }
-    }
-
-    pub const fn not_probed() -> Self {
-        Self {
-            state: ReadinessState::NotProbed,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WorkerHeartbeatObservation {
-    pub worker_id: Uuid,
-    pub last_seen: Option<DateTime<Utc>>,
-    pub observed_at: DateTime<Utc>,
-    pub state: ReadinessState,
-}
-
-/// In-process heartbeat state. The scheduler owns when `record_at` is called;
-/// readiness only becomes `Ready` after a successful, recent observation.
-#[derive(Debug, Clone)]
-pub struct WorkerHeartbeat {
-    worker_id: Uuid,
-    last_seen: Arc<Mutex<Option<DateTime<Utc>>>>,
-}
-
-impl WorkerHeartbeat {
-    pub fn new(worker_id: Uuid) -> Self {
-        Self {
-            worker_id,
-            last_seen: Arc::new(Mutex::new(None)),
-        }
-    }
-
-    pub fn record_at(&self, observed_at: DateTime<Utc>) -> bool {
-        let Ok(mut last_seen) = self.last_seen.lock() else {
-            return false;
-        };
-        *last_seen = Some(observed_at);
-        true
-    }
-
-    pub fn observe(
-        &self,
-        now: DateTime<Utc>,
-        max_age: chrono::Duration,
-    ) -> WorkerHeartbeatObservation {
-        let last_seen = self.last_seen.lock().ok().and_then(|last_seen| *last_seen);
-        let state = WorkerHeartbeatReadiness::from_last_seen(last_seen, now, max_age).state;
-        WorkerHeartbeatObservation {
-            worker_id: self.worker_id,
-            last_seen,
-            observed_at: now,
-            state,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WorkerLiveReadinessPolicy {
-    pub heartbeat_max_age: chrono::Duration,
-    pub tenant: ReadinessObservationPolicy,
-}
-
-impl Default for WorkerLiveReadinessPolicy {
-    fn default() -> Self {
-        Self {
-            heartbeat_max_age: chrono::Duration::minutes(1),
-            tenant: ReadinessObservationPolicy::default(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WorkerLiveReadinessObservation {
-    pub heartbeat: WorkerHeartbeatObservation,
-    pub tenant: TenantReadinessObservation,
-    pub composition: WorkerReadinessComposition,
-}
-
-/// Readiness observer shared by the worker executable and server health
-/// boundary. It owns only the worker's explicit in-process heartbeat; tenant
-/// observations always come from the control-plane registry and live route
-/// probes. A caller must record a successful worker pass before the worker
-/// component can become ready.
-#[derive(Debug, Clone)]
-pub struct WorkerReadinessObserver {
-    heartbeat: WorkerHeartbeat,
-}
-
-impl WorkerReadinessObserver {
-    pub fn new(worker_id: Uuid) -> Self {
-        Self {
-            heartbeat: WorkerHeartbeat::new(worker_id),
-        }
-    }
-
-    pub fn heartbeat(&self) -> &WorkerHeartbeat {
-        &self.heartbeat
-    }
-
-    pub fn record_heartbeat_at(&self, observed_at: DateTime<Utc>) -> bool {
-        self.heartbeat.record_at(observed_at)
-    }
-
-    pub async fn observe_live_readiness(
-        &self,
-        router: &TenantDatabaseRouter,
-        tenant_id: &str,
-        now: DateTime<Utc>,
-        policy: WorkerLiveReadinessPolicy,
-    ) -> Result<WorkerLiveReadinessObservation, WorkerRuntimeError> {
-        let tenant = router
-            .observe_tenant_readiness(tenant_id, now, policy.tenant)
-            .await?;
-        let heartbeat = self.heartbeat.observe(now, policy.heartbeat_max_age);
-        let composition = WorkerReadinessComposition {
-            worker_heartbeat: heartbeat.state,
-            tenant_routing: readiness_state_from_observation(tenant.routing.state),
-            projection_freshness: readiness_state_from_observation(
-                tenant.projection_freshness.state,
-            ),
-            backup_pitr: readiness_state_from_observation(tenant.backup_pitr.state),
-        };
-        Ok(WorkerLiveReadinessObservation {
-            heartbeat,
-            tenant,
-            composition,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WorkerReadinessComposition {
-    pub worker_heartbeat: ReadinessState,
-    pub tenant_routing: ReadinessState,
-    pub projection_freshness: ReadinessState,
-    pub backup_pitr: ReadinessState,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct WorkerReadinessMetadata<'a> {
-    pub tenant_id: &'a str,
-    pub registry_state: Option<&'a str>,
-    pub write_health: Option<&'a TenantDatabaseHealth>,
-    pub read_health: Option<&'a TenantDatabaseHealth>,
-    pub storage_health: Option<&'a TenantStorageHealth>,
-    pub projection_state: Option<&'a str>,
-    pub latest_backup: Option<&'a TenantBackupRun>,
+    state.into()
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -2596,133 +2399,6 @@ impl WorkerHandlerRegistry {
 
     fn get(&self, name: &str) -> Option<Arc<dyn NamedWorkerHandler>> {
         self.handlers.get(name).cloned()
-    }
-}
-
-impl WorkerReadinessComposition {
-    pub const fn not_probed() -> Self {
-        Self {
-            worker_heartbeat: ReadinessState::NotProbed,
-            tenant_routing: ReadinessState::NotProbed,
-            projection_freshness: ReadinessState::NotProbed,
-            backup_pitr: ReadinessState::NotProbed,
-        }
-    }
-
-    pub const fn is_ready(self) -> bool {
-        self.worker_heartbeat.is_ready()
-            && self.tenant_routing.is_ready()
-            && self.projection_freshness.is_ready()
-            && self.backup_pitr.is_ready()
-    }
-
-    pub const fn overall(self) -> ReadinessState {
-        if matches!(self.worker_heartbeat, ReadinessState::Unavailable)
-            || matches!(self.tenant_routing, ReadinessState::Unavailable)
-            || matches!(self.projection_freshness, ReadinessState::Unavailable)
-            || matches!(self.backup_pitr, ReadinessState::Unavailable)
-        {
-            ReadinessState::Unavailable
-        } else if self.is_ready() {
-            ReadinessState::Ready
-        } else {
-            ReadinessState::NotProbed
-        }
-    }
-
-    pub fn from_metadata(
-        heartbeat: WorkerHeartbeatReadiness,
-        metadata: WorkerReadinessMetadata<'_>,
-    ) -> Self {
-        Self {
-            worker_heartbeat: heartbeat.state,
-            tenant_routing: tenant_routing_readiness(
-                metadata.tenant_id,
-                metadata.registry_state,
-                metadata.write_health,
-                metadata.read_health,
-                metadata.storage_health,
-            ),
-            projection_freshness: projection_freshness_readiness(metadata.projection_state),
-            backup_pitr: backup_pitr_readiness(metadata.tenant_id, metadata.latest_backup),
-        }
-    }
-}
-
-/// Classify only persisted tenant health evidence. A healthy configuration
-/// without all three observed health records remains `NotProbed`.
-pub fn tenant_routing_readiness(
-    tenant_id: &str,
-    registry_state: Option<&str>,
-    write_health: Option<&TenantDatabaseHealth>,
-    read_health: Option<&TenantDatabaseHealth>,
-    storage_health: Option<&TenantStorageHealth>,
-) -> ReadinessState {
-    let Some(registry_state) = registry_state else {
-        return ReadinessState::NotProbed;
-    };
-    if registry_state != "active" || tenant_id.trim().is_empty() {
-        return ReadinessState::Unavailable;
-    }
-
-    if write_health.is_some_and(|health| {
-        health.tenant_id != tenant_id
-            || !health.reachable
-            || health.side != DatabaseSide::Write
-            || health.database_key.trim().is_empty()
-    }) || read_health.is_some_and(|health| {
-        health.tenant_id != tenant_id
-            || !health.reachable
-            || health.side != DatabaseSide::Read
-            || health.database_key.trim().is_empty()
-    }) {
-        return ReadinessState::Unavailable;
-    }
-    if storage_health.is_some_and(|health| {
-        health.tenant_id != tenant_id
-            || !health.reachable
-            || health.storage_namespace.trim().is_empty()
-    }) {
-        return ReadinessState::Unavailable;
-    }
-    if write_health.is_none() || read_health.is_none() || storage_health.is_none() {
-        return ReadinessState::NotProbed;
-    }
-    if !matches!(
-        write_health.map(|health| health.side),
-        Some(DatabaseSide::Write)
-    ) || !matches!(
-        read_health.map(|health| health.side),
-        Some(DatabaseSide::Read)
-    ) {
-        return ReadinessState::Unavailable;
-    }
-    ReadinessState::Ready
-}
-
-pub fn projection_freshness_readiness(state: Option<&str>) -> ReadinessState {
-    match state {
-        None => ReadinessState::NotProbed,
-        Some("activated") => ReadinessState::Ready,
-        Some(_) => ReadinessState::Unavailable,
-    }
-}
-
-pub fn backup_pitr_readiness(
-    tenant_id: &str,
-    latest_backup: Option<&TenantBackupRun>,
-) -> ReadinessState {
-    let Some(run) = latest_backup else {
-        return ReadinessState::NotProbed;
-    };
-    if run.tenant_id != tenant_id || !matches!(run.kind.as_str(), "full" | "pitr" | "restore_test")
-    {
-        return ReadinessState::Unavailable;
-    }
-    if run.status == "completed" && run.verified && run.error.is_none() {
-        ReadinessState::Ready
-    } else {
-        ReadinessState::Unavailable
     }
 }
 
@@ -3131,18 +2807,33 @@ impl WorkerRuntime {
     pub async fn connect(config: WorkerRuntimeConfig) -> Result<Self, WorkerRuntimeError> {
         let database_config = ControlPlaneDatabaseConfig::from_env()
             .map_err(|error| WorkerRuntimeError::Configuration(error.into()))?;
-        let pools = ControlPlanePools::connect(&database_config).await?;
-        migrate_control_plane(&pools.write).await?;
-        migrate_control_read(&pools.read).await?;
-        // Worker-side authorization rechecks directory-managed roles at the
-        // five-minute revocation boundary. Keep the identity schema present
-        // for every executable composition, even when the server is not the
-        // process that started first.
-        erpx_identity::apply_identity_migration(&pools.write)
-            .await
-            .map_err(|_| {
-                WorkerRuntimeError::Configuration("identity migration is unavailable".into())
-            })?;
+        let pools = ControlPlanePools::connect_with_settings(
+            &database_config,
+            ControlPlanePoolSettings {
+                write_max_connections: 2,
+                read_max_connections: 1,
+                acquire_timeout: StdDuration::from_secs(10),
+            },
+        )
+        .await?;
+        // The fresh-state manifest is published only after the bootstrap has
+        // migrated all four databases and committed its complete receipt.
+        // Avoid making every worker contend on the same migration advisory
+        // locks during the workers-before-Server startup barrier.
+        if env::var_os("ERPX_FRESH_STATE_MANIFEST").is_none() {
+            migrate_control_plane(&pools.write).await?;
+            migrate_control_read(&pools.read).await?;
+            // Worker-side authorization rechecks directory-managed roles at
+            // the five-minute revocation boundary. Keep the identity schema
+            // present for standalone/legacy worker composition.
+            erpx_identity::apply_identity_migration(&pools.write)
+                .await
+                .map_err(|error| {
+                    WorkerRuntimeError::Configuration(format!(
+                        "identity migration is unavailable: {error}"
+                    ))
+                })?;
+        }
         let store = Arc::new(SqlxControlPlane::new(pools));
         store.require_erpx_command_owner().await?;
         let worker = OutboxWorker::new(Arc::clone(&store), config.worker_id)
@@ -3175,9 +2866,7 @@ impl WorkerRuntime {
     }
 
     pub fn readiness_observer(&self) -> WorkerReadinessObserver {
-        WorkerReadinessObserver {
-            heartbeat: self.heartbeat.clone(),
-        }
+        WorkerReadinessObserver::from_heartbeat(self.heartbeat.clone())
     }
 
     /// Record a scheduler-owned successful pass. The method does not expose
@@ -3197,9 +2886,10 @@ impl WorkerRuntime {
         now: DateTime<Utc>,
         policy: WorkerLiveReadinessPolicy,
     ) -> Result<WorkerLiveReadinessObservation, WorkerRuntimeError> {
-        self.readiness_observer()
+        Ok(self
+            .readiness_observer()
             .observe_live_readiness(router, tenant_id, now, policy)
-            .await
+            .await?)
     }
 
     pub fn readiness_snapshot(

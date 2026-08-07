@@ -5,8 +5,12 @@ use std::fmt;
 pub enum UiStateKind {
     /// Data is being requested.
     Loading,
+    /// An authoritative mutation is in flight and duplicate submission is disabled.
+    Submitting,
     /// The request succeeded but has no rows/content.
     Empty,
+    /// A read or command completed successfully and has a user-visible receipt.
+    Success,
     /// The current principal cannot view the content.
     Denied,
     /// Data was loaded from a projection older than the freshness budget.
@@ -17,6 +21,10 @@ pub enum UiStateKind {
     Conflict,
     /// The client cannot reach its backend.
     Offline,
+    /// A failed request is safe to retry without changing the submitted intent.
+    RetryableError,
+    /// The capability exists but its required provider or deployment seam is unavailable.
+    Unavailable,
     /// An unexpected request failure occurred.
     Error,
 }
@@ -48,12 +56,16 @@ impl UiStateKind {
     pub const fn dom_key(self) -> &'static str {
         match self {
             Self::Loading => "loading",
+            Self::Submitting => "submitting",
             Self::Empty => "empty",
+            Self::Success => "success",
             Self::Denied => "denied",
             Self::Stale => "stale",
             Self::ReadOnly => "read-only",
             Self::Conflict => "conflict",
             Self::Offline => "offline",
+            Self::RetryableError => "retryable-error",
+            Self::Unavailable => "unavailable",
             Self::Error => "error",
         }
     }
@@ -64,45 +76,47 @@ impl UiStateKind {
     /// `pending` and `unknown` deliberately avoid implying an authorization decision.
     pub const fn authorization_key(self) -> &'static str {
         match self {
-            Self::Loading => "pending",
-            Self::Empty | Self::Stale | Self::Conflict => "authorized",
+            Self::Loading | Self::Submitting => "pending",
+            Self::Empty | Self::Success | Self::Stale | Self::Conflict => "authorized",
             Self::ReadOnly => "read-only",
             Self::Denied => "denied",
-            Self::Offline | Self::Error => "unknown",
+            Self::Offline | Self::RetryableError | Self::Unavailable | Self::Error => "unknown",
         }
     }
 
     /// Return the shared accessibility and safe-payload policy for this state.
     pub const fn accessibility(self) -> UiAccessibilityContract {
         match self {
-            Self::Loading => UiAccessibilityContract {
+            Self::Loading | Self::Submitting => UiAccessibilityContract {
                 role: "status",
                 aria_live: "polite",
                 aria_atomic: true,
                 aria_busy: true,
                 cached_payload_allowed: false,
             },
-            Self::Empty => UiAccessibilityContract {
+            Self::Empty | Self::Success => UiAccessibilityContract {
                 role: "status",
                 aria_live: "polite",
                 aria_atomic: true,
                 aria_busy: false,
                 cached_payload_allowed: false,
             },
-            Self::Denied | Self::Error => UiAccessibilityContract {
+            Self::Denied | Self::Error | Self::RetryableError => UiAccessibilityContract {
                 role: "alert",
                 aria_live: "assertive",
                 aria_atomic: true,
                 aria_busy: false,
                 cached_payload_allowed: false,
             },
-            Self::Stale | Self::ReadOnly | Self::Offline => UiAccessibilityContract {
-                role: "status",
-                aria_live: "polite",
-                aria_atomic: true,
-                aria_busy: false,
-                cached_payload_allowed: true,
-            },
+            Self::Stale | Self::ReadOnly | Self::Offline | Self::Unavailable => {
+                UiAccessibilityContract {
+                    role: "status",
+                    aria_live: "polite",
+                    aria_atomic: true,
+                    aria_busy: false,
+                    cached_payload_allowed: true,
+                }
+            }
             Self::Conflict => UiAccessibilityContract {
                 role: "alert",
                 aria_live: "assertive",

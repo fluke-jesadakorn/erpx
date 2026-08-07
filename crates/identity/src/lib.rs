@@ -1,9 +1,15 @@
 #![doc = "Bounded ERPX identity, session, recovery, TOTP, and passkey primitives."]
 #![forbid(unsafe_code)]
 
+// The standalone directory synchronization acceptance target includes the
+// source module directly. Keep a stable self-alias so its test-only imports
+// can use the same crate-qualified type names as the library build.
+extern crate self as erpx_identity;
+
 mod access_token;
 mod ceremony;
 mod challenge;
+pub mod development_access;
 mod device;
 pub mod directory;
 mod error;
@@ -16,7 +22,7 @@ mod totp;
 mod webauthn;
 
 pub use access_token::{
-    AccessToken, AccessTokenClaims, AccessTokenLifetime, AccessTokenSigner,
+    AccessToken, AccessTokenClaims, AccessTokenLifetime, AccessTokenSigner, ActiveRoleClaim,
     MAX_ACCESS_TOKEN_LIFETIME_SECONDS,
 };
 pub use ceremony::{
@@ -27,18 +33,43 @@ pub use challenge::{
     ChallengeCeremony, ChallengeLifetime, ChallengeMaterial, MAX_CHALLENGE_LIFETIME_SECONDS,
     WebAuthnChallenge,
 };
+pub use development_access::{
+    BUSINESS_UNITS, BusinessUnitRoleLevel, DEVELOPMENT_CLUSTER_MARKER, DEVELOPMENT_CONTEXT_HEADER,
+    DEVELOPMENT_CONTEXT_LIFETIME, DEVELOPMENT_CONTROLLER_MUTATION_PERMISSIONS,
+    DEVELOPMENT_CONTROLLER_PRINCIPAL, DEVELOPMENT_CONTROLLER_READ_PERMISSIONS,
+    DEVELOPMENT_CONTROLLER_ROLE, DEVELOPMENT_CONTROLLER_ROLE_PROFILE,
+    DEVELOPMENT_CONTROLLER_TARGET_TENANT, DEVELOPMENT_FRESH_PROFILE,
+    DEVELOPMENT_MFA_BYPASS_PERMISSION, DEVELOPMENT_PERSONA_MODE, DEVELOPMENT_PROFILE,
+    DEVELOPMENT_SOD_BYPASS_PERMISSION, DevelopmentAccessError, DevelopmentAccessGates,
+    DevelopmentControllerRoleConfig, DevelopmentPersona, DevelopmentPersonaContext,
+    DirectoryRoleTargetScope, PermissionCatalogEntry, context_expiry, context_token_hash,
+    demo_personas, development_controller_permissions, development_controller_role_config_from_env,
+    development_gates_from_env, issue_context_token, permission_catalog, platform_personas,
+    require_development_gates,
+};
 pub use device::DeviceRecord;
+pub use directory::live::{
+    DirectoryPreflightEvidence, LiveDirectoryError, authenticate_directory_user,
+    authenticate_directory_user_with_resolver, authenticate_directory_user_with_runtime,
+    preflight_directory_connector,
+};
+pub use directory::secrets::{
+    DirectorySecretBundle, DirectorySecretError, DirectorySecretResolver,
+    HttpsDirectorySecretResolver, LocalDirectorySecretResolver,
+    UnconfiguredDirectorySecretResolver,
+};
 pub use directory::{
     DIRECTORY_PREFLIGHT_MAX_AGE, DIRECTORY_REVOCATION_SLA, DirectoryAuthDecision,
     DirectoryAuthPolicy, DirectoryAuthRequest, DirectoryChange, DirectoryConnector,
     DirectoryConnectorLifecycle, DirectoryConnectorReadinessSnapshot,
     DirectoryConnectorRuntimeSettings, DirectoryConnectorSnapshot, DirectoryError,
-    DirectoryFeedKind, DirectoryImportPlan, DirectoryImportStatus,
-    DirectoryPrincipalBindingSnapshot, DirectoryProvider, DirectoryRevocationState, DirectoryRisk,
-    DirectoryRoleAction, DirectoryRoleFact, DirectoryRoleMapping, DirectoryScope,
-    DirectorySupervisorClaim, DirectorySyncCursor, DirectorySyncPage, DirectoryTlsMode,
-    DirectoryTlsPolicy, DirectoryUser, MAX_DIRECTORY_BATCH_SIZE, MAX_DIRECTORY_IMPORT_USERS,
-    MAX_DIRECTORY_PAGE_SIZE, SqlxDirectoryStore, immutable_identity_link,
+    DirectoryFeedKind, DirectoryIdentityConflictSnapshot, DirectoryImportPlan,
+    DirectoryImportStatus, DirectoryPrincipalBindingSnapshot, DirectoryProvider,
+    DirectoryRevocationState, DirectoryRisk, DirectoryRoleAction, DirectoryRoleFact,
+    DirectoryRoleMapping, DirectoryScope, DirectorySupervisorClaim, DirectorySyncCursor,
+    DirectorySyncPage, DirectoryTlsMode, DirectoryTlsPolicy, DirectoryUser,
+    MAX_DIRECTORY_BATCH_SIZE, MAX_DIRECTORY_IMPORT_USERS, MAX_DIRECTORY_PAGE_SIZE,
+    SqlxDirectoryStore, directory_authority_key, immutable_identity_link,
 };
 pub use error::IdentityError;
 pub use password::{PasswordDigest, PasswordHashingConfig, PasswordService};
@@ -48,8 +79,8 @@ pub use session::{
     IssuedSession, RefreshRotationOutcome, RotatedSession, SessionRecord, SessionService,
 };
 pub use store::{
-    DeviceSnapshot, DirectoryRoleAccess, IdentityStoreError, RateLimitDecision, RateLimitPolicy,
-    SqlxIdentityStore,
+    AccountSessionSummary, DeviceSnapshot, DirectoryRoleAccess, IdentityStoreError,
+    RateLimitDecision, RateLimitPolicy, RoleOption, RoleSelectionSource, SqlxIdentityStore,
 };
 pub use totp::{
     KeyResolver, TOTP_ALGORITHM, TOTP_CLOCK_SKEW_STEPS, TOTP_DIGITS, TOTP_PERIOD_SECONDS,
@@ -79,27 +110,64 @@ pub const IDENTITY_ROLE_PROJECTION_CONSTRAINTS_MIGRATION_SQL: &str =
     include_str!("../migrations/0005_directory_role_projection_constraints.sql");
 pub const IDENTITY_DIRECTORY_CAPABILITIES_MIGRATION_SQL: &str =
     include_str!("../migrations/0006_directory_capabilities.sql");
+pub const IDENTITY_SCOPED_DIRECTORY_ADMINISTRATION_MIGRATION_SQL: &str =
+    include_str!("../migrations/0007_scoped_directory_administration.sql");
+pub const IDENTITY_DIRECTORY_PROFILE_LEGACY_DEFAULT_MIGRATION_SQL: &str =
+    include_str!("../migrations/0008_directory_profile_legacy_default.sql");
+pub const IDENTITY_DEVELOPMENT_ACCESS_MIGRATION_SQL: &str =
+    include_str!("../migrations/0009_development_access.sql");
+pub const IDENTITY_DIRECTORY_ROLE_TARGET_SCOPE_MIGRATION_SQL: &str =
+    include_str!("../migrations/0010_directory_role_target_scope.sql");
+pub const IDENTITY_ACTIVE_ROLE_SESSION_CONTEXT_MIGRATION_SQL: &str =
+    include_str!("../migrations/0011_active_role_session_context.sql");
+pub const IDENTITY_DEVELOPMENT_CONTEXT_LIFETIME_MIGRATION_SQL: &str =
+    include_str!("../migrations/0012_development_persona_context_lifetime.sql");
 
 /// Apply the identity schema and its forward reconciliation/outbox migration
 /// to a write-side pool. Callers must not run this function against a read
 /// database or expose the resulting tables to a projection rebuild.
 pub async fn apply_identity_migration(pool: &sqlx::PgPool) -> Result<(), sqlx::Error> {
-    sqlx::raw_sql(IDENTITY_MIGRATION_SQL).execute(pool).await?;
+    // The bootstrap migration acquires a transaction-scoped advisory lock.
+    // Keep every forward migration on the same transaction so concurrent
+    // server/worker startup cannot release that lock between migration files.
+    let mut transaction = pool.begin().await?;
+    sqlx::raw_sql(IDENTITY_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
     sqlx::raw_sql(IDENTITY_RECONCILIATION_MIGRATION_SQL)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
     sqlx::raw_sql(IDENTITY_SOURCE_PAYLOAD_MIGRATION_SQL)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
     sqlx::raw_sql(IDENTITY_REVOCATION_APPLIED_AT_MIGRATION_SQL)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
     sqlx::raw_sql(IDENTITY_ROLE_PROJECTION_CONSTRAINTS_MIGRATION_SQL)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
     sqlx::raw_sql(IDENTITY_DIRECTORY_CAPABILITIES_MIGRATION_SQL)
-        .execute(pool)
+        .execute(&mut *transaction)
         .await?;
+    sqlx::raw_sql(IDENTITY_SCOPED_DIRECTORY_ADMINISTRATION_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::raw_sql(IDENTITY_DIRECTORY_PROFILE_LEGACY_DEFAULT_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::raw_sql(IDENTITY_DEVELOPMENT_ACCESS_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::raw_sql(IDENTITY_DIRECTORY_ROLE_TARGET_SCOPE_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::raw_sql(IDENTITY_ACTIVE_ROLE_SESSION_CONTEXT_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::raw_sql(IDENTITY_DEVELOPMENT_CONTEXT_LIFETIME_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
+    transaction.commit().await?;
     Ok(())
 }
 

@@ -1,4 +1,8 @@
+use std::collections::HashMap;
+
 use chrono::{DateTime, Duration, Utc};
+use erpx_domain::access::{RiskTier, RoleAssignment, Scope};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
 use thiserror::Error;
@@ -7,15 +11,19 @@ use uuid::Uuid;
 use crate::challenge::{
     ChallengeCeremony, ChallengeLifetime, ChallengeMaterial, WebAuthnChallenge,
 };
-use crate::directory::sync::{ImmutableIdentityLink, immutable_identity_database_key};
+use crate::directory::sync::{
+    ImmutableIdentityLink, directory_holding_id, immutable_identity_database_key,
+};
 use crate::session::PersistedSession;
 use crate::totp::{
     KeyResolver, TotpEnrollmentStart, TotpSecret, TotpSecretEnvelope, validate_enrollment_lifetime,
 };
 use crate::{
-    AccessTokenClaims, AccessTokenLifetime, AccessTokenSigner, IdentityError, PasswordService,
-    RecoveryCodeBatch, RecoveryCodeSet, RecoverySession, RefreshRotationOutcome, SessionRecord,
-    SessionService, TokenHash, decrypt_totp_secret, encrypt_totp_secret, verify_totp_code,
+    AccessToken, AccessTokenClaims, AccessTokenLifetime, AccessTokenSigner, ActiveRoleClaim,
+    DEVELOPMENT_CLUSTER_MARKER, DEVELOPMENT_CONTROLLER_READ_PERMISSIONS, DirectoryRoleTargetScope,
+    IdentityError, PasswordService, RecoveryCodeBatch, RecoveryCodeSet, RecoverySession,
+    RefreshRotationOutcome, SessionRecord, SessionService, TokenHash, decrypt_totp_secret,
+    encrypt_totp_secret, permission_catalog, verify_totp_code,
 };
 
 const REFRESH_LIFETIME: Duration = Duration::days(30);
@@ -40,6 +48,10 @@ pub enum IdentityStoreError {
     PasskeyRevoked,
     #[error("session is inactive")]
     SessionInactive,
+    #[error("active role selection is required")]
+    RoleSelectionRequired,
+    #[error("active role selection is invalid")]
+    RoleSelectionInvalid,
     #[error("identity record is invalid: {0}")]
     InvalidRecord(String),
 }
@@ -114,6 +126,95 @@ pub enum DirectoryRoleAccess {
     Unmanaged,
     Allowed,
     Denied,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RoleSelectionSource {
+    Local,
+    Directory,
+}
+
+impl RoleSelectionSource {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Directory => "directory",
+        }
+    }
+
+    fn parse(value: &str) -> Option<Self> {
+        match value {
+            "local" => Some(Self::Local),
+            "directory" => Some(Self::Directory),
+            _ => None,
+        }
+    }
+}
+
+/// A credential-free role choice produced exclusively from authoritative
+/// server state. `selection_id` is a local assignment UUID or an opaque,
+/// deterministic digest for one exact directory mapping.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RoleOption {
+    pub selection_id: String,
+    pub source: RoleSelectionSource,
+    pub role_key: String,
+    pub scope_key: String,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub requires_mfa: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RoleAssignmentTargetPolicy {
+    Unrestricted,
+    TenantAllowlist(Vec<String>),
+}
+
+fn role_assignment_target_policy_from_parts(
+    kind: &str,
+    environment_gate: Option<&str>,
+    targets: Vec<String>,
+) -> Option<RoleAssignmentTargetPolicy> {
+    match kind {
+        "unrestricted" if environment_gate.is_none() && targets.is_empty() => {
+            Some(RoleAssignmentTargetPolicy::Unrestricted)
+        }
+        "tenant_allowlist"
+            if environment_gate == Some(DEVELOPMENT_CLUSTER_MARKER) && !targets.is_empty() =>
+        {
+            Some(RoleAssignmentTargetPolicy::TenantAllowlist(targets))
+        }
+        _ => None,
+    }
+}
+
+fn role_assignment_target_allows(
+    policy: Option<&RoleAssignmentTargetPolicy>,
+    required_permission: &str,
+    target_tenant: Option<&str>,
+) -> bool {
+    match policy {
+        Some(RoleAssignmentTargetPolicy::Unrestricted) => true,
+        Some(RoleAssignmentTargetPolicy::TenantAllowlist(targets)) => {
+            DEVELOPMENT_CONTROLLER_READ_PERMISSIONS.contains(&required_permission)
+                || target_tenant
+                    .is_some_and(|tenant_id| targets.iter().any(|target| target == tenant_id))
+        }
+        None => false,
+    }
+}
+
+/// Safe projection used by account drawers. Bearer and credential material
+/// cannot be represented by this type.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AccountSessionSummary {
+    pub session_id: Uuid,
+    pub principal_ref: String,
+    pub active: bool,
+    pub selected_role: Option<RoleOption>,
+    pub refresh_expires_at: DateTime<Utc>,
+    pub last_used_at: DateTime<Utc>,
 }
 
 impl DeviceSnapshot {
@@ -730,7 +831,9 @@ impl SqlxIdentityStore {
         let row = sqlx::query(
             "SELECT s.id, p.principal_ref, p.status, s.device_id,
                     s.refresh_token_hash, s.issued_at, s.refresh_expires_at,
-                    s.revoked_at, s.last_used_at, d.revoked_at AS device_revoked_at
+                    s.revoked_at, s.last_used_at, s.active_role_source,
+                    s.active_role_selection_id, s.authorization_context_version,
+                    d.revoked_at AS device_revoked_at
              FROM erpx_identity.sessions s
              JOIN erpx_identity.principals p ON p.id = s.principal_id
              JOIN erpx_identity.devices d ON d.id = s.device_id
@@ -761,6 +864,14 @@ impl SqlxIdentityStore {
             refresh_expires_at: row.try_get("refresh_expires_at")?,
             revoked_at: row.try_get("revoked_at")?,
             last_used_at: row.try_get("last_used_at")?,
+            active_role_source: row.try_get("active_role_source")?,
+            active_role_selection_id: row.try_get("active_role_selection_id")?,
+            authorization_context_version: u64::try_from(
+                row.try_get::<i64, _>("authorization_context_version")?,
+            )
+            .map_err(|_| {
+                IdentityStoreError::InvalidRecord("authorization context version is invalid".into())
+            })?,
         })?;
         let service = SessionService::new(signer.clone(), REFRESH_LIFETIME)?;
         let outcome = service.rotate_refresh(&record, presented_refresh_token, at)?;
@@ -804,8 +915,9 @@ impl SqlxIdentityStore {
         at: DateTime<Utc>,
     ) -> Result<AccessTokenClaims, IdentityStoreError> {
         let claims = signer.verify(token, at)?;
-        let active = sqlx::query(
-            "SELECT 1
+        let row = sqlx::query(
+            "SELECT s.active_role_source, s.active_role_selection_id,
+                    s.authorization_context_version
              FROM erpx_identity.sessions s
              JOIN erpx_identity.principals p ON p.id = s.principal_id
              JOIN erpx_identity.devices d ON d.id = s.device_id
@@ -822,11 +934,564 @@ impl SqlxIdentityStore {
         .bind(at)
         .fetch_optional(&self.pool)
         .await?
-        .is_some();
-        if !active {
+        .ok_or(IdentityStoreError::SessionInactive)?;
+        let source: Option<String> = row.try_get("active_role_source")?;
+        let selection_id: Option<String> = row.try_get("active_role_selection_id")?;
+        let version = u64::try_from(row.try_get::<i64, _>("authorization_context_version")?)
+            .map_err(|_| {
+                IdentityStoreError::InvalidRecord("authorization context version is invalid".into())
+            })?;
+        let persisted_role = source.zip(selection_id);
+        let claimed_role = claims
+            .active_role
+            .as_ref()
+            .map(|role| (role.source.clone(), role.selection_id.clone()));
+        let context_matches = match claims.authorization_context_version {
+            Some(claimed_version) => claimed_version == version && claimed_role == persisted_role,
+            // A signed token issued before the active-role rollout is accepted
+            // only while the migrated session remains unselected. The business
+            // boundary rejects its missing claim.
+            None => persisted_role.is_none() && claimed_role.is_none(),
+        };
+        if !context_matches {
             return Err(IdentityStoreError::SessionInactive);
         }
         Ok(claims)
+    }
+
+    /// Return every currently effective exact role available to a principal.
+    /// Local choices are assignment UUIDs with their complete parent chain
+    /// validated. Directory choices are opaque mapping digests and require a
+    /// fresh authoritative membership projection.
+    pub async fn role_options(
+        &self,
+        principal_ref: &str,
+        at: DateTime<Utc>,
+    ) -> Result<Vec<RoleOption>, IdentityStoreError> {
+        validate_principal_ref(principal_ref)?;
+        let mut options = self.local_role_options(principal_ref, at).await?;
+        options.extend(self.directory_role_options(principal_ref, at).await?);
+        options.sort_by(|left, right| {
+            left.source
+                .as_str()
+                .cmp(right.source.as_str())
+                .then_with(|| left.role_key.cmp(&right.role_key))
+                .then_with(|| left.scope_key.cmp(&right.scope_key))
+                .then_with(|| left.selection_id.cmp(&right.selection_id))
+        });
+        options.dedup_by(|left, right| {
+            left.source == right.source && left.selection_id == right.selection_id
+        });
+        Ok(options)
+    }
+
+    /// Select or change one role after resolving the supplied opaque choice
+    /// back to current server state. The context version update and audit row
+    /// are committed atomically; all access tokens from the prior context are
+    /// rejected immediately by `authorize_access_token`.
+    pub async fn select_active_role(
+        &self,
+        signer: &AccessTokenSigner,
+        principal_ref: &str,
+        session_id: Uuid,
+        selection_id: &str,
+        at: DateTime<Utc>,
+    ) -> Result<(RoleOption, AccessToken), IdentityStoreError> {
+        validate_principal_ref(principal_ref)?;
+        if session_id.is_nil()
+            || selection_id.trim().is_empty()
+            || selection_id.len() > 512
+            || selection_id.chars().any(char::is_control)
+        {
+            return Err(IdentityStoreError::RoleSelectionInvalid);
+        }
+        let option = self
+            .role_options(principal_ref, at)
+            .await?
+            .into_iter()
+            .find(|option| option.selection_id == selection_id)
+            .ok_or(IdentityStoreError::RoleSelectionInvalid)?;
+
+        let mut transaction = self.pool.begin().await?;
+        let row = sqlx::query(
+            "SELECT s.active_role_source, s.active_role_selection_id,
+                    s.authorization_context_version
+             FROM erpx_identity.sessions s
+             JOIN erpx_identity.principals p ON p.id=s.principal_id
+             JOIN erpx_identity.devices d ON d.id=s.device_id
+             WHERE s.id=$1 AND p.principal_ref=$2 AND p.status='active'
+               AND d.revoked_at IS NULL AND s.revoked_at IS NULL
+               AND s.issued_at <= $3 AND s.refresh_expires_at > $3
+             FOR UPDATE OF s",
+        )
+        .bind(session_id)
+        .bind(principal_ref)
+        .bind(at)
+        .fetch_optional(&mut *transaction)
+        .await?
+        .ok_or(IdentityStoreError::SessionInactive)?;
+        let previous_source: Option<String> = row.try_get("active_role_source")?;
+        let previous_selection: Option<String> = row.try_get("active_role_selection_id")?;
+        let current_version: i64 = row.try_get("authorization_context_version")?;
+        let next_version = current_version.checked_add(1).ok_or_else(|| {
+            IdentityStoreError::InvalidRecord("authorization context version overflow".into())
+        })?;
+        sqlx::query(
+            "UPDATE erpx_identity.sessions
+             SET active_role_source=$2, active_role_selection_id=$3,
+                 authorization_context_version=$4,
+                 last_used_at=GREATEST(last_used_at,$5)
+             WHERE id=$1",
+        )
+        .bind(session_id)
+        .bind(option.source.as_str())
+        .bind(&option.selection_id)
+        .bind(next_version)
+        .bind(at)
+        .execute(&mut *transaction)
+        .await?;
+        let changed = previous_source.as_deref() != Some(option.source.as_str())
+            || previous_selection.as_deref() != Some(option.selection_id.as_str());
+        sqlx::query(
+            "INSERT INTO erpx_identity.session_authorization_audit
+                (event_id,session_id,principal_ref,event_type,role_source,
+                 role_selection_id,authorization_context_version,occurred_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(session_id)
+        .bind(principal_ref)
+        .bind(if previous_selection.is_some() && changed {
+            "role_changed"
+        } else {
+            "role_selected"
+        })
+        .bind(option.source.as_str())
+        .bind(&option.selection_id)
+        .bind(next_version)
+        .bind(at)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+
+        let version = u64::try_from(next_version).map_err(|_| {
+            IdentityStoreError::InvalidRecord("authorization context version is invalid".into())
+        })?;
+        let token = signer.issue_with_context(
+            principal_ref,
+            session_id,
+            Some(ActiveRoleClaim {
+                source: option.source.as_str().into(),
+                selection_id: option.selection_id.clone(),
+            }),
+            Some(version),
+            at,
+            AccessTokenLifetime::five_minutes(),
+        )?;
+        Ok((option, token))
+    }
+
+    /// Revalidate only the selected role identity and its parent/membership
+    /// chain. Permission and requested scope are checked separately for every
+    /// business operation by `selected_role_access`.
+    pub async fn active_role_is_valid(
+        &self,
+        principal_ref: &str,
+        role: &ActiveRoleClaim,
+        at: DateTime<Utc>,
+    ) -> Result<bool, IdentityStoreError> {
+        let Some(source) = RoleSelectionSource::parse(&role.source) else {
+            return Ok(false);
+        };
+        Ok(self
+            .role_options(principal_ref, at)
+            .await?
+            .into_iter()
+            .any(|option| option.source == source && option.selection_id == role.selection_id))
+    }
+
+    /// Evaluate one required permission against only the role named in the
+    /// access-token claim. No other assignment or directory mapping can
+    /// contribute permission or scope.
+    pub async fn selected_role_access(
+        &self,
+        principal_ref: &str,
+        role: &ActiveRoleClaim,
+        requested_scope: &Scope,
+        required_permission: &str,
+        at: DateTime<Utc>,
+    ) -> Result<bool, IdentityStoreError> {
+        self.selected_role_access_for_tenant(
+            principal_ref,
+            role,
+            requested_scope,
+            required_permission,
+            None,
+            at,
+        )
+        .await
+    }
+
+    /// Evaluate an exact selected role and an optional server-resolved tenant
+    /// target. Tenant-allowlisted roles may read the explicit global read
+    /// catalog across tenants, but every mutation requires an exact target.
+    pub async fn selected_role_access_for_tenant(
+        &self,
+        principal_ref: &str,
+        role: &ActiveRoleClaim,
+        requested_scope: &Scope,
+        required_permission: &str,
+        target_tenant: Option<&str>,
+        at: DateTime<Utc>,
+    ) -> Result<bool, IdentityStoreError> {
+        if required_permission.trim().is_empty() || required_permission.len() > 512 {
+            return Ok(false);
+        }
+        match RoleSelectionSource::parse(&role.source) {
+            Some(RoleSelectionSource::Local) => {
+                let Ok(selection_id) = Uuid::parse_str(&role.selection_id) else {
+                    return Ok(false);
+                };
+                let assignments = self.local_role_assignments().await?;
+                let Some(assignment) = assignments.get(&selection_id) else {
+                    return Ok(false);
+                };
+                if !self
+                    .local_role_target_allows(selection_id, required_permission, target_tenant)
+                    .await?
+                {
+                    return Ok(false);
+                }
+                // Local role risk class describes the assurance required by
+                // high-risk commands; it must not turn every permission read
+                // into an implicit MFA challenge. Command boundaries perform
+                // their explicit, one-time MFA step-up after target-aware role
+                // authorization. Keeping that separation also preserves the
+                // pre-selection authorization contract for ordinary reads.
+                Ok(selected_local_assignment_allows(
+                    assignment,
+                    &assignments,
+                    principal_ref,
+                    requested_scope,
+                    required_permission,
+                    at,
+                ))
+            }
+            Some(RoleSelectionSource::Directory) => {
+                let Some(option) = self
+                    .directory_role_options(principal_ref, at)
+                    .await?
+                    .into_iter()
+                    .find(|option| option.selection_id == role.selection_id)
+                else {
+                    return Ok(false);
+                };
+                let Some(target_scope) = directory_role_target_scope(&option.role_key) else {
+                    return Ok(false);
+                };
+                if !directory_role_allows_permission(&option.role_key, required_permission)
+                    || !directory_target_scope_allows(target_scope, requested_scope)
+                {
+                    return Ok(false);
+                }
+                let requested_key = requested_scope.canonical_key();
+                let holding_key = scope_holding_key(requested_scope);
+                if !directory_scope_matches(
+                    &requested_key,
+                    holding_key.as_deref(),
+                    &option.scope_key,
+                ) {
+                    return Ok(false);
+                }
+                if option.requires_mfa && !self.recent_mfa(principal_ref, at).await? {
+                    return Ok(false);
+                }
+                Ok(true)
+            }
+            None => Ok(false),
+        }
+    }
+
+    pub async fn selected_local_role_has_any_key(
+        &self,
+        principal_ref: &str,
+        role: &ActiveRoleClaim,
+        requested_scope: &Scope,
+        role_keys: &[&str],
+        at: DateTime<Utc>,
+    ) -> Result<bool, IdentityStoreError> {
+        if RoleSelectionSource::parse(&role.source) != Some(RoleSelectionSource::Local) {
+            return Ok(true);
+        }
+        let Ok(selection_id) = Uuid::parse_str(&role.selection_id) else {
+            return Ok(false);
+        };
+        let assignments = self.local_role_assignments().await?;
+        let Some(assignment) = assignments.get(&selection_id) else {
+            return Ok(false);
+        };
+        Ok(assignment.principal_ref == principal_ref
+            && role_keys.iter().any(|key| *key == assignment.role_key)
+            && assignment.scope.contains(requested_scope)
+            && effective_local_role_chain(assignment, &assignments, at, &mut Vec::new()))
+    }
+
+    /// Clear an invalid selected role and advance the context fence. This is
+    /// best-effort at the business boundary: a concurrent role change is not
+    /// overwritten because the expected version and selection are matched.
+    pub async fn invalidate_active_role(
+        &self,
+        principal_ref: &str,
+        session_id: Uuid,
+        role: &ActiveRoleClaim,
+        authorization_context_version: u64,
+        at: DateTime<Utc>,
+    ) -> Result<bool, IdentityStoreError> {
+        let expected_version = i64::try_from(authorization_context_version).map_err(|_| {
+            IdentityStoreError::InvalidRecord("authorization context version is invalid".into())
+        })?;
+        let mut transaction = self.pool.begin().await?;
+        let next_version = expected_version.checked_add(1).ok_or_else(|| {
+            IdentityStoreError::InvalidRecord("authorization context version overflow".into())
+        })?;
+        let updated = sqlx::query(
+            "UPDATE erpx_identity.sessions s
+             SET active_role_source=NULL, active_role_selection_id=NULL,
+                 authorization_context_version=$6,
+                 last_used_at=GREATEST(s.last_used_at,$5)
+             FROM erpx_identity.principals p
+             WHERE s.id=$1 AND s.principal_id=p.id AND p.principal_ref=$2
+               AND s.active_role_source=$3 AND s.active_role_selection_id=$4
+               AND s.authorization_context_version=$7 AND s.revoked_at IS NULL",
+        )
+        .bind(session_id)
+        .bind(principal_ref)
+        .bind(&role.source)
+        .bind(&role.selection_id)
+        .bind(at)
+        .bind(next_version)
+        .bind(expected_version)
+        .execute(&mut *transaction)
+        .await?
+        .rows_affected()
+            == 1;
+        if updated {
+            sqlx::query(
+                "INSERT INTO erpx_identity.session_authorization_audit
+                    (event_id,session_id,principal_ref,event_type,role_source,
+                     role_selection_id,authorization_context_version,occurred_at)
+                 VALUES ($1,$2,$3,'role_invalidated',$4,$5,$6,$7)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(session_id)
+            .bind(principal_ref)
+            .bind(&role.source)
+            .bind(&role.selection_id)
+            .bind(next_version)
+            .bind(at)
+            .execute(&mut *transaction)
+            .await?;
+        }
+        transaction.commit().await?;
+        Ok(updated)
+    }
+
+    async fn local_role_assignments(
+        &self,
+    ) -> Result<HashMap<Uuid, RoleAssignment>, IdentityStoreError> {
+        let rows = sqlx::query(
+            "SELECT payload FROM erpx_control.role_assignments
+             UNION ALL
+             SELECT state AS payload FROM erpx_control.aggregate_snapshots
+             WHERE aggregate_type='role_assignment'",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut assignments = HashMap::new();
+        for row in rows {
+            let payload: serde_json::Value = row.try_get("payload")?;
+            if let Ok(assignment) = serde_json::from_value::<RoleAssignment>(payload) {
+                assignments.insert(assignment.id, assignment);
+            }
+        }
+        Ok(assignments)
+    }
+
+    async fn local_role_options(
+        &self,
+        principal_ref: &str,
+        at: DateTime<Utc>,
+    ) -> Result<Vec<RoleOption>, IdentityStoreError> {
+        let assignments = self.local_role_assignments().await?;
+        let mut options = Vec::new();
+        for assignment in assignments.values() {
+            if assignment.principal_ref != principal_ref
+                || !effective_local_role_chain(assignment, &assignments, at, &mut Vec::new())
+                || self
+                    .local_role_target_policy(assignment.id)
+                    .await?
+                    .is_none()
+            {
+                continue;
+            }
+            options.push(RoleOption {
+                selection_id: assignment.id.to_string(),
+                source: RoleSelectionSource::Local,
+                role_key: assignment.role_key.clone(),
+                scope_key: assignment.scope.canonical_key(),
+                expires_at: Some(assignment.valid_until),
+                requires_mfa: matches!(
+                    assignment.risk_tier,
+                    RiskTier::PlatformRoot
+                        | RiskTier::Administrator
+                        | RiskTier::High
+                        | RiskTier::Emergency
+                ),
+            });
+        }
+        Ok(options)
+    }
+
+    async fn local_role_target_policy(
+        &self,
+        assignment_id: Uuid,
+    ) -> Result<Option<RoleAssignmentTargetPolicy>, IdentityStoreError> {
+        let row = sqlx::query(
+            "SELECT policy.policy_kind, policy.environment_gate,
+                    COALESCE(array_agg(target.tenant_id ORDER BY target.tenant_id)
+                        FILTER (WHERE target.tenant_id IS NOT NULL), '{}') AS tenant_targets
+             FROM erpx_control.role_assignment_target_policies policy
+             LEFT JOIN erpx_control.role_assignment_tenant_targets target
+               ON target.assignment_id=policy.assignment_id
+             WHERE policy.assignment_id=$1
+             GROUP BY policy.policy_kind, policy.environment_gate",
+        )
+        .bind(assignment_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        let kind: String = row.try_get("policy_kind")?;
+        let environment_gate: Option<String> = row.try_get("environment_gate")?;
+        let targets: Vec<String> = row.try_get("tenant_targets")?;
+        Ok(role_assignment_target_policy_from_parts(
+            &kind,
+            environment_gate.as_deref(),
+            targets,
+        ))
+    }
+
+    async fn local_role_target_allows(
+        &self,
+        assignment_id: Uuid,
+        required_permission: &str,
+        target_tenant: Option<&str>,
+    ) -> Result<bool, IdentityStoreError> {
+        let policy = self.local_role_target_policy(assignment_id).await?;
+        Ok(role_assignment_target_allows(
+            policy.as_ref(),
+            required_permission,
+            target_tenant,
+        ))
+    }
+
+    async fn directory_role_options(
+        &self,
+        principal_ref: &str,
+        at: DateTime<Utc>,
+    ) -> Result<Vec<RoleOption>, IdentityStoreError> {
+        let rows = sqlx::query(
+            "SELECT m.connector_id, m.group_ref, m.role_ref, m.scope_key,
+                    m.target_scope_key, m.requires_mfa,
+                    c.scope_key AS connector_scope_key
+             FROM erpx_identity.directory_principal_bindings binding
+             JOIN erpx_identity.principals principal ON principal.id=binding.principal_id
+             JOIN erpx_identity.directory_identity_links link
+               ON link.connector_id=binding.connector_id
+              AND link.external_object_id=binding.external_object_id
+             JOIN erpx_identity.directory_identity_projection projection
+               ON projection.identity_link=link.identity_link
+             JOIN erpx_identity.directory_connectors c ON c.id=projection.connector_id
+             JOIN erpx_identity.directory_role_mappings m ON m.connector_id=projection.connector_id
+             WHERE principal.principal_ref=$1 AND principal.status='active'
+               AND binding.active AND link.active AND link.revoked_at IS NULL
+               AND c.enabled AND c.lifecycle='active'
+               AND projection.active AND projection.revoked_at IS NULL
+               AND projection.last_feed_at <= $2
+               AND projection.last_feed_at >= ($2 - INTERVAL '5 minutes')
+               AND m.active
+               AND projection.groups_json @> jsonb_build_array(m.group_ref)
+               AND NOT EXISTS (
+                   SELECT 1 FROM erpx_identity.directory_identity_conflicts conflict
+                   WHERE conflict.state='unresolved'
+                     AND (conflict.principal_id=binding.principal_id OR (
+                         conflict.connector_id=binding.connector_id
+                         AND conflict.external_object_id=binding.external_object_id
+                     ))
+               )",
+        )
+        .bind(principal_ref)
+        .bind(at)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut options = Vec::new();
+        for row in rows {
+            let connector_id: Uuid = row.try_get("connector_id")?;
+            let group_ref: String = row.try_get("group_ref")?;
+            let role_ref: String = row.try_get("role_ref")?;
+            let target_scope: String = row.try_get("target_scope_key")?;
+            let Some(scope_key) =
+                normalize_directory_scope_key(&row.try_get::<String, _>("scope_key")?)
+            else {
+                continue;
+            };
+            let Some(connector_scope) =
+                normalize_directory_scope_key(&row.try_get::<String, _>("connector_scope_key")?)
+            else {
+                continue;
+            };
+            if !directory_connector_contains_mapping(&connector_scope, &scope_key)
+                || !directory_role_is_allow_listed(&role_ref, &target_scope)
+            {
+                continue;
+            }
+            options.push(RoleOption {
+                selection_id: directory_selection_id(
+                    connector_id,
+                    &group_ref,
+                    &role_ref,
+                    &scope_key,
+                ),
+                source: RoleSelectionSource::Directory,
+                role_key: role_ref,
+                scope_key,
+                expires_at: None,
+                requires_mfa: row.try_get("requires_mfa")?,
+            });
+        }
+        Ok(options)
+    }
+
+    async fn recent_mfa(
+        &self,
+        principal_ref: &str,
+        at: DateTime<Utc>,
+    ) -> Result<bool, IdentityStoreError> {
+        Ok(sqlx::query_scalar(
+            "SELECT EXISTS(
+                 SELECT 1 FROM erpx_identity.totp_secrets t
+                 JOIN erpx_identity.principals p ON p.id=t.principal_id
+                 WHERE p.principal_ref=$1 AND p.status='active'
+                   AND t.last_verified_step IS NOT NULL
+                   AND t.updated_at <= $2
+                   AND t.updated_at >= ($2 - INTERVAL '5 minutes')
+             )",
+        )
+        .bind(principal_ref)
+        .bind(at)
+        .fetch_one(&self.pool)
+        .await?)
     }
 
     /// Resolve a named approver from authoritative identity state. This is
@@ -901,6 +1566,71 @@ impl SqlxIdentityStore {
         row.map(|row| row.try_get("device_id"))
             .transpose()?
             .ok_or(IdentityStoreError::SessionInactive)
+    }
+
+    pub async fn account_session_summaries(
+        &self,
+        session_ids: &[Uuid],
+        active_session_id: Uuid,
+        at: DateTime<Utc>,
+    ) -> Result<Vec<AccountSessionSummary>, IdentityStoreError> {
+        if session_ids.len() > 5
+            || session_ids.is_empty()
+            || session_ids.iter().any(Uuid::is_nil)
+            || !session_ids.contains(&active_session_id)
+        {
+            return Err(IdentityStoreError::InvalidRecord(
+                "account session summary request is invalid".into(),
+            ));
+        }
+        let rows = sqlx::query(
+            "SELECT s.id, p.principal_ref, s.active_role_source,
+                    s.active_role_selection_id, s.refresh_expires_at, s.last_used_at
+             FROM erpx_identity.sessions s
+             JOIN erpx_identity.principals p ON p.id=s.principal_id
+             JOIN erpx_identity.devices d ON d.id=s.device_id
+             WHERE s.id=ANY($1) AND p.status='active' AND d.revoked_at IS NULL
+               AND s.revoked_at IS NULL AND s.issued_at <= $2
+               AND s.refresh_expires_at > $2",
+        )
+        .bind(session_ids)
+        .bind(at)
+        .fetch_all(&self.pool)
+        .await?;
+        let mut summaries = Vec::new();
+        for row in rows {
+            let session_id: Uuid = row.try_get("id")?;
+            let principal_ref: String = row.try_get("principal_ref")?;
+            let selected = row
+                .try_get::<Option<String>, _>("active_role_source")?
+                .zip(row.try_get::<Option<String>, _>("active_role_selection_id")?);
+            let selected_role = if let Some((source, selection_id)) = selected {
+                let source = RoleSelectionSource::parse(&source);
+                self.role_options(&principal_ref, at)
+                    .await?
+                    .into_iter()
+                    .find(|option| {
+                        Some(option.source) == source && option.selection_id == selection_id
+                    })
+            } else {
+                None
+            };
+            summaries.push(AccountSessionSummary {
+                session_id,
+                principal_ref,
+                active: session_id == active_session_id,
+                selected_role,
+                refresh_expires_at: row.try_get("refresh_expires_at")?,
+                last_used_at: row.try_get("last_used_at")?,
+            });
+        }
+        summaries.sort_by_key(|summary| {
+            session_ids
+                .iter()
+                .position(|id| *id == summary.session_id)
+                .unwrap_or(usize::MAX)
+        });
+        Ok(summaries)
     }
 
     pub async fn revoke_session(
@@ -2016,6 +2746,42 @@ impl SqlxIdentityStore {
             .transpose()
     }
 
+    /// Resolve the most recently used active passkey for a principal without
+    /// disclosing credential identifiers to a pre-authentication client.
+    ///
+    /// Browser authentication can start from a principal reference alone; the
+    /// returned WebAuthn options still bind the ceremony to exactly one stored
+    /// credential and the finish step rechecks the browser-selected raw ID.
+    pub async fn most_recent_active_passkey(
+        &self,
+        principal_ref: &str,
+    ) -> Result<Option<crate::PasskeyCredential>, IdentityStoreError> {
+        validate_principal_ref(principal_ref)?;
+        let row = sqlx::query(
+            "SELECT p.id, principal.principal_ref, p.credential_id,
+                    p.credential_id_hash, p.public_key, p.rp_id,
+                    p.sign_count, p.created_at, p.last_used_at, p.revoked_at
+             FROM erpx_identity.passkeys p
+             JOIN erpx_identity.principals principal
+               ON principal.id = p.principal_id
+             WHERE principal.principal_ref = $1
+               AND p.revoked_at IS NULL
+               AND p.credential_id_hash IS NOT NULL
+               AND p.rp_id IS NOT NULL
+             ORDER BY p.last_used_at DESC NULLS LAST, p.created_at DESC, p.id DESC
+             LIMIT 1",
+        )
+        .bind(principal_ref)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(|row| {
+            let credential_id: Vec<u8> = row.try_get("credential_id")?;
+            let credential_id_hash = passkey_credential_id_hash(&credential_id);
+            passkey_from_row(row, &credential_id, &credential_id_hash)
+        })
+        .transpose()
+    }
+
     /// Revoke a passkey idempotently within its principal scope. A revoked
     /// passkey remains queryable for audit but cannot be used for CAS updates.
     pub async fn revoke_passkey(
@@ -2269,14 +3035,28 @@ fn normalize_directory_scope_key(value: &str) -> Option<String> {
     if value == "platform" {
         return Some("platform".to_owned());
     }
-    let holding_ref = value.strip_prefix("holding:")?;
-    if holding_ref.is_empty() || holding_ref.trim() != holding_ref {
-        return None;
+    let segments = value.split(':').collect::<Vec<_>>();
+    match segments.as_slice() {
+        ["holding", holding_ref] if !holding_ref.is_empty() => {
+            Some(format!("holding:{}", directory_holding_id(holding_ref)))
+        }
+        ["company", holding_ref, company_id] if !holding_ref.is_empty() => {
+            let company_id = Uuid::parse_str(company_id).ok()?;
+            (!company_id.is_nil())
+                .then(|| format!("company:{}:{company_id}", directory_holding_id(holding_ref)))
+        }
+        ["branch", holding_ref, company_id, branch_id] if !holding_ref.is_empty() => {
+            let company_id = Uuid::parse_str(company_id).ok()?;
+            let branch_id = Uuid::parse_str(branch_id).ok()?;
+            (!company_id.is_nil() && !branch_id.is_nil()).then(|| {
+                format!(
+                    "branch:{}:{company_id}:{branch_id}",
+                    directory_holding_id(holding_ref)
+                )
+            })
+        }
+        _ => None,
     }
-    let holding_id = holding_ref
-        .parse::<Uuid>()
-        .unwrap_or_else(|_| Uuid::new_v5(&Uuid::NAMESPACE_URL, holding_ref.as_bytes()));
-    Some(format!("holding:{holding_id}"))
 }
 
 fn directory_scope_matches(
@@ -2284,35 +3064,190 @@ fn directory_scope_matches(
     holding_scope_key: Option<&str>,
     mapping_scope_key: &str,
 ) -> bool {
-    let requested = normalize_directory_scope_key(requested_scope_key);
     let mapping = normalize_directory_scope_key(mapping_scope_key);
-    let Some(requested) = requested else {
-        return false;
-    };
     let Some(mapping) = mapping else {
         return false;
     };
-    if requested == "platform" {
-        return mapping == "platform";
+    let Some(requested) = normalize_directory_scope_key(requested_scope_key) else {
+        return false;
+    };
+    if mapping == "platform" {
+        return true;
     }
-    holding_scope_key
-        .and_then(normalize_directory_scope_key)
-        .is_some_and(|holding| {
-            holding == requested && (mapping == "platform" || mapping == requested)
-        })
+    if requested == "platform" {
+        return false;
+    }
+    if mapping.starts_with("holding:") {
+        let requested_holding = if requested.starts_with("holding:") {
+            Some(requested.clone())
+        } else {
+            requested
+                .split(':')
+                .nth(1)
+                .map(|holding_id| format!("holding:{holding_id}"))
+        };
+        let supplied_holding = holding_scope_key.and_then(normalize_directory_scope_key);
+        return requested_holding.as_deref() == Some(mapping.as_str())
+            && supplied_holding.as_deref() == requested_holding.as_deref();
+    }
+    if mapping.starts_with("company:") {
+        if requested == mapping {
+            return true;
+        }
+        let company_prefix = mapping
+            .strip_prefix("company:")
+            .map(|value| format!("branch:{value}:"));
+        return company_prefix.is_some_and(|prefix| requested.starts_with(&prefix));
+    }
+    mapping.starts_with("branch:") && requested == mapping
 }
 
 fn directory_connector_contains_mapping(
     connector_scope_key: &str,
     mapping_scope_key: &str,
 ) -> bool {
-    match (connector_scope_key, mapping_scope_key) {
-        ("platform", _) => {
-            mapping_scope_key == "platform" || mapping_scope_key.starts_with("holding:")
-        }
-        (connector, mapping) if connector.starts_with("holding:") => connector == mapping,
-        _ => false,
+    if connector_scope_key == "platform" {
+        return true;
     }
+    if connector_scope_key.starts_with("branch:") {
+        return connector_scope_key == mapping_scope_key;
+    }
+    if connector_scope_key.starts_with("holding:") {
+        let holding_id = connector_scope_key.strip_prefix("holding:");
+        return holding_id.is_some_and(|holding_id| {
+            mapping_scope_key == connector_scope_key
+                || mapping_scope_key
+                    .strip_prefix("company:")
+                    .is_some_and(|value| value.starts_with(&format!("{holding_id}:")))
+                || mapping_scope_key
+                    .strip_prefix("branch:")
+                    .is_some_and(|value| value.starts_with(&format!("{holding_id}:")))
+        });
+    }
+    false
+}
+
+fn effective_local_role_chain(
+    assignment: &RoleAssignment,
+    all: &HashMap<Uuid, RoleAssignment>,
+    at: DateTime<Utc>,
+    path: &mut Vec<Uuid>,
+) -> bool {
+    if !assignment.is_active_at(at) || path.contains(&assignment.id) {
+        return false;
+    }
+    let Some(parent_id) = assignment.parent_assignment_id else {
+        return true;
+    };
+    let Some(parent) = all.get(&parent_id) else {
+        return false;
+    };
+    if !parent.is_active_at(at)
+        || !parent.scope.contains(&assignment.scope)
+        || assignment.authority_level > parent.authority_level
+        || assignment.valid_from < parent.valid_from
+        || assignment.valid_until > parent.valid_until
+        || assignment
+            .permissions
+            .iter()
+            .any(|permission| !parent.permissions.contains(permission))
+    {
+        return false;
+    }
+    path.push(assignment.id);
+    let effective = effective_local_role_chain(parent, all, at, path);
+    path.pop();
+    effective
+}
+
+fn selected_local_assignment_allows(
+    assignment: &RoleAssignment,
+    all: &HashMap<Uuid, RoleAssignment>,
+    principal_ref: &str,
+    requested_scope: &Scope,
+    required_permission: &str,
+    at: DateTime<Utc>,
+) -> bool {
+    assignment.principal_ref == principal_ref
+        && assignment.scope.contains(requested_scope)
+        && assignment
+            .permissions
+            .iter()
+            .any(|permission| permission == required_permission)
+        && effective_local_role_chain(assignment, all, at, &mut Vec::new())
+}
+
+fn directory_role_target_scope(role_ref: &str) -> Option<DirectoryRoleTargetScope> {
+    permission_catalog()
+        .into_iter()
+        .find(|entry| entry.role_key == role_ref)
+        .map(|entry| entry.target_scope)
+}
+
+fn directory_role_is_allow_listed(role_ref: &str, target_scope: &str) -> bool {
+    directory_role_target_scope(role_ref)
+        .is_some_and(|catalog_scope| catalog_scope.as_str() == target_scope)
+}
+
+fn directory_role_allows_permission(role_ref: &str, required_permission: &str) -> bool {
+    permission_catalog().into_iter().any(|entry| {
+        entry.role_key == role_ref
+            && entry
+                .permissions
+                .iter()
+                .any(|permission| permission == required_permission)
+    })
+}
+
+fn directory_target_scope_allows(
+    target_scope: DirectoryRoleTargetScope,
+    requested_scope: &Scope,
+) -> bool {
+    match target_scope {
+        DirectoryRoleTargetScope::Platform => true,
+        DirectoryRoleTargetScope::Holding => !matches!(requested_scope, Scope::Platform),
+        DirectoryRoleTargetScope::Company => {
+            matches!(
+                requested_scope,
+                Scope::Company { .. } | Scope::Branch { .. }
+            )
+        }
+        DirectoryRoleTargetScope::Branch => matches!(requested_scope, Scope::Branch { .. }),
+    }
+}
+
+fn directory_selection_id(
+    connector_id: Uuid,
+    group_ref: &str,
+    role_ref: &str,
+    scope_key: &str,
+) -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"erpx-directory-role-selection-v1\0");
+    digest.update(connector_id.as_bytes());
+    for value in [group_ref, role_ref, scope_key] {
+        digest.update([0]);
+        digest.update(value.as_bytes());
+    }
+    let digest = digest.finalize();
+    let mut encoded = String::with_capacity(3 + digest.len() * 2);
+    encoded.push_str("d1_");
+    for byte in digest {
+        use std::fmt::Write as _;
+        let _ = write!(encoded, "{byte:02x}");
+    }
+    encoded
+}
+
+fn scope_holding_key(scope: &Scope) -> Option<String> {
+    let holding_id = match scope {
+        Scope::Platform => return None,
+        Scope::Holding { holding_id }
+        | Scope::Company { holding_id, .. }
+        | Scope::Branch { holding_id, .. }
+        | Scope::Subtree { holding_id, .. } => holding_id,
+    };
+    Some(format!("holding:{holding_id}"))
 }
 
 fn totp_envelope_from_parts(
@@ -2369,8 +3304,10 @@ async fn insert_session_in_transaction(
     sqlx::query(
         "INSERT INTO erpx_identity.sessions
             (id, principal_id, device_id, refresh_token_hash, issued_at,
-             refresh_expires_at, revoked_at, last_used_at)
-         VALUES ($1, $2, $3, $4, $5, $6, NULL, $7)",
+             refresh_expires_at, revoked_at, last_used_at,
+             active_role_source, active_role_selection_id,
+             authorization_context_version)
+         VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, NULL, NULL, $8)",
     )
     .bind(issued.record().id())
     .bind(principal_id)
@@ -2379,6 +3316,11 @@ async fn insert_session_in_transaction(
     .bind(issued.record().issued_at())
     .bind(issued.record().refresh_expires_at())
     .bind(issued.record().last_used_at())
+    .bind(
+        i64::try_from(issued.record().authorization_context_version()).map_err(|_| {
+            IdentityStoreError::InvalidRecord("authorization context version is too large".into())
+        })?,
+    )
     .execute(&mut **transaction)
     .await?;
     Ok(())
@@ -2519,7 +3461,7 @@ mod rate_limit_tests {
     fn directory_scope_normalization_binds_opaque_refs_to_immutable_ids() {
         let opaque = normalize_directory_scope_key("holding:holding-ref-42")
             .expect("opaque holding scope is a valid directory scope");
-        let stable_id = Uuid::new_v5(&Uuid::NAMESPACE_URL, b"holding-ref-42");
+        let stable_id = directory_holding_id("holding-ref-42");
         assert_eq!(opaque, format!("holding:{stable_id}"));
         assert_eq!(
             normalize_directory_scope_key(&format!("holding:{stable_id}")),
@@ -2561,6 +3503,155 @@ mod rate_limit_tests {
         assert!(!directory_connector_contains_mapping(
             "holding:authorized-holding",
             requested
+        ));
+    }
+
+    #[test]
+    fn directory_branch_scope_is_exact_and_connector_bounded() {
+        let holding = Uuid::new_v4();
+        let company = Uuid::new_v4();
+        let branch = Uuid::new_v4();
+        let other_branch = Uuid::new_v4();
+        let holding_scope = format!("holding:{holding}");
+        let branch_scope = format!("branch:{holding}:{company}:{branch}");
+        let other_scope = format!("branch:{holding}:{company}:{other_branch}");
+        assert_eq!(
+            normalize_directory_scope_key(&branch_scope),
+            Some(branch_scope.clone())
+        );
+        assert!(directory_connector_contains_mapping(
+            &holding_scope,
+            &branch_scope
+        ));
+        assert!(directory_scope_matches(
+            &branch_scope,
+            Some(&holding_scope),
+            &branch_scope
+        ));
+        assert!(!directory_scope_matches(
+            &other_scope,
+            Some(&holding_scope),
+            &branch_scope
+        ));
+    }
+
+    #[test]
+    fn directory_role_catalog_never_combines_permissions_from_other_roles() {
+        assert!(directory_role_is_allow_listed("finance_viewer", "branch"));
+        assert!(directory_role_allows_permission(
+            "finance_viewer",
+            "finance.read"
+        ));
+        assert!(!directory_role_allows_permission(
+            "finance_viewer",
+            "finance.approve"
+        ));
+        assert!(!directory_role_is_allow_listed("finance.read", "branch"));
+        assert!(!directory_target_scope_allows(
+            DirectoryRoleTargetScope::Branch,
+            &Scope::Holding {
+                holding_id: Uuid::new_v4(),
+            }
+        ));
+    }
+
+    #[test]
+    fn role_assignment_target_policy_is_fail_closed_and_target_exact() {
+        assert!(
+            role_assignment_target_policy_from_parts("unrestricted", None, Vec::new()).is_some()
+        );
+        assert!(
+            role_assignment_target_policy_from_parts("unrestricted", None, vec!["tenant-a".into()])
+                .is_none()
+        );
+        assert!(
+            role_assignment_target_policy_from_parts(
+                "tenant_allowlist",
+                Some("production"),
+                vec!["tenant-a".into()]
+            )
+            .is_none()
+        );
+        assert!(
+            role_assignment_target_policy_from_parts(
+                "tenant_allowlist",
+                Some(DEVELOPMENT_CLUSTER_MARKER),
+                Vec::new()
+            )
+            .is_none()
+        );
+
+        let policy = role_assignment_target_policy_from_parts(
+            "tenant_allowlist",
+            Some(DEVELOPMENT_CLUSTER_MARKER),
+            vec!["demo-tenant-restricted".into()],
+        )
+        .expect("valid local target policy");
+        assert!(role_assignment_target_allows(
+            Some(&policy),
+            "platform.tenant.read",
+            Some("tenant-other")
+        ));
+        assert!(role_assignment_target_allows(
+            Some(&policy),
+            "platform.tenant.suspend",
+            Some("demo-tenant-restricted")
+        ));
+        assert!(!role_assignment_target_allows(
+            Some(&policy),
+            "platform.tenant.suspend",
+            Some("tenant-other")
+        ));
+        assert!(!role_assignment_target_allows(
+            None,
+            "platform.tenant.read",
+            Some("demo-tenant-restricted")
+        ));
+    }
+
+    #[test]
+    fn platform_root_reads_do_not_gain_an_implicit_mfa_requirement() {
+        let at = DateTime::parse_from_rfc3339("2026-08-04T12:00:00Z")
+            .expect("fixed time")
+            .with_timezone(&Utc);
+        let assignment = RoleAssignment {
+            id: Uuid::new_v4(),
+            principal_ref: "local:platform-root".into(),
+            role_key: "platform_root".into(),
+            permissions: vec!["platform.directory.read".into()],
+            functional_domain: "platform".into(),
+            authority_level: 255,
+            approval_limit_minor: u64::MAX,
+            scope: Scope::Platform,
+            valid_from: at - Duration::hours(1),
+            valid_until: at + Duration::hours(1),
+            timezone: "Asia/Bangkok".into(),
+            risk_tier: RiskTier::PlatformRoot,
+            grant_reason: "authorization regression fixture".into(),
+            ticket_reference: Some("test:platform-root-read".into()),
+            grantor: "test:grantor".into(),
+            approver: Some("test:approver".into()),
+            renewal_reviewer: None,
+            parent_assignment_id: None,
+            assignment_version: 1,
+        };
+        let assignments = HashMap::from([(assignment.id, assignment.clone())]);
+
+        assert!(selected_local_assignment_allows(
+            &assignment,
+            &assignments,
+            "local:platform-root",
+            &Scope::Platform,
+            "platform.directory.read",
+            at,
+        ));
+        assert!(!selected_local_assignment_allows(
+            &assignment,
+            &assignments,
+            "local:platform-root",
+            &Scope::Platform,
+            "platform.directory.manage",
+            at,
         ));
     }
 }

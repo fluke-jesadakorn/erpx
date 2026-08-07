@@ -67,14 +67,125 @@ const LEGAL_WORKER: &str = include_str!("../../worker/src/legal_projection.rs");
 const POS_WORKER: &str = include_str!("../../worker/src/pos_projection.rs");
 const MARKETING_WORKER: &str = include_str!("../../worker/src/marketing_projection.rs");
 const QUALITY_WORKER: &str = include_str!("../../worker/src/quality_projection.rs");
-const WORKER_MAIN: &str = include_str!("../../worker/src/main.rs");
+const WORKER_APP: &str = include_str!("../../worker/src/app.rs");
 
-const SERVER_MAIN: &str = include_str!("../../server/src/main.rs");
-const CONSOLE_MAIN: &str = include_str!("../../console/src/main.rs");
+const SERVER_REGISTRY: &str = include_str!("../../server/src/lib.rs");
+const SERVER_SALES: &str = include_str!("../../server/src/contexts/sales_cqrs.rs");
+const SERVER_PROCUREMENT_INVENTORY: &str =
+    include_str!("../../server/src/contexts/procurement_inventory_cqrs.rs");
+const SERVER_ASSETS: &str = include_str!("../../server/src/contexts/assets_cqrs.rs");
+const SERVER_MAINTENANCE: &str = include_str!("../../server/src/contexts/maintenance_cqrs.rs");
+const SERVER_QUALITY: &str = include_str!("../../server/src/contexts/quality.rs");
+const SERVER_PEOPLE_PAYROLL: &str =
+    include_str!("../../server/src/contexts/people_payroll_cqrs.rs");
+const SERVER_LEGAL: &str = include_str!("../../server/src/contexts/legal_cqrs.rs");
+const SERVER_POS: &str = include_str!("../../server/src/contexts/pos_cqrs.rs");
+const SERVER_MARKETING: &str = include_str!("../../server/src/contexts/marketing_cqrs.rs");
+const SERVER_CRM: &str = include_str!("../../server/src/contexts/crm_cqrs.rs");
+
+const CONSOLE_TRANSPORT_REGISTRY: &str = include_str!("../../console/src/transport/mod.rs");
+const CONSOLE_WAVE67_REGISTRY: &str = include_str!("../../console/src/transport/wave6_7/mod.rs");
+const CONSOLE_QUALITY_REGISTRY: &str = include_str!("../../console/src/transport/quality/mod.rs");
+const CONSOLE_WAVE8_REGISTRY: &str = include_str!("../../console/src/transport/wave8/mod.rs");
+const CONSOLE_RUNTIME: &str = include_str!("../../console/src/lib.rs");
+const CONSOLE_SALES_TRANSPORT: &str = include_str!("../../console/src/transport/wave6_7/sales.rs");
+const CONSOLE_PROCUREMENT_TRANSPORT: &str =
+    include_str!("../../console/src/transport/wave6_7/procurement.rs");
+const CONSOLE_INVENTORY_TRANSPORT: &str =
+    include_str!("../../console/src/transport/wave6_7/inventory.rs");
+const CONSOLE_ASSETS_TRANSPORT: &str =
+    include_str!("../../console/src/transport/wave6_7/assets.rs");
+const CONSOLE_MAINTENANCE_TRANSPORT: &str =
+    include_str!("../../console/src/transport/wave6_7/maintenance.rs");
+const CONSOLE_QUALITY_TRANSPORT: &str =
+    include_str!("../../console/src/transport/quality/transport.rs");
+const CONSOLE_PEOPLE_PAYROLL_TRANSPORT: &str =
+    include_str!("../../console/src/transport/wave6_7/people_payroll.rs");
+const CONSOLE_LEGAL_TRANSPORT: &str = include_str!("../../console/src/transport/wave8/legal.rs");
+const CONSOLE_POS_TRANSPORT: &str = include_str!("../../console/src/transport/wave6_7/pos.rs");
+const CONSOLE_MARKETING_TRANSPORT: &str =
+    include_str!("../../console/src/transport/wave6_7/marketing.rs");
+const CONSOLE_CRM_TRANSPORT: &str = include_str!("../../console/src/transport/wave6_7/crm.rs");
+
+const CONSOLE_SALES_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/sales/mod.rs"),
+    include_str!("../../console/src/features/sales/gateway.rs"),
+    include_str!("../../console/src/features/sales/presenter.rs"),
+    include_str!("../../console/src/features/sales/view.rs"),
+];
+const CONSOLE_PROCUREMENT_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/procurement/mod.rs"),
+    include_str!("../../console/src/features/procurement/gateway.rs"),
+    include_str!("../../console/src/features/procurement/presenter.rs"),
+    include_str!("../../console/src/features/procurement/view.rs"),
+];
+const CONSOLE_INVENTORY_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/inventory/mod.rs"),
+    include_str!("../../console/src/features/inventory/gateway.rs"),
+    include_str!("../../console/src/features/inventory/presenter.rs"),
+    include_str!("../../console/src/features/inventory/view.rs"),
+];
+const CONSOLE_ASSETS_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/assets/mod.rs"),
+    include_str!("../../console/src/features/assets/gateway.rs"),
+    include_str!("../../console/src/features/assets/presenter.rs"),
+    include_str!("../../console/src/features/assets/view.rs"),
+];
+const CONSOLE_MAINTENANCE_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/maintenance/mod.rs"),
+    include_str!("../../console/src/features/maintenance/gateway.rs"),
+    include_str!("../../console/src/features/maintenance/presenter.rs"),
+    include_str!("../../console/src/features/maintenance/view.rs"),
+];
+const CONSOLE_QUALITY_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/quality/mod.rs"),
+    include_str!("../../console/src/features/quality/gateway.rs"),
+    include_str!("../../console/src/features/quality/presenter.rs"),
+    include_str!("../../console/src/features/quality/view.rs"),
+];
+const CONSOLE_PEOPLE_PAYROLL_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/people_payroll/mod.rs"),
+    include_str!("../../console/src/features/people_payroll/gateway.rs"),
+    include_str!("../../console/src/features/people_payroll/presenter.rs"),
+    include_str!("../../console/src/features/people_payroll/view.rs"),
+];
+const CONSOLE_LEGAL_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/legal/mod.rs"),
+    include_str!("../../console/src/features/legal/gateway.rs"),
+    include_str!("../../console/src/features/legal/presenter.rs"),
+    include_str!("../../console/src/features/legal/view.rs"),
+];
+const CONSOLE_POS_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/pos/mod.rs"),
+    include_str!("../../console/src/features/pos/gateway.rs"),
+    include_str!("../../console/src/features/pos/presenter.rs"),
+    include_str!("../../console/src/features/pos/view.rs"),
+];
+const CONSOLE_MARKETING_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/marketing/mod.rs"),
+    include_str!("../../console/src/features/marketing/gateway.rs"),
+    include_str!("../../console/src/features/marketing/presenter.rs"),
+    include_str!("../../console/src/features/marketing/view.rs"),
+];
+const CONSOLE_CRM_FEATURE: &[&str] = &[
+    include_str!("../../console/src/features/crm/mod.rs"),
+    include_str!("../../console/src/features/crm/gateway.rs"),
+    include_str!("../../console/src/features/crm/presenter.rs"),
+    include_str!("../../console/src/features/crm/view.rs"),
+];
 const CONSOLE_PRODUCT_COMPLETION: &str = include_str!("../../console/src/product_completion.rs");
 const UI_PRODUCT_CONTEXTS: &str = include_str!("../../../crates/ui/src/product_contexts.rs");
-const PLATFORM_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/platform.proto");
+const PRODUCT_PROTOS: &[&str] = &[
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/sales.proto"),
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/supply_chain.proto"),
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/asset_maintenance.proto"),
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/quality.proto"),
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/people_payroll.proto"),
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/legal.proto"),
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/pos.proto"),
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/marketing.proto"),
+    include_str!("../../../crates/proto/proto/erpx/platform/v1/crm.proto"),
+];
 
 const ERPX_MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../Cargo.toml");
 
@@ -113,6 +224,59 @@ fn require_any_marker(surface: &str, name: &str, markers: &[&str]) {
 
 fn join_sources(sources: &[&str]) -> String {
     sources.join("\n\n/* next authoritative source */\n\n")
+}
+
+fn product_server_sources() -> String {
+    join_sources(&[
+        SERVER_REGISTRY,
+        SERVER_SALES,
+        SERVER_PROCUREMENT_INVENTORY,
+        SERVER_ASSETS,
+        SERVER_MAINTENANCE,
+        SERVER_QUALITY,
+        SERVER_PEOPLE_PAYROLL,
+        SERVER_LEGAL,
+        SERVER_POS,
+        SERVER_MARKETING,
+        SERVER_CRM,
+    ])
+}
+
+fn product_console_sources() -> String {
+    let mut sources = vec![
+        CONSOLE_RUNTIME,
+        CONSOLE_TRANSPORT_REGISTRY,
+        CONSOLE_WAVE67_REGISTRY,
+        CONSOLE_QUALITY_REGISTRY,
+        CONSOLE_WAVE8_REGISTRY,
+        CONSOLE_SALES_TRANSPORT,
+        CONSOLE_PROCUREMENT_TRANSPORT,
+        CONSOLE_INVENTORY_TRANSPORT,
+        CONSOLE_ASSETS_TRANSPORT,
+        CONSOLE_MAINTENANCE_TRANSPORT,
+        CONSOLE_QUALITY_TRANSPORT,
+        CONSOLE_PEOPLE_PAYROLL_TRANSPORT,
+        CONSOLE_LEGAL_TRANSPORT,
+        CONSOLE_POS_TRANSPORT,
+        CONSOLE_MARKETING_TRANSPORT,
+        CONSOLE_CRM_TRANSPORT,
+    ];
+    for feature in [
+        CONSOLE_SALES_FEATURE,
+        CONSOLE_PROCUREMENT_FEATURE,
+        CONSOLE_INVENTORY_FEATURE,
+        CONSOLE_ASSETS_FEATURE,
+        CONSOLE_MAINTENANCE_FEATURE,
+        CONSOLE_QUALITY_FEATURE,
+        CONSOLE_PEOPLE_PAYROLL_FEATURE,
+        CONSOLE_LEGAL_FEATURE,
+        CONSOLE_POS_FEATURE,
+        CONSOLE_MARKETING_FEATURE,
+        CONSOLE_CRM_FEATURE,
+    ] {
+        sources.extend_from_slice(feature);
+    }
+    join_sources(&sources)
 }
 
 fn run_infrastructure_acceptance(
@@ -490,15 +654,17 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
         SurfaceCheck {
             name: "Quality",
             proto_markers: &[
-                "service QualityService",
+                "service QualityCommandService",
                 "CreateQualityInspectionRequest",
+                "service QualityQueryService",
                 "ListQualityInspectionsRequest",
             ],
             server_markers: &[
-                "impl QualityService",
+                "impl QualityCommandApplication",
                 "quality.write",
-                "list_quality_inspections",
-                "QualityInspectionReadRow",
+                "impl QualityQueryApplication",
+                "QualityCommandServiceServer",
+                "QualityQueryServiceServer",
                 "RoutedDatabaseSide::Read",
             ],
             console_markers: &[
@@ -583,22 +749,25 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
         },
     ];
 
+    let server_sources = product_server_sources();
+    let console_sources = product_console_sources();
+
     for check in checks {
         let proto = check
             .proto_markers
             .iter()
             .copied()
-            .all(|marker| PLATFORM_PROTO.contains(marker));
+            .all(|marker| PRODUCT_PROTOS.iter().any(|proto| proto.contains(marker)));
         let server = check
             .server_markers
             .iter()
             .copied()
-            .all(|marker| SERVER_MAIN.contains(marker));
+            .all(|marker| server_sources.contains(marker));
         let console = check
             .console_markers
             .iter()
             .copied()
-            .all(|marker| CONSOLE_MAIN.contains(marker));
+            .all(|marker| console_sources.contains(marker));
         let product_surface = check
             .product_surface_markers
             .iter()
@@ -617,7 +786,7 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
     }
 
     require_markers(
-        CONSOLE_MAIN,
+        &console_sources,
         "G12 directory console route",
         &[
             "DirectoryAdministrationRouteSurface",
@@ -643,7 +812,7 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
     // intentionally checked globally because the product RPCs share the same
     // composition boundary.
     require_markers(
-        SERVER_MAIN,
+        &server_sources,
         "server product transport boundary",
         &[
             "authorize_entitled_command",
@@ -658,15 +827,21 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
 #[test]
 fn g11_worker_registration_is_reported_as_an_acceptance_gate() {
     require_markers(
-        WORKER_MAIN,
-        "worker composition root",
+        WORKER_APP,
+        "worker executable composition",
+        &["ERPX_WORKER_HANDLER"],
+    );
+    require_markers(
+        WORKER_LIB,
+        "worker handler registry",
         &[
-            "ERPX_WORKER_HANDLER",
             "handler_registry",
             "run_registered_until_shutdown",
             "NamedWorkerHandler",
         ],
     );
+
+    let worker_sources = join_sources(&[WORKER_APP, WORKER_LIB]);
 
     for (handler, registration_markers) in [
         (
@@ -737,12 +912,12 @@ fn g11_worker_registration_is_reported_as_an_acceptance_gate() {
         if registration_markers
             .iter()
             .copied()
-            .all(|marker| WORKER_MAIN.contains(marker))
+            .all(|marker| worker_sources.contains(marker))
         {
             eprintln!("G11 worker registration {handler}: present in composition root");
         } else {
             eprintln!(
-                "G11 worker registration blocker queued: {handler} markers are incomplete in apps/worker/src/main.rs"
+                "G11 worker registration blocker queued: {handler} markers are incomplete in worker app/registry modules"
             );
         }
     }

@@ -6,20 +6,67 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+async-trait.workspace = true
+base64.workspace = true
 chrono.workspace = true
 hex.workspace = true
 hmac.workspace = true
-erpx-application = { path = "../../crates/application" }
-erpx-domain = { path = "../../crates/domain" }
-erpx-identity = { path = "../../crates/identity" }
-erpx-infrastructure = { path = "../../crates/infrastructure" }
-erpx-migration = { path = "../../crates/migration" }
-erpx-proto = { path = "../../crates/proto" }
-erpx-worker = { path = "../worker" }
-prost-types = "0.14.4"
+erpx-application.workspace = true
+erpx-assets.workspace = true
+erpx-assets-sqlx.workspace = true
+erpx-brand.workspace = true
+erpx-brand-sqlx.workspace = true
+erpx-commercial.workspace = true
+erpx-commercial-sqlx.workspace = true
+erpx-cqrs.workspace = true
+erpx-cqrs-sqlx.workspace = true
+erpx-customer-360.workspace = true
+erpx-customer-360-sqlx.workspace = true
+erpx-crm.workspace = true
+erpx-crm-sqlx.workspace = true
+erpx-customer-authority.workspace = true
+erpx-customer-authority-sqlx.workspace = true
+erpx-domain.workspace = true
+erpx-finance.workspace = true
+erpx-finance-sqlx.workspace = true
+erpx-identity.workspace = true
+erpx-infrastructure.workspace = true
+erpx-integration-contracts.workspace = true
+erpx-identity-access.workspace = true
+erpx-identity-access-sqlx.workspace = true
+erpx-inventory.workspace = true
+erpx-inventory-sqlx.workspace = true
+erpx-kernel.workspace = true
+erpx-legal.workspace = true
+erpx-legal-sqlx.workspace = true
+erpx-migration.workspace = true
+erpx-maintenance.workspace = true
+erpx-maintenance-sqlx.workspace = true
+erpx-marketing.workspace = true
+erpx-marketing-sqlx.workspace = true
+erpx-organization.workspace = true
+erpx-organization-sqlx.workspace = true
+erpx-operations.workspace = true
+erpx-operations-sqlx.workspace = true
+erpx-people-payroll.workspace = true
+erpx-people-payroll-sqlx.workspace = true
+erpx-platform-administration.workspace = true
+erpx-platform-administration-sqlx.workspace = true
+erpx-pos.workspace = true
+erpx-pos-sqlx.workspace = true
+erpx-procurement.workspace = true
+erpx-procurement-sqlx.workspace = true
+erpx-proto.workspace = true
+erpx-quality.workspace = true
+erpx-quality-sqlx.workspace = true
+erpx-sales.workspace = true
+erpx-sales-sqlx.workspace = true
+erpx-support.workspace = true
+erpx-support-sqlx.workspace = true
+prost-types.workspace = true
 prost.workspace = true
 rand_core.workspace = true
-ring = "0.17.14"
+ring.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -27,11 +74,13 @@ sqlx.workspace = true
 tokio.workspace = true
 tonic = { workspace = true, features = ["router", "transport", "tls-ring"] }
 tonic-web.workspace = true
-tokio-stream = "0.1.17"
+tokio-stream.workspace = true
 tower-http.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
+subtle.workspace = true
+zeroize.workspace = true
 
 [lints]
 workspace = true

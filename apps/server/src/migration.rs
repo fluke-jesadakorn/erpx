@@ -80,7 +80,7 @@ impl MigrationService for MigrationRpcImpl {
                 .auth
                 .authorize_role(
                     &self.state.store,
-                    &claims.principal_ref,
+                    &claims,
                     &scope,
                     MIGRATION_STATUS_READ_PERMISSION,
                 )
@@ -168,12 +168,7 @@ impl MigrationService for MigrationRpcImpl {
             )?;
             self.state
                 .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims.principal_ref,
-                    &scope,
-                    G13_EXECUTE_PERMISSION,
-                )
+                .authorize_role(&self.state.store, &claims, &scope, G13_EXECUTE_PERMISSION)
                 .await?;
             self.state
                 .auth
@@ -283,12 +278,7 @@ impl MigrationService for MigrationRpcImpl {
             )?;
             self.state
                 .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims.principal_ref,
-                    &scope,
-                    G13_EXECUTE_PERMISSION,
-                )
+                .authorize_role(&self.state.store, &claims, &scope, G13_EXECUTE_PERMISSION)
                 .await?;
             self.state
                 .auth
@@ -378,12 +368,7 @@ impl MigrationService for MigrationRpcImpl {
             )?;
             self.state
                 .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims.principal_ref,
-                    &scope,
-                    G13_EXECUTE_PERMISSION,
-                )
+                .authorize_role(&self.state.store, &claims, &scope, G13_EXECUTE_PERMISSION)
                 .await?;
             self.state
                 .auth

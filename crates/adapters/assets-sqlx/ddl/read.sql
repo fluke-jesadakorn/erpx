@@ -1,0 +1,2 @@
+-- Evidence contract: canonical installation is tenant-read migration 0052.
+-- Assets projections are generation-scoped and disposable.

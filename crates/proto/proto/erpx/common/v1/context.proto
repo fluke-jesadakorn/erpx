@@ -49,6 +49,14 @@ message AuditContext {
   string correlation_id = 4;
 }
 
+// Physical tenant routing is a transport hint, never authorization. Inbound
+// adapters must bind it to the authenticated TenantScope before selecting a
+// database; application/domain handlers never receive this value.
+message TenantRoute {
+  string tenant_id = 1;
+  string holding_ref = 2;
+}
+
 message CommandContext {
   uint32 contract_version = 1;
   string command_id = 2;
@@ -68,6 +76,25 @@ message CommandContext {
   string mfa_code = 11;
 }
 
+// Canonical metadata for typed CQRS command services. Command payloads live in
+// their owning bounded-context package; this message carries only invocation
+// identity, authority, audit, and optimistic-concurrency data.
+message CommandRequestMetadata {
+  uint32 contract_version = 1;
+  string command_id = 2;
+  string idempotency_key = 3;
+  string correlation_id = 4;
+  optional string causation_id = 5;
+  ActorAttribution actor = 6;
+  TenantScope tenant_scope = 7;
+  AuditContext audit = 8;
+  optional uint64 expected_aggregate_version = 9;
+  optional string subscription_id = 10;
+  // Verification input only. Servers must not persist, audit, or echo it.
+  optional string mfa_code = 11;
+  optional TenantRoute tenant_route = 12;
+}
+
 message QueryConsistency {
   oneof requirement {
     EventualConsistency eventual = 1;
@@ -77,7 +104,16 @@ message QueryConsistency {
 }
 
 message EventualConsistency {}
-message ReadYourWrites { string command_id = 1; }
+message ReadYourWrites {
+  // Kept during the coordinated v1 cutover for older callers. New typed
+  // callers must provide the exact projection receipt target below.
+  string command_id = 1 [deprecated = true];
+  string projection = 2;
+  string partition = 3;
+  string event_id = 4;
+  uint64 global_sequence = 5;
+  uint64 timeout_millis = 6;
+}
 message AggregateVersionConsistency {
   string aggregate_type = 1;
   string aggregate_id = 2;
@@ -94,6 +130,85 @@ message QueryContext {
   AuditContext audit = 7;
 }
 
+// Canonical metadata for typed CQRS query services. Query handlers must use a
+// read model only; ReadYourWrites timeout is reported as not-ready rather than
+// falling back to the aggregate store.
+message QueryRequestMetadata {
+  uint32 contract_version = 1;
+  string query_id = 2;
+  string correlation_id = 3;
+  ActorAttribution actor = 4;
+  TenantScope tenant_scope = 5;
+  AuditContext audit = 6;
+  QueryConsistency consistency = 7;
+  optional TenantRoute tenant_route = 8;
+}
+
+message AggregateVersion {
+  string context = 1;
+  string aggregate_type = 2;
+  string aggregate_id = 3;
+  uint64 version = 4;
+}
+
+message EventPosition {
+  string event_id = 1;
+  uint64 global_sequence = 2;
+}
+
+// Durable result shared by typed command responses. Context-specific response
+// data is returned beside this receipt, never as an untyped payload.
+message CommandReceipt {
+  string command_id = 1;
+  string correlation_id = 2;
+  AggregateVersion aggregate = 3;
+  repeated EventPosition committed_events = 4;
+  string committed_at = 5;
+  bool replayed = 6;
+}
+
+message ProjectionTarget {
+  string event_id = 1;
+  uint64 global_sequence = 2;
+}
+
+message ProjectionCheckpoint {
+  string projection = 1;
+  string partition = 2;
+  string event_id = 3;
+  uint64 global_sequence = 4;
+  string updated_at = 5;
+}
+
+enum ProjectionFreshnessState {
+  PROJECTION_FRESHNESS_STATE_UNSPECIFIED = 0;
+  PROJECTION_FRESHNESS_STATE_CURRENT = 1;
+  PROJECTION_FRESHNESS_STATE_STALE = 2;
+  PROJECTION_FRESHNESS_STATE_REBUILDING = 3;
+  PROJECTION_FRESHNESS_STATE_UNAVAILABLE = 4;
+}
+
+message ProjectionMetadata {
+  optional ProjectionCheckpoint checkpoint = 1;
+  ProjectionFreshnessState freshness = 2;
+  optional uint64 lag_millis = 3;
+}
+
+message QueryMetadata {
+  string correlation_id = 1;
+  ProjectionMetadata projection = 2;
+  QueryConsistency consistency = 3;
+}
+
+message ProjectionNotReady {
+  string projection = 1;
+  string partition = 2;
+  ProjectionTarget target = 3;
+  optional ProjectionCheckpoint observed = 4;
+}
+
+// Legacy freshness shape retained until the remaining v1 services complete
+// their coordinated cutover to ProjectionMetadata.
 message ProjectionFreshness {
   string projection_name = 1;
   string last_event_id = 2;

@@ -13,6 +13,10 @@ use crate::{
     UiStateKind, use_locale,
 };
 
+const fn copy(locale: crate::Locale, en: &'static str, th: &'static str) -> &'static str {
+    crate::LocalizedText::new(en, th).text(locale)
+}
+
 /// State payload accepted by the route-aware support/incident surface.
 ///
 /// The consuming application is responsible for selecting the matching variant after an
@@ -42,7 +46,7 @@ pub fn SupportRouteTabs(
 ) -> Element {
     let locale = use_locale();
     rsx! {
-        nav { class: "ui-support-route-tabs", aria_label: "Support and incident routes",
+        nav { class: "ui-support-route-tabs", aria_label: copy(locale.current(), "Support and incident routes", "เส้นทางการสนับสนุนและเหตุขัดข้อง"),
             for definition in route_definitions_for_audience(active_route) {
                 button {
                     class: if definition.route == active_route { "ui-route-tab active" } else { "ui-route-tab" },
@@ -108,15 +112,15 @@ pub fn SupportTicketListSurface(state: SupportTicketListState) -> Element {
     let state_title = state
         .state_label(locale.current())
         .unwrap_or_else(|| SupportRoute::PlatformSupport.label(locale.current()));
-    let state_message = support_ticket_list_state_message(&state);
+    let state_message = support_ticket_list_state_message(&state, locale.current());
     let model = state.data().cloned();
 
     rsx! {
-        section { class: "ui-support-surface", aria_label: "Support ticket list surface",
+        section { class: "ui-support-surface", aria_label: copy(locale.current(), "Support ticket list", "รายการทิกเก็ตสนับสนุน"),
             SurfaceHeading {
                 route: SupportRoute::PlatformSupport,
                 title: SupportRoute::PlatformSupport.label(locale.current()).to_string(),
-                description: "Platform-scoped support ticket metadata from the authorized read projection. Ticket bodies and commands remain server-authorized.".to_string(),
+                description: copy(locale.current(), "Platform-scoped support ticket metadata from the authorized read projection. Ticket bodies and commands remain server-authorized.", "ข้อมูลทิกเก็ตสนับสนุนในขอบเขตแพลตฟอร์มจากข้อมูลอ่านที่ได้รับอนุญาต เนื้อหาทิกเก็ตและคำสั่งยังอยู่ภายใต้สิทธิ์ของเซิร์ฟเวอร์").to_string(),
             }
             if let Some(kind) = state_kind {
                 StatePanel {
@@ -140,24 +144,24 @@ fn SupportTicketListContent(model: crate::SupportTicketListDisplayModel) -> Elem
     rsx! {
         div { class: "ui-support-ticket-list",
             if model.items().is_empty() {
-                p { class: "ui-safe-note", "No platform support tickets are present in this projection." }
+                p { class: "ui-safe-note", {copy(locale.current(), "No platform support tickets are present in this projection.", "ไม่มีทิกเก็ตสนับสนุนของแพลตฟอร์มในข้อมูลอ่านนี้")} }
             } else {
                 for item in model.items() {
                     article { class: "ui-support-card",
                         header { class: "ui-support-card-heading",
                             div {
-                                span { class: "ui-eyebrow", "SAFE SUPPORT TICKET" }
+                                span { class: "ui-eyebrow", {copy(locale.current(), "SAFE SUPPORT TICKET", "ทิกเก็ตสนับสนุนที่ปลอดภัย")} }
                                 strong { "{item.id()}" }
                             }
                             span { class: "ui-support-status", "{item.status().label(locale.current())}" }
                         }
                         dl { class: "ui-support-fields",
-                            dt { "Customer reference" }
+                            dt { {copy(locale.current(), "Customer reference", "ข้อมูลอ้างอิงลูกค้า")} }
                             dd { "{item.customer_id()}" }
-                            dt { "Severity" }
+                            dt { {copy(locale.current(), "Severity", "ความรุนแรง")} }
                             dd { "{item.severity()}" }
                         }
-                        p { class: "ui-safe-note", "Ticket description, customer replies, internal notes, capabilities, and commands are not rendered by this metadata-only surface." }
+                        p { class: "ui-safe-note", {copy(locale.current(), "Ticket description, customer replies, internal notes, capabilities, and commands are not rendered by this metadata-only surface.", "มุมมองเฉพาะข้อมูลกำกับนี้ไม่แสดงรายละเอียดทิกเก็ต คำตอบของลูกค้า บันทึกภายใน สิทธิ์ความสามารถ หรือคำสั่ง")} }
                     }
                 }
             }
@@ -176,11 +180,11 @@ pub fn SupportSurface(route: SupportRoute, state: SupportState) -> Element {
     let state_title = state
         .state_label(locale.current())
         .unwrap_or_else(|| route.label(locale.current()));
-    let state_message = support_state_message(&state);
+    let state_message = support_state_message(&state, locale.current());
     let model = state.data().cloned();
 
     rsx! {
-        section { class: "ui-support-surface", aria_label: "Support surface",
+        section { class: "ui-support-surface", aria_label: copy(locale.current(), "Support", "การสนับสนุน"),
             SurfaceHeading {
                 route,
                 title: route.label(locale.current()).to_string(),
@@ -217,15 +221,15 @@ pub fn IncidentListSurface(state: IncidentListState) -> Element {
     let state_title = state
         .state_label(locale.current())
         .unwrap_or_else(|| SupportRoute::PlatformIncidents.label(locale.current()));
-    let state_message = incident_state_message(&state);
+    let state_message = incident_state_message(&state, locale.current());
     let model = state.data().cloned();
 
     rsx! {
-        section { class: "ui-support-surface", aria_label: "Incident list surface",
+        section { class: "ui-support-surface", aria_label: copy(locale.current(), "Incident list", "รายการเหตุขัดข้อง"),
             SurfaceHeading {
                 route: SupportRoute::PlatformIncidents,
                 title: SupportRoute::PlatformIncidents.label(locale.current()).to_string(),
-                description: "Platform-scoped incident projection. This view is read-only; incident commands remain server-authorized.".to_string(),
+                description: copy(locale.current(), "Platform-scoped incident projection. This view is read-only; incident commands remain server-authorized.", "ข้อมูลเหตุขัดข้องในขอบเขตแพลตฟอร์ม มุมมองนี้อ่านอย่างเดียวและคำสั่งเหตุขัดข้องยังอยู่ภายใต้สิทธิ์ของเซิร์ฟเวอร์").to_string(),
             }
             if let Some(kind) = state_kind {
                 StatePanel {
@@ -258,15 +262,15 @@ pub fn IncidentDetailSurface(state: IncidentDetailState) -> Element {
     let state_title = state
         .state_label(locale.current())
         .unwrap_or_else(|| SupportRoute::PlatformIncidentDetail.label(locale.current()));
-    let state_message = incident_state_message(&state);
+    let state_message = incident_state_message(&state, locale.current());
     let model = state.data().cloned();
 
     rsx! {
-        section { class: "ui-support-surface", aria_label: "Incident detail surface",
+        section { class: "ui-support-surface", aria_label: copy(locale.current(), "Incident details", "รายละเอียดเหตุขัดข้อง"),
             SurfaceHeading {
                 route: SupportRoute::PlatformIncidentDetail,
                 title: SupportRoute::PlatformIncidentDetail.label(locale.current()).to_string(),
-                description: "Platform-scoped incident details from the authorized read projection. Commands are intentionally not exposed here.".to_string(),
+                description: copy(locale.current(), "Platform-scoped incident details from the authorized read projection. Commands are intentionally not exposed here.", "รายละเอียดเหตุขัดข้องในขอบเขตแพลตฟอร์มจากข้อมูลอ่านที่ได้รับอนุญาต โดยตั้งใจไม่แสดงคำสั่งในหน้านี้").to_string(),
             }
             if let Some(kind) = state_kind {
                 StatePanel {
@@ -286,14 +290,15 @@ pub fn IncidentDetailSurface(state: IncidentDetailState) -> Element {
 
 #[component]
 fn SurfaceStateMismatch(route: SupportRoute) -> Element {
+    let locale = use_locale().current();
     rsx! {
         StatePanel {
             state: UiStateKind::Error,
-            title: "Surface state mismatch".to_string(),
-            message: format!(
-                "The authorized read for {} was not bound to its typed route. No data was rendered.",
-                route.template(),
-            ),
+            title: copy(locale, "Surface state mismatch", "สถานะหน้าจอไม่ตรงกัน").to_string(),
+            message: match locale {
+                crate::Locale::En => format!("The authorized read for {} was not bound to its typed route. No data was rendered.", route.template()),
+                crate::Locale::Th => format!("ข้อมูลอ่านที่ได้รับอนุญาตสำหรับ {} ไม่ได้ผูกกับเส้นทางที่กำหนด จึงไม่แสดงข้อมูล", route.template()),
+            },
             action_label: None,
             on_action: None,
         }
@@ -334,6 +339,7 @@ where
 
 #[component]
 fn SurfaceHeading(route: SupportRoute, title: String, description: String) -> Element {
+    let locale = use_locale().current();
     rsx! {
         header { class: "ui-support-heading",
             div {
@@ -341,7 +347,7 @@ fn SurfaceHeading(route: SupportRoute, title: String, description: String) -> El
                 h2 { "{title}" }
                 p { "{description}" }
             }
-            span { class: "ui-readonly-pill", "READ-ONLY" }
+            span { class: "ui-readonly-pill", {copy(locale, "READ-ONLY", "อ่านอย่างเดียว")} }
         }
     }
 }
@@ -354,7 +360,7 @@ fn SupportRecord(model: SupportDisplayModel) -> Element {
         article { class: "ui-support-card",
             header { class: "ui-support-card-heading",
                 div {
-                    span { class: "ui-eyebrow", "SAFE SUPPORT PROJECTION" }
+                    span { class: "ui-eyebrow", {copy(locale.current(), "SAFE SUPPORT PROJECTION", "ข้อมูลสนับสนุนที่ปลอดภัย")} }
                     h3 { "{model.route_label(locale.current())}" }
                 }
                 span { class: "ui-support-status", "{model.context.approval.label(locale.current())}" }
@@ -369,7 +375,7 @@ fn SupportRecord(model: SupportDisplayModel) -> Element {
                 }
             }
             if visible_fields.is_empty() {
-                p { class: "ui-safe-note", "No safe support fields are available in this projection." }
+                p { class: "ui-safe-note", {copy(locale.current(), "No safe support fields are available in this projection.", "ไม่มีฟิลด์สนับสนุนที่ปลอดภัยในข้อมูลอ่านนี้")} }
             } else {
                 dl { class: "ui-support-fields",
                     for field in visible_fields {
@@ -378,7 +384,7 @@ fn SupportRecord(model: SupportDisplayModel) -> Element {
                     }
                 }
             }
-            p { class: "ui-safe-note", "Only server-authorized, redacted display fields are shown. Support approval and mutation remain outside this presentation component." }
+            p { class: "ui-safe-note", {copy(locale.current(), "Only server-authorized, redacted display fields are shown. Support approval and mutation remain outside this presentation component.", "แสดงเฉพาะฟิลด์ที่เซิร์ฟเวอร์อนุญาตและปกปิดแล้ว การอนุมัติและการแก้ไขงานสนับสนุนอยู่นอกองค์ประกอบการแสดงผลนี้")} }
         }
     }
 }
@@ -389,7 +395,7 @@ fn IncidentListContent(model: crate::IncidentListDisplayModel) -> Element {
     rsx! {
         div { class: "ui-incident-list",
             if model.items().is_empty() {
-                p { class: "ui-safe-note", "No platform incidents are present in this projection." }
+                p { class: "ui-safe-note", {copy(locale.current(), "No platform incidents are present in this projection.", "ไม่มีเหตุขัดข้องของแพลตฟอร์มในข้อมูลอ่านนี้")} }
             } else {
                 for item in model.items() {
                     article { class: "ui-incident-row",
@@ -398,7 +404,7 @@ fn IncidentListContent(model: crate::IncidentListDisplayModel) -> Element {
                                 if let Some(path) = incident_path(item.id()) {
                                     a { href: "{path}", "{item.id()}" }
                                 } else {
-                                    strong { "redacted incident reference" }
+                                    strong { {copy(locale.current(), "redacted incident reference", "ข้อมูลอ้างอิงเหตุขัดข้องถูกปกปิด")} }
                                 }
                                 span { class: "ui-support-status", "{item.status_label(locale.current())}" }
                             }
@@ -407,7 +413,7 @@ fn IncidentListContent(model: crate::IncidentListDisplayModel) -> Element {
                                     span { class: "ui-support-badge", "{service}" }
                                 }
                             }
-                            p { class: "ui-safe-note", "{incident_summary(item)}" }
+                            p { class: "ui-safe-note", "{incident_summary(item, locale.current())}" }
                         }
                         span { class: "ui-incident-version", "v{item.version()}" }
                     }
@@ -420,8 +426,14 @@ fn IncidentListContent(model: crate::IncidentListDisplayModel) -> Element {
 #[component]
 fn IncidentDetailContent(model: IncidentDisplayModel) -> Element {
     let locale = use_locale();
-    let incident_label =
-        safe_display_value(model.id()).unwrap_or_else(|| "redacted incident reference".to_string());
+    let incident_label = safe_display_value(model.id()).unwrap_or_else(|| {
+        copy(
+            locale.current(),
+            "redacted incident reference",
+            "ข้อมูลอ้างอิงเหตุขัดข้องถูกปกปิด",
+        )
+        .to_string()
+    });
     let services = safe_values(model.affected_services());
     let customers = safe_values(model.affected_customer_accounts());
     let leads = safe_values(model.leads());
@@ -429,18 +441,21 @@ fn IncidentDetailContent(model: IncidentDisplayModel) -> Element {
         article { class: "ui-support-card ui-incident-detail",
             header { class: "ui-support-card-heading",
                 div {
-                    span { class: "ui-eyebrow", "SAFE INCIDENT PROJECTION" }
+                    span { class: "ui-eyebrow", {copy(locale.current(), "SAFE INCIDENT PROJECTION", "ข้อมูลเหตุขัดข้องที่ปลอดภัย")} }
                     h3 { "{incident_label}" }
                 }
                 span { class: "ui-support-status", "{model.status_label(locale.current())}" }
             }
             div { class: "ui-incident-detail-grid",
-                SafeValueGroup { label: "Commander", values: model.commander_ref().into_iter().filter_map(safe_display_value).collect() }
-                SafeValueGroup { label: "Leads", values: leads }
-                SafeValueGroup { label: "Affected services", values: services }
-                SafeValueGroup { label: "Affected customer accounts", values: customers }
+                SafeValueGroup { label: copy(locale.current(), "Commander", "ผู้บัญชาการเหตุการณ์"), values: model.commander_ref().into_iter().filter_map(safe_display_value).collect() }
+                SafeValueGroup { label: copy(locale.current(), "Leads", "ผู้รับผิดชอบหลัก"), values: leads }
+                SafeValueGroup { label: copy(locale.current(), "Affected services", "บริการที่ได้รับผลกระทบ"), values: services }
+                SafeValueGroup { label: copy(locale.current(), "Affected customer accounts", "บัญชีลูกค้าที่ได้รับผลกระทบ"), values: customers }
             }
-            p { class: "ui-safe-note", "Aggregate version v{model.version()} · platform scope · read-only projection. Timeline, broadcasts, mitigation, root-cause, corrective-action, and evidence are not rendered by this surface." }
+            p { class: "ui-safe-note", {match locale.current() {
+                crate::Locale::En => format!("Aggregate version v{} · platform scope · read-only projection. Timeline, broadcasts, mitigation, root-cause, corrective-action, and evidence are not rendered by this surface.", model.version()),
+                crate::Locale::Th => format!("แอกกริเกตเวอร์ชัน v{} · ขอบเขตแพลตฟอร์ม · ข้อมูลอ่านอย่างเดียว หน้านี้ไม่แสดงไทม์ไลน์ การประกาศ การบรรเทา สาเหตุราก การแก้ไข และหลักฐาน", model.version()),
+            }} }
         }
     }
 }
@@ -484,45 +499,72 @@ fn support_route_description(route: SupportRoute, locale: crate::Locale) -> &'st
     }
 }
 
-fn support_state_message(state: &SupportState) -> String {
-    match state {
-        SupportViewState::Loading { .. } => "Fetching an authorized support projection. No commands are available while loading.".into(),
-        SupportViewState::Empty { .. } => "The authorized support projection contains no records.".into(),
-        SupportViewState::Denied { .. } => "The server denied this support read. Contact an eligible administrator if access is required.".into(),
-        SupportViewState::Stale { age_seconds, .. } => format!("The cached support projection is {age_seconds} seconds old. Verify freshness before relying on it."),
-        SupportViewState::ReadOnly { .. } => "This support projection is explicitly read-only; no mutation controls are exposed.".into(),
-        SupportViewState::Conflict { .. } => "A concurrent change requires a fresh authorized read. No retry or mutation is issued here.".into(),
-        SupportViewState::Offline { .. } => "The support service is unavailable. Cached content, when present, remains read-only.".into(),
-        SupportViewState::Error { .. } => "The support projection could not be loaded. Backend details are not rendered in this surface.".into(),
-        SupportViewState::Ready { .. } => String::new(),
+fn support_state_message(state: &SupportState, locale: crate::Locale) -> String {
+    match (state, locale) {
+        (SupportViewState::Loading { .. }, crate::Locale::En) => "Fetching an authorized support projection. No commands are available while loading.".into(),
+        (SupportViewState::Loading { .. }, crate::Locale::Th) => "กำลังดึงข้อมูลสนับสนุนที่ได้รับอนุญาต โดยไม่มีคำสั่งให้ใช้ระหว่างโหลด".into(),
+        (SupportViewState::Empty { .. }, crate::Locale::En) => "The authorized support projection contains no records.".into(),
+        (SupportViewState::Empty { .. }, crate::Locale::Th) => "ข้อมูลสนับสนุนที่ได้รับอนุญาตไม่มีรายการ".into(),
+        (SupportViewState::Denied { .. }, crate::Locale::En) => "The server denied this support read. Contact an eligible administrator if access is required.".into(),
+        (SupportViewState::Denied { .. }, crate::Locale::Th) => "เซิร์ฟเวอร์ปฏิเสธการอ่านข้อมูลสนับสนุนนี้ โปรดติดต่อผู้ดูแลที่มีสิทธิ์หากจำเป็นต้องเข้าถึง".into(),
+        (SupportViewState::Stale { age_seconds, .. }, crate::Locale::En) => format!("The cached support projection is {} seconds old. Verify freshness before relying on it.", locale.formatter().format_integer(*age_seconds as i64)),
+        (SupportViewState::Stale { age_seconds, .. }, crate::Locale::Th) => format!("ข้อมูลสนับสนุนในแคชมีอายุ {} วินาที โปรดตรวจสอบความใหม่ก่อนใช้งาน", locale.formatter().format_integer(*age_seconds as i64)),
+        (SupportViewState::ReadOnly { .. }, crate::Locale::En) => "This support projection is explicitly read-only; no mutation controls are exposed.".into(),
+        (SupportViewState::ReadOnly { .. }, crate::Locale::Th) => "ข้อมูลสนับสนุนนี้อ่านอย่างเดียวและไม่มีตัวควบคุมการแก้ไข".into(),
+        (SupportViewState::Conflict { .. }, crate::Locale::En) => "A concurrent change requires a fresh authorized read. No retry or mutation is issued here.".into(),
+        (SupportViewState::Conflict { .. }, crate::Locale::Th) => "มีการเปลี่ยนแปลงพร้อมกัน จึงต้องอ่านข้อมูลที่ได้รับอนุญาตใหม่ หน้านี้จะไม่ลองซ้ำหรือแก้ไขข้อมูล".into(),
+        (SupportViewState::Offline { .. }, crate::Locale::En) => "The support service is unavailable. Cached content, when present, remains read-only.".into(),
+        (SupportViewState::Offline { .. }, crate::Locale::Th) => "บริการสนับสนุนไม่พร้อมใช้งาน เนื้อหาในแคชจะยังคงอ่านอย่างเดียว".into(),
+        (SupportViewState::Error { .. }, crate::Locale::En) => "The support projection could not be loaded. Backend details are not rendered in this surface.".into(),
+        (SupportViewState::Error { .. }, crate::Locale::Th) => "ไม่สามารถโหลดข้อมูลสนับสนุนได้ หน้านี้ไม่แสดงรายละเอียดจากแบ็กเอนด์".into(),
+        (SupportViewState::Ready { .. }, _) => String::new(),
     }
 }
 
-fn support_ticket_list_state_message<T>(state: &SupportViewState<T>) -> String {
-    match state {
-        SupportViewState::Loading { .. } => "Fetching authorized support ticket metadata. No commands are available while loading.".into(),
-        SupportViewState::Empty { .. } => "The authorized support ticket projection contains no records.".into(),
-        SupportViewState::Denied { .. } => "The server denied this support ticket read.".into(),
-        SupportViewState::Stale { age_seconds, .. } => format!("The cached support ticket projection is {age_seconds} seconds old. Verify freshness before relying on it."),
-        SupportViewState::ReadOnly { .. } => "This support ticket projection is explicitly read-only; ticket bodies and mutation controls are not exposed.".into(),
-        SupportViewState::Conflict { .. } => "A concurrent change requires a fresh authorized support ticket read.".into(),
-        SupportViewState::Offline { .. } => "The support ticket service is unavailable. Cached metadata, when present, remains read-only.".into(),
-        SupportViewState::Error { .. } => "The support ticket projection could not be loaded. Backend details are not rendered.".into(),
-        SupportViewState::Ready { .. } => String::new(),
+fn support_ticket_list_state_message<T>(
+    state: &SupportViewState<T>,
+    locale: crate::Locale,
+) -> String {
+    match (state, locale) {
+        (SupportViewState::Loading { .. }, crate::Locale::En) => "Fetching authorized support ticket metadata. No commands are available while loading.".into(),
+        (SupportViewState::Loading { .. }, crate::Locale::Th) => "กำลังดึงข้อมูลกำกับทิกเก็ตสนับสนุนที่ได้รับอนุญาต โดยไม่มีคำสั่งให้ใช้ระหว่างโหลด".into(),
+        (SupportViewState::Empty { .. }, crate::Locale::En) => "The authorized support ticket projection contains no records.".into(),
+        (SupportViewState::Empty { .. }, crate::Locale::Th) => "ข้อมูลทิกเก็ตสนับสนุนที่ได้รับอนุญาตไม่มีรายการ".into(),
+        (SupportViewState::Denied { .. }, crate::Locale::En) => "The server denied this support ticket read.".into(),
+        (SupportViewState::Denied { .. }, crate::Locale::Th) => "เซิร์ฟเวอร์ปฏิเสธการอ่านทิกเก็ตสนับสนุนนี้".into(),
+        (SupportViewState::Stale { age_seconds, .. }, crate::Locale::En) => format!("The cached support ticket projection is {} seconds old. Verify freshness before relying on it.", locale.formatter().format_integer(*age_seconds as i64)),
+        (SupportViewState::Stale { age_seconds, .. }, crate::Locale::Th) => format!("ข้อมูลทิกเก็ตสนับสนุนในแคชมีอายุ {} วินาที โปรดตรวจสอบความใหม่ก่อนใช้งาน", locale.formatter().format_integer(*age_seconds as i64)),
+        (SupportViewState::ReadOnly { .. }, crate::Locale::En) => "This support ticket projection is explicitly read-only; ticket bodies and mutation controls are not exposed.".into(),
+        (SupportViewState::ReadOnly { .. }, crate::Locale::Th) => "ข้อมูลทิกเก็ตนี้อ่านอย่างเดียว โดยไม่แสดงเนื้อหาทิกเก็ตหรือตัวควบคุมการแก้ไข".into(),
+        (SupportViewState::Conflict { .. }, crate::Locale::En) => "A concurrent change requires a fresh authorized support ticket read.".into(),
+        (SupportViewState::Conflict { .. }, crate::Locale::Th) => "มีการเปลี่ยนแปลงพร้อมกัน จึงต้องอ่านทิกเก็ตสนับสนุนที่ได้รับอนุญาตใหม่".into(),
+        (SupportViewState::Offline { .. }, crate::Locale::En) => "The support ticket service is unavailable. Cached metadata, when present, remains read-only.".into(),
+        (SupportViewState::Offline { .. }, crate::Locale::Th) => "บริการทิกเก็ตสนับสนุนไม่พร้อมใช้งาน ข้อมูลกำกับในแคชจะยังคงอ่านอย่างเดียว".into(),
+        (SupportViewState::Error { .. }, crate::Locale::En) => "The support ticket projection could not be loaded. Backend details are not rendered.".into(),
+        (SupportViewState::Error { .. }, crate::Locale::Th) => "ไม่สามารถโหลดข้อมูลทิกเก็ตสนับสนุนได้ และจะไม่แสดงรายละเอียดจากแบ็กเอนด์".into(),
+        (SupportViewState::Ready { .. }, _) => String::new(),
     }
 }
 
-fn incident_state_message<T>(state: &crate::IncidentViewState<T>) -> String {
-    match state {
-        crate::IncidentViewState::Loading { .. } => "Fetching the platform incident projection. No commands are available while loading.".into(),
-        crate::IncidentViewState::Empty { .. } => "The authorized incident projection contains no records.".into(),
-        crate::IncidentViewState::Denied { .. } => "The server denied this incident read. Platform scope authorization remains authoritative.".into(),
-        crate::IncidentViewState::Stale { age_seconds, .. } => format!("The cached incident projection is {age_seconds} seconds old. Verify freshness before relying on it."),
-        crate::IncidentViewState::ReadOnly { .. } => "This incident projection is explicitly read-only; no incident commands are exposed.".into(),
-        crate::IncidentViewState::Conflict { .. } => "A concurrent change requires a fresh authorized read. No retry or mutation is issued here.".into(),
-        crate::IncidentViewState::Offline { .. } => "The incident service is unavailable. Cached content, when present, remains read-only.".into(),
-        crate::IncidentViewState::Error { .. } => "The incident projection could not be loaded. Backend details are not rendered in this surface.".into(),
-        crate::IncidentViewState::Ready { .. } => String::new(),
+fn incident_state_message<T>(state: &crate::IncidentViewState<T>, locale: crate::Locale) -> String {
+    match (state, locale) {
+        (crate::IncidentViewState::Loading { .. }, crate::Locale::En) => "Fetching the platform incident projection. No commands are available while loading.".into(),
+        (crate::IncidentViewState::Loading { .. }, crate::Locale::Th) => "กำลังดึงข้อมูลเหตุขัดข้องของแพลตฟอร์ม โดยไม่มีคำสั่งให้ใช้ระหว่างโหลด".into(),
+        (crate::IncidentViewState::Empty { .. }, crate::Locale::En) => "The authorized incident projection contains no records.".into(),
+        (crate::IncidentViewState::Empty { .. }, crate::Locale::Th) => "ข้อมูลเหตุขัดข้องที่ได้รับอนุญาตไม่มีรายการ".into(),
+        (crate::IncidentViewState::Denied { .. }, crate::Locale::En) => "The server denied this incident read. Platform scope authorization remains authoritative.".into(),
+        (crate::IncidentViewState::Denied { .. }, crate::Locale::Th) => "เซิร์ฟเวอร์ปฏิเสธการอ่านเหตุขัดข้องนี้ โดยสิทธิ์ในขอบเขตแพลตฟอร์มยังเป็นข้อยุติ".into(),
+        (crate::IncidentViewState::Stale { age_seconds, .. }, crate::Locale::En) => format!("The cached incident projection is {} seconds old. Verify freshness before relying on it.", locale.formatter().format_integer(*age_seconds as i64)),
+        (crate::IncidentViewState::Stale { age_seconds, .. }, crate::Locale::Th) => format!("ข้อมูลเหตุขัดข้องในแคชมีอายุ {} วินาที โปรดตรวจสอบความใหม่ก่อนใช้งาน", locale.formatter().format_integer(*age_seconds as i64)),
+        (crate::IncidentViewState::ReadOnly { .. }, crate::Locale::En) => "This incident projection is explicitly read-only; no incident commands are exposed.".into(),
+        (crate::IncidentViewState::ReadOnly { .. }, crate::Locale::Th) => "ข้อมูลเหตุขัดข้องนี้อ่านอย่างเดียวและไม่แสดงคำสั่งเหตุขัดข้อง".into(),
+        (crate::IncidentViewState::Conflict { .. }, crate::Locale::En) => "A concurrent change requires a fresh authorized read. No retry or mutation is issued here.".into(),
+        (crate::IncidentViewState::Conflict { .. }, crate::Locale::Th) => "มีการเปลี่ยนแปลงพร้อมกัน จึงต้องอ่านข้อมูลที่ได้รับอนุญาตใหม่ หน้านี้จะไม่ลองซ้ำหรือแก้ไขข้อมูล".into(),
+        (crate::IncidentViewState::Offline { .. }, crate::Locale::En) => "The incident service is unavailable. Cached content, when present, remains read-only.".into(),
+        (crate::IncidentViewState::Offline { .. }, crate::Locale::Th) => "บริการเหตุขัดข้องไม่พร้อมใช้งาน เนื้อหาในแคชจะยังคงอ่านอย่างเดียว".into(),
+        (crate::IncidentViewState::Error { .. }, crate::Locale::En) => "The incident projection could not be loaded. Backend details are not rendered in this surface.".into(),
+        (crate::IncidentViewState::Error { .. }, crate::Locale::Th) => "ไม่สามารถโหลดข้อมูลเหตุขัดข้องได้ หน้านี้ไม่แสดงรายละเอียดจากแบ็กเอนด์".into(),
+        (crate::IncidentViewState::Ready { .. }, _) => String::new(),
     }
 }
 
@@ -534,8 +576,19 @@ fn visible_support_fields(
         .fields()
         .iter()
         .filter_map(|field| {
-            safe_display_value(field.value())
-                .map(|value| (support_field_label(field.key(), locale), value))
+            safe_display_value(field.value()).map(|value| {
+                let value = match field.key() {
+                    "created_at" | "updated_at" | "sla_due_at" => {
+                        locale.formatter().format_timestamp(&value)
+                    }
+                    "affected_user_count" | "projection_lag_seconds" => value
+                        .parse::<i64>()
+                        .map(|number| locale.formatter().format_integer(number))
+                        .unwrap_or(value),
+                    _ => value,
+                };
+                (support_field_label(field.key(), locale), value)
+            })
         })
         .collect()
 }
@@ -600,7 +653,7 @@ fn support_field_label(key: &str, locale: crate::Locale) -> String {
     }
 }
 
-fn incident_summary(item: &crate::IncidentListItem) -> String {
+fn incident_summary(item: &crate::IncidentListItem, locale: crate::Locale) -> String {
     let service_count = item
         .affected_services()
         .iter()
@@ -611,7 +664,16 @@ fn incident_summary(item: &crate::IncidentListItem) -> String {
         .iter()
         .filter(|value| safe_display_value(value).is_some())
         .count();
-    format!("{service_count} affected service(s) · {customer_count} affected customer account(s)")
+    let service_count = locale.formatter().format_integer(service_count as i64);
+    let customer_count = locale.formatter().format_integer(customer_count as i64);
+    match locale {
+        crate::Locale::En => format!(
+            "{service_count} affected service(s) · {customer_count} affected customer account(s)"
+        ),
+        crate::Locale::Th => format!(
+            "บริการที่ได้รับผลกระทบ {service_count} รายการ · บัญชีลูกค้าที่ได้รับผลกระทบ {customer_count} บัญชี"
+        ),
+    }
 }
 
 fn safe_values(values: &[String]) -> Vec<String> {

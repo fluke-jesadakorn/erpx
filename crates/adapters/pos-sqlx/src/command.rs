@@ -1,0 +1,937 @@
+use async_trait::async_trait;
+use erpx_cqrs_sqlx::{
+    AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
+    CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
+};
+use erpx_integration_contracts::IntegrationEvent;
+use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_pos::{
+    CommandFingerprint, CommandIdentity, PortError, PosRefund, RefundCommit, RefundId,
+    RefundStatus, RefundStoredCommit, RefundUnitOfWork, Sale, SaleCommit, SaleId, SaleStoredCommit,
+    SaleUnitOfWork, WriteRepository,
+};
+use serde_json::json;
+use sha2::{Digest, Sha256};
+use sqlx::{Postgres, Transaction};
+use uuid::Uuid;
+
+use crate::{
+    CONTEXT_NAME, EVENT_VERSION, REFUND_AGGREGATE_TYPE, REFUND_SNAPSHOT_EVENT_TYPE,
+    SALE_AGGREGATE_TYPE, SALE_SNAPSHOT_EVENT_TYPE,
+    projection::{
+        PosOutboxPayload, PosRefundSnapshot, PosSaleSnapshot, payment_method_name,
+        refund_status_name, sale_status_name, scope_key,
+    },
+    refund_partition, sale_partition,
+};
+
+#[derive(Debug, Clone)]
+pub struct PosWriteRepository {
+    store: CommandStore,
+}
+
+impl PosWriteRepository {
+    pub fn new(pool: WritePool) -> Self {
+        Self {
+            store: CommandStore::new(pool),
+        }
+    }
+}
+
+#[async_trait]
+impl WriteRepository for PosWriteRepository {
+    async fn load_sale(
+        &self,
+        authority_scope: &TenantScope,
+        sale_id: SaleId,
+    ) -> Result<Option<Sale>, PortError> {
+        let snapshot = self
+            .store
+            .load_snapshot::<Sale>(
+                CONTEXT_NAME,
+                &sale_partition(sale_id),
+                SALE_AGGREGATE_TYPE,
+                sale_aggregate_id(sale_id)?,
+            )
+            .await
+            .map_err(map_store_error)?;
+        let Some(snapshot) = snapshot else {
+            return Ok(None);
+        };
+        if snapshot.version != snapshot.state.version()
+            || snapshot.state.id() != sale_id
+            || snapshot.state.validate().is_err()
+        {
+            return Err(PortError::Internal);
+        }
+        if !authority_scope.contains(snapshot.state.scope()) {
+            return Err(PortError::Denied);
+        }
+        Ok(Some(snapshot.state))
+    }
+
+    async fn load_refund(
+        &self,
+        authority_scope: &TenantScope,
+        refund_id: RefundId,
+    ) -> Result<Option<PosRefund>, PortError> {
+        let snapshot = self
+            .store
+            .load_snapshot::<PosRefund>(
+                CONTEXT_NAME,
+                &refund_partition(refund_id),
+                REFUND_AGGREGATE_TYPE,
+                refund_aggregate_id(refund_id)?,
+            )
+            .await
+            .map_err(map_store_error)?;
+        let Some(snapshot) = snapshot else {
+            return Ok(None);
+        };
+        if snapshot.version != snapshot.state.version()
+            || snapshot.state.id() != refund_id
+            || snapshot.state.validate().is_err()
+        {
+            return Err(PortError::Internal);
+        }
+        if !authority_scope.contains(snapshot.state.scope()) {
+            return Err(PortError::Denied);
+        }
+        Ok(Some(snapshot.state))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct PosCommandAdapter {
+    store: CommandStore,
+}
+
+impl PosCommandAdapter {
+    pub fn new(pool: WritePool) -> Self {
+        Self {
+            store: CommandStore::new(pool),
+        }
+    }
+}
+
+#[async_trait]
+impl SaleUnitOfWork for PosCommandAdapter {
+    async fn find_sale_receipt(
+        &self,
+        identity: &CommandIdentity,
+    ) -> Result<Option<SaleStoredCommit>, PortError> {
+        let sale_id = fingerprint_sale_id(&identity.fingerprint).ok_or(PortError::Internal)?;
+        let receipt = self
+            .store
+            .find_receipt::<Sale>(
+                CONTEXT_NAME,
+                &sale_partition(sale_id),
+                &identity.idempotency_key,
+                identity.command_id,
+                request_hash(&identity.fingerprint)?,
+            )
+            .await
+            .map_err(map_store_error)?;
+        receipt.map(sale_receipt_to_stored).transpose()
+    }
+
+    async fn commit_sale(&self, request: SaleCommit) -> Result<SaleStoredCommit, PortError> {
+        validate_sale_commit(&request)?;
+        let sale_id = request.aggregate.id();
+        let partition = sale_partition(sale_id);
+        let occurred_at = request.aggregate.updated_at();
+        let command_id = request.identity.command_id;
+        let mut events = integration_events(
+            &request.integration_events,
+            command_id,
+            &partition,
+            request.causation_id,
+            occurred_at,
+        );
+        events.push(OutboxEventWrite {
+            event_id: deterministic_event_id(command_id, SALE_SNAPSHOT_EVENT_TYPE, events.len()),
+            event_type: SALE_SNAPSHOT_EVENT_TYPE.into(),
+            event_version: EVENT_VERSION,
+            partition: partition.clone(),
+            causation_id: request.causation_id,
+            occurred_at,
+            payload: PosOutboxPayload::SaleSnapshot(PosSaleSnapshot {
+                sale: (&request.aggregate).into(),
+            }),
+        });
+        let guard = SaleAtomicGuard {
+            aggregate: request.aggregate.clone(),
+        };
+        let aggregate = request.aggregate;
+        let command = AtomicCommand {
+            context: CONTEXT_NAME.into(),
+            partition,
+            command_id,
+            correlation_id: request.correlation_id,
+            idempotency_key: request.identity.idempotency_key,
+            request_hash: request_hash(&request.identity.fingerprint)?,
+            tenant_scope: aggregate.scope().clone(),
+            actor: request.actor,
+            audit_context: request.audit,
+            aggregate_type: SALE_AGGREGATE_TYPE.into(),
+            aggregate_id: sale_aggregate_id(sale_id)?,
+            expected_version: request.expected_version,
+            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
+            response: aggregate,
+            audit: AuditWrite {
+                audit_id: deterministic_uuid(command_id.as_uuid(), b"pos-sale-audit-v1"),
+                action: audit_action(&request.identity.fingerprint).into(),
+                occurred_at,
+                details: json!({
+                    "sale_id": sale_id.as_uuid(),
+                    "expected_version": request.expected_version,
+                }),
+            },
+            events,
+        };
+        let outcome = self
+            .store
+            .commit_guarded(command, &guard)
+            .await
+            .map_err(map_store_error)?;
+        let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
+        let receipt = match outcome {
+            AtomicCommandOutcome::Committed(receipt) | AtomicCommandOutcome::Replayed(receipt) => {
+                receipt
+            }
+        };
+        let mut stored = sale_receipt_to_stored(receipt)?;
+        stored.replayed = replayed;
+        Ok(stored)
+    }
+}
+
+#[async_trait]
+impl RefundUnitOfWork for PosCommandAdapter {
+    async fn find_refund_receipt(
+        &self,
+        identity: &CommandIdentity,
+    ) -> Result<Option<RefundStoredCommit>, PortError> {
+        let refund_id = fingerprint_refund_id(&identity.fingerprint).ok_or(PortError::Internal)?;
+        let receipt = self
+            .store
+            .find_receipt::<PosRefund>(
+                CONTEXT_NAME,
+                &refund_partition(refund_id),
+                &identity.idempotency_key,
+                identity.command_id,
+                request_hash(&identity.fingerprint)?,
+            )
+            .await
+            .map_err(map_store_error)?;
+        receipt.map(refund_receipt_to_stored).transpose()
+    }
+
+    async fn commit_refund(&self, request: RefundCommit) -> Result<RefundStoredCommit, PortError> {
+        validate_refund_commit(&request)?;
+        let refund_id = request.aggregate.id();
+        let partition = refund_partition(refund_id);
+        let occurred_at = request.aggregate.updated_at();
+        let command_id = request.identity.command_id;
+        let mut events = integration_events(
+            &request.integration_events,
+            command_id,
+            &partition,
+            request.causation_id,
+            occurred_at,
+        );
+        events.push(OutboxEventWrite {
+            event_id: deterministic_event_id(command_id, REFUND_SNAPSHOT_EVENT_TYPE, events.len()),
+            event_type: REFUND_SNAPSHOT_EVENT_TYPE.into(),
+            event_version: EVENT_VERSION,
+            partition: partition.clone(),
+            causation_id: request.causation_id,
+            occurred_at,
+            payload: PosOutboxPayload::RefundSnapshot(PosRefundSnapshot {
+                refund: (&request.aggregate).into(),
+            }),
+        });
+        let guard = RefundAtomicGuard {
+            aggregate: request.aggregate.clone(),
+        };
+        let aggregate = request.aggregate;
+        let original_sale_id = aggregate.sale_id();
+        let command = AtomicCommand {
+            context: CONTEXT_NAME.into(),
+            partition,
+            command_id,
+            correlation_id: request.correlation_id,
+            idempotency_key: request.identity.idempotency_key,
+            request_hash: request_hash(&request.identity.fingerprint)?,
+            tenant_scope: aggregate.scope().clone(),
+            actor: request.actor,
+            audit_context: request.audit,
+            aggregate_type: REFUND_AGGREGATE_TYPE.into(),
+            aggregate_id: refund_aggregate_id(refund_id)?,
+            expected_version: request.expected_version,
+            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
+            response: aggregate,
+            audit: AuditWrite {
+                audit_id: deterministic_uuid(command_id.as_uuid(), b"pos-refund-audit-v1"),
+                action: audit_action(&request.identity.fingerprint).into(),
+                occurred_at,
+                details: json!({
+                    "refund_id": refund_id.as_uuid(),
+                    "sale_id": original_sale_id.as_uuid(),
+                    "expected_version": request.expected_version,
+                }),
+            },
+            events,
+        };
+        let outcome = self
+            .store
+            .commit_guarded(command, &guard)
+            .await
+            .map_err(map_store_error)?;
+        let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
+        let receipt = match outcome {
+            AtomicCommandOutcome::Committed(receipt) | AtomicCommandOutcome::Replayed(receipt) => {
+                receipt
+            }
+        };
+        let mut stored = refund_receipt_to_stored(receipt)?;
+        stored.replayed = replayed;
+        Ok(stored)
+    }
+}
+
+fn integration_events(
+    events: &[erpx_integration_contracts::pos::Event],
+    command_id: CommandId,
+    partition: &str,
+    causation_id: Option<EventId>,
+    occurred_at: chrono::DateTime<chrono::Utc>,
+) -> Vec<OutboxEventWrite<PosOutboxPayload>> {
+    events
+        .iter()
+        .enumerate()
+        .map(|(index, event)| OutboxEventWrite {
+            event_id: deterministic_event_id(command_id, event.event_type(), index),
+            event_type: event.event_type().into(),
+            event_version: u32::from(event.schema_version()),
+            partition: partition.into(),
+            causation_id,
+            occurred_at,
+            payload: PosOutboxPayload::Integration(event.clone()),
+        })
+        .collect()
+}
+
+struct SaleAtomicGuard {
+    aggregate: Sale,
+}
+
+#[async_trait]
+impl AtomicCommandGuard for SaleAtomicGuard {
+    async fn validate(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<(), CqrsSqlxError> {
+        validate_guard_context(
+            SALE_AGGREGATE_TYPE,
+            self.aggregate.id().as_uuid(),
+            &sale_partition(self.aggregate.id()),
+            context,
+        )?;
+        let current: Option<i64> = sqlx::query_scalar(
+            "SELECT aggregate_version FROM erpx_pos_write.sale_guards
+             WHERE sale_id=$1 FOR UPDATE",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?;
+        validate_existence(context.expected_version, current, "POS sale")?;
+        let duplicate: Option<Uuid> = sqlx::query_scalar(
+            "SELECT sale_id FROM erpx_pos_write.sale_guards
+             WHERE scope_key=$1 AND receipt_code=$2 AND sale_id<>$3
+             ORDER BY sale_id LIMIT 1 FOR UPDATE",
+        )
+        .bind(guard_scope_key(self.aggregate.scope())?)
+        .bind(self.aggregate.receipt_code())
+        .bind(self.aggregate.id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?;
+        if duplicate.is_some() {
+            return Err(CqrsSqlxError::GuardRejected(
+                "POS receipt code already exists in scope",
+            ));
+        }
+        Ok(())
+    }
+
+    async fn apply(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &AppliedGuardContext<'_>,
+    ) -> Result<(), CqrsSqlxError> {
+        validate_applied_context(
+            SALE_AGGREGATE_TYPE,
+            self.aggregate.id().as_uuid(),
+            self.aggregate.version(),
+            &sale_partition(self.aggregate.id()),
+            context,
+        )?;
+        sqlx::query(
+            "INSERT INTO erpx_pos_write.sale_guards
+                (sale_id,scope_key,receipt_code,register_id,customer_id,currency,
+                 subtotal_minor,tax_minor,total_minor,paid_minor,sale_status,
+                 aggregate_version,created_at,updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+             ON CONFLICT (sale_id) DO UPDATE SET
+                scope_key=EXCLUDED.scope_key,receipt_code=EXCLUDED.receipt_code,
+                register_id=EXCLUDED.register_id,customer_id=EXCLUDED.customer_id,
+                currency=EXCLUDED.currency,subtotal_minor=EXCLUDED.subtotal_minor,
+                tax_minor=EXCLUDED.tax_minor,total_minor=EXCLUDED.total_minor,
+                paid_minor=EXCLUDED.paid_minor,sale_status=EXCLUDED.sale_status,
+                aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .bind(guard_scope_key(self.aggregate.scope())?)
+        .bind(self.aggregate.receipt_code())
+        .bind(self.aggregate.register_id().as_uuid())
+        .bind(self.aggregate.customer_id().map(|value| value.as_uuid()))
+        .bind(self.aggregate.currency())
+        .bind(self.aggregate.subtotal_minor())
+        .bind(self.aggregate.tax_minor())
+        .bind(self.aggregate.total_minor())
+        .bind(self.aggregate.paid_minor())
+        .bind(sale_status_name(self.aggregate.status()))
+        .bind(to_i64(self.aggregate.version())?)
+        .bind(self.aggregate.created_at())
+        .bind(self.aggregate.updated_at())
+        .execute(&mut **transaction)
+        .await?;
+        sqlx::query("DELETE FROM erpx_pos_write.sale_line_guards WHERE sale_id=$1")
+            .bind(self.aggregate.id().as_uuid())
+            .execute(&mut **transaction)
+            .await?;
+        for line in self.aggregate.lines() {
+            sqlx::query(
+                "INSERT INTO erpx_pos_write.sale_line_guards
+                    (sale_id,line_id,item_reference,description,quantity,unit_price_minor,tax_minor)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7)",
+            )
+            .bind(self.aggregate.id().as_uuid())
+            .bind(line.line_id.as_uuid())
+            .bind(&line.item_reference)
+            .bind(&line.description)
+            .bind(to_i64(line.quantity)?)
+            .bind(line.unit_price_minor)
+            .bind(line.tax_minor)
+            .execute(&mut **transaction)
+            .await?;
+        }
+        sqlx::query("DELETE FROM erpx_pos_write.payment_guards WHERE sale_id=$1")
+            .bind(self.aggregate.id().as_uuid())
+            .execute(&mut **transaction)
+            .await?;
+        for payment in self.aggregate.payments() {
+            sqlx::query(
+                "INSERT INTO erpx_pos_write.payment_guards
+                    (sale_id,payment_id,amount_minor,payment_method,received_at)
+                 VALUES ($1,$2,$3,$4,$5)",
+            )
+            .bind(self.aggregate.id().as_uuid())
+            .bind(payment.payment_id.as_uuid())
+            .bind(payment.amount_minor)
+            .bind(payment_method_name(payment.method))
+            .bind(payment.received_at)
+            .execute(&mut **transaction)
+            .await?;
+        }
+        Ok(())
+    }
+}
+
+struct RefundAtomicGuard {
+    aggregate: PosRefund,
+}
+
+#[async_trait]
+impl AtomicCommandGuard for RefundAtomicGuard {
+    async fn validate(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<(), CqrsSqlxError> {
+        validate_guard_context(
+            REFUND_AGGREGATE_TYPE,
+            self.aggregate.id().as_uuid(),
+            &refund_partition(self.aggregate.id()),
+            context,
+        )?;
+        let current: Option<i64> = sqlx::query_scalar(
+            "SELECT aggregate_version FROM erpx_pos_write.refund_guards
+             WHERE refund_id=$1 FOR UPDATE",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?;
+        validate_existence(context.expected_version, current, "POS refund")?;
+
+        // The sale row is the serialization fence for all concurrent refund
+        // requests against this sale. Requested/approved/posted refunds reserve
+        // quantity and amount; rejected/cancelled refunds release them.
+        let sale: Option<(String, String)> = sqlx::query_as(
+            "SELECT sale_status,currency FROM erpx_pos_write.sale_guards
+             WHERE sale_id=$1 FOR UPDATE",
+        )
+        .bind(self.aggregate.sale_id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?;
+        let Some((sale_status, sale_currency)) = sale else {
+            return Err(CqrsSqlxError::GuardRejected(
+                "POS refund sale guard is missing",
+            ));
+        };
+        if sale_status != "completed" || sale_currency != self.aggregate.currency() {
+            return Err(CqrsSqlxError::GuardRejected(
+                "POS refund requires the matching completed sale",
+            ));
+        }
+        let reserve_candidate = reserves_balance(self.aggregate.status());
+        for line in self.aggregate.lines() {
+            let sale_line: Option<(i64, i64)> = sqlx::query_as(
+                "SELECT quantity,(quantity * unit_price_minor) + tax_minor
+                 FROM erpx_pos_write.sale_line_guards
+                 WHERE sale_id=$1 AND line_id=$2",
+            )
+            .bind(self.aggregate.sale_id().as_uuid())
+            .bind(line.sale_line_id.as_uuid())
+            .fetch_optional(&mut **transaction)
+            .await?;
+            let Some((sale_quantity, sale_amount)) = sale_line else {
+                return Err(CqrsSqlxError::GuardRejected(
+                    "POS refund references an unknown sale line",
+                ));
+            };
+            let (reserved_quantity, reserved_amount): (i64, i64) = sqlx::query_as(
+                "SELECT COALESCE(SUM(line.quantity),0)::bigint,
+                        COALESCE(SUM(line.amount_minor),0)::bigint
+                 FROM erpx_pos_write.refund_line_guards line
+                 JOIN erpx_pos_write.refund_guards refund ON refund.refund_id=line.refund_id
+                 WHERE refund.sale_id=$1 AND line.sale_line_id=$2
+                   AND refund.refund_status IN ('requested','approved','posted')
+                   AND refund.refund_id<>$3",
+            )
+            .bind(self.aggregate.sale_id().as_uuid())
+            .bind(line.sale_line_id.as_uuid())
+            .bind(self.aggregate.id().as_uuid())
+            .fetch_one(&mut **transaction)
+            .await?;
+            let candidate_quantity = if reserve_candidate {
+                to_i64(line.quantity)?
+            } else {
+                0
+            };
+            let candidate_amount = if reserve_candidate {
+                line.amount_minor
+            } else {
+                0
+            };
+            if reserved_quantity
+                .checked_add(candidate_quantity)
+                .is_none_or(|value| value > sale_quantity)
+                || reserved_amount
+                    .checked_add(candidate_amount)
+                    .is_none_or(|value| value > sale_amount)
+            {
+                return Err(CqrsSqlxError::GuardRejected(
+                    "POS refund balance is exhausted",
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    async fn apply(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &AppliedGuardContext<'_>,
+    ) -> Result<(), CqrsSqlxError> {
+        validate_applied_context(
+            REFUND_AGGREGATE_TYPE,
+            self.aggregate.id().as_uuid(),
+            self.aggregate.version(),
+            &refund_partition(self.aggregate.id()),
+            context,
+        )?;
+        sqlx::query(
+            "INSERT INTO erpx_pos_write.refund_guards
+                (refund_id,scope_key,sale_id,currency,total_amount_minor,reason,
+                 requester_principal_ref,reviewer_principal_ref,refund_status,
+                 aggregate_version,requested_at,updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+             ON CONFLICT (refund_id) DO UPDATE SET
+                scope_key=EXCLUDED.scope_key,sale_id=EXCLUDED.sale_id,
+                currency=EXCLUDED.currency,total_amount_minor=EXCLUDED.total_amount_minor,
+                reason=EXCLUDED.reason,requester_principal_ref=EXCLUDED.requester_principal_ref,
+                reviewer_principal_ref=EXCLUDED.reviewer_principal_ref,
+                refund_status=EXCLUDED.refund_status,
+                aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .bind(guard_scope_key(self.aggregate.scope())?)
+        .bind(self.aggregate.sale_id().as_uuid())
+        .bind(self.aggregate.currency())
+        .bind(self.aggregate.total_amount_minor())
+        .bind(self.aggregate.reason())
+        .bind(self.aggregate.requester_principal_ref())
+        .bind(self.aggregate.reviewer_principal_ref())
+        .bind(refund_status_name(self.aggregate.status()))
+        .bind(to_i64(self.aggregate.version())?)
+        .bind(self.aggregate.requested_at())
+        .bind(self.aggregate.updated_at())
+        .execute(&mut **transaction)
+        .await?;
+        sqlx::query("DELETE FROM erpx_pos_write.refund_line_guards WHERE refund_id=$1")
+            .bind(self.aggregate.id().as_uuid())
+            .execute(&mut **transaction)
+            .await?;
+        for line in self.aggregate.lines() {
+            sqlx::query(
+                "INSERT INTO erpx_pos_write.refund_line_guards
+                    (refund_id,sale_line_id,quantity,amount_minor)
+                 VALUES ($1,$2,$3,$4)",
+            )
+            .bind(self.aggregate.id().as_uuid())
+            .bind(line.sale_line_id.as_uuid())
+            .bind(to_i64(line.quantity)?)
+            .bind(line.amount_minor)
+            .execute(&mut **transaction)
+            .await?;
+        }
+        Ok(())
+    }
+}
+
+fn validate_guard_context(
+    aggregate_type: &str,
+    aggregate_id: Uuid,
+    partition: &str,
+    context: &GuardCommandContext<'_>,
+) -> Result<(), CqrsSqlxError> {
+    if context.context != CONTEXT_NAME
+        || context.aggregate_type != aggregate_type
+        || context.aggregate_id.as_uuid() != aggregate_id
+        || context.partition != partition
+    {
+        return Err(CqrsSqlxError::GuardRejected(
+            "POS command guard context mismatch",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_applied_context(
+    aggregate_type: &str,
+    aggregate_id: Uuid,
+    version: u64,
+    partition: &str,
+    context: &AppliedGuardContext<'_>,
+) -> Result<(), CqrsSqlxError> {
+    if context.context != CONTEXT_NAME
+        || context.aggregate_type != aggregate_type
+        || context.aggregate_id.as_uuid() != aggregate_id
+        || context.partition != partition
+        || context.aggregate_version != version
+    {
+        return Err(CqrsSqlxError::GuardRejected(
+            "POS applied guard context mismatch",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_existence(
+    expected_version: Option<u64>,
+    current: Option<i64>,
+    aggregate: &'static str,
+) -> Result<(), CqrsSqlxError> {
+    match (expected_version, current) {
+        (None, Some(_)) => Err(CqrsSqlxError::GuardRejected(match aggregate {
+            "POS sale" => "POS sale already exists",
+            _ => "POS refund already exists",
+        })),
+        (Some(_), None) => Err(CqrsSqlxError::GuardRejected(match aggregate {
+            "POS sale" => "POS sale guard is missing",
+            _ => "POS refund guard is missing",
+        })),
+        _ => Ok(()),
+    }
+}
+
+fn validate_sale_commit(request: &SaleCommit) -> Result<(), PortError> {
+    if request.aggregate.validate().is_err()
+        || fingerprint_sale_id(&request.identity.fingerprint) != Some(request.aggregate.id())
+        || !request.authority_scope.contains(request.aggregate.scope())
+    {
+        return Err(PortError::Internal);
+    }
+    Ok(())
+}
+
+fn validate_refund_commit(request: &RefundCommit) -> Result<(), PortError> {
+    if request.aggregate.validate().is_err()
+        || fingerprint_refund_id(&request.identity.fingerprint) != Some(request.aggregate.id())
+        || !request.authority_scope.contains(request.aggregate.scope())
+        || matches!(
+            &request.identity.fingerprint,
+            CommandFingerprint::RequestRefund { sale_id, .. }
+                if *sale_id != request.aggregate.sale_id()
+        )
+    {
+        return Err(PortError::Internal);
+    }
+    Ok(())
+}
+
+fn fingerprint_sale_id(fingerprint: &CommandFingerprint) -> Option<SaleId> {
+    match fingerprint {
+        CommandFingerprint::CreateSale { sale_id, .. }
+        | CommandFingerprint::OpenSale { sale_id }
+        | CommandFingerprint::HoldSale { sale_id }
+        | CommandFingerprint::ResumeSale { sale_id }
+        | CommandFingerprint::RecordPayment { sale_id, .. }
+        | CommandFingerprint::CompleteSale { sale_id }
+        | CommandFingerprint::VoidSale { sale_id } => Some(*sale_id),
+        _ => None,
+    }
+}
+
+fn fingerprint_refund_id(fingerprint: &CommandFingerprint) -> Option<RefundId> {
+    match fingerprint {
+        CommandFingerprint::RequestRefund { refund_id, .. }
+        | CommandFingerprint::ApproveRefund { refund_id }
+        | CommandFingerprint::RejectRefund { refund_id }
+        | CommandFingerprint::PostRefund { refund_id }
+        | CommandFingerprint::CancelRefund { refund_id } => Some(*refund_id),
+        _ => None,
+    }
+}
+
+fn request_hash(fingerprint: &CommandFingerprint) -> Result<RequestHash, PortError> {
+    let bytes = serde_json::to_vec(fingerprint).map_err(|_| PortError::Internal)?;
+    let mut digest = Sha256::new();
+    digest.update(b"erpx.pos.command-fingerprint.v1\0");
+    digest.update(bytes);
+    Ok(RequestHash::new(digest.finalize().into()))
+}
+
+fn audit_action(fingerprint: &CommandFingerprint) -> &'static str {
+    match fingerprint {
+        CommandFingerprint::CreateSale { .. } => "pos.sale.create",
+        CommandFingerprint::OpenSale { .. } => "pos.sale.open",
+        CommandFingerprint::HoldSale { .. } => "pos.sale.hold",
+        CommandFingerprint::ResumeSale { .. } => "pos.sale.resume",
+        CommandFingerprint::RecordPayment { .. } => "pos.sale.record_payment",
+        CommandFingerprint::CompleteSale { .. } => "pos.sale.complete",
+        CommandFingerprint::VoidSale { .. } => "pos.sale.void",
+        CommandFingerprint::RequestRefund { .. } => "pos.refund.request",
+        CommandFingerprint::ApproveRefund { .. } => "pos.refund.approve",
+        CommandFingerprint::RejectRefund { .. } => "pos.refund.reject",
+        CommandFingerprint::PostRefund { .. } => "pos.refund.post",
+        CommandFingerprint::CancelRefund { .. } => "pos.refund.cancel",
+    }
+}
+
+fn sale_receipt_to_stored(
+    receipt: erpx_cqrs::CommandReceipt<Sale>,
+) -> Result<SaleStoredCommit, PortError> {
+    if receipt.aggregate.context != CONTEXT_NAME
+        || receipt.aggregate.aggregate_type != SALE_AGGREGATE_TYPE
+        || receipt.aggregate.aggregate_id.as_uuid() != receipt.response.id().as_uuid()
+        || receipt.aggregate.version != receipt.response.version()
+        || receipt.response.validate().is_err()
+    {
+        return Err(PortError::Internal);
+    }
+    Ok(SaleStoredCommit {
+        command_id: receipt.command_id,
+        correlation_id: receipt.correlation_id,
+        aggregate: receipt.response,
+        committed_events: receipt.committed_events,
+        committed_at: receipt.committed_at,
+        replayed: receipt.replayed,
+    })
+}
+
+fn refund_receipt_to_stored(
+    receipt: erpx_cqrs::CommandReceipt<PosRefund>,
+) -> Result<RefundStoredCommit, PortError> {
+    if receipt.aggregate.context != CONTEXT_NAME
+        || receipt.aggregate.aggregate_type != REFUND_AGGREGATE_TYPE
+        || receipt.aggregate.aggregate_id.as_uuid() != receipt.response.id().as_uuid()
+        || receipt.aggregate.version != receipt.response.version()
+        || receipt.response.validate().is_err()
+    {
+        return Err(PortError::Internal);
+    }
+    Ok(RefundStoredCommit {
+        command_id: receipt.command_id,
+        correlation_id: receipt.correlation_id,
+        aggregate: receipt.response,
+        committed_events: receipt.committed_events,
+        committed_at: receipt.committed_at,
+        replayed: receipt.replayed,
+    })
+}
+
+fn sale_aggregate_id(sale_id: SaleId) -> Result<AggregateId, PortError> {
+    AggregateId::try_from_uuid(sale_id.as_uuid()).map_err(|_| PortError::Internal)
+}
+
+fn refund_aggregate_id(refund_id: RefundId) -> Result<AggregateId, PortError> {
+    AggregateId::try_from_uuid(refund_id.as_uuid()).map_err(|_| PortError::Internal)
+}
+
+fn guard_scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+    scope_key(scope).map_err(|_| CqrsSqlxError::GuardRejected("POS scope is invalid"))
+}
+
+const fn reserves_balance(status: RefundStatus) -> bool {
+    matches!(
+        status,
+        RefundStatus::Requested | RefundStatus::Approved | RefundStatus::Posted
+    )
+}
+
+fn deterministic_event_id(command_id: CommandId, event_type: &str, index: usize) -> EventId {
+    let mut label = event_type.as_bytes().to_vec();
+    label.extend_from_slice(&index.to_be_bytes());
+    EventId::try_from_uuid(deterministic_uuid(command_id.as_uuid(), &label))
+        .expect("a digest-derived POS event ID is non-nil")
+}
+
+fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
+    let mut digest = Sha256::new();
+    digest.update(seed.as_bytes());
+    digest.update(label);
+    let digest = digest.finalize();
+    let mut bytes = [0_u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    bytes[6] = (bytes[6] & 0x0f) | 0x50;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(bytes)
+}
+
+fn to_i64(value: u64) -> Result<i64, CqrsSqlxError> {
+    i64::try_from(value).map_err(|_| CqrsSqlxError::GuardRejected("POS number is too large"))
+}
+
+fn map_store_error(error: CqrsSqlxError) -> PortError {
+    match error {
+        CqrsSqlxError::IdempotencyConflict | CqrsSqlxError::CommandReplayConflict => {
+            PortError::IdempotencyConflict
+        }
+        CqrsSqlxError::OptimisticConcurrency {
+            expected: Some(expected),
+            actual,
+            ..
+        } => PortError::Conflict {
+            expected,
+            actual: actual.unwrap_or(0),
+        },
+        CqrsSqlxError::GuardRejected("POS refund balance is exhausted") => {
+            PortError::RefundBalanceConflict
+        }
+        CqrsSqlxError::GuardRejected(_) => PortError::Conflict {
+            expected: 0,
+            actual: 0,
+        },
+        CqrsSqlxError::Database(_) => PortError::Unavailable,
+        _ => PortError::Internal,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use erpx_pos::{Payment, PaymentId, PaymentMethod, RegisterId, SaleLine, SaleLineId};
+
+    use super::*;
+
+    fn create_fingerprint(receipt_code: &str) -> CommandFingerprint {
+        CommandFingerprint::CreateSale {
+            sale_id: SaleId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
+            scope: TenantScope::Company {
+                holding_id: Uuid::from_u128(2),
+                company_id: Uuid::from_u128(3),
+            },
+            receipt_code: receipt_code.into(),
+            register_id: RegisterId::try_from_uuid(Uuid::from_u128(4)).unwrap(),
+            customer_id: None,
+            currency: "THB".into(),
+            lines: vec![SaleLine {
+                line_id: SaleLineId::try_from_uuid(Uuid::from_u128(5)).unwrap(),
+                item_reference: "SKU-1".into(),
+                description: "Item".into(),
+                quantity: 1,
+                unit_price_minor: 100,
+                tax_minor: 7,
+            }],
+        }
+    }
+
+    #[test]
+    fn fingerprint_hash_is_stable_and_payload_sensitive() {
+        assert_eq!(
+            request_hash(&create_fingerprint("R-1")).unwrap(),
+            request_hash(&create_fingerprint("R-1")).unwrap()
+        );
+        assert_ne!(
+            request_hash(&create_fingerprint("R-1")).unwrap(),
+            request_hash(&create_fingerprint("R-2")).unwrap()
+        );
+    }
+
+    #[test]
+    fn aggregate_fingerprints_cannot_cross_receipt_partitions() {
+        assert!(fingerprint_sale_id(&create_fingerprint("R-1")).is_some());
+        assert!(fingerprint_refund_id(&create_fingerprint("R-1")).is_none());
+        let refund = CommandFingerprint::ApproveRefund {
+            refund_id: RefundId::try_from_uuid(Uuid::from_u128(9)).unwrap(),
+        };
+        assert!(fingerprint_sale_id(&refund).is_none());
+        assert!(fingerprint_refund_id(&refund).is_some());
+    }
+
+    #[test]
+    fn refund_balance_reservation_states_are_explicit() {
+        assert!(reserves_balance(RefundStatus::Requested));
+        assert!(reserves_balance(RefundStatus::Approved));
+        assert!(reserves_balance(RefundStatus::Posted));
+        assert!(!reserves_balance(RefundStatus::Rejected));
+        assert!(!reserves_balance(RefundStatus::Cancelled));
+    }
+
+    #[test]
+    fn audit_actions_and_payment_names_are_secret_free() {
+        assert_eq!(
+            audit_action(&CommandFingerprint::RecordPayment {
+                sale_id: SaleId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
+                payment: Payment {
+                    payment_id: PaymentId::try_from_uuid(Uuid::from_u128(2)).unwrap(),
+                    amount_minor: 100,
+                    method: PaymentMethod::Card,
+                    received_at: chrono::Utc::now(),
+                },
+            }),
+            "pos.sale.record_payment"
+        );
+        assert_eq!(payment_method_name(PaymentMethod::Card), "card");
+    }
+
+    #[test]
+    fn cumulative_refund_guard_uses_sale_row_as_serialization_fence() {
+        let source = include_str!("command.rs");
+        assert!(source.contains("WHERE sale_id=$1 FOR UPDATE"));
+        assert!(source.contains("refund.refund_status IN ('requested','approved','posted')"));
+        assert!(source.contains("POS refund balance is exhausted"));
+    }
+}

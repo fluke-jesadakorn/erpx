@@ -274,7 +274,7 @@ impl SqlxMarketingDeliverySchedulerRepository {
             Some(row) => row.try_get("id")?,
             None => {
                 let row = sqlx::query(
-                    "SELECT id, request_hash
+                    "SELECT id
                      FROM erpx_control.marketing_delivery_scheduler_jobs
                      WHERE job_key=$1",
                 )
@@ -282,11 +282,15 @@ impl SqlxMarketingDeliverySchedulerRepository {
                 .fetch_optional(&self.pool)
                 .await?
                 .ok_or(MarketingDeliverySchedulerError::NotFound)?;
-                let existing_hash: String = row.try_get("request_hash")?;
-                if existing_hash != request_hash {
+                let existing = self.get(row.try_get("id")?).await?;
+                // `available_at` is the initial due time, not recurring-job
+                // identity. Once the global job exists its durable state owns
+                // subsequent cadence; process restarts may safely ensure the
+                // same key and policy without rewriting that state.
+                if existing.policy != request.policy {
                     return Err(MarketingDeliverySchedulerError::RequestConflict);
                 }
-                row.try_get("id")?
+                return Ok(existing);
             }
         };
         self.get(job_id).await

@@ -22,7 +22,7 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
 
-use super::sync::{ConnectorScope, ImmutableIdentityLink};
+use super::sync::{ConnectorScope, ImmutableIdentityLink, directory_holding_id};
 
 pub const DIRECTORY_RBAC_CONTRACT_VERSION: u16 = 1;
 pub const DIRECTORY_RBAC_REVOCATION_SLA: Duration = Duration::minutes(5);
@@ -2262,6 +2262,11 @@ fn scope_key(scope: &ConnectorScope) -> String {
     match scope {
         ConnectorScope::Platform => "platform".to_owned(),
         ConnectorScope::Holding(holding_id) => format!("holding:{holding_id}"),
+        ConnectorScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => format!("branch:{holding_id}:{company_id}:{branch_id}"),
     }
 }
 
@@ -2340,9 +2345,7 @@ fn parse_scope_key(value: &str) -> Result<ConnectorScope, DirectoryRbacError> {
         .ok_or(DirectoryRbacError::InvalidReference {
             field: "connector_scope",
         })?;
-    let holding_id = holding_ref
-        .parse::<Uuid>()
-        .unwrap_or_else(|_| Uuid::new_v5(&Uuid::NAMESPACE_URL, holding_ref.as_bytes()));
+    let holding_id = directory_holding_id(holding_ref);
     validate_scope(&ConnectorScope::Holding(holding_id))?;
     Ok(ConnectorScope::Holding(holding_id))
 }
@@ -2891,7 +2894,7 @@ mod tests {
         assert!(parse_scope_key("holding:abc\n").is_err());
         assert_eq!(
             parse_scope_key("holding:legacy-ref").expect("opaque holding scope"),
-            ConnectorScope::Holding(Uuid::new_v5(&Uuid::NAMESPACE_URL, b"legacy-ref"))
+            ConnectorScope::Holding(directory_holding_id("legacy-ref"))
         );
     }
 }

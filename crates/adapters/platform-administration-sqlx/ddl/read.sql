@@ -1,0 +1,2 @@
+-- Canonical composition: control-read migrations 0015 then 0016.
+-- See CONTROL_READ_DDL; duplicated DDL is intentionally not maintained here.

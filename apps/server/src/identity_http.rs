@@ -1,12 +1,19 @@
+use std::collections::BTreeMap;
 use std::{collections::HashMap, sync::Arc};
 
 use chrono::{Duration, Utc};
+use erpx_identity::development_access::{
+    DEVELOPMENT_CLUSTER_MARKER, DEVELOPMENT_CONTEXT_HEADER, DEVELOPMENT_CONTROLLER_PRINCIPAL,
+    DevelopmentControllerRoleConfig, DevelopmentPersona,
+    development_controller_role_config_from_env, require_development_gates,
+};
 use erpx_identity::directory::sync::{ImmutableIdentityLink, immutable_identity_database_key};
 use erpx_identity::{
     AccessTokenClaims, BrowserAssertionRequest, BrowserAuthenticationCeremonyStart,
     BrowserRegistrationCeremonyStart, BrowserRegistrationRequest, IdentityError,
-    IdentityStoreError, PasskeyCeremonyService, RateLimitDecision, RateLimitPolicy,
-    WebAuthnProvider,
+    IdentityStoreError, LiveDirectoryError, PasskeyCeremonyService, RateLimitDecision,
+    RateLimitPolicy, RoleOption, WebAuthnProvider, authenticate_directory_user_with_runtime,
+    directory_authority_key,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -123,7 +130,10 @@ struct ResetPasswordWithRecoverySessionRequest {
 
 #[derive(Debug, Deserialize)]
 struct DirectoryLoginRequest {
-    connector_id: Uuid,
+    #[serde(default)]
+    connector_id: Option<Uuid>,
+    #[serde(default)]
+    hostname: Option<String>,
     username: String,
     password: String,
     device_label: String,
@@ -132,6 +142,26 @@ struct DirectoryLoginRequest {
 #[derive(Debug, Serialize)]
 struct DeviceRevokedResponse {
     revoked: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct SelectRoleRequest {
+    session_id: Uuid,
+    selection_id: String,
+}
+
+#[derive(Debug, Serialize)]
+struct RoleOptionsResponse {
+    options: Vec<RoleOption>,
+}
+
+#[derive(Debug, Serialize)]
+struct RoleSelectionResponse {
+    session_id: Uuid,
+    active_role: RoleOption,
+    access_token: String,
+    access_expires_at: String,
+    authorization_context_version: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -147,6 +177,7 @@ struct FinishPasskeyRegistrationRequest {
 #[derive(Debug, Deserialize)]
 struct BeginPasskeyAuthenticationRequest {
     principal_ref: Option<String>,
+    #[serde(default)]
     credential_id: Vec<u8>,
 }
 
@@ -344,11 +375,15 @@ where
     {
         return response;
     }
-    let credential = match auth
-        .identity
-        .find_passkey(principal_ref, &input.credential_id)
-        .await
-    {
+    let credential = match if input.credential_id.is_empty() {
+        auth.identity
+            .most_recent_active_passkey(principal_ref)
+            .await
+    } else {
+        auth.identity
+            .find_passkey(principal_ref, &input.credential_id)
+            .await
+    } {
         Ok(Some(credential)) => credential,
         Ok(None) => return json_response("403 Forbidden", "invalid_credentials"),
         Err(_) => return json_response("503 Service Unavailable", "identity_unavailable"),
@@ -498,6 +533,11 @@ pub(crate) async fn handle(
     body: &[u8],
     auth: Arc<AuthContext>,
 ) -> Result<Option<IdentityHttpResponse>, Box<dyn std::error::Error + Send + Sync>> {
+    if is_development_path(path) {
+        return Ok(Some(
+            handle_development(method, path, headers, body, auth).await,
+        ));
+    }
     if is_passkey_path(path) {
         let Some(service) = auth.passkeys.clone() else {
             return Ok(Some(json_response(
@@ -514,6 +554,8 @@ pub(crate) async fn handle(
     let response = match (method, path) {
         ("POST", "/auth/login") => login(body, auth).await,
         ("POST", "/auth/directory-login") => directory_login(body, auth).await,
+        ("GET", "/auth/role-options") => role_options(headers, auth).await,
+        ("POST", "/auth/role-selection") => select_role(headers, body, auth).await,
         ("GET", "/auth/devices") => list_devices(headers, auth).await,
         ("POST", path) if device_revoke_path(path).is_some() => {
             revoke_device(path, headers, auth).await
@@ -542,6 +584,8 @@ pub(crate) async fn handle(
         | ("GET", "/auth/recovery-sessions/initiate")
         | ("GET", "/auth/recovery-sessions/consume")
         | ("GET", "/auth/recovery-sessions/reset-password")
+        | ("POST", "/auth/role-options")
+        | ("GET", "/auth/role-selection")
         | ("POST", "/auth/devices")
         | ("GET", "/auth/login") => method_not_allowed(),
         ("GET", path) if device_revoke_path(path).is_some() => method_not_allowed(),
@@ -550,11 +594,425 @@ pub(crate) async fn handle(
     Ok(Some(response))
 }
 
+#[derive(Debug, Deserialize)]
+struct DevelopmentControllerLoginRequest {
+    password: String,
+    device_label: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct BeginDevelopmentContextRequest {
+    persona_key: String,
+    feature: String,
+    reason: String,
+}
+
+#[derive(Debug, Serialize)]
+struct DevelopmentStatusResponse {
+    enabled: bool,
+    gates: Vec<&'static str>,
+    cluster_marker: &'static str,
+    controller_principal: &'static str,
+    context_expires_at: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct DevelopmentPersonaResponse {
+    persona_key: String,
+    principal_ref: String,
+    directory_username: String,
+    tenant_id: Option<String>,
+    organization_scope: String,
+    role_key: String,
+    feature: String,
+    permissions: Vec<String>,
+    entitled: bool,
+    directory_enabled: bool,
+    requires_totp_for_high_risk: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct DevelopmentContextResponse {
+    context_id: String,
+    persona: DevelopmentPersonaResponse,
+    reason: String,
+    correlation_id: String,
+    issued_at: String,
+    expires_at: String,
+    active: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    context_token: Option<String>,
+}
+
+fn is_development_path(path: &str) -> bool {
+    matches!(
+        path,
+        "/dev-access/login"
+            | "/dev-access/status"
+            | "/dev-access/personas"
+            | "/dev-access/features"
+            | "/dev-access/context/begin"
+            | "/dev-access/context"
+            | "/dev-access/context/end"
+    )
+}
+
+async fn handle_development(
+    method: &str,
+    path: &str,
+    headers: &HashMap<String, String>,
+    body: &[u8],
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    let gates = development_gates();
+    if gates.is_err() {
+        // Do not advertise the existence of a development-only route unless
+        // the local or explicitly configured tailnet gates are satisfied.
+        return json_response("404 Not Found", "not_found");
+    }
+    match (method, path) {
+        ("POST", "/dev-access/login") => development_controller_login(body, auth).await,
+        ("GET", "/dev-access/status") => development_status(headers, auth).await,
+        ("GET", "/dev-access/personas") => development_personas(headers, auth).await,
+        ("GET", "/dev-access/features") => development_features(headers, auth).await,
+        ("POST", "/dev-access/context/begin") => {
+            begin_development_context(headers, body, auth).await
+        }
+        ("GET", "/dev-access/context") => get_development_context(headers, auth).await,
+        ("POST", "/dev-access/context/end") => end_development_context(headers, body, auth).await,
+        _ => method_not_allowed(),
+    }
+}
+
+pub(crate) fn development_gates() -> Result<(), String> {
+    let environment = std::env::vars().collect::<BTreeMap<_, _>>();
+    let http_addr = environment
+        .get("ERPX_HTTP_ADDR")
+        .map_or("127.0.0.1:50052", String::as_str);
+    let database_urls = [
+        "ERPX_CONTROL_WRITE_DATABASE_URL",
+        "ERPX_CONTROL_READ_DATABASE_URL",
+        "ERPX_TENANT_ADMIN_DATABASE_URL",
+    ]
+    .into_iter()
+    .filter_map(|key| environment.get(key).cloned())
+    .collect::<Vec<_>>();
+    require_development_gates(
+        cfg!(debug_assertions),
+        http_addr,
+        &database_urls,
+        &environment,
+    )
+    .map(|_| ())
+    .map_err(|error| error.to_string())
+}
+
+pub(crate) fn development_controller_role_config()
+-> Result<Option<DevelopmentControllerRoleConfig>, String> {
+    let environment = std::env::vars().collect::<BTreeMap<_, _>>();
+    let http_addr = environment
+        .get("ERPX_HTTP_ADDR")
+        .map_or("127.0.0.1:50052", String::as_str);
+    let database_urls = [
+        "ERPX_CONTROL_WRITE_DATABASE_URL",
+        "ERPX_CONTROL_READ_DATABASE_URL",
+        "ERPX_TENANT_ADMIN_DATABASE_URL",
+    ]
+    .into_iter()
+    .filter_map(|key| environment.get(key).cloned())
+    .collect::<Vec<_>>();
+    development_controller_role_config_from_env(
+        cfg!(debug_assertions),
+        http_addr,
+        &database_urls,
+        &environment,
+    )
+    .map_err(|error| error.to_string())
+}
+
+async fn development_controller_login(body: &[u8], auth: Arc<AuthContext>) -> IdentityHttpResponse {
+    let input = match serde_json::from_slice::<DevelopmentControllerLoginRequest>(body) {
+        Ok(input) if !input.password.is_empty() && !input.device_label.trim().is_empty() => input,
+        _ => return json_response("400 Bad Request", "invalid_identity_request"),
+    };
+    match auth
+        .identity
+        .login(
+            &auth.signer,
+            DEVELOPMENT_CONTROLLER_PRINCIPAL,
+            &input.password,
+            &input.device_label,
+            Utc::now(),
+        )
+        .await
+    {
+        Ok(session) => response("200 OK", &super::issued_session_body(&session)),
+        Err(IdentityStoreError::InvalidCredentials | IdentityStoreError::PrincipalInactive) => {
+            json_response("401 Unauthorized", "authentication_failed")
+        }
+        Err(_) => json_response("503 Service Unavailable", "identity_unavailable"),
+    }
+}
+
+async fn development_controller_claims(
+    headers: &HashMap<String, String>,
+    auth: &AuthContext,
+) -> Result<AccessTokenClaims, IdentityHttpResponse> {
+    let token = headers
+        .get("x-erpx-access-token")
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| json_response("401 Unauthorized", "authentication_required"))?;
+    let claims = auth
+        .identity
+        .authorize_access_token(&auth.signer, token, Utc::now())
+        .await
+        .map_err(|_| json_response("401 Unauthorized", "authentication_failed"))?;
+    let actor = headers
+        .get("x-erpx-actor")
+        .map(String::as_str)
+        .unwrap_or_default();
+    let session = headers
+        .get("x-erpx-session")
+        .map(String::as_str)
+        .unwrap_or_default();
+    if claims.principal_ref != DEVELOPMENT_CONTROLLER_PRINCIPAL
+        || actor != DEVELOPMENT_CONTROLLER_PRINCIPAL
+        || session != claims.session_id.to_string()
+    {
+        return Err(json_response(
+            "403 Forbidden",
+            "development_controller_required",
+        ));
+    }
+    Ok(claims)
+}
+
+async fn development_status(
+    headers: &HashMap<String, String>,
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    let context_expires_at = match development_controller_claims(headers, &auth).await {
+        Ok(claims) => auth
+            .identity
+            .get_development_persona_context(
+                headers
+                    .get(DEVELOPMENT_CONTEXT_HEADER)
+                    .map(String::as_str)
+                    .unwrap_or_default(),
+                Utc::now(),
+            )
+            .await
+            .ok()
+            .filter(|context| context.controller_session_id == claims.session_id)
+            .map(|context| context.expires_at.to_rfc3339()),
+        Err(_) => None,
+    };
+    response(
+        "200 OK",
+        &DevelopmentStatusResponse {
+            enabled: true,
+            gates: Vec::new(),
+            cluster_marker: DEVELOPMENT_CLUSTER_MARKER,
+            controller_principal: DEVELOPMENT_CONTROLLER_PRINCIPAL,
+            context_expires_at,
+        },
+    )
+}
+
+async fn development_personas(
+    headers: &HashMap<String, String>,
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    if let Err(error) = development_controller_claims(headers, &auth).await {
+        return error;
+    }
+    match auth.identity.list_development_personas(None).await {
+        Ok(personas) => response(
+            "200 OK",
+            &personas
+                .iter()
+                .map(development_persona_response)
+                .collect::<Vec<_>>(),
+        ),
+        Err(_) => json_response("503 Service Unavailable", "development_catalog_unavailable"),
+    }
+}
+
+async fn development_features(
+    headers: &HashMap<String, String>,
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    if let Err(error) = development_controller_claims(headers, &auth).await {
+        return error;
+    }
+    let features = erpx_identity::permission_catalog()
+        .into_iter()
+        .map(|entry| {
+            serde_json::json!({
+                "role_key": entry.role_key,
+                "target_scope": entry.target_scope.as_str(),
+                "permissions": entry.permissions,
+                "entitlement": "resolved_by_selected_tenant"
+            })
+        })
+        .collect::<Vec<_>>();
+    response("200 OK", &features)
+}
+
+async fn begin_development_context(
+    headers: &HashMap<String, String>,
+    body: &[u8],
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    let claims = match development_controller_claims(headers, &auth).await {
+        Ok(claims) => claims,
+        Err(error) => return error,
+    };
+    let input = match serde_json::from_slice::<BeginDevelopmentContextRequest>(body) {
+        Ok(input) => input,
+        Err(_) => return json_response("400 Bad Request", "invalid_json"),
+    };
+    let device_id = match auth
+        .identity
+        .active_session_device_id(claims.session_id, Utc::now())
+        .await
+    {
+        Ok(device_id) => device_id,
+        Err(IdentityStoreError::SessionInactive) => {
+            return json_response("401 Unauthorized", "session_inactive");
+        }
+        Err(_) => {
+            return json_response("503 Service Unavailable", "development_context_unavailable");
+        }
+    };
+    let token = erpx_identity::issue_context_token();
+    match auth
+        .identity
+        .begin_development_persona_context(
+            &token,
+            DEVELOPMENT_CONTROLLER_PRINCIPAL,
+            claims.session_id,
+            device_id,
+            &input.persona_key,
+            &input.feature,
+            &input.reason,
+            Utc::now(),
+        )
+        .await
+    {
+        Ok(context) => response(
+            "200 OK",
+            &DevelopmentContextResponse {
+                context_id: context.id.to_string(),
+                persona: development_persona_response(&context.persona),
+                reason: context.reason,
+                correlation_id: context.correlation_id.to_string(),
+                issued_at: context.issued_at.to_rfc3339(),
+                expires_at: context.expires_at.to_rfc3339(),
+                active: true,
+                context_token: Some(token),
+            },
+        ),
+        Err(IdentityStoreError::InvalidRecord(_)) => {
+            json_response("403 Forbidden", "development_persona_denied")
+        }
+        Err(_) => json_response("503 Service Unavailable", "development_context_unavailable"),
+    }
+}
+
+async fn get_development_context(
+    headers: &HashMap<String, String>,
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    let claims = match development_controller_claims(headers, &auth).await {
+        Ok(claims) => claims,
+        Err(error) => return error,
+    };
+    let Some(token) = headers.get(DEVELOPMENT_CONTEXT_HEADER) else {
+        return json_response("404 Not Found", "development_context_missing");
+    };
+    match auth
+        .identity
+        .get_development_persona_context(token, Utc::now())
+        .await
+    {
+        Ok(context) if context.controller_session_id == claims.session_id => response(
+            "200 OK",
+            &DevelopmentContextResponse {
+                context_id: context.id.to_string(),
+                persona: development_persona_response(&context.persona),
+                reason: context.reason,
+                correlation_id: context.correlation_id.to_string(),
+                issued_at: context.issued_at.to_rfc3339(),
+                expires_at: context.expires_at.to_rfc3339(),
+                active: true,
+                context_token: None,
+            },
+        ),
+        _ => json_response("404 Not Found", "development_context_inactive"),
+    }
+}
+
+async fn end_development_context(
+    headers: &HashMap<String, String>,
+    body: &[u8],
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    let claims = match development_controller_claims(headers, &auth).await {
+        Ok(claims) => claims,
+        Err(error) => return error,
+    };
+    let Some(token) = headers.get(DEVELOPMENT_CONTEXT_HEADER) else {
+        return json_response("404 Not Found", "development_context_missing");
+    };
+    let reason = serde_json::from_slice::<serde_json::Value>(body)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("reason")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        })
+        .unwrap_or_else(|| "controller_logout".into());
+    let ended = auth
+        .identity
+        .end_development_persona_context(token, &reason, Utc::now())
+        .await
+        .unwrap_or(false);
+    let _ = auth
+        .identity
+        .revoke_development_contexts_for_session(
+            claims.session_id,
+            "controller_context_end",
+            Utc::now(),
+        )
+        .await;
+    response("200 OK", &serde_json::json!({ "ended": ended }))
+}
+
+fn development_persona_response(persona: &DevelopmentPersona) -> DevelopmentPersonaResponse {
+    DevelopmentPersonaResponse {
+        persona_key: persona.persona_key.clone(),
+        principal_ref: persona.principal_ref.clone(),
+        directory_username: persona.directory_username.clone(),
+        tenant_id: persona.tenant_id.clone(),
+        organization_scope: persona.organization_scope.clone(),
+        role_key: persona.role_key.clone(),
+        feature: persona.feature.clone(),
+        permissions: persona.permissions.clone(),
+        entitled: persona.entitled,
+        directory_enabled: persona.directory_enabled,
+        requires_totp_for_high_risk: persona.requires_totp_for_high_risk,
+    }
+}
+
 fn is_identity_path(path: &str) -> bool {
     matches!(
         path,
         "/auth/login"
             | "/auth/directory-login"
+            | "/auth/role-options"
+            | "/auth/role-selection"
             | "/auth/devices"
             | "/auth/recovery-codes"
             | "/auth/recovery-codes/consume"
@@ -564,6 +1022,77 @@ fn is_identity_path(path: &str) -> bool {
             | "/auth/recovery-sessions/consume"
             | "/auth/recovery-sessions/reset-password"
     ) || device_revoke_path(path).is_some()
+}
+
+async fn role_options(
+    headers: &HashMap<String, String>,
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    let claims = match authenticate(headers, &auth).await {
+        Ok(claims) => claims,
+        Err(response) => return response,
+    };
+    match auth
+        .identity
+        .role_options(&claims.principal_ref, Utc::now())
+        .await
+    {
+        Ok(options) => response("200 OK", &RoleOptionsResponse { options }),
+        Err(_) => json_response("503 Service Unavailable", "role_options_unavailable"),
+    }
+}
+
+async fn select_role(
+    headers: &HashMap<String, String>,
+    body: &[u8],
+    auth: Arc<AuthContext>,
+) -> IdentityHttpResponse {
+    let claims = match authenticate(headers, &auth).await {
+        Ok(claims) => claims,
+        Err(response) => return response,
+    };
+    let input = match serde_json::from_slice::<SelectRoleRequest>(body) {
+        Ok(input)
+            if input.session_id == claims.session_id
+                && !input.selection_id.trim().is_empty()
+                && input.selection_id.len() <= 512 =>
+        {
+            input
+        }
+        _ => return json_response("400 Bad Request", "invalid_role_selection"),
+    };
+    match auth
+        .identity
+        .select_active_role(
+            &auth.signer,
+            &claims.principal_ref,
+            input.session_id,
+            &input.selection_id,
+            Utc::now(),
+        )
+        .await
+    {
+        Ok((active_role, token)) => response(
+            "200 OK",
+            &RoleSelectionResponse {
+                session_id: claims.session_id,
+                active_role,
+                access_token: token.token().to_owned(),
+                access_expires_at: token.claims().expires_at.to_rfc3339(),
+                authorization_context_version: token
+                    .claims()
+                    .authorization_context_version
+                    .expect("selected-role tokens always carry a context version"),
+            },
+        ),
+        Err(IdentityStoreError::RoleSelectionInvalid) => {
+            json_response("403 Forbidden", "role_selection_invalid")
+        }
+        Err(IdentityStoreError::SessionInactive) => {
+            json_response("401 Unauthorized", "session_inactive")
+        }
+        Err(_) => json_response("503 Service Unavailable", "role_selection_unavailable"),
+    }
 }
 
 fn device_revoke_path(path: &str) -> Option<Uuid> {
@@ -583,6 +1112,12 @@ async fn login(body: &[u8], auth: Arc<AuthContext>) -> IdentityHttpResponse {
     };
     if input.principal_ref.trim().is_empty() {
         return json_response("400 Bad Request", "invalid_identity_request");
+    }
+    if input.principal_ref == DEVELOPMENT_CONTROLLER_PRINCIPAL {
+        // The controller is reachable only through the development-gated
+        // route. Never let a retained local credential make it usable through
+        // the ordinary production-shaped login surface.
+        return json_response("401 Unauthorized", "authentication_failed");
     }
     if let Err(response) = admit(&auth, "login", &input.principal_ref, LOGIN_RATE_LIMIT).await {
         return response;
@@ -633,49 +1168,154 @@ async fn directory_login(body: &[u8], auth: Arc<AuthContext>) -> IdentityHttpRes
         Ok(input) => input,
         Err(_) => return json_response("400 Bad Request", "invalid_json"),
     };
-    if input.connector_id.is_nil() || input.username.trim().is_empty() || input.password.is_empty()
-    {
+    if input.username.trim().is_empty() || input.password.is_empty() {
         return json_response("400 Bad Request", "invalid_identity_request");
     }
-    let rate_key = format!("{}:{}", input.connector_id, input.username);
+    let route_key = input
+        .hostname
+        .as_deref()
+        .filter(|hostname| !hostname.trim().is_empty())
+        .map(str::to_owned)
+        .or_else(|| input.connector_id.map(|value| value.to_string()));
+    let Some(route_key) = route_key else {
+        return json_response("400 Bad Request", "directory_hostname_required");
+    };
+    let rate_key = format!("{}:{}", route_key.to_ascii_lowercase(), input.username);
     if let Err(response) = admit(&auth, "directory_login", &rate_key, LOGIN_RATE_LIMIT).await {
         return response;
     }
-    let connector = match auth.directory.connector(input.connector_id).await {
-        Ok(connector) => connector,
-        Err(_) => return json_response("401 Unauthorized", "invalid_credentials"),
+    let connector = match input.hostname.as_deref() {
+        Some(hostname) if !hostname.trim().is_empty() => {
+            match auth
+                .directory
+                .connector_for_verified_hostname(hostname)
+                .await
+            {
+                Ok(Some(connector))
+                    if input
+                        .connector_id
+                        .is_none_or(|connector_id| connector_id == connector.id) =>
+                {
+                    connector
+                }
+                _ => return json_response("401 Unauthorized", "invalid_credentials"),
+            }
+        }
+        _ => match input.connector_id {
+            Some(connector_id) if !connector_id.is_nil() => {
+                match auth.directory.connector(connector_id).await {
+                    Ok(connector) => connector,
+                    Err(_) => return json_response("401 Unauthorized", "invalid_credentials"),
+                }
+            }
+            _ => return json_response("400 Bad Request", "directory_hostname_required"),
+        },
     };
     let settings = match auth
         .directory
-        .connector_runtime_settings(input.connector_id)
+        .connector_runtime_settings(connector.id)
         .await
     {
         Ok(settings) => settings,
         Err(_) => return json_response("503 Service Unavailable", "directory_unavailable"),
     };
-    let authenticated = match erpx_worker::authenticate_directory_user_with_runtime(
+    let primary = authenticate_directory_user_with_runtime(
         &connector,
         &settings,
         &input.username,
         &input.password,
         auth.directory_secrets.as_ref(),
     )
-    .await
-    {
+    .await;
+    let authenticated = match primary {
         Ok(identity) => identity,
+        Err(LiveDirectoryError::Transport)
+            if connector.fallback_to_holding
+                && matches!(
+                    connector.scope,
+                    erpx_identity::DirectoryScope::Branch { .. }
+                ) =>
+        {
+            let Some(parent_id) = connector.parent_connector_id else {
+                return json_response("401 Unauthorized", "invalid_credentials");
+            };
+            let parent = match auth.directory.connector(parent_id).await {
+                Ok(parent)
+                    if parent.directory_authority_fingerprint.is_some()
+                        && parent.directory_authority_fingerprint
+                            == connector.directory_authority_fingerprint =>
+                {
+                    parent
+                }
+                _ => {
+                    let _ = auth
+                        .directory
+                        .record_holding_fallback(
+                            &connector,
+                            parent_id,
+                            false,
+                            Some("authority_verification_failed"),
+                            Uuid::new_v4(),
+                            Utc::now(),
+                        )
+                        .await;
+                    return json_response("401 Unauthorized", "invalid_credentials");
+                }
+            };
+            let parent_settings = match auth.directory.connector_runtime_settings(parent.id).await {
+                Ok(settings) => settings,
+                Err(_) => return json_response("503 Service Unavailable", "directory_unavailable"),
+            };
+            match authenticate_directory_user_with_runtime(
+                &parent,
+                &parent_settings,
+                &input.username,
+                &input.password,
+                auth.directory_secrets.as_ref(),
+            )
+            .await
+            {
+                Ok(identity) => {
+                    let _ = auth
+                        .directory
+                        .record_holding_fallback(
+                            &connector,
+                            parent.id,
+                            true,
+                            None,
+                            Uuid::new_v4(),
+                            Utc::now(),
+                        )
+                        .await;
+                    identity
+                }
+                Err(_) => {
+                    let _ = auth
+                        .directory
+                        .record_holding_fallback(
+                            &connector,
+                            parent.id,
+                            false,
+                            Some("holding_connector_unavailable"),
+                            Uuid::new_v4(),
+                            Utc::now(),
+                        )
+                        .await;
+                    return json_response("401 Unauthorized", "invalid_credentials");
+                }
+            }
+        }
+        Err(LiveDirectoryError::InvalidCredentials | LiveDirectoryError::AccountDenied) => {
+            return json_response("401 Unauthorized", "invalid_credentials");
+        }
+        Err(_) => return json_response("503 Service Unavailable", "directory_unavailable"),
+    };
+    let authority = match directory_authority_key(&connector) {
+        Ok(authority) => authority,
         Err(_) => return json_response("401 Unauthorized", "invalid_credentials"),
     };
-    let authority = match authenticated.provider() {
-        erpx_identity::directory::auth::DirectoryProvider::GenericLdap => "generic_ldap",
-        erpx_identity::directory::auth::DirectoryProvider::ActiveDirectoryDomainServices => {
-            "active_directory_domain_services"
-        }
-        erpx_identity::directory::auth::DirectoryProvider::UniventionCorporateServer => {
-            "univention_corporate_server"
-        }
-    };
     let immutable = match ImmutableIdentityLink::new(
-        authority,
+        &authority,
         authenticated.immutable_value().hyphenated().to_string(),
     ) {
         Ok(immutable) => immutable,
@@ -1243,7 +1883,9 @@ fn identity_error_response(error: IdentityStoreError, issuing: bool) -> Identity
         | IdentityStoreError::PasskeyAlreadyRegistered
         | IdentityStoreError::PasskeyNotFound
         | IdentityStoreError::PasskeyRevoked
-        | IdentityStoreError::SessionInactive => {
+        | IdentityStoreError::SessionInactive
+        | IdentityStoreError::RoleSelectionRequired
+        | IdentityStoreError::RoleSelectionInvalid => {
             let (status, message) = super::identity_http_error(error);
             json_response(status, message)
         }
@@ -1333,6 +1975,15 @@ mod tests {
         assert!(!body.body.contains("public_key"));
         assert!(!body.body.contains("access_token"));
         assert!(!body.body.contains("refresh_token"));
+    }
+
+    #[test]
+    fn passkey_authentication_can_begin_without_disclosing_a_credential_identifier() {
+        let request: BeginPasskeyAuthenticationRequest =
+            serde_json::from_value(serde_json::json!({ "principal_ref": "principal-001" }))
+                .expect("principal-only passkey request");
+        assert_eq!(request.principal_ref.as_deref(), Some("principal-001"));
+        assert!(request.credential_id.is_empty());
     }
 
     #[test]

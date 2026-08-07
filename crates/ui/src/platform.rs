@@ -206,7 +206,7 @@ pub enum TenantWorkspaceOrganizationScope {
 
 /// Shared, display-safe module context. Authorization and consolidation stay
 /// server-owned; the UI only carries the selected scope and opaque evidence.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct TenantWorkspaceContext {
     pub tenant_id: PlatformTenantId,
     pub customer_id: SafeUiText,
@@ -218,6 +218,28 @@ pub struct TenantWorkspaceContext {
     /// Never rendered in UI diagnostics. Targets pass it only through the
     /// protected transport metadata boundary.
     administrative_context_id: Option<SafeUiText>,
+}
+
+impl fmt::Debug for TenantWorkspaceContext {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TenantWorkspaceContext")
+            .field("tenant_id", &self.tenant_id)
+            .field("customer_id", &self.customer_id)
+            .field("root_holding_id", &self.root_holding_id)
+            .field("scope", &self.scope)
+            .field("viewer_kind", &self.viewer_kind)
+            .field("billing_mode", &self.billing_mode)
+            .field("entitled_modules", &self.entitled_modules)
+            .field(
+                "administrative_context",
+                &self
+                    .administrative_context_id
+                    .as_ref()
+                    .map(|_| "[REDACTED]"),
+            )
+            .finish()
+    }
 }
 
 impl TenantWorkspaceContext {
@@ -502,6 +524,8 @@ pub enum PlatformOperationsRoute {
     Settings,
     /// Contextual corporate identity editor under platform settings.
     CorporateIdentity,
+    /// Local-only access simulation under platform settings.
+    AccessSimulation,
     /// Expiring-role review and recovery workflow.
     RoleReview,
 }
@@ -517,7 +541,9 @@ impl PlatformOperationsRoute {
             Self::Backups => PlatformOperationsRouteId::Backups,
             Self::Integrations => PlatformOperationsRouteId::Integrations,
             Self::Audit => PlatformOperationsRouteId::Audit,
-            Self::Settings | Self::CorporateIdentity => PlatformOperationsRouteId::Settings,
+            Self::Settings | Self::CorporateIdentity | Self::AccessSimulation => {
+                PlatformOperationsRouteId::Settings
+            }
             Self::RoleReview => PlatformOperationsRouteId::RoleReview,
         }
     }
@@ -540,6 +566,7 @@ impl PlatformOperationsRoute {
             Self::Audit => "/platform/audit".to_string(),
             Self::Settings => "/platform/settings".to_string(),
             Self::CorporateIdentity => "/platform/settings/corporate-identity".to_string(),
+            Self::AccessSimulation => "/platform/settings/access-simulation".to_string(),
             Self::RoleReview => "/platform/role-review".to_string(),
         }
     }
@@ -597,6 +624,9 @@ impl PlatformOperationsRouteRegistry {
             ["platform", "settings"] => Ok(PlatformOperationsRoute::Settings),
             ["platform", "settings", "corporate-identity"] => {
                 Ok(PlatformOperationsRoute::CorporateIdentity)
+            }
+            ["platform", "settings", "access-simulation"] => {
+                Ok(PlatformOperationsRoute::AccessSimulation)
             }
             ["platform", "role-review"] => Ok(PlatformOperationsRoute::RoleReview),
             _ => Err(PlatformOperationsRouteError::new(normalized)),
@@ -752,6 +782,10 @@ mod tests {
             registry.resolve("/platform/settings/corporate-identity"),
             Ok(PlatformOperationsRoute::CorporateIdentity)
         ));
+        assert!(matches!(
+            registry.resolve("/platform/settings/access-simulation"),
+            Ok(PlatformOperationsRoute::AccessSimulation)
+        ));
         for path in [
             "/platform/tenants-extra",
             "/platform/tenants/tenant_123/extra",
@@ -760,6 +794,7 @@ mod tests {
             "/platform/projections-extra",
             "/platform/backups-old",
             "/platform/settings/child",
+            "/platform/settings/access-simulation/child",
             "/platform/role-review/child",
             "/platformx/tenants",
         ] {
@@ -916,5 +951,8 @@ mod tests {
             context.administrative_context_metadata(),
             Some("opaque-admin-context")
         );
+        let debug = format!("{context:?}");
+        assert!(!debug.contains("opaque-admin-context"));
+        assert!(debug.contains("[REDACTED]"));
     }
 }

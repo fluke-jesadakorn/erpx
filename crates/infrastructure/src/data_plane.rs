@@ -10,11 +10,11 @@ use chrono::{DateTime, Duration, Utc};
 use erpx_domain::{
     access::Scope,
     data_plane::{
-        BusinessUnitConfiguration, BusinessUnitDirectoryRoleMapping, BusinessUnitId,
-        ConfigurationLayer, ConfigurationLifecycle, DataPlaneAgentBinding, DataPlaneAgentState,
-        DataPlaneContractError, DesiredConfiguration, ObservedDataPlaneState, RootAccessApproval,
-        RootAccessCapability, RootAccessMode, RootAccessRequest, TenantDeploymentMode,
-        TenantExecutionRoute, TenantInfrastructureProfile,
+        ApprovalPolicy, BusinessUnitConfiguration, BusinessUnitDirectoryRoleMapping,
+        BusinessUnitId, ConfigurationLayer, ConfigurationLifecycle, DataPlaneAgentBinding,
+        DataPlaneAgentState, DataPlaneContractError, DesiredConfiguration, ObservedDataPlaneState,
+        RootAccessApproval, RootAccessCapability, RootAccessMode, RootAccessRequest,
+        TenantDeploymentMode, TenantExecutionRoute, TenantInfrastructureProfile,
     },
 };
 use serde_json::{Value, json};
@@ -237,7 +237,7 @@ impl SqlxDataPlaneControlStore {
         )
         .bind(tenant_id)
         .bind(business_unit.as_str())
-        .fetch_optional(&self.control.pools.read)
+        .fetch_optional(&self.control.pools.write)
         .await?;
         row.map(|row| {
             let configuration = BusinessUnitConfiguration {
@@ -879,6 +879,26 @@ impl SqlxDataPlaneControlStore {
         at: DateTime<Utc>,
         correlation_id: Uuid,
     ) -> Result<(), PersistenceError> {
+        self.approve_configuration_with_policy(
+            configuration_id,
+            approver,
+            fresh_mfa_at,
+            at,
+            correlation_id,
+            ApprovalPolicy::Strict,
+        )
+        .await
+    }
+
+    pub async fn approve_configuration_with_policy(
+        &self,
+        configuration_id: Uuid,
+        approver: &str,
+        fresh_mfa_at: DateTime<Utc>,
+        at: DateTime<Utc>,
+        correlation_id: Uuid,
+        approval_policy: ApprovalPolicy,
+    ) -> Result<(), PersistenceError> {
         validate_reference(approver, "approver", 255)?;
         validate_correlation_id(correlation_id)?;
         if configuration_id.is_nil()
@@ -907,7 +927,10 @@ impl SqlxDataPlaneControlStore {
         let requester: String = row.try_get("requester")?;
         let expires_at: DateTime<Utc> = row.try_get("expires_at")?;
         let lifecycle: String = row.try_get("lifecycle")?;
-        if requester == approver || at >= expires_at || lifecycle != "awaiting_approval" {
+        if (requester == approver && matches!(approval_policy, ApprovalPolicy::Strict))
+            || at >= expires_at
+            || lifecycle != "awaiting_approval"
+        {
             return Err(PersistenceError::InvalidData(
                 "configuration is not eligible for customer approval".into(),
             ));
@@ -950,6 +973,35 @@ impl SqlxDataPlaneControlStore {
         .await?;
         tx.commit().await?;
         Ok(())
+    }
+
+    /// Resolve immutable authorization fields before MFA or approval writes.
+    pub async fn desired_configuration_authorization_target(
+        &self,
+        configuration_id: Uuid,
+    ) -> Result<(String, Uuid, String), PersistenceError> {
+        if configuration_id.is_nil() {
+            return Err(PersistenceError::InvalidData(
+                "desired configuration ID is required".into(),
+            ));
+        }
+        let row = sqlx::query(
+            "SELECT tenant_id, root_holding_id, requester
+             FROM erpx_control.tenant_desired_configurations
+             WHERE configuration_id=$1",
+        )
+        .bind(configuration_id)
+        .fetch_optional(&self.control.pools.write)
+        .await?
+        .ok_or(PersistenceError::NotFound {
+            entity: "desired configuration",
+            id: configuration_id,
+        })?;
+        Ok((
+            row.try_get("tenant_id")?,
+            row.try_get("root_holding_id")?,
+            row.try_get("requester")?,
+        ))
     }
 
     pub async fn approved_configuration(
@@ -1176,7 +1228,7 @@ impl SqlxDataPlaneControlStore {
         .bind(tenant_id)
         .bind(include_closed)
         .bind(i64::from(page_size))
-        .fetch_all(&self.control.pools.read)
+        .fetch_all(&self.control.pools.write)
         .await?;
         rows.iter().map(decode_root_access_queue_record).collect()
     }
@@ -1188,6 +1240,16 @@ impl SqlxDataPlaneControlStore {
         &self,
         grant: &RootAccessGrant,
         correlation_id: Uuid,
+    ) -> Result<RootAccessCapability, PersistenceError> {
+        self.approve_root_access_with_policy(grant, correlation_id, ApprovalPolicy::Strict)
+            .await
+    }
+
+    pub async fn approve_root_access_with_policy(
+        &self,
+        grant: &RootAccessGrant,
+        correlation_id: Uuid,
+        approval_policy: ApprovalPolicy,
     ) -> Result<RootAccessCapability, PersistenceError> {
         validate_correlation_id(correlation_id)?;
         if grant.capability_id.is_nil() || grant.capability_token_hash == [0; 32] {
@@ -1221,7 +1283,7 @@ impl SqlxDataPlaneControlStore {
         let request = decode_root_access_request(grant.approval.request_id, &row)?;
         grant
             .approval
-            .validate_for(&request)
+            .validate_for_with_policy(&request, approval_policy)
             .map_err(contract_error)?;
         let holding_id: Uuid = row.try_get("root_holding_id")?;
         let agent_state: String = sqlx::query_scalar(
@@ -1320,6 +1382,36 @@ impl SqlxDataPlaneControlStore {
         .await?;
         tx.commit().await?;
         Ok(capability)
+    }
+
+    /// Resolve immutable Root request authorization fields before MFA or any
+    /// state transition.
+    pub async fn root_access_authorization_target(
+        &self,
+        request_id: Uuid,
+    ) -> Result<(String, Uuid, String), PersistenceError> {
+        if request_id.is_nil() {
+            return Err(PersistenceError::InvalidData(
+                "Root access request ID is required".into(),
+            ));
+        }
+        let row = sqlx::query(
+            "SELECT tenant_id, root_holding_id, requester_ref
+             FROM erpx_control.tenant_root_access_requests
+             WHERE request_id=$1",
+        )
+        .bind(request_id)
+        .fetch_optional(&self.control.pools.write)
+        .await?
+        .ok_or(PersistenceError::NotFound {
+            entity: "Root access request",
+            id: request_id,
+        })?;
+        Ok((
+            row.try_get("tenant_id")?,
+            row.try_get("root_holding_id")?,
+            row.try_get("requester_ref")?,
+        ))
     }
 
     pub async fn revoke_root_access(
