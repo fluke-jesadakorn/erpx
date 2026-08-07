@@ -25941,7 +25941,7 @@ enum AuthRoute {
 impl AuthRoute {
     fn parse(path: &str) -> Option<Self> {
         match path {
-            "/auth" | "/auth/sign-in" => Some(Self::SignIn),
+            "/login" => Some(Self::SignIn),
             "/auth/accounts" => Some(Self::Accounts),
             "/auth/security" => Some(Self::Security),
             "/auth/devices" => Some(Self::Devices),
@@ -25952,7 +25952,7 @@ impl AuthRoute {
 
     const fn path(self) -> &'static str {
         match self {
-            Self::SignIn => "/auth/sign-in",
+            Self::SignIn => LOGIN_PATH,
             Self::Accounts => "/auth/accounts",
             Self::Security => "/auth/security",
             Self::Devices => "/auth/devices",
@@ -25960,6 +25960,10 @@ impl AuthRoute {
         }
     }
 }
+
+pub(crate) const LOGIN_PATH: &str = "/login";
+#[cfg(any(feature = "server", test))]
+const LEGACY_LOGIN_PATHS: [&str; 2] = ["/auth", "/auth/sign-in"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BillingRoute {
@@ -26367,6 +26371,66 @@ fn authenticated_landing_path() -> &'static str {
     authenticated_landing_path_for(console_v1_authority())
 }
 
+#[cfg(any(target_arch = "wasm32", feature = "server", test))]
+fn path_without_query(value: &str) -> &str {
+    let value = value.split_once('?').map_or(value, |(path, _query)| path);
+    value
+        .split_once('#')
+        .map_or(value, |(path, _fragment)| path)
+}
+
+#[cfg(any(feature = "server", test))]
+pub(crate) fn is_legacy_login_path(value: &str) -> bool {
+    let path = path_without_query(value);
+    LEGACY_LOGIN_PATHS.contains(&path)
+}
+
+#[cfg(any(target_arch = "wasm32", feature = "server", test))]
+pub(crate) fn validated_login_return_path(value: &str) -> Option<String> {
+    let raw = value.trim();
+    if raw.is_empty()
+        || raw.len() > 1_024
+        || !raw.starts_with('/')
+        || raw.starts_with("//")
+        || raw.contains(['\\', '\r', '\n', '\0'])
+    {
+        return None;
+    }
+    let path = path_without_query(raw);
+    if path == "/" {
+        return Some(authenticated_landing_path().to_owned());
+    }
+    let destination = authorized_console_deep_link(path)?;
+    if matches!(destination, ConsoleDeepLink::Auth(AuthRoute::SignIn)) {
+        return None;
+    }
+    Some(path.to_owned())
+}
+
+#[cfg(any(target_arch = "wasm32", feature = "server", test))]
+pub(crate) fn login_return_path_from_url(value: &str) -> Option<String> {
+    let (path, query) = value.split_once('?')?;
+    if path != LOGIN_PATH || query.is_empty() {
+        return None;
+    }
+    let mut return_targets = query.split('&').filter_map(|pair| {
+        let (name, value) = pair.split_once('=')?;
+        (name == "return_to").then_some(value)
+    });
+    let target = return_targets.next()?;
+    if return_targets.next().is_some() {
+        return None;
+    }
+    validated_login_return_path(target)
+}
+
+#[cfg(any(target_arch = "wasm32", feature = "server", test))]
+pub(crate) fn login_redirect_location(return_to: &str) -> String {
+    let return_to = validated_login_return_path(return_to)
+        .unwrap_or_else(|| authenticated_landing_path().to_owned());
+    format!("{LOGIN_PATH}?return_to={return_to}")
+}
+
 fn legacy_customer_surface_enabled_for(authority: ConsoleV1Authority) -> bool {
     !console_typed_cutover_for(authority)
 }
@@ -26444,6 +26508,14 @@ emitPath();
 await dioxus.recv();
 window.removeEventListener('popstate', emitPath);
 window.removeEventListener('hashchange', emitPath);
+"#;
+
+#[cfg(target_arch = "wasm32")]
+const SAME_ORIGIN_LOCATION_REPLACE_SCRIPT: &str = r#"
+const path = await dioxus.recv();
+if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')) {
+    window.location.replace(path);
+}
 "#;
 
 /// Resolve one initial browser/native path against the actual console route registries.
@@ -28139,6 +28211,52 @@ fn ConsoleApp(initial_path: String) -> Element {
         .or_else(|| directory_route_snapshot.then_some("/platform/directories".to_string()))
         .or_else(|| billing_route_snapshot.map(|route| route.path().to_string()))
         .unwrap_or_else(|| active_route_snapshot.path());
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        let initial_is_login = path_without_query(&initial_path) == LOGIN_PATH;
+        let return_after_login = login_return_path_from_url(&initial_path)
+            .unwrap_or_else(|| authenticated_landing_path().to_owned());
+        let current_return_path = validated_login_return_path(&active_path)
+            .unwrap_or_else(|| authenticated_landing_path().to_owned());
+        let mut location_transition_started = use_signal(|| false);
+        use_effect(move || {
+            if *location_transition_started.read() || !*restore_started.read() {
+                return;
+            }
+            let controller = auth.read();
+            let authenticated = matches!(
+                controller.state(),
+                SessionState::Authenticated(_)
+                    | SessionState::Refreshing(_)
+                    | SessionState::Offline {
+                        last_known: Some(_),
+                        ..
+                    }
+            );
+            let unauthenticated = matches!(
+                controller.state(),
+                SessionState::SignedOut { .. }
+                    | SessionState::Expired { .. }
+                    | SessionState::Revoked { .. }
+            );
+            let destination =
+                if initial_is_login && authenticated && !controller.requires_role_selection() {
+                    Some(return_after_login.clone())
+                } else if !initial_is_login && unauthenticated {
+                    Some(login_redirect_location(&current_return_path))
+                } else {
+                    None
+                };
+            drop(controller);
+            let Some(destination) = destination else {
+                return;
+            };
+            location_transition_started.set(true);
+            let eval = document::eval(SAME_ORIGIN_LOCATION_REPLACE_SCRIPT);
+            let _ = eval.send(destination);
+        });
+    }
 
     let mut search = use_signal(String::new);
     let mut selected = use_signal(|| None::<String>);
@@ -50957,14 +51075,14 @@ mod tests {
         finance_close_request, finance_journal_request, finance_journal_typed_request,
         finance_period_json, finance_period_request, finance_read_error_message,
         finance_read_error_state, finance_subledger_receipt, finance_subledger_request,
-        first_customer_access_audit_request, hr_typed_command_request, json_bool,
-        legacy_customer_surface_enabled_for, legal_access_request, legal_access_typed_request,
-        legal_contract_request, legal_contract_typed_request, legal_document_request,
-        legal_document_typed_request, legal_receipt, localized_copy,
-        maintenance_typed_create_request, marketing_content_receipt, marketing_crm_definition,
-        marketing_delivery_read_request, marketing_domain_bind_request,
-        marketing_domain_verify_request, marketing_erasure_receipt, marketing_erasure_request,
-        marketing_preview_request, marketing_provider_configure_request,
+        first_customer_access_audit_request, hr_typed_command_request, is_legacy_login_path,
+        json_bool, legacy_customer_surface_enabled_for, legal_access_request,
+        legal_access_typed_request, legal_contract_request, legal_contract_typed_request,
+        legal_document_request, legal_document_typed_request, legal_receipt, localized_copy,
+        login_redirect_location, login_return_path_from_url, maintenance_typed_create_request,
+        marketing_content_receipt, marketing_crm_definition, marketing_delivery_read_request,
+        marketing_domain_bind_request, marketing_domain_verify_request, marketing_erasure_receipt,
+        marketing_erasure_request, marketing_preview_request, marketing_provider_configure_request,
         marketing_provider_receipt, marketing_provider_state_request,
         marketing_provider_verify_request, migration_work_request, navigation_fallback_path,
         navigation_query_context, operations_authentication_marker,
@@ -51103,7 +51221,7 @@ mod tests {
     #[test]
     fn authentication_routes_and_browser_transports_keep_credentials_out_of_route_state() {
         for (path, route) in [
-            ("/auth/sign-in", AuthRoute::SignIn),
+            ("/login", AuthRoute::SignIn),
             ("/auth/accounts", AuthRoute::Accounts),
             ("/auth/security", AuthRoute::Security),
             ("/auth/devices", AuthRoute::Devices),
@@ -51111,6 +51229,27 @@ mod tests {
         ] {
             assert_eq!(console_deep_link(path), Some(ConsoleDeepLink::Auth(route)));
             assert_eq!(route.path(), path);
+        }
+        assert_eq!(console_deep_link("/auth"), None);
+        assert_eq!(console_deep_link("/auth/sign-in"), None);
+        assert!(is_legacy_login_path("/auth"));
+        assert!(is_legacy_login_path("/auth/sign-in"));
+        assert_eq!(
+            login_return_path_from_url("/login?return_to=/platform/tenants"),
+            Some("/platform/tenants".to_owned())
+        );
+        assert_eq!(
+            login_redirect_location("/platform/tenants?secret=discarded"),
+            "/login?return_to=/platform/tenants"
+        );
+        for unsafe_target in [
+            "/login",
+            "//attacker.example/path",
+            "https://attacker.example/path",
+            "/login?return_to=%2Fplatform%2Ftenants",
+            "/login?return_to=/platform/tenants&return_to=/billing",
+        ] {
+            assert_eq!(login_return_path_from_url(unsafe_target), None);
         }
         assert_eq!(console_deep_link("/auth/passkeys/opaque"), None);
         assert_eq!(console_deep_link("/auth/security?token=secret"), None);

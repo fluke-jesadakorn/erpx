@@ -3413,8 +3413,43 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .build()?;
-    let sign_in = client
+    let redirect_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let protected = redirect_client
+        .get("http://127.0.0.1:3004/platform/tenants?ignored=1")
+        .send()
+        .await?;
+    if protected.status() != reqwest::StatusCode::TEMPORARY_REDIRECT
+        || protected
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            != Some("/login?return_to=/platform/tenants")
+        || protected
+            .headers()
+            .get(reqwest::header::CACHE_CONTROL)
+            .and_then(|value| value.to_str().ok())
+            != Some("private, no-store")
+    {
+        return Err("anonymous protected page did not redirect to canonical login".into());
+    }
+    let legacy_login = redirect_client
         .get("http://127.0.0.1:3004/auth/sign-in")
+        .send()
+        .await?;
+    if legacy_login.status() != reqwest::StatusCode::TEMPORARY_REDIRECT
+        || legacy_login
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            != Some("/login")
+    {
+        return Err("legacy sign-in path did not redirect to /login".into());
+    }
+    let sign_in = client
+        .get("http://127.0.0.1:3004/login")
         .header(reqwest::header::ACCEPT_LANGUAGE, "th")
         .send()
         .await?;

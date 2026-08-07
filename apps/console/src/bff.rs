@@ -113,6 +113,8 @@ pub(crate) async fn session_middleware(
     mut request: Request,
     next: Next,
 ) -> Response {
+    let page_request = is_console_page_request(&request);
+    let mut clear_stale_cookie = false;
     let context = match selector_from_headers(request.headers()) {
         None => BffSessionContext::signed_out(),
         Some(selector) => match load_and_refresh_bundle(&state, &selector).await {
@@ -135,13 +137,28 @@ pub(crate) async fn session_middleware(
                 }
             }
             Ok(None) => BffSessionContext::signed_out(),
+            Err(SessionLoadError::Unauthorized) if page_request => {
+                clear_stale_cookie = true;
+                BffSessionContext::signed_out()
+            }
             Err(SessionLoadError::Unauthorized) => return unauthorized_session(),
             Err(SessionLoadError::Unavailable) => return unavailable(),
         },
     };
+    if let Some(location) = console_page_redirect(&request, &context) {
+        let mut response = temporary_redirect(&location);
+        if clear_stale_cookie {
+            clear_session_cookie(&mut response, request_is_https(request.headers()));
+        }
+        return response;
+    }
     let private_response = context.snapshot.authenticated;
+    let secure_cookie = request_is_https(request.headers());
     request.extensions_mut().insert(context);
     let mut response = next.run(request).await;
+    if clear_stale_cookie {
+        clear_session_cookie(&mut response, secure_cookie);
+    }
     if private_response {
         response.headers_mut().insert(
             header::CACHE_CONTROL,
@@ -149,6 +166,49 @@ pub(crate) async fn session_middleware(
         );
     }
     response
+}
+
+fn is_console_page_request(request: &Request) -> bool {
+    (request.method() == Method::GET || request.method() == Method::HEAD)
+        && (request.uri().path() == crate::LOGIN_PATH
+            || crate::is_legacy_login_path(request.uri().path())
+            || crate::validated_login_return_path(request.uri().path()).is_some())
+}
+
+fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Option<String> {
+    if request.method() != Method::GET && request.method() != Method::HEAD {
+        return None;
+    }
+    let path = request.uri().path();
+    if crate::is_legacy_login_path(path) {
+        return Some(crate::LOGIN_PATH.to_owned());
+    }
+    if path == crate::LOGIN_PATH {
+        if context.snapshot.authenticated && !context.snapshot.role_selection_required {
+            return Some(
+                request
+                    .uri()
+                    .path_and_query()
+                    .and_then(|value| crate::login_return_path_from_url(value.as_str()))
+                    .unwrap_or_else(|| crate::authenticated_landing_path().to_owned()),
+            );
+        }
+        return None;
+    }
+    if context.snapshot.authenticated {
+        return None;
+    }
+    crate::validated_login_return_path(path)
+        .map(|return_to| crate::login_redirect_location(&return_to))
+}
+
+fn temporary_redirect(location: &str) -> Response {
+    Response::builder()
+        .status(StatusCode::TEMPORARY_REDIRECT)
+        .header(header::LOCATION, location)
+        .header(header::CACHE_CONTROL, PRIVATE_NO_STORE)
+        .body(Body::empty())
+        .unwrap_or_else(|_| unavailable())
 }
 
 #[derive(Clone, Copy)]
@@ -1871,6 +1931,45 @@ mod tests {
             HeaderValue::from_static("erpx_web_session_v1=short"),
         );
         assert!(selector_from_headers(&headers).is_none());
+    }
+
+    #[test]
+    fn console_pages_redirect_to_the_canonical_login_route() {
+        let protected = Request::builder()
+            .uri("/platform/tenants?ignored=1")
+            .body(Body::empty())
+            .unwrap();
+        assert!(is_console_page_request(&protected));
+        assert_eq!(
+            console_page_redirect(&protected, &BffSessionContext::signed_out()),
+            Some("/login?return_to=/platform/tenants".to_owned())
+        );
+
+        let legacy = Request::builder()
+            .uri("/auth/sign-in")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            console_page_redirect(&legacy, &BffSessionContext::signed_out()),
+            Some("/login".to_owned())
+        );
+    }
+
+    #[test]
+    fn authenticated_login_request_returns_to_a_validated_console_page() {
+        let request = Request::builder()
+            .uri("/login?return_to=/platform/tenants")
+            .body(Body::empty())
+            .unwrap();
+        let mut context = BffSessionContext::signed_out();
+        context.snapshot.authenticated = true;
+        assert_eq!(
+            console_page_redirect(&request, &context),
+            Some("/platform/tenants".to_owned())
+        );
+
+        context.snapshot.role_selection_required = true;
+        assert_eq!(console_page_redirect(&request, &context), None);
     }
 
     #[test]
