@@ -3462,14 +3462,31 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     {
         return Err("SSR sign-in did not render the localized route content".into());
     }
-    if !sign_in_html
-        .contains("<form class=\"auth-form\" method=\"post\" action=\"/api/bff/v1/auth/password\"")
-        || !sign_in_html.contains("<button class=\"button auth-submit\" type=\"submit\"")
+    if !sign_in_html.contains(
+        "<form class=\"auth-form\" method=\"post\" action=\"/api/bff/v1/auth/password/form\"",
+    ) || !sign_in_html.contains("<button class=\"button auth-submit\" type=\"submit\"")
         || sign_in_html.contains("<button class=\"button auth-submit\" type=\"submit\" disabled")
     {
         return Err(
             "SSR password form did not render an enabled same-origin submit control".into(),
         );
+    }
+    let native_form = redirect_client
+        .post("http://127.0.0.1:3004/api/bff/v1/auth/password/form")
+        .header(reqwest::header::ORIGIN, "http://127.0.0.1:3004")
+        .form(&[
+            ("principal_ref", "local:dev-controller"),
+            ("password", ""),
+            ("device_label", "erpx-console"),
+        ])
+        .send()
+        .await?;
+    if native_form.status() != reqwest::StatusCode::BAD_REQUEST {
+        return Err(format!(
+            "native password form was not accepted by the BFF: {}",
+            native_form.status()
+        )
+        .into());
     }
     let normalized_html = sign_in_html.to_ascii_lowercase();
     for forbidden in [

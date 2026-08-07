@@ -4,8 +4,8 @@ use crate::bff::{
     BffState, accounts, activate_account, activate_role, delete_account, delete_session,
     development_proxy, directory_login, grpc_proxy, identity_proxy, navigation_manifest,
     passkey_authentication_begin, passkey_authentication_finish, password_login,
-    public_branding_proxy, public_marketing_proxy, recovery_login, role_options,
-    session_middleware, session_snapshot, upgrade_legacy_session,
+    password_login_form, public_branding_proxy, public_marketing_proxy, recovery_login,
+    role_options, session_middleware, session_snapshot, upgrade_legacy_session,
 };
 use dioxus::server::{
     axum::{
@@ -44,6 +44,7 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
         .route("/api/bff/v1/session", get(session_snapshot))
         .route("/api/bff/v1/navigation", post(navigation_manifest))
         .route("/api/bff/v1/auth/password", post(password_login))
+        .route("/api/bff/v1/auth/password/form", post(password_login_form))
         .route("/api/bff/v1/auth/directory", post(directory_login))
         .route(
             "/api/bff/v1/auth/passkeys/authentication/begin",

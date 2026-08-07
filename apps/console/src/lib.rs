@@ -43100,8 +43100,9 @@ fn AuthSessionPanel(
                     form {
                         class: "auth-form",
                         method: "post",
-                        action: "/api/bff/v1/auth/password",
+                        action: "/api/bff/v1/auth/password/form",
                         onsubmit: submit_password_login,
+                        input { r#type: "hidden", name: "device_label", value: "erpx-console" }
                         div { class: "auth-field",
                             label { r#for: "auth-principal", {console_text(locale, "Principal", "ผู้ใช้หลัก")} }
                             input {

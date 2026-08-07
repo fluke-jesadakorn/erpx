@@ -8,7 +8,7 @@ use chrono::{DateTime, Duration, Utc};
 use dioxus::server::axum::{
     Extension, Json,
     body::{Body, to_bytes},
-    extract::{Path, Request},
+    extract::{Form, Path, Request},
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -205,6 +205,15 @@ fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Opti
 fn temporary_redirect(location: &str) -> Response {
     Response::builder()
         .status(StatusCode::TEMPORARY_REDIRECT)
+        .header(header::LOCATION, location)
+        .header(header::CACHE_CONTROL, PRIVATE_NO_STORE)
+        .body(Body::empty())
+        .unwrap_or_else(|_| unavailable())
+}
+
+fn see_other(location: &str) -> Response {
+    Response::builder()
+        .status(StatusCode::SEE_OTHER)
         .header(header::LOCATION, location)
         .header(header::CACHE_CONTROL, PRIVATE_NO_STORE)
         .body(Body::empty())
@@ -526,7 +535,26 @@ pub(crate) async fn password_login(
     headers: HeaderMap,
     Json(request): Json<PasswordLoginRequest>,
 ) -> Response {
-    if !same_origin_mutation(&headers)
+    exchange_password_login(&state, context, &headers, request).await
+}
+
+pub(crate) async fn password_login_form(
+    Extension(state): Extension<BffState>,
+    Extension(context): Extension<BffSessionContext>,
+    headers: HeaderMap,
+    Form(request): Form<PasswordLoginRequest>,
+) -> Response {
+    let response = exchange_password_login(&state, context, &headers, request).await;
+    password_form_response(response, &headers)
+}
+
+async fn exchange_password_login(
+    state: &BffState,
+    context: BffSessionContext,
+    headers: &HeaderMap,
+    request: PasswordLoginRequest,
+) -> Response {
+    if !same_origin_mutation(headers)
         || request.principal_ref.trim().is_empty()
         || request.principal_ref.len() > 256
         || request.password.is_empty()
@@ -553,7 +581,39 @@ pub(crate) async fn password_login(
             "device_label": request.device_label,
         })
     };
-    exchange_and_install(&state, context, &headers, path, body).await
+    exchange_and_install(state, context, headers, path, body).await
+}
+
+fn password_form_response(login_response: Response, headers: &HeaderMap) -> Response {
+    if !login_response.status().is_success() {
+        return login_response;
+    }
+    let return_to = headers
+        .get(header::REFERER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| reqwest::Url::parse(value).ok())
+        .and_then(|url| {
+            let mut path_and_query = url.path().to_owned();
+            if let Some(query) = url.query() {
+                path_and_query.push('?');
+                path_and_query.push_str(query);
+            }
+            crate::login_return_path_from_url(&path_and_query)
+        });
+    let location = return_to
+        .map(|path| crate::login_redirect_location(&path))
+        .unwrap_or_else(|| crate::LOGIN_PATH.to_owned());
+    let cookies = login_response
+        .headers()
+        .get_all(header::SET_COOKIE)
+        .iter()
+        .cloned()
+        .collect::<Vec<_>>();
+    let mut response = see_other(&location);
+    for cookie in cookies {
+        response.headers_mut().append(header::SET_COOKIE, cookie);
+    }
+    response
 }
 
 pub(crate) async fn directory_login(
@@ -1970,6 +2030,39 @@ mod tests {
 
         context.snapshot.role_selection_required = true;
         assert_eq!(console_page_redirect(&request, &context), None);
+    }
+
+    #[test]
+    fn native_password_form_redirect_preserves_cookie_and_safe_return_path() {
+        let mut login_response = StatusCode::OK.into_response();
+        append_cookie(
+            &mut login_response,
+            "erpx_web_session_v1=opaque; Path=/; HttpOnly; SameSite=Strict",
+        );
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::REFERER,
+            HeaderValue::from_static("https://console.example/login?return_to=/platform/tenants"),
+        );
+
+        let response = password_form_response(login_response, &headers);
+
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers().get(header::LOCATION).unwrap(),
+            "/login?return_to=/platform/tenants"
+        );
+        assert_eq!(
+            response.headers().get(header::SET_COOKIE).unwrap(),
+            "erpx_web_session_v1=opaque; Path=/; HttpOnly; SameSite=Strict"
+        );
+
+        headers.insert(
+            header::REFERER,
+            HeaderValue::from_static("https://console.example/login?return_to=//attacker.example"),
+        );
+        let response = password_form_response(StatusCode::OK.into_response(), &headers);
+        assert_eq!(response.headers().get(header::LOCATION).unwrap(), "/login");
     }
 
     #[test]
