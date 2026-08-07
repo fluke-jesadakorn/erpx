@@ -1967,6 +1967,8 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
     let advertised_host = tailnet_ip
         .map(|address| address.to_string())
         .unwrap_or_else(|| "localhost".to_owned());
+    let trusted_web_origins =
+        format!("http://{advertised_host}:3004,http://127.0.0.1:3004,http://localhost:3004");
     let auth_http_origin = tailnet_ip.map_or_else(
         || {
             configured_value("ERPX_CONSOLE_AUTH_HTTP_ORIGIN")
@@ -2015,6 +2017,7 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
         ("ERPX_CONSOLE_V1_SERVICE_AUTHORITY", "typed".into()),
         ("ERPX_WEB_BFF_ENABLED", "1".into()),
         ("ERPX_WEB_SSR_ENABLED", "1".into()),
+        ("ERPX_WEB_TRUSTED_ORIGINS", trusted_web_origins),
         ("ERPX_WEB_SESSION_KEY_REFERENCE", "local-dev-v1".into()),
         (
             "ERPX_WEB_SESSION_KEY",

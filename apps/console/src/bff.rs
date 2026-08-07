@@ -32,6 +32,7 @@ pub(crate) struct BffState {
     sessions: Arc<dyn WebSessionStore>,
     auth_http_origin: Arc<str>,
     grpc_origin: Arc<str>,
+    trusted_public_origins: Arc<[Arc<str>]>,
     auth_http: reqwest::Client,
     refresh_lock: Arc<Mutex<()>>,
 }
@@ -41,6 +42,7 @@ impl BffState {
         sessions: Arc<dyn WebSessionStore>,
         auth_http_origin: String,
         grpc_origin: String,
+        trusted_public_origins: String,
     ) -> Result<Self, io::Error> {
         let auth_http_origin = auth_http_origin.trim_end_matches('/');
         let grpc_origin = grpc_origin.trim_end_matches('/');
@@ -53,6 +55,7 @@ impl BffState {
             sessions,
             auth_http_origin: Arc::from(auth_http_origin),
             grpc_origin: Arc::from(grpc_origin),
+            trusted_public_origins: parse_trusted_public_origins(&trusted_public_origins)?,
             auth_http: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
@@ -69,6 +72,7 @@ impl fmt::Debug for BffState {
             .field("sessions", &"[configured]")
             .field("auth_http_origin", &self.auth_http_origin)
             .field("grpc_origin", &self.grpc_origin)
+            .field("trusted_public_origins", &self.trusted_public_origins)
             .finish()
     }
 }
@@ -554,7 +558,7 @@ async fn exchange_password_login(
     headers: &HeaderMap,
     request: PasswordLoginRequest,
 ) -> Response {
-    if !same_origin_mutation(headers)
+    if !same_origin_mutation(headers, &state.trusted_public_origins)
         || request.principal_ref.trim().is_empty()
         || request.principal_ref.len() > 256
         || request.password.is_empty()
@@ -622,7 +626,7 @@ pub(crate) async fn directory_login(
     headers: HeaderMap,
     Json(request): Json<DirectoryLoginRequest>,
 ) -> Response {
-    if !same_origin_mutation(&headers)
+    if !same_origin_mutation(&headers, &state.trusted_public_origins)
         || !valid_hostname(&request.hostname)
         || request.username.trim().is_empty()
         || request.username.len() > 256
@@ -653,7 +657,7 @@ pub(crate) async fn passkey_authentication_begin(
     headers: HeaderMap,
     Json(body): Json<serde_json::Value>,
 ) -> Response {
-    if !same_origin_mutation(&headers)
+    if !same_origin_mutation(&headers, &state.trusted_public_origins)
         || body
             .get("principal_ref")
             .and_then(serde_json::Value::as_str)
@@ -670,7 +674,7 @@ pub(crate) async fn passkey_authentication_finish(
     headers: HeaderMap,
     Json(body): Json<serde_json::Value>,
 ) -> Response {
-    if !same_origin_mutation(&headers) || !body.is_object() {
+    if !same_origin_mutation(&headers, &state.trusted_public_origins) || !body.is_object() {
         return invalid_request();
     }
     exchange_and_install(
@@ -689,7 +693,7 @@ pub(crate) async fn recovery_login(
     headers: HeaderMap,
     Json(request): Json<RecoveryLoginRequest>,
 ) -> Response {
-    if !same_origin_mutation(&headers)
+    if !same_origin_mutation(&headers, &state.trusted_public_origins)
         || request.principal_ref.trim().is_empty()
         || request.principal_ref.len() > 256
         || request.recovery_code.trim().is_empty()
@@ -774,7 +778,7 @@ pub(crate) async fn activate_account(
     headers: HeaderMap,
     Json(request): Json<ActivateAccountRequest>,
 ) -> Response {
-    if !same_origin_mutation(&headers) {
+    if !same_origin_mutation(&headers, &state.trusted_public_origins) {
         return invalid_request();
     }
     let Some(mut bundle) = context.bundle else {
@@ -818,7 +822,7 @@ pub(crate) async fn delete_account(
     Path(session_id): Path<Uuid>,
     headers: HeaderMap,
 ) -> Response {
-    if !same_origin_mutation(&headers) {
+    if !same_origin_mutation(&headers, &state.trusted_public_origins) {
         return invalid_request();
     }
     let Some(selector) = selector_from_headers(&headers) else {
@@ -909,7 +913,7 @@ pub(crate) async fn activate_role(
     headers: HeaderMap,
     Json(request): Json<ActivateRoleRequest>,
 ) -> Response {
-    if !same_origin_mutation(&headers)
+    if !same_origin_mutation(&headers, &state.trusted_public_origins)
         || request.selection_id.trim().is_empty()
         || request.selection_id.len() > 256
     {
@@ -989,7 +993,7 @@ pub(crate) async fn delete_session(
     Extension(context): Extension<BffSessionContext>,
     headers: HeaderMap,
 ) -> Response {
-    if !same_origin_mutation(&headers) {
+    if !same_origin_mutation(&headers, &state.trusted_public_origins) {
         return invalid_request();
     }
     if let Some(credential) = context.credential {
@@ -1033,7 +1037,7 @@ pub(crate) async fn grpc_proxy(
         )
             .into_response();
     };
-    if !same_origin_mutation(&headers)
+    if !same_origin_mutation(&headers, &state.trusted_public_origins)
         || !grpc_route_allowed(&grpc_path)
         || headers
             .get(header::CONTENT_TYPE)
@@ -1117,7 +1121,7 @@ pub(crate) async fn identity_proxy(
             .into_response();
     };
     if !identity_route_allowed(&method, &identity_path)
-        || (method != Method::GET && !same_origin_mutation(&headers))
+        || (method != Method::GET && !same_origin_mutation(&headers, &state.trusted_public_origins))
     {
         return invalid_request();
     }
@@ -1192,7 +1196,9 @@ pub(crate) async fn development_proxy(
         (method.clone(), development_path.as_str()),
         (Method::GET, "personas") | (Method::POST, "context/begin") | (Method::POST, "context/end")
     );
-    if !allowed || (method != Method::GET && !same_origin_mutation(&headers)) {
+    if !allowed
+        || (method != Method::GET && !same_origin_mutation(&headers, &state.trusted_public_origins))
+    {
         return invalid_request();
     }
     let body = match to_bytes(request.into_body(), 64 * 1024).await {
@@ -1297,7 +1303,8 @@ pub(crate) async fn public_marketing_proxy(
     request: Request,
 ) -> Response {
     if !public_marketing_route_allowed(&method, &public_path)
-        || (method == Method::POST && !same_origin_mutation(&headers))
+        || (method == Method::POST
+            && !same_origin_mutation(&headers, &state.trusted_public_origins))
     {
         return invalid_request();
     }
@@ -1686,7 +1693,51 @@ fn valid_hostname(value: &str) -> bool {
         })
 }
 
-fn same_origin_mutation(headers: &HeaderMap) -> bool {
+fn parse_trusted_public_origins(value: &str) -> Result<Arc<[Arc<str>]>, io::Error> {
+    let mut origins = Vec::new();
+    for candidate in value
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let url = reqwest::Url::parse(candidate)
+            .map_err(|_| io::Error::other("trusted Web origin is invalid"))?;
+        if !matches!(url.scheme(), "http" | "https")
+            || !url.username().is_empty()
+            || url.password().is_some()
+            || url.path() != "/"
+            || url.query().is_some()
+            || url.fragment().is_some()
+            || url.host_str().is_none()
+        {
+            return Err(io::Error::other("trusted Web origin is invalid"));
+        }
+        let origin: Arc<str> = Arc::from(url.origin().ascii_serialization());
+        if !origins.iter().any(|existing| existing == &origin) {
+            origins.push(origin);
+        }
+    }
+    Ok(Arc::from(origins.into_boxed_slice()))
+}
+
+fn loopback_authority(authority: &str) -> bool {
+    let Ok(url) = reqwest::Url::parse(&format!("http://{authority}")) else {
+        return false;
+    };
+    url.username().is_empty()
+        && url.password().is_none()
+        && url.path() == "/"
+        && url.query().is_none()
+        && url.fragment().is_none()
+        && url.host_str().is_some_and(|host| {
+            host.eq_ignore_ascii_case("localhost")
+                || host
+                    .parse::<std::net::IpAddr>()
+                    .is_ok_and(|address| address.is_loopback())
+        })
+}
+
+fn same_origin_mutation(headers: &HeaderMap, trusted_public_origins: &[Arc<str>]) -> bool {
     let Some(host) = headers
         .get(header::HOST)
         .and_then(|value| value.to_str().ok())
@@ -1717,7 +1768,14 @@ fn same_origin_mutation(headers: &HeaderMap) -> bool {
         }
         _ => origin_host.to_owned(),
     };
-    origin_authority.eq_ignore_ascii_case(host)
+    if origin_authority.eq_ignore_ascii_case(host) {
+        return true;
+    }
+
+    loopback_authority(host)
+        && trusted_public_origins
+            .iter()
+            .any(|trusted| trusted.as_ref() == origin.origin().ascii_serialization())
 }
 
 pub(crate) async fn upgrade_legacy_session(
@@ -2077,18 +2135,54 @@ mod tests {
             HeaderValue::from_static("https://console.example:8443"),
         );
         headers.insert("x-forwarded-proto", HeaderValue::from_static("https"));
-        assert!(same_origin_mutation(&headers));
+        assert!(same_origin_mutation(&headers, &[]));
 
         headers.insert(
             header::ORIGIN,
             HeaderValue::from_static("https://attacker.example:8443"),
         );
-        assert!(!same_origin_mutation(&headers));
+        assert!(!same_origin_mutation(&headers, &[]));
         headers.insert(
             header::ORIGIN,
             HeaderValue::from_static("http://console.example:8443"),
         );
-        assert!(!same_origin_mutation(&headers));
+        assert!(!same_origin_mutation(&headers, &[]));
+    }
+
+    #[test]
+    fn mutation_origin_accepts_only_configured_origin_through_loopback_dev_proxy() {
+        let trusted =
+            parse_trusted_public_origins("http://100.97.9.56:3004,http://127.0.0.1:3004").unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(header::HOST, HeaderValue::from_static("127.0.0.1:60805"));
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("http://100.97.9.56:3004"),
+        );
+        assert!(same_origin_mutation(&headers, &trusted));
+
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("http://attacker.example"),
+        );
+        assert!(!same_origin_mutation(&headers, &trusted));
+
+        headers.insert(
+            header::HOST,
+            HeaderValue::from_static("internal-proxy.example:60805"),
+        );
+        headers.insert(
+            header::ORIGIN,
+            HeaderValue::from_static("http://100.97.9.56:3004"),
+        );
+        assert!(!same_origin_mutation(&headers, &trusted));
+    }
+
+    #[test]
+    fn trusted_public_origins_reject_non_origin_urls() {
+        assert!(parse_trusted_public_origins("https://console.example/login").is_err());
+        assert!(parse_trusted_public_origins("https://user@console.example").is_err());
+        assert!(parse_trusted_public_origins("*").is_err());
     }
 
     #[test]

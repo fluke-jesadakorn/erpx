@@ -22,6 +22,7 @@ use std::{env, io, sync::Arc};
 const DATABASE_URL_ENV: &str = "ERPX_CONTROL_WRITE_DATABASE_URL";
 const AUTH_HTTP_ORIGIN_ENV: &str = "ERPX_CONSOLE_AUTH_HTTP_ORIGIN";
 const GRPC_ORIGIN_ENV: &str = "ERPX_CONSOLE_GRPC_ENDPOINT";
+const TRUSTED_PUBLIC_ORIGINS_ENV: &str = "ERPX_WEB_TRUSTED_ORIGINS";
 
 pub(crate) async fn router() -> Result<Router, io::Error> {
     let database_url = env::var(DATABASE_URL_ENV)
@@ -38,7 +39,8 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
         env::var(AUTH_HTTP_ORIGIN_ENV).unwrap_or_else(|_| "http://127.0.0.1:50052".to_owned());
     let grpc_origin =
         env::var(GRPC_ORIGIN_ENV).unwrap_or_else(|_| "http://127.0.0.1:50051".to_owned());
-    let state = BffState::new(store, auth_http_origin, grpc_origin)?;
+    let trusted_public_origins = env::var(TRUSTED_PUBLIC_ORIGINS_ENV).unwrap_or_default();
+    let state = BffState::new(store, auth_http_origin, grpc_origin, trusted_public_origins)?;
 
     Ok(dioxus_router(crate::App)
         .route("/api/bff/v1/session", get(session_snapshot))
