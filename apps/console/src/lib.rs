@@ -43045,14 +43045,29 @@ fn AuthSessionPanel(
         .metadata()
         .and_then(|metadata| metadata.principal_label.clone());
     let principal_missing = principal.trim().is_empty();
-    let password_missing = password.is_empty();
     let development_login = cfg!(debug_assertions) && DEVELOPMENT_PERSONA_BUILD_ENABLED;
-    let password_principal = principal.clone();
+    let submitted_principal = principal.clone();
+    let submitted_password = password.clone();
     let passkey_principal = principal.clone();
     let recovery_principal = principal.clone();
     let directory_login_hostname = directory_hostname.clone();
     let directory_login_username = directory_username.clone();
     let directory_login_password = directory_password.clone();
+    let submit_password_login = move |event: FormEvent| {
+        event.prevent_default();
+        if busy {
+            return;
+        }
+        let principal = match event.get_first("principal_ref") {
+            Some(FormValue::Text(value)) => value,
+            _ => submitted_principal.clone(),
+        };
+        let password = match event.get_first("password") {
+            Some(FormValue::Text(value)) => value,
+            _ => submitted_password.clone(),
+        };
+        on_login.call((principal, password));
+    };
 
     rsx! {
         section { class: "auth-panel", aria_label: console_text(locale, "Authentication session", "เซสชันการยืนยันตัวตน"),
@@ -43082,12 +43097,18 @@ fn AuthSessionPanel(
                             )}
                         }
                     }
-                    div { class: "auth-form",
+                    form {
+                        class: "auth-form",
+                        method: "post",
+                        action: "/api/bff/v1/auth/password",
+                        onsubmit: submit_password_login,
                         div { class: "auth-field",
                             label { r#for: "auth-principal", {console_text(locale, "Principal", "ผู้ใช้หลัก")} }
                             input {
                                 id: "auth-principal",
+                                name: "principal_ref",
                                 autocomplete: "username webauthn",
+                                required: true,
                                 value: "{principal}",
                                 disabled: busy,
                                 oninput: move |event| on_principal.call(event.value()),
@@ -43097,8 +43118,10 @@ fn AuthSessionPanel(
                             label { r#for: "auth-password", {console_text(locale, "Password", "รหัสผ่าน")} }
                             input {
                                 id: "auth-password",
+                                name: "password",
                                 r#type: "password",
                                 autocomplete: "current-password",
+                                required: true,
                                 value: "{password}",
                                 disabled: busy,
                                 oninput: move |event| on_password.call(event.value()),
@@ -43106,9 +43129,8 @@ fn AuthSessionPanel(
                         }
                         button {
                             class: "button auth-submit",
-                            r#type: "button",
-                            disabled: busy || principal_missing || password_missing,
-                            onclick: move |_| on_login.call((password_principal.clone(), password.clone())),
+                            r#type: "submit",
+                            disabled: busy,
                             if busy { {console_text(locale, "Signing in…", "กำลังเข้าสู่ระบบ…")} } else { {console_text(locale, "Sign in", "เข้าสู่ระบบ")} }
                         }
                     }

@@ -3462,6 +3462,15 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     {
         return Err("SSR sign-in did not render the localized route content".into());
     }
+    if !sign_in_html
+        .contains("<form class=\"auth-form\" method=\"post\" action=\"/api/bff/v1/auth/password\"")
+        || !sign_in_html.contains("<button class=\"button auth-submit\" type=\"submit\"")
+        || sign_in_html.contains("<button class=\"button auth-submit\" type=\"submit\" disabled")
+    {
+        return Err(
+            "SSR password form did not render an enabled same-origin submit control".into(),
+        );
+    }
     let normalized_html = sign_in_html.to_ascii_lowercase();
     for forbidden in [
         "access_token",
