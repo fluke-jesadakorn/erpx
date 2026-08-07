@@ -26431,6 +26431,28 @@ pub(crate) fn login_redirect_location(return_to: &str) -> String {
     format!("{LOGIN_PATH}?return_to={return_to}")
 }
 
+#[cfg(any(target_arch = "wasm32", test))]
+fn browser_session_redirect_destination(
+    restore_completed: bool,
+    initial_is_login: bool,
+    authenticated: bool,
+    unauthenticated: bool,
+    role_selection_required: bool,
+    return_after_login: &str,
+    current_return_path: &str,
+) -> Option<String> {
+    if !restore_completed {
+        return None;
+    }
+    if initial_is_login && authenticated && !role_selection_required {
+        return Some(return_after_login.to_owned());
+    }
+    if !initial_is_login && unauthenticated {
+        return Some(login_redirect_location(current_return_path));
+    }
+    None
+}
+
 fn legacy_customer_surface_enabled_for(authority: ConsoleV1Authority) -> bool {
     !console_typed_cutover_for(authority)
 }
@@ -27322,6 +27344,7 @@ fn ConsoleApp(initial_path: String) -> Element {
     };
     let target_adapter = TargetSecureSessionAdapter::new();
     let mut restore_started = use_signal(|| false);
+    let mut restore_completed = use_signal(|| false);
     use_effect(move || {
         if *restore_started.read() {
             return;
@@ -27359,8 +27382,11 @@ fn ConsoleApp(initial_path: String) -> Element {
                     );
                 }
             }
-            let mut slot = auth_for_task.write();
-            *slot = controller;
+            {
+                let mut slot = auth_for_task.write();
+                *slot = controller;
+            }
+            restore_completed.set(true);
         });
     });
     let auth_state = auth.read().state().clone();
@@ -28221,7 +28247,7 @@ fn ConsoleApp(initial_path: String) -> Element {
             .unwrap_or_else(|| authenticated_landing_path().to_owned());
         let mut location_transition_started = use_signal(|| false);
         use_effect(move || {
-            if *location_transition_started.read() || !*restore_started.read() {
+            if *location_transition_started.read() {
                 return;
             }
             let controller = auth.read();
@@ -28240,14 +28266,15 @@ fn ConsoleApp(initial_path: String) -> Element {
                     | SessionState::Expired { .. }
                     | SessionState::Revoked { .. }
             );
-            let destination =
-                if initial_is_login && authenticated && !controller.requires_role_selection() {
-                    Some(return_after_login.clone())
-                } else if !initial_is_login && unauthenticated {
-                    Some(login_redirect_location(&current_return_path))
-                } else {
-                    None
-                };
+            let destination = browser_session_redirect_destination(
+                *restore_completed.read(),
+                initial_is_login,
+                authenticated,
+                unauthenticated,
+                controller.requires_role_selection(),
+                &return_after_login,
+                &current_return_path,
+            );
             drop(controller);
             let Some(destination) = destination else {
                 return;
@@ -51287,6 +51314,58 @@ mod tests {
             assert!(!script.contains("sessionStorage"));
             assert!(!script.contains("window.location.assign"));
         }
+    }
+
+    #[test]
+    fn browser_route_guard_waits_for_authoritative_session_restore() {
+        assert_eq!(
+            super::browser_session_redirect_destination(
+                false,
+                false,
+                false,
+                true,
+                false,
+                "/platform/tenants",
+                "/platform/tenants",
+            ),
+            None
+        );
+        assert_eq!(
+            super::browser_session_redirect_destination(
+                true,
+                false,
+                false,
+                true,
+                false,
+                "/platform/tenants",
+                "/platform/tenants",
+            ),
+            Some("/login?return_to=/platform/tenants".to_owned())
+        );
+        assert_eq!(
+            super::browser_session_redirect_destination(
+                true,
+                true,
+                true,
+                false,
+                false,
+                "/platform/tenants",
+                "/platform/tenants",
+            ),
+            Some("/platform/tenants".to_owned())
+        );
+        assert_eq!(
+            super::browser_session_redirect_destination(
+                true,
+                true,
+                true,
+                false,
+                true,
+                "/platform/tenants",
+                "/platform/tenants",
+            ),
+            None
+        );
     }
 
     #[test]
