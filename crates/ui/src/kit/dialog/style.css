@@ -46,20 +46,27 @@
   display: flex;
   width: 100%;
   max-width: calc(100% - 2rem);
+  max-height: calc(100dvh - 2rem);
   box-sizing: border-box;
   flex-direction: column;
-  padding: 32px 24px 24px;
+  padding: 0;
   border: 1px solid var(--erpx-border);
-  border-radius: 8px;
+  border-radius: var(--erpx-radius-lg);
   margin: 0;
   background: var(--erpx-surface);
-  box-shadow: 0 2px 10px rgb(0 0 0 / 18%);
+  box-shadow: var(--erpx-shadow-lg);
   color: var(--erpx-text);
   font-family: var(--erpx-font-sans);
-  gap: 16px;
+  gap: 0;
+  overflow: hidden;
   text-align: center;
   transform: translate(-50%, -50%);
 }
+
+.dx-dialog[data-size="sm"] { width: min(420px, calc(100% - 2rem)); }
+.dx-dialog[data-size="md"] { width: min(560px, calc(100% - 2rem)); }
+.dx-dialog[data-size="lg"] { width: min(880px, calc(100% - 2rem)); }
+.dx-dialog[data-size="full"] { width: min(1200px, calc(100% - 2rem)); height: calc(100dvh - 2rem); }
 
 .dx-dialog-title {
   margin: 0;
@@ -75,9 +82,14 @@
 }
 
 @media (width >= 40rem) {
+  .dx-dialog { text-align: left; }
+}
+
+@media (width < 40rem) {
   .dx-dialog {
-    max-width: 32rem;
-    text-align: left;
+    max-width: calc(100% - 1rem);
+    max-height: calc(100dvh - 1rem);
+    border-radius: var(--erpx-radius-md);
   }
 }
 
@@ -99,4 +111,3 @@
 .dx-dialog-close:hover {
   color: var(--erpx-text);
 }
-

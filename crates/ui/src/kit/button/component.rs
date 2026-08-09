@@ -8,8 +8,8 @@ struct Styles;
 #[derive(Copy, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub enum ButtonVariant {
-    #[default]
     Primary,
+    #[default]
     Secondary,
     Destructive,
     Outline,
@@ -61,7 +61,7 @@ impl ButtonSize {
 
 #[component]
 pub fn Button(
-    #[props(default)] variant: ButtonVariant,
+    #[props(default = ButtonVariant::Secondary)] variant: ButtonVariant,
     #[props(default)] size: ButtonSize,
     #[props(extends=GlobalAttributes)]
     #[props(extends=button)]

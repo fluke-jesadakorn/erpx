@@ -358,7 +358,7 @@ dioxus.send(value);"#
                 "data-locale": current_locale.language_tag(),
                 "data-theme": theme_token,
                 "data-brand-version": identity.published_version.to_string(),
-            KitButton {
+            KitButton { size: ButtonSize::Default,
                 variant: ButtonVariant::Ghost,
                 class: if *mobile_nav_open.read() { "ui-nav-scrim visible" } else { "ui-nav-scrim" },
                 r#type: "button",
@@ -394,7 +394,7 @@ dioxus.send(value);"#
                             span { "{subtitle}" }
                         }
                     }
-                    KitButton {
+                    KitButton { size: ButtonSize::Icon,
                         variant: ButtonVariant::Ghost,
                         class: "ui-icon-button ui-collapse-button",
                         r#type: "button",
@@ -410,7 +410,7 @@ dioxus.send(value);"#
                         },
                         EnterpriseIcon { name: "panel".to_owned() }
                     }
-                    KitButton {
+                    KitButton { size: ButtonSize::Icon,
                         variant: ButtonVariant::Ghost,
                         class: "ui-icon-button ui-mobile-nav-close",
                         r#type: "button",
@@ -483,7 +483,7 @@ dioxus.send(value);"#
                                             {
                                                 let group_id_for_toggle = group_id.clone();
                                                 rsx! {
-                                                    KitButton {
+                                                    KitButton { size: ButtonSize::Default,
                                                         variant: ButtonVariant::Ghost,
                                                         class: "ui-nav-show-all ui-nav-label",
                                                         r#type: "button",
@@ -536,7 +536,7 @@ dioxus.send(value);"#
                     div { class: "ui-nav-footer",
                         LocaleToggle {}
                         span { class: "ui-locale-name ui-nav-label", "{current_locale.native_name()}" }
-                        KitButton {
+                        KitButton { size: ButtonSize::Default,
                             variant: ButtonVariant::Secondary,
                             class: "ui-icon-button ui-theme-button",
                             r#type: "button",
@@ -551,7 +551,7 @@ dioxus.send(value);"#
             main { class: "ui-main",
                 header { class: "ui-topbar",
                     div { class: "ui-topbar-leading",
-                        KitButton {
+                        KitButton { size: ButtonSize::Icon,
                             variant: ButtonVariant::Ghost,
                             class: "ui-icon-button ui-mobile-menu",
                             r#type: "button",
@@ -574,7 +574,7 @@ dioxus.send(value);"#
                         }
                     }
                     div { class: "ui-topbar-actions",
-                        KitButton {
+                        KitButton { size: ButtonSize::Default,
                             variant: ButtonVariant::Secondary,
                             class: "ui-global-search-trigger",
                             r#type: "button",
@@ -590,7 +590,7 @@ dioxus.send(value);"#
                             selected: selected_scope,
                             on_change: on_scope_change,
                         }
-                        KitButton {
+                        KitButton { size: ButtonSize::Icon,
                             variant: ButtonVariant::Ghost,
                             class: "ui-icon-button ui-trust-button",
                             r#type: "button",
@@ -598,7 +598,7 @@ dioxus.send(value);"#
                             onclick: move |_| trust_open.set(true),
                             EnterpriseIcon { name: "shield".to_owned() }
                         }
-                        KitButton {
+                        KitButton { size: ButtonSize::Default,
                             variant: ButtonVariant::Ghost,
                             class: "ui-profile-button",
                             r#type: "button",
@@ -652,7 +652,7 @@ dioxus.send(value);"#
                                 if item.is_authorized() {
                                     let path = item.path.clone();
                                     rsx! {
-                                        KitButton {
+                                        KitButton { size: ButtonSize::Default,
                                             variant: ButtonVariant::Ghost,
                                             class: "ui-command-result",
                                             r#type: "button",
@@ -982,7 +982,7 @@ pub fn LocaleToggle() -> Element {
         Locale::Th => shared_text(current, "Switch to Thai", "เปลี่ยนเป็นภาษาไทย"),
     };
     rsx! {
-        KitButton {
+        KitButton { size: ButtonSize::Default,
             variant: ButtonVariant::Ghost,
             class: "ui-icon-button ui-locale-toggle",
             r#type: "button",
@@ -1298,11 +1298,11 @@ pub fn CorporateIdentityEditor(
                 section { class: "ui-brand-preview-region", aria_label: shared_text(locale, "Live corporate identity preview", "ตัวอย่างอัตลักษณ์องค์กรแบบสด"),
                     div { class: "ui-brand-preview-toolbar",
                         div { role: "group", aria_label: shared_text(locale, "Preview device", "อุปกรณ์ตัวอย่าง"),
-                            for (device, label) in [("desktop", shared_text(locale, "Desktop", "เดสก์ท็อป")), ("tablet", shared_text(locale, "Tablet", "แท็บเล็ต")), ("mobile", shared_text(locale, "Mobile", "มือถือ"))] { KitButton { class: if preview_device.read().as_str() == device { "active" } else { "" }, r#type: "button", onclick: move |_| preview_device.set(device.to_owned()), "{label}" } }
+                            for (device, label) in [("desktop", shared_text(locale, "Desktop", "เดสก์ท็อป")), ("tablet", shared_text(locale, "Tablet", "แท็บเล็ต")), ("mobile", shared_text(locale, "Mobile", "มือถือ"))] { KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, class: if preview_device.read().as_str() == device { "active" } else { "" }, r#type: "button", onclick: move |_| preview_device.set(device.to_owned()), "{label}" } }
                         }
                         div { role: "group", aria_label: shared_text(locale, "Preview language and mode", "ภาษาและโหมดตัวอย่าง"),
-                            KitButton { r#type: "button", onclick: move |_| preview_locale.set(if preview_locale.read().as_str() == "English" { "ไทย".to_owned() } else { "English".to_owned() }), "{preview_locale}" }
-                            KitButton { r#type: "button", onclick: move |_| preview_theme.set(if preview_theme.read().as_str() == "light" { "dark".to_owned() } else { "light".to_owned() }), "{preview_theme}" }
+                            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, r#type: "button", onclick: move |_| preview_locale.set(if preview_locale.read().as_str() == "English" { "ไทย".to_owned() } else { "English".to_owned() }), "{preview_locale}" }
+                            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, r#type: "button", onclick: move |_| preview_theme.set(if preview_theme.read().as_str() == "light" { "dark".to_owned() } else { "light".to_owned() }), "{preview_theme}" }
                         }
                     }
                     div { class: "{preview_class}", style: "{preview_style}",
@@ -1311,7 +1311,7 @@ pub fn CorporateIdentityEditor(
                                 nav { span { class: "active", {if preview_locale.read().as_str() == "ไทย" { "แดชบอร์ด" } else { "Dashboard" }} } span { {if preview_locale.read().as_str() == "ไทย" { "การเงิน" } else { "Finance" }} } span { {if preview_locale.read().as_str() == "ไทย" { "บุคลากรและบทบาท" } else { "People & roles" }} } span { {if preview_locale.read().as_str() == "ไทย" { "การตั้งค่า" } else { "Settings" }} } }
                             }
                             main {
-                                header { small { "{preview_locale} · {scope_label}" } KitButton { {if preview_locale.read().as_str() == "ไทย" { "การดำเนินการหลัก" } else { "Primary action" }} } }
+                                header { small { "{preview_locale} · {scope_label}" } KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, {if preview_locale.read().as_str() == "ไทย" { "การดำเนินการหลัก" } else { "Primary action" }} } }
                                 div { class: "ui-brand-preview-content",
                                     div { class: "ui-brand-preview-kpis", for (label, value) in if preview_locale.read().as_str() == "ไทย" { [("รายการอนุมัติที่เปิดอยู่", "12"), ("บริการที่ปกติ", "9/10"), ("ความใหม่ของไดเรกทอรี", "30 วินาที")] } else { [("Open approvals", "12"), ("Healthy services", "9/10"), ("Directory freshness", "30s")] } { article { small { "{label}" } strong { "{value}" } } } }
                                     article { class: "ui-brand-preview-table", h5 { {if preview_locale.read().as_str() == "ไทย" { "งานล่าสุด" } else { "Recent work" }} }
@@ -1354,9 +1354,9 @@ pub fn CorporateIdentityEditor(
                             label { {shared_text(locale, "Fresh MFA", "MFA ล่าสุด")} KitInput { r#type: "password", value: "{mfa_code}", autocomplete: "one-time-code", oninput: move |event: FormEvent| mfa_code.set(event.value()) } }
                             label { {shared_text(locale, "Immutable rollback source version", "เวอร์ชันต้นทางแบบแก้ไขไม่ได้สำหรับ rollback")} KitInput { r#type: "number", min: "1", value: "{rollback_source_version}", oninput: move |event: FormEvent| rollback_source_version.set(event.value()) } }
                             div { class: "ui-brand-action-row",
-                                KitButton { class: "ui-button", r#type: "button", disabled: save_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::SaveDraft, submission: submission.clone() }); } }, {shared_text(locale, "Save draft", "บันทึกฉบับร่าง")} }
-                                KitButton { class: "ui-button primary", r#type: "button", disabled: publish_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Publish, submission: submission.clone() }); } }, {shared_text(locale, "Publish with MFA", "เผยแพร่ด้วย MFA")} }
-                                KitButton { class: "ui-button danger", r#type: "button", disabled: rollback_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Rollback, submission: submission.clone() }); } }, {shared_text(locale, "Rollback with MFA", "Rollback ด้วย MFA")} }
+                                KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, class: "ui-button", r#type: "button", disabled: save_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::SaveDraft, submission: submission.clone() }); } }, {shared_text(locale, "Save draft", "บันทึกฉบับร่าง")} }
+                                KitButton { variant: ButtonVariant::Primary, size: ButtonSize::Default, class: "ui-button", r#type: "button", disabled: publish_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Publish, submission: submission.clone() }); } }, {shared_text(locale, "Publish with MFA", "เผยแพร่ด้วย MFA")} }
+                                KitButton { variant: ButtonVariant::Destructive, size: ButtonSize::Default, class: "ui-button", r#type: "button", disabled: rollback_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Rollback, submission: submission.clone() }); } }, {shared_text(locale, "Rollback with MFA", "Rollback ด้วย MFA")} }
                             }
                         }
                     } else {
@@ -1547,12 +1547,34 @@ fn dialog_close_label() -> &'static str {
     }
 }
 
+/// Governed dialog widths. Content-specific selectors must not own modal geometry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DialogSize {
+    Sm,
+    #[default]
+    Md,
+    Lg,
+    Full,
+}
+
+impl DialogSize {
+    const fn css_token(self) -> &'static str {
+        match self {
+            Self::Sm => "sm",
+            Self::Md => "md",
+            Self::Lg => "lg",
+            Self::Full => "full",
+        }
+    }
+}
+
 /// A modal dialog primitive. It renders only while open and labels the dialog for assistive tech.
 #[component]
 pub fn Dialog(
     open: bool,
     title: String,
     on_close: EventHandler<()>,
+    #[props(default)] size: DialogSize,
     #[props(default)] restore_focus: ReadSignal<Option<Rc<MountedData>>>,
     children: Element,
 ) -> Element {
@@ -1595,6 +1617,7 @@ pub fn Dialog(
             aria_labelledby: title_id.clone(),
             aria_describedby: body_id.clone(),
             aria_keyshortcuts: "Escape",
+            "data-size": size.css_token(),
             "data-erpx-component": "dialog",
             "data-dialog-backdrop": "true",
             "data-dialog-focus-trap": "true",
@@ -1681,8 +1704,8 @@ pub fn StatePanel(
             h3 { id: "{title_id}", "{title.as_str()}" }
             p { id: "{message_id}", "{message.as_str()}" }
             if let (Some(label), Some(on_action)) = (action_label, on_action) {
-                KitButton {
-                    class: "ui-button secondary",
+                KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
+                    class: "ui-button",
                     r#type: "button",
                     aria_label: "{label.as_str()}",
                     onclick: move |event: MouseEvent| on_action.call(event),
@@ -1870,5 +1893,38 @@ mod tests {
             allowed_scope_selection("access_token=secret", &allowed),
             None
         );
+    }
+
+    #[test]
+    fn kit_buttons_use_explicit_governed_variants_and_sizes() {
+        let marker = ["Kit", "Button {"].concat();
+        for (path, source) in [
+            ("components.rs", include_str!("components.rs")),
+            ("premium.rs", include_str!("premium.rs")),
+            ("support_surfaces.rs", include_str!("support_surfaces.rs")),
+        ] {
+            for (index, segment) in source.split(&marker).skip(1).enumerate() {
+                let head = segment.get(..segment.len().min(1_600)).unwrap_or(segment);
+                assert!(
+                    head.contains("variant:") || head.contains("\n            variant,"),
+                    "{path} KitButton #{index} has no explicit variant"
+                );
+                assert!(
+                    head.contains("size:") || head.contains("\n            size,"),
+                    "{path} KitButton #{index} has no explicit size"
+                );
+            }
+            let forbidden_classes = [
+                ["class: \"button ", "primary"].concat(),
+                ["class: \"button ", "secondary"].concat(),
+                ["class: \"button ", "danger"].concat(),
+                ["class: \"ui-button ", "primary"].concat(),
+                ["class: \"ui-button ", "danger"].concat(),
+                ["class: \"link", "-button"].concat(),
+            ];
+            for forbidden in forbidden_classes {
+                assert!(!source.contains(&forbidden), "{path} retains {forbidden}");
+            }
+        }
     }
 }

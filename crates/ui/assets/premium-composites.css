@@ -1,8 +1,8 @@
 /* ERPX Premium domain-composite presentation. It follows foundation.css so
    every existing route as one cutover while route modules converge on shared
    page-family primitives. */
-html { min-width: 320px; background: var(--erpx-dark-bg); }
-body { margin: 0; min-width: 320px; font-size: 14px; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+html { min-width: 0; background: var(--erpx-light-bg); }
+body { margin: 0; min-width: 0; font-size: 14px; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
 button, input, select, textarea { font: inherit; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .ui-shell :where(input[type="checkbox"], input[type="radio"]) { width: 24px; min-width: 24px; height: 24px; min-height: 24px; accent-color: var(--erpx-primary); }
@@ -29,8 +29,7 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .ui-shell[data-locale="th"] { line-height: max(1.6, var(--erpx-line-height, 1.6)); }
 .ui-shell[data-font-pack="corporate-sans"] { --erpx-font-sans: var(--erpx-font-corporate); }
 .ui-shell[data-font-pack="thai-formal"] { --erpx-font-sans: var(--erpx-font-thai-formal); }
-.ui-shell.ui-theme-light { --erpx-shadow-soft: 0 1px 2px rgb(18 41 56 / 5%), 0 14px 38px rgb(18 41 56 / 8%); --erpx-shadow-float: 0 24px 80px rgb(18 41 56 / 18%); }
-@media (prefers-color-scheme: light) { .ui-shell.ui-theme-system { --erpx-shadow-soft: 0 1px 2px rgb(18 41 56 / 5%), 0 14px 38px rgb(18 41 56 / 8%); --erpx-shadow-float: 0 24px 80px rgb(18 41 56 / 18%); } }
+.ui-shell { --erpx-shadow-soft: var(--erpx-shadow-md); --erpx-shadow-float: var(--erpx-shadow-lg); }
 
 .ui-nav {
   z-index: var(--erpx-z-nav);
@@ -55,8 +54,8 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .ui-topbar { z-index: var(--erpx-z-topbar); min-height: 66px; border-bottom-color: var(--erpx-border-subtle); padding-block: 10px; background: color-mix(in srgb, var(--erpx-bg) 86%, transparent); backdrop-filter: blur(22px) saturate(135%); }
 .ui-breadcrumbs { font-size: 12px; }
 .ui-content { width: min(100%, 1680px); padding-bottom: 80px; }
-.ui-page-header { max-width: 980px; padding: 38px 0 25px; }
-.ui-page-header h2 { font-size: clamp(30px, 4vw, 48px); font-weight: 650; letter-spacing: -.045em; line-height: 1.05; }
+.ui-page-header { max-width: 980px; padding: 32px 0 20px; }
+.ui-page-header h2 { font-size: clamp(25px, 3vw, 32px); font-weight: 650; letter-spacing: -.035em; line-height: 1.15; }
 .ui-page-header p { max-width: 760px; font-size: 14px; }
 
 .ui-page-family { gap: 20px; }
@@ -65,11 +64,11 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 .ui-page-family-header p { font-size: 13px; line-height: 1.65; }
 .ui-page-family-body { gap: 18px; }
 
-.ui-page-hero { position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; overflow: hidden; margin: 0 0 26px; border: 1px solid var(--erpx-border-subtle); border-radius: var(--erpx-radius-xl); padding: clamp(24px, 4vw, 44px); background: linear-gradient(135deg, color-mix(in srgb, var(--erpx-surface) 94%, var(--erpx-primary)), var(--erpx-surface)); box-shadow: var(--erpx-shadow-soft); }
+.ui-page-hero { position: relative; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; overflow: hidden; margin: 0 0 24px; border: 1px solid var(--erpx-border-subtle); border-radius: var(--erpx-radius-lg); padding: clamp(20px, 3vw, 32px); background: linear-gradient(135deg, color-mix(in srgb, var(--erpx-surface) 94%, var(--erpx-primary)), var(--erpx-surface)); box-shadow: var(--erpx-shadow-soft); }
 .ui-page-hero::after { content: ""; position: absolute; width: 360px; height: 360px; right: -150px; top: -230px; border: 1px solid color-mix(in srgb, var(--erpx-primary) 36%, transparent); border-radius: 50%; box-shadow: 0 0 0 46px color-mix(in srgb, var(--erpx-primary) 3%, transparent), 0 0 0 92px color-mix(in srgb, var(--erpx-accent) 2%, transparent); pointer-events: none; }
 .ui-page-hero-copy { position: relative; z-index: 1; min-width: 0; }
 .ui-page-hero-eyebrow, .ui-section-card-header small { color: var(--erpx-primary); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.ui-page-hero h2 { max-width: 860px; margin: 8px 0 0; font-size: clamp(34px, 5vw, 58px); font-weight: 650; letter-spacing: -.055em; line-height: 1.02; }
+.ui-page-hero h2 { max-width: 860px; margin: 8px 0 0; font-size: clamp(25px, 3.5vw, 36px); font-weight: 650; letter-spacing: -.04em; line-height: 1.1; }
 .ui-page-hero p { max-width: 760px; margin: 14px 0 0; color: var(--erpx-text-muted); font-size: 15px; line-height: 1.65; }
 .ui-page-hero small { display: block; margin-top: 18px; color: var(--erpx-text-muted); font-size: 11px; }
 .ui-page-hero-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; }
@@ -172,9 +171,9 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
   .ui-breadcrumbs { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ui-content { padding-inline: 14px; padding-bottom: 56px; }
   .ui-page-header { padding-top: 24px; }
-  .ui-page-header h2 { font-size: 32px; }
+  .ui-page-header h2 { font-size: 25px; }
   .ui-page-hero { align-items: flex-start; flex-direction: column; border-radius: 18px; padding: 24px 20px; }
-  .ui-page-hero h2 { font-size: 36px; }
+  .ui-page-hero h2 { font-size: 28px; }
   .ui-page-hero-actions { width: 100%; }
   .ui-page-hero-actions > * { flex: 1; }
   .ui-section-card-header { flex-direction: column; padding-inline: 16px; }

@@ -13,7 +13,7 @@ h1, h2, h3, p { margin: 0; }
 .brand h1 { font-size: 16px; letter-spacing: -.02em; }.brand p, .security-note, .intro p, .row-main span, .metric span, .signal span, .health-line span { color: #8da1b2; font-size: 12px; }
 .security-note, .scope-chip { color: #82d5bd; border: 1px solid #2f6659; background: #163a35; border-radius: 999px; padding: 7px 12px; font-size: 11px; }
 .intro { display: flex; justify-content: space-between; align-items: end; gap: 20px; padding: 44px 0 24px; }.intro h2 { font-size: clamp(26px, 4vw, 42px); letter-spacing: -.055em; }.intro p { max-width: 680px; line-height: 1.6; margin-top: 10px; }
-.toolbar { display: flex; gap: 10px; margin-bottom: 14px; }.searchbox { display: flex; flex: 1; align-items: center; gap: 10px; border: 1px solid #2c3c4b; background: #111a22; border-radius: 10px; padding: 0 13px; color: #90a5b8; }.searchbox input { width: 100%; border: 0; outline: 0; background: transparent; padding: 11px 0; color: #e8eef5; }.button { border: 1px solid #2c3c4b; border-radius: 10px; padding: 0 16px; color: #dbe7ef; background: #17222c; }.button:hover { border-color: #61c8d6; }
+.toolbar { display: flex; gap: 10px; margin-bottom: 14px; }.searchbox { display: flex; flex: 1; align-items: center; gap: 10px; border: 1px solid #2c3c4b; background: #111a22; border-radius: 10px; padding: 0 13px; color: #90a5b8; }.searchbox input { width: 100%; border: 0; outline: 0; background: transparent; padding: 11px 0; color: #e8eef5; }
 .workspace { display: grid; grid-template-columns: minmax(300px, .85fr) minmax(0, 1.3fr); gap: 14px; }.customer-list, .detail { border: 1px solid #283643; border-radius: 14px; background: #111a22; overflow: hidden; }.section-caption, .eyebrow { color: #6f8b9f; font-size: 10px; letter-spacing: .16em; font-weight: 700; }.section-caption { padding: 15px 18px; border-bottom: 1px solid #283643; }.customer-row { width: 100%; display: flex; align-items: center; gap: 10px; border: 0; border-bottom: 1px solid #202e39; background: transparent; color: #e8eef5; text-align: left; padding: 13px 15px; }.customer-row:hover, .customer-row.selected { background: #182a35; }.row-icon { display: grid; place-items: center; width: 32px; height: 32px; flex: 0 0 auto; border: 1px solid #315565; border-radius: 9px; color: #83d9e0; }.row-main { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }.row-main strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }.row-health { display: flex; align-items: center; gap: 5px; color: #a3b5c3; font-size: 11px; }.chevron { color: #5d7181; font-size: 20px; }.dot { width: 7px; height: 7px; display: inline-block; border-radius: 50%; }.good { color: #79d3ad; }.dot.good { background: #79d3ad; }.warn { color: #f3c476; }.dot.warn { background: #f3c476; }.bad { color: #f28b8b; }.dot.bad { background: #f28b8b; }.muted { color: #8da1b2; }.dot.muted { background: #8da1b2; }
 .detail { padding: 23px; min-height: 460px; }.detail-head { display: flex; justify-content: space-between; gap: 20px; border-bottom: 1px solid #283643; padding-bottom: 20px; }.detail-head h2 { margin-top: 7px; font-size: 25px; letter-spacing: -.04em; }.detail-head p { margin-top: 5px; color: #8da1b2; font-size: 12px; }.badge { height: fit-content; border-radius: 999px; background: #173a35; padding: 6px 10px; font-size: 11px; }.metric-grid, .signal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 18px; }.metric, .signal { display: flex; flex-direction: column; gap: 8px; padding: 13px; border: 1px solid #283643; border-radius: 10px; background: #0d151c; }.metric strong, .signal strong { font-size: 21px; }.detail-section { border-top: 1px solid #283643; margin-top: 21px; padding-top: 18px; }.detail-section h3 { font-size: 12px; }.health-line { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; }.audit-banner { margin-top: 24px; border: 1px solid #315565; border-radius: 10px; background: #132832; color: #93ccd2; padding: 12px; font-size: 11px; line-height: 1.55; }.empty-detail, .state { display: grid; place-items: center; min-height: 460px; padding: 30px; color: #8da1b2; text-align: center; }.state.error { display: block; text-align: left; }.state.error h3 { color: #f28b8b; }.state.error p { margin-top: 8px; }
 .customer-route-tabs { max-width: 1380px; margin: 0 auto 14px; display: flex; flex-wrap: wrap; gap: 7px; padding: 3px; border: 1px solid #283643; border-radius: 12px; background: #111a22; }
@@ -65,7 +65,6 @@ h1, h2, h3, p { margin: 0; }
 .identity-one-time-secret input { width: min(100%, 220px); border: 1px solid var(--erpx-border, #315565); border-radius: 8px; background: var(--erpx-surface, #111a22); color: var(--erpx-text, #e8eef5); padding: 9px 10px; }
 @media (max-width: 980px) { .identity-security-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .auth-alternative-actions, .identity-security-actions { align-items: stretch; flex-direction: column; }.auth-alternative-actions .button, .identity-security-actions .button { width: 100%; }.identity-one-time-secret ol { grid-template-columns: 1fr; } }
-.button.danger { border-color: #75444a; color: #f7b1b1; background: #3a2028; }
 .button:disabled { cursor: not-allowed; opacity: .55; }
 .migration-evidence-cell { min-width: 170px; }
 .migration-evidence-cell strong, .migration-evidence-cell small { display: block; }
@@ -165,7 +164,7 @@ h1, h2, h3, p { margin: 0; }
 }
 
 /* Shared semantic-token bridge for route composites that remain ERPX-owned. */
-html, body { min-height: 100%; max-width: 100%; background: var(--erpx-bg, #0b1117); color: var(--erpx-text, #e8eef5); }
+html, body { min-height: 100%; max-width: 100%; background: var(--erpx-light-bg, #f4f7f9); color: var(--erpx-light-text, #14202a); }
 .ui-shell :where(.ui-main, .ui-content, .ui-page-family, .ui-page-family > *, .toolbar, .workspace, .customer-route-tabs, .customer-surface, .customer-list, .detail) { min-width: 0; max-width: 100%; }
 .ui-shell .toolbar .searchbox { min-width: 0; }
 .ui-shell :where(.customer-list, .detail, .projection-detail, .tenant-config-surface, .customer-route-tabs, .metric, .signal, .business-unit-card, .auth-panel) {
@@ -176,17 +175,11 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-bg, #0b11
   box-shadow: var(--erpx-shadow, none);
 }
 .ui-shell :where(.section-caption, .eyebrow, .projection-meta, .surface-header p, .tenant-config-surface p, .business-unit-card small, .row-main span, .metric span, .signal span, .health-line span, .muted) { color: var(--erpx-text-muted); }
-.ui-shell :where(.customer-row, .route-tab, .button, .link-button) { color: var(--erpx-text); }
+.ui-shell :where(.customer-row, .route-tab) { color: var(--erpx-text); }
 .ui-shell :where(.customer-row, .section-caption, .surface-header, .detail-head, .detail-section, .detail-grid dt, .detail-grid dd, .data-table th, .data-table td) { border-color: var(--erpx-border); }
 .ui-shell :where(.customer-row:hover, .customer-row.selected, .route-tab:hover, .route-tab.active) { background: color-mix(in srgb, var(--erpx-primary) 12%, var(--erpx-surface)); }
 .ui-shell :where(.searchbox, .auth-field input, .field-grid input, .field-grid select, .field-grid textarea) { border-color: var(--erpx-border); background: var(--erpx-surface-raised); color: var(--erpx-text); }
-.ui-shell :where(.button, .link-button) { min-height: var(--erpx-control-height, 40px); border-color: var(--erpx-border); border-radius: var(--erpx-radius, 10px); background: var(--erpx-surface-raised); }
-.ui-shell :where(.button.primary, .primary-button) { border-color: var(--erpx-primary); background: var(--erpx-primary); color: var(--erpx-on-primary); }
-.ui-shell :where(a, .link-button) { color: var(--erpx-link); }
-.ui-shell [data-erpx-component="button"].button { border-color: var(--erpx-border); background: var(--erpx-surface-raised); color: var(--erpx-text); }
-.ui-shell [data-erpx-component="button"].button.primary { border-color: var(--erpx-primary); background: var(--erpx-primary); color: var(--erpx-on-primary); }
-.ui-shell [data-erpx-component="button"].button.danger { border-color: color-mix(in srgb, var(--erpx-danger) 55%, var(--erpx-border)); background: color-mix(in srgb, var(--erpx-danger) 12%, var(--erpx-surface)); color: var(--erpx-danger); }
-.ui-shell [data-erpx-component="button"].link-button { border-color: transparent; background: transparent; color: var(--erpx-link); }
+.ui-shell a { color: var(--erpx-link); }
 .ui-shell :where(.security-note, .scope-chip, .audit-banner, .route-identity) { border-color: color-mix(in srgb, var(--erpx-security) 44%, var(--erpx-border)); background: color-mix(in srgb, var(--erpx-security) 10%, var(--erpx-surface)); color: var(--erpx-security); }
 .ui-shell :where(.status-pill.good, .status-banner.good) { border-color: color-mix(in srgb, var(--erpx-success) 48%, var(--erpx-border)); background: color-mix(in srgb, var(--erpx-success) 11%, var(--erpx-surface)); }
 .ui-shell :where(.status-pill.warn, .status-banner.warn) { border-color: color-mix(in srgb, var(--erpx-warning) 48%, var(--erpx-border)); background: color-mix(in srgb, var(--erpx-warning) 11%, var(--erpx-surface)); }
@@ -197,7 +190,7 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-bg, #0b11
 .ui-shell .auth-panel { border-color: var(--erpx-security); background: color-mix(in srgb, var(--erpx-security) 12%, var(--erpx-surface)); }
 .ui-shell :where(.good, .status-pill.good, .status-banner.good) { color: var(--erpx-success); }
 .ui-shell :where(.warn, .status-pill.warn, .status-banner.warn) { color: var(--erpx-warning); }
-.ui-shell :where(.bad, .status-pill.bad, .status-banner.bad, .button.danger) { color: var(--erpx-danger); }
+.ui-shell :where(.bad, .status-pill.bad, .status-banner.bad) { color: var(--erpx-danger); }
 .ui-shell .dot.good { background: var(--erpx-success); }
 .ui-shell .dot.warn { background: var(--erpx-warning); }
 .ui-shell .dot.bad { background: var(--erpx-danger); }
@@ -339,7 +332,7 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-bg, #0b11
 
 /* The profile control is a quick switcher. Security, recovery, and developer
    workflows live on their own routes instead of expanding this menu. */
-.account-quick-menu { display: grid; width: 100%; max-height: calc(100dvh - 150px); gap: 16px; overflow-y: auto; color: var(--erpx-text); }
+.account-quick-menu { display: grid; width: 100%; max-height: calc(100dvh - 150px); gap: 16px; overflow-y: auto; color: var(--erpx-text); container-type: inline-size; }
 .account-quick-heading, .account-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .account-quick-heading strong { display: block; max-width: 26ch; margin-top: 5px; overflow: hidden; font-size: 17px; letter-spacing: -.02em; text-overflow: ellipsis; white-space: nowrap; }
 .account-work-role { display: block; margin-top: 4px; color: var(--erpx-text-muted); font-size: 11px; }
@@ -349,9 +342,9 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-bg, #0b11
 .account-quick-section-heading small { display: inline-grid; min-width: 20px; height: 20px; place-items: center; border-radius: 999px; background: var(--erpx-surface-raised); color: var(--erpx-text-muted); font-size: 10px; letter-spacing: 0; }
 .account-icon-button { display: inline-grid; width: 34px; height: 34px; place-items: center; flex: 0 0 auto; border: 1px solid var(--erpx-border); border-radius: 9px; background: var(--erpx-surface-raised); color: var(--erpx-text); font-size: 20px; line-height: 1; }
 .account-quick-list { display: grid; gap: 7px; }
-.account-quick-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 11px; width: 100%; min-height: 58px; border: 1px solid var(--erpx-border); border-radius: 12px; padding: 10px 11px; background: var(--erpx-surface-raised); color: var(--erpx-text); text-align: left; transition: border-color 140ms ease, background 140ms ease, transform 140ms ease; }
+.account-quick-list .account-quick-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 11px; width: 100%; min-height: 58px; border: 1px solid var(--erpx-border); border-radius: var(--erpx-radius-md); padding: 10px 11px; background: var(--erpx-surface-raised); color: var(--erpx-text); text-align: left; transition: border-color 140ms ease, background 140ms ease, transform 140ms ease; }
 .account-quick-row:not(:disabled):hover { border-color: color-mix(in srgb, var(--erpx-primary) 62%, var(--erpx-border)); background: color-mix(in srgb, var(--erpx-primary) 7%, var(--erpx-surface-raised)); transform: translateY(-1px); }
-.account-quick-row.active { border-color: color-mix(in srgb, var(--erpx-primary) 52%, var(--erpx-border)); background: color-mix(in srgb, var(--erpx-primary) 9%, var(--erpx-surface)); }
+.account-quick-list .account-quick-row[data-state="selected"] { border-color: color-mix(in srgb, var(--erpx-primary) 52%, var(--erpx-border)); background: color-mix(in srgb, var(--erpx-primary) 9%, var(--erpx-surface)); }
 .account-quick-row.active:disabled { cursor: default; opacity: 1; }
 .account-quick-avatar { display: inline-grid; width: 38px; height: 38px; place-items: center; border: 1px solid color-mix(in srgb, var(--erpx-primary) 24%, transparent); border-radius: 50%; background: color-mix(in srgb, var(--erpx-primary) 16%, var(--erpx-surface)); color: var(--erpx-primary); font-size: 13px; font-weight: 800; text-transform: uppercase; }
 .account-quick-copy { display: grid; min-width: 0; gap: 2px; }
@@ -372,48 +365,17 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-bg, #0b11
 .account-quick-links button:hover .account-link-arrow { transform: translateX(2px); }
 .account-quick-links button.danger { margin-top: 4px; border-top: 1px solid var(--erpx-border); border-radius: 0 0 9px 9px; padding-top: 11px; color: var(--erpx-danger, #fca5a5); }
 .account-quick-links button.danger .account-link-icon { background: color-mix(in srgb, var(--erpx-danger) 10%, var(--erpx-surface)); color: var(--erpx-danger); }
+@container (max-width: 340px) {
+  .account-quick-actions { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .account-quick-links button { min-height: 44px; }
+}
 @media (prefers-reduced-motion: reduce) {
   .account-quick-row, .account-link-arrow { transition: none; }
   .account-quick-row:not(:disabled):hover, .account-quick-links button:hover .account-link-arrow { transform: none; }
 }
 
-.ui-dialog:has(#erpx-account-session-dialog) { width: min(420px, calc(100% - 24px)); max-width: 420px; overflow: hidden; border-color: color-mix(in srgb, var(--erpx-border) 76%, var(--erpx-primary)); border-radius: 16px; box-shadow: 0 28px 90px rgb(2 8 12 / 30%); }
-.ui-dialog:has(#erpx-account-session-dialog) > .ui-dialog-header { padding: 17px 20px; }
-.ui-dialog:has(#erpx-account-session-dialog) > .ui-dialog-header h2 { font-size: 17px; letter-spacing: -.025em; }
-.ui-dialog:has(#erpx-account-session-dialog) > .ui-dialog-body { padding: 18px 20px 20px; }
-.ui-dialog:has(#erpx-role-selection-dialog) {
-  width: min(880px, calc(100% - 32px));
-  max-width: 880px;
-  max-height: min(820px, calc(100dvh - 32px));
-  overflow: hidden;
-  border-color: color-mix(in srgb, var(--erpx-border) 72%, var(--erpx-primary));
-  border-radius: clamp(14px, 2vw, 20px);
-  padding: 0;
-  background: var(--erpx-surface);
-  box-shadow: 0 28px 90px rgb(2 8 12 / 32%);
-  gap: 0;
-}
-.ui-dialog:has(#erpx-role-selection-dialog) > .ui-dialog-header {
-  flex: 0 0 auto;
-  padding: 18px clamp(18px, 3vw, 28px);
-  background: color-mix(in srgb, var(--erpx-surface) 92%, var(--erpx-primary));
-}
-.ui-dialog:has(#erpx-role-selection-dialog) > .ui-dialog-header h2 {
-  font-size: clamp(17px, 2vw, 21px);
-  letter-spacing: -.025em;
-}
-.ui-dialog:has(#erpx-role-selection-dialog) > .ui-dialog-header .ui-icon-button {
-  border: 1px solid transparent;
-  border-radius: 10px;
-  color: var(--erpx-text-muted);
-}
-.ui-dialog:has(#erpx-role-selection-dialog) > .ui-dialog-header .ui-icon-button:hover {
-  border-color: var(--erpx-border);
-  background: var(--erpx-surface-raised);
-  color: var(--erpx-text);
-}
-.ui-dialog:has(#erpx-role-selection-dialog) > .ui-dialog-body { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 0; }
-.ui-dialog:has(#erpx-add-account-dialog) { width: min(620px, calc(100% - 24px)); max-width: 620px; }
 .account-dialog { display: grid; width: 100%; max-height: calc(100vh - 150px); gap: 14px; overflow-y: auto; color: var(--erpx-text); }
 .account-dialog h2 { margin: 4px 0 0; font-size: 23px; }.account-dialog > p { margin: 0; color: var(--erpx-text-muted); font-size: 11px; line-height: 1.6; }
 .account-dialog .auth-panel { margin: 0; border: 0; padding: 0; background: transparent; }.account-dialog .auth-panel-heading { display: none; }
@@ -425,7 +387,7 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-bg, #0b11
   height: auto;
   gap: 5px;
   overflow: hidden;
-  padding: 18px clamp(18px, 3vw, 28px) 24px;
+  padding: 0;
 }
 .role-selection-dialog > .eyebrow { color: var(--erpx-primary); }
 .role-selection-dialog > p { max-width: 72ch; font-size: 12px; }
@@ -509,9 +471,6 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-bg, #0b11
   .work-role-search { grid-template-columns: 1fr; gap: 4px; padding: 7px; }
   .work-role-result-count { border-top: 1px solid var(--erpx-border); border-left: 0; padding: 7px 4px 1px; text-align: right; }
   .work-role-grid, .account-quick-actions { grid-template-columns: 1fr; }
-  .ui-dialog:has(#erpx-account-session-dialog) { width: calc(100% - 16px); border-radius: 14px; }
-  .ui-dialog:has(#erpx-account-session-dialog) > .ui-dialog-header { padding: 14px 16px; }
-  .ui-dialog:has(#erpx-account-session-dialog) > .ui-dialog-body { padding: 16px; }
   .account-quick-heading { align-items: flex-start; }
   .account-quick-heading strong { max-width: 18ch; }
   .work-role-picker .work-role-card[data-erpx-component="button"] { min-height: 70px; padding: 10px; }
@@ -563,7 +522,7 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-bg, #0b11
 .identity-access-principal-heading small { display: block; overflow: hidden; color: var(--erpx-text-muted); text-overflow: ellipsis; }
 .identity-access-assignment-list { display: flex; flex-wrap: wrap; gap: 7px; }
 .identity-access-assignment-chip { border: 1px solid var(--erpx-border); border-radius: 999px; padding: 5px 8px; background: var(--erpx-surface); }
-.identity-access-assignment-chip .link-button { min-height: auto; padding: 0; }
+.identity-access-assignment-chip [data-style="link"] { min-height: auto; padding: 0; }
 .button.compact { min-height: 38px; white-space: nowrap; }
 @media (max-width: 860px) { .identity-access-intro { align-items: stretch; flex-direction: column; }.identity-access-principal-card { grid-template-columns: minmax(0, 1fr); }.identity-access-principal-card > .button { width: 100%; } }
 .device-preferences-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 22px; border: 1px solid var(--erpx-border); border-radius: var(--erpx-radius, 12px); padding: 18px 20px; background: var(--erpx-surface); }
@@ -949,7 +908,7 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
 .ui-shell .tenant-registry-table tbody tr:hover .tenant-registry-identity { background: color-mix(in srgb, var(--erpx-primary) 6%, var(--erpx-surface)); }
 .ui-shell :where(.tenant-registry-identity, .tenant-registry-stack, .tenant-registry-plan, .tenant-registry-capacity, .tenant-registry-health) > * { display: block; }
 .ui-shell :where(.tenant-registry-identity, .tenant-registry-stack, .tenant-registry-plan, .tenant-registry-capacity, .tenant-registry-health) > * + * { margin-top: 7px; }
-.ui-shell .tenant-registry-identity .link-button { width: fit-content; max-width: 190px; min-height: 34px; padding: 7px 10px; overflow-wrap: anywhere; text-align: left; }
+.ui-shell .tenant-registry-identity [data-style="link"] { width: fit-content; max-width: 190px; min-height: 34px; padding: 7px 10px; overflow-wrap: anywhere; text-align: left; }
 .ui-shell .tenant-registry-secondary, .ui-shell .tenant-registry-stack span { color: var(--erpx-text-muted); line-height: 1.45; }
 .ui-shell .tenant-registry-nowrap, .ui-shell .tenant-registry-renewal { min-width: 130px; white-space: nowrap; }
 .ui-shell .tenant-registry-plan { min-width: 180px; }

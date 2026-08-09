@@ -21,6 +21,12 @@
   color-scheme: dark;
   isolation: isolate;
   font-family: var(--erpx-font-sans);
+  overflow-x: clip;
+}
+
+.erpx-kit-root,
+.erpx-kit-root * {
+  box-sizing: border-box;
 }
 
 .erpx-kit-root[data-theme="light"] {
@@ -71,6 +77,10 @@
   }
 }
 
-.erpx-kit-root[data-density="compact"] { --erpx-control-height: 32px; }
-.erpx-kit-root[data-density="comfortable"] { --erpx-control-height: 40px; }
+.erpx-kit-root[data-density="compact"] { --erpx-control-height: var(--erpx-control-height-compact); }
+.erpx-kit-root[data-density="comfortable"] { --erpx-control-height: var(--erpx-control-height-default); }
 .erpx-kit-root[data-density="spacious"] { --erpx-control-height: 48px; }
+
+@media (max-width: 760px) {
+  .erpx-kit-root { --erpx-control-height: var(--erpx-control-height-touch); }
+}

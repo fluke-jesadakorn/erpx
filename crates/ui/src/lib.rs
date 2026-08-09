@@ -41,10 +41,11 @@ pub use auth::{
 pub use components::{
     AppShell, BannerKind, CollectionLayout, CorporateIdentityEditor, CorporateIdentityEditorAction,
     CorporateIdentityEditorActionKind, CorporateIdentityEditorSubmission, DashboardLayout,
-    DataTable, Dialog, EnterpriseIcon, Field, FilterBar, LocaleToggle, LockedTooltipButton,
-    NavigationDisclosureState, OperationsLayout, PageHeader, RecordLayout, RouteStateBoundary,
-    ScopeSelector, SessionBanners, SettingsLayout, StateBoundary, StatePanel, TableColumn,
-    TextField, WorkflowLayout, use_account_session_focus_target, use_navigation_disclosure_state,
+    DataTable, Dialog, DialogSize, EnterpriseIcon, Field, FilterBar, LocaleToggle,
+    LockedTooltipButton, NavigationDisclosureState, OperationsLayout, PageHeader, RecordLayout,
+    RouteStateBoundary, ScopeSelector, SessionBanners, SettingsLayout, StateBoundary, StatePanel,
+    TableColumn, TextField, WorkflowLayout, use_account_session_focus_target,
+    use_navigation_disclosure_state,
 };
 pub use crm::{
     CRM_SURFACES, CrmAttributionDisplayModel, CrmAttributionModel, CrmDisplayField, CrmFieldInput,

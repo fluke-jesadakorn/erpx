@@ -169,7 +169,7 @@ use erpx_proto::platform::{
 use erpx_ui::SecureSessionBundleStore;
 use erpx_ui::kit::{
     Disclosure as KitDisclosure, KitProvider, SelectControl as KitSelect, Table as KitTable,
-    button::{Button as KitButton, ButtonVariant},
+    button::{Button as KitButton, ButtonSize, ButtonVariant},
     input::Input as KitInput,
     textarea::Textarea as KitTextarea,
 };
@@ -179,18 +179,18 @@ use erpx_ui::{
     CrmFieldInput, CrmHandoffDisplayModel, CrmOpportunityDisplayModel, CrmPageMetadata,
     CrmProjectionMetadata, CrmReadPage, CrmState, CrmSurface, CrmViewState, CustomerNoteDtoInput,
     CustomerNotesDisplayModel, CustomerView as Customer360View, DashboardRange,
-    DashboardRangeSelector, DashboardReadModel, Dialog, Drawer, EmptyState, EnterpriseIcon,
-    FilterBar, IncidentDetailState, IncidentDtoInput, IncidentListDisplayModel, IncidentListState,
-    IncidentProjectionMetadata, IssuedSession, Locale, LocaleContext, LocaleToggle, LocalizedText,
-    LockedTooltipButton, LoginRequest, MetricCard, NavAccess, NavGroup, NavItem, PageHeader,
-    PlatformOperationsRoute, PlatformOperationsRouteDefinition, PlatformOperationsRouteId,
-    PlatformOperationsRouteRegistry, PlatformRoute, PlatformTenantAdministrationTab,
-    PlatformTenantId, ReadModelAvailability, ReadModelFreshness, RefreshToken, RouteDefinition,
-    RouteId, RouteRegistry, RouteStateBoundary, SafeUiText, ScopeKind, ScopeOption,
-    SecureSessionSupport, SessionCommandError, SessionController, SessionFuture, SessionId,
-    SessionState, SessionTransport, SharedStylesheets, Skeleton, StatePanel, StatusBadge,
-    StatusTone, SupportApprovalState, SupportContextMetadata, SupportDisplayModel,
-    SupportFieldInput, SupportImpersonationState, SupportIncidentSurface,
+    DashboardRangeSelector, DashboardReadModel, Dialog, DialogSize, Drawer, EmptyState,
+    EnterpriseIcon, FilterBar, IncidentDetailState, IncidentDtoInput, IncidentListDisplayModel,
+    IncidentListState, IncidentProjectionMetadata, IssuedSession, Locale, LocaleContext,
+    LocaleToggle, LocalizedText, LockedTooltipButton, LoginRequest, MetricCard, NavAccess,
+    NavGroup, NavItem, PageHeader, PlatformOperationsRoute, PlatformOperationsRouteDefinition,
+    PlatformOperationsRouteId, PlatformOperationsRouteRegistry, PlatformRoute,
+    PlatformTenantAdministrationTab, PlatformTenantId, ReadModelAvailability, ReadModelFreshness,
+    RefreshToken, RouteDefinition, RouteId, RouteRegistry, RouteStateBoundary, SafeUiText,
+    ScopeKind, ScopeOption, SecureSessionSupport, SessionCommandError, SessionController,
+    SessionFuture, SessionId, SessionState, SessionTransport, SharedStylesheets, Skeleton,
+    StatePanel, StatusBadge, StatusTone, SupportApprovalState, SupportContextMetadata,
+    SupportDisplayModel, SupportFieldInput, SupportImpersonationState, SupportIncidentSurface,
     SupportIncidentSurfaceState, SupportMode, SupportProjectionMetadata, SupportRoute,
     SupportRouteTabs, SupportState, SupportTicketDtoInput, SupportTicketListDisplayModel,
     SupportTicketListState, TargetSecureSessionAdapter, TargetSessionDescriptor,
@@ -3567,11 +3567,11 @@ impl PlatformTenantLifecycleAction {
     }
 }
 
-const fn tenant_lifecycle_button_class(action: PlatformTenantLifecycleAction) -> &'static str {
+const fn tenant_lifecycle_button_variant(action: PlatformTenantLifecycleAction) -> ButtonVariant {
     if matches!(action, PlatformTenantLifecycleAction::Suspend) {
-        "button danger"
+        ButtonVariant::Destructive
     } else {
-        "button primary"
+        ButtonVariant::Primary
     }
 }
 
@@ -28531,7 +28531,7 @@ fn PublicMarketingSurface(route: PublicMarketingRoute) -> Element {
                 }
                 div { class: "public-marketing-controls",
                     LocaleToggle {}
-                    KitButton {
+                    KitButton { size: ButtonSize::Default,
                         variant: ButtonVariant::Secondary,
                         r#type: "button",
                         aria_label: localized_copy("Change color mode", "เปลี่ยนโหมดสี"),
@@ -28585,7 +28585,7 @@ fn PublicMarketingSurface(route: PublicMarketingRoute) -> Element {
                                 KitInput { id: "public-consent", r#type: "checkbox", checked: *consent.read(), disabled: busy, required: true, onchange: move |event: FormEvent| consent.set(event.checked()) }
                                 span { {localized_copy("I consent to this enquiry being processed and recorded for follow-up.", "ฉันยินยอมให้ประมวลผลและบันทึกคำถามนี้เพื่อติดตามผล")} }
                             }
-                            KitButton { class: "button primary", r#type: "submit", disabled: busy, if busy { {localized_copy("Sending…", "กำลังส่ง…")} } else { {localized_copy("Send enquiry", "ส่งคำถาม")} } }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: busy, if busy { {localized_copy("Sending…", "กำลังส่ง…")} } else { {localized_copy("Send enquiry", "ส่งคำถาม")} } }
                         }
                     },
                     PublicMarketingRoute::Preview { .. } => rsx! {
@@ -28593,7 +28593,7 @@ fn PublicMarketingSurface(route: PublicMarketingRoute) -> Element {
                             label { r#for: "public-preview-code", {localized_copy("Temporary access code", "รหัสเข้าถึงชั่วคราว")} }
                             KitInput { id: "public-preview-code", r#type: "password", value: "{preview_token}", maxlength: "4096", autocomplete: "off", disabled: busy, required: true, oninput: move |event: FormEvent| preview_token.set(event.value()) }
                             p { class: "security-note", {localized_copy("The access code is sent only in a request header and is cleared immediately after use.", "รหัสเข้าถึงจะส่งเฉพาะในส่วนหัวคำขอและถูกล้างทันทีหลังใช้งาน")} }
-                            KitButton { class: "button primary", r#type: "submit", disabled: busy, if busy { {localized_copy("Loading…", "กำลังโหลด…")} } else { {localized_copy("Open preview", "เปิดตัวอย่าง")} } }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: busy, if busy { {localized_copy("Loading…", "กำลังโหลด…")} } else { {localized_copy("Open preview", "เปิดตัวอย่าง")} } }
                         }
                     },
                 }
@@ -28728,7 +28728,7 @@ fn MyWorkSurface(
                     h1 { {console_text(locale, "What needs attention today", "สิ่งที่ต้องจัดการวันนี้")} }
                     p { {console_text(locale, "One prioritized queue across the domains available to your active role.", "คิวงานเดียวที่จัดลำดับจากทุกโดเมนที่บทบาทปัจจุบันเข้าถึงได้")} }
                 }
-                KitButton { class: "button secondary", r#type: "button", onclick: move |_| on_retry.call(()),
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| on_retry.call(()),
                     {console_text(locale, "Refresh", "รีเฟรช")}
                 }
             }
@@ -28749,7 +28749,7 @@ fn MyWorkSurface(
                     (WorkQueueView::Overdue, "Overdue", "เกิน SLA"),
                     (WorkQueueView::Approvals, "Approvals", "ต้องอนุมัติ"),
                 ] {
-                    KitButton {
+                    KitButton { size: ButtonSize::Default,
                         variant: ButtonVariant::Ghost,
                         r#type: "button",
                         class: if view == next_view { "active" } else { "" },
@@ -28798,7 +28798,7 @@ fn MyWorkSurface(
                         }
                     }
                 }
-                KitButton { class: "work-density", r#type: "button", aria_pressed: compact.read().to_string(), onclick: move |_| { let next = !*compact.read(); compact.set(next); },
+                KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, class: "work-density", r#type: "button", aria_pressed: compact.read().to_string(), onclick: move |_| { let next = !*compact.read(); compact.set(next); },
                     {if *compact.read() { console_text(locale, "Comfortable", "แบบสบายตา") } else { console_text(locale, "Compact", "แบบกระชับ") }}
                 }
                 span { class: "work-total", {match locale { Locale::En => format!("{} active", counters.total), Locale::Th => format!("{} งานที่เปิดอยู่", counters.total) }} }
@@ -28818,7 +28818,7 @@ fn MyWorkSurface(
                     EmptyState {
                         title: console_text(locale, "Work queue unavailable", "คิวงานไม่พร้อมใช้งาน").to_owned(),
                         message: console_text(locale, "Your shell remains available. Retry when the authorized work sources recover.", "คุณยังใช้ส่วนหลักของระบบได้ โปรดลองอีกครั้งเมื่อแหล่งข้อมูลงานกลับมาพร้อมใช้").to_owned(),
-                        action: Some(rsx! { KitButton { class: "button primary", r#type: "button", onclick: move |_| on_retry.call(()), {console_text(locale, "Retry", "ลองอีกครั้ง")} } }),
+                        action: Some(rsx! { KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: move |_| on_retry.call(()), {console_text(locale, "Retry", "ลองอีกครั้ง")} } }),
                     }
                 } else if items.is_empty() {
                     EmptyState {
@@ -28838,7 +28838,7 @@ fn MyWorkSurface(
                                         span { class: "work-domain", {work_domain_copy(locale, item.domain)} }
                                         StatusBadge { label: work_kind_copy(locale, item.kind).to_owned(), tone: work_severity_tone(item.severity) }
                                     }
-                                    KitButton { class: "work-row-main", r#type: "button", onclick: move |_| selected.set(Some(detail.clone())),
+                                    KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, class: "work-row-main", r#type: "button", onclick: move |_| selected.set(Some(detail.clone())),
                                         strong { "{item.title}" }
                                         span { "{item.summary}" }
                                     }
@@ -28850,7 +28850,7 @@ fn MyWorkSurface(
                                         StatusBadge { label: work_sla_copy(locale, item.sla).to_owned(), tone: if item.sla == WorkSlaState::Overdue { StatusTone::Danger } else if item.sla == WorkSlaState::DueToday { StatusTone::Warning } else { StatusTone::Neutral } }
                                         time { title: updated, "{due}" }
                                     }
-                                    KitButton { class: "button primary work-row-action", r#type: "button", onclick: move |_| on_navigate.call(path.clone()),
+                                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button work-row-action", r#type: "button", onclick: move |_| on_navigate.call(path.clone()),
                                         {console_text(locale, "Open", "เปิด")}
                                     }
                                 }
@@ -28862,7 +28862,7 @@ fn MyWorkSurface(
 
             if let Some(cursor) = next_cursor {
                 div { class: "work-pagination",
-                    KitButton { class: "button secondary", r#type: "button", onclick: move |_| on_next.call(cursor.clone()), {console_text(locale, "Next page", "หน้าถัดไป")} }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| on_next.call(cursor.clone()), {console_text(locale, "Next page", "หน้าถัดไป")} }
                 }
             }
 
@@ -28918,7 +28918,7 @@ fn MyWorkSurface(
                                 h3 { {console_text(locale, "Related record", "ระเบียนที่เกี่ยวข้อง")} }
                                 p { {console_text(locale, "Open the authorized workspace to review the full record and available commands.", "เปิดพื้นที่ทำงานที่ได้รับอนุญาตเพื่อตรวจระเบียนฉบับเต็มและคำสั่งที่ใช้ได้")} }
                             }
-                            KitButton { class: "button primary work-drawer-primary", r#type: "button", onclick: move |_| on_navigate.call(target.clone()), {console_text(locale, "Open authorized record", "เปิดระเบียนที่ได้รับอนุญาต")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button work-drawer-primary", r#type: "button", onclick: move |_| on_navigate.call(target.clone()), {console_text(locale, "Open authorized record", "เปิดระเบียนที่ได้รับอนุญาต")} }
                         }
                     }
                 }
@@ -28970,7 +28970,7 @@ fn ProcessHubSurface(nav_groups: Vec<NavGroup>, on_navigate: EventHandler<String
                                                 {
                                                     let path = item.path.clone();
                                                     rsx! {
-                                                        KitButton { r#type: "button", onclick: move |_| on_navigate.call(path.clone()),
+                                                        KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, r#type: "button", onclick: move |_| on_navigate.call(path.clone()),
                                                             span { class: "process-card-icon", aria_hidden: "true", "{item.icon}" }
                                                             strong { "{item.label}" }
                                                             small { {console_text(locale, "Open workspace", "เปิดพื้นที่ทำงาน")} }
@@ -28984,7 +28984,7 @@ fn ProcessHubSurface(nav_groups: Vec<NavGroup>, on_navigate: EventHandler<String
                                             {
                                                 let group_id_for_toggle = group_id.clone();
                                                 rsx! {
-                                                    KitButton {
+                                                    KitButton { size: ButtonSize::Default,
                                                         variant: ButtonVariant::Ghost,
                                                         class: "process-show-all",
                                                         r#type: "button",
@@ -35428,7 +35428,7 @@ fn ConsoleApp(initial_path: String) -> Element {
     let legacy_v1_surfaces = !console_typed_cutover();
     let content = rsx! {
         nav { class: "ui-support-route-tabs ui-console-route-switcher", role: "tablist", aria_label: catalog_text(ConsoleCopyKey::ConsoleSurfaces, locale),
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: if auth_route_snapshot.is_some() { "ui-route-tab active" } else { "ui-route-tab" },
                 r#type: "button",
                 role: "tab",
@@ -35449,7 +35449,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 },
                 {console_text(locale, "Account security", "ความปลอดภัยของบัญชี")}
             }
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: if auth_route_snapshot.is_none() && tenant_route_snapshot.is_none() && support_route_snapshot.is_none() && platform_operations_route_snapshot.is_none() && marketing_crm_route_snapshot.is_none() && product_context_route_snapshot.is_none() && !directory_route_snapshot && billing_route_snapshot.is_none() { "ui-route-tab active" } else { "ui-route-tab" },
                 hidden: !legacy_v1_surfaces,
                 disabled: !legacy_v1_surfaces,
@@ -35472,7 +35472,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 },
                 {catalog_text(ConsoleCopyKey::Customer360, locale)}
             }
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: if tenant_route_snapshot.is_some() { "ui-route-tab active" } else { "ui-route-tab" },
                 hidden: !legacy_v1_surfaces,
                 disabled: !legacy_v1_surfaces,
@@ -35495,7 +35495,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 },
                 {console_text(locale, "Tenant governance", "การกำกับดูแลผู้เช่า")}
             }
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: if directory_route_snapshot { "ui-route-tab active" } else { "ui-route-tab" },
                 r#type: "button",
                 role: "tab",
@@ -35516,7 +35516,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 },
                 {console_text(locale, "Directories", "ไดเรกทอรี")}
             }
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: if platform_operations_route_snapshot.is_some() { "ui-route-tab active" } else { "ui-route-tab" },
                 r#type: "button",
                 role: "tab",
@@ -35537,7 +35537,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 },
                 {catalog_text(ConsoleCopyKey::PlatformOperations, locale)}
             }
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: if marketing_crm_route_snapshot.is_some() { "ui-route-tab active" } else { "ui-route-tab" },
                 hidden: !legacy_v1_surfaces,
                 disabled: !legacy_v1_surfaces,
@@ -35561,7 +35561,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 },
                 {console_text(locale, "Marketing & CRM", "การตลาดและ CRM")}
             }
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: if support_route_snapshot == Some(SupportRoute::PlatformSupport) { "ui-route-tab active" } else { "ui-route-tab" },
                 hidden: !legacy_v1_surfaces,
                 disabled: !legacy_v1_surfaces,
@@ -35584,7 +35584,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 },
                 {catalog_text(ConsoleCopyKey::Support, locale)}
             }
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: if support_route_snapshot == Some(SupportRoute::PlatformIncidents) { "ui-route-tab active" } else { "ui-route-tab" },
                 hidden: !legacy_v1_surfaces,
                 disabled: !legacy_v1_surfaces,
@@ -35607,7 +35607,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 },
                 {console_text(locale, "Incidents", "เหตุขัดข้อง")}
             }
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: if billing_route_snapshot.is_some() { "ui-route-tab active" } else { "ui-route-tab" },
                 r#type: "button",
                 role: "tab",
@@ -35630,7 +35630,7 @@ fn ConsoleApp(initial_path: String) -> Element {
             }
             nav { class: "ui-product-context-tabs", role: "tablist", aria_label: console_text(locale, "ERP product contexts", "บริบทผลิตภัณฑ์ ERP"),
                 for context in PRODUCT_CONTEXTS.iter().copied() {
-                    KitButton {
+                    KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                         class: if product_context_route_snapshot == Some(context) || (context == ProductContext::MarketingCrm && marketing_crm_route_snapshot == Some(RouteId::CrmLeads)) { "ui-route-tab active" } else { "ui-route-tab" },
                         r#type: "button",
                         role: "tab",
@@ -35673,7 +35673,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     }
                     nav { class: "ui-support-route-tabs", aria_label: console_text(locale, "Authentication routes", "เส้นทางการยืนยันตัวตน"),
                         for route in [AuthRoute::Accounts, AuthRoute::Security, AuthRoute::Devices, AuthRoute::Recovery] {
-                            KitButton { class: if auth_route_snapshot == route { "ui-route-tab active" } else { "ui-route-tab" }, r#type: "button", aria_current: if auth_route_snapshot == route { "page" } else { "false" }, onclick: move |_| {
+                            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, class: if auth_route_snapshot == route { "ui-route-tab active" } else { "ui-route-tab" }, r#type: "button", aria_current: if auth_route_snapshot == route { "page" } else { "false" }, onclick: move |_| {
                                 auth_route.set(Some(route));
                                 let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
                                 let _ = eval.send(route.path().to_owned());
@@ -36358,7 +36358,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     label { class: "sr-only", r#for: "customer-search", {localized_copy("Search account or trading name", "ค้นหารหัสบัญชีหรือชื่อธุรกิจ")} }
                     KitInput { id: "customer-search", placeholder: localized_copy("Search account or trading name", "ค้นหารหัสบัญชีหรือชื่อธุรกิจ"), aria_label: localized_copy("Search account or trading name", "ค้นหารหัสบัญชีหรือชื่อธุรกิจ"), value: "{search}", oninput: move |event: FormEvent| search.set(event.value()) }
                 }
-                KitButton { class: "button secondary", r#type: "button", onclick: move |_| { customers.restart(); customer_detail.restart(); customer_360_detail.restart(); customer_access_audit.restart(); }, {localized_copy("Refresh", "รีเฟรช")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| { customers.restart(); customer_detail.restart(); customer_360_detail.restart(); customer_access_audit.restart(); }, {localized_copy("Refresh", "รีเฟรช")} }
             }
             div { class: "workspace",
                 section { class: "customer-list", {list_panel} }
@@ -36734,8 +36734,8 @@ fn ConsoleApp(initial_path: String) -> Element {
                         )
                     }}
                     if navigation_error_is_transport {
-                        KitButton {
-                            class: "button secondary",
+                        KitButton { size: ButtonSize::Default,
+                            variant: ButtonVariant::Secondary, class: "button",
                             r#type: "button",
                             onclick: move |_| navigation_manifest.restart(),
                             {console_text(locale, "Retry navigation", "ลองโหลดเมนูอีกครั้ง")}
@@ -37246,7 +37246,7 @@ fn DevelopmentAccessPanel(
                         span { {localized_copy("Authenticated user remains local:dev-controller", "ผู้ใช้ที่ยืนยันตัวตนยังคงเป็น local:dev-controller")} }
                         span { {match active_console_locale() { Locale::En => format!("Context {arg0} · issued {arg1}", arg0 = active.context_id, arg1 = active.issued_at), Locale::Th => format!("บริบท {arg0} · ออกเมื่อ {arg1}", arg0 = active.context_id, arg1 = active.issued_at) }} }
                         span { {match active_console_locale() { Locale::En => format!("Expires {arg0}", arg0 = active.expires_at), Locale::Th => format!("หมดอายุใน {arg0}", arg0 = active.expires_at) }} }
-                        KitButton { class: "button secondary", r#type: "button", onclick: end, {localized_copy("End context", "ปิดบริบท")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: end, {localized_copy("End context", "ปิดบริบท")} }
                     }
                 }
             }
@@ -37296,7 +37296,7 @@ fn DevelopmentAccessPanel(
                                     let selected = selected_persona.read().as_str() == record.persona_key;
                                     let role_label = work_role_label(locale, &record.role_key);
                                     rsx! {
-                                        KitButton {
+                                        KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                                             key: "{record.persona_key}",
                                             class: if selected { "development-persona-option selected" } else { "development-persona-option" },
                                             r#type: "button",
@@ -37341,8 +37341,8 @@ fn DevelopmentAccessPanel(
                             small { {localized_copy("Nothing changes until you activate it.", "ระบบจะยังไม่เปลี่ยนจนกว่าจะกดใช้งาน")} }
                         }
                     }
-                    KitButton {
-                        class: "button primary development-activate-button",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button development-activate-button",
                         disabled: *busy.read() || !selection_complete,
                         r#type: "button",
                         onclick: begin,
@@ -37434,6 +37434,7 @@ fn AccountQuickSwitcher(
     rsx! {
         Dialog {
             open: true,
+            size: DialogSize::Sm,
             title: console_text(locale, "Account and session", "บัญชีและเซสชัน").to_owned(),
             on_close: move |_| on_close.call(()),
             restore_focus,
@@ -37463,7 +37464,10 @@ fn AccountQuickSwitcher(
                         rsx! {
                             KitButton {
                                 key: "{account.session_id}",
+                                variant: ButtonVariant::Secondary,
+                                size: ButtonSize::Default,
                                 class: if account.active { "account-quick-row active" } else { "account-quick-row" },
+                                "data-state": if account.active { "selected" } else { "idle" },
                                 r#type: "button",
                                 disabled: loading || account.active,
                                 onclick: move |_| on_activate.call(session_id.clone()),
@@ -37480,27 +37484,27 @@ fn AccountQuickSwitcher(
                 p { class: "auth-message", role: "status", "{identity_error_message(&message, locale)}" }
             }
             div { class: "account-quick-actions",
-                KitButton { class: "button primary", r#type: "button", onclick: move |_| on_add.call(()),
+                KitButton { variant: ButtonVariant::Primary, size: ButtonSize::Default, class: "button", r#type: "button", onclick: move |_| on_add.call(()),
                     span { class: "account-action-icon", aria_hidden: "true", "+" }
                     span { {console_text(locale, "Add account", "เพิ่มบัญชี")} }
                 }
-                KitButton { class: "button secondary", r#type: "button", onclick: move |_| on_change_role.call(()),
+                KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, class: "button", r#type: "button", onclick: move |_| on_change_role.call(()),
                     span { class: "account-action-icon", aria_hidden: "true", EnterpriseIcon { name: "workflow".to_owned() } }
                     span { {console_text(locale, "Change work role", "เปลี่ยนบทบาทการทำงาน")} }
                 }
             }
             div { class: "account-quick-links",
-                KitButton { r#type: "button", onclick: move |_| on_manage_accounts.call(()),
+                KitButton { variant: ButtonVariant::Ghost, size: ButtonSize::Default, r#type: "button", onclick: move |_| on_manage_accounts.call(()),
                     span { class: "account-link-icon", aria_hidden: "true", EnterpriseIcon { name: "customers".to_owned() } }
                     span { {console_text(locale, "Manage accounts", "จัดการบัญชี")} }
                     span { class: "account-link-arrow", aria_hidden: "true", "›" }
                 }
-                KitButton { r#type: "button", onclick: move |_| on_security.call(()),
+                KitButton { variant: ButtonVariant::Ghost, size: ButtonSize::Default, r#type: "button", onclick: move |_| on_security.call(()),
                     span { class: "account-link-icon", aria_hidden: "true", EnterpriseIcon { name: "shield".to_owned() } }
                     span { {console_text(locale, "Security", "ความปลอดภัย")} }
                     span { class: "account-link-arrow", aria_hidden: "true", "›" }
                 }
-                KitButton { class: "danger", r#type: "button", onclick: move |_| on_sign_out.call(()),
+                KitButton { variant: ButtonVariant::Destructive, size: ButtonSize::Default, class: "danger", r#type: "button", onclick: move |_| on_sign_out.call(()),
                     span { class: "account-link-icon", aria_hidden: "true", EnterpriseIcon { name: "lock".to_owned() } }
                     span { {console_text(locale, "Sign out", "ออกจากระบบ")} }
                     span { class: "account-link-arrow", aria_hidden: "true", "›" }
@@ -37556,8 +37560,8 @@ fn AccountListPanel(
                                     if account.active {
                                         span { class: "scope-chip", {console_text(locale, "Active", "ใช้งานอยู่")} }
                                     } else {
-                                        KitButton {
-                                            class: "button secondary",
+                                        KitButton { size: ButtonSize::Default,
+                                            variant: ButtonVariant::Secondary, class: "button",
                                             r#type: "button",
                                             disabled: loading,
                                             onclick: move |_| on_activate.call(session_id.clone()),
@@ -37765,7 +37769,7 @@ fn WorkRolePicker(
                                     {
                                         let selection_id = option.selection_id.clone();
                                         rsx! {
-                                            KitButton {
+                                            KitButton { size: ButtonSize::Default,
                                                 class: "work-role-card",
                                                 variant: ButtonVariant::Ghost,
                                                 r#type: "button",
@@ -37843,6 +37847,7 @@ fn RoleSelectionDialog(
     rsx! {
         Dialog {
             open: true,
+            size: DialogSize::Lg,
             title: console_text(locale, "Choose how you are working", "เลือกบทบาทที่ต้องการใช้งาน").to_owned(),
             on_close: move |_| on_close.call(()),
             restore_focus,
@@ -37889,6 +37894,7 @@ fn AddAccountDialog(
     rsx! {
         Dialog {
             open: true,
+            size: DialogSize::Md,
             title: console_text(locale, "Sign in another user", "เข้าสู่ระบบผู้ใช้อื่น").to_owned(),
             on_close: move |_| on_close.call(()),
             restore_focus,
@@ -38127,7 +38133,7 @@ fn BillingEntitlementRouteSurface(
             }
             nav { class: "ui-support-route-tabs", role: "tablist", aria_label: localized_copy("Billing routes", "เส้นทางการเรียกเก็บเงิน"),
                 for destination in BillingRoute::ALL {
-                    KitButton { class: if route == destination { "ui-route-tab active" } else { "ui-route-tab" }, r#type: "button", role: "tab", aria_selected: if route == destination { "true" } else { "false" }, aria_current: if route == destination { "page" } else { "false" }, onclick: move |_| on_route.call(destination), "{destination.label(locale)}" }
+                    KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, class: if route == destination { "ui-route-tab active" } else { "ui-route-tab" }, r#type: "button", role: "tab", aria_selected: if route == destination { "true" } else { "false" }, aria_current: if route == destination { "page" } else { "false" }, onclick: move |_| on_route.call(destination), "{destination.label(locale)}" }
                 }
             }
             if route == BillingRoute::CheckoutSuccess {
@@ -38145,7 +38151,7 @@ fn BillingEntitlementRouteSurface(
                     KitInput { id: "billing-workspace-holding-id", value: "{holding_id}", placeholder: "00000000-0000-0000-0000-000000000000", autocomplete: "off", oninput: move |event: FormEvent| on_holding_id.call(event.value()) }
                     label { r#for: "billing-currency", {localized_copy("Catalog currency", "สกุลเงินของแค็ตตาล็อก")} }
                     KitInput { id: "billing-currency", value: "{currency}", maxlength: "3", autocomplete: "off", oninput: move |event: FormEvent| on_currency.call(event.value()) }
-                    KitButton { class: "button primary", r#type: "submit", {localized_copy("Load billing workspace", "โหลดพื้นที่ทำงานการเรียกเก็บเงิน")} }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load billing workspace", "โหลดพื้นที่ทำงานการเรียกเก็บเงิน")} }
                 }
                 if let Some(error) = workspace_validation_error.read().clone() {
                     p { class: "field-error", role: "alert", "{error}" }
@@ -38183,8 +38189,8 @@ fn BillingEntitlementRouteSurface(
                         }
                         label { r#for: "billing-checkout-quantity", {localized_copy("Quantity", "จำนวน")} }
                         KitInput { id: "billing-checkout-quantity", value: "{checkout_quantity}", inputmode: "numeric", disabled: command_busy, oninput: move |event: FormEvent| checkout_quantity.set(event.value()) }
-                        KitButton { class: "button primary", r#type: "button", disabled: command_busy || checkout_item_key.read().is_empty(), onclick: move |_| on_saas_command.call(BillingCommandInput::Checkout { item_key: checkout_item_key.read().clone(), quantity: checkout_quantity.read().clone() }), {localized_copy("Continue to secure Checkout", "ดำเนินการต่อไปยัง Checkout ที่ปลอดภัย")} }
-                        KitButton { class: "button secondary", r#type: "button", disabled: command_busy, onclick: move |_| on_saas_command.call(BillingCommandInput::CustomerPortal), {localized_copy("Open customer billing portal", "เปิดพอร์ทัลการเรียกเก็บเงินของลูกค้า")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", disabled: command_busy || checkout_item_key.read().is_empty(), onclick: move |_| on_saas_command.call(BillingCommandInput::Checkout { item_key: checkout_item_key.read().clone(), quantity: checkout_quantity.read().clone() }), {localized_copy("Continue to secure Checkout", "ดำเนินการต่อไปยัง Checkout ที่ปลอดภัย")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: command_busy, onclick: move |_| on_saas_command.call(BillingCommandInput::CustomerPortal), {localized_copy("Open customer billing portal", "เปิดพอร์ทัลการเรียกเก็บเงินของลูกค้า")} }
                     }
                     div { class: "section-caption", {localized_copy("CURRENT SUBSCRIPTION ITEMS", "รายการสมัครสมาชิกปัจจุบัน")} }
                     if workspace.subscription.items.is_empty() { p { class: "empty-copy", {localized_copy("No subscription items are active.", "ไม่มีรายการสมัครสมาชิกที่ใช้งานอยู่")} } } else {
@@ -38205,8 +38211,8 @@ fn BillingEntitlementRouteSurface(
                         } }
                     }
                     div { class: "pager", aria_label: localized_copy("Invoice pagination", "การแบ่งหน้าใบแจ้งหนี้"),
-                        KitButton { class: "button secondary", r#type: "button", disabled: command_busy || invoice_cursor.is_empty(), onclick: move |_| on_invoice_cursor.call(String::new()), {localized_copy("First page", "หน้าแรก")} }
-                        KitButton { class: "button secondary", r#type: "button", disabled: command_busy || !workspace.invoices_has_more, onclick: {
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: command_busy || invoice_cursor.is_empty(), onclick: move |_| on_invoice_cursor.call(String::new()), {localized_copy("First page", "หน้าแรก")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: command_busy || !workspace.invoices_has_more, onclick: {
                             let next_cursor = workspace.next_invoice_cursor.clone();
                             move |_| on_invoice_cursor.call(next_cursor.clone())
                         }, {localized_copy("Next page", "หน้าถัดไป")} }
@@ -38222,7 +38228,7 @@ fn BillingEntitlementRouteSurface(
                         KitTextarea { id: "billing-grace-reason", maxlength: "512", value: "{grace_reason}", oninput: move |event: FormEvent| grace_reason.set(event.value()) }
                         label { r#for: "billing-grace-mfa", {localized_copy("Fresh MFA code", "รหัส MFA ใหม่")} }
                         KitInput { id: "billing-grace-mfa", r#type: "password", autocomplete: "one-time-code", value: "{grace_mfa_code}", oninput: move |event: FormEvent| grace_mfa_code.set(event.value()) }
-                        KitButton { class: "button danger", r#type: "button", disabled: command_busy, onclick: move |_| on_saas_command.call(BillingCommandInput::GrantGrace { delinquency_cycle_id: delinquency_cycle_id.read().clone(), extension_days: grace_days.read().clone(), reason: grace_reason.read().clone(), mfa_code: grace_mfa_code.read().clone() }), {localized_copy("Grant bounded grace extension", "ให้ระยะผ่อนผันแบบจำกัด")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", disabled: command_busy, onclick: move |_| on_saas_command.call(BillingCommandInput::GrantGrace { delinquency_cycle_id: delinquency_cycle_id.read().clone(), extension_days: grace_days.read().clone(), reason: grace_reason.read().clone(), mfa_code: grace_mfa_code.read().clone() }), {localized_copy("Grant bounded grace extension", "ให้ระยะผ่อนผันแบบจำกัด")} }
                     }
                 } else if workspace_scope.is_none() {
                     p { class: "empty-copy", {localized_copy("Enter a tenant reference to load the billing workspace.", "ป้อนข้อมูลอ้างอิงผู้เช่าเพื่อโหลดพื้นที่ทำงานการเรียกเก็บเงิน")} }
@@ -38244,7 +38250,7 @@ fn BillingEntitlementRouteSurface(
                 KitInput { id: "billing-company-id", value: "{company_id}", placeholder: "00000000-0000-0000-0000-000000000000", autocomplete: "off", oninput: move |event: FormEvent| on_company_id.call(event.value()) }
                 label { r#for: "billing-branch-id", {localized_copy("Branch UUID (optional for company check)", "UUIDสาขา (ไม่จำเป็นสำหรับการตรวจสอบบริษัท)")} }
                 KitInput { id: "billing-branch-id", value: "{branch_id}", placeholder: "00000000-0000-0000-0000-000000000000", autocomplete: "off", oninput: move |event: FormEvent| on_branch_id.call(event.value()) }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load authorized entitlement", "โหลดสิทธิ์ที่อนุญาต")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load authorized entitlement", "โหลดสิทธิ์ที่อนุญาต")} }
             }
             if let Some(error) = validation_error.read().clone() {
                 p { class: "field-error", "{error}" }
@@ -38283,21 +38289,21 @@ fn BillingEntitlementRouteSurface(
                         KitInput { id: "billing-branch-limit", value: "{branch_limit}", inputmode: "numeric", oninput: move |event: FormEvent| branch_limit.set(event.value()) }
                         label { r#for: "billing-allocation-version", {localized_copy("Allocation expected version", "เวอร์ชันที่คาดว่าจะได้รับมอบหมาย")} }
                         KitInput { id: "billing-allocation-version", value: "{allocation_expected_version}", inputmode: "numeric", placeholder: localized_copy("optional", "ตัวเลือก"), oninput: move |event: FormEvent| allocation_expected_version.set(event.value()) }
-                        KitButton { class: "button primary", disabled: command_busy, r#type: "button", onclick: move |_| on_command.call(EntitlementCommandInput::Allocate { seats: seats.read().clone(), branch_limit: branch_limit.read().clone(), expected_version: allocation_expected_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Allocate company entitlement", "จัดสรรสิทธิ์ของบริษัท")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", disabled: command_busy, r#type: "button", onclick: move |_| on_command.call(EntitlementCommandInput::Allocate { seats: seats.read().clone(), branch_limit: branch_limit.read().clone(), expected_version: allocation_expected_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Allocate company entitlement", "จัดสรรสิทธิ์ของบริษัท")} }
                     }
                     div { class: "command-grid",
                         label { r#for: "billing-company-activated-at", {localized_copy("Company activation time", "เวลาเปิดใช้งานบริษัท")} }
                         KitInput { id: "billing-company-activated-at", value: "{company_activation_at}", placeholder: "2026-07-30T00:00:00Z", autocomplete: "off", oninput: move |event: FormEvent| company_activation_at.set(event.value()) }
                         label { r#for: "billing-company-version", {localized_copy("Company expected version", "เวอร์ชันที่คาดว่าจะเปิดใช้งานบริษัท")} }
                         KitInput { id: "billing-company-version", value: "{company_activation_expected_version}", inputmode: "numeric", placeholder: localized_copy("optional", "ตัวเลือก"), oninput: move |event: FormEvent| company_activation_expected_version.set(event.value()) }
-                        KitButton { class: "button secondary", disabled: command_busy, r#type: "button", onclick: move |_| on_command.call(EntitlementCommandInput::ActivateCompany { activated_at: company_activation_at.read().clone(), expected_version: company_activation_expected_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Activate company entitlement", "เปิดใช้งานสิทธิ์ของบริษัท")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", disabled: command_busy, r#type: "button", onclick: move |_| on_command.call(EntitlementCommandInput::ActivateCompany { activated_at: company_activation_at.read().clone(), expected_version: company_activation_expected_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Activate company entitlement", "เปิดใช้งานสิทธิ์ของบริษัท")} }
                     }
                     div { class: "command-grid",
                         label { r#for: "billing-branch-activated-at", {localized_copy("Branch activation time", "เวลาเปิดใช้งานสาขา")} }
                         KitInput { id: "billing-branch-activated-at", value: "{branch_activation_at}", placeholder: "2026-07-30T00:00:00Z", autocomplete: "off", oninput: move |event: FormEvent| branch_activation_at.set(event.value()) }
                         label { r#for: "billing-branch-version", {localized_copy("Branch expected version", "เวอร์ชันสาขาที่คาดไว้")} }
                         KitInput { id: "billing-branch-version", value: "{branch_activation_expected_version}", inputmode: "numeric", placeholder: localized_copy("optional", "ตัวเลือก"), oninput: move |event: FormEvent| branch_activation_expected_version.set(event.value()) }
-                        KitButton { class: "button secondary", disabled: command_busy, r#type: "button", onclick: move |_| on_command.call(EntitlementCommandInput::ActivateBranch { activated_at: branch_activation_at.read().clone(), expected_version: branch_activation_expected_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Activate branch entitlement", "เปิดใช้งานสิทธิ์ของสาขา")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", disabled: command_busy, r#type: "button", onclick: move |_| on_command.call(EntitlementCommandInput::ActivateBranch { activated_at: branch_activation_at.read().clone(), expected_version: branch_activation_expected_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Activate branch entitlement", "เปิดใช้งานสิทธิ์ของสาขา")} }
                     }
                     if command_busy { p { class: "status-banner warn", {localized_copy("Committing through the authorized commercial service…", "กำลังบันทึกผ่านบริการค้าปลีกที่ได้รับอนุญาต…")} } }
                     if let Some(message) = command_message { p { class: "status-banner", "{message}" } }
@@ -38457,9 +38463,9 @@ fn DirectoryAdministrationCommandPanel(
                 oninput: move |event: FormEvent| connector_id.set(event.value()),
             }
             div { class: "command-grid",
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::Preflight { connector_id: connector_id.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Run TLS / bind / feed preflight", "รัน TLS / ผูกติด / ตรวจสอบก่อนการให้บริการ")} }
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::Reconcile { connector_id: connector_id.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Reconcile identities", "ปรับสมดุลตัวตน")} }
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::ListConflicts { connector_id: connector_id.read().clone() }), {localized_copy("List identity collisions", "แสดงความขัดแย้งของตัวตน")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::Preflight { connector_id: connector_id.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Run TLS / bind / feed preflight", "รัน TLS / ผูกติด / ตรวจสอบก่อนการให้บริการ")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::Reconcile { connector_id: connector_id.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Reconcile identities", "ปรับสมดุลตัวตน")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::ListConflicts { connector_id: connector_id.read().clone() }), {localized_copy("List identity collisions", "แสดงความขัดแย้งของตัวตน")} }
             }
             div { class: "command-grid",
                 label { r#for: "directory-target-lifecycle", {localized_copy("Target lifecycle", "วงจรชีวิตเป้าหมาย")} }
@@ -38470,14 +38476,14 @@ fn DirectoryAdministrationCommandPanel(
                     option { value: "suspended", {localized_copy("Suspended", "หยุดทำงาน")} }
                     option { value: "failed", {localized_copy("Failed", "ล้มเหลว")} }
                 }
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::Transition { connector_id: connector_id.read().clone(), target_lifecycle: target_lifecycle.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Apply lifecycle transition", "บันทึกการเปลี่ยนแปลงช่วงชีวิต")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::Transition { connector_id: connector_id.read().clone(), target_lifecycle: target_lifecycle.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Apply lifecycle transition", "บันทึกการเปลี่ยนแปลงช่วงชีวิต")} }
             }
             div { class: "command-grid",
                 label { r#for: "directory-import-users", {localized_copy("Import user bound", "นำเข้าผู้ใช้ที่ผูกไว้")} }
                 KitInput { id: "directory-import-users", inputmode: "numeric", disabled: busy, value: "{total_users}", oninput: move |event: FormEvent| total_users.set(event.value()) }
                 label { r#for: "directory-import-page", {localized_copy("Import page size", "ขนาดหน้าที่นำเข้า")} }
                 KitInput { id: "directory-import-page", inputmode: "numeric", disabled: busy, value: "{page_size}", oninput: move |event: FormEvent| page_size.set(event.value()) }
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::StartImport { connector_id: connector_id.read().clone(), total_users: total_users.read().clone(), page_size: page_size.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Start bounded full import", "เริ่มการนำเข้าแบบจำกัดทั้งหมด")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::StartImport { connector_id: connector_id.read().clone(), total_users: total_users.read().clone(), page_size: page_size.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Start bounded full import", "เริ่มการนำเข้าแบบจำกัดทั้งหมด")} }
             }
             h3 { {localized_copy("Role mapping", "การจับคู่บทบาท")} }
             div { class: "command-grid",
@@ -38489,7 +38495,7 @@ fn DirectoryAdministrationCommandPanel(
                 KitInput { id: "directory-mapping-scope", disabled: busy, value: "{scope_key}", oninput: move |event: FormEvent| scope_key.set(event.value()) }
                 label { r#for: "directory-mapping-revision", {localized_copy("Expected revision (0 creates)", "การแก้ไขครั้งสุดท้ายที่คาดว่าจะเป็น (0 สร้างใหม่)")} }
                 KitInput { id: "directory-mapping-revision", inputmode: "numeric", disabled: busy, value: "{expected_revision}", oninput: move |event: FormEvent| expected_revision.set(event.value()) }
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::SaveRoleMapping { connector_id: connector_id.read().clone(), group_ref: group_ref.read().clone(), role_ref: role_ref.read().clone(), scope_key: scope_key.read().clone(), expected_revision: expected_revision.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Save active MFA role mapping", "บันทึกการจับคู่บทบาท MFA ที่ใช้งานอยู่")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::SaveRoleMapping { connector_id: connector_id.read().clone(), group_ref: group_ref.read().clone(), role_ref: role_ref.read().clone(), scope_key: scope_key.read().clone(), expected_revision: expected_revision.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Save active MFA role mapping", "บันทึกการจับคู่บทบาท MFA ที่ใช้งานอยู่")} }
             }
             h3 { { {localized_copy("Canonical principal binding", "ผูกพันหลักแบบมาตรฐาน")} } }
             div { class: "command-grid",
@@ -38497,8 +38503,8 @@ fn DirectoryAdministrationCommandPanel(
                 KitInput { id: "directory-external-subject", disabled: busy, value: "{external_subject}", oninput: move |event: FormEvent| external_subject.set(event.value()) }
                 label { r#for: "directory-principal-ref", {localized_copy("Canonical ERPX principal", "ผู้มีอำนาจหลัก ERPX แบบมาตรฐาน")} }
                 KitInput { id: "directory-principal-ref", disabled: busy, value: "{principal_ref}", oninput: move |event: FormEvent| principal_ref.set(event.value()) }
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::LinkPrincipal { connector_id: connector_id.read().clone(), external_subject: external_subject.read().clone(), principal_ref: principal_ref.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Link principal", "เชื่อมโยงผู้ใช้หลัก")} }
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::UnlinkPrincipal { connector_id: connector_id.read().clone(), external_subject: external_subject.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Unlink principal", "ยกเลิกผู้มีสิทธิ์หลัก")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::LinkPrincipal { connector_id: connector_id.read().clone(), external_subject: external_subject.read().clone(), principal_ref: principal_ref.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Link principal", "เชื่อมโยงผู้ใช้หลัก")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::UnlinkPrincipal { connector_id: connector_id.read().clone(), external_subject: external_subject.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Unlink principal", "ยกเลิกผู้มีสิทธิ์หลัก")} }
             }
             h3 { { {localized_copy("Local-account collision review", "การตรวจสอบความขัดแย้งของบัญชีท้องถิ่น")} } }
             p { {localized_copy("A Holding Owner proposes replacement. A distinct Holding Owner or Customer Security Head approves or rejects with a separate fresh MFA step. Roles are never transferred from the local principal.", "เจ้าของบริษัทเสนอการเปลี่ยนแปลง. เจ้าของบริษัทอื่นหรือหัวหน้าความปลอดภัยลูกค้าอนุมัติหรือปฏิเสธด้วยขั้นตอน MFA ใหม่. บทบาทไม่ถูกโอนจากผู้มีสิทธิ์ท้องถิ่น")} }
@@ -38507,9 +38513,9 @@ fn DirectoryAdministrationCommandPanel(
                 KitInput { id: "directory-conflict-id", disabled: busy, value: "{conflict_id}", oninput: move |event: FormEvent| conflict_id.set(event.value()) }
                 label { r#for: "directory-conflict-version", {localized_copy("Expected conflict version", "เวอร์ชันความขัดแย้งที่คาดว่าจะเป็น")} }
                 KitInput { id: "directory-conflict-version", inputmode: "numeric", disabled: busy, value: "{conflict_version}", oninput: move |event: FormEvent| conflict_version.set(event.value()) }
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::ProposeReplacement { conflict_id: conflict_id.read().clone(), expected_conflict_version: conflict_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Propose replacement", "เสนอการเปลี่ยนแปลง")} }
-                KitButton { class: "button primary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::ApproveReplacement { conflict_id: conflict_id.read().clone(), expected_conflict_version: conflict_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Approve as second administrator", "อนุมัติเป็นผู้ดูแลคนที่สอง")} }
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::RejectReplacement { conflict_id: conflict_id.read().clone(), expected_conflict_version: conflict_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Reject proposal", "ปฏิเสธข้อเสนอ")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::ProposeReplacement { conflict_id: conflict_id.read().clone(), expected_conflict_version: conflict_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Propose replacement", "เสนอการเปลี่ยนแปลง")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::ApproveReplacement { conflict_id: conflict_id.read().clone(), expected_conflict_version: conflict_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Approve as second administrator", "อนุมัติเป็นผู้ดูแลคนที่สอง")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_command.call(DirectoryAdministrationCommand::RejectReplacement { conflict_id: conflict_id.read().clone(), expected_conflict_version: conflict_version.read().clone(), mfa_code: mfa_code.read().clone() }), {localized_copy("Reject proposal", "ปฏิเสธข้อเสนอ")} }
             }
             fieldset {
                 class: "typed-form-grid",
@@ -38529,7 +38535,7 @@ fn DirectoryAdministrationCommandPanel(
                 label { {localized_copy("User filter", "ตัวกรองผู้ใช้")} KitInput { value: "{connector_user_filter}", maxlength: "2048", oninput: move |event: FormEvent| connector_user_filter.set(event.value()) } }
                 label { {localized_copy("CA reference", "ข้อมูลอ้างอิง CA")} KitInput { value: "{connector_ca_reference}", maxlength: "255", autocomplete: "off", oninput: move |event: FormEvent| connector_ca_reference.set(event.value()) } }
                 label { {localized_copy("Expected connector revision", "revision คอนเนกเตอร์ที่คาดไว้")} KitInput { r#type: "number", min: "0", value: "{connector_revision}", oninput: move |event: FormEvent| connector_revision.set(event.value()) } }
-                KitButton { class: "button primary", r#type: "button", disabled: busy, onclick: move |_| {
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", disabled: busy, onclick: move |_| {
                     let configuration_json = serde_json::json!({
                         "connector_id": connector_id.read().clone(),
                         "provider": connector_provider.read().clone(),
@@ -39299,7 +39305,7 @@ fn FinanceContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_holding_id.call(event.value()),
                 }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load authorized journals", "โหลดบันทึกอนุมัติ")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load authorized journals", "โหลดบันทึกอนุมัติ")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -39377,8 +39383,8 @@ fn FinanceContextRouteSurface(
                         autocomplete: "off",
                         oninput: move |event: FormEvent| close_expected_version_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { {localized_copy("Saving close review…", "การบันทึกและปิดการตรวจสอบ…")} } else { {localized_copy("Save close review", "บันทึกการตรวจสอบปิดbüงจ์")} }
@@ -39427,8 +39433,8 @@ fn FinanceContextRouteSurface(
                         autocomplete: "off",
                         oninput: move |event: FormEvent| chart_write_expected_version_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { {localized_copy("Saving chart…", "กำลังบันทึกแผนภูมิ…")} } else { {localized_copy("Save chart of accounts", "บันทึกแผนผังบัญชี")} }
@@ -39494,8 +39500,8 @@ fn FinanceContextRouteSurface(
                         autocomplete: "off",
                         oninput: move |event: FormEvent| period_expected_version_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Saving period…", "บันทึกช่วงเวลา…")} } } else { {localized_copy("Save accounting period", "บันทึกpériยดูบัญชี")} }
@@ -39609,8 +39615,8 @@ fn FinanceContextRouteSurface(
                         autocomplete: "off",
                         oninput: move |event: FormEvent| journal_amount_minor_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Posting journal…", "กำลังโพสต์บัญชี…")} } } else { { {localized_copy("Post balanced journal", "บันทึกบัญชีสมดุล")} } }
@@ -39646,8 +39652,8 @@ fn FinanceContextRouteSurface(
                         maxlength: "1048576",
                         oninput: move |event: FormEvent| subledger_command_json_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Saving subledger…", "บันทึกหน้าบัญชีย่อย…")} } } else { {localized_copy("Save subledger aggregate", "บันทึกการรวม ledger ย่อย")} }
@@ -39683,8 +39689,8 @@ fn FinanceContextRouteSurface(
                         autocomplete: "off",
                         oninput: move |event: FormEvent| allocation_batch_expected_version_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { {localized_copy("Applying allocation batch…", "ประยุกต์ใช้ล็อตการจัดสรร…")} } else { {localized_copy("Apply allocation batch", "ประยุกต์ใช้ล็อตการจัดสรร")} }
@@ -39712,8 +39718,8 @@ fn FinanceContextRouteSurface(
                     KitInput { id: "finance-bank-account-reference", value: "{bank_account_reference_input}", maxlength: "255", autocomplete: "off", oninput: move |event: FormEvent| bank_account_reference_input.set(event.value()) }
                     label { r#for: "finance-bank-account-name", {localized_copy("Display name", "ชื่อที่แสดง")} }
                     KitInput { id: "finance-bank-account-name", value: "{bank_account_display_name_input}", maxlength: "255", autocomplete: "off", oninput: move |event: FormEvent| bank_account_display_name_input.set(event.value()) }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Registering account…", "กำลังลงทะเบียนบัญชี…")} } } else { { {localized_copy("Register bank account", "ลงทะเบียนบัญชีธนาคาร")} } }
@@ -39748,8 +39754,8 @@ fn FinanceContextRouteSurface(
                         maxlength: "2097152",
                         oninput: move |event: FormEvent| bank_import_command_json_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { {localized_copy("Importing statement…", "กำลังนำเข้าstatement…")} } else { {localized_copy("Import bank statement", "นำเข้าstatementธนาคาร")} }
@@ -39803,8 +39809,8 @@ fn FinanceContextRouteSurface(
                         autocomplete: "off",
                         oninput: move |event: FormEvent| bank_reconciliation_expected_version_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Saving reconciliation…", "บันทึกการปรับสมดุล…")} } } else { {localized_copy("Save reconciliation", "บันทึกการจับคู่รายการ")} }
@@ -39831,8 +39837,8 @@ fn FinanceContextRouteSurface(
                         maxlength: "2097152",
                         oninput: move |event: FormEvent| bank_match_proposal_command_json_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Saving proposal…", "บันทึกข้อเสนอ…")} } } else { {localized_copy("Save match proposal", "บันทึกข้อเสนอที่จับคู่แล้ว")} }
@@ -39859,8 +39865,8 @@ fn FinanceContextRouteSurface(
                         maxlength: "2097152",
                         oninput: move |event: FormEvent| bank_match_decision_command_json_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Saving decision…", "บันทึกการตัดสินใจ…")} } } else { {localized_copy("Save match decision", "บันทึกการตัดสินใจจับคู่")} }
@@ -39953,8 +39959,8 @@ fn FinanceContextRouteSurface(
                         autocomplete: "one-time-code",
                         oninput: move |event: FormEvent| provider_import_mfa_code.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { {localized_copy("Queueing provider import…", "กำลังคิวสำหรับการนำเข้าผู้ให้บริการ…")} } else { {localized_copy("Queue provider import", "คิวสำหรับนำเข้าข้อมูลผู้ให้บริการ")} }
@@ -39986,7 +39992,7 @@ fn FinanceContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_close_company_id.call(event.value()),
                 }
-                KitButton { class: "button secondary", r#type: "submit", {localized_copy("Load close review", "โหลดการตรวจสอบปิดบัญชี")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "submit", {localized_copy("Load close review", "โหลดการตรวจสอบปิดบัญชี")} }
                 if let Some(message) = close_validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -40013,7 +40019,7 @@ fn FinanceContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_subledger_company_id.call(event.value()),
                 }
-                KitButton { class: "button secondary", r#type: "submit", {localized_copy("Load AP / AR rows", "โหลดข้อมูล AP / AR")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "submit", {localized_copy("Load AP / AR rows", "โหลดข้อมูล AP / AR")} }
                 if let Some(message) = subledger_validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -40040,7 +40046,7 @@ fn FinanceContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_banking_company_id.call(event.value()),
                 }
-                KitButton { class: "button secondary", r#type: "submit", {localized_copy("Load banking rows", "โหลดข้อมูลธนาคาร")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "submit", {localized_copy("Load banking rows", "โหลดข้อมูลธนาคาร")} }
                 if let Some(message) = banking_validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -40059,7 +40065,7 @@ fn FinanceContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_chart_company_id.call(event.value()),
                 }
-                KitButton { class: "button secondary", r#type: "submit", {localized_copy("Load chart of accounts", "โหลดแผนภูมิบัญชี")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "submit", {localized_copy("Load chart of accounts", "โหลดแผนภูมิบัญชี")} }
                 if let Some(message) = chart_validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -40322,8 +40328,8 @@ fn FinanceContextRouteSurface(
                     }
                     if list.has_more {
                         if let Some(cursor) = list.next_cursor.clone() {
-                            KitButton {
-                                class: "button secondary",
+                            KitButton { size: ButtonSize::Default,
+                                variant: ButtonVariant::Secondary, class: "button",
                                 r#type: "button",
                                 onclick: move |_| on_close_list_next_page.call(cursor.clone()),
                                 {localized_copy("Load next close-review page", "โหลดหน้าตรวจสอบปิดงบประมาณถัดไป")}
@@ -40438,7 +40444,7 @@ fn FinanceContextRouteSurface(
                         autocomplete: "off",
                         oninput: move |event: FormEvent| on_bank_import_job_id.call(event.value()),
                     }
-                    KitButton { class: "button secondary", r#type: "submit", {localized_copy("Load import status", "โหลดสถานะนำเข้า")} }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "submit", {localized_copy("Load import status", "โหลดสถานะนำเข้า")} }
                     if let Some(message) = bank_import_validation_error.read().clone() {
                         p { class: "form-error", role: "alert", "{message}" }
                     }
@@ -40942,7 +40948,7 @@ fn SalesContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_aggregate_id.call(event.value()),
                 }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load authorized Sales aggregate", "โหลดการรวมกลุ่มการขายที่ได้รับอนุญาต")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load authorized Sales aggregate", "โหลดการรวมกลุ่มการขายที่ได้รับอนุญาต")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -41017,7 +41023,7 @@ fn SalesContextRouteSurface(
                         label { r#for: "sales-create-valid-until", {localized_copy("Valid until (RFC3339)", "ใช้ได้ถึง (RFC3339)")} }
                         KitInput { id: "sales-create-valid-until", value: "{create_valid_until}", placeholder: "2026-09-01T00:00:00Z", autocomplete: "off", disabled: command_busy, oninput: move |event: FormEvent| create_valid_until.set(event.value()) }
                     }
-                    KitButton { class: "button primary", r#type: "submit", disabled: command_busy, if command_busy { {localized_copy("Creating…", "กำลังสร้าง…")} } else { {localized_copy("Create Sales record", "สร้างระเบียนการขาย")} } }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: command_busy, if command_busy { {localized_copy("Creating…", "กำลังสร้าง…")} } else { {localized_copy("Create Sales record", "สร้างระเบียนการขาย")} } }
                 }
             } else if scope.is_some() && matches!(aggregate_type.as_str(), "sales_order" | "delivery_handoff" | "invoice_handoff" | "collection_state") {
                 StatePanel { state: UiStateKind::ReadOnly, title: localized_copy("Create from upstream workflow", "สร้างจากเวิร์กโฟลว์ต้นทาง").to_owned(), message: localized_copy("This downstream Sales record is created from its accepted quote or confirmed order. Load the record to use its server-authorized lifecycle actions.", "ระเบียนการขายปลายทางนี้สร้างจากใบเสนอราคาที่รับแล้วหรือใบสั่งขายที่ยืนยันแล้ว ให้โหลดระเบียนเพื่อใช้การดำเนินการวงจรชีวิตที่เซิร์ฟเวอร์อนุญาต").to_owned(), action_label: None, on_action: None }
@@ -41081,8 +41087,8 @@ fn SalesContextRouteSurface(
                                 disabled: command_busy,
                                 oninput: move |event: FormEvent| transition_input.set(event.value()),
                             }
-                            KitButton {
-                                class: "button primary",
+                            KitButton { size: ButtonSize::Default,
+                                variant: ButtonVariant::Primary, class: "button",
                                 r#type: "submit",
                                 disabled: command_busy,
                                 if command_busy { { {localized_copy("Committing…", "กำลังยืนยัน…")} } } else { { {localized_copy("Commit lifecycle transition", "ยืนยันการเปลี่ยนสถานะวงจรชีวิต")} } }
@@ -41260,7 +41266,7 @@ fn SalesAggregateListRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_branch_id.call(event.value()),
                 }
-                KitButton { class: "button secondary", r#type: "submit", {localized_copy("Load Sales aggregates", "โหลดสรุปยอดขาย")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "submit", {localized_copy("Load Sales aggregates", "โหลดสรุปยอดขาย")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -41333,8 +41339,8 @@ fn SalesAggregateListRouteSurface(
                         }
                     }
                     if let Some(cursor) = read.next_cursor.clone() {
-                        KitButton {
-                            class: "button secondary",
+                        KitButton { size: ButtonSize::Default,
+                            variant: ButtonVariant::Secondary, class: "button",
                             r#type: "button",
                             onclick: move |_| on_next_page.call(cursor.clone()),
                             {localized_copy("Load next page", "โหลดหน้าถัดไป")}
@@ -41586,8 +41592,8 @@ fn OperationsContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_holding_id.call(event.value()),
                 }
-                KitButton {
-                    class: "button primary",
+                KitButton { size: ButtonSize::Default,
+                    variant: ButtonVariant::Primary, class: "button",
                     r#type: "submit",
                     {localized_copy("Load authorized scope", "โหลดขอบเขตที่อนุญาต")}
                 }
@@ -41799,8 +41805,8 @@ fn OperationsContextRouteSurface(
                                 autocomplete: "off",
                                 oninput: move |event: FormEvent| sla_escalation_after_minutes.set(event.value()),
                             }
-                            KitButton {
-                                class: "button primary",
+                            KitButton { size: ButtonSize::Default,
+                                variant: ButtonVariant::Primary, class: "button",
                                 r#type: "submit",
                                 disabled: command_busy,
                                 if command_busy { {localized_copy("Submitting command…", "กำลังส่งคำสั่ง…")} } else { {localized_copy("Submit server command", "ส่งคำสั่งเซิร์ฟเวอร์")} }
@@ -41858,8 +41864,8 @@ fn OperationsContextRouteSurface(
                                 autocomplete: "off",
                                 oninput: move |event: FormEvent| policy_expected_version.set(event.value()),
                             }
-                            KitButton {
-                                class: "button primary",
+                            KitButton { size: ButtonSize::Default,
+                                variant: ButtonVariant::Primary, class: "button",
                                 r#type: "submit",
                                 disabled: command_busy,
                                 if command_busy { {localized_copy("Publishing policy…", "กำลังเผยแพร่นโยบาย…")} } else { {localized_copy("Publish policy", "เผยแพร่นโยบาย")} }
@@ -42136,7 +42142,7 @@ fn ScmTypedCreateForm(
                 label { r#for: "scm-create-currency", {localized_copy("Currency", "สกุลเงิน")} }
                 KitInput { id: "scm-create-currency", value: "{currency}", maxlength: "3", autocomplete: "off", disabled: command_busy, oninput: move |event: FormEvent| currency.set(event.value().to_ascii_uppercase()) }
             }
-            KitButton { class: "button primary", r#type: "submit", disabled: command_busy, if command_busy { {localized_copy("Creating…", "กำลังสร้าง…")} } else { {localized_copy("Create SCM record", "สร้างระเบียน SCM")} } }
+            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: command_busy, if command_busy { {localized_copy("Creating…", "กำลังสร้าง…")} } else { {localized_copy("Create SCM record", "สร้างระเบียน SCM")} } }
         }
     }
 }
@@ -42194,7 +42200,7 @@ fn AssetTypedCreateForm(
             KitInput { id: "asset-create-custodian", value: "{custodian_ref}", maxlength: "128", autocomplete: "off", disabled: command_busy, oninput: move |event: FormEvent| custodian_ref.set(event.value()) }
             label { r#for: "asset-create-location", {localized_copy("Location reference", "รหัสอ้างอิงสถานที่")} }
             KitInput { id: "asset-create-location", value: "{location_ref}", maxlength: "128", autocomplete: "off", disabled: command_busy, oninput: move |event: FormEvent| location_ref.set(event.value()) }
-            KitButton { class: "button primary", r#type: "submit", disabled: command_busy, if command_busy { {localized_copy("Creating asset…", "กำลังสร้างสินทรัพย์…")} } else { {localized_copy("Create asset", "สร้างสินทรัพย์")} } }
+            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: command_busy, if command_busy { {localized_copy("Creating asset…", "กำลังสร้างสินทรัพย์…")} } else { {localized_copy("Create asset", "สร้างสินทรัพย์")} } }
         }
     }
 }
@@ -42239,8 +42245,8 @@ fn MaintenanceTypedCreateForm(
                 option { value: "preventive", {localized_copy("Preventive", "เชิงป้องกัน")} }
                 option { value: "corrective", {localized_copy("Corrective", "เชิงแก้ไข")} }
             }
-            KitButton {
-                class: "button primary",
+            KitButton { size: ButtonSize::Default,
+                variant: ButtonVariant::Primary, class: "button",
                 r#type: "submit",
                 disabled: command_busy,
                 if command_busy {
@@ -42394,7 +42400,7 @@ fn ProductAggregateRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_aggregate_id.call(event.value()),
                 }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load authorized aggregate", "โหลด aggregate ที่ได้รับอนุญาตแล้ว")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load authorized aggregate", "โหลด aggregate ที่ได้รับอนุญาตแล้ว")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -42483,8 +42489,8 @@ fn ProductAggregateRouteSurface(
                                     disabled: command_busy,
                                     oninput: move |event: FormEvent| transition_input.set(event.value()),
                                 }
-                                KitButton {
-                                    class: "button primary",
+                                KitButton { size: ButtonSize::Default,
+                                    variant: ButtonVariant::Primary, class: "button",
                                     r#type: "submit",
                                     disabled: command_busy,
                                     if command_busy { { {localized_copy("Committing…", "กำลังยืนยัน…")} } } else { { {localized_copy("Commit procurement transition", "ยืนยันการเปลี่ยนแปลง จัดซื้อ")} } }
@@ -42526,8 +42532,8 @@ fn ProductAggregateRouteSurface(
                                         option { value: "cancel", {localized_copy("Cancel", "ยกเลิก")} }
                                     }
                                 }
-                                KitButton {
-                                    class: "button primary",
+                                KitButton { size: ButtonSize::Default,
+                                    variant: ButtonVariant::Primary, class: "button",
                                     r#type: "submit",
                                     disabled: command_busy,
                                     if command_busy { {localized_copy("Committing…", "กำลังยืนยัน…")} } else { {localized_copy("Commit lifecycle transition", "ยืนยันการเปลี่ยนสถานะ")} }
@@ -42664,7 +42670,7 @@ fn AssetMaintenanceAggregateListRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_branch_id.call(event.value()),
                 }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load assets and work orders", "โหลดทรัพยากรและคำสั่งงาน")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load assets and work orders", "โหลดทรัพยากรและคำสั่งงาน")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -42733,8 +42739,8 @@ fn AssetMaintenanceAggregateListRouteSurface(
                                             td { "{display_timestamp(&row.projected_at)}" }
                                             td {
                                                 if let Some(source_asset) = row.source_asset.clone() {
-                                                    KitButton {
-                                                        class: "button secondary compact",
+                                                    KitButton { size: ButtonSize::Default,
+                                                        variant: ButtonVariant::Secondary, class: "button compact",
                                                         r#type: "button",
                                                         onclick: move |_| on_select_asset.call(source_asset.clone()),
                                                         {localized_copy("Create work order", "สร้างใบสั่งงาน")}
@@ -42751,8 +42757,8 @@ fn AssetMaintenanceAggregateListRouteSurface(
                     }
                     if read.has_more {
                         if let Some(cursor) = read.next_cursor.clone() {
-                            KitButton {
-                                class: "button secondary",
+                            KitButton { size: ButtonSize::Default,
+                                variant: ButtonVariant::Secondary, class: "button",
                                 r#type: "button",
                                 onclick: move |_| on_next_page.call(cursor.clone()),
                                 {localized_copy("Next page", "หน้าถัดไป")}
@@ -42878,7 +42884,7 @@ fn ScmAggregateListRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_branch_id.call(event.value()),
                 }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load SCM aggregates", "โหลดกลุ่ม SCM")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load SCM aggregates", "โหลดกลุ่ม SCM")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -42951,8 +42957,8 @@ fn ScmAggregateListRouteSurface(
                         }
                     }
                     if let Some(cursor) = read.next_cursor.clone() {
-                        KitButton {
-                            class: "button secondary",
+                        KitButton { size: ButtonSize::Default,
+                            variant: ButtonVariant::Secondary, class: "button",
                             r#type: "button",
                             onclick: move |_| on_next_page.call(cursor.clone()),
                             {localized_copy("Load next page", "โหลดหน้าถัดไป")}
@@ -43105,7 +43111,7 @@ fn QualityContextRouteSurface(
                         label { r#for: "quality-create-id", {localized_copy("Inspection UUID", "UUID การตรวจสอบ")} }
                         div { class: "inline-field",
                             KitInput { id: "quality-create-id", value: "{inspection_id}", autocomplete: "off", oninput: move |event: FormEvent| inspection_id.set(event.value()) }
-                            KitButton { class: "button secondary", r#type: "button", onclick: move |_| inspection_id.set(Uuid::new_v4().to_string()), {localized_copy("New ID", "รหัสใหม่")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| inspection_id.set(Uuid::new_v4().to_string()), {localized_copy("New ID", "รหัสใหม่")} }
                         }
                         label { r#for: "quality-create-kind", {localized_copy("Inspection kind", "ประเภทการตรวจสอบ")} }
                         KitSelect { id: "quality-create-kind", value: "{inspection_kind}", onchange: move |event: FormEvent| inspection_kind.set(event.value()),
@@ -43119,7 +43125,7 @@ fn QualityContextRouteSurface(
                         KitInput { id: "quality-create-lot", value: "{lot_reference}", maxlength: "2048", autocomplete: "off", oninput: move |event: FormEvent| lot_reference.set(event.value()) }
                         label { r#for: "quality-create-quantity", {localized_copy("Quantity", "จำนวน")} }
                         KitInput { id: "quality-create-quantity", r#type: "number", min: "1", value: "{inspection_quantity}", oninput: move |event: FormEvent| inspection_quantity.set(event.value()) }
-                        KitButton { class: "button primary", r#type: "submit", disabled: command_busy,
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: command_busy,
                             if command_busy { {localized_copy("Submitting…", "กำลังส่ง…")} } else { {localized_copy("Create inspection", "สร้างการตรวจสอบ")} }
                         }
                     }
@@ -43143,7 +43149,7 @@ fn QualityContextRouteSurface(
                         KitTextarea { id: "quality-disposition", value: "{disposition_note}", maxlength: "2048", disabled: transition_action.read().as_str() != "record_result", oninput: move |event: FormEvent| disposition_note.set(event.value()) }
                         label { r#for: "quality-expected-version", {localized_copy("Expected version", "เวอร์ชันที่คาดไว้")} }
                         KitInput { id: "quality-expected-version", r#type: "number", min: "1", value: "{transition_expected_version}", oninput: move |event: FormEvent| transition_expected_version.set(event.value()) }
-                        KitButton { class: "button primary", r#type: "submit", disabled: command_busy,
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: command_busy,
                             if command_busy { {localized_copy("Submitting…", "กำลังส่ง…")} } else { {localized_copy("Apply lifecycle command", "ใช้คำสั่งวงจรชีวิต")} }
                         }
                     }
@@ -43196,7 +43202,7 @@ fn QualityContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_branch_id.call(event.value()),
                 }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load inspections", "โหลดการตรวจสอบคุณภาพ")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load inspections", "โหลดการตรวจสอบคุณภาพ")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -43266,8 +43272,8 @@ fn QualityContextRouteSurface(
                                             td { "{row.source_version}" }
                                             td { "{display_timestamp(&row.projected_at)}" }
                                             td {
-                                                KitButton {
-                                                    class: "button secondary compact",
+                                                KitButton { size: ButtonSize::Default,
+                                                    variant: ButtonVariant::Secondary, class: "button compact",
                                                     r#type: "button",
                                                     onclick: {
                                                         let inspection_id = row.inspection_id.clone();
@@ -43287,8 +43293,8 @@ fn QualityContextRouteSurface(
                         }
                     }
                     if let Some(cursor) = read.next_cursor.clone() {
-                        KitButton {
-                            class: "button secondary",
+                        KitButton { size: ButtonSize::Default,
+                            variant: ButtonVariant::Secondary, class: "button",
                             r#type: "button",
                             onclick: move |_| on_next_page.call(cursor.clone()),
                             {localized_copy("Load next page", "โหลดหน้าถัดไป")}
@@ -43445,7 +43451,7 @@ fn HrEmployeeContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_branch_id.call(event.value()),
                 }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load authorized employees", "โหลดพนักงานที่ได้รับอนุญาต")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load authorized employees", "โหลดพนักงานที่ได้รับอนุญาต")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -43524,8 +43530,8 @@ fn HrEmployeeContextRouteSurface(
                     label { r#for: "hr-command-deductions", {localized_copy("Deductions (minor units)", "รายการหัก (หน่วยย่อย)")} }
                     KitInput { id: "hr-command-deductions", r#type: "number", min: "0", step: "1", value: "{hr_deductions_minor_input}", disabled: command_busy, oninput: move |event: FormEvent| hr_deductions_minor_input.set(event.value()) }
                 }
-                KitButton {
-                    class: "button primary",
+                KitButton { size: ButtonSize::Default,
+                    variant: ButtonVariant::Primary, class: "button",
                     r#type: "submit",
                     disabled: command_busy,
                     if command_busy { {localized_copy("Creating HR record…", "กำลังสร้างระเบียน HR…")} } else { {localized_copy("Create HR record", "สร้างระเบียน HR")} }
@@ -43603,8 +43609,8 @@ fn HrEmployeeContextRouteSurface(
                         option { value: "cancel", {localized_copy("Cancel", "ยกเลิก")} }
                     }
                 }
-                KitButton {
-                    class: "button primary",
+                KitButton { size: ButtonSize::Default,
+                    variant: ButtonVariant::Primary, class: "button",
                     r#type: "submit",
                     disabled: command_busy,
                     if command_busy { {localized_copy("Applying transition…", "กำลังเปลี่ยนสถานะ…")} } else { {localized_copy("Apply workflow transition", "ใช้การเปลี่ยนสถานะเวิร์กโฟลว์")} }
@@ -43726,8 +43732,8 @@ fn HrEmployeeContextRouteSurface(
                                 oninput: move |event: FormEvent| terminated_on_input.set(event.value()),
                             }
                         }
-                        KitButton {
-                            class: "button primary",
+                        KitButton { size: ButtonSize::Default,
+                            variant: ButtonVariant::Primary, class: "button",
                             r#type: "submit",
                             disabled: command_busy,
                             if command_busy { { {localized_copy("Committing…", "กำลังยืนยัน…")} } } else { { {localized_copy("Commit employee transition", "ยืนยันการเปลี่ยนแปลงพนักงาน")} } }
@@ -44036,8 +44042,8 @@ fn LegalContractContextRouteSurface(
                     disabled: command_busy,
                     oninput: move |event: FormEvent| contract_party_role_input.set(event.value()),
                 }
-                KitButton {
-                    class: "button primary",
+                KitButton { size: ButtonSize::Default,
+                    variant: ButtonVariant::Primary, class: "button",
                     r#type: "submit",
                     disabled: command_busy,
                     if command_busy { { {localized_copy("Creating contract…", "กำลังสร้างสัญญา…")} } } else { {localized_copy("Create contract", "สร้างสัญญา")} }
@@ -44079,8 +44085,8 @@ fn LegalContractContextRouteSurface(
                     disabled: command_busy,
                     oninput: move |event: FormEvent| document_hash_input.set(event.value()),
                 }
-                KitButton {
-                    class: "button primary",
+                KitButton { size: ButtonSize::Default,
+                    variant: ButtonVariant::Primary, class: "button",
                     r#type: "submit",
                     disabled: command_busy,
                     if command_busy { { {localized_copy("Creating document…", "กำลังสร้างเอกสาร…")} } } else { {localized_copy("Create document", "สร้างเอกสาร")} }
@@ -44132,8 +44138,8 @@ fn LegalContractContextRouteSurface(
                     disabled: command_busy,
                     oninput: move |event: FormEvent| access_purpose_input.set(event.value()),
                 }
-                KitButton {
-                    class: "button primary",
+                KitButton { size: ButtonSize::Default,
+                    variant: ButtonVariant::Primary, class: "button",
                     r#type: "submit",
                     disabled: command_busy,
                     if command_busy { { {localized_copy("Recording access…", "กำลังเข้าถึงการบันทึก…")} } } else { { {localized_copy("Record legal access", "บันทึกลักษณะการเข้าถึงตามกฎหมาย")} } }
@@ -44186,7 +44192,7 @@ fn LegalContractContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_branch_id.call(event.value()),
                 }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load authorized contracts", "โหลดสัญญาที่ได้รับอนุญาต")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load authorized contracts", "โหลดสัญญาที่ได้รับอนุญาต")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -44405,8 +44411,8 @@ fn PosSaleContextRouteSurface(
                 KitInput { id: "pos-sale-unit-price", r#type: "number", min: "0", step: "1", value: "{unit_price_input}", disabled: command_busy, oninput: move |event: FormEvent| unit_price_input.set(event.value()) }
                 label { r#for: "pos-sale-tax", {localized_copy("Tax (minor units)", "ภาษี (หน่วยย่อย)")} }
                 KitInput { id: "pos-sale-tax", r#type: "number", min: "0", step: "1", value: "{tax_input}", disabled: command_busy, oninput: move |event: FormEvent| tax_input.set(event.value()) }
-                KitButton {
-                    class: "button primary",
+                KitButton { size: ButtonSize::Default,
+                    variant: ButtonVariant::Primary, class: "button",
                     r#type: "submit",
                     disabled: command_busy,
                     if command_busy { { {localized_copy("Creating sale…", "กำลังสร้างการขาย…")} } } else { {localized_copy("Create POS sale", "สร้างการขายผ่าน POS")} }
@@ -44462,7 +44468,7 @@ fn PosSaleContextRouteSurface(
                         option { value: "other", {localized_copy("Other", "อื่น ๆ")} }
                     }
                 }
-                KitButton { class: "button primary", r#type: "submit", disabled: command_busy, {localized_copy("Apply sale action", "ดำเนินการกับการขาย")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: command_busy, {localized_copy("Apply sale action", "ดำเนินการกับการขาย")} }
             }
             form {
                 class: "erpx-pos-refund-lifecycle-form",
@@ -44509,7 +44515,7 @@ fn PosSaleContextRouteSurface(
                     label { r#for: "pos-refund-version", {localized_copy("Expected refund version", "เวอร์ชันคืนเงินที่คาดไว้")} }
                     KitInput { id: "pos-refund-version", r#type: "number", min: "1", step: "1", value: "{refund_version}", disabled: command_busy, oninput: move |event: FormEvent| refund_version.set(event.value()) }
                 }
-                KitButton { class: "button primary", r#type: "submit", disabled: command_busy, {localized_copy("Apply refund action", "ดำเนินการคืนเงิน")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: command_busy, {localized_copy("Apply refund action", "ดำเนินการคืนเงิน")} }
             }
             if let Some(message) = command_message.as_deref() {
                 p { class: "form-help", role: "status", "{message}" }
@@ -44558,7 +44564,7 @@ fn PosSaleContextRouteSurface(
                     autocomplete: "off",
                     oninput: move |event: FormEvent| on_branch_id.call(event.value()),
                 }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load authorized sales", "โหลดการขายที่ได้รับอนุญาต")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load authorized sales", "โหลดการขายที่ได้รับอนุญาต")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -45967,7 +45973,7 @@ fn AuthSessionPanel(
                                 oninput: move |event: FormEvent| on_password.call(event.value()),
                             }
                         }
-                        KitButton {
+                        KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                             class: "button auth-submit",
                             r#type: "submit",
                             disabled: busy,
@@ -45975,7 +45981,7 @@ fn AuthSessionPanel(
                         }
                     }
                     div { class: "auth-alternative-actions",
-                        KitButton { class: "button secondary", r#type: "button", disabled: busy || principal_missing, onclick: move |_| on_passkey_login.call(passkey_principal.clone()), {console_text(locale, "Use passkey", "ใช้พาสคีย์")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy || principal_missing, onclick: move |_| on_passkey_login.call(passkey_principal.clone()), {console_text(locale, "Use passkey", "ใช้พาสคีย์")} }
                         KitDisclosure { class: "auth-recovery-panel",
                             summary { {console_text(locale, "Directory / AD account", "บัญชี Directory / AD")} }
                             p { {console_text(locale, "Enter a verified directory hostname. Connector inventory is never disclosed before authentication.", "กรอกชื่อโฮสต์ไดเรกทอรีที่ตรวจสอบแล้ว โดยจะไม่เปิดเผยรายการคอนเนกเตอร์ก่อนยืนยันตัวตน")} }
@@ -45985,7 +45991,7 @@ fn AuthSessionPanel(
                             KitInput { id: "auth-directory-username", autocomplete: "username", value: "{directory_username}", disabled: busy, oninput: move |event: FormEvent| on_directory_username.call(event.value()) }
                             label { r#for: "auth-directory-password", {console_text(locale, "Directory password", "รหัสผ่านไดเรกทอรี")} }
                             KitInput { id: "auth-directory-password", r#type: "password", autocomplete: "current-password", value: "{directory_password}", disabled: busy, oninput: move |event: FormEvent| on_directory_password.call(event.value()) }
-                            KitButton { class: "button primary", r#type: "button", disabled: busy || !valid_directory_hostname(&directory_login_hostname) || directory_login_username.trim().is_empty() || directory_login_password.is_empty(), onclick: move |_| on_directory_login.call((directory_login_hostname.clone(), directory_login_username.clone(), directory_login_password.clone())), {console_text(locale, "Sign in with directory", "เข้าสู่ระบบด้วยไดเรกทอรี")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", disabled: busy || !valid_directory_hostname(&directory_login_hostname) || directory_login_username.trim().is_empty() || directory_login_password.is_empty(), onclick: move |_| on_directory_login.call((directory_login_hostname.clone(), directory_login_username.clone(), directory_login_password.clone())), {console_text(locale, "Sign in with directory", "เข้าสู่ระบบด้วยไดเรกทอรี")} }
                         }
                         KitDisclosure { class: "auth-recovery-panel",
                             summary { {console_text(locale, "Recover account", "กู้คืนบัญชี")} }
@@ -45994,7 +46000,7 @@ fn AuthSessionPanel(
                             KitInput { id: "auth-recovery-code", r#type: "password", autocomplete: "one-time-code", value: "{recovery_code}", disabled: busy, oninput: move |event: FormEvent| recovery_code.set(event.value()) }
                             label { r#for: "auth-recovery-password", {console_text(locale, "New password", "รหัสผ่านใหม่")} }
                             KitInput { id: "auth-recovery-password", r#type: "password", autocomplete: "new-password", minlength: "12", maxlength: "1024", value: "{recovery_password}", disabled: busy, oninput: move |event: FormEvent| recovery_password.set(event.value()) }
-                            KitButton { class: "button danger", r#type: "button", disabled: busy || principal_missing || recovery_code.read().trim().is_empty() || recovery_password.read().len() < 12, onclick: move |_| {
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", disabled: busy || principal_missing || recovery_code.read().trim().is_empty() || recovery_password.read().len() < 12, onclick: move |_| {
                                 let code = recovery_code.read().clone();
                                 let password = recovery_password.read().clone();
                                 recovery_code.set(String::new());
@@ -46009,8 +46015,8 @@ fn AuthSessionPanel(
                 div { class: "auth-session-actions",
                     span { class: "auth-session-note", {console_text(locale, "Server authorization remains authoritative for every request.", "การอนุญาตจากเซิร์ฟเวอร์ยังคงเป็นข้อยุติสำหรับทุกคำขอ")} }
                     if can_refresh {
-                        KitButton {
-                            class: "button secondary",
+                        KitButton { size: ButtonSize::Default,
+                            variant: ButtonVariant::Secondary, class: "button",
                             r#type: "button",
                             disabled: busy,
                             onclick: move |_| on_refresh.call(()),
@@ -46018,8 +46024,8 @@ fn AuthSessionPanel(
                         }
                     }
                     if can_revoke {
-                        KitButton {
-                            class: "button danger",
+                        KitButton { size: ButtonSize::Default,
+                            variant: ButtonVariant::Destructive, class: "button",
                             r#type: "button",
                             disabled: busy,
                             onclick: move |_| on_revoke.call(()),
@@ -46183,7 +46189,7 @@ fn IdentitySecurityPanel(access_token: String, principal_ref: String, route: Aut
                     _ => console_text(locale, "Sign-in methods", "วิธีเข้าสู่ระบบ"),
                 }} } }
                 if matches!(route, AuthRoute::Devices) {
-                    KitButton { class: "button secondary", r#type: "button", disabled: *busy.read(), onclick: move |_| devices.restart(), {console_text(locale, "Refresh devices", "รีเฟรชอุปกรณ์")} }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| devices.restart(), {console_text(locale, "Refresh devices", "รีเฟรชอุปกรณ์")} }
                 }
             }
             p { class: "auth-session-note", {console_text(locale, "Every security operation is independently authorized by the identity service. Credential material remains memory-only and is cleared when dismissed.", "การดำเนินการด้านความปลอดภัยแต่ละรายการได้รับอนุญาตแยกกันโดยบริการอัตลักษณ์ ข้อมูลประจำตัวยังคงอยู่ในหน่วยความจำเท่านั้นและถูกล้างเมื่อปิด")} }
@@ -46202,7 +46208,7 @@ fn IdentitySecurityPanel(access_token: String, principal_ref: String, route: Aut
                                     rsx! { article { class: "identity-device-row", "data-revoked": device.revoked_at.is_some().to_string(),
                                         div { strong { "{SafeUiText::new(&device.label).as_str()}" } small { {match locale { Locale::En => format!("Last seen {}", display_timestamp(&device.last_seen_at)), Locale::Th => format!("พบล่าสุด {}", display_timestamp(&device.last_seen_at)) }} } }
                                         if device.revoked_at.is_none() {
-                                            KitButton { class: "button danger", r#type: "button", disabled: *busy.read(), onclick: move |_| {
+                                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| {
                                                 busy.set(true);
                                                 message.set(None);
                                                 let device_id = device_id.clone();
@@ -46225,8 +46231,8 @@ fn IdentitySecurityPanel(access_token: String, principal_ref: String, route: Aut
                 if matches!(route, AuthRoute::Security) { KitDisclosure { open: true,
                     summary { {console_text(locale, "Authenticator methods", "วิธีการรับรอง")} }
                     div { class: "identity-security-actions",
-                        KitButton { class: "button secondary", r#type: "button", disabled: *busy.read(), onclick: register_passkey, {console_text(locale, "Register passkey", "ลงทะเบียนพาสคีย์")} }
-                        KitButton { class: "button secondary", r#type: "button", disabled: *busy.read(), onclick: begin_totp, {console_text(locale, "Set up TOTP", "ตั้งค่า TOTP")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *busy.read(), onclick: register_passkey, {console_text(locale, "Register passkey", "ลงทะเบียนพาสคีย์")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *busy.read(), onclick: begin_totp, {console_text(locale, "Set up TOTP", "ตั้งค่า TOTP")} }
                     }
                     if let Some(enrollment) = totp.read().as_ref() {
                         section { class: "identity-one-time-secret", role: "status",
@@ -46236,8 +46242,8 @@ fn IdentitySecurityPanel(access_token: String, principal_ref: String, route: Aut
                             label { class: "sr-only", r#for: "identity-totp-code", {console_text(locale, "Six-digit TOTP code", "รหัส TOTP หกหลัก")} }
                             KitInput { id: "identity-totp-code", r#type: "password", inputmode: "numeric", autocomplete: "one-time-code", maxlength: "6", value: "{totp_code}", disabled: *busy.read(), oninput: move |event: FormEvent| totp_code.set(event.value()) }
                             div { class: "identity-security-actions",
-                                KitButton { class: "button primary", r#type: "button", disabled: *busy.read() || totp_code.read().len() != 6, onclick: verify_totp, {console_text(locale, "Verify TOTP", "ยืนยัน TOTP")} }
-                                KitButton { class: "button secondary", r#type: "button", disabled: *busy.read(), onclick: move |_| { totp.set(None); totp_code.set(String::new()); }, {console_text(locale, "Cancel and clear", "ยกเลิกและล้าง")} }
+                                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", disabled: *busy.read() || totp_code.read().len() != 6, onclick: verify_totp, {console_text(locale, "Verify TOTP", "ยืนยัน TOTP")} }
+                                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| { totp.set(None); totp_code.set(String::new()); }, {console_text(locale, "Cancel and clear", "ยกเลิกและล้าง")} }
                             }
                         }
                     }
@@ -46245,11 +46251,11 @@ fn IdentitySecurityPanel(access_token: String, principal_ref: String, route: Aut
                 if matches!(route, AuthRoute::Recovery) { KitDisclosure { open: true,
                     summary { {console_text(locale, "Recovery codes", "รหัสกู้คืน")} }
                     p { {console_text(locale, "Issuing a new set invalidates the previous recovery set. Codes are returned exactly once.", "การออกรหัสชุดใหม่จะทำให้ชุดก่อนหน้าใช้ไม่ได้ และรหัสจะแสดงเพียงครั้งเดียว")} }
-                    KitButton { class: "button danger", r#type: "button", disabled: *busy.read(), onclick: issue_codes, {console_text(locale, "Issue new recovery codes", "ออกรหัสกู้คืนใหม่")} }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", disabled: *busy.read(), onclick: issue_codes, {console_text(locale, "Issue new recovery codes", "ออกรหัสกู้คืนใหม่")} }
                     if let Some(codes) = recovery_codes.read().as_ref() {
                         section { class: "identity-one-time-secret", role: "status", aria_label: console_text(locale, "One-time recovery codes", "รหัสกู้คืนแบบแสดงครั้งเดียว"),
                             ol { for code in codes.codes.iter() { li { code { "{code}" } } } }
-                            KitButton { class: "button secondary", r#type: "button", onclick: move |_| recovery_codes.set(None), {console_text(locale, "I stored them; clear display", "ฉันเก็บแล้ว ให้ล้างการแสดงผล")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| recovery_codes.set(None), {console_text(locale, "I stored them; clear display", "ฉันเก็บแล้ว ให้ล้างการแสดงผล")} }
                         }
                     }
                 } }
@@ -46431,8 +46437,8 @@ fn CustomerAccessAuditSurface(
                         if page.has_next_page {
                             div { class: "audit-banner",
                                 {localized_copy("Additional records exist. The next page uses the server-authoritative cursor bound to this customer.", "มีรายการเพิ่มเติม หน้าถัดไปใช้คีย์ที่ระบบที่กำหนดไว้ในการเชื่อมโยงกับลูกค้า")}
-                                KitButton {
-                                    class: "button secondary",
+                                KitButton { size: ButtonSize::Default,
+                                    variant: ButtonVariant::Secondary, class: "button",
                                     r#type: "button",
                                     onclick: move |_| {
                                         if let Some(cursor) = next_audit_cursor.clone() {
@@ -46672,7 +46678,7 @@ fn Customer360DetailSurface(
                         label { r#for: "customer-note-body", {localized_copy("New customer note", "บันทึกลูกค้าใหม่")} }
                         KitTextarea { id: "customer-note-body", value: "{note_body}", maxlength: "4096", disabled: note_busy, aria_invalid: note_validation_error.read().is_some().to_string(), aria_describedby: "customer-note-error", oninput: move |event: FormEvent| note_body.set(event.value()) }
                         if let Some(error) = note_validation_error.read().clone() { p { id: "customer-note-error", class: "field-error", role: "alert", "{error}" } }
-                        KitButton { class: "button primary", r#type: "submit", disabled: note_busy, if note_busy { {localized_copy("Committing note…", "กำลังบันทึก…")} } else { {localized_copy("Add append-only note", "เพิ่มบันทึกแบบเพิ่มเท่านั้น")} } }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: note_busy, if note_busy { {localized_copy("Committing note…", "กำลังบันทึก…")} } else { {localized_copy("Add append-only note", "เพิ่มบันทึกแบบเพิ่มเท่านั้น")} } }
                         if let Some(message) = note_message.clone() { p { class: "status-banner", role: "status", "{message}" } }
                     }
                 }
@@ -46690,8 +46696,8 @@ fn Customer360DetailSurface(
                     projection.notes.next_before_occurred_at(),
                     projection.notes.next_before_id(),
                 ) {
-                    KitButton {
-                        class: "button secondary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Secondary, class: "button",
                         r#type: "button",
                         onclick: {
                             let customer_id = projection.customer_id.clone();
@@ -46752,7 +46758,7 @@ fn CustomerRouteTabs(
 
     rsx! {
         nav { class: "customer-route-tabs", aria_label: console_text(locale.current(), "Customer 360 views", "มุมมองลูกค้า 360"),
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: if active_route == PlatformRoute::CustomerList { "route-tab active" } else { "route-tab" },
                 r#type: "button",
                 aria_current: if active_route == PlatformRoute::CustomerList { "page" } else { "false" },
@@ -46788,7 +46794,7 @@ fn CustomerRouteTab(
     let is_active = target.as_ref().is_some_and(|route| *route == active_route);
     let is_disabled = target.is_none();
     rsx! {
-        KitButton {
+        KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
             class: if is_active { "route-tab active" } else { "route-tab" },
             r#type: "button",
             disabled: is_disabled,
@@ -46830,7 +46836,7 @@ fn MarketingCrmNavigationItem(
 ) -> Element {
     let is_active = definition.id == active_route;
     rsx! {
-        KitButton {
+        KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
             class: if is_active { "route-tab active" } else { "route-tab" },
             r#type: "button",
             aria_current: if is_active { "page" } else { "false" },
@@ -47126,7 +47132,7 @@ fn MarketingCrmSurface(
                         oninput: move |event: FormEvent| on_branch_id.call(event.value()),
                     }
                 }
-                KitButton { class: "button primary", r#type: "submit", {localized_copy("Load authorized CRM scope", "โหลด scope CRM ที่ได้รับอนุญาต")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", {localized_copy("Load authorized CRM scope", "โหลด scope CRM ที่ได้รับอนุญาต")} }
                 if let Some(message) = validation_error.read().clone() {
                     p { class: "form-error", role: "alert", "{message}" }
                 }
@@ -47200,8 +47206,8 @@ fn MarketingCrmSurface(
                     KitInput { id: "crm-contact-id", value: "{crm_contact_id_input}", autocomplete: "off", disabled: command_busy, oninput: move |event: FormEvent| crm_contact_id_input.set(event.value()) }
                     label { r#for: "crm-accepted-at", {localized_copy("Accepted at (RFC 3339)", "ยอมรับเมื่อ (RFC 3339)")} }
                     KitInput { id: "crm-accepted-at", value: "{crm_accepted_at_input}", autocomplete: "off", disabled: command_busy, oninput: move |event: FormEvent| crm_accepted_at_input.set(event.value()) }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Saving…", "บันทึก…")} } } else { {localized_copy("Save accepted lead handoff", "บันทึกการส่งมอบลูกค้าที่ยอมรับแล้ว")} }
@@ -47245,8 +47251,8 @@ fn MarketingCrmSurface(
                         disabled: command_busy,
                         oninput: move |event: FormEvent| erasure_at_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button danger",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Destructive, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Erasing…", "กำลังลบ…")} } } else { { {localized_copy("Erase profile", "ล้างโปรไฟล์")} } }
@@ -47310,8 +47316,8 @@ fn MarketingCrmSurface(
                     KitInput { id: "crm-touch-at", value: "{crm_touch_at_input}", autocomplete: "off", disabled: command_busy, oninput: move |event: FormEvent| crm_touch_at_input.set(event.value()) }
                     label { r#for: "crm-touch-cost", {localized_copy("Touch cost (minor units)", "ต้นทุนจุดสัมผัส (หน่วยย่อย)")} }
                     KitInput { id: "crm-touch-cost", r#type: "number", min: "0", value: "{crm_touch_cost_input}", disabled: command_busy, oninput: move |event: FormEvent| crm_touch_cost_input.set(event.value()) }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Creating…", "กำลังสร้าง…")} } } else { {localized_copy("Create CRM opportunity", "สร้างโอกาส CRM")} }
@@ -47358,8 +47364,8 @@ fn MarketingCrmSurface(
                         disabled: command_busy,
                         oninput: move |event: FormEvent| attribution_expected_version_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Recording…", "กำลังบันทึก…")} } } else { { {localized_copy("Record attribution", "บันทึกการ-attribution")} } }
@@ -47407,8 +47413,8 @@ fn MarketingCrmSurface(
                         disabled: command_busy,
                         oninput: move |event: FormEvent| preview_expires_at_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { {localized_copy("Issuing…", "กำลังออก")} } else { {localized_copy("Issue preview", "การทบทวนปัญหา")} }
@@ -47430,8 +47436,8 @@ fn MarketingCrmSurface(
                         disabled: command_busy,
                         oninput: move |event: FormEvent| preview_id_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button danger",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Destructive, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Revoking…", "กำลังยกเลิก…")} } } else { { {localized_copy("Revoke preview", "ยกเลิกพรีวิว")} } }
@@ -47455,8 +47461,8 @@ fn MarketingCrmSurface(
                         disabled: command_busy,
                         oninput: move |event: FormEvent| domain_id_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { {localized_copy("Issuing…", "กำลังออก")} } else { {localized_copy("Issue challenge", "ออกท้าทาย")} }
@@ -47482,8 +47488,8 @@ fn MarketingCrmSurface(
                         disabled: command_busy,
                         oninput: move |event: FormEvent| domain_proof_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { {localized_copy("Verifying…", "กำลังตรวจสอบ…")} } else { {localized_copy("Verify domain", "ตรวจสอบโดเมน")} }
@@ -47519,8 +47525,8 @@ fn MarketingCrmSurface(
                         disabled: command_busy,
                         oninput: move |event: FormEvent| domain_template_version_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Binding…", "การผูก…")} } } else { { {localized_copy("Bind domain", "ผูกโดเมน")} } }
@@ -47647,8 +47653,8 @@ fn MarketingCrmSurface(
                         disabled: command_busy,
                         oninput: move |event: FormEvent| provider_priority_input.set(event.value()),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { { {localized_copy("Saving…", "บันทึก…")} } } else { { {localized_copy("Configure provider", "กำหนดค่าผู้ให้บริการ")} } }
@@ -47682,8 +47688,8 @@ fn MarketingCrmSurface(
                         disabled: command_busy,
                         onchange: move |event: FormEvent| provider_active_input.set(event.value() == "true"),
                     }
-                    KitButton {
-                        class: "button primary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if command_busy { {localized_copy("Verifying…", "กำลังตรวจสอบ…")} } else { { {localized_copy("Record verification", "บันทึกการตรวจสอบ")} } }
@@ -47697,8 +47703,8 @@ fn MarketingCrmSurface(
                     }),
                     h3 { { {localized_copy("Change provider active state", "เปลี่ยนสถานะการใช้งานของผู้ให้บริการ")} } }
                     p { {localized_copy("Suspend or reactivate the exact provider account through the optimistic, audited control-plane command.", "สั่งระงับหรือฟื้นฟูบัญชีผู้ให้บริการเฉพาะผ่านคำสั่งควบคุมระดับตรวจสอบที่เป็นเชิงบวก")} }
-                    KitButton {
-                        class: "button secondary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Secondary, class: "button",
                         r#type: "submit",
                         disabled: command_busy,
                         if *provider_active_input.read() { {localized_copy("Keep provider active", "รักษาผู้ให้บริการให้เป็นไปตามข้อกำหนด")} } else { {localized_copy("Suspend provider", "ระงับบัญชีผู้ให้บริการ")} }
@@ -47840,8 +47846,8 @@ fn MarketingContentReadSurface(
                                 }
                             }
                             if let Some(cursor) = page.next_cursor.clone() {
-                                KitButton {
-                                    class: "button secondary",
+                                KitButton { size: ButtonSize::Default,
+                                    variant: ButtonVariant::Secondary, class: "button",
                                     r#type: "button",
                                     onclick: move |_| on_next_page.call(cursor.clone()),
                                     {localized_copy("Load next page", "โหลดหน้าถัดไป")}
@@ -47871,8 +47877,8 @@ fn CrmRowsSurface(rows: CrmRows, locale: Locale, on_next_page: EventHandler<Stri
                     }
                 }
                 if let Some(next_cursor) = page.metadata().next_cursor() {
-                    KitButton {
-                        class: "button secondary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Secondary, class: "button",
                         r#type: "button",
                         onclick: {
                             let next_cursor = next_cursor.to_owned();
@@ -47896,8 +47902,8 @@ fn CrmRowsSurface(rows: CrmRows, locale: Locale, on_next_page: EventHandler<Stri
                     }
                 }
                 if let Some(next_cursor) = page.metadata().next_cursor() {
-                    KitButton {
-                        class: "button secondary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Secondary, class: "button",
                         r#type: "button",
                         onclick: {
                             let next_cursor = next_cursor.to_owned();
@@ -47921,8 +47927,8 @@ fn CrmRowsSurface(rows: CrmRows, locale: Locale, on_next_page: EventHandler<Stri
                     }
                 }
                 if let Some(next_cursor) = page.metadata().next_cursor() {
-                    KitButton {
-                        class: "button secondary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Secondary, class: "button",
                         r#type: "button",
                         onclick: {
                             let next_cursor = next_cursor.to_owned();
@@ -47971,7 +47977,7 @@ fn CustomerRow(
 ) -> Element {
     let id = customer.id.clone();
     rsx! {
-        KitButton {
+        KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
             class: if selected.read().as_ref() == Some(&customer.id) { "customer-row selected" } else { "customer-row" },
             onclick: move |_| {
                 selected.set(Some(id.clone()));
@@ -48024,7 +48030,7 @@ fn PlatformOperationsNavigationItem(
         definition.template
     };
     rsx! {
-        KitButton {
+        KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
             class: if is_active { "route-tab active" } else { "route-tab" },
             r#type: "button",
             disabled: is_disabled,
@@ -48275,7 +48281,7 @@ fn PlatformOperationsSurface(
                 section { class: "tenant-workspace-surface", aria_label: localized_copy("Entered tenant workspace", "พื้นที่ทำงานผู้เช่าที่เข้าสู่แล้ว"), "data-module": module.as_str(),
                     div { class: "surface-header",
                         div { div { class: "eyebrow", {localized_copy("ENTERED TENANT WORKSPACE", "เข้าสู่พื้นที่ทำงานผู้เช่า")} } h3 { "{module.as_str()} · {tenant_id.as_str()}" } p { {localized_copy("This route is bound to the active server-issued administrative context and the tenant's current entitlement state.", "เส้นทางนี้ผูกกับบริบทการดูแลที่เซิร์ฟเวอร์ออกให้และสถานะสิทธิ์ปัจจุบันของผู้เช่า")} } }
-                        KitButton { class: "button secondary", r#type: "button", onclick: {
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: {
                             let tenant_id = tenant_id.clone();
                             move |_| on_navigate.call(PlatformOperationsRoute::Tenant { tenant_id: tenant_id.clone() })
                         }, {localized_copy("Return to tenant", "กลับไปยังผู้เช่า")} }
@@ -48348,7 +48354,7 @@ fn PlatformOperationsSurface(
             if matches!(&route, PlatformOperationsRoute::Settings) {
                 section { class: "settings-entry-card",
                     div { div { class: "eyebrow", {localized_copy("DEVELOPMENT", "การพัฒนา")} } h3 { {localized_copy("Access simulation", "จำลองบทบาทการทำงาน")} } p { {localized_copy("Use server-owned test roles without changing account assignments or composing permissions.", "ใช้บทบาททดสอบที่เซิร์ฟเวอร์กำหนด โดยไม่เปลี่ยนการมอบหมายบัญชีหรือประกอบสิทธิ์เอง")} } }
-                    KitButton { class: "button secondary", r#type: "button", onclick: move |_| on_navigate.call(PlatformOperationsRoute::AccessSimulation), {localized_copy("Open access simulation", "เปิดการจำลองบทบาท")} }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| on_navigate.call(PlatformOperationsRoute::AccessSimulation), {localized_copy("Open access simulation", "เปิดการจำลองบทบาท")} }
                 }
                 MigrationStatusList {
                     statuses: migration_statuses,
@@ -48508,7 +48514,7 @@ fn PlatformDeadLetterReplay(
                     }
                 }
             }
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: "primary-action",
                 r#type: "button",
                 disabled: *busy.read(),
@@ -48608,8 +48614,8 @@ fn PlatformAuditList(
             }
             if rendered_count < total_count {
                 div { class: "pager",
-                    KitButton {
-                        class: "button secondary",
+                    KitButton { size: ButtonSize::Default,
+                        variant: ButtonVariant::Secondary, class: "button",
                         r#type: "button",
                         onclick: move |_| visible_count.set((rendered_count + 50).min(total_count)),
                         {match active_console_locale() {
@@ -48679,7 +48685,7 @@ fn PlatformIntegrationList(
         section { class: "projection-detail", aria_label: localized_copy("Platform integrations", "การเชื่อมต่อระบบของแพลตฟอร์ม"),
             div { class: "projection-meta",
                 span { {match active_console_locale() { Locale::En => format!("Authorized integration health · {arg0} rows · read-only", arg0 = integrations.len()), Locale::Th => format!("สถานะสุขภาพการผสานรวมที่ได้รับอนุญาต · {arg0} แถว · อ่านอย่างเดียว", arg0 = integrations.len()) }} }
-                KitButton { class: "button secondary compact", r#type: "button", onclick: move |event| on_retry.call(event), {localized_copy("Refresh", "รีเฟรช")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button compact", r#type: "button", onclick: move |event| on_retry.call(event), {localized_copy("Refresh", "รีเฟรช")} }
             }
             div { class: "table-wrap",
                 KitTable { class: "data-table",
@@ -49102,14 +49108,14 @@ fn MigrationLifecycleControls(
                 }}
             }
             div { class: "button-row",
-                KitButton {
+                KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                     class: "primary-button",
                     r#type: "button",
                     disabled: *busy.read(),
                     onclick: on_begin,
                     if *busy.read() { {localized_copy("Working…", "กำลังดำเนินการ…")} } else { { {localized_copy("Begin migration run", "เริ่มการย้ายข้อมูล")} } }
                 }
-                KitButton {
+                KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                     class: "secondary-button",
                     r#type: "button",
                     disabled: *busy.read(),
@@ -49238,8 +49244,8 @@ fn MigrationWorkQueue(
                     disabled: *busy.read(),
                 }}
             }
-            KitButton {
-                class: "primary-button",
+            KitButton { variant: ButtonVariant::Primary, size: ButtonSize::Default,
+                class: "button",
                 r#type: "button",
                 disabled: *busy.read(),
                 onclick: on_queue,
@@ -49544,8 +49550,8 @@ fn PlatformTenantList(
                                 rsx! {
                                     tr {
                                         td { class: "tenant-registry-identity",
-                                            KitButton {
-                                                class: "link-button",
+                                            KitButton { size: ButtonSize::Sm,
+                                                variant: ButtonVariant::Link,
                                                 r#type: "button",
                                                 onclick: move |_| {
                                                     if let Ok(tenant_id) = PlatformTenantId::new(tenant_id.clone()) {
@@ -50006,8 +50012,8 @@ fn TenantControlHistoryPanel(
                         }
                     }
                     if page.has_more {
-                        KitButton {
-                            class: "button secondary",
+                        KitButton { size: ButtonSize::Default,
+                            variant: ButtonVariant::Secondary, class: "button",
                             r#type: "button",
                             disabled: next_cursor.is_none(),
                             onclick: move |_| cursor.set(next_cursor.clone()),
@@ -50217,7 +50223,7 @@ fn PlatformTenantDetail(
             }
             nav { class: "customer-route-tabs", aria_label: localized_copy("Tenant administration tabs", "แท็บการจัดการของลูกค้า"),
                 for (tab, label) in contextual_tabs {
-                    KitButton {
+                    KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                         class: if selected_tab == tab { "route-tab active" } else { "route-tab" },
                         r#type: "button",
                         aria_current: if selected_tab == tab { "page" } else { "false" },
@@ -50312,8 +50318,8 @@ fn PlatformTenantDetail(
                                 dt { {localized_copy("Correlation", "สหสัมพันธ์")} } dd { "{context.correlation_id}" }
                             }
                             div { class: "command-grid",
-                                KitButton { class: "button secondary", r#type: "button", disabled: *tenant_admin_busy.read(), onclick: move |_| on_tenant_admin_action.call(TenantAdminAction::Refresh), {localized_copy("Refresh server context", "รีเฟรชบริบทเซิร์ฟเวอร์")} }
-                                KitButton { class: "button primary", r#type: "button", disabled: *tenant_admin_busy.read() || !context.active, onclick: move |_| on_tenant_admin_action.call(TenantAdminAction::Discover { after_cursor: String::new() }), {localized_copy("Discover organization units", "ค้นหาหน่วยองค์กร")} }
+                                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *tenant_admin_busy.read(), onclick: move |_| on_tenant_admin_action.call(TenantAdminAction::Refresh), {localized_copy("Refresh server context", "รีเฟรชบริบทเซิร์ฟเวอร์")} }
+                                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", disabled: *tenant_admin_busy.read() || !context.active, onclick: move |_| on_tenant_admin_action.call(TenantAdminAction::Discover { after_cursor: String::new() }), {localized_copy("Discover organization units", "ค้นหาหน่วยองค์กร")} }
                             }
                             if context.active {
                                 div { class: "section-caption", {localized_copy("ENTER AUTHORIZED MODULE", "เข้าสู่โมดูลที่ได้รับอนุญาต")} }
@@ -50324,7 +50330,7 @@ fn PlatformTenantDetail(
                                         for module in workspace_modules.iter().copied() {
                                             {
                                                 let tenant_id = PlatformTenantId::new(tenant.tenant_id.clone()).ok();
-                                                rsx! { KitButton { class: "button secondary", r#type: "button", disabled: tenant_id.is_none(), onclick: move |_| {
+                                                rsx! { KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: tenant_id.is_none(), onclick: move |_| {
                                                     if let Some(tenant_id) = tenant_id.clone() {
                                                         on_navigate.call(PlatformOperationsRoute::TenantWorkspace { tenant_id, module });
                                                     }
@@ -50336,13 +50342,13 @@ fn PlatformTenantDetail(
                             }
                             label { r#for: "tenant-admin-end-reason", {localized_copy("End reason", "เหตุผลที่สิ้นสุด")} }
                             KitInput { id: "tenant-admin-end-reason", value: "{tenant_admin_end_reason}", maxlength: "512", disabled: *tenant_admin_busy.read(), oninput: move |event: FormEvent| tenant_admin_end_reason.set(event.value()) }
-                            KitButton { class: "button danger", r#type: "button", disabled: *tenant_admin_busy.read(), onclick: move |_| on_tenant_admin_action.call(TenantAdminAction::End { reason: tenant_admin_end_reason.read().clone() }), {localized_copy("End administrative context", "สิ้นสุดบริบทการดูแล")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", disabled: *tenant_admin_busy.read(), onclick: move |_| on_tenant_admin_action.call(TenantAdminAction::End { reason: tenant_admin_end_reason.read().clone() }), {localized_copy("End administrative context", "สิ้นสุดบริบทการดูแล")} }
                         } else {
                             label { r#for: "tenant-admin-reason", {localized_copy("Audited entry reason", "เหตุผลการเข้าที่ตรวจสอบย้อนหลังได้")} }
                             KitTextarea { id: "tenant-admin-reason", value: "{tenant_admin_reason}", maxlength: "512", disabled: *tenant_admin_busy.read(), oninput: move |event: FormEvent| tenant_admin_reason.set(event.value()) }
                             label { r#for: "tenant-admin-mfa", {localized_copy("Fresh MFA code", "รหัส MFA ใหม่")} }
                             KitInput { id: "tenant-admin-mfa", r#type: "password", autocomplete: "one-time-code", value: "{tenant_admin_mfa}", disabled: *tenant_admin_busy.read(), oninput: move |event: FormEvent| tenant_admin_mfa.set(event.value()) }
-                            KitButton { class: "button primary", r#type: "button", disabled: *tenant_admin_busy.read(), onclick: move |_| on_tenant_admin_action.call(TenantAdminAction::Begin { reason: tenant_admin_reason.read().clone(), mfa_code: tenant_admin_mfa.read().clone() }), if *tenant_admin_busy.read() { {localized_copy("Entering…", "กำลังเข้า…")} } else { {localized_copy("Begin administrative context", "เริ่มบริบทการดูแล")} } }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", disabled: *tenant_admin_busy.read(), onclick: move |_| on_tenant_admin_action.call(TenantAdminAction::Begin { reason: tenant_admin_reason.read().clone(), mfa_code: tenant_admin_mfa.read().clone() }), if *tenant_admin_busy.read() { {localized_copy("Entering…", "กำลังเข้า…")} } else { {localized_copy("Begin administrative context", "เริ่มบริบทการดูแล")} } }
                         }
                         if let Some(message) = tenant_admin_message.read().clone() { p { class: "status-banner", role: "status", "{message}" } }
                         if let Some(page) = organization_page.read().clone() {
@@ -50362,7 +50368,7 @@ fn PlatformTenantDetail(
                             }
                             p { class: "muted", "{localized_copy(\"Correlation\", \"สหสัมพันธ์\")}: {page.correlation_id}" }
                             if page.has_more {
-                                KitButton { class: "button secondary", r#type: "button", disabled: *tenant_admin_busy.read(), onclick: {
+                                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *tenant_admin_busy.read(), onclick: {
                                     let next_cursor = page.next_cursor.clone();
                                     move |_| on_tenant_admin_action.call(TenantAdminAction::Discover { after_cursor: next_cursor.clone() })
                                 }, {localized_copy("Next organization page", "หน้าหน่วยองค์กรถัดไป")} }
@@ -50389,8 +50395,8 @@ fn PlatformTenantDetail(
                                 p { { {localized_copy("Only secret references, fingerprints, versions, and redacted health cross this control-plane boundary.", "เฉพาะข้อมูลลับ อินพุตแฮช เวอร์ชัน และข้อมูลสุขภาพที่ถูกลบออก ที่จะผ่านพ้นขอบเขตควบคุมระบบ")} } }
                             }
                             div { class: "tenant-action-row",
-                                KitButton { class: "button secondary", r#type: "button", onclick: move |_| { let next = !*show_setup.read(); show_setup.set(next); }, if *show_setup.read() { { {localized_copy("Close setup guide", "ปิดคู่มือการตั้งค่า")} } } else { { {localized_copy("Self-host setup", "ตั้งค่าการโฮสต์เอง")} } } }
-                                KitButton { class: "button primary", r#type: "button", onclick: move |_| active_tab.set(PlatformTenantAdministrationTab::RootAccess), {localized_copy("Request access", "ขอสิทธิ์เข้าถึง")} }
+                                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| { let next = !*show_setup.read(); show_setup.set(next); }, if *show_setup.read() { { {localized_copy("Close setup guide", "ปิดคู่มือการตั้งค่า")} } } else { { {localized_copy("Self-host setup", "ตั้งค่าการโฮสต์เอง")} } } }
+                                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: move |_| active_tab.set(PlatformTenantAdministrationTab::RootAccess), {localized_copy("Request access", "ขอสิทธิ์เข้าถึง")} }
                             }
                         }
                         dl { class: "detail-grid infrastructure-grid",
@@ -50631,7 +50637,7 @@ fn TenantProvisioningWizard(
                     h3 { {localized_copy("Register a tenant boundary", "ลงทะเบียนขอบเขตผู้เช่า")} }
                     p { {localized_copy("This first step records opaque routing keys and independent owner approval. Accepted registrations resume from the tenant detail lifecycle controls.", "ขั้นตอนแรกนี้บันทึกคีย์การกำหนดเส้นทางแบบทึบและการอนุมัติเจ้าของโดยอิสระ การลงทะเบียนที่ยอมรับแล้วจะดำเนินต่อจากการควบคุมวงจรชีวิตในรายละเอียดผู้เช่า")} }
                 }
-                KitButton { class: "button primary", r#type: "button", disabled: *busy.read(), onclick: move |_| { let next = !*open.read(); open.set(next); review.set(false); }, if *open.read() { {localized_copy("Close wizard", "ปิดตัวช่วย")} } else { {localized_copy("Provision tenant", "จัดเตรียมผู้เช่า")} } }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| { let next = !*open.read(); open.set(next); review.set(false); }, if *open.read() { {localized_copy("Close wizard", "ปิดตัวช่วย")} } else { {localized_copy("Provision tenant", "จัดเตรียมผู้เช่า")} } }
             }
             if *open.read() && !*review.read() {
                 form { class: "typed-command-form", onsubmit: on_review,
@@ -50648,7 +50654,7 @@ fn TenantProvisioningWizard(
                         label { {localized_copy("Independent platform approver", "ผู้อนุมัติแพลตฟอร์มอิสระ")} KitInput { value: "{owner_approver_ref}", autocomplete: "off", maxlength: "255", disabled: *busy.read(), oninput: move |event: FormEvent| owner_approver_ref.set(event.value()) } }
                     }
                     div { class: "audit-banner", {localized_copy("These are registry and secret-provider keys, never passwords, URLs, database connection strings, or credential values.", "ข้อมูลเหล่านี้เป็นคีย์ทะเบียนและผู้ให้บริการข้อมูลลับ ไม่ใช่รหัสผ่าน URL สตริงเชื่อมต่อฐานข้อมูล หรือค่าข้อมูลประจำตัว")} }
-                    KitButton { class: "button primary", r#type: "submit", disabled: *busy.read(), {localized_copy("Review registration", "ตรวจสอบการลงทะเบียน")} }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: *busy.read(), {localized_copy("Review registration", "ตรวจสอบการลงทะเบียน")} }
                 }
             }
             if *open.read() && *review.read() {
@@ -50663,8 +50669,8 @@ fn TenantProvisioningWizard(
                     }
                     label { {localized_copy("Fresh operator MFA code", "รหัส MFA ใหม่ของผู้ปฏิบัติงาน")} KitInput { r#type: "password", value: "{mfa_code}", autocomplete: "one-time-code", maxlength: "128", disabled: *busy.read(), oninput: move |event: FormEvent| mfa_code.set(event.value()) } }
                     div { class: "tenant-action-row",
-                        KitButton { class: "button danger", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Registering…", "กำลังลงทะเบียน…")} } else { {localized_copy("Confirm tenant registration", "ยืนยันการลงทะเบียนผู้เช่า")} } }
-                        KitButton { class: "button secondary", r#type: "button", disabled: *busy.read(), onclick: move |_| review.set(false), {localized_copy("Back to edit", "กลับไปแก้ไข")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Registering…", "กำลังลงทะเบียน…")} } else { {localized_copy("Confirm tenant registration", "ยืนยันการลงทะเบียนผู้เช่า")} } }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| review.set(false), {localized_copy("Back to edit", "กลับไปแก้ไข")} }
                     }
                 }
             }
@@ -50778,9 +50784,9 @@ fn PlatformTenantLifecycleControls(
             }
             if has_action {
                 div { class: "tenant-action-row",
-                    if can_provision { KitButton { class: "button secondary", r#type: "button", disabled: *busy.read(), onclick: move |_| pending_action.set(Some(PlatformTenantLifecycleAction::ProvisionResources)), {localized_copy("Provision resources", "จัดเตรียมทรัพยากร")} } }
-                    if can_activate { KitButton { class: "button primary", r#type: "button", disabled: *busy.read(), onclick: move |_| pending_action.set(Some(PlatformTenantLifecycleAction::Activate)), {localized_copy("Activate tenant", "เปิดใช้งานผู้เช่า")} } }
-                    if can_suspend { KitButton { class: "button danger", r#type: "button", disabled: *busy.read(), onclick: move |_| pending_action.set(Some(PlatformTenantLifecycleAction::Suspend)), {localized_copy("Suspend tenant", "ระงับผู้เช่า")} } }
+                    if can_provision { KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| pending_action.set(Some(PlatformTenantLifecycleAction::ProvisionResources)), {localized_copy("Provision resources", "จัดเตรียมทรัพยากร")} } }
+                    if can_activate { KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| pending_action.set(Some(PlatformTenantLifecycleAction::Activate)), {localized_copy("Activate tenant", "เปิดใช้งานผู้เช่า")} } }
+                    if can_suspend { KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| pending_action.set(Some(PlatformTenantLifecycleAction::Suspend)), {localized_copy("Suspend tenant", "ระงับผู้เช่า")} } }
                 }
             } else {
                 StatePanel { state: UiStateKind::Unavailable, title: localized_copy("No lifecycle command available", "ไม่มีคำสั่งวงจรชีวิตที่พร้อมใช้").to_owned(), message: localized_copy("The current server state does not expose a safe transition from this route.", "สถานะเซิร์ฟเวอร์ปัจจุบันไม่มีการเปลี่ยนผ่านที่ปลอดภัยจากเส้นทางนี้").to_owned(), action_label: None, on_action: None }
@@ -50797,8 +50803,8 @@ fn PlatformTenantLifecycleControls(
                         label { {localized_copy("Fresh MFA code", "รหัส MFA ใหม่")} KitInput { r#type: "password", value: "{mfa_code}", autocomplete: "one-time-code", maxlength: "128", disabled: *busy.read(), oninput: move |event: FormEvent| mfa_code.set(event.value()) } }
                     }
                     div { class: "tenant-action-row",
-                        KitButton { class: tenant_lifecycle_button_class(action), r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Submitting…", "กำลังส่ง…")} } else { {localized_copy("Confirm server command", "ยืนยันคำสั่งเซิร์ฟเวอร์")} } }
-                        KitButton { class: "button secondary", r#type: "button", disabled: *busy.read(), onclick: move |_| { pending_action.set(None); confirmation.set(String::new()); mfa_code.set(String::new()); }, {localized_copy("Cancel", "ยกเลิก")} }
+                        KitButton { variant: tenant_lifecycle_button_variant(action), size: ButtonSize::Default, class: "button", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Submitting…", "กำลังส่ง…")} } else { {localized_copy("Confirm server command", "ยืนยันคำสั่งเซิร์ฟเวอร์")} } }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| { pending_action.set(None); confirmation.set(String::new()); mfa_code.set(String::new()); }, {localized_copy("Cancel", "ยกเลิก")} }
                     }
                 }
             }
@@ -50931,9 +50937,9 @@ fn TenantInfrastructureControls(
                 }
                 div { class: "tenant-action-row",
                     if !infrastructure.is_customer_hosted() {
-                        KitButton { class: "button secondary", r#type: "button", disabled: *busy.read(), onclick: move |_| { let next = !*show_profile.read(); show_profile.set(next); }, if *show_profile.read() { {localized_copy("Close profile", "ปิดโปรไฟล์")} } else { {localized_copy("Update profile", "อัปเดตโปรไฟล์")} } }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| { let next = !*show_profile.read(); show_profile.set(next); }, if *show_profile.read() { {localized_copy("Close profile", "ปิดโปรไฟล์")} } else { {localized_copy("Update profile", "อัปเดตโปรไฟล์")} } }
                     }
-                    KitButton { class: "button primary", r#type: "button", disabled: *busy.read(), onclick: move |_| { let next = !*show_desired.read(); show_desired.set(next); }, if *show_desired.read() { {localized_copy("Close proposal", "ปิดข้อเสนอ")} } else { {localized_copy("Propose desired state", "เสนอสถานะที่ต้องการ")} } }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", disabled: *busy.read(), onclick: move |_| { let next = !*show_desired.read(); show_desired.set(next); }, if *show_desired.read() { {localized_copy("Close proposal", "ปิดข้อเสนอ")} } else { {localized_copy("Propose desired state", "เสนอสถานะที่ต้องการ")} } }
                 }
             }
             if infrastructure.is_customer_hosted() {
@@ -50964,7 +50970,7 @@ fn TenantInfrastructureControls(
                         label { {localized_copy("Audited reason", "เหตุผลที่ตรวจสอบย้อนหลังได้")} KitTextarea { value: "{profile_reason}", maxlength: "512", disabled: *busy.read(), oninput: move |event: FormEvent| profile_reason.set(event.value()) } }
                         label { {localized_copy("Fresh MFA code", "รหัส MFA ใหม่")} KitInput { r#type: "password", value: "{profile_mfa}", autocomplete: "one-time-code", maxlength: "128", disabled: *busy.read(), oninput: move |event: FormEvent| profile_mfa.set(event.value()) } }
                     }
-                    KitButton { class: "button danger", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Saving…", "กำลังบันทึก…")} } else { {localized_copy("Confirm profile update", "ยืนยันการอัปเดตโปรไฟล์")} } }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Saving…", "กำลังบันทึก…")} } else { {localized_copy("Confirm profile update", "ยืนยันการอัปเดตโปรไฟล์")} } }
                 }
             }
             if *show_desired.read() {
@@ -50985,7 +50991,7 @@ fn TenantInfrastructureControls(
                         label { KitInput { r#type: "checkbox", checked: *require_backup.read(), disabled: *busy.read(), onchange: move |event: FormEvent| require_backup.set(event.checked()) } {localized_copy("Require verified backup", "ต้องการข้อมูลสำรองที่ยืนยันแล้ว")} }
                     }
                     label { {localized_copy("Audited reason", "เหตุผลที่ตรวจสอบย้อนหลังได้")} KitTextarea { value: "{desired_reason}", maxlength: "512", disabled: *busy.read(), oninput: move |event: FormEvent| desired_reason.set(event.value()) } }
-                    KitButton { class: "button primary", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Submitting…", "กำลังส่ง…")} } else { {localized_copy("Submit versioned proposal", "ส่งข้อเสนอที่มีเวอร์ชัน")} } }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Submitting…", "กำลังส่ง…")} } else { {localized_copy("Submit versioned proposal", "ส่งข้อเสนอที่มีเวอร์ชัน")} } }
                 }
             }
             if let Some((success, message)) = outcome.read().clone() {
@@ -51240,7 +51246,7 @@ fn RootAccessQueuePanel(
                             label { {localized_copy("Ticket reference", "ข้อมูลอ้างอิงทิกเก็ต")} KitInput { value: "{ticket_reference}", autocomplete: "off", maxlength: "128", disabled: *busy.read(), oninput: move |event: FormEvent| ticket_reference.set(event.value()) } }
                             label { {localized_copy("Exact audited reason", "เหตุผลที่ตรวจสอบย้อนหลังได้อย่างชัดเจน")} KitTextarea { value: "{reason}", maxlength: "512", disabled: *busy.read(), oninput: move |event: FormEvent| reason.set(event.value()) } }
                         }
-                        KitButton { class: "button danger", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Requesting…", "กำลังขอ…")} } else { {localized_copy("Submit approval request", "ส่งคำขออนุมัติ")} } }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Requesting…", "กำลังขอ…")} } else { {localized_copy("Submit approval request", "ส่งคำขออนุมัติ")} } }
                     }
                 }
             }
@@ -51257,9 +51263,9 @@ fn RootAccessQueuePanel(
                         div { class: "status-banner warn", {localized_copy("Local development MFA/SoD exceptions apply only when the selected role, target policy, and environment gates match. Every use is audited.", "ข้อยกเว้น MFA/SoD สำหรับ local development ใช้ได้เฉพาะเมื่อบทบาท target policy และ environment gate ตรงกัน และทุกครั้งมี audit")} }
                     }
                     div { class: "button-row",
-                        KitButton { class: "button primary", r#type: "button", onclick: move |_| on_decision.call("approve"), {localized_copy("Approve request", "อนุมัติคำขอ")} }
-                        KitButton { class: "button secondary", r#type: "button", onclick: move |_| on_decision.call("reject"), {localized_copy("Reject request", "ปฏิเสธคำขอ")} }
-                        KitButton { class: "button danger", r#type: "button", onclick: move |_| on_decision.call("revoke"), {localized_copy("Revoke active access", "เพิกถอนสิทธิ์ที่ใช้งานอยู่")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: move |_| on_decision.call("approve"), {localized_copy("Approve request", "อนุมัติคำขอ")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| on_decision.call("reject"), {localized_copy("Reject request", "ปฏิเสธคำขอ")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", onclick: move |_| on_decision.call("revoke"), {localized_copy("Revoke active access", "เพิกถอนสิทธิ์ที่ใช้งานอยู่")} }
                     }
                 }
             } else {
@@ -51289,7 +51295,7 @@ fn RootAccessQueuePanel(
                                         };
                                         let action_label = record.allowed_actions.join(", ");
                                         rsx! { tr {
-                                            td { code { "{record.request_id}" } small { "{record.ticket_reference}" } KitButton { class: "link-button", r#type: "button", onclick: { let request_id = record.request_id.clone(); move |_| decision_request_id.set(request_id.clone()) }, {localized_copy("Review", "ตรวจสอบ")} } }
+                                            td { code { "{record.request_id}" } small { "{record.ticket_reference}" } KitButton { size: ButtonSize::Sm, variant: ButtonVariant::Link, r#type: "button", onclick: { let request_id = record.request_id.clone(); move |_| decision_request_id.set(request_id.clone()) }, {localized_copy("Review", "ตรวจสอบ")} } }
                                             td { "{record.mode}" small { "{scope_label}" } }
                                             td { "{record.reason}" small { "{action_label}" } }
                                             td { span { class: "badge muted", "{record.state}" } small { "{display_timestamp(&record.requested_until)}" } }
@@ -51446,7 +51452,7 @@ fn PlatformTenantOrganizationPanel(
                 label { {localized_copy("Registration number", "เลขทะเบียน")} KitInput { value: "{registration_number}", maxlength: "128", oninput: move |event: FormEvent| registration_number.set(event.value()) } }
                 label { {localized_copy("State", "สถานะ")} KitSelect { value: "{status}", onchange: move |event: FormEvent| status.set(event.value()), option { value: "active", {localized_copy("Active", "ใช้งานอยู่")} } option { value: "suspended", {localized_copy("Suspended", "ระงับ")} } option { value: "archived", {localized_copy("Archived", "เก็บถาวร")} } } }
                 label { {localized_copy("Expected version (blank for create)", "เวอร์ชันที่คาดไว้ (เว้นว่างเพื่อสร้าง)")} KitInput { r#type: "number", min: "1", value: "{expected_version}", oninput: move |event: FormEvent| expected_version.set(event.value()) } }
-                KitButton { class: "button primary", r#type: "button", onclick: on_save, if *busy.read() { {localized_copy("Saving…", "กำลังบันทึก…")} } else { {localized_copy("Save organization node", "บันทึกหน่วยองค์กร")} } }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: on_save, if *busy.read() { {localized_copy("Saving…", "กำลังบันทึก…")} } else { {localized_copy("Save organization node", "บันทึกหน่วยองค์กร")} } }
             }
             if let Some(result) = outcome.read().as_ref() {
                 div { class: if result.is_ok() { "status-banner good" } else { "status-banner warn" },
@@ -51463,7 +51469,7 @@ fn PlatformTenantOrganizationPanel(
                         thead { tr { th { {localized_copy("Kind", "ประเภท")} } th { {localized_copy("Code / name", "รหัส / ชื่อ")} } th { {localized_copy("Scope", "ขอบเขต")} } th { {localized_copy("State", "สถานะ")} } th { {localized_copy("Version", "เวอร์ชัน")} } } }
                         tbody { for node in page.nodes.iter() { tr { td { "{node.kind}" } td { strong { "{node.code}" } small { "{node.name}" } } td { code { "{node.node_id}" } small { "{node.company_id}" } } td { "{node.status}" } td { "{node.aggregate_version}" } } } }
                     } }
-                    if page.has_more { KitButton { class: "button secondary", r#type: "button", onclick: { let next = page.next_cursor.clone(); move |_| cursor.set(next.clone()) }, {localized_copy("Next organization page", "หน้าองค์กรถัดไป")} } }
+                    if page.has_more { KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: { let next = page.next_cursor.clone(); move |_| cursor.set(next.clone()) }, {localized_copy("Next organization page", "หน้าองค์กรถัดไป")} } }
                 },
             }
         }
@@ -51611,7 +51617,7 @@ fn BranchProvisioningPanel(
                         }
                     }
                 }
-                KitButton { class: "button primary", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Queueing…", "กำลังเข้าคิว…")} } else { {localized_copy("Queue branch provisioning", "เข้าคิวการจัดเตรียมสาขา")} } }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "submit", disabled: *busy.read(), if *busy.read() { {localized_copy("Queueing…", "กำลังเข้าคิว…")} } else { {localized_copy("Queue branch provisioning", "เข้าคิวการจัดเตรียมสาขา")} } }
             }
             if let Some(result) = outcome.read().clone() {
                 match result {
@@ -51636,8 +51642,8 @@ fn BranchProvisioningPanel(
                         td { span { class: "badge muted", "{record.state}" } small { {localized_copy("attempt", "ครั้งที่")} " {record.attempt_count}" } }
                         td { if record.failure_category.is_empty() { {localized_copy("No failure evidence", "ไม่มีหลักฐานความล้มเหลว")} } else { "{record.failure_category}" } small { "{display_timestamp(&record.updated_at)}" } small { "{record.correlation_id}" } }
                         td { div { class: "tenant-action-row",
-                            if record.retryable() { KitButton { class: "button secondary", r#type: "button", disabled: *busy.read(), onclick: { let job_id = record.job_id.clone(); move |_| { let mfa_code = queue_mfa.read().clone(); queue_mfa.set(String::new()); on_action.call(BranchInfrastructureAction::Retry { job_id: job_id.clone(), mfa_code }); } }, {localized_copy("Retry", "ลองอีกครั้ง")} } }
-                            if record.active() { KitButton { class: "button danger", r#type: "button", disabled: *busy.read() || suspend_confirmation.read().trim() != record.branch_id, onclick: { let branch_id = record.branch_id.clone(); move |_| { let mfa_code = queue_mfa.read().clone(); queue_mfa.set(String::new()); suspend_confirmation.set(String::new()); on_action.call(BranchInfrastructureAction::Suspend { branch_id: branch_id.clone(), mfa_code }); } }, {localized_copy("Suspend route", "ระงับเส้นทาง")} } }
+                            if record.retryable() { KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: *busy.read(), onclick: { let job_id = record.job_id.clone(); move |_| { let mfa_code = queue_mfa.read().clone(); queue_mfa.set(String::new()); on_action.call(BranchInfrastructureAction::Retry { job_id: job_id.clone(), mfa_code }); } }, {localized_copy("Retry", "ลองอีกครั้ง")} } }
+                            if record.active() { KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", disabled: *busy.read() || suspend_confirmation.read().trim() != record.branch_id, onclick: { let branch_id = record.branch_id.clone(); move |_| { let mfa_code = queue_mfa.read().clone(); queue_mfa.set(String::new()); suspend_confirmation.set(String::new()); on_action.call(BranchInfrastructureAction::Suspend { branch_id: branch_id.clone(), mfa_code }); } }, {localized_copy("Suspend route", "ระงับเส้นทาง")} } }
                         } }
                     } } }
                 } } },
@@ -51891,7 +51897,7 @@ fn BusinessUnitConfigurationCatalog(
             p { { {localized_copy("Each unit configures logical scope, AD mappings, integrations, projections, retention, workflow, and approval limits inside the holding boundary.", "แต่ละหน่วยกำหนดขอบเขตเชิงตรรกะ การจับคู่ AD การเชื่อมต่อระบบ โพรเจกชัน การเก็บรักษา เวิร์กโฟลว์ และวงเงินอนุมัติภายในขอบเขตโฮลดิ้ง")} } }
             div { class: "business-unit-grid",
                 for unit in erpx_domain::data_plane::BusinessUnitId::ALL {
-                    KitButton { class: if selected_unit.read().as_str() == unit.as_str() { "business-unit-card selected" } else { "business-unit-card" }, r#type: "button", onclick: move |_| selected_unit.set(unit.as_str().to_owned()),
+                    KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, class: if selected_unit.read().as_str() == unit.as_str() { "business-unit-card selected" } else { "business-unit-card" }, r#type: "button", onclick: move |_| selected_unit.set(unit.as_str().to_owned()),
                         div { class: "business-unit-card-heading",
                             strong { "{unit.display_name()}" }
                             span { "{unit.as_str()}" }
@@ -51951,7 +51957,7 @@ fn BusinessUnitConfigurationCatalog(
                     label { {localized_copy("Projection stale after (seconds)", "โพรเจกชันถือว่าเก่าหลัง (วินาที)")} KitInput { r#type: "number", min: "30", max: "86400", value: "{projection_stale_after_seconds}", oninput: move |event: FormEvent| projection_stale_after_seconds.set(event.value()) } }
                     label { KitInput { r#type: "checkbox", checked: *workflow_approval_required.read(), onchange: move |event: FormEvent| workflow_approval_required.set(event.checked()) } {localized_copy("Workflow approval required", "เวิร์กโฟลว์ต้องได้รับอนุมัติ")} }
                     label { {localized_copy("Fresh MFA evidence", "หลักฐาน MFA ล่าสุด")} KitInput { r#type: "password", autocomplete: "one-time-code", value: "{mfa_code}", oninput: move |event: FormEvent| mfa_code.set(event.value()) } }
-                    KitButton { class: "button primary", r#type: "button", onclick: on_save, {localized_copy("Save versioned policy", "บันทึกนโยบายที่มีเวอร์ชัน")} }
+                    KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: on_save, {localized_copy("Save versioned policy", "บันทึกนโยบายที่มีเวอร์ชัน")} }
                 }
             } else {
                 StatePanel { state: UiStateKind::Denied, title: localized_copy("Administrative context required for changes", "ต้องมีบริบทการดูแลสำหรับการแก้ไข").to_owned(), message: localized_copy("Business-unit reads remain available. Begin an MFA-gated tenant context before saving a versioned policy.", "ยังอ่านหน่วยธุรกิจได้ แต่ต้องเริ่มบริบท tenant ที่ผ่าน MFA ก่อนบันทึกนโยบายแบบมีเวอร์ชัน").to_owned(), action_label: None, on_action: None }
@@ -52021,7 +52027,7 @@ fn PlatformProjectionStatusList(
         section { class: "projection-detail", aria_label: localized_copy("Platform projection status list", "รายการสถานะการคาดการณ์ของแพลตฟอร์ม"),
             div { class: "projection-meta",
                 span { "{localized_copy(\"Authorized projection status\", \"สถานะโพรเจกชันที่ได้รับอนุญาต\")} · {active_console_locale().formatter().format_integer(statuses.len() as i64)} {localized_copy(\"rows\", \"แถว\")} · {localized_copy(\"read-only\", \"อ่านอย่างเดียว\")}" }
-                KitButton { class: "button secondary compact", r#type: "button", onclick: move |event| on_retry.call(event), {localized_copy("Refresh", "รีเฟรช")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button compact", r#type: "button", onclick: move |event| on_retry.call(event), {localized_copy("Refresh", "รีเฟรช")} }
             }
             div { class: "table-wrap",
                 KitTable { class: "data-table",
@@ -52080,8 +52086,8 @@ fn PlatformTenantRouteLauncher(on_navigate: EventHandler<PlatformOperationsRoute
                     },
                 }
             }
-            KitButton {
-                class: "button secondary",
+            KitButton { size: ButtonSize::Default,
+                variant: ButtonVariant::Secondary, class: "button",
                 r#type: "button",
                 onclick: move |_| match PlatformTenantId::new(tenant_id_input.read().clone()) {
                     Ok(tenant_id) => {
@@ -52457,7 +52463,7 @@ fn IdentityAccessAdminPanel(
                     h3 { {console_text(locale, "Employees and work roles", "พนักงานและบทบาทการทำงาน")} }
                     p { {console_text(locale, "Employees can switch only between roles assigned here. Assigning a role never changes the signed-in user.", "พนักงานสลับได้เฉพาะบทบาทที่ถูกมอบหมายจากหน้านี้ การมอบหมายบทบาทจะไม่เปลี่ยนผู้ใช้ที่เข้าสู่ระบบ")} }
                 }
-                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_refresh.call(()), {console_text(locale, "Refresh", "รีเฟรช")} }
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_refresh.call(()), {console_text(locale, "Refresh", "รีเฟรช")} }
             }
             if let Some(result) = message {
                 match result {
@@ -52481,12 +52487,12 @@ fn IdentityAccessAdminPanel(
                                 p { {console_text(locale, "Simple job names for daily work; permissions remain controlled by HR/IT.", "ชื่อบทบาทเข้าใจง่ายสำหรับงานประจำวัน โดย HR/IT ยังคงเป็นผู้ควบคุมสิทธิ์")} }
                             }
                             if !has_operations {
-                                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_action.call(IdentityAccessConsoleAction::DefineOfficerPreset {
+                                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_action.call(IdentityAccessConsoleAction::DefineOfficerPreset {
                                     code: "operations_operator".to_owned(), display_name: "Operations Officer".to_owned(), permissions: vec!["operations.read".to_owned(), "operations.write".to_owned()],
                                 }), {console_text(locale, "+ Operations Officer", "+ เจ้าหน้าที่ปฏิบัติการ")} }
                             }
                             if !has_accounting {
-                                KitButton { class: "button secondary", r#type: "button", disabled: busy, onclick: move |_| on_action.call(IdentityAccessConsoleAction::DefineOfficerPreset {
+                                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", disabled: busy, onclick: move |_| on_action.call(IdentityAccessConsoleAction::DefineOfficerPreset {
                                     code: "finance_operator".to_owned(), display_name: "Accounting Officer".to_owned(), permissions: vec!["finance.read".to_owned(), "finance.write".to_owned()],
                                 }), {console_text(locale, "+ Accounting Officer", "+ เจ้าหน้าที่บัญชี")} }
                             }
@@ -52530,7 +52536,7 @@ fn IdentityAccessAdminPanel(
                                                     let revoke_principal_id = principal_id.clone();
                                                     rsx! { div { class: "identity-access-assignment-chip",
                                                         span { "{role_name}" }
-                                                        KitButton { class: "link-button danger", r#type: "button", disabled: busy, onclick: move |_| on_action.call(IdentityAccessConsoleAction::Revoke { principal_id: revoke_principal_id.clone(), principal_version, assignment_id: assignment_id.clone() }), {console_text(locale, "Revoke", "เพิกถอน")} }
+                                                        KitButton { variant: ButtonVariant::Destructive, size: ButtonSize::Sm, r#type: "button", disabled: busy, onclick: move |_| on_action.call(IdentityAccessConsoleAction::Revoke { principal_id: revoke_principal_id.clone(), principal_version, assignment_id: assignment_id.clone() }), {console_text(locale, "Revoke", "เพิกถอน")} }
                                                     } }
                                                 }
                                             }
@@ -52541,7 +52547,7 @@ fn IdentityAccessAdminPanel(
                                                 let assign_role_id = role.role_id.clone();
                                                 let assign_risk = role.risk_tier;
                                                 let already_assigned = principal.assignments.iter().any(|assignment| !assignment.revoked && assignment.role_id == role.role_id);
-                                                rsx! { KitButton { class: "button primary compact", r#type: "button", disabled: busy || already_assigned, onclick: move |_| on_action.call(IdentityAccessConsoleAction::Assign { principal_id: assign_principal_id.clone(), principal_version, role_id: assign_role_id.clone(), risk_tier: assign_risk }), {if already_assigned { console_text(locale, "Already assigned", "มอบหมายแล้ว") } else { console_text(locale, "Assign role", "มอบหมายบทบาท") }} } }
+                                                rsx! { KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button compact", r#type: "button", disabled: busy || already_assigned, onclick: move |_| on_action.call(IdentityAccessConsoleAction::Assign { principal_id: assign_principal_id.clone(), principal_version, role_id: assign_role_id.clone(), risk_tier: assign_risk }), {if already_assigned { console_text(locale, "Already assigned", "มอบหมายแล้ว") } else { console_text(locale, "Assign role", "มอบหมายบทบาท") }} } }
                                             }
                                         }
                                     } }
@@ -53109,14 +53115,14 @@ fn TenantGovernanceSurface(
             }
             nav { class: "ui-support-route-tabs", aria_label: console_text(locale, "Tenant governance routes", "เส้นทางการกำกับดูแลผู้เช่า"),
                 for item in TenantRoute::ALL {
-                    KitButton { class: if item == route { "ui-route-tab active" } else { "ui-route-tab" }, r#type: "button", aria_current: if item == route { "page" } else { "false" }, onclick: move |_| on_route.call(item), {item.label(locale)} }
+                    KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, class: if item == route { "ui-route-tab active" } else { "ui-route-tab" }, r#type: "button", aria_current: if item == route { "page" } else { "false" }, onclick: move |_| on_route.call(item), {item.label(locale)} }
                 }
             }
             fieldset { class: "typed-form-grid governance-scope-form",
                 legend { {console_text(locale, "Authorized holding scope", "ขอบเขตโฮลดิ้งที่ได้รับอนุญาต")} }
                 label { {console_text(locale, "Tenant ID", "รหัสผู้เช่า")} KitInput { value: "{tenant_id}", autocomplete: "off", oninput: move |event: FormEvent| tenant_id.set(event.value()) } }
                 label { {console_text(locale, "Root holding UUID", "UUID ของโฮลดิ้งหลัก")} KitInput { value: "{holding_id}", autocomplete: "off", oninput: move |event: FormEvent| holding_id.set(event.value()) } }
-                KitButton { class: "button primary", r#type: "button", onclick: move |_| {
+                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: move |_| {
                     match TenantGovernanceScope::validate(&tenant_id.read(), &holding_id.read()) {
                         Ok(scope) => {
                             scope_message.set(None);
@@ -53174,7 +53180,7 @@ fn TenantGovernanceSurface(
                         label { {console_text(locale, "Registration number", "เลขทะเบียน")} KitInput { value: "{organization_registration_number}", autocomplete: "off", oninput: move |event: FormEvent| organization_registration_number.set(event.value()) } }
                         label { {console_text(locale, "State", "สถานะ")} KitSelect { value: "{organization_status}", onchange: move |event: FormEvent| organization_status.set(event.value()), option { value: "active", {console_text(locale, "Active", "ใช้งานอยู่")} } option { value: "suspended", {console_text(locale, "Suspended", "ระงับ")} } option { value: "archived", {console_text(locale, "Archived", "เก็บถาวร")} } } }
                         label { {console_text(locale, "Expected version (blank for create)", "เวอร์ชันที่คาดไว้ (เว้นว่างเพื่อสร้าง)")} KitInput { r#type: "number", min: "1", value: "{organization_expected_version}", oninput: move |event: FormEvent| organization_expected_version.set(event.value()) } }
-                        KitButton { class: "button primary", r#type: "button", onclick: on_organization_save, {console_text(locale, "Save organization node", "บันทึกหน่วยองค์กร")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: on_organization_save, {console_text(locale, "Save organization node", "บันทึกหน่วยองค์กร")} }
                     }
                     if let Some(result) = organization_message_snapshot {
                         match result {
@@ -53202,7 +53208,7 @@ fn TenantGovernanceSurface(
                                 } } }
                             } }
                             if page.has_more {
-                                KitButton { class: "button secondary", r#type: "button", onclick: move |_| organization_cursor.set(page.next_cursor.clone()), {console_text(locale, "Next organization page", "หน้าองค์กรถัดไป")} }
+                                KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| organization_cursor.set(page.next_cursor.clone()), {console_text(locale, "Next organization page", "หน้าองค์กรถัดไป")} }
                             }
                         },
                     }
@@ -53228,16 +53234,16 @@ fn TenantGovernanceSurface(
                             } } }
                         }
                         label { {console_text(locale, "Fresh MFA evidence", "หลักฐาน MFA ล่าสุด")} KitInput { r#type: "password", autocomplete: "one-time-code", value: "{branch_mfa}", oninput: move |event: FormEvent| branch_mfa.set(event.value()) } }
-                        KitButton { class: "button primary", r#type: "button", onclick: move |_| on_tenant_branch_action(BranchInfrastructureAction::Provision(ProvisionBranchInput {
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: move |_| on_tenant_branch_action(BranchInfrastructureAction::Provision(ProvisionBranchInput {
                             company_id: branch_company_id.read().clone(), branch_id: branch_id.read().clone(), branch_code: branch_code.read().clone(), branch_name: branch_name.read().clone(), registration_number: branch_registration_number.read().clone(), database_profile_key: branch_database_profile_key.read().clone(), enabled_business_units: branch_units.read().clone(), mfa_code: branch_mfa.read().clone(),
                         })), {console_text(locale, "Queue branch provisioning", "เข้าคิวการจัดเตรียมสาขา")} }
                     }
                     fieldset { class: "typed-form-grid", disabled: *branch_busy.read(),
                         legend { {console_text(locale, "Recovery and suspension", "การกู้คืนและระงับ")} }
                         label { {console_text(locale, "Failed job UUID", "UUID งานที่ล้มเหลว")} KitInput { value: "{branch_job_id}", autocomplete: "off", oninput: move |event: FormEvent| branch_job_id.set(event.value()) } }
-                        KitButton { class: "button secondary", r#type: "button", onclick: move |_| on_tenant_branch_action(BranchInfrastructureAction::Retry { job_id: branch_job_id.read().clone(), mfa_code: branch_mfa.read().clone() }), {console_text(locale, "Retry bounded job", "ลองงานที่จำกัดขอบเขตอีกครั้ง")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| on_tenant_branch_action(BranchInfrastructureAction::Retry { job_id: branch_job_id.read().clone(), mfa_code: branch_mfa.read().clone() }), {console_text(locale, "Retry bounded job", "ลองงานที่จำกัดขอบเขตอีกครั้ง")} }
                         label { {console_text(locale, "Exact branch UUID to suspend", "UUID สาขาที่ตรงกันเพื่อระงับ")} KitInput { value: "{branch_suspend_confirmation}", autocomplete: "off", oninput: move |event: FormEvent| branch_suspend_confirmation.set(event.value()) } }
-                        KitButton { class: "button danger", r#type: "button", onclick: move |_| on_tenant_branch_action(BranchInfrastructureAction::Suspend { branch_id: branch_suspend_confirmation.read().clone(), mfa_code: branch_mfa.read().clone() }), {console_text(locale, "Suspend confirmed route", "ระงับเส้นทางที่ยืนยันแล้ว")} }
+                        KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", onclick: move |_| on_tenant_branch_action(BranchInfrastructureAction::Suspend { branch_id: branch_suspend_confirmation.read().clone(), mfa_code: branch_mfa.read().clone() }), {console_text(locale, "Suspend confirmed route", "ระงับเส้นทางที่ยืนยันแล้ว")} }
                     }
                     if let Some(result) = branch_message_snapshot {
                         match result {
@@ -53291,7 +53297,7 @@ fn TenantGovernanceSurface(
                             label { {console_text(locale, "Projection stale after (seconds)", "โพรเจกชันถือว่าเก่าหลัง (วินาที)")} KitInput { r#type: "number", min: "30", max: "86400", value: "{projection_stale_after_seconds}", oninput: move |event: FormEvent| projection_stale_after_seconds.set(event.value()) } }
                             label { KitInput { r#type: "checkbox", checked: *workflow_approval_required.read(), onchange: move |event: FormEvent| workflow_approval_required.set(event.checked()) } {console_text(locale, "Workflow approval required", "เวิร์กโฟลว์ต้องได้รับอนุมัติ")} }
                             label { {console_text(locale, "Fresh MFA evidence", "หลักฐาน MFA ล่าสุด")} KitInput { r#type: "password", autocomplete: "one-time-code", value: "{business_unit_mfa}", oninput: move |event: FormEvent| business_unit_mfa.set(event.value()) } }
-                            KitButton { class: "button primary", r#type: "button", onclick: on_business_unit_save, {console_text(locale, "Save versioned policy", "บันทึกนโยบายที่มีเวอร์ชัน")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: on_business_unit_save, {console_text(locale, "Save versioned policy", "บันทึกนโยบายที่มีเวอร์ชัน")} }
                         }
                         if let Some(result) = business_unit_message_snapshot {
                             match result {
@@ -53306,8 +53312,8 @@ fn TenantGovernanceSurface(
                         label { {console_text(locale, "Audited reason", "เหตุผลที่ตรวจสอบย้อนหลังได้")} KitTextarea { value: "{desired_reason}", oninput: move |event: FormEvent| desired_reason.set(event.value()) } }
                         label { {console_text(locale, "Fresh MFA evidence", "หลักฐาน MFA ล่าสุด")} KitInput { r#type: "password", autocomplete: "one-time-code", value: "{desired_mfa}", oninput: move |event: FormEvent| desired_mfa.set(event.value()) } }
                         div { class: "button-row",
-                            KitButton { class: "button primary", r#type: "button", onclick: move |_| submit(TenantGovernanceAction::DecideDesiredConfiguration { configuration_id: desired_configuration_id.read().clone(), approve: true, reason: desired_reason.read().clone(), mfa_code: desired_mfa.read().clone() }), {console_text(locale, "Approve configuration", "อนุมัติการกำหนดค่า")} }
-                            KitButton { class: "button danger", r#type: "button", onclick: move |_| submit(TenantGovernanceAction::DecideDesiredConfiguration { configuration_id: desired_configuration_id.read().clone(), approve: false, reason: desired_reason.read().clone(), mfa_code: desired_mfa.read().clone() }), {console_text(locale, "Reject configuration", "ปฏิเสธการกำหนดค่า")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: move |_| submit(TenantGovernanceAction::DecideDesiredConfiguration { configuration_id: desired_configuration_id.read().clone(), approve: true, reason: desired_reason.read().clone(), mfa_code: desired_mfa.read().clone() }), {console_text(locale, "Approve configuration", "อนุมัติการกำหนดค่า")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", onclick: move |_| submit(TenantGovernanceAction::DecideDesiredConfiguration { configuration_id: desired_configuration_id.read().clone(), approve: false, reason: desired_reason.read().clone(), mfa_code: desired_mfa.read().clone() }), {console_text(locale, "Reject configuration", "ปฏิเสธการกำหนดค่า")} }
                         }
                     }
                 } else if route == TenantRoute::RootAccess {
@@ -53317,9 +53323,9 @@ fn TenantGovernanceSurface(
                         label { {console_text(locale, "Audited reason", "เหตุผลที่ตรวจสอบย้อนหลังได้")} KitTextarea { value: "{root_reason}", oninput: move |event: FormEvent| root_reason.set(event.value()) } }
                         label { {console_text(locale, "Fresh MFA evidence", "หลักฐาน MFA ล่าสุด")} KitInput { r#type: "password", autocomplete: "one-time-code", value: "{root_mfa}", oninput: move |event: FormEvent| root_mfa.set(event.value()) } }
                         div { class: "button-row",
-                            KitButton { class: "button primary", r#type: "button", onclick: move |_| submit(TenantGovernanceAction::DecideRootAccess { request_id: root_request_id.read().clone(), approve: true, reason: root_reason.read().clone(), mfa_code: root_mfa.read().clone() }), {console_text(locale, "Approve request", "อนุมัติคำขอ")} }
-                            KitButton { class: "button secondary", r#type: "button", onclick: move |_| submit(TenantGovernanceAction::DecideRootAccess { request_id: root_request_id.read().clone(), approve: false, reason: root_reason.read().clone(), mfa_code: root_mfa.read().clone() }), {console_text(locale, "Reject request", "ปฏิเสธคำขอ")} }
-                            KitButton { class: "button danger", r#type: "button", onclick: move |_| submit(TenantGovernanceAction::RevokeRootAccess { request_id: root_request_id.read().clone(), reason: root_reason.read().clone(), mfa_code: root_mfa.read().clone() }), {console_text(locale, "Revoke active access", "เพิกถอนสิทธิ์ที่ใช้งานอยู่")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Primary, class: "button", r#type: "button", onclick: move |_| submit(TenantGovernanceAction::DecideRootAccess { request_id: root_request_id.read().clone(), approve: true, reason: root_reason.read().clone(), mfa_code: root_mfa.read().clone() }), {console_text(locale, "Approve request", "อนุมัติคำขอ")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| submit(TenantGovernanceAction::DecideRootAccess { request_id: root_request_id.read().clone(), approve: false, reason: root_reason.read().clone(), mfa_code: root_mfa.read().clone() }), {console_text(locale, "Reject request", "ปฏิเสธคำขอ")} }
+                            KitButton { size: ButtonSize::Default, variant: ButtonVariant::Destructive, class: "button", r#type: "button", onclick: move |_| submit(TenantGovernanceAction::RevokeRootAccess { request_id: root_request_id.read().clone(), reason: root_reason.read().clone(), mfa_code: root_mfa.read().clone() }), {console_text(locale, "Revoke active access", "เพิกถอนสิทธิ์ที่ใช้งานอยู่")} }
                         }
                     }
                     match root_queue_snapshot {
@@ -53335,7 +53341,7 @@ fn TenantGovernanceSurface(
                                 td { "{record.state}" }
                                 td { "{record.ticket_reference}" }
                                 td { "{record.requested_until}" }
-                                td { KitButton { class: "button secondary", r#type: "button", onclick: move |_| root_request_id.set(record.request_id.clone()), {console_text(locale, "Review", "ตรวจสอบ")} } }
+                                td { KitButton { size: ButtonSize::Default, variant: ButtonVariant::Secondary, class: "button", r#type: "button", onclick: move |_| root_request_id.set(record.request_id.clone()), {console_text(locale, "Review", "ตรวจสอบ")} } }
                             } } }
                         } } },
                     }
@@ -53637,7 +53643,7 @@ fn SupportCommandPanel(
                 option { value: "revoke_support_session", {localized_copy("Revoke support session", "เพิกถอนเซสชันสนับสนุน")} }
             }}
             div { class: "ui-support-command-fields", {form} }
-            KitButton {
+            KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                 class: "primary-button",
                 r#type: "button",
                 disabled: busy,
@@ -54124,6 +54130,31 @@ mod tests {
         assert!(source.contains("ConsoleStylesheets"));
         assert!(source.contains("data-route-family\": \"public-shell"));
         assert!(source.contains("data-page-family\": route_family"));
+    }
+
+    #[test]
+    fn console_buttons_use_explicit_governed_variants_and_sizes() {
+        let source = include_str!("composition.rs");
+        for (index, segment) in source.split("KitButton {").skip(1).enumerate() {
+            let head = segment.get(..segment.len().min(1_600)).unwrap_or(segment);
+            assert!(
+                head.contains("variant:"),
+                "KitButton #{index} has no explicit variant"
+            );
+            assert!(
+                head.contains("size:"),
+                "KitButton #{index} has no explicit size"
+            );
+        }
+        let forbidden_classes = [
+            ["class: \"button ", "primary"].concat(),
+            ["class: \"button ", "secondary"].concat(),
+            ["class: \"button ", "danger"].concat(),
+            ["class: \"link", "-button"].concat(),
+        ];
+        for forbidden in forbidden_classes {
+            assert!(!source.contains(&forbidden), "retains {forbidden}");
+        }
     }
 
     #[test]

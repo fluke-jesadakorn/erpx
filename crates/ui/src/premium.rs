@@ -235,7 +235,7 @@ pub fn Button(
     #[props(default)] on_press: Option<EventHandler<()>>,
 ) -> Element {
     let label = safe(label);
-    let class = format!("ui-premium-KitButton {}", tone.css_token());
+    let class = format!("ui-premium-button {}", tone.css_token());
     let variant = match tone {
         ButtonTone::Primary => ButtonVariant::Primary,
         ButtonTone::Secondary => ButtonVariant::Secondary,
@@ -678,7 +678,7 @@ pub fn LineAreaChart(series: Vec<ChartSeries>, label: String) -> Element {
             }
             figcaption { class: "ui-chart-legend", aria_label: premium_text(locale, "Chart series", "ชุดข้อมูลแผนภูมิ"),
                 for (series_index, item) in series.iter().enumerate() {
-                    KitButton {
+                    KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                         r#type: "button",
                         "data-series": series_index.to_string(),
                         aria_pressed: visible.read().get(series_index).copied().unwrap_or(false).to_string(),

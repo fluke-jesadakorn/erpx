@@ -31,9 +31,18 @@ impl Density {
 #[component]
 pub fn KitProvider(#[props(default)] density: Density, children: Element) -> Element {
     let locale = use_locale().current();
-    let theme = use_theme().current();
+    let theme_context = use_theme();
+    let theme = theme_context.current();
     let identity = use_corporate_identity().current();
     let identity_style = corporate_identity_style(&identity);
+    #[cfg(target_arch = "wasm32")]
+    use_effect(move || {
+        let theme = theme_context.current();
+        document::eval(&format!(
+            "document.documentElement.dataset.theme = '{}';",
+            theme.css_token()
+        ));
+    });
     rsx! {
         div {
             class: Styles::erpx_kit_root,

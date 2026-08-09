@@ -736,7 +736,15 @@ fn diff_snapshots(previous: &Snapshot, current: &Snapshot) -> BTreeSet<String> {
         .files
         .keys()
         .chain(current.files.keys())
-        .filter(|path| previous.files.get(*path) != current.files.get(*path))
+        .filter(
+            |path| match (previous.files.get(*path), current.files.get(*path)) {
+                (Some(previous), Some(current)) => {
+                    previous.sha256 != current.sha256 || previous.len != current.len
+                }
+                (None, None) => false,
+                _ => true,
+            },
+        )
         .cloned()
         .collect()
 }
@@ -871,6 +879,19 @@ mod tests {
                 .map(str::to_owned)
                 .collect()
         );
+    }
+
+    #[test]
+    fn snapshot_diff_ignores_timestamp_only_changes() {
+        let previous = snapshot(&[("crates/ui/tests/ui_premium.rs", "same")]);
+        let mut current = snapshot(&[("crates/ui/tests/ui_premium.rs", "same")]);
+        current
+            .files
+            .get_mut("crates/ui/tests/ui_premium.rs")
+            .expect("fixture file")
+            .modified_ns = 42;
+
+        assert!(diff_snapshots(&previous, &current).is_empty());
     }
 
     #[test]

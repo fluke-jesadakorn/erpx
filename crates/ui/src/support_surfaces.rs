@@ -7,7 +7,7 @@
 
 use dioxus::prelude::*;
 
-use crate::kit::{Button as KitButton, Link as KitLink};
+use crate::kit::{Button as KitButton, ButtonSize, ButtonVariant, Link as KitLink};
 use crate::{
     IncidentDetailState, IncidentDisplayModel, IncidentListState, StatePanel, SupportDisplayModel,
     SupportRoute, SupportState, SupportTicketListState, SupportViewState, TranslationKey,
@@ -49,7 +49,7 @@ pub fn SupportRouteTabs(
     rsx! {
         nav { class: "ui-support-route-tabs", aria_label: copy(locale.current(), "Support and incident routes", "เส้นทางการสนับสนุนและเหตุขัดข้อง"),
             for definition in route_definitions_for_audience(active_route) {
-                KitButton {
+                KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
                     class: if definition.route == active_route { "ui-route-tab active" } else { "ui-route-tab" },
                     r#type: "button",
                     aria_current: if definition.route == active_route {
