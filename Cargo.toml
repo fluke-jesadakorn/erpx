@@ -67,13 +67,18 @@ members = [
   "apps/bootstrap",
   "apps/ucs-lab",
 ]
+exclude = [
+  "third_party/tonic-web-wasm-client",
+  "third_party/dioxus-components/primitives",
+  "third_party/dioxus-components/dioxus-attributes",
+]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.91"
-license = "Proprietary"
+license = "LicenseRef-Proprietary"
 
 [workspace.dependencies]
 aes-gcm = "0.10.3"
@@ -82,6 +87,9 @@ argon2 = "0.5.3"
 base64 = "0.22.1"
 chrono = { version = "0.4.42", features = ["serde"] }
 dioxus = { version = "=0.7.9", default-features = false }
+dioxus-icons = "=0.1.0"
+dioxus-ssr = "=0.7.9"
+dioxus-primitives = { path = "third_party/dioxus-components/primitives", default-features = false }
 erpx-android-bridge = { path = "crates/android-bridge" }
 erpx-application = { path = "crates/application" }
 erpx-assets = { path = "crates/contexts/assets" }
@@ -146,6 +154,7 @@ hmac = "0.12.1"
 jni = "0.21.1"
 ldap3 = { version = "0.12.1", default-features = false, features = ["tls-rustls-ring"] }
 ndk-context = "0.1.1"
+palette = "=0.7.7"
 prost = "0.14.4"
 prost-types = "0.14.4"
 rand_core = { version = "0.6.4", features = ["getrandom"] }
@@ -165,12 +174,13 @@ tonic = { version = "0.14.6", default-features = false, features = ["codegen"] }
 tonic-prost = "0.14.6"
 tonic-prost-build = "0.14.6"
 tonic-web = "0.14.6"
-tonic-web-wasm-client = "=0.8.0"
+tonic-web-wasm-client = { version = "=0.8.0", path = "third_party/tonic-web-wasm-client" }
 tower-http = { version = "0.6.11", features = ["cors"] }
+time = { version = "=0.3.54", features = ["std", "macros", "parsing", "local-offset"] }
 sha2 = "0.10.9"
 subtle = "2.6.1"
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "json"] }
 uuid = { version = "1.18.1", features = ["v4", "v5", "serde"] }
 web-sys = "0.3.103"
 webauthn-rs = "=0.5.5"

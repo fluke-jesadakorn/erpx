@@ -8,9 +8,9 @@ use erpx_domain::corporate_identity::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThemeMode {
     /// Follow the operating system where supported.
-    #[default]
     System,
     /// Light theme.
+    #[default]
     Light,
     /// Dark theme.
     Dark,
@@ -198,15 +198,15 @@ mod tests {
         assert_eq!(ThemeMode::Light.next(), ThemeMode::Dark);
         assert_eq!(ThemeMode::Dark.next(), ThemeMode::System);
         assert_eq!(ThemeMode::Dark.css_token(), "dark");
-        assert_eq!(ThemeMode::default(), ThemeMode::System);
+        assert_eq!(ThemeMode::default(), ThemeMode::Light);
     }
 
     #[test]
     fn governed_identity_style_contains_only_fixed_variable_names() {
         let identity = erpx_domain::corporate_identity::ResolvedCorporateIdentity::neutral_erpx();
         let style = super::corporate_identity_style(&identity);
-        assert!(style.contains("--erpx-light-primary:#075985"));
-        assert!(style.contains("--erpx-dark-bg:#0b1117"));
+        assert!(style.contains("--erpx-light-primary:#0b6b8a"));
+        assert!(style.contains("--erpx-dark-bg:#080d12"));
         assert!(style.contains("--erpx-heading-scale:1.00"));
         assert!(style.contains("--erpx-body-scale:1.00"));
         assert!(style.contains("--erpx-line-height:1.50"));

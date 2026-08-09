@@ -1,0 +1,76 @@
+.erpx-kit-root {
+  --erpx-on-danger: #3b0a0f;
+  --erpx-primary: var(--erpx-dark-primary);
+  --erpx-on-primary: var(--erpx-dark-on-primary);
+  --erpx-accent: var(--erpx-dark-accent);
+  --erpx-on-accent: var(--erpx-dark-on-accent);
+  --erpx-bg: var(--erpx-dark-bg);
+  --erpx-surface: var(--erpx-dark-surface);
+  --erpx-surface-raised: var(--erpx-dark-surface-raised);
+  --erpx-border: var(--erpx-dark-border);
+  --erpx-text: var(--erpx-dark-text);
+  --erpx-text-muted: var(--erpx-dark-text-muted);
+  --erpx-link: var(--erpx-dark-link);
+  --erpx-focus: var(--erpx-dark-focus);
+  --light: ;
+  --dark: initial;
+  min-width: 0;
+  min-height: 100%;
+  background: var(--erpx-bg);
+  color: var(--erpx-text);
+  color-scheme: dark;
+  isolation: isolate;
+  font-family: var(--erpx-font-sans);
+}
+
+.erpx-kit-root[data-theme="light"] {
+  --erpx-success: #18794e;
+  --erpx-warning: #a15c00;
+  --erpx-danger: #c72c41;
+  --erpx-on-danger: #fff;
+  --erpx-security: #075985;
+  --erpx-primary: var(--erpx-light-primary);
+  --erpx-on-primary: var(--erpx-light-on-primary);
+  --erpx-accent: var(--erpx-light-accent);
+  --erpx-on-accent: var(--erpx-light-on-accent);
+  --erpx-bg: var(--erpx-light-bg);
+  --erpx-surface: var(--erpx-light-surface);
+  --erpx-surface-raised: var(--erpx-light-surface-raised);
+  --erpx-border: var(--erpx-light-border);
+  --erpx-text: var(--erpx-light-text);
+  --erpx-text-muted: var(--erpx-light-text-muted);
+  --erpx-link: var(--erpx-light-link);
+  --erpx-focus: var(--erpx-light-focus);
+  --light: initial;
+  --dark: ;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  .erpx-kit-root[data-theme="system"] {
+    --erpx-success: #18794e;
+    --erpx-warning: #a15c00;
+    --erpx-danger: #c72c41;
+    --erpx-on-danger: #fff;
+    --erpx-security: #075985;
+    --erpx-primary: var(--erpx-light-primary);
+    --erpx-on-primary: var(--erpx-light-on-primary);
+    --erpx-accent: var(--erpx-light-accent);
+    --erpx-on-accent: var(--erpx-light-on-accent);
+    --erpx-bg: var(--erpx-light-bg);
+    --erpx-surface: var(--erpx-light-surface);
+    --erpx-surface-raised: var(--erpx-light-surface-raised);
+    --erpx-border: var(--erpx-light-border);
+    --erpx-text: var(--erpx-light-text);
+    --erpx-text-muted: var(--erpx-light-text-muted);
+    --erpx-link: var(--erpx-light-link);
+    --erpx-focus: var(--erpx-light-focus);
+    --light: initial;
+    --dark: ;
+    color-scheme: light;
+  }
+}
+
+.erpx-kit-root[data-density="compact"] { --erpx-control-height: 32px; }
+.erpx-kit-root[data-density="comfortable"] { --erpx-control-height: 40px; }
+.erpx-kit-root[data-density="spacious"] { --erpx-control-height: 48px; }

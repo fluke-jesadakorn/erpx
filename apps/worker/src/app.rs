@@ -1258,11 +1258,32 @@ fn optional_env(primary: &str, fallback: &str, default: String) -> String {
 }
 
 pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
+    let log_format = env::var("ERPX_LOG_FORMAT").unwrap_or_else(|_| "pretty".into());
+    if log_format == "json" {
+        tracing_subscriber::fmt()
+            .json()
+            .flatten_event(true)
+            .with_current_span(true)
+            .with_span_list(true)
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .init();
+    } else if log_format == "pretty" {
+        tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .init();
+    } else {
+        return Err("ERPX_LOG_FORMAT must be pretty or json".into());
+    }
     let runtime = WorkerRuntime::connect(WorkerRuntimeConfig::from_env()?).await?;
     match env::args().nth(1).as_deref() {
         Some("run") => {
             let handler_name = env::var("ERPX_WORKER_HANDLER").unwrap_or_default();
+            let worker_id = env::var("ERPX_WORKER_ID").unwrap_or_default();
+            tracing::info!(
+                worker_id = %worker_id,
+                handler = %handler_name,
+                "worker_started"
+            );
             let registry = if handler_name == TENANT_BACKUP_RETENTION_HANDLER_NAME {
                 let batch_size = runtime
                     .config()
@@ -1919,9 +1940,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     | "operations_work_queue_policies") => {
                         let kind = match kind {
                             "operations_exceptions" => Wave9ProjectionKind::Exceptions,
-                            "operations_source_signals" => {
-                                Wave9ProjectionKind::SourceSignals
-                            }
+                            "operations_source_signals" => Wave9ProjectionKind::SourceSignals,
                             "operations_work_queue_policies" => {
                                 Wave9ProjectionKind::WorkQueuePolicies
                             }
@@ -2331,7 +2350,9 @@ mod product_projection_registration_tests {
             .split("fn projection_name_filter(&self)")
             .nth(1)
             .expect("Product projection filter implementation");
-        assert!(filter.contains("Self::QualityCqrs(_) => Some(erpx_quality_sqlx::PROJECTION_NAME)"));
+        assert!(
+            filter.contains("Self::QualityCqrs(_) => Some(erpx_quality_sqlx::PROJECTION_NAME)")
+        );
         assert!(filter.contains("Self::Wave4(executor) => executor.projection_name_filter()"));
         assert!(filter.contains("Self::Wave6(executor) => executor.projection_name_filter()"));
         assert!(filter.contains("Self::Wave7(executor) => executor.projection_name_filter()"));

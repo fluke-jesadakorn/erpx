@@ -1,0 +1,77 @@
+/* ERPX premium semantic foundation. Tenant identity may override the governed
+   palette variables, but safety, focus, layout, and motion tokens remain owned
+   by the product. */
+:root {
+  color-scheme: light dark;
+  --erpx-font-erpx: Inter, "Noto Sans Thai", Tahoma, ui-sans-serif, system-ui, sans-serif;
+  --erpx-font-corporate: "IBM Plex Sans", "Noto Sans Thai", Tahoma, ui-sans-serif, system-ui, sans-serif;
+  --erpx-font-thai-formal: Sarabun, "Noto Sans Thai", Tahoma, sans-serif;
+  --erpx-font-sans: var(--erpx-font-erpx);
+
+  --erpx-dark-bg: #080d12;
+  --erpx-dark-surface: #0f161e;
+  --erpx-dark-surface-raised: #16212b;
+  --erpx-dark-border: #2a3a47;
+  --erpx-dark-text: #f4f7fa;
+  --erpx-dark-text-muted: #9eafbc;
+  --erpx-dark-primary: #66d9ef;
+  --erpx-dark-on-primary: #062a33;
+  --erpx-dark-accent: #5eead4;
+  --erpx-dark-on-accent: #052e2b;
+  --erpx-dark-link: #8be8f6;
+  --erpx-dark-focus: #b8f3ff;
+
+  --erpx-light-bg: #f4f7f9;
+  --erpx-light-surface: #ffffff;
+  --erpx-light-surface-raised: #edf2f5;
+  --erpx-light-border: #ccd7df;
+  --erpx-light-text: #14202a;
+  --erpx-light-text-muted: #5b6c78;
+  --erpx-light-primary: #0b6b8a;
+  --erpx-light-on-primary: #ffffff;
+  --erpx-light-accent: #0f766e;
+  --erpx-light-on-accent: #ffffff;
+  --erpx-light-link: #075b75;
+  --erpx-light-focus: #075985;
+
+  --erpx-success: #2fb67c;
+  --erpx-success-surface: color-mix(in srgb, var(--erpx-success) 12%, var(--erpx-surface));
+  --erpx-warning: #e8a23a;
+  --erpx-warning-surface: color-mix(in srgb, var(--erpx-warning) 12%, var(--erpx-surface));
+  --erpx-danger: #e05767;
+  --erpx-on-danger: #ffffff;
+  --erpx-security: #3182ce;
+  --erpx-border-strong: color-mix(in srgb, var(--erpx-text-muted) 58%, var(--erpx-border));
+
+  --erpx-space-1: 4px;
+  --erpx-space-2: 8px;
+  --erpx-space-3: 12px;
+  --erpx-space-4: 16px;
+  --erpx-space-5: 20px;
+  --erpx-space-6: 24px;
+  --erpx-space-8: 32px;
+  --erpx-space-10: 40px;
+  --erpx-space-12: 48px;
+  --erpx-radius-sm: 8px;
+  --erpx-radius-md: 12px;
+  --erpx-radius-lg: 18px;
+  --erpx-radius-xl: 24px;
+  --erpx-control-height: 40px;
+  --erpx-control-motion: 140ms;
+  --erpx-surface-motion: 220ms;
+  --erpx-chart-motion: 320ms;
+  --erpx-z-nav: 20;
+  --erpx-z-topbar: 18;
+  --erpx-z-overlay: 60;
+  --erpx-z-toast: 70;
+  --erpx-chart-1: #66d9ef;
+  --erpx-chart-2: #5eead4;
+  --erpx-chart-3: #a78bfa;
+  --erpx-chart-4: #fbbf24;
+  --erpx-chart-5: #fb7185;
+  --erpx-chart-6: #94a3b8;
+}
+
+@media (max-width: 760px) {
+  :root { --erpx-control-height: 44px; }
+}

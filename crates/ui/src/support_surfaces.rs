@@ -7,6 +7,7 @@
 
 use dioxus::prelude::*;
 
+use crate::kit::{Button as KitButton, Link as KitLink};
 use crate::{
     IncidentDetailState, IncidentDisplayModel, IncidentListState, StatePanel, SupportDisplayModel,
     SupportRoute, SupportState, SupportTicketListState, SupportViewState, TranslationKey,
@@ -48,7 +49,7 @@ pub fn SupportRouteTabs(
     rsx! {
         nav { class: "ui-support-route-tabs", aria_label: copy(locale.current(), "Support and incident routes", "เส้นทางการสนับสนุนและเหตุขัดข้อง"),
             for definition in route_definitions_for_audience(active_route) {
-                button {
+                KitButton {
                     class: if definition.route == active_route { "ui-route-tab active" } else { "ui-route-tab" },
                     r#type: "button",
                     aria_current: if definition.route == active_route {
@@ -402,7 +403,7 @@ fn IncidentListContent(model: crate::IncidentListDisplayModel) -> Element {
                         div { class: "ui-incident-row-main",
                             h3 { class: "ui-incident-row-title",
                                 if let Some(path) = incident_path(item.id()) {
-                                    a { href: "{path}", "{item.id()}" }
+                                    KitLink { href: "{path}", "{item.id()}" }
                                 } else {
                                     strong { {copy(locale.current(), "redacted incident reference", "ข้อมูลอ้างอิงเหตุขัดข้องถูกปกปิด")} }
                                 }

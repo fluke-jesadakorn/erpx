@@ -132,6 +132,10 @@ pub mod g13;
 /// source-qualified cursor foundation. Control-read migration 0017 adds the
 /// composed Customer 360 projections with an independent cursor per tenant
 /// source database, so global sequences are never compared across databases.
+/// Control migration 0080 stores only credential-free development-persona role
+/// and scope metadata beside the encrypted, expiring context token. This lets
+/// the BFF resolve the effective navigation scope without replacing the
+/// controller's durable role and restores that role when the context ends.
 pub static CONTROL_PLANE_MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 /// The control read database receives only rebuildable projection tables.

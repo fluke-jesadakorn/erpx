@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+chrono.workspace = true
 erpx-infrastructure.workspace = true
 hex.workspace = true
 serde.workspace = true

@@ -14,6 +14,7 @@ web = [
     "dioxus/lib",
     "dioxus/launch",
     "dioxus/devtools",
+    "erpx-ui/web",
 ]
 server = [
     "dioxus/server",
@@ -27,6 +28,7 @@ server = [
     "dep:reqwest",
     "dep:sqlx",
     "dep:tokio",
+    "dep:tracing",
 ]
 desktop = ["dioxus/desktop", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
 mobile = ["dioxus/mobile", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
@@ -73,6 +75,7 @@ serde_json.workspace = true
 sha2.workspace = true
 sqlx = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tonic.workspace = true

@@ -4,58 +4,51 @@
 //! server boundary still evaluates identity, role, scope, entitlement, billing,
 //! MFA, and separation-of-duties evidence for every request.
 
-use crate::{NavItem, RouteAuthRequirement, redact_deep_link};
+use crate::{Locale, NavItem, RouteAuthRequirement, redact_deep_link};
 
-pub use erpx_domain::data_plane::BusinessUnitId as ProductContextId;
+pub use erpx_domain::data_plane::{
+    BUSINESS_UNIT_ROUTE_CATALOG, BusinessUnitId as ProductContextId, BusinessUnitRouteDescriptor,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProductContextRoute {
     pub id: ProductContextId,
+    pub route_id: &'static str,
     pub path: &'static str,
     pub label: &'static str,
+    pub label_key: &'static str,
+    pub permission: &'static str,
+    pub entitlement_key: &'static str,
     pub auth: RouteAuthRequirement,
     pub read_only_shell: bool,
 }
 
 pub const PRODUCT_CONTEXT_ROUTES: &[ProductContextRoute] = &[
-    route(ProductContextId::Operations, "Operations"),
-    route(ProductContextId::Finance, "Finance"),
-    route(ProductContextId::Sales, "Sales"),
-    route(ProductContextId::Procurement, "Procurement"),
-    route(ProductContextId::Inventory, "Inventory"),
-    route(ProductContextId::Assets, "Assets"),
-    route(ProductContextId::Maintenance, "Maintenance"),
-    route(ProductContextId::Quality, "Quality"),
-    route(ProductContextId::MarketingCrm, "Marketing & CRM"),
-    route(ProductContextId::HrPayroll, "HR & Payroll"),
-    route(ProductContextId::PointOfSale, "Point of Sale"),
-    route(ProductContextId::Legal, "Legal"),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[0]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[1]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[2]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[3]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[4]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[5]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[6]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[7]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[8]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[9]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[10]),
+    route(&BUSINESS_UNIT_ROUTE_CATALOG[11]),
 ];
 
-const fn route(id: ProductContextId, label: &'static str) -> ProductContextRoute {
+const fn route(descriptor: &'static BusinessUnitRouteDescriptor) -> ProductContextRoute {
     ProductContextRoute {
-        id,
-        path: workspace_path(id),
-        label,
+        id: descriptor.unit,
+        route_id: descriptor.route_id,
+        path: descriptor.canonical_path,
+        label: descriptor.label_en,
+        label_key: descriptor.label_key,
+        permission: descriptor.read_permission,
+        entitlement_key: descriptor.entitlement_key,
         auth: RouteAuthRequirement::Authenticated,
         read_only_shell: true,
-    }
-}
-
-const fn workspace_path(id: ProductContextId) -> &'static str {
-    match id {
-        ProductContextId::Operations => "/workspaces/operations",
-        ProductContextId::Finance => "/workspaces/finance",
-        ProductContextId::Sales => "/workspaces/sales",
-        ProductContextId::Procurement => "/workspaces/procurement",
-        ProductContextId::Inventory => "/workspaces/inventory",
-        ProductContextId::Assets => "/workspaces/assets",
-        ProductContextId::Maintenance => "/workspaces/maintenance",
-        ProductContextId::Quality => "/workspaces/quality",
-        ProductContextId::MarketingCrm => "/workspaces/marketing-crm",
-        ProductContextId::HrPayroll => "/workspaces/hr-payroll",
-        ProductContextId::PointOfSale => "/workspaces/point-of-sale",
-        ProductContextId::Legal => "/workspaces/legal",
     }
 }
 
@@ -77,8 +70,20 @@ const fn product_context_icon(id: ProductContextId) -> &'static str {
 }
 
 impl ProductContextRoute {
-    pub fn nav_item(self) -> NavItem {
-        NavItem::new(self.label, self.path, product_context_icon(self.id))
+    pub fn label_for(self, locale: Locale) -> &'static str {
+        match locale {
+            Locale::En => self.id.route().label_en,
+            Locale::Th => self.id.route().label_th,
+        }
+    }
+
+    pub fn nav_item(self, locale: Locale) -> NavItem {
+        NavItem::new(
+            self.label_for(locale),
+            self.path,
+            product_context_icon(self.id),
+        )
+        .with_manifest_metadata(self.route_id, self.label_key)
     }
 
     pub fn resolve(path: &str) -> Option<Self> {
@@ -90,11 +95,11 @@ impl ProductContextRoute {
     }
 }
 
-pub fn product_context_nav_items() -> Vec<NavItem> {
+pub fn product_context_nav_items(locale: Locale) -> Vec<NavItem> {
     PRODUCT_CONTEXT_ROUTES
         .iter()
         .copied()
-        .map(ProductContextRoute::nav_item)
+        .map(|route| route.nav_item(locale))
         .collect()
 }
 
@@ -132,7 +137,7 @@ mod tests {
         assert!(ProductContextRoute::resolve("/workspaces/sales/../legal").is_none());
         assert!(ProductContextRoute::resolve("/sales").is_none());
         assert_eq!(
-            product_context_nav_items().len(),
+            product_context_nav_items(crate::Locale::En).len(),
             PRODUCT_CONTEXT_ROUTES.len()
         );
     }

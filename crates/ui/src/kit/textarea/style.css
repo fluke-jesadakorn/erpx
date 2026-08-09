@@ -1,0 +1,85 @@
+/* Base */
+.dx-textarea {
+  width: 100%;
+  min-height: 4rem;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 0.5rem;
+  margin: 0;
+  appearance: none;
+  background: none;
+  color: var(--erpx-text);
+  font-family: inherit;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+  transition: background-color 100ms ease-out, border-color 100ms ease-out, box-shadow 100ms ease-out;
+}
+
+.dx-textarea:disabled {
+  color: var(--erpx-text-muted);
+  cursor: not-allowed;
+}
+
+.dx-textarea::placeholder {
+  color: var(--erpx-text-muted);
+}
+
+/* Default Variant */
+.dx-textarea[data-style="default"] {
+  background: var(--light, var(--erpx-bg)) var(--dark, var(--erpx-surface-raised));
+  box-shadow: inset 0 0 0 1px var(--light, var(--erpx-border)) var(--dark, var(--erpx-border-strong));
+}
+
+.dx-textarea[data-style="default"]:hover:not(:disabled),
+.dx-textarea[data-style="default"]:focus {
+  background: var(--light, var(--erpx-surface-raised)) var(--dark, var(--erpx-surface-raised));
+  color: var(--erpx-text);
+}
+
+/* Fade Variant */
+.dx-textarea[data-style="fade"] {
+  background: var(--light, var(--erpx-bg)) var(--dark, var(--erpx-surface-raised));
+}
+
+.dx-textarea[data-style="fade"]:hover:not(:disabled),
+.dx-textarea[data-style="fade"]:focus {
+  background: var(--light, var(--erpx-surface-raised)) var(--dark, var(--erpx-surface-raised));
+  color: var(--erpx-text);
+}
+
+/* Outline Variant */
+.dx-textarea[data-style="outline"] {
+  border: 1px solid var(--erpx-border);
+  background-color: var(--light, var(--erpx-bg))
+    var(--dark, var(--erpx-surface-raised));
+}
+
+.dx-textarea[data-style="outline"]:hover:not(:disabled, :focus) {
+  border-color: var(--erpx-border-strong);
+}
+
+.dx-textarea[data-style="outline"]:focus {
+  border-color: var(--erpx-focus);
+}
+
+.dx-textarea[data-style="outline"]:invalid,
+.dx-textarea[data-style="outline"][aria-invalid="true"] {
+  border-color: var(--erpx-danger);
+}
+
+/* Ghost Variant */
+.dx-textarea[data-style="ghost"] {
+  background-color: transparent;
+}
+
+.dx-textarea[data-style="ghost"]:hover:not(:disabled) {
+  background-color: var(--erpx-surface-raised);
+  color: var(--erpx-text);
+}
+
+.dx-textarea[data-style="ghost"]:focus {
+  border-color: var(--erpx-focus);
+}
+

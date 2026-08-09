@@ -4,6 +4,8 @@
 //! know about authentication tokens, ERPX protobuf messages, tenant data, or server-side
 //! authorization. Applications provide those concerns at their boundary.
 
+use dioxus::prelude::*;
+
 mod auth;
 mod components;
 mod crm;
@@ -11,12 +13,14 @@ mod customer360;
 mod finance;
 mod hr;
 mod i18n;
+pub mod kit;
 mod legal;
 mod navigation;
 mod operations;
 mod platform;
 mod pos;
 mod pos_commands;
+mod premium;
 mod product_contexts;
 mod routes;
 mod session_target;
@@ -24,6 +28,7 @@ mod state;
 mod support;
 mod support_surfaces;
 mod theme;
+mod work;
 mod workflows;
 
 pub use auth::{
@@ -36,9 +41,10 @@ pub use auth::{
 pub use components::{
     AppShell, BannerKind, CollectionLayout, CorporateIdentityEditor, CorporateIdentityEditorAction,
     CorporateIdentityEditorActionKind, CorporateIdentityEditorSubmission, DashboardLayout,
-    DataTable, Dialog, EnterpriseIcon, Field, FilterBar, LocaleToggle, OperationsLayout,
-    PageHeader, RecordLayout, RouteStateBoundary, ScopeSelector, SessionBanners, SettingsLayout,
-    StateBoundary, StatePanel, TableColumn, TextField, WorkflowLayout,
+    DataTable, Dialog, EnterpriseIcon, Field, FilterBar, LocaleToggle, LockedTooltipButton,
+    NavigationDisclosureState, OperationsLayout, PageHeader, RecordLayout, RouteStateBoundary,
+    ScopeSelector, SessionBanners, SettingsLayout, StateBoundary, StatePanel, TableColumn,
+    TextField, WorkflowLayout, use_account_session_focus_target, use_navigation_disclosure_state,
 };
 pub use crm::{
     CRM_SURFACES, CrmAttributionDisplayModel, CrmAttributionModel, CrmDisplayField, CrmFieldInput,
@@ -95,7 +101,10 @@ pub use legal::{
     LegalRoute, LegalRouteDescriptor, LegalRouteId, LegalRouteParseError, LegalRouteRegistry,
     LegalScalar, MAX_LEGAL_DISPLAY_TEXT_BYTES, MAX_LEGAL_IDENTIFIER_BYTES,
 };
-pub use navigation::{NavGroup, NavItem, NavigationState, normalize_path};
+pub use navigation::{
+    NavAccess, NavGroup, NavItem, NavigationState, localized_navigation_label,
+    localized_navigation_requirement, localized_role_label, normalize_path,
+};
 pub use operations::{
     OPERATIONS_PAGES, OperationsDisplayField, OperationsDisplayModel, OperationsFieldInput,
     OperationsPage, OperationsProjectionMetadata, OperationsScope, OperationsScopeKind,
@@ -128,6 +137,15 @@ pub use pos_commands::{
     RefundReviewSummary, SaleEntryInput, SaleEntryLine, SaleEntryStatus, SaleEntrySummary,
     ScalarText as PosCommandScalarText, ShiftCloseApprovalInput, ShiftCloseStatus,
     ShiftCloseSummary,
+};
+pub use premium::{
+    BarChart, Button, ButtonTone, ChartPoint, ChartSeries, DashboardBreakdown,
+    DashboardBreakdownSegment, DashboardMetric, DashboardRange, DashboardRangeSelector,
+    DashboardReadModel, DashboardWorkItem, DataTableV2, DonutChart, Drawer, EmptyState,
+    HeatmapChart, LineAreaChart, MetricCard, PageHero, ProgressRing, ReadModelAvailability,
+    ReadModelFreshness, ReadModelMeta, SectionCard, Skeleton, Sparkline, StackedBarChart,
+    StatusBadge, StatusTone, TabItem, Tabs, Timeline, TimelineItem, Toast, ToastTone, Toolbar,
+    chart_polyline_points,
 };
 pub use product_contexts::{
     PRODUCT_CONTEXT_ROUTES, ProductContextId, ProductContextRoute, product_context_nav_items,
@@ -164,6 +182,13 @@ pub use theme::{
     CorporateIdentityContext, ThemeContext, ThemeMode, corporate_identity_style,
     provide_corporate_identity, provide_theme, use_corporate_identity, use_theme,
 };
+pub use work::{
+    MAX_WORK_ACTION_CAPABILITIES, MAX_WORK_ITEMS, MAX_WORK_PAGE_SIZE, MAX_WORK_REFERENCE_BYTES,
+    MAX_WORK_SOURCE_CONTRIBUTIONS, MAX_WORK_TEXT_BYTES, WorkDomain, WorkItemKind,
+    WorkItemReadModel, WorkItemSeverity, WorkItemStage, WorkItemTarget, WorkQueueCounters,
+    WorkQueueMeta, WorkQueueReadModel, WorkQueueView, WorkRoute, WorkSlaState,
+    WorkSourceContribution, sla_state, valid_work_cursor,
+};
 pub use workflows::{
     HUMAN_UI_STATES, HumanAdapterKind, HumanUiState, RPC_WORKFLOW_SERVICES, RpcClassification,
     RpcServiceWorkflow, RpcWorkflow, rpc_workflow,
@@ -171,4 +196,25 @@ pub use workflows::{
 
 /// Shared CSS variables and component styles. Applications can include this once in their root
 /// component and layer client-specific styles on top.
-pub const SHARED_STYLES: &str = include_str!("../assets/ui.css");
+pub const SHARED_STYLES: &str = concat!(
+    include_str!("../assets/tokens.css"),
+    include_str!("../assets/foundation.css"),
+    include_str!("../assets/premium-composites.css"),
+    include_str!("../assets/chart-composites.css")
+);
+
+/// Compiled, hashed stylesheet layers for Dioxus web targets. Native targets can
+/// continue to use `SHARED_STYLES` from the same source files.
+#[component]
+pub fn SharedStylesheets() -> Element {
+    static TOKENS: Asset = asset!("/assets/tokens.css");
+    static FOUNDATION: Asset = asset!("/assets/foundation.css");
+    static PREMIUM_COMPOSITES: Asset = asset!("/assets/premium-composites.css");
+    static CHART_COMPOSITES: Asset = asset!("/assets/chart-composites.css");
+    rsx! {
+        document::Stylesheet { href: TOKENS }
+        document::Stylesheet { href: FOUNDATION }
+        document::Stylesheet { href: PREMIUM_COMPOSITES }
+        document::Stylesheet { href: CHART_COMPOSITES }
+    }
+}

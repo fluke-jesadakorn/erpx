@@ -306,6 +306,12 @@ message ListCorporateIdentityHistoryResponse {
   string correlation_id = 2;
 }
 
+enum NavigationAccessState {
+  NAVIGATION_ACCESS_STATE_UNSPECIFIED = 0;
+  NAVIGATION_ACCESS_STATE_AUTHORIZED = 1;
+  NAVIGATION_ACCESS_STATE_LOCKED = 2;
+}
+
 message NavigationManifestItem {
   string route_id = 1;
   string label = 2;
@@ -315,14 +321,27 @@ message NavigationManifestItem {
   // Server-owned discoverability metadata only. Commands always reauthorize
   // against the authenticated actor, scope, purpose, MFA, and current state.
   repeated string action_capabilities = 6;
+  // Stable localization lookup key. `label` remains as the compatibility
+  // fallback for clients that do not yet understand localized manifests.
+  string label_key = 7;
+  // Explicit discovery state. UNSPECIFIED is interpreted as authorized by
+  // newer clients so manifests from older servers remain usable.
+  NavigationAccessState access_state = 8;
+  // Canonical, display-safe role keys that can authorize this route. The
+  // server never includes custom local role names or raw permission keys.
+  repeated string required_role_keys = 9;
 }
 message NavigationManifestGroup {
   string group_id = 1;
   string label = 2;
   repeated NavigationManifestItem items = 3;
+  string label_key = 4;
 }
 message GetNavigationManifestRequest {
   erpx.common.v1.QueryContext context = 1;
+  // Opt in to the full product catalog. Older clients omit this field and
+  // continue receiving only routes authorized for the active role and scope.
+  bool include_inaccessible = 2;
 }
 message GetNavigationManifestResponse {
   string audience = 1;

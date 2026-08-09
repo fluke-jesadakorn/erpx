@@ -10,7 +10,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use chrono::Utc;
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Connection, Executor, PgConnection, Row, postgres::PgPoolOptions};
@@ -31,6 +31,13 @@ const POSTGRES_BIN: &str = "/opt/homebrew/opt/postgresql@18/bin";
 const CLUSTER_REF: &str = "erpx-local-pg18";
 const CHAIN_REF: &str = "local-chain";
 const PROMOTION_CONFIRMATION: &str = "PROMOTE_ERPX_PITR";
+const CLEANUP_CONFIRMATION: &str = "PURGE_ERPX_LOCAL_PITR";
+const PITR_LEASE_FILE: &str = "pitr/rehearsal-lease.json";
+const PITR_LEASE_VERSION: u32 = 1;
+const PITR_LEASE_TTL: ChronoDuration = ChronoDuration::hours(2);
+const PITR_WAL_BUDGET_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+const PITR_NAMESPACE: &str = "erpx-platform-pitr";
+const PITR_OBJECT_PREFIX: &str = "platform/erpx-local-pg18/chains/local-chain/";
 const RUNTIME_DATABASES: [&str; 4] = [
     "erpx_control_write",
     "erpx_control_read",
@@ -53,6 +60,22 @@ struct InfraSecrets {
     postgres_restore_password: String,
     minio_access_key: String,
     minio_secret_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PitrRehearsalLease {
+    version: u32,
+    rehearsal_ref: String,
+    expires_at: DateTime<Utc>,
+    max_wal_bytes: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LocalPitrLeaseState {
+    Disabled,
+    Active(DateTime<Utc>),
+    Stale,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,6 +167,116 @@ pub(crate) fn local_topology_path(root: &Path) -> PathBuf {
 
 fn ca_path(root: &Path) -> PathBuf {
     infra_runtime(root).join("certificates/ca.crt")
+}
+
+fn pitr_lease_path(root: &Path) -> PathBuf {
+    runtime(root).join(PITR_LEASE_FILE)
+}
+
+fn pitr_minio_chain_path() -> PathBuf {
+    Path::new(MINIO_DATA)
+        .join(PITR_NAMESPACE)
+        .join(PITR_OBJECT_PREFIX)
+}
+
+fn archive_command_setting(root: &Path) -> TaskResult<String> {
+    let lease = pitr_lease_path(root);
+    let secret = runtime(root).join("secrets/pitr/minio.json");
+    let program = root.join("target/debug/erpx-wal-archive");
+    for path in [&lease, &secret, &program] {
+        let value = path.to_str().ok_or("invalid WAL archive path")?;
+        if value.bytes().any(|byte| {
+            byte.is_ascii_whitespace() || matches!(byte, b'\'' | b'\"' | b'`' | b'$' | b'\\')
+        }) {
+            return Err("WAL archive path contains unsupported shell characters".into());
+        }
+    }
+    Ok(format!(
+        "archive_command='ERPX_WAL_ARCHIVE_LEASE_FILE={} ERPX_WAL_ARCHIVE_SECRET_FILE={} {} %p %f'",
+        lease.display(),
+        secret.display(),
+        program.display(),
+    ))
+}
+
+fn local_pitr_lease_state(root: &Path, now: DateTime<Utc>) -> TaskResult<LocalPitrLeaseState> {
+    let path = pitr_lease_path(root);
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(LocalPitrLeaseState::Disabled);
+        }
+        Err(error) => return Err(error.into()),
+    };
+    if !metadata.file_type().is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.permissions().mode() & 0o777 != 0o600
+        || metadata.len() == 0
+        || metadata.len() > 4 * 1024
+    {
+        return Err("local PITR lease is not a private bounded regular file".into());
+    }
+    let Ok(lease) = serde_json::from_slice::<PitrRehearsalLease>(&fs::read(path)?) else {
+        return Ok(LocalPitrLeaseState::Stale);
+    };
+    if lease.version != PITR_LEASE_VERSION
+        || lease.max_wal_bytes == 0
+        || lease.max_wal_bytes > PITR_WAL_BUDGET_BYTES
+        || !valid_rehearsal_ref(&lease.rehearsal_ref)
+        || lease.expires_at <= now
+        || lease.expires_at > now + PITR_LEASE_TTL
+    {
+        return Ok(LocalPitrLeaseState::Stale);
+    }
+    Ok(LocalPitrLeaseState::Active(lease.expires_at))
+}
+
+fn valid_rehearsal_ref(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 120
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+}
+
+fn remove_stale_pitr_lease(root: &Path) -> TaskResult {
+    if local_pitr_lease_state(root, Utc::now())? == LocalPitrLeaseState::Stale {
+        fs::remove_file(pitr_lease_path(root))?;
+        println!("local-pitr: removed expired or invalid rehearsal lease");
+    }
+    Ok(())
+}
+
+fn create_pitr_lease(root: &Path, rehearsal_ref: &str) -> TaskResult {
+    if !valid_rehearsal_ref(rehearsal_ref) {
+        return Err("local PITR rehearsal reference is invalid".into());
+    }
+    remove_stale_pitr_lease(root)?;
+    if matches!(
+        local_pitr_lease_state(root, Utc::now())?,
+        LocalPitrLeaseState::Active(_)
+    ) {
+        return Err("another local PITR rehearsal lease is active".into());
+    }
+    let lease = PitrRehearsalLease {
+        version: PITR_LEASE_VERSION,
+        rehearsal_ref: rehearsal_ref.into(),
+        expires_at: Utc::now() + PITR_LEASE_TTL,
+        max_wal_bytes: PITR_WAL_BUDGET_BYTES,
+    };
+    write_private(&pitr_lease_path(root), &serde_json::to_vec_pretty(&lease)?)
+}
+
+fn remove_pitr_lease(root: &Path) -> TaskResult {
+    let path = pitr_lease_path(root);
+    if path.exists() {
+        let metadata = fs::symlink_metadata(&path)?;
+        if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+            return Err("refusing unsafe local PITR lease cleanup".into());
+        }
+        fs::remove_file(path)?;
+    }
+    Ok(())
 }
 
 fn create_private_directory(path: &Path) -> TaskResult {
@@ -536,19 +669,16 @@ fn issue_server_certificate(directory: &Path, name: &str, common_name: &str) -> 
 
 fn configure_postgres(root: &Path) -> TaskResult {
     let certificates = infra_runtime(root).join("certificates");
-    let archive_program = root.join("target/debug/erpx-wal-archive");
-    let archive_secret = runtime(root).join("secrets/pitr/minio.json");
+    let archive_command = archive_command_setting(root)?;
     let mut config = OpenOptions::new()
         .append(true)
         .open(Path::new(POSTGRES_DATA).join("postgresql.conf"))?;
     writeln!(
         config,
-        "\n# ERPX dedicated local cluster\nport={POSTGRES_PORT}\nlisten_addresses='127.0.0.1'\nssl=on\nssl_cert_file='{}'\nssl_key_file='{}'\nssl_ca_file='{}'\nwal_level=replica\narchive_mode=on\narchive_timeout='60s'\narchive_command='ERPX_WAL_ARCHIVE_SECRET_FILE={} {} %p %f'\nmax_connections=256\nmax_wal_senders=8\nwal_keep_size='256MB'\n",
+        "\n# ERPX dedicated local cluster\nport={POSTGRES_PORT}\nlisten_addresses='127.0.0.1'\nssl=on\nssl_cert_file='{}'\nssl_key_file='{}'\nssl_ca_file='{}'\nwal_level=replica\narchive_mode=on\narchive_timeout='0'\n{archive_command}\nmax_connections=256\nmax_wal_senders=8\nwal_keep_size='256MB'\n",
         certificates.join("postgres.crt").display(),
         certificates.join("postgres.key").display(),
         certificates.join("ca.crt").display(),
-        archive_secret.display(),
-        archive_program.display(),
     )?;
     let mut hba = OpenOptions::new()
         .append(true)
@@ -557,6 +687,53 @@ fn configure_postgres(root: &Path) -> TaskResult {
         hba,
         "\n# ERPX dedicated TLS roles\nhostssl all erpx_admin 127.0.0.1/32 scram-sha-256\nhostssl all erpx_app 127.0.0.1/32 scram-sha-256\nhostssl replication erpx_backup 127.0.0.1/32 scram-sha-256\nhostssl all erpx_restore 127.0.0.1/32 scram-sha-256\n"
     )?;
+    Ok(())
+}
+
+fn reconcile_local_pitr_postgres_config(root: &Path) -> TaskResult {
+    let path = Path::new(POSTGRES_DATA).join("postgresql.conf");
+    let metadata = fs::symlink_metadata(&path)?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        return Err("dedicated PostgreSQL configuration is not a regular file".into());
+    }
+    let contents = fs::read_to_string(&path)?;
+    let archive_command = archive_command_setting(root)?;
+    let mut timeout_written = false;
+    let mut command_written = false;
+    let mut lines = Vec::new();
+    for line in contents.lines() {
+        let setting = (!line.trim_start().starts_with('#'))
+            .then(|| line.split_once('=').map(|(name, _)| name.trim()))
+            .flatten();
+        match setting {
+            Some("archive_timeout") if !timeout_written => {
+                lines.push("archive_timeout='0'".to_owned());
+                timeout_written = true;
+            }
+            Some("archive_timeout") => {}
+            Some("archive_command") if !command_written => {
+                lines.push(archive_command.clone());
+                command_written = true;
+            }
+            Some("archive_command") => {}
+            _ => lines.push(line.to_owned()),
+        }
+    }
+    if !timeout_written {
+        lines.push("archive_timeout='0'".into());
+    }
+    if !command_written {
+        lines.push(archive_command);
+    }
+    let mut updated = lines.join("\n");
+    updated.push('\n');
+    if updated != contents {
+        fs::write(&path, updated)?;
+        if postgres_running() {
+            run(postgres_program("pg_ctl"), &["-D", POSTGRES_DATA, "reload"])?;
+        }
+        println!("local-pitr: reconciled default-disabled PostgreSQL archiving");
+    }
     Ok(())
 }
 
@@ -637,6 +814,8 @@ pub(crate) async fn start(root: &Path) -> TaskResult {
     if !build.success() {
         return Err("WAL archive helper build failed".into());
     }
+    remove_stale_pitr_lease(root)?;
+    reconcile_local_pitr_postgres_config(root)?;
     if !minio_running(root) {
         let log = OpenOptions::new()
             .create(true)
@@ -973,6 +1152,88 @@ fn cleanup_legacy_minio_profiles(
     Ok(())
 }
 
+fn wal_spool_summary() -> TaskResult<(u64, u64)> {
+    validate_wal_spool()?;
+    let mut count = 0_u64;
+    let mut bytes = 0_u64;
+    for entry in fs::read_dir(WAL_SPOOL)? {
+        let entry = entry?;
+        let name = entry
+            .file_name()
+            .into_string()
+            .map_err(|_| "WAL spool contains a non-UTF-8 entry")?;
+        validate_wal_archive_name(&name)?;
+        let metadata = fs::symlink_metadata(entry.path())?;
+        if !metadata.file_type().is_file()
+            || metadata.file_type().is_symlink()
+            || metadata.permissions().mode() & 0o777 != 0o600
+            || metadata.len() == 0
+        {
+            return Err("WAL spool contains an unsafe entry".into());
+        }
+        count = count.saturating_add(1);
+        bytes = bytes
+            .checked_add(metadata.len())
+            .ok_or("WAL spool size overflow")?;
+    }
+    Ok((count, bytes))
+}
+
+fn directory_tree_bytes(path: &Path) -> TaskResult<u64> {
+    if !path.exists() {
+        return Ok(0);
+    }
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() {
+        return Err("local PITR storage contains a symlink".into());
+    }
+    if metadata.file_type().is_file() {
+        return Ok(metadata.len());
+    }
+    if !metadata.file_type().is_dir() {
+        return Err("local PITR storage contains an unsupported entry".into());
+    }
+    let mut bytes = 0_u64;
+    for entry in fs::read_dir(path)? {
+        bytes = bytes
+            .checked_add(directory_tree_bytes(&entry?.path())?)
+            .ok_or("local PITR storage size overflow")?;
+    }
+    Ok(bytes)
+}
+
+fn minio_pitr_summary() -> TaskResult<(u64, u64)> {
+    let chain = pitr_minio_chain_path();
+    let mut objects = 0_u64;
+    for kind in ["wal", "base"] {
+        let directory = chain.join(kind);
+        if !directory.exists() {
+            continue;
+        }
+        let metadata = fs::symlink_metadata(&directory)?;
+        if !metadata.file_type().is_dir() || metadata.file_type().is_symlink() {
+            return Err("local PITR MinIO prefix is unsafe".into());
+        }
+        for entry in fs::read_dir(directory)? {
+            let entry = entry?;
+            if entry.file_type()?.is_symlink() {
+                return Err("local PITR MinIO prefix contains a symlink".into());
+            }
+            objects = objects.saturating_add(1);
+        }
+    }
+    Ok((objects, directory_tree_bytes(&chain)?))
+}
+
+fn display_bytes(bytes: u64) -> String {
+    const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
+    if bytes >= 1024 * 1024 * 1024 {
+        format!("{:.2} GiB", bytes as f64 / GIB)
+    } else {
+        format!("{:.2} MiB", bytes as f64 / (1024.0 * 1024.0))
+    }
+}
+
 pub(crate) fn status(root: &Path) -> TaskResult {
     validate_fixed_roots()?;
     println!(
@@ -999,6 +1260,32 @@ pub(crate) fn status(root: &Path) -> TaskResult {
             "unconfigured"
         }
     );
+    let (spool_segments, spool_bytes) = wal_spool_summary()?;
+    let (minio_objects, minio_bytes) = minio_pitr_summary()?;
+    match local_pitr_lease_state(root, Utc::now())? {
+        LocalPitrLeaseState::Active(expires_at) => println!(
+            "local-pitr: rehearsal-active (expires {}, spool {} segments/{}, MinIO {} objects/{})",
+            expires_at.to_rfc3339(),
+            spool_segments,
+            display_bytes(spool_bytes),
+            minio_objects,
+            display_bytes(minio_bytes),
+        ),
+        LocalPitrLeaseState::Disabled => println!(
+            "local-pitr: disabled (spool {} segments/{}, MinIO {} objects/{})",
+            spool_segments,
+            display_bytes(spool_bytes),
+            minio_objects,
+            display_bytes(minio_bytes),
+        ),
+        LocalPitrLeaseState::Stale => println!(
+            "local-pitr: disabled (stale lease; spool {} segments/{}, MinIO {} objects/{})",
+            spool_segments,
+            display_bytes(spool_bytes),
+            minio_objects,
+            display_bytes(minio_bytes),
+        ),
+    }
     Ok(())
 }
 
@@ -1487,11 +1774,23 @@ pub(crate) async fn pitr_rehearsal(root: &Path) -> TaskResult {
     let secrets = read_secrets(root)?;
     let rehearsal_id = Uuid::new_v4();
     let rehearsal_ref = format!("rehearsal-{rehearsal_id}");
+    let (spool_segments, spool_bytes) = wal_spool_summary()?;
+    let (minio_objects, minio_bytes) = minio_pitr_summary()?;
+    if spool_segments != 0 || spool_bytes != 0 || minio_objects != 0 || minio_bytes != 0 {
+        return Err(
+            "local PITR rehearsal requires an empty archive; run `cargo xtask pitr cleanup-local --confirm PURGE_ERPX_LOCAL_PITR`"
+                .into(),
+        );
+    }
     let target = Path::new(PITR_RESTORE).join(format!("rehearsal-{rehearsal_id}"));
     if !target.starts_with(PITR_RESTORE) || target.exists() {
         return Err("PITR restore target is invalid or already exists".into());
     }
     create_private_directory(&target)?;
+    if let Err(error) = create_pitr_lease(root, &rehearsal_ref) {
+        fs::remove_dir_all(&target)?;
+        return Err(error);
+    }
     let backup = target.join("base");
     let result = async {
         let source_control_url = app_url(root, &secrets, RUNTIME_DATABASES[0]);
@@ -1582,6 +1881,7 @@ pub(crate) async fn pitr_rehearsal(root: &Path) -> TaskResult {
             "base_backup_object_key": &base_object_key,
             "base_backup_sha256": &base_sha256,
             "base_backup_size_bytes": base_size_bytes,
+            "artifacts_retained": false,
             "checks": [
                 "pg_verifybackup",
                 "database_inventory",
@@ -1597,9 +1897,9 @@ pub(crate) async fn pitr_rehearsal(root: &Path) -> TaskResult {
             "completed_at": Utc::now().to_rfc3339(),
         });
         create_private_directory(&runtime(root).join("pitr"))?;
-        fs::write(
-            runtime(root).join("pitr/last-rehearsal.json"),
-            serde_json::to_vec_pretty(&evidence)?,
+        replace_private(
+            &runtime(root).join("pitr/last-rehearsal.json"),
+            &serde_json::to_vec_pretty(&evidence)?,
         )?;
         persist_pitr_rehearsal(
             &source_control_url,
@@ -1615,10 +1915,25 @@ pub(crate) async fn pitr_rehearsal(root: &Path) -> TaskResult {
         Ok(())
     }
     .await;
-    if target.exists() {
-        fs::remove_dir_all(&target)?;
-    }
+    let target_cleanup: TaskResult = if target.exists() {
+        fs::remove_dir_all(&target).map_err(|error| error.into())
+    } else {
+        Ok(())
+    };
+    let lease_cleanup = remove_pitr_lease(root);
+    let source_control_url = app_url(root, &secrets, RUNTIME_DATABASES[0]);
+    let archive_cleanup = if lease_cleanup.is_ok() {
+        purge_local_pitr_artifacts(root, &source_control_url).await
+    } else {
+        Ok(())
+    };
     result?;
+    target_cleanup?;
+    lease_cleanup?;
+    archive_cleanup?;
+    if wal_spool_summary()? != (0, 0) || minio_pitr_summary()? != (0, 0) {
+        return Err("local PITR rehearsal cleanup retained archive artifacts".into());
+    }
     println!("PITR rehearsal {rehearsal_id} completed and its isolated target was cleaned.");
     Ok(())
 }
@@ -1849,6 +2164,27 @@ fn validate_wal_segment(segment: &str) -> TaskResult {
     Ok(())
 }
 
+fn validate_wal_archive_name(name: &str) -> TaskResult {
+    let is_upper_hex = |bytes: &[u8]| {
+        bytes
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || (b'A'..=b'F').contains(byte))
+    };
+    let bytes = name.as_bytes();
+    let is_segment = bytes.len() == 24 && is_upper_hex(bytes);
+    let is_backup_history = bytes.len() == 40
+        && is_upper_hex(&bytes[..24])
+        && bytes[24] == b'.'
+        && is_upper_hex(&bytes[25..33])
+        && &bytes[33..] == b".backup";
+    let is_timeline_history =
+        bytes.len() == 16 && is_upper_hex(&bytes[..8]) && &bytes[8..] == b".history";
+    if !is_segment && !is_backup_history && !is_timeline_history {
+        return Err("WAL spool contains a non-canonical archive name".into());
+    }
+    Ok(())
+}
+
 fn clone_backup(source: &Path, target: &Path) -> TaskResult {
     if !source.starts_with(PITR_RESTORE) || !target.starts_with(PITR_RESTORE) || target.exists() {
         return Err("PITR clone target is outside the allowlist or already exists".into());
@@ -2009,6 +2345,236 @@ async fn database_names(url: &str) -> TaskResult<BTreeSet<String>> {
     Ok(names)
 }
 
+fn pitr_mc_target() -> String {
+    format!("erpx-dedicated/{PITR_NAMESPACE}/{PITR_OBJECT_PREFIX}")
+}
+
+fn purge_minio_pitr_objects(root: &Path) -> TaskResult {
+    let target = pitr_mc_target();
+    if target != "erpx-dedicated/erpx-platform-pitr/platform/erpx-local-pg18/chains/local-chain/" {
+        return Err("local PITR MinIO cleanup target is outside the allowlist".into());
+    }
+    let status = Command::new("mc")
+        .args([
+            "--config-dir",
+            infra_runtime(root)
+                .join("mc-config")
+                .to_str()
+                .ok_or("invalid MinIO client config path")?,
+            "rm",
+            "--recursive",
+            "--force",
+            "--quiet",
+            &target,
+        ])
+        .env("SSL_CERT_FILE", ca_path(root))
+        .stdout(Stdio::null())
+        .status()?;
+    if !status.success() {
+        return Err("local PITR MinIO object cleanup failed".into());
+    }
+    Ok(())
+}
+
+fn purge_wal_spool() -> TaskResult {
+    let _ = wal_spool_summary()?;
+    let mut targets = Vec::new();
+    for entry in fs::read_dir(WAL_SPOOL)? {
+        targets.push(entry?.path());
+    }
+    targets.sort();
+    for target in targets {
+        if target.parent() != Some(Path::new(WAL_SPOOL)) {
+            return Err("WAL spool cleanup target escaped its allowlist".into());
+        }
+        fs::remove_file(target)?;
+    }
+    fs::set_permissions(WAL_SPOOL, fs::Permissions::from_mode(0o700))?;
+    Ok(())
+}
+
+async fn ensure_no_active_pitr_restore(database_url: &str) -> TaskResult {
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(database_url)
+        .await?;
+    let active: i64 = sqlx::query_scalar(
+        "SELECT count(*)
+         FROM erpx_control.platform_pitr_restore_rehearsals rehearsal
+         JOIN erpx_control.platform_pitr_recovery_points point
+           ON point.id=rehearsal.recovery_point_id
+         JOIN erpx_control.platform_pitr_chains chain ON chain.id=point.chain_id
+         WHERE chain.cluster_ref=$1 AND chain.chain_ref=$2
+           AND rehearsal.state IN ('pending','claimed','restoring','verifying')",
+    )
+    .bind(CLUSTER_REF)
+    .bind(CHAIN_REF)
+    .fetch_one(&pool)
+    .await?;
+    pool.close().await;
+    if active != 0 {
+        return Err("local PITR cleanup refused an active restore rehearsal".into());
+    }
+    Ok(())
+}
+
+async fn expire_local_pitr_inventory(database_url: &str) -> TaskResult {
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(database_url)
+        .await?;
+    let mut tx = pool.begin().await?;
+    sqlx::query(
+        "UPDATE erpx_control.platform_pitr_recovery_points point
+         SET state='expired', wal_continuity_verified=false
+         FROM erpx_control.platform_pitr_chains chain
+         WHERE point.chain_id=chain.id
+           AND chain.cluster_ref=$1 AND chain.chain_ref=$2",
+    )
+    .bind(CLUSTER_REF)
+    .bind(CHAIN_REF)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "DELETE FROM erpx_control.platform_pitr_wal_segments segment
+         USING erpx_control.platform_pitr_chains chain
+         WHERE segment.chain_id=chain.id
+           AND chain.cluster_ref=$1 AND chain.chain_ref=$2",
+    )
+    .bind(CLUSTER_REF)
+    .bind(CHAIN_REF)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "UPDATE erpx_control.platform_pitr_chains
+         SET state='expired', base_backup_object_key=NULL,
+             base_backup_sha256=NULL, start_lsn=NULL, stop_lsn=NULL,
+             updated_at=$3
+         WHERE cluster_ref=$1 AND chain_ref=$2",
+    )
+    .bind(CLUSTER_REF)
+    .bind(CHAIN_REF)
+    .bind(Utc::now())
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "UPDATE erpx_control.platform_pitr_clusters
+         SET state='suspended', updated_at=$2 WHERE cluster_ref=$1",
+    )
+    .bind(CLUSTER_REF)
+    .bind(Utc::now())
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    pool.close().await;
+    Ok(())
+}
+
+fn mark_last_rehearsal_artifacts_purged(root: &Path) -> TaskResult {
+    let path = runtime(root).join("pitr/last-rehearsal.json");
+    if !path.exists() {
+        return Ok(());
+    }
+    let metadata = fs::symlink_metadata(&path)?;
+    if !metadata.file_type().is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() > 256 * 1024
+    {
+        return Err("local PITR rehearsal evidence is unsafe".into());
+    }
+    let mut evidence: serde_json::Value = serde_json::from_slice(&fs::read(&path)?)?;
+    let object = evidence
+        .as_object_mut()
+        .ok_or("local PITR rehearsal evidence is invalid")?;
+    object.insert("artifacts_retained".into(), serde_json::Value::Bool(false));
+    object.insert(
+        "artifacts_purged_at".into(),
+        serde_json::Value::String(Utc::now().to_rfc3339()),
+    );
+    replace_private(&path, &serde_json::to_vec_pretty(&evidence)?)
+}
+
+async fn wait_for_archiver_ack(database_url: &str, segment: &str, seconds: u64) -> TaskResult {
+    validate_wal_segment(segment)?;
+    let pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(database_url)
+        .await?;
+    for _ in 0..seconds.saturating_mul(4) {
+        let archived: Option<String> =
+            sqlx::query_scalar("SELECT last_archived_wal FROM pg_stat_archiver")
+                .fetch_one(&pool)
+                .await?;
+        if archived.as_deref() == Some(segment) {
+            pool.close().await;
+            return Ok(());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+    pool.close().await;
+    Err("timed out waiting for default-disabled WAL archiver acknowledgement".into())
+}
+
+async fn purge_local_pitr_artifacts(root: &Path, database_url: &str) -> TaskResult {
+    ensure_no_active_pitr_restore(database_url).await?;
+    purge_minio_pitr_objects(root)?;
+    purge_wal_spool()?;
+    expire_local_pitr_inventory(database_url).await?;
+    mark_last_rehearsal_artifacts_purged(root)?;
+    Ok(())
+}
+
+pub(crate) async fn pitr_cleanup_local(root: &Path, confirmation: &str) -> TaskResult {
+    require_cleanup_confirmation(confirmation)?;
+    validate_fixed_roots()?;
+    start(root).await?;
+    remove_stale_pitr_lease(root)?;
+    if matches!(
+        local_pitr_lease_state(root, Utc::now())?,
+        LocalPitrLeaseState::Active(_)
+    ) {
+        return Err("local PITR cleanup refused an active rehearsal lease".into());
+    }
+    let secrets = read_secrets(root)?;
+    let database_url = app_url(root, &secrets, RUNTIME_DATABASES[0]);
+    let (spool_segments, spool_bytes) = wal_spool_summary()?;
+    let (minio_objects, minio_bytes) = minio_pitr_summary()?;
+    println!(
+        "local-pitr cleanup target: spool {spool_segments} segments/{}, MinIO {minio_objects} objects/{}",
+        display_bytes(spool_bytes),
+        display_bytes(minio_bytes),
+    );
+    purge_local_pitr_artifacts(root, &database_url).await?;
+    let archived_segment =
+        force_wal_archive(&admin_url(root, &secrets, RUNTIME_DATABASES[0])).await?;
+    wait_for_archiver_ack(&database_url, &archived_segment, 30).await?;
+    let (remaining_spool, remaining_spool_bytes) = wal_spool_summary()?;
+    let (remaining_objects, remaining_minio_bytes) = minio_pitr_summary()?;
+    if remaining_spool != 0
+        || remaining_spool_bytes != 0
+        || remaining_objects != 0
+        || remaining_minio_bytes != 0
+    {
+        return Err("local PITR cleanup verification found retained archive data".into());
+    }
+    println!(
+        "local-pitr cleanup completed: reclaimed {} across spool and MinIO; forced WAL remained unretained",
+        display_bytes(spool_bytes.saturating_add(minio_bytes)),
+    );
+    Ok(())
+}
+
+fn require_cleanup_confirmation(confirmation: &str) -> TaskResult {
+    if confirmation == CLEANUP_CONFIRMATION {
+        Ok(())
+    } else {
+        Err(format!(
+            "local PITR cleanup requires --confirm {CLEANUP_CONFIRMATION}; no changes were made"
+        )
+        .into())
+    }
+}
+
 pub(crate) async fn pitr_promote(root: &Path, confirmation: &str) -> TaskResult {
     if confirmation != PROMOTION_CONFIRMATION {
         return Err(format!(
@@ -2043,93 +2609,6 @@ pub(crate) async fn pitr_promote(root: &Path, confirmation: &str) -> TaskResult 
         );
     }
     Err("automatic data-root replacement is intentionally unavailable without a retained coordinator target".into())
-}
-
-pub(crate) async fn pitr_controller(root: &Path) -> TaskResult {
-    if !postgres_running() || !minio_running(root) {
-        return Err(
-            "cluster PITR controller requires the dedicated PostgreSQL and MinIO services".into(),
-        );
-    }
-    let secrets = read_secrets(root)?;
-    let database_url = app_url(root, &secrets, RUNTIME_DATABASES[0]);
-    println!("ERPX cluster PITR controller is monitoring verified WAL continuity.");
-    loop {
-        if let Err(error) = synchronize_wal_inventory(&database_url).await {
-            eprintln!("cluster PITR controller inventory pass failed: {error}");
-        }
-        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-    }
-}
-
-async fn synchronize_wal_inventory(database_url: &str) -> TaskResult {
-    let pool = PgPoolOptions::new()
-        .max_connections(2)
-        .connect(database_url)
-        .await?;
-    let chain_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM erpx_control.platform_pitr_chains
-         WHERE cluster_ref=$1 AND chain_ref=$2 AND state IN ('continuous','degraded')",
-    )
-    .bind(CLUSTER_REF)
-    .bind(CHAIN_REF)
-    .fetch_optional(&pool)
-    .await?;
-    let Some(chain_id) = chain_id else {
-        pool.close().await;
-        return Ok(());
-    };
-    let existing: BTreeSet<String> = sqlx::query_scalar(
-        "SELECT segment_name FROM erpx_control.platform_pitr_wal_segments WHERE chain_id=$1",
-    )
-    .bind(chain_id)
-    .fetch_all(&pool)
-    .await?
-    .into_iter()
-    .collect();
-    let mut segments = Vec::new();
-    for entry in fs::read_dir(WAL_SPOOL)? {
-        let entry = entry?;
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if name.len() == 24
-            && name.bytes().all(|byte| byte.is_ascii_hexdigit())
-            && !existing.contains(&name)
-        {
-            let metadata = entry.metadata()?;
-            if metadata.file_type().is_file() && metadata.len() > 0 {
-                segments.push((name, entry.path(), metadata.len()));
-            }
-        }
-    }
-    segments.sort_by(|left, right| left.0.cmp(&right.0));
-    for (name, path, size) in segments.into_iter().take(128) {
-        let checksum = sha256_file(&path)?;
-        let object_key = format!("platform/{CLUSTER_REF}/chains/{CHAIN_REF}/wal/{name}");
-        sqlx::query(
-            "INSERT INTO erpx_control.platform_pitr_wal_segments
-                (chain_id, segment_name, object_key, size_bytes, sha256, archived_at, verified_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$6)
-             ON CONFLICT (chain_id, segment_name) DO NOTHING",
-        )
-        .bind(chain_id)
-        .bind(name)
-        .bind(object_key)
-        .bind(i64::try_from(size).map_err(|_| "WAL segment size overflow")?)
-        .bind(checksum)
-        .bind(Utc::now())
-        .execute(&pool)
-        .await?;
-    }
-    sqlx::query(
-        "UPDATE erpx_control.platform_pitr_clusters SET state='active', updated_at=$2
-         WHERE cluster_ref=$1",
-    )
-    .bind(CLUSTER_REF)
-    .bind(Utc::now())
-    .execute(&pool)
-    .await?;
-    pool.close().await;
-    Ok(())
 }
 
 fn percent_encode(value: &str) -> String {
@@ -2178,5 +2657,21 @@ mod tests {
     fn business_units_have_no_independent_physical_profile() {
         assert!(!required_logical_profiles().contains(&"business_unit"));
         assert!(minio_profile_namespaces("business_unit").is_empty());
+    }
+
+    #[test]
+    fn local_pitr_cleanup_confirmation_is_literal() {
+        assert!(require_cleanup_confirmation(CLEANUP_CONFIRMATION).is_ok());
+        assert!(require_cleanup_confirmation("PURGE_ERPX_LOCAL_PIT").is_err());
+        assert!(require_cleanup_confirmation("").is_err());
+    }
+
+    #[test]
+    fn local_pitr_archive_names_are_canonical() {
+        assert!(validate_wal_archive_name("000000010000000000000001").is_ok());
+        assert!(validate_wal_archive_name("000000010000000000000001.00000028.backup").is_ok());
+        assert!(validate_wal_archive_name("00000002.history").is_ok());
+        assert!(validate_wal_archive_name("../000000010000000000000001").is_err());
+        assert!(validate_wal_archive_name("000000010000000000000001.partial").is_err());
     }
 }

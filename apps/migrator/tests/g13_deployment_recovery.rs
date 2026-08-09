@@ -214,7 +214,11 @@ fn g13_worker_restart_idempotency_and_observability_seams_are_present() {
         WORKER_APP,
         "apps/worker/src/app.rs",
         &[
-            "tracing_subscriber::fmt::init()",
+            "tracing_subscriber::fmt()",
+            "with_env_filter(tracing_subscriber::EnvFilter::from_default_env())",
+            "worker_id = %worker_id",
+            "handler = %handler_name",
+            "\"worker_started\"",
             "run_registered_until_shutdown",
             "retried = report.retried",
             "dead_lettered = report.dead_lettered",

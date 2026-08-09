@@ -409,9 +409,10 @@ fn g12_dialog_binds_unique_accessible_name_and_description_targets() {
 }
 
 #[test]
-fn g12_dialog_owns_keyboard_and_focus_boundaries() {
+fn g12_dialog_uses_the_primitive_focus_trap_without_manual_focus_guards() {
     let mut dom = VirtualDom::new(dialog_fixture);
     let edits = dom.rebuild_to_vec().edits;
+    let html = dioxus_ssr::render(&dom);
     let attributes = edits
         .iter()
         .filter_map(|mutation| match mutation {
@@ -423,31 +424,33 @@ fn g12_dialog_owns_keyboard_and_focus_boundaries() {
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert!(attributes.contains(&("role", "dialog")));
-    assert!(attributes.contains(&("aria-modal", "true")));
-    assert!(attributes.contains(&("aria-keyshortcuts", "Escape")));
-    assert!(attributes.contains(&("data-dialog-focus-trap", "true")));
-    assert!(attributes.contains(&("data-dialog-focus-restore", "caller-target-required")));
+    assert!(html.contains("role=\"dialog\""));
+    assert!(html.contains("aria-modal=\"true\""));
+    assert!(html.contains("aria-keyshortcuts=\"Escape\""));
+    assert!(html.contains("data-dialog-focus-trap=\"true\""));
+    assert!(html.contains("data-dialog-focus-restore=\"caller-target-required\""));
+    assert!(html.contains("data-state=\"open\""));
+    assert!(html.contains("data-erpx-component=\"dialog\""));
     assert_eq!(
         attributes
             .iter()
             .filter(|(name, value)| *name == "data-dialog-focus-guard" && *value == "start")
             .count(),
-        1
+        0
     );
     assert_eq!(
         attributes
             .iter()
             .filter(|(name, value)| *name == "data-dialog-focus-guard" && *value == "end")
             .count(),
-        1
+        0
     );
     assert_eq!(
         attributes
             .iter()
             .filter(|(name, value)| *name == "aria-label" && *value == "Dialog focus boundary")
             .count(),
-        2
+        0
     );
 
     let listeners = edits.iter().filter_map(|mutation| match mutation {
@@ -456,9 +459,8 @@ fn g12_dialog_owns_keyboard_and_focus_boundaries() {
     });
     let listeners = listeners.collect::<Vec<_>>();
     assert!(listeners.contains(&"click"));
-    assert!(listeners.contains(&"keydown"));
-    assert!(listeners.contains(&"focus"));
-    assert!(listeners.contains(&"mounted"));
+    assert!(!listeners.contains(&"focus"));
+    assert!(!listeners.contains(&"mounted"));
 }
 
 #[test]

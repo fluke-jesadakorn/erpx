@@ -167,8 +167,11 @@ mod tests {
         prelude::*,
     };
 
-    const CONSOLE_MAIN_SOURCE: &str =
-        concat!(include_str!("lib.rs"), include_str!("transport/mod.rs"));
+    const CONSOLE_MAIN_SOURCE: &str = concat!(
+        include_str!("lib.rs"),
+        include_str!("transport/mod.rs"),
+        include_str!("transport/composition.rs")
+    );
 
     #[test]
     fn directory_contract_covers_all_approved_vendors_and_native_feeds() {
@@ -1512,7 +1515,7 @@ mod tests {
     #[test]
     fn g14_console_startup_hash_deep_links_restore_and_delegate_redaction() {
         for marker in [
-            "let initial_destination = authorized_console_deep_link(&initial_path)",
+            "let initial_resolution = console_route_resolution_for(&initial_path",
             "typed_console_destination_allowed",
             "let mut active_route = use_signal",
             "window.location.pathname",

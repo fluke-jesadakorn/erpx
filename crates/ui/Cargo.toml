@@ -14,10 +14,26 @@ path = "tests/ui_domains.rs"
 name = "ui_platform"
 path = "tests/ui_platform.rs"
 
+[[test]]
+name = "ui_kit"
+path = "tests/ui_kit.rs"
+
 [dependencies]
 chrono.workspace = true
-dioxus = { workspace = true, features = ["html", "hooks", "macro", "signals"] }
+dioxus = { workspace = true, features = ["asset", "document", "html", "hooks", "macro", "signals"] }
+dioxus-icons.workspace = true
+dioxus-primitives.workspace = true
 erpx-domain.workspace = true
+palette.workspace = true
+serde.workspace = true
+time.workspace = true
+
+[features]
+default = []
+web = ["dioxus-primitives/web"]
+
+[dev-dependencies]
+dioxus-ssr.workspace = true
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 security-framework.workspace = true

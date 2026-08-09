@@ -1,11 +1,12 @@
 //! Server-only composition root for the Web SSR/BFF process.
 
 use crate::bff::{
-    BffState, accounts, activate_account, activate_role, delete_account, delete_session,
-    development_proxy, directory_login, grpc_proxy, identity_proxy, navigation_manifest,
-    passkey_authentication_begin, passkey_authentication_finish, password_login,
-    password_login_form, public_branding_proxy, public_marketing_proxy, recovery_login,
-    role_options, session_middleware, session_snapshot, upgrade_legacy_session,
+    BffState, accounts, activate_account, activate_role, dashboard_read_model, delete_account,
+    delete_session, development_proxy, directory_login, grpc_proxy, identity_proxy,
+    navigation_manifest, passkey_authentication_begin, passkey_authentication_finish,
+    password_login, password_login_form, public_brand_asset_proxy, public_branding_proxy,
+    public_marketing_proxy, recovery_login, role_options, session_middleware, session_snapshot,
+    upgrade_legacy_session, work_queue_read_model,
 };
 use dioxus::server::{
     axum::{
@@ -23,6 +24,7 @@ const DATABASE_URL_ENV: &str = "ERPX_CONTROL_WRITE_DATABASE_URL";
 const AUTH_HTTP_ORIGIN_ENV: &str = "ERPX_CONSOLE_AUTH_HTTP_ORIGIN";
 const GRPC_ORIGIN_ENV: &str = "ERPX_CONSOLE_GRPC_ENDPOINT";
 const TRUSTED_PUBLIC_ORIGINS_ENV: &str = "ERPX_WEB_TRUSTED_ORIGINS";
+const PRODUCTION_PROFILE_ENV: &str = "ERPX_WEB_PRODUCTION_PROFILE";
 
 pub(crate) async fn router() -> Result<Router, io::Error> {
     let database_url = env::var(DATABASE_URL_ENV)
@@ -40,11 +42,28 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
     let grpc_origin =
         env::var(GRPC_ORIGIN_ENV).unwrap_or_else(|_| "http://127.0.0.1:50051".to_owned());
     let trusted_public_origins = env::var(TRUSTED_PUBLIC_ORIGINS_ENV).unwrap_or_default();
-    let state = BffState::new(store, auth_http_origin, grpc_origin, trusted_public_origins)?;
+    let production_profile = env::var(PRODUCTION_PROFILE_ENV).as_deref() == Ok("enabled");
+    if production_profile
+        && (env::var("ERPX_DEV_PERSONA_MODE").as_deref() == Ok("enabled")
+            || env::var("ERPX_DEVELOPMENT_PROFILE").is_ok_and(|value| value.starts_with("local")))
+    {
+        return Err(io::Error::other(
+            "development access is forbidden in the Web production profile",
+        ));
+    }
+    let state = BffState::new(
+        store,
+        auth_http_origin,
+        grpc_origin,
+        trusted_public_origins,
+        production_profile,
+    )?;
 
     Ok(dioxus_router(crate::App)
         .route("/api/bff/v1/session", get(session_snapshot))
         .route("/api/bff/v1/navigation", post(navigation_manifest))
+        .route("/api/bff/v1/dashboard", get(dashboard_read_model))
+        .route("/api/bff/v1/work-items", get(work_queue_read_model))
         .route("/api/bff/v1/auth/password", post(password_login))
         .route("/api/bff/v1/auth/password/form", post(password_login_form))
         .route("/api/bff/v1/auth/directory", post(directory_login))
@@ -73,6 +92,10 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
             post(development_proxy).get(development_proxy),
         )
         .route("/api/bff/v1/public/branding", get(public_branding_proxy))
+        .route(
+            "/api/bff/v1/public/branding/assets/{kind}",
+            get(public_brand_asset_proxy),
+        )
         .route(
             "/api/bff/v1/public/marketing/{*public_path}",
             post(public_marketing_proxy).get(public_marketing_proxy),

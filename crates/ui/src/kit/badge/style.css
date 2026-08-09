@@ -1,0 +1,43 @@
+.dx-badge-example {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dx-badge {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  box-shadow: 0 0 0 1px var(--erpx-surface);
+  font-size: 12px;
+  gap: 4px
+}
+
+.dx-badge[padding="true"] {
+  padding: 0 8px;
+}
+
+.dx-badge[data-style="primary"] {
+  background-color: var(--erpx-text);
+  color: var(--erpx-bg);
+}
+
+.dx-badge[data-style="secondary"] {
+  background-color: var(--erpx-surface-raised);
+  color: var(--erpx-text);
+}
+
+.dx-badge[data-style="outline"] {
+  border: 1px solid var(--erpx-border);
+  background-color: var(--light, var(--erpx-bg)) var(--dark, var(--erpx-surface-raised));
+  color: var(--erpx-text);
+}
+
+.dx-badge[data-style="destructive"] {
+  background-color: var(--erpx-danger);
+  color: var(--erpx-on-danger);
+}
+

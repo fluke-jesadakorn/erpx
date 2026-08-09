@@ -53,6 +53,103 @@ pub enum BusinessUnitId {
     Legal,
 }
 
+/// Stable route and authorization metadata for one ERPX business unit.
+///
+/// This catalog is the single source of truth shared by server navigation,
+/// client route resolution, entitlements, localization, and contract tests.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BusinessUnitRouteDescriptor {
+    pub unit: BusinessUnitId,
+    pub route_id: &'static str,
+    pub canonical_path: &'static str,
+    pub read_permission: &'static str,
+    pub entitlement_key: &'static str,
+    pub label_key: &'static str,
+    pub label_en: &'static str,
+    pub label_th: &'static str,
+    pub icon: &'static str,
+}
+
+pub const BUSINESS_UNIT_ROUTE_CATALOG: [BusinessUnitRouteDescriptor; 12] = [
+    business_unit_route(BusinessUnitId::Operations, "operations", "ปฏิบัติการ"),
+    business_unit_route(BusinessUnitId::Finance, "finance", "การเงิน"),
+    business_unit_route(BusinessUnitId::Sales, "sales", "การขาย"),
+    business_unit_route(BusinessUnitId::Procurement, "procurement", "จัดซื้อ"),
+    business_unit_route(BusinessUnitId::Inventory, "inventory", "สินค้าคงคลัง"),
+    business_unit_route(BusinessUnitId::Assets, "assets", "สินทรัพย์"),
+    business_unit_route(BusinessUnitId::Maintenance, "maintenance", "บำรุงรักษา"),
+    business_unit_route(BusinessUnitId::Quality, "quality", "คุณภาพ"),
+    business_unit_route(
+        BusinessUnitId::MarketingCrm,
+        "marketing-crm",
+        "การตลาดและ CRM",
+    ),
+    business_unit_route(
+        BusinessUnitId::HrPayroll,
+        "hr-payroll",
+        "ทรัพยากรบุคคลและเงินเดือน",
+    ),
+    business_unit_route(BusinessUnitId::PointOfSale, "point-of-sale", "จุดขาย"),
+    business_unit_route(BusinessUnitId::Legal, "legal", "กฎหมาย"),
+];
+
+const fn business_unit_route(
+    unit: BusinessUnitId,
+    entitlement_key: &'static str,
+    label_th: &'static str,
+) -> BusinessUnitRouteDescriptor {
+    BusinessUnitRouteDescriptor {
+        unit,
+        route_id: entitlement_key,
+        canonical_path: match unit {
+            BusinessUnitId::Operations => "/workspaces/operations",
+            BusinessUnitId::Finance => "/workspaces/finance",
+            BusinessUnitId::Sales => "/workspaces/sales",
+            BusinessUnitId::Procurement => "/workspaces/procurement",
+            BusinessUnitId::Inventory => "/workspaces/inventory",
+            BusinessUnitId::Assets => "/workspaces/assets",
+            BusinessUnitId::Maintenance => "/workspaces/maintenance",
+            BusinessUnitId::Quality => "/workspaces/quality",
+            BusinessUnitId::MarketingCrm => "/workspaces/marketing-crm",
+            BusinessUnitId::HrPayroll => "/workspaces/hr-payroll",
+            BusinessUnitId::PointOfSale => "/workspaces/point-of-sale",
+            BusinessUnitId::Legal => "/workspaces/legal",
+        },
+        read_permission: match unit {
+            BusinessUnitId::Operations => "operations.read",
+            BusinessUnitId::Finance => "finance.read",
+            BusinessUnitId::Sales => "sales.read",
+            BusinessUnitId::Procurement => "procurement.read",
+            BusinessUnitId::Inventory => "inventory.read",
+            BusinessUnitId::Assets => "assets.read",
+            BusinessUnitId::Maintenance => "maintenance.read",
+            BusinessUnitId::Quality => "quality.read",
+            BusinessUnitId::MarketingCrm => "marketing-crm.read",
+            BusinessUnitId::HrPayroll => "hr-payroll.read",
+            BusinessUnitId::PointOfSale => "point-of-sale.read",
+            BusinessUnitId::Legal => "legal.read",
+        },
+        entitlement_key,
+        label_key: match unit {
+            BusinessUnitId::Operations => "nav.business_unit.operations",
+            BusinessUnitId::Finance => "nav.business_unit.finance",
+            BusinessUnitId::Sales => "nav.business_unit.sales",
+            BusinessUnitId::Procurement => "nav.business_unit.procurement",
+            BusinessUnitId::Inventory => "nav.business_unit.inventory",
+            BusinessUnitId::Assets => "nav.business_unit.assets",
+            BusinessUnitId::Maintenance => "nav.business_unit.maintenance",
+            BusinessUnitId::Quality => "nav.business_unit.quality",
+            BusinessUnitId::MarketingCrm => "nav.business_unit.marketing_crm",
+            BusinessUnitId::HrPayroll => "nav.business_unit.hr_payroll",
+            BusinessUnitId::PointOfSale => "nav.business_unit.point_of_sale",
+            BusinessUnitId::Legal => "nav.business_unit.legal",
+        },
+        label_en: unit.display_name(),
+        label_th,
+        icon: "module",
+    }
+}
+
 impl BusinessUnitId {
     pub const ALL: [Self; 12] = [
         Self::Operations,
@@ -101,6 +198,23 @@ impl BusinessUnitId {
             Self::PointOfSale => "Point of Sale",
             Self::Legal => "Legal",
         }
+    }
+
+    pub const fn route(self) -> &'static BusinessUnitRouteDescriptor {
+        &BUSINESS_UNIT_ROUTE_CATALOG[match self {
+            Self::Operations => 0,
+            Self::Finance => 1,
+            Self::Sales => 2,
+            Self::Procurement => 3,
+            Self::Inventory => 4,
+            Self::Assets => 5,
+            Self::Maintenance => 6,
+            Self::Quality => 7,
+            Self::MarketingCrm => 8,
+            Self::HrPayroll => 9,
+            Self::PointOfSale => 10,
+            Self::Legal => 11,
+        }]
     }
 
     pub fn parse(value: &str) -> Result<Self, DataPlaneContractError> {
@@ -1177,6 +1291,24 @@ mod tests {
         assert!(BusinessUnitId::parse("assets").is_ok());
         assert!(BusinessUnitId::parse("support").is_err());
         assert!(BusinessUnitId::parse("hr").is_err());
+        assert_eq!(BUSINESS_UNIT_ROUTE_CATALOG.len(), BusinessUnitId::ALL.len());
+        for (unit, route) in BusinessUnitId::ALL
+            .into_iter()
+            .zip(BUSINESS_UNIT_ROUTE_CATALOG)
+        {
+            assert_eq!(route.unit, unit);
+            assert_eq!(route.route_id, unit.as_str());
+            assert_eq!(route.entitlement_key, unit.as_str());
+            assert_eq!(route.read_permission, unit.permission("read").unwrap());
+            assert!(route.canonical_path.starts_with("/workspaces/"));
+            assert!(route.label_key.starts_with("nav.business_unit."));
+            assert!(!route.label_en.is_empty());
+            assert!(!route.label_th.is_empty());
+        }
+        assert_eq!(
+            BusinessUnitId::MarketingCrm.route().canonical_path,
+            "/workspaces/marketing-crm"
+        );
     }
 
     #[test]

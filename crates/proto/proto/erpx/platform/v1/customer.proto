@@ -170,6 +170,18 @@ service CustomerAccessAuditQueryService {
       returns (GetCustomerAccessAuditResponse);
 }
 
+// Stable typed boundaries for the Customer 360 detail surface and its only
+// mutation. They remain available after PlatformCustomerService is retired;
+// the legacy service is kept solely as a rollback-compatible transport.
+service Customer360DetailQueryService {
+  rpc GetCustomer360Detail(GetCustomer360DetailRequest)
+      returns (GetCustomer360DetailResponse);
+}
+
+service CustomerNoteCommandService {
+  rpc AddCustomerNote(AddCustomerNoteRequest) returns (AddCustomerNoteResponse);
+}
+
 // Customer Authority owns canonical customer identity, lifecycle, and exact
 // holding/company/branch authority links. Registration and tax identifiers are
 // accepted only on commands and are deliberately absent from query records.

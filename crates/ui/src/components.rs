@@ -1,16 +1,40 @@
 use std::{collections::BTreeSet, rc::Rc};
 
-use dioxus::{dioxus_core::current_scope_id, prelude::*};
+use dioxus::{
+    dioxus_core::{current_scope_id, spawn_forever},
+    prelude::*,
+};
+use dioxus_icons::lucide::{
+    Activity, Building2, ChartNoAxesColumn, ChevronDown, CreditCard, Database, Folder, Headphones,
+    Inbox, LayoutGrid, Lock, Menu, PanelLeft, Search, Settings, Shield, SunMoon, Users, Workflow,
+    X,
+};
 use erpx_domain::corporate_identity::{
     BrandCategory, BrandDensity, BrandElevation, BrandFontPack, BrandMotion, BrandNavigation,
     BrandRadius, BrandTokenSet, HexColor, ResolvedCorporateIdentity,
 };
 
+use crate::kit::{
+    Disclosure as KitDisclosure, Link as KitLink, SelectControl as KitSelect, Table as KitTable,
+    button::{Button as KitButton, ButtonSize, ButtonVariant},
+    dialog::{Dialog as KitDialog, DialogTitle as KitDialogTitle},
+    input::Input as KitInput,
+    sidebar::{Sidebar as KitSidebar, SidebarCollapsible, SidebarProvider},
+    textarea::Textarea as KitTextarea,
+    tooltip::{
+        Tooltip as KitTooltip, TooltipContent as KitTooltipContent,
+        TooltipTrigger as KitTooltipTrigger,
+    },
+};
 use crate::{
     Locale, LocaleContext, LocalizedText, NavGroup, NavItem, RouteState, SafeSessionMetadata,
     SafeUiText, ScopeOption, ThemeMode, TranslationKey, UiStateKind, corporate_identity_style,
-    redact_deep_link, use_corporate_identity, use_locale, use_theme,
+    localized_navigation_label, localized_navigation_requirement, redact_deep_link,
+    use_corporate_identity, use_locale, use_theme,
 };
+
+#[cfg(target_arch = "wasm32")]
+const NAVIGATION_DISCLOSURE_STORAGE_KEY: &str = "erpx.navigation.disclosure.v1";
 
 const fn shared_text(locale: Locale, en: &'static str, th: &'static str) -> &'static str {
     LocalizedText::new(en, th).text(locale)
@@ -20,6 +44,91 @@ fn current_locale() -> Locale {
     try_consume_context::<LocaleContext>()
         .map(|locale| locale.current())
         .unwrap_or(Locale::En)
+}
+
+#[derive(Clone, Copy)]
+struct AccountSessionFocusTarget(ReadSignal<Option<Rc<MountedData>>>);
+
+#[derive(Clone, Copy)]
+pub struct NavigationDisclosureState(Signal<BTreeSet<String>>);
+
+impl NavigationDisclosureState {
+    pub fn is_expanded(self, group_id: &str) -> bool {
+        self.0.read().contains(group_id)
+    }
+
+    pub fn toggle(self, group_id: &str) {
+        let mut expanded = self.0;
+        if expanded.read().contains(group_id) {
+            expanded.write().remove(group_id);
+        } else {
+            expanded.write().insert(group_id.to_owned());
+        }
+        persist_navigation_disclosures(&expanded.read());
+    }
+}
+
+pub fn use_navigation_disclosure_state() -> Option<NavigationDisclosureState> {
+    try_consume_context::<NavigationDisclosureState>()
+}
+
+/// A discoverable navigation destination that explains its requirements without navigating.
+/// The controlled tooltip opens on hover/focus through the kit primitive and explicitly on tap.
+#[component]
+pub fn LockedTooltipButton(
+    wrapper_class: String,
+    class: String,
+    accessible_label: String,
+    requirement: String,
+    #[props(default)] option_role: bool,
+    children: Element,
+) -> Element {
+    let mut open = use_signal(|| false);
+    rsx! {
+        KitTooltip {
+            class: wrapper_class,
+            open: Some(*open.read()),
+            on_open_change: move |next_open: bool| open.set(next_open),
+            KitTooltipTrigger {
+                class,
+                role: if option_role { "option" } else { "button" },
+                aria_disabled: "true",
+                aria_label: accessible_label,
+                "data-access": "locked",
+                onclick: move |event: MouseEvent| {
+                    event.prevent_default();
+                    open.set(true);
+                },
+                {children}
+            }
+            KitTooltipContent {
+                {requirement}
+            }
+        }
+    }
+}
+
+fn persist_navigation_disclosures(expanded: &BTreeSet<String>) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let value = expanded.iter().cloned().collect::<Vec<_>>().join(",");
+        let eval = document::eval(&format!(
+            r#"const value = await dioxus.recv();
+try {{ window.localStorage.setItem('{NAVIGATION_DISCLOSURE_STORAGE_KEY}', value); }} catch (_) {{}}"#
+        ));
+        let _ = eval.send(value);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = expanded;
+}
+
+/// Return the mounted account/session trigger owned by the nearest [`AppShell`]. Dialogs
+/// rendered by the application composition layer use this target for deterministic focus
+/// restoration after Escape, dismissal, or an explicit close action.
+pub fn use_account_session_focus_target() -> ReadSignal<Option<Rc<MountedData>>> {
+    try_consume_context::<AccountSessionFocusTarget>()
+        .map(|context| context.0)
+        .unwrap_or_default()
 }
 
 const fn theme_mode_label(locale: Locale, mode: ThemeMode) -> &'static str {
@@ -59,6 +168,10 @@ pub fn AppShell(
     on_scope_change: EventHandler<String>,
     /// Callback for opening the application-owned account and session tools.
     on_account_session: EventHandler<()>,
+    /// Controlled open state for the account/session overlay. This keeps the profile trigger's
+    /// accessibility state synchronized with the application-owned dialog.
+    #[props(default)]
+    account_session_open: bool,
     /// Callback for client-side navigation. Keeping navigation inside the mounted application
     /// preserves the in-memory session on web targets that intentionally have no browser token
     /// storage fallback.
@@ -79,6 +192,7 @@ pub fn AppShell(
         &identity.display_name
     });
     let brand_mark = identity.short_name.chars().take(2).collect::<String>();
+    let mut brand_asset_failed = use_signal(|| false);
     let brand_style = corporate_identity_style(&identity);
     let subtitle = safe_display_text(&subtitle);
     let active_path = redact_deep_link(&active_path);
@@ -93,27 +207,100 @@ pub fn AppShell(
     let nav_groups = nav_groups
         .into_iter()
         .map(|group| NavGroup {
-            label: safe_display_text(&group.label),
+            group_id: group.group_id,
+            label: safe_display_text(&localized_navigation_label(
+                &group.label_key,
+                &group.label,
+                current_locale,
+            )),
+            label_key: group.label_key,
             items: group
                 .items
                 .into_iter()
                 .map(|item| NavItem {
-                    label: safe_display_text(&item.label),
+                    route_id: item.route_id,
+                    label: safe_display_text(&localized_navigation_label(
+                        &item.label_key,
+                        &item.label,
+                        current_locale,
+                    )),
+                    label_key: item.label_key,
                     path: redact_deep_link(&item.path),
                     icon: safe_display_text(&item.icon),
                     action_capabilities: item.action_capabilities,
+                    access: item.access,
                 })
                 .collect(),
         })
         .collect::<Vec<_>>();
-    let active_context = nav_groups
+    #[cfg(target_arch = "wasm32")]
+    let known_navigation_groups = nav_groups
         .iter()
-        .find_map(|group| {
-            group
-                .items
-                .iter()
-                .find(|item| is_active(&active_path, &item.path))
-                .map(|item| (group.label.clone(), item.label.clone()))
+        .map(|group| group.group_id.clone())
+        .collect::<BTreeSet<_>>();
+    let expanded_navigation_groups = use_signal(BTreeSet::<String>::new);
+    use_context_provider(|| NavigationDisclosureState(expanded_navigation_groups));
+    #[cfg(target_arch = "wasm32")]
+    {
+        let mut disclosure_loaded = use_signal(|| false);
+        use_effect(move || {
+            if *disclosure_loaded.read() {
+                return;
+            }
+            disclosure_loaded.set(true);
+            let known_navigation_groups = known_navigation_groups.clone();
+            let mut expanded_navigation_groups = expanded_navigation_groups;
+            spawn(async move {
+                let mut eval = document::eval(&format!(
+                    r#"let value = '';
+try {{ value = window.localStorage.getItem('{NAVIGATION_DISCLOSURE_STORAGE_KEY}') || ''; }} catch (_) {{}}
+dioxus.send(value);"#
+                ));
+                if let Ok(value) = eval.recv::<String>().await {
+                    let restored = value
+                        .split(',')
+                        .filter(|group_id| known_navigation_groups.contains(*group_id))
+                        .map(str::to_owned)
+                        .collect::<BTreeSet<_>>();
+                    expanded_navigation_groups.set(restored);
+                }
+            });
+        });
+    }
+    let primary_items = [
+        NavItem::new(
+            shared_text(current_locale, "My Work", "งานของฉัน"),
+            "/work",
+            "inbox",
+        ),
+        NavItem::new(
+            shared_text(current_locale, "Processes", "กระบวนการ"),
+            "/processes",
+            "workflow",
+        ),
+        NavItem::new(
+            shared_text(current_locale, "Insights", "ข้อมูลเชิงลึก"),
+            "/insights",
+            "insights",
+        ),
+    ];
+    let active_context = primary_items
+        .iter()
+        .find(|item| is_active(&active_path, &item.path))
+        .map(|item| {
+            (
+                shared_text(current_locale, "Work OS", "พื้นที่ทำงาน").to_owned(),
+                item.label.clone(),
+            )
+        })
+        .or_else(|| {
+            nav_groups.iter().find_map(|group| {
+                group
+                    .items
+                    .iter()
+                    .find(|item| is_active(&active_path, &item.path))
+                    .map(|item| (group.label.clone(), item.label.clone()))
+            })
         })
         .unwrap_or_else(|| {
             (
@@ -124,11 +311,14 @@ pub fn AppShell(
     let mut nav_collapsed = use_signal(|| !identity.tokens.navigation_expanded_by_default);
     let mut mobile_nav_open = use_signal(|| false);
     let mut command_open = use_signal(|| false);
+    let mut trust_open = use_signal(|| false);
+    let mut account_session_focus_target = use_signal(|| None::<Rc<MountedData>>);
+    use_context_provider(|| AccountSessionFocusTarget(account_session_focus_target.into()));
     let mut command_query = use_signal(String::new);
     let command_query_value = command_query.read().trim().to_ascii_lowercase();
-    let command_items = nav_groups
+    let mut command_items = primary_items
         .iter()
-        .flat_map(|group| group.items.iter())
+        .chain(nav_groups.iter().flat_map(|group| group.items.iter()))
         .filter(|item| {
             command_query_value.is_empty()
                 || item
@@ -142,6 +332,7 @@ pub fn AppShell(
         })
         .cloned()
         .collect::<Vec<_>>();
+    command_items.sort_by_key(|item| !item.is_authorized());
     let shell_class = format!(
         "ui-shell ui-theme-{theme_token}{}",
         if *nav_collapsed.read() {
@@ -157,30 +348,54 @@ pub fn AppShell(
     };
 
     rsx! {
-        div {
-            class: "{shell_class}",
-            style: "{brand_style}",
-            "data-locale": current_locale.language_tag(),
-            "data-theme": theme_token,
-            "data-brand-version": identity.published_version.to_string(),
-            button {
+        SidebarProvider {
+            open: Some(!*nav_collapsed.read()),
+            on_open_change: move |next_open: bool| nav_collapsed.set(!next_open),
+            "data-erpx-shell": "true",
+            div {
+                class: "{shell_class}",
+                style: "{brand_style}",
+                "data-locale": current_locale.language_tag(),
+                "data-theme": theme_token,
+                "data-brand-version": identity.published_version.to_string(),
+            KitButton {
+                variant: ButtonVariant::Ghost,
                 class: if *mobile_nav_open.read() { "ui-nav-scrim visible" } else { "ui-nav-scrim" },
                 r#type: "button",
                 aria_label: shared_text(current_locale, "Close navigation", "ปิดเมนูนำทาง"),
                 onclick: move |_| mobile_nav_open.set(false),
             }
-            nav {
-                class: "{nav_class}",
-                aria_label: locale.text(TranslationKey::Navigation),
+            KitSidebar {
+                class: "ui-sidebar-boundary",
+                collapsible: SidebarCollapsible::None,
+                nav {
+                    class: "{nav_class}",
+                    aria_label: locale.text(TranslationKey::Navigation),
+                    onkeydown: move |event: KeyboardEvent| {
+                        if event.key() == Key::Escape {
+                            mobile_nav_open.set(false);
+                        }
+                    },
                 div { class: "ui-nav-header",
                     div { class: "ui-nav-brand",
-                        span { class: "ui-brand-mark", aria_hidden: "true", "{brand_mark}" }
+                        span { class: "ui-brand-mark", aria_hidden: "true",
+                            if *brand_asset_failed.read() {
+                                "{brand_mark}"
+                            } else {
+                                img {
+                                    src: "/api/bff/v1/public/branding/assets/logo_mark",
+                                    alt: "",
+                                    onerror: move |_| brand_asset_failed.set(true),
+                                }
+                            }
+                        }
                         div { class: "ui-brand-copy",
                             strong { "{brand}" }
                             span { "{subtitle}" }
                         }
                     }
-                    button {
+                    KitButton {
+                        variant: ButtonVariant::Ghost,
                         class: "ui-icon-button ui-collapse-button",
                         r#type: "button",
                         aria_label: if *nav_collapsed.read() {
@@ -195,71 +410,161 @@ pub fn AppShell(
                         },
                         EnterpriseIcon { name: "panel".to_owned() }
                     }
-                }
-                button {
-                    class: "ui-command-trigger",
-                    r#type: "button",
-                    aria_keyshortcuts: "Control+K Meta+K",
-                    onclick: move |_| command_open.set(true),
-                    EnterpriseIcon { name: "search".to_owned() }
-                    span { {shared_text(current_locale, "Search workspaces", "ค้นหาพื้นที่ทำงาน")} }
-                    kbd { "⌘K" }
+                    KitButton {
+                        variant: ButtonVariant::Ghost,
+                        class: "ui-icon-button ui-mobile-nav-close",
+                        r#type: "button",
+                        aria_label: shared_text(current_locale, "Close navigation", "ปิดเมนูนำทาง"),
+                        onclick: move |_| mobile_nav_open.set(false),
+                        EnterpriseIcon { name: "close".to_owned() }
+                    }
                 }
                 div { class: "ui-nav-items",
-                    for group in nav_groups.iter() {
-                        details { class: "ui-nav-group", open: true,
-                            summary { class: "ui-nav-group-heading",
-                                span { class: "ui-nav-group-title", "{group.label}" }
-                                span { class: "ui-nav-group-count", "{group.items.len()}" }
+                    div { class: "ui-nav-primary", aria_label: shared_text(current_locale, "Primary navigation", "เมนูหลัก"),
+                        for item in primary_items.iter() {
+                            {
+                                let path_for_click = item.path.clone();
+                                rsx! {
+                                    KitLink {
+                                        class: if is_active(&active_path, &item.path) { "ui-nav-item active" } else { "ui-nav-item" },
+                                        href: "{item.path}",
+                                        onclick: move |event: MouseEvent| {
+                                            event.prevent_default();
+                                            on_navigate.call(path_for_click.clone());
+                                            mobile_nav_open.set(false);
+                                        },
+                                        aria_current: if is_active(&active_path, &item.path) { "page" } else { "false" },
+                                        span { class: "ui-nav-icon", aria_hidden: "true", EnterpriseIcon { name: item.icon.clone() } }
+                                        span { class: "ui-nav-label", "{item.label}" }
+                                    }
+                                }
                             }
-                            div { class: "ui-nav-group-items",
-                            for item in group.items.iter() {
-                                {
-                                    let path_for_click = item.path.clone();
-                                    rsx! {
-                                        a {
-                                            class: if is_active(&active_path, &item.path) { "ui-nav-item active" } else { "ui-nav-item" },
-                                            href: "{item.path}",
-                                            onclick: move |event| {
-                                                event.prevent_default();
-                                                on_navigate.call(path_for_click.clone());
-                                                mobile_nav_open.set(false);
-                                            },
-                                            aria_current: if is_active(&active_path, &item.path) { "page" } else { "false" },
-                                            span { class: "ui-nav-icon", aria_hidden: "true",
-                                                EnterpriseIcon { name: nav_icon_name(&item.path).to_owned() }
+                        }
+                    }
+                    div { class: "ui-nav-section-label ui-nav-label", {shared_text(current_locale, "Workspaces", "พื้นที่ทำงาน")} }
+                    for group in nav_groups.iter() {
+                        {
+                            let authorized_items = group.items.iter().filter(|item| item.is_authorized()).collect::<Vec<_>>();
+                            let locked_items = group.items.iter().filter(|item| !item.is_authorized()).collect::<Vec<_>>();
+                            let locked_count = locked_items.len();
+                            let group_id = group.group_id.clone();
+                            let locked_region_id = format!("erpx-nav-locked-{group_id}");
+                            let disclosure = NavigationDisclosureState(expanded_navigation_groups);
+                            let show_locked = disclosure.is_expanded(&group_id);
+                            rsx! {
+                                KitDisclosure { class: "ui-nav-group", open: true,
+                                    summary { class: "ui-nav-group-heading",
+                                        span { class: "ui-nav-group-title", "{group.label}" }
+                                        span { class: "ui-nav-group-count", "{group.items.len()}" }
+                                    }
+                                    div { class: "ui-nav-group-items",
+                                        for item in authorized_items {
+                                            {
+                                                let path_for_click = item.path.clone();
+                                                rsx! {
+                                                    KitLink {
+                                                        class: if is_active(&active_path, &item.path) { "ui-nav-item active" } else { "ui-nav-item" },
+                                                        href: "{item.path}",
+                                                        onclick: move |event: MouseEvent| {
+                                                            event.prevent_default();
+                                                            on_navigate.call(path_for_click.clone());
+                                                            mobile_nav_open.set(false);
+                                                        },
+                                                        aria_current: if is_active(&active_path, &item.path) { "page" } else { "false" },
+                                                        span { class: "ui-nav-icon", aria_hidden: "true",
+                                                            EnterpriseIcon { name: nav_icon_name(&item.path).to_owned() }
+                                                        }
+                                                        span { class: "ui-nav-label", "{item.label}" }
+                                                    }
+                                                }
                                             }
-                                            span { class: "ui-nav-label", "{item.label}" }
+                                        }
+                                        if locked_count > 0 {
+                                            {
+                                                let group_id_for_toggle = group_id.clone();
+                                                rsx! {
+                                                    KitButton {
+                                                        variant: ButtonVariant::Ghost,
+                                                        class: "ui-nav-show-all ui-nav-label",
+                                                        r#type: "button",
+                                                        aria_expanded: show_locked.to_string(),
+                                                        aria_controls: locked_region_id.clone(),
+                                                        onclick: move |_| disclosure.toggle(&group_id_for_toggle),
+                                                        if show_locked {
+                                                            {shared_text(current_locale, "Show less", "แสดงน้อยลง")}
+                                                        } else {
+                                                            {format!("{} ({locked_count})", shared_text(current_locale, "Show all", "แสดงทั้งหมด"))}
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        div { id: locked_region_id, class: "ui-nav-locked-items",
+                                            if show_locked {
+                                                for item in locked_items {
+                                                    {
+                                                        let requirement = localized_navigation_requirement(item.required_role_keys(), current_locale);
+                                                        let accessible_label = format!("{} · {}", item.label, requirement);
+                                                        rsx! {
+                                                            LockedTooltipButton {
+                                                                wrapper_class: "ui-navigation-lock-tooltip",
+                                                                class: "ui-nav-item locked",
+                                                                accessible_label,
+                                                                requirement,
+                                                                span { class: "ui-nav-icon", aria_hidden: "true",
+                                                                    EnterpriseIcon { name: "lock".to_owned() }
+                                                                }
+                                                                span { class: "ui-nav-label", "{item.label}" }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
-                            }
                         }
                     }
+                    KitDisclosure { class: "ui-nav-group ui-nav-recents",
+                        summary { class: "ui-nav-group-heading",
+                            span { class: "ui-nav-group-title", {shared_text(current_locale, "Pinned & recent", "ปักหมุดและล่าสุด")} }
+                        }
+                        p { class: "ui-nav-empty ui-nav-label", {shared_text(current_locale, "Your authorized recent workspaces will appear here.", "พื้นที่ทำงานล่าสุดที่ได้รับอนุญาตจะแสดงที่นี่")} }
+                    }
                 }
-                div { class: "ui-nav-footer",
-                    LocaleToggle {}
-                    span { class: "ui-locale-name ui-nav-label", "{current_locale.native_name()}" }
-                    button {
-                        class: "ui-icon-button ui-theme-button",
-                        r#type: "button",
-                        aria_label: shared_text(current_locale, "Change color mode", "เปลี่ยนโหมดสี"),
-                        onclick: move |_| theme.toggle(),
-                        EnterpriseIcon { name: "theme".to_owned() }
-                        span { class: "ui-nav-label", {theme_mode_label(current_locale, theme.current())} }
+                    div { class: "ui-nav-footer",
+                        LocaleToggle {}
+                        span { class: "ui-locale-name ui-nav-label", "{current_locale.native_name()}" }
+                        KitButton {
+                            variant: ButtonVariant::Secondary,
+                            class: "ui-icon-button ui-theme-button",
+                            r#type: "button",
+                            aria_label: shared_text(current_locale, "Change color mode", "เปลี่ยนโหมดสี"),
+                            onclick: move |_| theme.toggle(),
+                            EnterpriseIcon { name: "theme".to_owned() }
+                            span { class: "ui-nav-label", {theme_mode_label(current_locale, theme.current())} }
+                        }
                     }
                 }
             }
             main { class: "ui-main",
                 header { class: "ui-topbar",
                     div { class: "ui-topbar-leading",
-                        button {
+                        KitButton {
+                            variant: ButtonVariant::Ghost,
                             class: "ui-icon-button ui-mobile-menu",
                             r#type: "button",
-                            aria_label: shared_text(current_locale, "Open navigation", "เปิดเมนูนำทาง"),
+                            aria_label: if *mobile_nav_open.read() {
+                                shared_text(current_locale, "Close navigation", "ปิดเมนูนำทาง")
+                            } else {
+                                shared_text(current_locale, "Open navigation", "เปิดเมนูนำทาง")
+                            },
                             aria_expanded: mobile_nav_open.read().to_string(),
-                            onclick: move |_| mobile_nav_open.set(true),
+                            onclick: move |_| {
+                                let next = !*mobile_nav_open.read();
+                                mobile_nav_open.set(next);
+                            },
                             EnterpriseIcon { name: "menu".to_owned() }
                         }
                         nav { class: "ui-breadcrumbs", aria_label: shared_text(current_locale, "Breadcrumb", "เส้นทางนำทาง"),
@@ -269,8 +574,15 @@ pub fn AppShell(
                         }
                     }
                     div { class: "ui-topbar-actions",
-                        if let Some(note) = header_note {
-                            span { class: "ui-header-note", "{note}" }
+                        KitButton {
+                            variant: ButtonVariant::Secondary,
+                            class: "ui-global-search-trigger",
+                            r#type: "button",
+                            aria_keyshortcuts: "Control+K Meta+K",
+                            onclick: move |_| command_open.set(true),
+                            EnterpriseIcon { name: "search".to_owned() }
+                            span { {shared_text(current_locale, "Search or jump to…", "ค้นหาหรือไปที่…")} }
+                            kbd { "⌘K" }
                         }
                         ScopeSelector {
                             label: locale.text(TranslationKey::Scope).to_string(),
@@ -278,10 +590,24 @@ pub fn AppShell(
                             selected: selected_scope,
                             on_change: on_scope_change,
                         }
-                        button {
+                        KitButton {
+                            variant: ButtonVariant::Ghost,
+                            class: "ui-icon-button ui-trust-button",
+                            r#type: "button",
+                            aria_label: shared_text(current_locale, "Trust and system status", "ความน่าเชื่อถือและสถานะระบบ"),
+                            onclick: move |_| trust_open.set(true),
+                            EnterpriseIcon { name: "shield".to_owned() }
+                        }
+                        KitButton {
+                            variant: ButtonVariant::Ghost,
                             class: "ui-profile-button",
                             r#type: "button",
                             aria_label: shared_text(current_locale, "Account and session", "บัญชีและเซสชัน"),
+                            aria_expanded: account_session_open.to_string(),
+                            aria_controls: account_session_open.then_some("erpx-account-session-dialog"),
+                            onmounted: move |event: MountedEvent| {
+                                account_session_focus_target.set(Some(event.data()));
+                            },
                             onclick: move |_| on_account_session.call(()),
                             span { class: "ui-profile-avatar", aria_hidden: "true", "{profile_avatar}" }
                             span { class: "ui-profile-copy",
@@ -303,55 +629,101 @@ pub fn AppShell(
             }
             Dialog {
                 open: *command_open.read(),
-                title: shared_text(current_locale, "Find a workspace", "ค้นหาพื้นที่ทำงาน").to_owned(),
+                title: shared_text(current_locale, "Search and actions", "ค้นหาและคำสั่ง").to_owned(),
                 on_close: move |_| command_open.set(false),
                 div { class: "ui-command-palette",
                     div { class: "ui-command-input",
                         EnterpriseIcon { name: "search".to_owned() }
-                        label { class: "sr-only", r#for: "erpx-command-search", {shared_text(current_locale, "Search authorized routes", "ค้นหาเส้นทางที่ได้รับอนุญาต")} }
-                        input {
+                        label { class: "sr-only", r#for: "erpx-command-search", {shared_text(current_locale, "Search product routes", "ค้นหาเส้นทางในผลิตภัณฑ์")} }
+                        KitInput {
                             id: "erpx-command-search",
                             r#type: "search",
                             value: "{command_query}",
-                            placeholder: shared_text(current_locale, "Search authorized workspaces and settings", "ค้นหาพื้นที่ทำงานและการตั้งค่าที่ได้รับอนุญาต"),
-                            autofocus: true,
-                            oninput: move |event| command_query.set(event.value()),
+                            placeholder: shared_text(current_locale, "Search My Work, processes, workspaces…", "ค้นหางานของฉัน กระบวนการ พื้นที่ทำงาน…"),
+                            oninput: move |event: FormEvent| command_query.set(event.value()),
                         }
                     }
                     div { class: "ui-command-results", role: "listbox",
                         if command_items.is_empty() {
-                            div { class: "ui-command-empty", {shared_text(current_locale, "No authorized route matches this search.", "ไม่มีเส้นทางที่ได้รับอนุญาตตรงกับการค้นหานี้")} }
+                            div { class: "ui-command-empty", {shared_text(current_locale, "No product route matches this search.", "ไม่มีเส้นทางในผลิตภัณฑ์ตรงกับการค้นหานี้")} }
                         }
                         for item in command_items {
                             {
-                                let path = item.path.clone();
-                                rsx! {
-                                    button {
-                                        class: "ui-command-result",
-                                        r#type: "button",
-                                        role: "option",
-                                        onclick: move |_| {
-                                            on_navigate.call(path.clone());
-                                            command_open.set(false);
-                                            command_query.set(String::new());
-                                        },
-                                        EnterpriseIcon { name: nav_icon_name(&item.path).to_owned() }
-                                        span { strong { "{item.label}" } small { "{item.path}" } }
-                                        kbd { "↵" }
+                                if item.is_authorized() {
+                                    let path = item.path.clone();
+                                    rsx! {
+                                        KitButton {
+                                            variant: ButtonVariant::Ghost,
+                                            class: "ui-command-result",
+                                            r#type: "button",
+                                            role: "option",
+                                            onclick: move |_| {
+                                                on_navigate.call(path.clone());
+                                                command_open.set(false);
+                                                command_query.set(String::new());
+                                            },
+                                            EnterpriseIcon { name: nav_icon_name(&item.path).to_owned() }
+                                            span { strong { "{item.label}" } small { {shared_text(current_locale, "Open destination", "เปิดปลายทาง")} } }
+                                            kbd { "↵" }
+                                        }
+                                    }
+                                } else {
+                                    let requirement = localized_navigation_requirement(item.required_role_keys(), current_locale);
+                                    let accessible_label = format!("{} · {}", item.label, requirement);
+                                    rsx! {
+                                        LockedTooltipButton {
+                                            wrapper_class: "ui-navigation-lock-tooltip ui-command-lock-tooltip",
+                                            class: "ui-command-result locked ui-command-lock-tooltip",
+                                            accessible_label,
+                                            requirement,
+                                            option_role: true,
+                                            EnterpriseIcon { name: "lock".to_owned() }
+                                            span {
+                                                strong { "{item.label}" }
+                                                small { {shared_text(current_locale, "Access requires another Role/Persona", "ต้องใช้ Role/Persona อื่น")} }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                    p { class: "ui-safe-note", {shared_text(current_locale, "Search is limited to server-authorized navigation. It does not index customer business records.", "การค้นหาจำกัดเฉพาะเมนูนำทางที่เซิร์ฟเวอร์อนุญาต และไม่จัดทำดัชนีระเบียนธุรกิจของลูกค้า")} }
+                    p { class: "ui-safe-note", {shared_text(current_locale, "Search includes discoverable product routes. Locked routes never bypass server authorization and customer records are not indexed.", "การค้นหารวมเส้นทางผลิตภัณฑ์ที่ค้นพบได้ เส้นทางที่ล็อกจะไม่ข้ามสิทธิ์ฝั่งเซิร์ฟเวอร์และไม่มีการจัดทำดัชนีระเบียนลูกค้า")} }
                 }
+            }
+            Dialog {
+                open: *trust_open.read(),
+                title: shared_text(current_locale, "Trust & System Status", "ความน่าเชื่อถือและสถานะระบบ").to_owned(),
+                on_close: move |_| trust_open.set(false),
+                div { class: "ui-trust-panel",
+                    div { class: "ui-trust-status",
+                        span { class: "ui-trust-dot", aria_hidden: "true" }
+                        div {
+                            strong { {shared_text(current_locale, "Enterprise controls active", "การควบคุมระดับองค์กรทำงานอยู่")} }
+                            p { {shared_text(current_locale, "Authorization and audit remain server-owned for every query and command.", "สิทธิ์และหลักฐานการตรวจสอบยังถูกควบคุมโดยเซิร์ฟเวอร์สำหรับทุกคำขอและคำสั่ง")} }
+                        }
+                    }
+                    if let Some(note) = header_note {
+                        KitDisclosure { class: "ui-trust-diagnostics",
+                            summary { {shared_text(current_locale, "Technical evidence", "หลักฐานทางเทคนิค")} }
+                            p { "{note}" }
+                        }
+                    }
+                }
+            }
             }
         }
     }
 }
 
 fn nav_icon_name(path: &str) -> &'static str {
-    if path.contains("customers") {
+    if path == "/work" {
+        "inbox"
+    } else if path == "/processes" {
+        "workflow"
+    } else if path == "/insights" {
+        "insights"
+    } else if path.contains("customers") {
         "customers"
     } else if path.contains("director") {
         "directory"
@@ -374,46 +746,37 @@ fn nav_icon_name(path: &str) -> &'static str {
     }
 }
 
-/// Fixed inline-SVG icon registry shared across every target. Icon names are
-/// presentation metadata and never interpreted as markup.
+/// Semantic ERPX icon registry backed by the pinned Lucide catalog. Icon names
+/// are presentation metadata and never interpreted as markup.
 #[component]
 pub fn EnterpriseIcon(name: String) -> Element {
-    let path = match name.as_str() {
-        "search" => "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm5 12 4 4",
-        "customers" => {
-            "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"
-        }
-        "directory" => "M3 5h6l2 2h10v12H3V5Zm4 7h10M7 16h7",
-        "support" => {
-            "M4 15v-3a8 8 0 0 1 16 0v3M4 15h3v5H5a1 1 0 0 1-1-1v-4Zm16 0h-3v5h2a1 1 0 0 0 1-1v-4Z"
-        }
-        "billing" => "M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6",
-        "settings" => {
-            "M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm7.4-3.5a7 7 0 0 0-.1-1l2-1.6-2-3.4-2.5 1a8 8 0 0 0-1.7-1L14.7 3h-4L10 6a8 8 0 0 0-1.8 1L5.8 6 3.8 9.4 6 11a7 7 0 0 0 0 2l-2.2 1.6 2 3.4 2.4-1a8 8 0 0 0 1.8 1l.7 3h4l.6-3a8 8 0 0 0 1.8-1l2.4 1 2-3.4-2.1-1.6a7 7 0 0 0 0-1Z"
-        }
-        "shield" => "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Zm-3-10 2 2 4-4",
-        "database" => {
-            "M4 6c0 2 3.6 4 8 4s8-2 8-4-3.6-4-8-4-8 2-8 4Zm0 0v6c0 2 3.6 4 8 4s8-2 8-4V6M4 12v6c0 2 3.6 4 8 4s8-2 8-4v-6"
-        }
-        "activity" => "M3 12h4l2-7 4 14 2-7h6",
-        "building" => "M4 22V3h12v19M16 9h4v13M8 7h4M8 11h4M8 15h4M8 19h4",
-        "menu" => "M4 6h16M4 12h16M4 18h16",
-        "panel" => "M4 4h16v16H4V4Zm6 0v16",
-        "theme" => "M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z",
-        "chevron" => "m9 18 6-6-6-6",
-        _ => "M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z",
-    };
-    rsx! {
-        svg {
-            class: "ui-icon",
-            view_box: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            stroke_width: "1.8",
-            stroke_linecap: "round",
-            stroke_linejoin: "round",
-            path { d: "{path}" }
-        }
+    let icon_attributes = vec![
+        Attribute::new("class", "ui-icon", None, false),
+        Attribute::new("aria-hidden", "true", None, false),
+        Attribute::new("focusable", "false", None, false),
+        Attribute::new("data-erpx-component", "icon", None, false),
+    ];
+    match name.as_str() {
+        "search" => rsx! { Search { size: 24, attributes: icon_attributes } },
+        "customers" => rsx! { Users { size: 24, attributes: icon_attributes } },
+        "directory" => rsx! { Folder { size: 24, attributes: icon_attributes } },
+        "support" => rsx! { Headphones { size: 24, attributes: icon_attributes } },
+        "billing" => rsx! { CreditCard { size: 24, attributes: icon_attributes } },
+        "settings" => rsx! { Settings { size: 24, attributes: icon_attributes } },
+        "shield" => rsx! { Shield { size: 24, attributes: icon_attributes } },
+        "database" => rsx! { Database { size: 24, attributes: icon_attributes } },
+        "activity" => rsx! { Activity { size: 24, attributes: icon_attributes } },
+        "inbox" => rsx! { Inbox { size: 24, attributes: icon_attributes } },
+        "workflow" => rsx! { Workflow { size: 24, attributes: icon_attributes } },
+        "insights" => rsx! { ChartNoAxesColumn { size: 24, attributes: icon_attributes } },
+        "building" => rsx! { Building2 { size: 24, attributes: icon_attributes } },
+        "menu" => rsx! { Menu { size: 24, attributes: icon_attributes } },
+        "close" => rsx! { X { size: 24, attributes: icon_attributes } },
+        "panel" => rsx! { PanelLeft { size: 24, attributes: icon_attributes } },
+        "theme" => rsx! { SunMoon { size: 24, attributes: icon_attributes } },
+        "lock" => rsx! { Lock { size: 24, attributes: icon_attributes } },
+        "chevron" => rsx! { ChevronDown { size: 24, attributes: icon_attributes } },
+        _ => rsx! { LayoutGrid { size: 24, attributes: icon_attributes } },
     }
 }
 
@@ -450,11 +813,11 @@ pub fn ScopeSelector(
     rsx! {
         div { class: "ui-scope-selector",
             label { r#for: "erpx-scope-selector", class: "ui-scope-label", "{label}" }
-            select {
+            KitSelect {
                 id: "erpx-scope-selector",
                 value: "{selected}",
                 aria_label: "{label}",
-                onchange: move |event| {
+                onchange: move |event: FormEvent| {
                     if let Some(value) = allowed_scope_selection(&event.value(), &allowed_ids) {
                         on_change.call(value);
                     }
@@ -619,7 +982,8 @@ pub fn LocaleToggle() -> Element {
         Locale::Th => shared_text(current, "Switch to Thai", "เปลี่ยนเป็นภาษาไทย"),
     };
     rsx! {
-        button {
+        KitButton {
+            variant: ButtonVariant::Ghost,
             class: "ui-icon-button ui-locale-toggle",
             r#type: "button",
             aria_label: accessible_label,
@@ -894,39 +1258,39 @@ pub fn CorporateIdentityEditor(
                 aside { class: "ui-brand-controls", aria_label: shared_text(locale, "Corporate identity tokens", "โทเค็นอัตลักษณ์องค์กร"),
                     section { class: "ui-brand-control-section",
                         div { class: "ui-brand-section-heading", h4 { {shared_text(locale, "Identity", "อัตลักษณ์")} } span { {shared_text(locale, "Typed display fields", "ฟิลด์แสดงผลที่กำหนดชนิด")} } }
-                        label { {shared_text(locale, "Display name", "ชื่อที่แสดง")} input { value: "{display_name}", maxlength: "96", disabled: !editable, oninput: move |event| display_name.set(event.value()) } }
-                        label { {shared_text(locale, "Short name", "ชื่อย่อ")} input { value: "{short_name}", maxlength: "16", disabled: !editable, oninput: move |event| short_name.set(event.value()) } }
+                        label { {shared_text(locale, "Display name", "ชื่อที่แสดง")} KitInput { value: "{display_name}", maxlength: "96", disabled: !editable, oninput: move |event: FormEvent| display_name.set(event.value()) } }
+                        label { {shared_text(locale, "Short name", "ชื่อย่อ")} KitInput { value: "{short_name}", maxlength: "16", disabled: !editable, oninput: move |event: FormEvent| short_name.set(event.value()) } }
                     }
                     section { class: "ui-brand-control-section",
                         div { class: "ui-brand-section-heading", h4 { {shared_text(locale, "Color", "สี")} } span { {shared_text(locale, "Light and dark required", "ต้องกำหนดทั้งโหมดสว่างและมืด")} } }
                         div { class: "ui-brand-color-grid",
-                            label { {shared_text(locale, "Light primary", "สีหลักโหมดสว่าง")} input { r#type: "color", value: "{light_primary}", disabled: !editable, oninput: move |event| light_primary.set(event.value()) } }
-                            label { {shared_text(locale, "Light accent", "สีเน้นโหมดสว่าง")} input { r#type: "color", value: "{light_accent}", disabled: !editable, oninput: move |event| light_accent.set(event.value()) } }
-                            label { {shared_text(locale, "Dark primary", "สีหลักโหมดมืด")} input { r#type: "color", value: "{dark_primary}", disabled: !editable, oninput: move |event| dark_primary.set(event.value()) } }
-                            label { {shared_text(locale, "Dark accent", "สีเน้นโหมดมืด")} input { r#type: "color", value: "{dark_accent}", disabled: !editable, oninput: move |event| dark_accent.set(event.value()) } }
+                            label { {shared_text(locale, "Light primary", "สีหลักโหมดสว่าง")} KitInput { r#type: "color", value: "{light_primary}", disabled: !editable, oninput: move |event: FormEvent| light_primary.set(event.value()) } }
+                            label { {shared_text(locale, "Light accent", "สีเน้นโหมดสว่าง")} KitInput { r#type: "color", value: "{light_accent}", disabled: !editable, oninput: move |event: FormEvent| light_accent.set(event.value()) } }
+                            label { {shared_text(locale, "Dark primary", "สีหลักโหมดมืด")} KitInput { r#type: "color", value: "{dark_primary}", disabled: !editable, oninput: move |event: FormEvent| dark_primary.set(event.value()) } }
+                            label { {shared_text(locale, "Dark accent", "สีเน้นโหมดมืด")} KitInput { r#type: "color", value: "{dark_accent}", disabled: !editable, oninput: move |event: FormEvent| dark_accent.set(event.value()) } }
                         }
                     }
                     section { class: "ui-brand-control-section",
                         div { class: "ui-brand-section-heading", h4 { {shared_text(locale, "Presentation", "การนำเสนอ")} } span { {shared_text(locale, "Curated values only", "ใช้เฉพาะค่าที่กำหนดไว้")} } }
-                        label { {shared_text(locale, "Font pack", "ชุดแบบอักษร")} select { value: font_pack.read().as_str(), disabled: !editable, onchange: move |event| if let Ok(value) = BrandFontPack::parse(&event.value()) { font_pack.set(value); },
+                        label { {shared_text(locale, "Font pack", "ชุดแบบอักษร")} KitSelect { value: font_pack.read().as_str(), disabled: !editable, onchange: move |event: FormEvent| if let Ok(value) = BrandFontPack::parse(&event.value()) { font_pack.set(value); },
                             option { value: "erpx_sans", "ERPX Sans" }
                             option { value: "corporate_sans", "Corporate Sans" }
                             option { value: "thai_formal", "Thai Formal" }
                             option { value: "system_ui", "System UI" }
                         } }
-                        label { {shared_text(locale, "Density", "ความหนาแน่น")} select { value: density.read().as_str(), disabled: !editable, onchange: move |event| density.set(match event.value().as_str() { "compact" => BrandDensity::Compact, "spacious" => BrandDensity::Spacious, _ => BrandDensity::Comfortable }),
+                        label { {shared_text(locale, "Density", "ความหนาแน่น")} KitSelect { value: density.read().as_str(), disabled: !editable, onchange: move |event: FormEvent| density.set(match event.value().as_str() { "compact" => BrandDensity::Compact, "spacious" => BrandDensity::Spacious, _ => BrandDensity::Comfortable }),
                             option { value: "compact", {shared_text(locale, "Compact", "กระชับ")} } option { value: "comfortable", {shared_text(locale, "Comfortable", "สบายตา")} } option { value: "spacious", {shared_text(locale, "Spacious", "โปร่ง")} }
                         } }
-                        label { {shared_text(locale, "Shape", "รูปทรง")} select { value: radius.read().as_str(), disabled: !editable, onchange: move |event| radius.set(match event.value().as_str() { "square" => BrandRadius::Square, "rounded" => BrandRadius::Rounded, _ => BrandRadius::Soft }),
+                        label { {shared_text(locale, "Shape", "รูปทรง")} KitSelect { value: radius.read().as_str(), disabled: !editable, onchange: move |event: FormEvent| radius.set(match event.value().as_str() { "square" => BrandRadius::Square, "rounded" => BrandRadius::Rounded, _ => BrandRadius::Soft }),
                             option { value: "square", {shared_text(locale, "Square", "เหลี่ยม")} } option { value: "soft", {shared_text(locale, "Soft", "นุ่มนวล")} } option { value: "rounded", {shared_text(locale, "Rounded", "โค้งมน")} }
                         } }
-                        label { {shared_text(locale, "Elevation", "ระดับเงา")} select { value: elevation.read().as_str(), disabled: !editable, onchange: move |event| elevation.set(match event.value().as_str() { "flat" => BrandElevation::Flat, "elevated" => BrandElevation::Elevated, _ => BrandElevation::Subtle }),
+                        label { {shared_text(locale, "Elevation", "ระดับเงา")} KitSelect { value: elevation.read().as_str(), disabled: !editable, onchange: move |event: FormEvent| elevation.set(match event.value().as_str() { "flat" => BrandElevation::Flat, "elevated" => BrandElevation::Elevated, _ => BrandElevation::Subtle }),
                             option { value: "flat", {shared_text(locale, "Flat", "เรียบ")} } option { value: "subtle", {shared_text(locale, "Subtle", "บางเบา")} } option { value: "elevated", {shared_text(locale, "Elevated", "ยกขึ้น")} }
                         } }
-                        label { {shared_text(locale, "Navigation", "การนำทาง")} select { value: navigation.read().as_str(), disabled: !editable, onchange: move |event| navigation.set(if event.value() == "solid" { BrandNavigation::Solid } else { BrandNavigation::Tinted }),
+                        label { {shared_text(locale, "Navigation", "การนำทาง")} KitSelect { value: navigation.read().as_str(), disabled: !editable, onchange: move |event: FormEvent| navigation.set(if event.value() == "solid" { BrandNavigation::Solid } else { BrandNavigation::Tinted }),
                             option { value: "solid", {shared_text(locale, "Solid rail", "แถบสีทึบ")} } option { value: "tinted", {shared_text(locale, "Tinted rail", "แถบสีอ่อน")} }
                         } }
-                        label { {shared_text(locale, "Motion", "การเคลื่อนไหว")} select { value: motion.read().as_str(), disabled: !editable, onchange: move |event| motion.set(match event.value().as_str() { "none" => BrandMotion::None, "standard" => BrandMotion::Standard, _ => BrandMotion::Subtle }),
+                        label { {shared_text(locale, "Motion", "การเคลื่อนไหว")} KitSelect { value: motion.read().as_str(), disabled: !editable, onchange: move |event: FormEvent| motion.set(match event.value().as_str() { "none" => BrandMotion::None, "standard" => BrandMotion::Standard, _ => BrandMotion::Subtle }),
                             option { value: "none", {shared_text(locale, "None", "ไม่มี")} } option { value: "subtle", {shared_text(locale, "Subtle", "นุ่มนวล")} } option { value: "standard", {shared_text(locale, "Standard", "มาตรฐาน")} }
                         } }
                     }
@@ -934,11 +1298,11 @@ pub fn CorporateIdentityEditor(
                 section { class: "ui-brand-preview-region", aria_label: shared_text(locale, "Live corporate identity preview", "ตัวอย่างอัตลักษณ์องค์กรแบบสด"),
                     div { class: "ui-brand-preview-toolbar",
                         div { role: "group", aria_label: shared_text(locale, "Preview device", "อุปกรณ์ตัวอย่าง"),
-                            for (device, label) in [("desktop", shared_text(locale, "Desktop", "เดสก์ท็อป")), ("tablet", shared_text(locale, "Tablet", "แท็บเล็ต")), ("mobile", shared_text(locale, "Mobile", "มือถือ"))] { button { class: if preview_device.read().as_str() == device { "active" } else { "" }, r#type: "button", onclick: move |_| preview_device.set(device.to_owned()), "{label}" } }
+                            for (device, label) in [("desktop", shared_text(locale, "Desktop", "เดสก์ท็อป")), ("tablet", shared_text(locale, "Tablet", "แท็บเล็ต")), ("mobile", shared_text(locale, "Mobile", "มือถือ"))] { KitButton { class: if preview_device.read().as_str() == device { "active" } else { "" }, r#type: "button", onclick: move |_| preview_device.set(device.to_owned()), "{label}" } }
                         }
                         div { role: "group", aria_label: shared_text(locale, "Preview language and mode", "ภาษาและโหมดตัวอย่าง"),
-                            button { r#type: "button", onclick: move |_| preview_locale.set(if preview_locale.read().as_str() == "English" { "ไทย".to_owned() } else { "English".to_owned() }), "{preview_locale}" }
-                            button { r#type: "button", onclick: move |_| preview_theme.set(if preview_theme.read().as_str() == "light" { "dark".to_owned() } else { "light".to_owned() }), "{preview_theme}" }
+                            KitButton { r#type: "button", onclick: move |_| preview_locale.set(if preview_locale.read().as_str() == "English" { "ไทย".to_owned() } else { "English".to_owned() }), "{preview_locale}" }
+                            KitButton { r#type: "button", onclick: move |_| preview_theme.set(if preview_theme.read().as_str() == "light" { "dark".to_owned() } else { "light".to_owned() }), "{preview_theme}" }
                         }
                     }
                     div { class: "{preview_class}", style: "{preview_style}",
@@ -947,7 +1311,7 @@ pub fn CorporateIdentityEditor(
                                 nav { span { class: "active", {if preview_locale.read().as_str() == "ไทย" { "แดชบอร์ด" } else { "Dashboard" }} } span { {if preview_locale.read().as_str() == "ไทย" { "การเงิน" } else { "Finance" }} } span { {if preview_locale.read().as_str() == "ไทย" { "บุคลากรและบทบาท" } else { "People & roles" }} } span { {if preview_locale.read().as_str() == "ไทย" { "การตั้งค่า" } else { "Settings" }} } }
                             }
                             main {
-                                header { small { "{preview_locale} · {scope_label}" } button { {if preview_locale.read().as_str() == "ไทย" { "การดำเนินการหลัก" } else { "Primary action" }} } }
+                                header { small { "{preview_locale} · {scope_label}" } KitButton { {if preview_locale.read().as_str() == "ไทย" { "การดำเนินการหลัก" } else { "Primary action" }} } }
                                 div { class: "ui-brand-preview-content",
                                     div { class: "ui-brand-preview-kpis", for (label, value) in if preview_locale.read().as_str() == "ไทย" { [("รายการอนุมัติที่เปิดอยู่", "12"), ("บริการที่ปกติ", "9/10"), ("ความใหม่ของไดเรกทอรี", "30 วินาที")] } else { [("Open approvals", "12"), ("Healthy services", "9/10"), ("Directory freshness", "30s")] } { article { small { "{label}" } strong { "{value}" } } } }
                                     article { class: "ui-brand-preview-table", h5 { {if preview_locale.read().as_str() == "ไทย" { "งานล่าสุด" } else { "Recent work" }} }
@@ -969,8 +1333,8 @@ pub fn CorporateIdentityEditor(
                                     let is_parent_locked = parent_locked.contains(&category);
                                     let is_locked = locked_categories.read().contains(&category);
                                     rsx! { label { class: if is_parent_locked { "locked-by-parent" } else { "" },
-                                        input { r#type: "checkbox", checked: is_locked || is_parent_locked, disabled: !editable || is_parent_locked,
-                                            onchange: move |event| { let mut next = locked_categories.read().clone(); if event.checked() { next.insert(category); } else { next.remove(&category); } locked_categories.set(next); }
+                                        KitInput { r#type: "checkbox", checked: is_locked || is_parent_locked, disabled: !editable || is_parent_locked,
+                                            onchange: move |event: FormEvent| { let mut next = locked_categories.read().clone(); if event.checked() { next.insert(category); } else { next.remove(&category); } locked_categories.set(next); }
                                         }
                                         span { "{category.as_str()}" }
                                         if is_parent_locked { small { {shared_text(locale, "Inherited · locked by parent", "สืบทอด · ล็อกโดยระดับแม่")} } }
@@ -986,13 +1350,13 @@ pub fn CorporateIdentityEditor(
                     }
                     if editable {
                         section { h4 { {shared_text(locale, "Publish", "เผยแพร่")} }
-                            label { {shared_text(locale, "Reason", "เหตุผล")} textarea { value: "{reason}", maxlength: "240", oninput: move |event| reason.set(event.value()), placeholder: shared_text(locale, "Required publication reason", "ระบุเหตุผลที่ต้องเผยแพร่") } }
-                            label { {shared_text(locale, "Fresh MFA", "MFA ล่าสุด")} input { r#type: "password", value: "{mfa_code}", autocomplete: "one-time-code", oninput: move |event| mfa_code.set(event.value()) } }
-                            label { {shared_text(locale, "Immutable rollback source version", "เวอร์ชันต้นทางแบบแก้ไขไม่ได้สำหรับ rollback")} input { r#type: "number", min: "1", value: "{rollback_source_version}", oninput: move |event| rollback_source_version.set(event.value()) } }
+                            label { {shared_text(locale, "Reason", "เหตุผล")} KitTextarea { value: "{reason}", maxlength: "240", oninput: move |event: FormEvent| reason.set(event.value()), placeholder: shared_text(locale, "Required publication reason", "ระบุเหตุผลที่ต้องเผยแพร่") } }
+                            label { {shared_text(locale, "Fresh MFA", "MFA ล่าสุด")} KitInput { r#type: "password", value: "{mfa_code}", autocomplete: "one-time-code", oninput: move |event: FormEvent| mfa_code.set(event.value()) } }
+                            label { {shared_text(locale, "Immutable rollback source version", "เวอร์ชันต้นทางแบบแก้ไขไม่ได้สำหรับ rollback")} KitInput { r#type: "number", min: "1", value: "{rollback_source_version}", oninput: move |event: FormEvent| rollback_source_version.set(event.value()) } }
                             div { class: "ui-brand-action-row",
-                                button { class: "ui-button", r#type: "button", disabled: save_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::SaveDraft, submission: submission.clone() }); } }, {shared_text(locale, "Save draft", "บันทึกฉบับร่าง")} }
-                                button { class: "ui-button primary", r#type: "button", disabled: publish_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Publish, submission: submission.clone() }); } }, {shared_text(locale, "Publish with MFA", "เผยแพร่ด้วย MFA")} }
-                                button { class: "ui-button danger", r#type: "button", disabled: rollback_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Rollback, submission: submission.clone() }); } }, {shared_text(locale, "Rollback with MFA", "Rollback ด้วย MFA")} }
+                                KitButton { class: "ui-button", r#type: "button", disabled: save_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::SaveDraft, submission: submission.clone() }); } }, {shared_text(locale, "Save draft", "บันทึกฉบับร่าง")} }
+                                KitButton { class: "ui-button primary", r#type: "button", disabled: publish_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Publish, submission: submission.clone() }); } }, {shared_text(locale, "Publish with MFA", "เผยแพร่ด้วย MFA")} }
+                                KitButton { class: "ui-button danger", r#type: "button", disabled: rollback_disabled, onclick: { let submission = submission.clone(); move |_| if let Some(handler) = on_action { handler.call(CorporateIdentityEditorAction { kind: CorporateIdentityEditorActionKind::Rollback, submission: submission.clone() }); } }, {shared_text(locale, "Rollback with MFA", "Rollback ด้วย MFA")} }
                             }
                         }
                     } else {
@@ -1041,7 +1405,7 @@ pub fn TextField(
                 "{label}"
                 if required { span { class: "ui-required", aria_label: shared_text(locale, "required", "จำเป็น"), " *" } }
             }
-            input {
+            KitInput {
                 id: "{input_id}",
                 name: "{name}",
                 r#type: "text",
@@ -1050,7 +1414,7 @@ pub fn TextField(
                 required: required,
                 aria_invalid: if has_error { "true" } else { "false" },
                 aria_describedby: described_by,
-                oninput: move |event| oninput.call(event),
+                oninput: move |event: FormEvent| oninput.call(event),
             }
             if let Some(help) = help {
                 small { id: "{help_id}", class: "ui-field-help", "{help}" }
@@ -1145,7 +1509,7 @@ pub fn DataTable(
     let column_count = columns.len().max(1);
     rsx! {
         div { class: "ui-table-wrap",
-            table { class: "ui-table",
+            KitTable { class: "ui-table",
                 caption { class: "sr-only", "{caption}" }
                 thead {
                     tr {
@@ -1166,26 +1530,11 @@ pub fn DataTable(
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum DialogKeyboardAction {
-    Close,
-    FocusNext,
-    FocusPrevious,
-    Ignore,
-}
-
-fn dialog_keyboard_action(key: &str, shift: bool) -> DialogKeyboardAction {
-    match key {
-        "Escape" => DialogKeyboardAction::Close,
-        "Tab" if shift => DialogKeyboardAction::FocusPrevious,
-        "Tab" => DialogKeyboardAction::FocusNext,
-        _ => DialogKeyboardAction::Ignore,
-    }
-}
-
 fn focus_mounted_target(target: ReadSignal<Option<Rc<MountedData>>>) {
     if let Some(target) = target.read().clone() {
-        spawn(async move {
+        // Dialog owners may conditionally unmount immediately after `on_open_change(false)`.
+        // Keep the focus task alive beyond that component scope so restoration is reliable.
+        spawn_forever(async move {
             let _ = target.set_focus(true).await;
         });
     }
@@ -1207,16 +1556,12 @@ pub fn Dialog(
     #[props(default)] restore_focus: ReadSignal<Option<Rc<MountedData>>>,
     children: Element,
 ) -> Element {
-    let locale = current_locale();
     // Scope IDs are stable for the lifetime of a mounted component and avoid duplicate
     // aria-labelledby/aria-describedby targets when a page renders more than one dialog.
     let scope_id = current_scope_id().0;
     let dialog_id = format!("erpx-dialog-{scope_id}");
     let title_id = format!("erpx-dialog-title-{scope_id}");
     let body_id = format!("erpx-dialog-body-{scope_id}");
-    let mut close_button = use_signal(|| None::<Rc<MountedData>>);
-    let close_button_for_start_guard = close_button;
-    let close_button_for_end_guard = close_button;
     let mut previous_open = use_signal(|| open);
     let restore_focus_on_transition = restore_focus;
     use_effect(use_reactive!(|open| {
@@ -1234,97 +1579,42 @@ pub fn Dialog(
         }
     });
 
-    if !open {
-        return rsx! {};
-    }
     let title = safe_display_text(&title);
     let close_label = dialog_close_label();
-    let dialog_role = "dialog";
-    let aria_modal = "true";
-    let escape_key = "Escape";
-    let focus_trap = "true";
     let focus_restore = if restore_focus.read().is_some() {
         "true"
     } else {
         "caller-target-required"
     };
-    let focus_guard_label = shared_text(locale, "Dialog focus boundary", "ขอบเขตโฟกัสของกล่องโต้ตอบ");
-    let start_focus_guard = "start";
-    let end_focus_guard = "end";
     rsx! {
-        div {
-            class: "ui-dialog-backdrop",
-            role: "presentation",
-            "data-dialog-backdrop": "{focus_trap}",
-            onclick: move |_| on_close.call(()),
-            div {
-                class: "ui-dialog",
-                id: "{dialog_id}",
-                role: "{dialog_role}",
-                aria_modal: "{aria_modal}",
-                aria_labelledby: "{title_id}",
-                aria_describedby: "{body_id}",
-                aria_keyshortcuts: "{escape_key}",
-                "data-dialog-focus-trap": "{focus_trap}",
-                "data-dialog-focus-restore": "{focus_restore}",
-                tabindex: "-1",
-                onclick: move |event| event.stop_propagation(),
-                onkeydown: move |event| {
-                    let key = event.data.key().to_string();
-                    let action = dialog_keyboard_action(&key, event.data.modifiers().shift());
-                    match action {
-                        DialogKeyboardAction::Close => {
-                            event.prevent_default();
-                            event.stop_propagation();
-                            on_close.call(());
-                        }
-                        // Native sequential focus moves through the dialog's focus guards. Their
-                        // focus handlers wrap both forward and reverse traversal without a
-                        // renderer-specific DOM API.
-                        DialogKeyboardAction::FocusNext | DialogKeyboardAction::FocusPrevious => {}
-                        DialogKeyboardAction::Ignore => {}
-                    }
-                },
-                span {
-                    class: "sr-only",
-                    tabindex: "0",
-                    aria_label: "{focus_guard_label}",
-                    "data-dialog-focus-guard": "{start_focus_guard}",
-                    onfocus: move |_| async move {
-                        if let Some(button) = close_button_for_start_guard.read().clone() {
-                            let _ = button.set_focus(true).await;
-                        }
-                    },
-                }
-                header { class: "ui-dialog-header",
-                    h2 { id: "{title_id}", "{title}" }
-                    button {
-                        class: "ui-icon-button",
-                        r#type: "button",
-                        aria_label: "{close_label}",
-                        autofocus: true,
-                        onmounted: move |event| async move {
-                            let button = event.data();
-                            close_button.set(Some(button.clone()));
-                            let _ = button.set_focus(true).await;
-                        },
-                        onclick: move |_| on_close.call(()),
-                        "×"
-                    }
-                }
-                section { id: "{body_id}", class: "ui-dialog-body", {children} }
-                span {
-                    class: "sr-only",
-                    tabindex: "0",
-                    aria_label: "{focus_guard_label}",
-                    "data-dialog-focus-guard": "{end_focus_guard}",
-                    onfocus: move |_| async move {
-                        if let Some(button) = close_button_for_end_guard.read().clone() {
-                            let _ = button.set_focus(true).await;
-                        }
-                    },
+        KitDialog {
+            id: dialog_id,
+            open,
+            on_open_change: move |next_open: bool| if !next_open { on_close.call(()); },
+            class: "ui-dialog",
+            aria_labelledby: title_id.clone(),
+            aria_describedby: body_id.clone(),
+            aria_keyshortcuts: "Escape",
+            "data-erpx-component": "dialog",
+            "data-dialog-backdrop": "true",
+            "data-dialog-focus-trap": "true",
+            "data-dialog-focus-restore": focus_restore,
+            header { class: "ui-dialog-header",
+                KitDialogTitle { id: title_id, "{title}" }
+                KitButton {
+                    class: "ui-icon-button",
+                    variant: ButtonVariant::Ghost,
+                    size: ButtonSize::IconSm,
+                    r#type: "button",
+                    aria_label: "{close_label}",
+                    "data-erpx-component": "button",
+                    "data-tone": "ghost",
+                    "data-size": "icon-sm",
+                    onclick: move |_| on_close.call(()),
+                    "×"
                 }
             }
+            section { id: "{body_id}", class: "ui-dialog-body", {children} }
         }
     }
 }
@@ -1391,11 +1681,11 @@ pub fn StatePanel(
             h3 { id: "{title_id}", "{title.as_str()}" }
             p { id: "{message_id}", "{message.as_str()}" }
             if let (Some(label), Some(on_action)) = (action_label, on_action) {
-                button {
+                KitButton {
                     class: "ui-button secondary",
                     r#type: "button",
                     aria_label: "{label.as_str()}",
-                    onclick: move |event| on_action.call(event),
+                    onclick: move |event: MouseEvent| on_action.call(event),
                     "{label.as_str()}"
                 }
             }
@@ -1528,9 +1818,8 @@ fn is_active(active_path: &str, item_path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        DialogKeyboardAction, SafeUiText, allowed_scope_selection, dialog_keyboard_action,
-        is_active, safe_action_label, safe_banner_text, safe_field_name, safe_input_value,
-        safe_opaque_value,
+        SafeUiText, allowed_scope_selection, is_active, safe_action_label, safe_banner_text,
+        safe_field_name, safe_input_value, safe_opaque_value,
     };
 
     #[test]
@@ -1580,26 +1869,6 @@ mod tests {
         assert_eq!(
             allowed_scope_selection("access_token=secret", &allowed),
             None
-        );
-    }
-
-    #[test]
-    fn dialog_keyboard_policy_closes_only_on_escape_and_preserves_tab_direction() {
-        assert_eq!(
-            dialog_keyboard_action("Escape", false),
-            DialogKeyboardAction::Close
-        );
-        assert_eq!(
-            dialog_keyboard_action("Tab", false),
-            DialogKeyboardAction::FocusNext
-        );
-        assert_eq!(
-            dialog_keyboard_action("Tab", true),
-            DialogKeyboardAction::FocusPrevious
-        );
-        assert_eq!(
-            dialog_keyboard_action("Enter", false),
-            DialogKeyboardAction::Ignore
         );
     }
 }

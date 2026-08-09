@@ -183,9 +183,11 @@ impl SqlxWebSessionStore {
                      access_expires_at, refresh_expires_at, last_used_at, mru_position,
                      active_role_source, active_role_selection_id, active_role_key,
                      active_scope_key, authorization_context_version,
-                     development_context_nonce, development_context_ciphertext)
+                     development_context_nonce, development_context_ciphertext,
+                     development_role_source, development_role_selection_id,
+                     development_role_key, development_scope_key)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-                         $13, $14, $15, $16, $17, $18, $19)",
+                         $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)",
             )
             .bind(bundle.id)
             .bind(account.session_id)
@@ -229,6 +231,30 @@ impl SqlxWebSessionStore {
                 development_context
                     .as_ref()
                     .map(|encrypted| encrypted.ciphertext.as_slice()),
+            )
+            .bind(
+                account
+                    .development_active_role
+                    .as_ref()
+                    .map(|role| &role.source),
+            )
+            .bind(
+                account
+                    .development_active_role
+                    .as_ref()
+                    .map(|role| &role.selection_id),
+            )
+            .bind(
+                account
+                    .development_active_role
+                    .as_ref()
+                    .and_then(|role| role.role_key.as_ref()),
+            )
+            .bind(
+                account
+                    .development_active_role
+                    .as_ref()
+                    .and_then(|role| role.scope_key.as_ref()),
             )
             .execute(&mut **transaction)
             .await
@@ -307,7 +333,9 @@ impl WebSessionStore for SqlxWebSessionStore {
                     access_expires_at, refresh_expires_at, last_used_at,
                     active_role_source, active_role_selection_id, active_role_key,
                     active_scope_key, authorization_context_version,
-                    development_context_nonce, development_context_ciphertext
+                    development_context_nonce, development_context_ciphertext,
+                    development_role_source, development_role_selection_id,
+                    development_role_key, development_scope_key
              FROM erpx_web.session_accounts
              WHERE bundle_id = $1
              ORDER BY mru_position",
@@ -377,6 +405,25 @@ impl WebSessionStore for SqlxWebSessionStore {
                     &refresh_ciphertext,
                 )?,
                 development_context_token,
+                development_active_role: match (
+                    row.try_get::<Option<String>, _>("development_role_source")
+                        .map_err(|_| WebSessionError::Unavailable)?,
+                    row.try_get::<Option<String>, _>("development_role_selection_id")
+                        .map_err(|_| WebSessionError::Unavailable)?,
+                ) {
+                    (Some(source), Some(selection_id)) => Some(SafeActiveRole {
+                        source,
+                        selection_id,
+                        role_key: row
+                            .try_get("development_role_key")
+                            .map_err(|_| WebSessionError::Unavailable)?,
+                        scope_key: row
+                            .try_get("development_scope_key")
+                            .map_err(|_| WebSessionError::Unavailable)?,
+                    }),
+                    (None, None) => None,
+                    _ => return Err(WebSessionError::Protection),
+                },
                 access_expires_at: row
                     .try_get("access_expires_at")
                     .map_err(|_| WebSessionError::Unavailable)?,

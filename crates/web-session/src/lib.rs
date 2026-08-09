@@ -111,6 +111,7 @@ pub struct WebSessionAccount {
     pub access_token: SensitiveToken,
     pub refresh_token: SensitiveToken,
     pub development_context_token: Option<SensitiveToken>,
+    pub development_active_role: Option<SafeActiveRole>,
     pub access_expires_at: DateTime<Utc>,
     pub refresh_expires_at: DateTime<Utc>,
     pub last_used_at: DateTime<Utc>,
@@ -130,11 +131,25 @@ impl WebSessionAccount {
                 .active_role
                 .as_ref()
                 .is_some_and(|role| role.validate().is_err())
+            || self
+                .development_active_role
+                .as_ref()
+                .is_some_and(|role| role.validate().is_err())
+            || (self.development_active_role.is_some() && self.development_context_token.is_none())
             || self.authorization_context_version == Some(0)
         {
             return Err(WebSessionError::Invalid);
         }
         Ok(())
+    }
+
+    /// Return the credential-free role and scope that authorize the current
+    /// browser view. A bounded development persona may temporarily override
+    /// the controller's durable role without destroying that role.
+    pub fn effective_active_role(&self) -> Option<&SafeActiveRole> {
+        self.development_active_role
+            .as_ref()
+            .or(self.active_role.as_ref())
     }
 }
 
@@ -264,8 +279,8 @@ impl SafeWebSessionSnapshot {
                 .map_err(|_| WebSessionError::Invalid)?,
             access_expires_at: Some(active.access_expires_at),
             refresh_expires_at: Some(active.refresh_expires_at),
-            role_selection_required: active.active_role.is_none(),
-            active_role: active.active_role.clone(),
+            role_selection_required: active.effective_active_role().is_none(),
+            active_role: active.effective_active_role().cloned(),
         })
     }
 }
@@ -304,6 +319,7 @@ mod tests {
             access_token: SensitiveToken::new("access-secret").unwrap(),
             refresh_token: SensitiveToken::new("refresh-secret").unwrap(),
             development_context_token: None,
+            development_active_role: None,
             access_expires_at: at + Duration::minutes(5),
             refresh_expires_at: at + Duration::days(30),
             last_used_at: at,
@@ -366,6 +382,51 @@ mod tests {
             }
             .validate()
             .is_err()
+        );
+    }
+
+    #[test]
+    fn development_role_temporarily_overrides_the_durable_role() {
+        let at = Utc::now();
+        let mut account = account(at);
+        account.active_role = Some(SafeActiveRole {
+            source: "local".into(),
+            selection_id: "controller".into(),
+            role_key: Some("platform_admin".into()),
+            scope_key: Some("platform".into()),
+        });
+        account.development_context_token = Some(SensitiveToken::new("context-token").unwrap());
+        account.development_active_role = Some(SafeActiveRole {
+            source: "local".into(),
+            selection_id: "demo-tenant:finance_operator".into(),
+            role_key: Some("finance_operator".into()),
+            scope_key: Some("branch:all".into()),
+        });
+        let bundle = WebSessionBundle {
+            id: Uuid::new_v4(),
+            selector_digest: WebSessionSelector::from_bytes([11; 32]).digest(),
+            active_session_id: account.session_id,
+            expires_at: account.refresh_expires_at,
+            accounts: vec![account],
+            version: 1,
+            created_at: at,
+            updated_at: at,
+        };
+
+        let snapshot = SafeWebSessionSnapshot::from_bundle(&bundle).unwrap();
+        let effective = snapshot.active_role.unwrap();
+        assert_eq!(effective.role_key.as_deref(), Some("finance_operator"));
+        assert_eq!(effective.scope_key.as_deref(), Some("branch:all"));
+        assert_eq!(
+            bundle
+                .active_account()
+                .unwrap()
+                .active_role
+                .as_ref()
+                .unwrap()
+                .role_key
+                .as_deref(),
+            Some("platform_admin")
         );
     }
 }

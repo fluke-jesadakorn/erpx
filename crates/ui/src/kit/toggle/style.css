@@ -1,0 +1,33 @@
+.dx-toggle {
+  display: inline-flex;
+  width: fit-content;
+  min-width: 2rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding-right: 0.5rem;
+  padding-left: 0.5rem;
+  border: none;
+  border-radius: 0.5rem;
+  background-color: transparent;
+  color: var(--erpx-text);
+  font-size: 14px;
+  outline: none;
+  transition: background-color 150ms, color 150ms, outline-color 150ms;
+}
+
+.dx-toggle:hover, .dx-toggle:focus-visible {
+  background-color: var(--erpx-surface-raised);
+  cursor: pointer;
+}
+
+.dx-toggle:focus-visible {
+  outline: 2px solid var(--erpx-focus);
+  outline-offset: 2px;
+}
+
+.dx-toggle[data-state="on"] {
+  background-color: var(--erpx-border-strong);
+  color: var(--erpx-text);
+}
+

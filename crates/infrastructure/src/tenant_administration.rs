@@ -195,7 +195,7 @@ impl SqlxTenantAdministrationStore {
              LIMIT 2",
         )
         .bind(root_holding_id)
-        .fetch_all(&self.control.pools.read)
+        .fetch_all(&self.control.pools.write)
         .await?;
         match rows.as_slice() {
             [] => Ok(None),

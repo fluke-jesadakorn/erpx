@@ -3,7 +3,7 @@ use std::{
     error::Error,
     fs::{self, File, OpenOptions},
     io::{Seek, SeekFrom, Write},
-    os::unix::fs::OpenOptionsExt,
+    os::unix::fs::{OpenOptionsExt, PermissionsExt},
     path::{Path, PathBuf},
     process::{Command, ExitStatus, Stdio},
     time::{Duration, Instant, SystemTime},
@@ -13,6 +13,8 @@ use fs2::FileExt;
 
 #[path = "../affected.rs"]
 mod affected;
+#[path = "../architecture.rs"]
+mod architecture;
 #[path = "../cache.rs"]
 mod cache;
 
@@ -20,6 +22,10 @@ type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
 const POSTGRES_DATA: &str = "/Users/fluke/erpx-postgres-data";
 const POSTGRES_CTL: &str = "/opt/homebrew/opt/postgresql@18/bin/pg_ctl";
+const WAL_SPOOL: &str = "/Users/fluke/erpx-wal-spool";
+const MINIO_PITR_CHAIN: &str =
+    "/Users/fluke/erpx-minio-data/erpx-platform-pitr/platform/erpx-local-pg18/chains/local-chain";
+const PITR_LEASE_FILE: &str = "pitr/rehearsal-lease.json";
 
 #[derive(Clone, Copy)]
 struct ServiceRecord {
@@ -451,7 +457,7 @@ fn run() -> TaskResult {
             ],
         ),
         Route::TestAffected { dry_run } => run_affected(&root, dry_run),
-        Route::Architecture => architecture_scan(&root),
+        Route::Architecture => architecture::scan(&root),
         Route::CacheStatus => cache::status(&root),
         Route::CachePrune {
             dry_run,
@@ -554,6 +560,7 @@ fn print_help() {
          cargo xtask cache status\n\
          cargo xtask cache prune [--dry-run] [--incremental]\n\
          cargo xtask verify\n\
+         cargo xtask verify-web-production\n\
          cargo xtask verify-platforms\n\n\
          integration harnesses:\n  {}",
         HARNESSES
@@ -562,195 +569,6 @@ fn print_help() {
             .collect::<Vec<_>>()
             .join("\n  ")
     );
-}
-
-fn architecture_scan(root: &Path) -> TaskResult {
-    affected::validate_workspace(root)?;
-    let context_root = root.join("crates/contexts");
-    if context_root.is_dir() {
-        for entry in fs::read_dir(&context_root)? {
-            let path = entry?.path();
-            if !path.is_dir() {
-                continue;
-            }
-            let manifest = path.join("Cargo.toml");
-            if manifest.is_file() {
-                reject_manifest_dependencies(
-                    &manifest,
-                    &[
-                        "sqlx",
-                        "tonic",
-                        "prost",
-                        "dioxus",
-                        "erpx-domain",
-                        "erpx-infrastructure",
-                    ],
-                )?;
-                reject_context_dependency_edges(&manifest)?;
-            }
-            reject_rust_imports(
-                &path,
-                &["sqlx::", "tonic::", "prost::", "dioxus::", "erpx_domain::"],
-            )?;
-        }
-    }
-
-    let ui_foundation = root.join("crates/ui-foundation/src");
-    if ui_foundation.is_dir() {
-        reject_rust_imports(
-            &ui_foundation,
-            &["erpx_proto::", "tonic::", "prost::", "erpx_domain::"],
-        )?;
-    }
-
-    let web_session_manifest = root.join("crates/web-session/Cargo.toml");
-    if web_session_manifest.is_file() {
-        reject_manifest_dependencies(
-            &web_session_manifest,
-            &[
-                "sqlx",
-                "tonic",
-                "prost",
-                "dioxus",
-                "axum",
-                "erpx-infrastructure",
-            ],
-        )?;
-        reject_rust_imports(
-            &root.join("crates/web-session/src"),
-            &[
-                "sqlx::",
-                "tonic::",
-                "prost::",
-                "dioxus::",
-                "axum::",
-                "erpx_infrastructure::",
-            ],
-        )?;
-    }
-
-    // A feature gateway is a Console transport adapter and may translate the
-    // wire contract. Presenters and views remain transport/domain agnostic.
-    let console_features = root.join("apps/console/src/features");
-    if console_features.is_dir() {
-        for file in rust_files(&console_features)? {
-            let boundary_file = file
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| matches!(name, "presenter.rs" | "view.rs"));
-            if boundary_file {
-                reject_rust_imports(
-                    &file,
-                    &["erpx_proto::", "tonic::", "prost::", "erpx_domain::"],
-                )?;
-            }
-        }
-    }
-
-    let console_bff = root.join("apps/console/src/bff");
-    if console_bff.is_dir() {
-        reject_rust_imports(
-            &console_bff,
-            &["sqlx::", "erpx_infrastructure::", "erpx_web_session_sqlx::"],
-        )?;
-    }
-
-    let server_contexts = root.join("apps/server/src/contexts");
-    if server_contexts.is_dir() {
-        reject_rust_imports(&server_contexts, &["sqlx::", "PgPool", "PgConnection"])?;
-    }
-
-    let server_manifest = root.join("apps/server/Cargo.toml");
-    if server_manifest.is_file() {
-        reject_manifest_dependencies(&server_manifest, &["erpx-worker"])?;
-    }
-    let server_sources = root.join("apps/server/src");
-    if server_sources.is_dir() {
-        reject_rust_imports(&server_sources, &["erpx_worker::"])?;
-    }
-
-    println!("CQRS/DDD architecture boundaries passed");
-    Ok(())
-}
-
-fn reject_manifest_dependencies(path: &Path, forbidden: &[&str]) -> TaskResult {
-    let source = fs::read_to_string(path)?;
-    for line in source.lines() {
-        let dependency = line.split_once('=').map_or(line, |(name, _)| name).trim();
-        let dependency = dependency.strip_suffix(".workspace").unwrap_or(dependency);
-        if forbidden.contains(&dependency) {
-            return Err(format!(
-                "forbidden context-core dependency {dependency} in {}",
-                path.display()
-            )
-            .into());
-        }
-    }
-    Ok(())
-}
-
-fn reject_context_dependency_edges(path: &Path) -> TaskResult {
-    const ALLOWED_ERPX_DEPENDENCIES: &[&str] =
-        &["erpx-kernel", "erpx-cqrs", "erpx-integration-contracts"];
-    let source = fs::read_to_string(path)?;
-    for line in source.lines() {
-        let Some((name, _)) = line.split_once('=') else {
-            continue;
-        };
-        let dependency = name.trim();
-        let dependency = dependency.strip_suffix(".workspace").unwrap_or(dependency);
-        if dependency.starts_with("erpx-") && !ALLOWED_ERPX_DEPENDENCIES.contains(&dependency) {
-            return Err(format!(
-                "forbidden cross-context dependency {dependency} in {}",
-                path.display()
-            )
-            .into());
-        }
-    }
-    Ok(())
-}
-
-fn reject_rust_imports(path: &Path, forbidden: &[&str]) -> TaskResult {
-    let files = if path.is_file() {
-        vec![path.to_path_buf()]
-    } else {
-        rust_files(path)?
-    };
-    for file in files {
-        let source = fs::read_to_string(&file)?;
-        for (index, line) in source.lines().enumerate() {
-            let trimmed = line.trim_start();
-            if trimmed.starts_with("//") || trimmed.starts_with("#") {
-                continue;
-            }
-            if forbidden.iter().any(|token| line.contains(token)) {
-                return Err(format!(
-                    "forbidden architecture import in {}:{}",
-                    file.display(),
-                    index + 1
-                )
-                .into());
-            }
-        }
-    }
-    Ok(())
-}
-
-fn rust_files(path: &Path) -> TaskResult<Vec<PathBuf>> {
-    let mut pending = vec![path.to_path_buf()];
-    let mut files = Vec::new();
-    while let Some(directory) = pending.pop() {
-        for entry in fs::read_dir(directory)? {
-            let path = entry?.path();
-            if path.is_dir() {
-                pending.push(path);
-            } else if path.extension().is_some_and(|extension| extension == "rs") {
-                files.push(path);
-            }
-        }
-    }
-    files.sort();
-    Ok(files)
 }
 
 fn guarded_cargo(root: &Path, label: &str, args: &[&str]) -> TaskResult {
@@ -843,7 +661,7 @@ fn run_affected(root: &Path, dry_run: bool) -> TaskResult {
         execute_harness(root, harness, None)?;
     }
     if plan.architecture {
-        architecture_scan(root)?;
+        architecture::scan(root)?;
     }
     affected::commit_plan(root, &plan)?;
     cache_postflight(root, started, &[target]);
@@ -975,7 +793,111 @@ fn status(root: &Path) -> TaskResult {
             "unconfigured"
         }
     );
+    let (spool_segments, spool_bytes) = flat_private_file_summary(Path::new(WAL_SPOOL))?;
+    let (minio_objects, minio_bytes) = minio_pitr_summary()?;
+    let lease = runtime.join(PITR_LEASE_FILE);
+    if lease.is_file() {
+        let metadata = fs::symlink_metadata(&lease)?;
+        if metadata.file_type().is_symlink() || metadata.len() > 4 * 1024 {
+            return Err("unsafe local PITR rehearsal lease".into());
+        }
+        let value: serde_json::Value = serde_json::from_slice(&fs::read(lease)?)?;
+        let expires_at = value
+            .get("expires_at")
+            .and_then(serde_json::Value::as_str)
+            .ok_or("invalid local PITR rehearsal lease")?;
+        println!(
+            "local-pitr: rehearsal-active (expires {expires_at}, spool {spool_segments} segments/{}, MinIO {minio_objects} objects/{})",
+            display_bytes(spool_bytes),
+            display_bytes(minio_bytes),
+        );
+    } else {
+        println!(
+            "local-pitr: disabled (spool {spool_segments} segments/{}, MinIO {minio_objects} objects/{})",
+            display_bytes(spool_bytes),
+            display_bytes(minio_bytes),
+        );
+    }
     Ok(())
+}
+
+fn flat_private_file_summary(path: &Path) -> TaskResult<(u64, u64)> {
+    validate_fixed_root(path)?;
+    if !path.exists() {
+        return Ok((0, 0));
+    }
+    let metadata = fs::symlink_metadata(path)?;
+    if !metadata.file_type().is_dir()
+        || metadata.file_type().is_symlink()
+        || metadata.permissions().mode() & 0o077 != 0
+    {
+        return Err("unsafe local PITR spool".into());
+    }
+    let mut count = 0_u64;
+    let mut bytes = 0_u64;
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let metadata = fs::symlink_metadata(entry.path())?;
+        if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+            return Err("unsafe local PITR spool entry".into());
+        }
+        count = count.saturating_add(1);
+        bytes = bytes
+            .checked_add(metadata.len())
+            .ok_or("local PITR spool size overflow")?;
+    }
+    Ok((count, bytes))
+}
+
+fn tree_bytes(path: &Path) -> TaskResult<u64> {
+    if !path.exists() {
+        return Ok(0);
+    }
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink() {
+        return Err("local PITR MinIO data contains a symlink".into());
+    }
+    if metadata.file_type().is_file() {
+        return Ok(metadata.len());
+    }
+    if !metadata.file_type().is_dir() {
+        return Err("local PITR MinIO data contains an unsupported entry".into());
+    }
+    let mut bytes = 0_u64;
+    for entry in fs::read_dir(path)? {
+        bytes = bytes
+            .checked_add(tree_bytes(&entry?.path())?)
+            .ok_or("local PITR MinIO size overflow")?;
+    }
+    Ok(bytes)
+}
+
+fn minio_pitr_summary() -> TaskResult<(u64, u64)> {
+    let chain = Path::new(MINIO_PITR_CHAIN);
+    validate_fixed_root(chain)?;
+    let mut objects = 0_u64;
+    for kind in ["wal", "base"] {
+        let path = chain.join(kind);
+        if !path.exists() {
+            continue;
+        }
+        for entry in fs::read_dir(path)? {
+            let entry = entry?;
+            if entry.file_type()?.is_symlink() {
+                return Err("local PITR MinIO prefix contains a symlink".into());
+            }
+            objects = objects.saturating_add(1);
+        }
+    }
+    Ok((objects, tree_bytes(chain)?))
+}
+
+fn display_bytes(bytes: u64) -> String {
+    if bytes >= 1024 * 1024 * 1024 {
+        format!("{:.2} GiB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+    } else {
+        format!("{:.2} MiB", bytes as f64 / (1024.0 * 1024.0))
+    }
 }
 
 fn stop(root: &Path) -> TaskResult {

@@ -21,7 +21,7 @@ use erpx_domain::{
     },
     data_plane::{
         AgentCapability, ApprovalPolicy, BUSINESS_UNIT_CONFIGURATION_MANAGE,
-        BUSINESS_UNIT_CONFIGURATION_READ, BusinessUnitConfiguration,
+        BUSINESS_UNIT_CONFIGURATION_READ, BUSINESS_UNIT_ROUTE_CATALOG, BusinessUnitConfiguration,
         BusinessUnitDirectoryRoleMapping, BusinessUnitId, ConfigurationLayer,
         ConfigurationLifecycle, DataPlaneAgentBinding, DataPlaneAgentState, DesiredConfiguration,
         ObservedDataPlaneState, RootAccessApproval, RootAccessMode, RootAccessRequest,
@@ -56,19 +56,19 @@ use erpx_proto::{
         GetTenantInfrastructureResponse, IssueDataPlaneEnrollmentRequest,
         IssueDataPlaneEnrollmentResponse, ListCorporateIdentityHistoryRequest,
         ListCorporateIdentityHistoryResponse, ListRootAccessRequestsRequest,
-        ListRootAccessRequestsResponse, NavigationManifestGroup, NavigationManifestItem,
-        ProposeDesiredConfigurationRequest, ProposeDesiredConfigurationResponse,
-        PublishCorporateIdentityDraftRequest, PublishCorporateIdentityDraftResponse,
-        ReportDataPlaneObservationRequest, ReportDataPlaneObservationResponse,
-        RequestRootAccessRequest, RequestRootAccessResponse, ResolvedCorporateIdentityMessage,
-        RevokeRootAccessRequest, RevokeRootAccessResponse, RollbackCorporateIdentityRequest,
-        RollbackCorporateIdentityResponse, RootAccessCapabilityMessage, RootAccessQueueEntry,
-        RootAccessRequestMessage, RootAccessRevocationMessage,
-        SaveBusinessUnitConfigurationRequest, SaveBusinessUnitConfigurationResponse,
-        SaveCorporateIdentityDraftRequest, SaveCorporateIdentityDraftResponse,
-        SaveTenantInfrastructureProfileRequest, SaveTenantInfrastructureProfileResponse,
-        TenantDeploymentMode as ProtoDeploymentMode, TenantInfrastructureReadModel,
-        data_plane_agent_envelope,
+        ListRootAccessRequestsResponse, NavigationAccessState, NavigationManifestGroup,
+        NavigationManifestItem, ProposeDesiredConfigurationRequest,
+        ProposeDesiredConfigurationResponse, PublishCorporateIdentityDraftRequest,
+        PublishCorporateIdentityDraftResponse, ReportDataPlaneObservationRequest,
+        ReportDataPlaneObservationResponse, RequestRootAccessRequest, RequestRootAccessResponse,
+        ResolvedCorporateIdentityMessage, RevokeRootAccessRequest, RevokeRootAccessResponse,
+        RollbackCorporateIdentityRequest, RollbackCorporateIdentityResponse,
+        RootAccessCapabilityMessage, RootAccessQueueEntry, RootAccessRequestMessage,
+        RootAccessRevocationMessage, SaveBusinessUnitConfigurationRequest,
+        SaveBusinessUnitConfigurationResponse, SaveCorporateIdentityDraftRequest,
+        SaveCorporateIdentityDraftResponse, SaveTenantInfrastructureProfileRequest,
+        SaveTenantInfrastructureProfileResponse, TenantDeploymentMode as ProtoDeploymentMode,
+        TenantInfrastructureReadModel, data_plane_agent_envelope,
         data_plane_agent_service_server::{DataPlaneAgentService, DataPlaneAgentServiceServer},
         data_plane_control_service_server::{
             DataPlaneControlService, DataPlaneControlServiceServer,
@@ -1727,7 +1727,13 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             "query actor must match the authenticated principal",
         )?;
         let scope = proto_query_scope(request.get_ref().context.as_ref())?;
-        let groups = navigation_manifest_groups(&self.state, &claims, &scope).await;
+        let groups = navigation_manifest_groups(
+            &self.state,
+            &claims,
+            &scope,
+            request.get_ref().include_inaccessible,
+        )
+        .await;
         let audience = if matches!(scope, Scope::Platform) {
             "platform"
         } else {
@@ -2584,235 +2590,410 @@ fn history_entry_message(
     }
 }
 
+#[derive(Clone, Copy)]
+enum CandidateAudience {
+    Platform,
+    Tenant,
+    Any,
+}
+
+impl CandidateAudience {
+    fn matches_role_scope(self, scope: erpx_identity::DirectoryRoleTargetScope) -> bool {
+        match self {
+            Self::Platform => scope == erpx_identity::DirectoryRoleTargetScope::Platform,
+            Self::Tenant => scope != erpx_identity::DirectoryRoleTargetScope::Platform,
+            Self::Any => true,
+        }
+    }
+}
+
+fn navigation_required_role_keys(
+    audience: CandidateAudience,
+    required_permissions: &[String],
+) -> Vec<String> {
+    let mut role_keys = erpx_identity::permission_catalog()
+        .into_iter()
+        .filter(|entry| audience.matches_role_scope(entry.target_scope))
+        .filter(|entry| {
+            entry.permissions.iter().any(|permission| {
+                required_permissions
+                    .iter()
+                    .any(|required| permission == required)
+            })
+        })
+        .map(|entry| entry.role_key)
+        .collect::<Vec<_>>();
+    role_keys.sort();
+    role_keys.dedup();
+    role_keys
+}
+
 async fn navigation_manifest_groups(
     state: &AppState,
     claims: &erpx_identity::AccessTokenClaims,
     scope: &Scope,
+    include_inaccessible: bool,
 ) -> Vec<NavigationManifestGroup> {
     struct Candidate {
         route_id: &'static str,
         label: &'static str,
+        label_key: &'static str,
         path: &'static str,
         icon: &'static str,
-        permission: String,
+        permissions: Vec<String>,
+    }
+    struct GroupDefinition {
+        audience: CandidateAudience,
+        group_id: &'static str,
+        label: &'static str,
+        label_key: &'static str,
+        candidates: Vec<Candidate>,
     }
     async fn allowed(
         state: &AppState,
         claims: &erpx_identity::AccessTokenClaims,
         scope: &Scope,
+        target_tenant: Option<&str>,
         permission: &str,
     ) -> bool {
-        state
-            .auth
-            .authorize_role(&state.store, claims, scope, permission)
-            .await
-            .is_ok()
+        if matches!(scope, Scope::Platform) {
+            state
+                .auth
+                .authorize_role(&state.store, claims, scope, permission)
+                .await
+                .is_ok()
+        } else if let Some(target_tenant) = target_tenant {
+            state
+                .auth
+                .authorize_role_for_tenant(
+                    &state.store,
+                    claims,
+                    scope,
+                    permission,
+                    Some(target_tenant),
+                )
+                .await
+                .is_ok()
+        } else {
+            false
+        }
     }
     async fn group(
         state: &AppState,
         claims: &erpx_identity::AccessTokenClaims,
         scope: &Scope,
-        group_id: &str,
-        label: &str,
-        candidates: Vec<Candidate>,
+        target_tenant: Option<&str>,
+        include_inaccessible: bool,
+        definition: GroupDefinition,
     ) -> Option<NavigationManifestGroup> {
+        let GroupDefinition {
+            audience,
+            group_id,
+            label,
+            label_key,
+            candidates,
+        } = definition;
         let mut items = Vec::new();
         for candidate in candidates {
-            if allowed(state, claims, scope, &candidate.permission).await {
-                items.push(NavigationManifestItem {
-                    route_id: candidate.route_id.into(),
-                    label: candidate.label.into(),
-                    path: candidate.path.into(),
-                    icon: candidate.icon.into(),
-                    badge_count: 0,
-                    action_capabilities: navigation_action_capabilities(candidate.route_id)
+            let mut authorized = false;
+            // Audience describes the product surface and scopes canonical role hints; it is not
+            // an authorization boundary. Platform-scoped roles can legitimately administer a
+            // tenant when their assignment contains the requested tenant permission, while the
+            // target-aware query or command boundary still enforces the concrete tenant.
+            for permission in &candidate.permissions {
+                if allowed(state, claims, scope, target_tenant, permission).await {
+                    authorized = true;
+                    break;
+                }
+            }
+            if !authorized && !include_inaccessible {
+                continue;
+            }
+            let required_role_keys = if authorized {
+                Vec::new()
+            } else {
+                navigation_required_role_keys(audience, &candidate.permissions)
+            };
+            items.push(NavigationManifestItem {
+                route_id: candidate.route_id.into(),
+                label: candidate.label.into(),
+                label_key: candidate.label_key.into(),
+                path: candidate.path.into(),
+                icon: candidate.icon.into(),
+                badge_count: 0,
+                action_capabilities: if authorized {
+                    navigation_action_capabilities(candidate.route_id)
                         .iter()
                         .map(|value| (*value).to_owned())
-                        .collect(),
-                });
-            }
+                        .collect()
+                } else {
+                    Vec::new()
+                },
+                access_state: if authorized {
+                    NavigationAccessState::Authorized as i32
+                } else {
+                    NavigationAccessState::Locked as i32
+                },
+                required_role_keys,
+            });
         }
         (!items.is_empty()).then(|| NavigationManifestGroup {
             group_id: group_id.into(),
             label: label.into(),
+            label_key: label_key.into(),
             items,
         })
     }
 
+    let target_tenant = match scope {
+        Scope::Platform => None,
+        Scope::Holding { holding_id }
+        | Scope::Company { holding_id, .. }
+        | Scope::Branch { holding_id, .. }
+        | Scope::Subtree { holding_id, .. } => {
+            SqlxTenantAdministrationStore::new(state.store.clone())
+                .tenant_id_for_root_holding(*holding_id)
+                .await
+                .ok()
+                .flatten()
+        }
+    };
     let mut groups = Vec::new();
-    if matches!(scope, Scope::Platform)
-        && let Some(value) = group(
-            state,
-            claims,
-            scope,
-            "customer_operations",
-            "Customer Operations",
-            vec![
+    if let Some(value) = group(
+        state,
+        claims,
+        scope,
+        target_tenant.as_deref(),
+        include_inaccessible,
+        GroupDefinition {
+            audience: CandidateAudience::Platform,
+            group_id: "customer_operations",
+            label: "Customer Operations",
+            label_key: "nav.group.customer_operations",
+            candidates: vec![
                 Candidate {
                     route_id: "customer_360",
                     label: "Customer 360",
+                    label_key: "nav.route.customer_360",
                     path: "/platform/customers",
                     icon: "customers",
-                    permission: "platform.customer.read".into(),
+                    permissions: vec!["platform.customer.read".into()],
                 },
                 Candidate {
                     route_id: "directories",
                     label: "Directories",
+                    label_key: "nav.route.directories",
                     path: "/platform/directories",
                     icon: "directory",
-                    permission: "platform.directory.read".into(),
+                    permissions: vec!["platform.directory.read".into()],
                 },
                 Candidate {
                     route_id: "support",
                     label: "Support",
+                    label_key: "nav.route.support",
                     path: "/platform/support",
                     icon: "support",
-                    permission: "support.ticket.read".into(),
+                    permissions: vec!["support.ticket.read".into()],
                 },
                 Candidate {
                     route_id: "billing",
                     label: "Billing",
+                    label_key: "nav.route.billing",
                     path: "/platform/billing",
                     icon: "billing",
-                    permission: "commercial.billing.read".into(),
+                    permissions: vec!["commercial.billing.read".into()],
                 },
             ],
-        )
-        .await
+        },
+    )
+    .await
     {
         groups.push(value);
     }
-    if !matches!(scope, Scope::Platform)
-        && let Some(value) = group(
-            state,
-            claims,
-            scope,
-            "tenant_administration",
-            "Tenant Administration",
-            vec![
+    if let Some(value) = group(
+        state,
+        claims,
+        scope,
+        target_tenant.as_deref(),
+        include_inaccessible,
+        GroupDefinition {
+            audience: CandidateAudience::Tenant,
+            group_id: "tenant_administration",
+            label: "Tenant Administration",
+            label_key: "nav.group.tenant_administration",
+            candidates: vec![
                 Candidate {
                     route_id: "tenant_organization",
                     label: "Organization",
+                    label_key: "nav.route.tenant_organization",
                     path: "/tenant/organization",
                     icon: "organization",
-                    permission: "organization.read".into(),
+                    permissions: vec!["organization.read".into()],
+                },
+                Candidate {
+                    route_id: "tenant_branches",
+                    label: "Branches",
+                    label_key: "nav.route.tenant_branches",
+                    path: "/tenant/branches",
+                    icon: "organization",
+                    permissions: vec!["organization.read".into()],
                 },
                 Candidate {
                     route_id: "tenant_identity_access",
                     label: "Identity & Access",
+                    label_key: "nav.route.tenant_identity_access",
                     path: "/tenant/identity-access",
                     icon: "directory",
-                    permission: "tenant.directory.read".into(),
+                    permissions: vec!["tenant.directory.read".into(), "security.read".into()],
                 },
                 Candidate {
-                    route_id: "tenant_security",
-                    label: "Identity & Access",
-                    path: "/tenant/identity-access",
-                    icon: "directory",
-                    permission: "security.read".into(),
+                    route_id: "tenant_infrastructure",
+                    label: "Infrastructure",
+                    label_key: "nav.route.tenant_infrastructure",
+                    path: "/tenant/infrastructure",
+                    icon: "infrastructure",
+                    permissions: vec![TENANT_INFRASTRUCTURE_READ.into()],
+                },
+                Candidate {
+                    route_id: "tenant_configuration",
+                    label: "Configuration",
+                    label_key: "nav.route.tenant_configuration",
+                    path: "/tenant/configuration",
+                    icon: "settings",
+                    permissions: vec![BUSINESS_UNIT_CONFIGURATION_READ.into()],
+                },
+                Candidate {
+                    route_id: "tenant_root_access",
+                    label: "Root Access",
+                    label_key: "nav.route.tenant_root_access",
+                    path: "/tenant/root-access",
+                    icon: "security",
+                    permissions: vec![TENANT_ROOT_ACCESS_READ.into()],
+                },
+                Candidate {
+                    route_id: "tenant_corporate_identity",
+                    label: "Corporate Identity",
+                    label_key: "nav.route.tenant_corporate_identity",
+                    path: "/tenant/corporate-identity",
+                    icon: "settings",
+                    permissions: vec![TENANT_BRAND_READ.into()],
+                },
+                Candidate {
+                    route_id: "support",
+                    label: "Support",
+                    label_key: "nav.route.support",
+                    path: "/support",
+                    icon: "support",
+                    permissions: vec!["support.ticket.read".into()],
                 },
             ],
-        )
-        .await
+        },
+    )
+    .await
     {
         groups.push(value);
     }
     let mut modules = Vec::new();
-    for unit in BusinessUnitId::ALL {
-        let path = match unit {
-            BusinessUnitId::MarketingCrm => "/crm/leads",
-            BusinessUnitId::Operations => "/workspaces/operations",
-            BusinessUnitId::Finance => "/workspaces/finance",
-            BusinessUnitId::Sales => "/workspaces/sales",
-            BusinessUnitId::Procurement => "/workspaces/procurement",
-            BusinessUnitId::Inventory => "/workspaces/inventory",
-            BusinessUnitId::Assets => "/workspaces/assets",
-            BusinessUnitId::Maintenance => "/workspaces/maintenance",
-            BusinessUnitId::Quality => "/workspaces/quality",
-            BusinessUnitId::HrPayroll => "/workspaces/hr-payroll",
-            BusinessUnitId::PointOfSale => "/workspaces/point-of-sale",
-            BusinessUnitId::Legal => "/workspaces/legal",
-        };
+    for descriptor in BUSINESS_UNIT_ROUTE_CATALOG {
         modules.push(Candidate {
-            route_id: unit.as_str(),
-            label: unit.display_name(),
-            path,
-            icon: "module",
-            permission: format!("{}.read", unit.as_str()),
+            route_id: descriptor.route_id,
+            label: descriptor.label_en,
+            label_key: descriptor.label_key,
+            path: descriptor.canonical_path,
+            icon: descriptor.icon,
+            permissions: vec![descriptor.read_permission.into()],
         });
     }
     if let Some(value) = group(
         state,
         claims,
         scope,
-        "business_modules",
-        "Business Modules",
-        modules,
+        target_tenant.as_deref(),
+        include_inaccessible,
+        GroupDefinition {
+            audience: CandidateAudience::Any,
+            group_id: "business_modules",
+            label: "Business Modules",
+            label_key: "nav.group.business_modules",
+            candidates: modules,
+        },
     )
     .await
     {
         groups.push(value);
     }
-    if matches!(scope, Scope::Platform)
-        && let Some(value) = group(
-            state,
-            claims,
-            scope,
-            "platform_administration",
-            "Platform Administration",
-            vec![
+    if let Some(value) = group(
+        state,
+        claims,
+        scope,
+        target_tenant.as_deref(),
+        include_inaccessible,
+        GroupDefinition {
+            audience: CandidateAudience::Platform,
+            group_id: "platform_administration",
+            label: "Platform Administration",
+            label_key: "nav.group.platform_administration",
+            candidates: vec![
                 Candidate {
                     route_id: "tenants",
                     label: "Tenants",
+                    label_key: "nav.route.tenants",
                     path: "/platform/tenants",
                     icon: "tenants",
-                    permission: "platform.tenant.read".into(),
+                    permissions: vec!["platform.tenant.read".into()],
                 },
                 Candidate {
                     route_id: "projections",
                     label: "Projections",
+                    label_key: "nav.route.projections",
                     path: "/platform/projections",
                     icon: "projections",
-                    permission: "platform.tenant.read".into(),
+                    permissions: vec!["platform.tenant.read".into()],
                 },
                 Candidate {
                     route_id: "backups",
                     label: "Backups",
+                    label_key: "nav.route.backups",
                     path: "/platform/backups",
                     icon: "backups",
-                    permission: "platform.tenant.backup".into(),
+                    permissions: vec!["platform.tenant.backup".into()],
                 },
                 Candidate {
                     route_id: "integrations",
                     label: "Integrations",
+                    label_key: "nav.route.integrations",
                     path: "/platform/integrations",
                     icon: "integrations",
-                    permission: "platform.tenant.read".into(),
+                    permissions: vec!["platform.tenant.read".into()],
                 },
                 Candidate {
                     route_id: "audit",
                     label: "Audit",
+                    label_key: "nav.route.audit",
                     path: "/platform/audit",
                     icon: "audit",
-                    permission: "platform.tenant.read".into(),
+                    permissions: vec!["platform.tenant.read".into()],
                 },
                 Candidate {
                     route_id: "role_review",
                     label: "Role Review",
+                    label_key: "nav.route.role_review",
                     path: "/platform/role-review",
                     icon: "roles",
-                    permission: "role.assignment.review".into(),
+                    permissions: vec!["role.assignment.review".into()],
                 },
                 Candidate {
                     route_id: "settings",
                     label: "Settings",
+                    label_key: "nav.route.settings",
                     path: "/platform/settings",
                     icon: "settings",
-                    permission: PLATFORM_BRAND_READ.into(),
+                    permissions: vec![PLATFORM_BRAND_READ.into()],
                 },
             ],
-        )
-        .await
+        },
+    )
+    .await
     {
         groups.push(value);
     }
@@ -2935,7 +3116,7 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
             "Get",
             "List",
         ],
-        "hr_payroll" => &[
+        "hr-payroll" => &[
             "SaveHrEmployee",
             "TransitionHrEmployee",
             "SaveHrLeave",
@@ -2947,7 +3128,24 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
             "ListHrPayrollRuns",
             "ListHrReassignments",
         ],
-        "point_of_sale" => &["SavePosSale", "ListPosSales"],
+        "point-of-sale" => &[
+            "CreateSale",
+            "OpenSale",
+            "HoldSale",
+            "ResumeSale",
+            "RecordPayment",
+            "CompleteSale",
+            "VoidSale",
+            "RequestRefund",
+            "ApproveRefund",
+            "RejectRefund",
+            "PostRefund",
+            "CancelRefund",
+            "GetSale",
+            "ListSales",
+            "GetRefund",
+            "ListRefunds",
+        ],
         "legal" => &[
             "SaveLegalContract",
             "SaveLegalDocument",
@@ -2956,7 +3154,7 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
             "ListLegalDocuments",
             "ListLegalAccessHistory",
         ],
-        "marketing_crm" => &[
+        "marketing-crm" => &[
             "ListCrmReadRows",
             "SaveCrmHandoff",
             "SaveCrmOpportunity",
@@ -2972,6 +3170,48 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
             "ConfigureMarketingProviderAccount",
             "AcknowledgeMarketingProviderVerification",
             "SetMarketingProviderAccountState",
+        ],
+        "tenant_organization" => &["SaveOrganizationNode", "ListOrganizationNodes"],
+        "tenant_branches" => &[
+            "ProvisionBranch",
+            "GetBranchProvisioning",
+            "ListBranchProvisionings",
+            "RetryBranchProvisioning",
+            "SuspendBranchRoute",
+        ],
+        "tenant_identity_access" => &[
+            "ListDirectoryConnectors",
+            "SaveDirectoryConnector",
+            "StartDirectoryImport",
+            "GetDirectoryImportStatus",
+            "SaveDirectoryRoleMapping",
+            "GetDirectoryConnectorReadiness",
+            "ReconcileDirectoryConnector",
+        ],
+        "tenant_infrastructure" => &[
+            "GetTenantInfrastructure",
+            "SaveTenantInfrastructureProfile",
+            "IssueDataPlaneEnrollment",
+            "ProposeDesiredConfiguration",
+            "DecideDesiredConfiguration",
+        ],
+        "tenant_configuration" => &[
+            "GetBusinessUnitConfiguration",
+            "SaveBusinessUnitConfiguration",
+        ],
+        "tenant_root_access" => &[
+            "RequestRootAccess",
+            "DecideRootAccess",
+            "RevokeRootAccess",
+            "ListRootAccessRequests",
+        ],
+        "tenant_corporate_identity" => &[
+            "GetResolvedCorporateIdentity",
+            "GetCorporateIdentityDraft",
+            "SaveCorporateIdentityDraft",
+            "PublishCorporateIdentityDraft",
+            "RollbackCorporateIdentity",
+            "ListCorporateIdentityHistory",
         ],
         "tenants" => &[
             "ListTenants",
@@ -3468,10 +3708,17 @@ mod tests {
             "assets",
             "maintenance",
             "quality",
-            "hr_payroll",
-            "point_of_sale",
+            "hr-payroll",
+            "point-of-sale",
             "legal",
-            "marketing_crm",
+            "marketing-crm",
+            "tenant_organization",
+            "tenant_branches",
+            "tenant_identity_access",
+            "tenant_infrastructure",
+            "tenant_configuration",
+            "tenant_root_access",
+            "tenant_corporate_identity",
             "tenants",
             "projections",
             "backups",
@@ -3489,6 +3736,13 @@ mod tests {
             assert!(
                 capabilities.iter().all(|value| rpc_names.contains(value)),
                 "{route} advertises an action missing from the checked descriptor"
+            );
+        }
+        for descriptor in BUSINESS_UNIT_ROUTE_CATALOG {
+            assert!(
+                !navigation_action_capabilities(descriptor.route_id).is_empty(),
+                "canonical route {} has no action discovery",
+                descriptor.route_id
             );
         }
     }
@@ -3525,5 +3779,51 @@ mod tests {
                 role.role_key
             );
         }
+    }
+
+    #[test]
+    fn navigation_role_hints_are_canonical_scoped_sorted_and_permission_free() {
+        let platform = navigation_required_role_keys(
+            CandidateAudience::Platform,
+            &["platform.customer.read".to_owned()],
+        );
+        assert!(platform.contains(&"platform_customer_operations".to_owned()));
+        assert!(platform.contains(&"platform_auditor".to_owned()));
+        assert!(!platform.contains(&"holding_owner".to_owned()));
+
+        let identity_access = navigation_required_role_keys(
+            CandidateAudience::Tenant,
+            &[
+                "tenant.directory.read".to_owned(),
+                "security.read".to_owned(),
+            ],
+        );
+        assert_eq!(identity_access, ["customer_security_head"]);
+
+        let finance =
+            navigation_required_role_keys(CandidateAudience::Any, &["finance.read".to_owned()]);
+        assert_eq!(
+            finance,
+            [
+                "finance_administrator",
+                "finance_approver",
+                "finance_auditor",
+                "finance_operator",
+                "finance_viewer",
+            ]
+        );
+        assert!(
+            finance
+                .iter()
+                .all(|role| !role.contains("permission") && !role.contains("token"))
+        );
+
+        assert!(
+            navigation_required_role_keys(
+                CandidateAudience::Tenant,
+                &["tenant.root-access.read".to_owned()],
+            )
+            .is_empty()
+        );
     }
 }

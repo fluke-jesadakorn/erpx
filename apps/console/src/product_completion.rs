@@ -8,6 +8,7 @@
 
 use dioxus::dioxus_core::current_scope_id;
 use dioxus::prelude::*;
+use erpx_domain::data_plane::BusinessUnitId;
 use erpx_ui::{
     ClientTarget, Locale, LocaleContext, LocalizedText, SecureSessionSupport,
     UiAccessibilityContract, UiStateKind, redact_deep_link,
@@ -1405,58 +1406,38 @@ pub const PRODUCT_CONTEXTS: &[ProductContext] = &[
 ];
 
 impl ProductContext {
+    pub const fn business_unit(self) -> BusinessUnitId {
+        match self {
+            Self::Operations => BusinessUnitId::Operations,
+            Self::Finance => BusinessUnitId::Finance,
+            Self::Sales => BusinessUnitId::Sales,
+            Self::Procurement => BusinessUnitId::Procurement,
+            Self::Inventory => BusinessUnitId::Inventory,
+            Self::Assets => BusinessUnitId::Assets,
+            Self::Maintenance => BusinessUnitId::Maintenance,
+            Self::Quality => BusinessUnitId::Quality,
+            Self::MarketingCrm => BusinessUnitId::MarketingCrm,
+            Self::HrPayroll => BusinessUnitId::HrPayroll,
+            Self::Pos => BusinessUnitId::PointOfSale,
+            Self::Legal => BusinessUnitId::Legal,
+        }
+    }
+
     /// Canonical product path prefix.
     pub const fn path(self) -> &'static str {
-        match self {
-            Self::Operations => "/workspaces/operations",
-            Self::Finance => "/workspaces/finance",
-            Self::Sales => "/workspaces/sales",
-            Self::Procurement => "/workspaces/procurement",
-            Self::Inventory => "/workspaces/inventory",
-            Self::Assets => "/workspaces/assets",
-            Self::Maintenance => "/workspaces/maintenance",
-            Self::Quality => "/workspaces/quality",
-            Self::MarketingCrm => "/workspaces/marketing-crm",
-            Self::HrPayroll => "/workspaces/hr-payroll",
-            Self::Pos => "/workspaces/point-of-sale",
-            Self::Legal => "/workspaces/legal",
-        }
+        self.business_unit().route().canonical_path
     }
 
     /// Stable display label.
     pub const fn label(self) -> &'static str {
-        match self {
-            Self::Operations => "Operations",
-            Self::Finance => "Finance",
-            Self::Sales => "Sales",
-            Self::Procurement => "Procurement",
-            Self::Inventory => "Inventory",
-            Self::Assets => "Assets",
-            Self::Maintenance => "Maintenance",
-            Self::Quality => "Quality",
-            Self::MarketingCrm => "Marketing and CRM",
-            Self::HrPayroll => "HR and Payroll",
-            Self::Pos => "Point of Sale",
-            Self::Legal => "Legal",
-        }
+        self.business_unit().route().label_en
     }
 
     /// Locale-aware product label without changing the stable English API.
     pub const fn label_for(self, locale: Locale) -> &'static str {
-        match (self, locale) {
-            (Self::Operations, Locale::Th) => "การปฏิบัติการ",
-            (Self::Finance, Locale::Th) => "การเงิน",
-            (Self::Sales, Locale::Th) => "การขาย",
-            (Self::Procurement, Locale::Th) => "การจัดซื้อ",
-            (Self::Inventory, Locale::Th) => "สินค้าคงคลัง",
-            (Self::Assets, Locale::Th) => "สินทรัพย์",
-            (Self::Maintenance, Locale::Th) => "การบำรุงรักษา",
-            (Self::Quality, Locale::Th) => "คุณภาพ",
-            (Self::MarketingCrm, Locale::Th) => "การตลาดและ CRM",
-            (Self::HrPayroll, Locale::Th) => "ทรัพยากรบุคคลและเงินเดือน",
-            (Self::Pos, Locale::Th) => "จุดขาย",
-            (Self::Legal, Locale::Th) => "กฎหมาย",
-            (_, Locale::En) => self.label(),
+        match locale {
+            Locale::En => self.business_unit().route().label_en,
+            Locale::Th => self.business_unit().route().label_th,
         }
     }
 }

@@ -20,6 +20,8 @@ mod contexts {
     pub mod sales_cqrs;
     pub mod support_cqrs;
 }
+mod operational_metrics;
+mod persistence;
 mod wave4_composition;
 mod wave5_composition;
 mod wave6_composition;
@@ -57,6 +59,7 @@ use contexts::{
     sales_cqrs::{SalesCommandRpc, SalesQueryRpc},
     support_cqrs::{SupportCommandRpc, SupportQueryRpc},
 };
+use persistence::seed_tenant_owner;
 use wave4_composition::{
     CommercialProviderKey, CommercialServerApplication, CommercialServerAuthenticator,
     IdentityServerApplication, IdentityServerAuthenticator, OrganizationServerApplication,
@@ -116,21 +119,14 @@ use erpx_domain::{
         authorize_module,
     },
     contracts::{ActorAttribution, ActorKind, CONTRACT_VERSION, CommandContext, TenantScope},
-    corporate_identity::{
-        BUSINESS_UNIT_BRAND_MANAGE, BUSINESS_UNIT_BRAND_PUBLISH, BUSINESS_UNIT_BRAND_READ,
-        TENANT_BRAND_LOCK, TENANT_BRAND_MANAGE, TENANT_BRAND_PUBLISH, TENANT_BRAND_READ,
-    },
     customer::{
         Customer360DetailReadContext, CustomerGlobalReadContext,
         CustomerNote as DomainCustomerNote, CustomerNoteCursor, CustomerStatus, GlobalReadActor,
         GlobalReadAuditRecord, GlobalReadScope, HealthState,
     },
     data_plane::{
-        BUSINESS_UNIT_CONFIGURATION_MANAGE, BUSINESS_UNIT_CONFIGURATION_READ, BusinessUnitId,
-        BusinessUnitRoleTemplate, ConfigurationLayer, TENANT_AGENT_ENROLL, TENANT_AGENT_ROTATE,
-        TENANT_INFRASTRUCTURE_APPLY, TENANT_INFRASTRUCTURE_APPROVE, TENANT_INFRASTRUCTURE_PROPOSE,
-        TENANT_INFRASTRUCTURE_READ, TENANT_ROOT_ACCESS_APPROVE, TENANT_ROOT_ACCESS_READ,
-        TENANT_ROOT_ACCESS_REVOKE, directory_role_template_is_allowed,
+        BusinessUnitId, BusinessUnitRoleTemplate, ConfigurationLayer,
+        directory_role_template_is_allowed,
     },
     finance::{
         AccountKind, AccountingPeriod, ChartOfAccounts, FinanceAccessPath,
@@ -185,10 +181,9 @@ use erpx_identity::{
     DirectoryIdentityConflictSnapshot, DirectoryProvider, DirectoryRoleAccess,
     DirectoryRoleMapping, DirectoryScope, DirectorySecretResolver, DirectoryTlsMode,
     DirectoryTlsPolicy, HttpsDirectorySecretResolver, IdentityStoreError, LiveDirectoryError,
-    LocalDirectorySecretResolver, PasskeyCeremonyService, PasswordService, RecoveryCodeSet,
-    SqlxDirectoryStore, SqlxIdentityStore, TotpKeyResolver, UnconfiguredDirectorySecretResolver,
-    WebAuthnProvider, WebAuthnProviderConfig, WebAuthnRsProvider, apply_identity_migration,
-    preflight_directory_connector,
+    LocalDirectorySecretResolver, PasskeyCeremonyService, SqlxDirectoryStore, SqlxIdentityStore,
+    TotpKeyResolver, UnconfiguredDirectorySecretResolver, WebAuthnProvider, WebAuthnProviderConfig,
+    WebAuthnRsProvider, apply_identity_migration, preflight_directory_connector,
 };
 use erpx_infrastructure::{
     AssetMaintenanceAggregate, AssetMaintenanceReadCursor, AssetMaintenanceReadScope,
@@ -237,7 +232,7 @@ use erpx_infrastructure::{
     SupportCapabilityAuthorizationRequest, SupportIdempotencyKey, SupportPersistence,
     SupportPersistenceError, SupportTicketListCursor, TenantAdminContextIssue,
     TenantBillingGraceExtensionGrant, TenantDataRouteScope, TenantDatabaseProvisioner,
-    TenantDatabaseProvisioningConfig, TenantDatabaseRouter, TenantHoldingBinding, TenantOwnerSeed,
+    TenantDatabaseProvisioningConfig, TenantDatabaseRouter, TenantHoldingBinding,
     TenantProjectionSchedulerRepository, TenantProjectionStatusReadRepository, TenantProvisioner,
     TenantRegistryFilter, TenantRegistrySummary, TenantSourceProjection, TenantStoreRegistration,
     UnconfiguredMarketingCallbackSecretResolver, WorkerHeartbeatReadiness,
@@ -371,6 +366,12 @@ use erpx_proto::platform::{
     customer_access_audit_query_service_server::{
         CustomerAccessAuditQueryService, CustomerAccessAuditQueryServiceServer,
     },
+    customer_note_command_service_server::{
+        CustomerNoteCommandService, CustomerNoteCommandServiceServer,
+    },
+    customer360_detail_query_service_server::{
+        Customer360DetailQueryService, Customer360DetailQueryServiceServer,
+    },
     directory_service_server::{DirectoryService as DirectoryRpc, DirectoryServiceServer},
     entitlement_service_server::{EntitlementService, EntitlementServiceServer},
     finance_service_server::{FinanceService, FinanceServiceServer},
@@ -406,7 +407,6 @@ use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use sqlx::Row;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
@@ -785,15 +785,15 @@ where
         CustomerReadView::Absent { metadata } => Ok(EncodedCustomerProjection {
             payload: Vec::new(),
             metadata,
-            supported: false,
+            supported: true,
             present: false,
-            unsupported_reason: Some("customer projection is not available".into()),
+            unsupported_reason: None,
         }),
         CustomerReadView::Unsupported { metadata, reason } => Ok(EncodedCustomerProjection {
             payload: Vec::new(),
             metadata,
             supported: false,
-            present: true,
+            present: false,
             unsupported_reason: Some(reason),
         }),
     }
@@ -1513,14 +1513,9 @@ async fn directory_audit_customer(
     let Scope::Holding { holding_id } = scope else {
         return Ok(None);
     };
-    sqlx::query_scalar(
-        "SELECT customer_id FROM erpx_control.customer_tenant_bindings
-         WHERE root_holding_id=$1",
-    )
-    .bind(holding_id)
-    .fetch_optional(&store.pools().write)
-    .await
-    .map_err(|_| Status::internal("directory customer audit scope lookup failed"))
+    persistence::directory_audit_customer(store, *holding_id)
+        .await
+        .map_err(|_| Status::internal("directory customer audit scope lookup failed"))
 }
 
 fn directory_import_status_message(
@@ -1645,14 +1640,18 @@ impl ServerReadinessAdapter {
         }
     }
 
+    fn not_probed_composition() -> WorkerReadinessComposition {
+        WorkerReadinessComposition {
+            worker_heartbeat: ReadinessState::NotProbed,
+            tenant_routing: ReadinessState::NotProbed,
+            projection_freshness: ReadinessState::NotProbed,
+            backup_pitr: ReadinessState::NotProbed,
+        }
+    }
+
     async fn observe(&self) -> WorkerReadinessComposition {
         if !self.required {
-            return WorkerReadinessComposition {
-                worker_heartbeat: ReadinessState::Ready,
-                tenant_routing: ReadinessState::Ready,
-                projection_freshness: ReadinessState::Ready,
-                backup_pitr: ReadinessState::Ready,
-            };
+            return Self::not_probed_composition();
         }
         let ReadinessTarget::Configured { tenant_id, router } = &self.target else {
             return Self::unavailable_composition();
@@ -5734,293 +5733,24 @@ impl CustomerAccessAuditQueryService for CustomerRpcImpl {
     }
 }
 
-#[derive(Debug)]
-struct TenantOwnerSeedReceipt {
-    seeded: bool,
-    principal_ref: String,
-    recovery_code: Option<String>,
+#[tonic::async_trait]
+impl Customer360DetailQueryService for CustomerRpcImpl {
+    async fn get_customer360_detail(
+        &self,
+        request: Request<GetCustomer360DetailRequest>,
+    ) -> Result<Response<GetCustomer360DetailResponse>, Status> {
+        <Self as CustomerRpc>::get_customer360_detail(self, request).await
+    }
 }
 
-/// Seed the identity, recovery code, finite holding-owner assignment, and
-/// owner-seed state in one control write transaction. The plaintext recovery
-/// code is retained only in the returned response value and is never logged or
-/// written to any database/read projection.
-async fn seed_tenant_owner(
-    store: &SqlxControlPlane,
-    seed: &TenantOwnerSeed,
-    grantor_ref: &str,
-    at: DateTime<Utc>,
-) -> Result<TenantOwnerSeedReceipt, Status> {
-    if seed.state == "seeded" {
-        return Ok(TenantOwnerSeedReceipt {
-            seeded: true,
-            principal_ref: seed.principal_ref.clone(),
-            recovery_code: None,
-        });
+#[tonic::async_trait]
+impl CustomerNoteCommandService for CustomerRpcImpl {
+    async fn add_customer_note(
+        &self,
+        request: Request<AddCustomerNoteRequest>,
+    ) -> Result<Response<AddCustomerNoteResponse>, Status> {
+        <Self as CustomerRpc>::add_customer_note(self, request).await
     }
-    if seed.state != "pending" {
-        return Err(Status::failed_precondition(
-            "tenant owner seed is in an invalid state",
-        ));
-    }
-    let recovery_batch = RecoveryCodeSet::issue(
-        seed.principal_ref.clone(),
-        1,
-        &PasswordService::default(),
-        at,
-    )
-    .map_err(|_| Status::internal("owner recovery material could not be generated"))?;
-    let recovery_code = recovery_batch.code(0).map(str::to_owned);
-    let role_assignment = RoleAssignment {
-        id: seed.role_assignment_id,
-        principal_ref: seed.principal_ref.clone(),
-        role_key: HOLDING_OWNER_ROLE.into(),
-        permissions: vec![
-            BUSINESS_UNIT_BRAND_MANAGE.into(),
-            BUSINESS_UNIT_BRAND_PUBLISH.into(),
-            BUSINESS_UNIT_BRAND_READ.into(),
-            BUSINESS_UNIT_CONFIGURATION_MANAGE.into(),
-            BUSINESS_UNIT_CONFIGURATION_READ.into(),
-            "branch.infrastructure.provision".into(),
-            "organization.admin".into(),
-            "organization.read".into(),
-            "operations.read".into(),
-            "operations.exception.manage".into(),
-            "role.assignment.read".into(),
-            "role.assignment.approve".into(),
-            "role.assignment.review".into(),
-            "role.assignment.renew".into(),
-            TENANT_DIRECTORY_ACTIVATE_PERMISSION.into(),
-            TENANT_DIRECTORY_MANAGE_PERMISSION.into(),
-            TENANT_DIRECTORY_READ_PERMISSION.into(),
-            "role.assignment.recover".into(),
-            TENANT_AGENT_ENROLL.into(),
-            TENANT_AGENT_ROTATE.into(),
-            TENANT_BRAND_LOCK.into(),
-            TENANT_BRAND_MANAGE.into(),
-            TENANT_BRAND_PUBLISH.into(),
-            TENANT_BRAND_READ.into(),
-            TENANT_INFRASTRUCTURE_APPLY.into(),
-            TENANT_INFRASTRUCTURE_APPROVE.into(),
-            TENANT_INFRASTRUCTURE_PROPOSE.into(),
-            TENANT_INFRASTRUCTURE_READ.into(),
-            TENANT_ROOT_ACCESS_READ.into(),
-            TENANT_ROOT_ACCESS_APPROVE.into(),
-            TENANT_ROOT_ACCESS_REVOKE.into(),
-        ],
-        functional_domain: "organization".into(),
-        authority_level: 100,
-        approval_limit_minor: 0,
-        scope: Scope::Holding {
-            holding_id: seed.holding_id,
-        },
-        valid_from: at,
-        valid_until: at + Duration::days(90),
-        timezone: "Asia/Bangkok".into(),
-        risk_tier: RiskTier::Administrator,
-        grant_reason: "initial holding owner bootstrap".into(),
-        ticket_reference: None,
-        grantor: grantor_ref.into(),
-        approver: Some(seed.approver_ref.clone()),
-        renewal_reviewer: None,
-        parent_assignment_id: None,
-        assignment_version: 1,
-    };
-    role_assignment
-        .validate_for_grant(None)
-        .map_err(|_| Status::failed_precondition("initial owner assignment is invalid"))?;
-    let role_payload = serde_json::to_value(&role_assignment)
-        .map_err(|_| Status::internal("owner assignment could not be serialized"))?;
-
-    let mut transaction = store
-        .pools()
-        .write
-        .begin()
-        .await
-        .map_err(|_| Status::unavailable("tenant owner seed transaction unavailable"))?;
-    let seed_row = sqlx::query(
-        "SELECT holding_ref, holding_id, principal_ref, approver_ref,
-                role_assignment_id, state, recovery_issued_at
-         FROM erpx_control.tenant_owner_seeds
-         WHERE tenant_id = $1
-         FOR UPDATE",
-    )
-    .bind(&seed.tenant_id)
-    .fetch_optional(&mut *transaction)
-    .await
-    .map_err(|_| Status::unavailable("tenant owner seed transaction unavailable"))?
-    .ok_or_else(|| Status::failed_precondition("tenant owner seed is missing"))?;
-    let stored_state: String = seed_row
-        .try_get("state")
-        .map_err(|_| Status::internal("tenant owner seed record is invalid"))?;
-    let stored_recovery_issued_at: Option<DateTime<Utc>> =
-        seed_row
-            .try_get("recovery_issued_at")
-            .map_err(|_| Status::internal("tenant owner seed record is invalid"))?;
-    let immutable_match = seed_row
-        .try_get::<String, _>("holding_ref")
-        .map(|value| value == seed.holding_ref)
-        .unwrap_or(false)
-        && seed_row
-            .try_get::<Uuid, _>("holding_id")
-            .map(|value| value == seed.holding_id)
-            .unwrap_or(false)
-        && seed_row
-            .try_get::<String, _>("principal_ref")
-            .map(|value| value == seed.principal_ref)
-            .unwrap_or(false)
-        && seed_row
-            .try_get::<String, _>("approver_ref")
-            .map(|value| value == seed.approver_ref)
-            .unwrap_or(false)
-        && seed_row
-            .try_get::<Uuid, _>("role_assignment_id")
-            .map(|value| value == seed.role_assignment_id)
-            .unwrap_or(false);
-    if !immutable_match {
-        return Err(Status::failed_precondition(
-            "tenant owner seed immutable references changed",
-        ));
-    }
-    if stored_state == "seeded" || stored_recovery_issued_at.is_some() {
-        transaction
-            .commit()
-            .await
-            .map_err(|_| Status::unavailable("tenant owner seed transaction unavailable"))?;
-        return Ok(TenantOwnerSeedReceipt {
-            seeded: stored_state == "seeded",
-            principal_ref: seed.principal_ref.clone(),
-            recovery_code: None,
-        });
-    }
-
-    let generated_principal_id = Uuid::new_v5(
-        &Uuid::NAMESPACE_URL,
-        format!("erpx:principal:v1:{}", seed.principal_ref).as_bytes(),
-    );
-    sqlx::query(
-        "INSERT INTO erpx_identity.principals
-            (id, principal_ref, status, created_at, updated_at)
-         VALUES ($1, $2, 'recovery_required', $3, $3)
-         ON CONFLICT (principal_ref) DO NOTHING",
-    )
-    .bind(generated_principal_id)
-    .bind(&seed.principal_ref)
-    .bind(at)
-    .execute(&mut *transaction)
-    .await
-    .map_err(|_| Status::unavailable("owner identity write unavailable"))?;
-    let principal_row = sqlx::query(
-        "SELECT id, status
-         FROM erpx_identity.principals
-         WHERE principal_ref = $1
-         FOR UPDATE",
-    )
-    .bind(&seed.principal_ref)
-    .fetch_one(&mut *transaction)
-    .await
-    .map_err(|_| Status::unavailable("owner identity write unavailable"))?;
-    let principal_id: Uuid = principal_row
-        .try_get("id")
-        .map_err(|_| Status::internal("owner identity record is invalid"))?;
-    let principal_status: String = principal_row
-        .try_get("status")
-        .map_err(|_| Status::internal("owner identity record is invalid"))?;
-    if principal_status == "suspended" {
-        return Err(Status::failed_precondition("owner identity is suspended"));
-    }
-    let needs_recovery = principal_status == "recovery_required";
-    if needs_recovery {
-        sqlx::query("DELETE FROM erpx_identity.recovery_codes WHERE principal_id = $1")
-            .bind(principal_id)
-            .execute(&mut *transaction)
-            .await
-            .map_err(|_| Status::unavailable("owner recovery write unavailable"))?;
-        for record in recovery_batch.set().records() {
-            sqlx::query(
-                "INSERT INTO erpx_identity.recovery_codes
-                    (id, principal_id, code_hash, issued_at, consumed_at)
-                 VALUES ($1, $2, $3, $4, NULL)",
-            )
-            .bind(record.id())
-            .bind(principal_id)
-            .bind(record.hash().as_str())
-            .bind(recovery_batch.set().issued_at())
-            .execute(&mut *transaction)
-            .await
-            .map_err(|_| Status::unavailable("owner recovery write unavailable"))?;
-        }
-    }
-
-    sqlx::query(
-        "INSERT INTO erpx_control.role_assignments
-            (id, principal_ref, role_key, parent_assignment_id, valid_from,
-             valid_until, assignment_version, payload)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (id) DO NOTHING",
-    )
-    .bind(role_assignment.id)
-    .bind(&role_assignment.principal_ref)
-    .bind(&role_assignment.role_key)
-    .bind(role_assignment.parent_assignment_id)
-    .bind(role_assignment.valid_from)
-    .bind(role_assignment.valid_until)
-    .bind(
-        i32::try_from(role_assignment.assignment_version)
-            .map_err(|_| Status::internal("owner assignment version is invalid"))?,
-    )
-    .bind(role_payload)
-    .execute(&mut *transaction)
-    .await
-    .map_err(|_| Status::unavailable("owner role write unavailable"))?;
-    sqlx::query(
-        "INSERT INTO erpx_control.role_assignment_target_policies
-            (assignment_id, policy_kind, environment_gate, configured_by)
-         VALUES ($1, 'unrestricted', NULL, $2)
-         ON CONFLICT (assignment_id) DO NOTHING",
-    )
-    .bind(role_assignment.id)
-    .bind(grantor_ref)
-    .execute(&mut *transaction)
-    .await
-    .map_err(|_| Status::unavailable("owner role target-policy write unavailable"))?;
-    let stored_role_payload: Value =
-        sqlx::query("SELECT payload FROM erpx_control.role_assignments WHERE id = $1")
-            .bind(role_assignment.id)
-            .fetch_one(&mut *transaction)
-            .await
-            .and_then(|row| row.try_get("payload"))
-            .map_err(|_| Status::unavailable("owner role read unavailable"))?;
-    let stored_assignment: RoleAssignment = serde_json::from_value(stored_role_payload)
-        .map_err(|_| Status::failed_precondition("owner role payload is invalid"))?;
-    if stored_assignment.canonical_bytes().ok() != role_assignment.canonical_bytes().ok() {
-        return Err(Status::failed_precondition(
-            "owner role assignment conflicts with existing state",
-        ));
-    }
-    sqlx::query(
-        "UPDATE erpx_control.tenant_owner_seeds
-         SET state = 'seeded',
-             recovery_issued_at = CASE WHEN $2 THEN $3 ELSE NULL END,
-             updated_at = $4
-         WHERE tenant_id = $1",
-    )
-    .bind(&seed.tenant_id)
-    .bind(needs_recovery)
-    .bind(if needs_recovery { Some(at) } else { None })
-    .bind(at)
-    .execute(&mut *transaction)
-    .await
-    .map_err(|_| Status::unavailable("tenant owner seed update unavailable"))?;
-    transaction
-        .commit()
-        .await
-        .map_err(|_| Status::unavailable("tenant owner seed transaction unavailable"))?;
-    Ok(TenantOwnerSeedReceipt {
-        seeded: true,
-        principal_ref: seed.principal_ref.clone(),
-        recovery_code: if needs_recovery { recovery_code } else { None },
-    })
 }
 
 fn catalog_price_kind_name(kind: CatalogPriceKind) -> &'static str {
@@ -10848,28 +10578,9 @@ async fn authorize_branch_administration<T>(
 }
 
 async fn require_branch_capacity(store: &SqlxControlPlane, tenant_id: &str) -> Result<(), Status> {
-    let available: bool = sqlx::query_scalar(
-        "SELECT EXISTS (
-             SELECT 1
-             FROM erpx_control.customer_tenant_bindings b
-             JOIN erpx_control.entitlement_allocation_books e
-               ON e.customer_id=b.customer_id
-             WHERE b.tenant_id=$1 AND e.active
-               AND (e.active_until IS NULL OR e.active_until > now())
-               AND COALESCE(
-                    CASE WHEN e.payload #>> '{capacity,branches}' ~ '^[0-9]+$'
-                         THEN (e.payload #>> '{capacity,branches}')::BIGINT END,
-                    0
-               ) > (
-                    SELECT count(*) FROM erpx_control.branch_database_routes r
-                    WHERE r.tenant_id=$1 AND r.state <> 'suspended'
-               )
-         )",
-    )
-    .bind(tenant_id)
-    .fetch_one(&store.pools().write)
-    .await
-    .map_err(|_| Status::unavailable("subscription branch capacity is unavailable"))?;
+    let available = persistence::branch_capacity_available(store, tenant_id)
+        .await
+        .map_err(|_| Status::unavailable("subscription branch capacity is unavailable"))?;
     available
         .then_some(())
         .ok_or_else(|| Status::failed_precondition("subscription branch capacity is exhausted"))
@@ -23775,6 +23486,7 @@ async fn handle_http_health(
         marketing_callback_secrets,
     } = context;
     let (method, path, headers, body) = read_http_request(&mut stream).await?;
+    let _request_observation = operational_metrics::RequestObservation::start();
     let cors_origin = http_cors_origin(&headers);
     if method == "OPTIONS" {
         let status = if headers.contains_key("origin") && cors_origin.is_none() {
@@ -24099,6 +23811,7 @@ async fn handle_http_health(
                     .to_string(),
                 )
             } else {
+                operational_metrics::readiness_failure();
                 (
                     "503 Service Unavailable",
                     "application/json",
@@ -24123,7 +23836,7 @@ async fn handle_http_health(
         "/metrics" if method == "GET" => (
             "200 OK",
             "text/plain; version=0.0.4",
-            "erpx_server_up 1\n".to_owned(),
+            operational_metrics::render(store.as_ref()).await,
         ),
         "/webhooks/stripe" if method == "POST" => {
             match accept_stripe_webhook(&body, &headers, commercial.as_ref(), correlation_id).await
@@ -25437,6 +25150,7 @@ async fn write_http_response_with_headers(
     cors_origin: Option<&str>,
     additional_headers: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    operational_metrics::response(status);
     let response_body = errors::http_body(status, body, correlation_id);
     let cors_headers = cors_origin.map_or_else(String::new, |origin| {
         format!(
@@ -25473,6 +25187,7 @@ async fn write_public_brand_response(
     correlation_id: Uuid,
     cors_origin: Option<&str>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    operational_metrics::response(status);
     let cors_headers = cors_origin.map_or_else(String::new, |origin| {
         format!(
             "Access-Control-Allow-Origin: {origin}\r\nAccess-Control-Expose-Headers: ETag, X-Correlation-Id\r\nVary: Host, Origin\r\n"
@@ -25751,9 +25466,22 @@ fn configure_directory_secret_resolver()
 }
 
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .init();
+    let log_format = std::env::var("ERPX_LOG_FORMAT").unwrap_or_else(|_| "pretty".into());
+    if log_format == "json" {
+        tracing_subscriber::fmt()
+            .json()
+            .flatten_event(true)
+            .with_current_span(true)
+            .with_span_list(true)
+            .with_env_filter(EnvFilter::from_default_env())
+            .init();
+    } else if log_format == "pretty" {
+        tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .init();
+    } else {
+        return Err("ERPX_LOG_FORMAT must be pretty or json".into());
+    }
     let v1_service_authority = V1ServiceAuthority::from_environment()?;
     tracing::info!(
         authority = ?v1_service_authority,
@@ -25924,6 +25652,12 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 state: state.clone(),
             },
         ))
+        .add_service(Customer360DetailQueryServiceServer::new(CustomerRpcImpl {
+            state: state.clone(),
+        }))
+        .add_service(CustomerNoteCommandServiceServer::new(CustomerRpcImpl {
+            state: state.clone(),
+        }))
         .add_service(data_plane_rpc::control_service(
             state.clone(),
             data_plane_broker,
@@ -26663,6 +26397,15 @@ mod server_security_tests {
         assert!(!system_readiness_required(Some("local-fresh-state")));
         assert!(system_readiness_required(None));
         assert!(system_readiness_required(Some("production")));
+        assert_eq!(
+            ServerReadinessAdapter::not_probed_composition(),
+            WorkerReadinessComposition {
+                worker_heartbeat: ReadinessState::NotProbed,
+                tenant_routing: ReadinessState::NotProbed,
+                projection_freshness: ReadinessState::NotProbed,
+                backup_pitr: ReadinessState::NotProbed,
+            }
+        );
     }
 
     #[test]

@@ -12,8 +12,8 @@ use erpx_domain::{
 };
 use erpx_identity::{
     DEVELOPMENT_CLUSTER_MARKER, DEVELOPMENT_CONTROLLER_PRINCIPAL, DEVELOPMENT_CONTROLLER_ROLE,
-    DEVELOPMENT_CONTROLLER_TARGET_TENANT, SqlxIdentityStore, demo_personas,
-    development_controller_permissions, platform_personas,
+    DEVELOPMENT_CONTROLLER_TARGET_TENANT, DirectoryRoleTargetScope, SqlxIdentityStore,
+    demo_personas, development_controller_permissions, permission_catalog, platform_personas,
 };
 use erpx_infrastructure::{
     ApprovedDatabaseProfileConnection, BranchProvisioningState, DatabaseProfileRegistration,
@@ -32,20 +32,14 @@ use crate::{
 
 const CONTROLLER_PASSWORD_FILE: &str = "secrets/dev-controller.password";
 const UCS_SHARED_PASSWORD_FILE: &str = "secrets/ucs-shared.password";
-const FIXTURE_VERSION: &str = "erpx-dev-access-v4";
+const FIXTURE_VERSION: &str = "erpx-dev-access-v6";
 const PLATFORM_ASSIGNMENT_REVISION: &str = "platform-permissions-v6";
 const CONTROLLER_ASSIGNMENT_REVISION: &str = "restricted-tenant-full-admin-v1";
+const CONTROLLER_CATALOG_ASSIGNMENT_REVISION: &str = "controller-role-catalog-v2";
 const BRANCH_PROFILE_KEY: &str = "dev-local";
 const BRANCH_CREDENTIAL_PROFILE_KEY: &str = "default";
 const BRANCH_PROVISIONING_WORKER_ID: Uuid = Uuid::from_u128(0x8e9e8d7c6b5a49388776655443322110);
-const RESTRICTED_UNITS: [&str; 6] = [
-    "operations",
-    "finance",
-    "sales",
-    "inventory",
-    "hr-payroll",
-    "point-of-sale",
-];
+const RESTRICTED_UNITS: [&str; 12] = erpx_identity::BUSINESS_UNITS;
 
 #[derive(Serialize)]
 struct UcsAuthoritiesFile {
@@ -174,6 +168,107 @@ fn controller_assignment_id() -> Uuid {
     )
 }
 
+fn controller_catalog_assignment_id(target_tenant: &str, role_key: &str) -> Uuid {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!(
+            "erpx:dev-access:{CONTROLLER_CATALOG_ASSIGNMENT_REVISION}:{target_tenant}:{role_key}"
+        )
+        .as_bytes(),
+    )
+}
+
+fn controller_catalog_assignments(
+    target_tenant: &str,
+    holding_ref: &str,
+    representative_branch: (Uuid, Uuid),
+    now: chrono::DateTime<Utc>,
+) -> Vec<RoleAssignment> {
+    let holding_id = tenant_holding_scope_id(holding_ref);
+    permission_catalog()
+        .into_iter()
+        .map(|entry| {
+            let platform_role = entry.target_scope == DirectoryRoleTargetScope::Platform;
+            let scope = match entry.target_scope {
+                DirectoryRoleTargetScope::Platform => Scope::Platform,
+                DirectoryRoleTargetScope::Holding => Scope::Holding { holding_id },
+                DirectoryRoleTargetScope::Company => Scope::Company {
+                    holding_id,
+                    company_id: representative_branch.0,
+                },
+                DirectoryRoleTargetScope::Branch => Scope::Branch {
+                    holding_id,
+                    company_id: representative_branch.0,
+                    branch_id: representative_branch.1,
+                },
+            };
+            let functional_domain = if platform_role {
+                "platform".to_owned()
+            } else {
+                entry
+                    .role_key
+                    .split_once('_')
+                    .map_or("tenant-administration", |(domain, _)| domain)
+                    .to_owned()
+            };
+            RoleAssignment {
+                id: controller_catalog_assignment_id(target_tenant, &entry.role_key),
+                principal_ref: DEVELOPMENT_CONTROLLER_PRINCIPAL.into(),
+                role_key: entry.role_key,
+                permissions: entry.permissions,
+                functional_domain,
+                authority_level: if platform_role { 64 } else { 32 },
+                approval_limit_minor: 0,
+                scope,
+                valid_from: now,
+                valid_until: now + chrono::Duration::days(365),
+                timezone: "Asia/Bangkok".into(),
+                risk_tier: RiskTier::Standard,
+                grant_reason: "environment-gated local controller role catalog".into(),
+                ticket_reference: Some("local:dev-controller-role-catalog".into()),
+                grantor: DEVELOPMENT_CONTROLLER_PRINCIPAL.into(),
+                approver: None,
+                renewal_reviewer: None,
+                parent_assignment_id: None,
+                assignment_version: 1,
+            }
+        })
+        .collect()
+}
+
+async fn controller_catalog_scope_context(
+    write: &PgPool,
+    target_tenant: &str,
+) -> TaskResult<(String, (Uuid, Uuid))> {
+    let holding_ref: String = sqlx::query_scalar(
+        "SELECT holding_ref FROM erpx_control.tenant_registry
+         WHERE tenant_id=$1 AND state='active'",
+    )
+    .bind(target_tenant)
+    .fetch_one(write)
+    .await?;
+    let deterministic_branch = branch_ids(target_tenant, RESTRICTED_BRANCHES[0]);
+    let representative = sqlx::query(
+        "SELECT company_id, branch_id
+         FROM erpx_control.branch_database_routes
+         WHERE tenant_id=$1 AND state='active'
+         ORDER BY (branch_id=$2) DESC, branch_id
+         LIMIT 1",
+    )
+    .bind(target_tenant)
+    .bind(deterministic_branch.1)
+    .fetch_optional(write)
+    .await?
+    .map(|row| {
+        Ok::<_, sqlx::Error>((
+            row.try_get::<Uuid, _>("company_id")?,
+            row.try_get::<Uuid, _>("branch_id")?,
+        ))
+    })
+    .transpose()?;
+    Ok((holding_ref, representative.unwrap_or(deterministic_branch)))
+}
+
 async fn reconcile_controller_role(
     write: &PgPool,
     target_tenant: &str,
@@ -200,62 +295,91 @@ async fn reconcile_controller_role(
         parent_assignment_id: None,
         assignment_version: 1,
     };
-    assignment.validate_for_grant(None)?;
-    let payload = serde_json::to_value(&assignment)?;
+    let (holding_ref, representative_branch) =
+        controller_catalog_scope_context(write, target_tenant).await?;
+    let catalog_assignments =
+        controller_catalog_assignments(target_tenant, &holding_ref, representative_branch, now);
+    for candidate in std::iter::once(&assignment).chain(catalog_assignments.iter()) {
+        candidate.validate_for_grant(None)?;
+    }
+    let managed_assignment_ids = catalog_assignments
+        .iter()
+        .map(|candidate| candidate.id)
+        .collect::<Vec<_>>();
     let mut transaction = write.begin().await?;
+    for candidate in std::iter::once(&assignment).chain(catalog_assignments.iter()) {
+        let payload = serde_json::to_value(candidate)?;
+        sqlx::query(
+            "INSERT INTO erpx_control.role_assignments
+                (id, principal_ref, role_key, parent_assignment_id, valid_from,
+                 valid_until, assignment_version, payload)
+             VALUES ($1,$2,$3,NULL,$4,$5,1,$6)
+             ON CONFLICT (id) DO UPDATE SET
+                principal_ref=EXCLUDED.principal_ref,
+                role_key=EXCLUDED.role_key,
+                parent_assignment_id=NULL,
+                valid_from=EXCLUDED.valid_from,
+                valid_until=EXCLUDED.valid_until,
+                assignment_version=EXCLUDED.assignment_version,
+                payload=EXCLUDED.payload",
+        )
+        .bind(candidate.id)
+        .bind(&candidate.principal_ref)
+        .bind(&candidate.role_key)
+        .bind(candidate.valid_from)
+        .bind(candidate.valid_until)
+        .bind(payload)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "INSERT INTO erpx_control.role_assignment_target_policies
+                (assignment_id, policy_kind, environment_gate, configured_by, configured_at)
+             VALUES ($1,'tenant_allowlist',$2,$3,$4)
+             ON CONFLICT (assignment_id) DO UPDATE SET
+                policy_kind=EXCLUDED.policy_kind,
+                environment_gate=EXCLUDED.environment_gate,
+                configured_by=EXCLUDED.configured_by,
+                configured_at=EXCLUDED.configured_at",
+        )
+        .bind(candidate.id)
+        .bind(DEVELOPMENT_CLUSTER_MARKER)
+        .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
+        .bind(now)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "DELETE FROM erpx_control.role_assignment_tenant_targets
+             WHERE assignment_id=$1",
+        )
+        .bind(candidate.id)
+        .execute(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "INSERT INTO erpx_control.role_assignment_tenant_targets
+                (assignment_id, tenant_id, configured_at)
+             VALUES ($1,$2,$3)",
+        )
+        .bind(candidate.id)
+        .bind(target_tenant)
+        .bind(now)
+        .execute(&mut *transaction)
+        .await?;
+    }
+
+    // Preserve retired fixture assignments as immutable evidence while
+    // ensuring removed catalog entries can no longer be selected.
     sqlx::query(
-        "INSERT INTO erpx_control.role_assignments
-            (id, principal_ref, role_key, parent_assignment_id, valid_from,
-             valid_until, assignment_version, payload)
-         VALUES ($1,$2,$3,NULL,$4,$5,1,$6)
-         ON CONFLICT (id) DO UPDATE SET
-            principal_ref=EXCLUDED.principal_ref,
-            role_key=EXCLUDED.role_key,
-            parent_assignment_id=NULL,
-            valid_from=EXCLUDED.valid_from,
-            valid_until=EXCLUDED.valid_until,
-            assignment_version=EXCLUDED.assignment_version,
-            payload=EXCLUDED.payload",
+        "UPDATE erpx_control.role_assignments
+         SET valid_until=LEAST(valid_until,$1),
+             payload=jsonb_set(payload,'{valid_until}',to_jsonb($1::timestamptz),true)
+         WHERE principal_ref=$2
+           AND payload->>'ticket_reference'='local:dev-controller-role-catalog'
+           AND NOT (id = ANY($3))
+           AND valid_until>$1",
     )
-    .bind(assignment.id)
-    .bind(&assignment.principal_ref)
-    .bind(&assignment.role_key)
-    .bind(assignment.valid_from)
-    .bind(assignment.valid_until)
-    .bind(payload)
-    .execute(&mut *transaction)
-    .await?;
-    sqlx::query(
-        "INSERT INTO erpx_control.role_assignment_target_policies
-            (assignment_id, policy_kind, environment_gate, configured_by, configured_at)
-         VALUES ($1,'tenant_allowlist',$2,$3,$4)
-         ON CONFLICT (assignment_id) DO UPDATE SET
-            policy_kind=EXCLUDED.policy_kind,
-            environment_gate=EXCLUDED.environment_gate,
-            configured_by=EXCLUDED.configured_by,
-            configured_at=EXCLUDED.configured_at",
-    )
-    .bind(assignment.id)
-    .bind(DEVELOPMENT_CLUSTER_MARKER)
+    .bind(now)
     .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
-    .bind(now)
-    .execute(&mut *transaction)
-    .await?;
-    sqlx::query(
-        "DELETE FROM erpx_control.role_assignment_tenant_targets
-         WHERE assignment_id=$1",
-    )
-    .bind(assignment.id)
-    .execute(&mut *transaction)
-    .await?;
-    sqlx::query(
-        "INSERT INTO erpx_control.role_assignment_tenant_targets
-            (assignment_id, tenant_id, configured_at)
-         VALUES ($1,$2,$3)",
-    )
-    .bind(assignment.id)
-    .bind(target_tenant)
-    .bind(now)
+    .bind(&managed_assignment_ids)
     .execute(&mut *transaction)
     .await?;
 
@@ -282,6 +406,8 @@ async fn reconcile_controller_role(
     .bind(serde_json::json!({
         "role_key": DEVELOPMENT_CONTROLLER_ROLE,
         "target_tenant": target_tenant,
+        "catalog_role_count": catalog_assignments.len(),
+        "total_controller_role_count": catalog_assignments.len() + 1,
         "legacy_superuser_retired": true,
     }))
     .execute(&mut *transaction)
@@ -387,6 +513,24 @@ fn persona_assignment_scopes(
         Scope::Holding { holding_id },
         format!("holding:{holding_id}"),
     )]
+}
+
+fn scoped_demo_personas(
+    tenant_id: &str,
+    holding_ref: &str,
+    entitled_units: &[&str],
+) -> Vec<erpx_identity::DevelopmentPersona> {
+    let mut personas = demo_personas(tenant_id, entitled_units);
+    for persona in &mut personas {
+        if let Some((scope, _)) =
+            persona_assignment_scopes(tenant_id, holding_ref, &persona.role_key).first()
+        {
+            // The selector presents one bounded representative scope per test
+            // persona. Durable assignments still cover every fixture branch.
+            persona.organization_scope = scope.canonical_key();
+        }
+    }
+    personas
 }
 
 pub(crate) fn controller_password_path(root: &Path) -> PathBuf {
@@ -703,7 +847,7 @@ async fn reconcile_persona_catalog(
     .execute(&write)
     .await?;
     for (tenant_id, holding_ref, entitled_units) in tenants {
-        let personas = demo_personas(tenant_id, entitled_units);
+        let personas = scoped_demo_personas(tenant_id, holding_ref, entitled_units);
         identity
             .reconcile_development_personas(&personas, now)
             .await?;
@@ -838,7 +982,8 @@ pub(crate) async fn reconcile(root: &Path, config: &DevConfig) -> TaskResult {
             continue;
         }
         let holding_ref: String = row.try_get("holding_ref")?;
-        let personas = demo_personas(&tenant_id, &erpx_identity::BUSINESS_UNITS);
+        let personas =
+            scoped_demo_personas(&tenant_id, &holding_ref, &erpx_identity::BUSINESS_UNITS);
         identity
             .reconcile_development_personas(&personas, now)
             .await?;
@@ -1048,14 +1193,14 @@ async fn reconcile_branch_fixtures(
                 ),
             };
             let job = jobs.enqueue(&request).await?;
-            if jobs
+            if let Some(route) = jobs
                 .route(tenant_id, branch_id)
                 .await?
-                .is_some_and(|route| route.state == BranchProvisioningState::Active)
+                .filter(|route| route.state == BranchProvisioningState::Active)
             {
                 // Fixture versions may change after a branch database is already active. The
                 // route is authoritative here: acknowledge the exact replacement fixture job
-                // instead of trying to provision the same databases again.
+                // and reconcile its complete business-unit catalog instead of reprovisioning.
                 if job.state != BranchProvisioningState::Active {
                     let updated = sqlx::query(
                         "UPDATE erpx_control.branch_provisioning_jobs
@@ -1076,6 +1221,13 @@ async fn reconcile_branch_fixtures(
                         .into());
                     }
                 }
+                reconcile_active_branch_business_units(
+                    &control,
+                    &route.tenant_id,
+                    route.branch_id,
+                    &units,
+                )
+                .await?;
                 continue;
             }
             if job.state == BranchProvisioningState::Failed {
@@ -1122,6 +1274,38 @@ async fn reconcile_branch_fixtures(
         crate::infra::ensure_postgres_hba_for_databases(&branch_databases)?;
     }
     update_holding_display_names(config).await?;
+    Ok(())
+}
+
+async fn reconcile_active_branch_business_units(
+    control: &SqlxControlPlane,
+    tenant_id: &str,
+    branch_id: Uuid,
+    units: &[BusinessUnitId],
+) -> TaskResult {
+    for unit in units {
+        sqlx::query(
+            "INSERT INTO erpx_control.branch_business_unit_configurations
+                (tenant_id, branch_id, business_unit, active,
+                 configuration_version, updated_by)
+             VALUES ($1,$2,$3,TRUE,1,$4)
+             ON CONFLICT (tenant_id, branch_id, business_unit) DO UPDATE
+             SET active=TRUE,
+                 configuration_version=CASE
+                     WHEN erpx_control.branch_business_unit_configurations.active THEN
+                         erpx_control.branch_business_unit_configurations.configuration_version
+                     ELSE erpx_control.branch_business_unit_configurations.configuration_version + 1
+                 END,
+                 updated_by=EXCLUDED.updated_by,
+                 updated_at=now()",
+        )
+        .bind(tenant_id)
+        .bind(branch_id)
+        .bind(unit.as_str())
+        .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
+        .execute(&control.pools().write)
+        .await?;
+    }
     Ok(())
 }
 
@@ -1237,31 +1421,36 @@ pub(crate) async fn controller_fixture_current(
         write.close().await;
         return Ok(false);
     }
-    let controller_role_current: bool = sqlx::query_scalar(
-        "SELECT EXISTS(
-             SELECT 1
-             FROM erpx_control.role_assignments assignment
-             JOIN erpx_control.role_assignment_target_policies policy
-               ON policy.assignment_id=assignment.id
-             JOIN erpx_control.role_assignment_tenant_targets target
-               ON target.assignment_id=assignment.id
-             WHERE assignment.id=$1
-               AND assignment.principal_ref=$2
-               AND assignment.role_key=$3
-               AND assignment.valid_until>now()
-               AND policy.policy_kind='tenant_allowlist'
-               AND policy.environment_gate='local-ucs-lab'
-               AND target.tenant_id=$4
-         )",
+    let mut expected_assignment_ids = vec![controller_assignment_id()];
+    expected_assignment_ids.extend(
+        permission_catalog()
+            .into_iter()
+            .map(|entry| controller_catalog_assignment_id(target_tenant, &entry.role_key)),
+    );
+    let controller_role_count: i64 = sqlx::query_scalar(
+        "SELECT count(*)
+         FROM erpx_control.role_assignments assignment
+         JOIN erpx_control.role_assignment_target_policies policy
+           ON policy.assignment_id=assignment.id
+         JOIN erpx_control.role_assignment_tenant_targets target
+           ON target.assignment_id=assignment.id
+         WHERE assignment.id = ANY($1)
+           AND assignment.principal_ref=$2
+           AND assignment.valid_until>now()
+           AND policy.policy_kind='tenant_allowlist'
+           AND policy.environment_gate='local-ucs-lab'
+           AND target.tenant_id=$3
+           AND (SELECT count(*)
+                FROM erpx_control.role_assignment_tenant_targets exact_target
+                WHERE exact_target.assignment_id=assignment.id)=1",
     )
-    .bind(controller_assignment_id())
+    .bind(&expected_assignment_ids)
     .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
-    .bind(DEVELOPMENT_CONTROLLER_ROLE)
     .bind(target_tenant)
     .fetch_one(&write)
     .await?;
     write.close().await;
-    Ok(controller_role_current)
+    Ok(controller_role_count == i64::try_from(expected_assignment_ids.len())?)
 }
 
 pub(crate) async fn runtime_catalog_current(
@@ -1328,7 +1517,8 @@ pub(crate) async fn runtime_catalog_current(
         (TENANT_ID, HOLDING_REF),
         (RESTRICTED_TENANT_ID, RESTRICTED_HOLDING_REF),
     ] {
-        let expected_personas = demo_personas(tenant_id, entitled_units(tenant_id));
+        let expected_personas =
+            scoped_demo_personas(tenant_id, holding_ref, entitled_units(tenant_id));
         let receipt_current: bool = sqlx::query_scalar(
             "SELECT EXISTS(
                  SELECT 1 FROM erpx_identity.development_seed_receipts
@@ -1470,7 +1660,13 @@ pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskRes
         return Ok(false);
     }
     for tenant_id in &local_tenants {
-        let expected_personas = demo_personas(tenant_id, entitled_units(tenant_id));
+        let holding_ref = if tenant_id == TENANT_ID {
+            HOLDING_REF
+        } else {
+            RESTRICTED_HOLDING_REF
+        };
+        let expected_personas =
+            scoped_demo_personas(tenant_id, holding_ref, entitled_units(tenant_id));
         let receipt_current: bool = sqlx::query_scalar(
             "SELECT EXISTS(
                  SELECT 1 FROM erpx_identity.development_seed_receipts
@@ -1550,8 +1746,31 @@ pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskRes
     .bind(RESTRICTED_TENANT_ID)
     .fetch_one(&write)
     .await?;
+    let configured_branch_count: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM (
+             SELECT route.tenant_id, route.branch_id
+             FROM erpx_control.branch_database_routes route
+             JOIN erpx_control.branch_business_unit_configurations configuration
+               ON configuration.tenant_id=route.tenant_id
+              AND configuration.branch_id=route.branch_id
+             WHERE route.tenant_id IN ($1,$2)
+               AND route.state='active'
+               AND configuration.active
+               AND configuration.business_unit = ANY($3)
+             GROUP BY route.tenant_id, route.branch_id
+             HAVING count(DISTINCT configuration.business_unit)=$4
+         ) configured_branches",
+    )
+    .bind(TENANT_ID)
+    .bind(RESTRICTED_TENANT_ID)
+    .bind(erpx_identity::BUSINESS_UNITS.as_slice())
+    .bind(i64::try_from(erpx_identity::BUSINESS_UNITS.len())?)
+    .fetch_one(&write)
+    .await?;
     write.close().await;
-    Ok(active_branch_count == i64::try_from(DEMO_BRANCHES.len() + RESTRICTED_BRANCHES.len())?)
+    let expected_branch_count = i64::try_from(DEMO_BRANCHES.len() + RESTRICTED_BRANCHES.len())?;
+    Ok(active_branch_count == expected_branch_count
+        && configured_branch_count == expected_branch_count)
 }
 
 fn quote_identifier(value: &str) -> String {
@@ -1575,8 +1794,24 @@ pub(crate) async fn status(
     )
     .fetch_one(&write)
     .await?;
+    let controller_roles: i64 = sqlx::query_scalar(
+        "SELECT count(DISTINCT assignment.id)
+         FROM erpx_control.role_assignments assignment
+         JOIN erpx_control.role_assignment_target_policies policy
+           ON policy.assignment_id=assignment.id
+         JOIN erpx_control.role_assignment_tenant_targets target
+           ON target.assignment_id=assignment.id
+         WHERE assignment.principal_ref=$1
+           AND assignment.valid_until>now()
+           AND policy.policy_kind='tenant_allowlist'
+           AND policy.environment_gate=$2",
+    )
+    .bind(DEVELOPMENT_CONTROLLER_PRINCIPAL)
+    .bind(DEVELOPMENT_CLUSTER_MARKER)
+    .fetch_one(&write)
+    .await?;
     println!(
-        "Development access: {} · database: {control_write_database} · personas: {manifests} · active contexts: {active_contexts} · controller secret: {}",
+        "Development access: {} · database: {control_write_database} · personas: {manifests} · controller roles: {controller_roles} · active contexts: {active_contexts} · controller secret: {}",
         if path.exists() {
             "initialized"
         } else {
@@ -1725,7 +1960,18 @@ fn manifest_digest(tenant_id: &str) -> String {
     }
     update_manifest_digest(
         &mut digest,
-        &format!("{:?}", demo_personas(tenant_id, entitled_units(tenant_id))),
+        &format!(
+            "{:?}",
+            scoped_demo_personas(
+                tenant_id,
+                if tenant_id == TENANT_ID {
+                    HOLDING_REF
+                } else {
+                    RESTRICTED_HOLDING_REF
+                },
+                entitled_units(tenant_id),
+            )
+        ),
     );
     for fixture in branch_fixtures(tenant_id) {
         update_manifest_digest(&mut digest, &format!("{fixture:?}"));
@@ -1776,8 +2022,12 @@ mod tests {
     #[test]
     fn runtime_catalog_contains_platform_and_both_demo_tenants() {
         let platform = platform_personas();
-        let demo = demo_personas(TENANT_ID, entitled_units(TENANT_ID));
-        let restricted = demo_personas(RESTRICTED_TENANT_ID, entitled_units(RESTRICTED_TENANT_ID));
+        let demo = scoped_demo_personas(TENANT_ID, HOLDING_REF, entitled_units(TENANT_ID));
+        let restricted = scoped_demo_personas(
+            RESTRICTED_TENANT_ID,
+            RESTRICTED_HOLDING_REF,
+            entitled_units(RESTRICTED_TENANT_ID),
+        );
         assert_eq!(platform.len() + demo.len() + restricted.len(), 146);
         assert!(platform.iter().all(|persona| persona.tenant_id.is_none()));
         let demo_denied = demo.iter().filter(|persona| !persona.entitled).count();
@@ -1786,6 +2036,75 @@ mod tests {
             .filter(|persona| !persona.entitled)
             .count();
         assert!(demo_denied > 0);
-        assert!(restricted_denied > demo_denied);
+        assert_eq!(restricted_denied, demo_denied);
+        assert_eq!(entitled_units(RESTRICTED_TENANT_ID).len(), 12);
+    }
+
+    #[test]
+    fn controller_catalog_has_every_role_once_with_bounded_representative_scopes() {
+        let assignments = controller_catalog_assignments(
+            RESTRICTED_TENANT_ID,
+            RESTRICTED_HOLDING_REF,
+            branch_ids(RESTRICTED_TENANT_ID, RESTRICTED_BRANCHES[0]),
+            Utc::now(),
+        );
+        assert_eq!(assignments.len(), 73);
+
+        let ids = assignments
+            .iter()
+            .map(|assignment| assignment.id)
+            .collect::<std::collections::BTreeSet<_>>();
+        let role_keys = assignments
+            .iter()
+            .map(|assignment| assignment.role_key.as_str())
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(ids.len(), 73);
+        assert_eq!(role_keys.len(), 73);
+
+        let permission_by_role = permission_catalog()
+            .into_iter()
+            .map(|entry| (entry.role_key, entry.permissions))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let mut platform_scopes = 0;
+        let mut holding_scopes = 0;
+        let mut company_scopes = 0;
+        let mut branch_scopes = 0;
+        let (expected_company_id, expected_branch_id) =
+            branch_ids(RESTRICTED_TENANT_ID, RESTRICTED_BRANCHES[0]);
+        for assignment in &assignments {
+            assert_eq!(assignment.principal_ref, DEVELOPMENT_CONTROLLER_PRINCIPAL);
+            assert_eq!(
+                permission_by_role.get(&assignment.role_key),
+                Some(&assignment.permissions)
+            );
+            assert!(!assignment.permissions.iter().any(|permission| {
+                matches!(
+                    permission.as_str(),
+                    "development.mfa.bypass" | "development.sod.self-approve"
+                )
+            }));
+            match &assignment.scope {
+                Scope::Platform => platform_scopes += 1,
+                Scope::Holding { .. } => holding_scopes += 1,
+                Scope::Company { company_id, .. } => {
+                    company_scopes += 1;
+                    assert_eq!(*company_id, expected_company_id);
+                }
+                Scope::Branch {
+                    company_id,
+                    branch_id,
+                    ..
+                } => {
+                    branch_scopes += 1;
+                    assert_eq!(*company_id, expected_company_id);
+                    assert_eq!(*branch_id, expected_branch_id);
+                }
+                Scope::Subtree { .. } => panic!("catalog roles never use subtree scope"),
+            }
+        }
+        assert_eq!(platform_scopes, 8);
+        assert_eq!(holding_scopes, 3);
+        assert_eq!(company_scopes, 1);
+        assert_eq!(branch_scopes, 61);
     }
 }

@@ -49,8 +49,14 @@ cargo xtask status        # report only recorded ERPX child processes
 cargo xtask stop          # stop only recorded ERPX child processes
 cargo xtask seed-demo     # idempotent development fixture
 cargo xtask dev-access credentials  # explicitly reveal the local controller login
+cargo xtask pitr rehearsal # temporarily enable bounded PITR, verify restore, then purge artifacts
+cargo xtask pitr cleanup-local --confirm PURGE_ERPX_LOCAL_PITR # purge the fixed local PITR chain
 cargo xtask test-affected # test only changed packages, consumers, and domain harnesses
+cargo xtask verify-core   # offline CI-parity core gate (after cargo fetch)
+cargo xtask verify-runtime # strict process, heartbeat, and projection evidence
+cargo xtask verify-sqlx   # disposable PostgreSQL acceptance lane
 cargo xtask verify        # serialized full Web gate
+cargo xtask verify-web-production # additive release-only production gate
 cargo xtask verify-platforms # manual deferred Desktop/Mobile checks
 ```
 
@@ -61,6 +67,12 @@ When `ERPX_DEV_PERSONA_MODE=enabled`, the debug console selects
 `local:dev-controller` on the sign-in screen. Its generated password remains in
 the private runtime secret file and is printed only by the explicit
 `cargo xtask dev-access credentials` command.
+
+Continuous PITR archiving is disabled by default on local development. A
+`pitr rehearsal` acquires a private two-hour lease with a 4 GiB WAL budget,
+verifies LSN/time recovery, and removes its base backup and WAL artifacts on
+exit. `cargo xtask status` reports the lease and retained spool/MinIO usage;
+the literal-confirmation cleanup command is the only manual purge entry point.
 
 For dev-only access over Tailscale, keep ERPX loopback-only and let Tailscale
 Serve forward the three development ports. Enable the development persona mode
@@ -230,6 +242,7 @@ lanes from accumulating another large incremental cache.
 - `crates/proto`: public gRPC contracts and descriptor baseline
 - `crates/ui`, `crates/ui-foundation`: shared Web-first product UI boundaries
 - `audits`: retained ERPX implementation and acceptance evidence
+- `audits/CURRENT-CERTIFICATION.md`: current certification scope and latest gate result
 - `xtask`: bounded development lifecycle and verification
 
 ## Verification
@@ -239,12 +252,39 @@ cargo xtask verify
 ```
 
 `cargo xtask verify` is the single pre-handoff entry point. It serializes
-`cargo fmt --all --check`, warnings-denied workspace Clippy, the full workspace
-test suite with default Web features, explicit Console `web` and `server`
-checks, the Dioxus Web build, local SQLx acceptance, repository scans, and
+`cargo xtask verify-core` (formatting, warnings-denied workspace Clippy, the
+full workspace test suite, architecture/repository scans, explicit Console
+`web` and `server` checks, and a locked offline Dioxus Web release build), then
+local SQLx acceptance, strict process/heartbeat/projection readiness, and
 runtime HTTP/SSR/BFF smoke checks. A successful full gate refreshes the affected
-baseline even for a dirty worktree. Normal CI applies the same Rust workspace
-and Web/Server target scope.
+baseline even for a dirty worktree. CI fetches locked dependencies first, runs
+the same offline core gate, and follows it with the disposable PostgreSQL lane.
+See [the current certification index](audits/CURRENT-CERTIFICATION.md); dated
+audit directories and `CUTOVER.md` are retained historical evidence.
+
+The release-only production gate is additive:
+
+```bash
+cargo xtask verify-web-production
+```
+
+It first runs the complete normal Web gate, then fails closed unless the Web
+production profile uses HTTPS-only trusted/auth/gRPC endpoints, JSON structured
+logs, non-local session-key references, valid secret material, and no
+development-persona configuration. It verifies the deployed login/protected/
+unknown routes, security headers, health and metrics endpoints, worker/outbox/
+projection thresholds, and live backup/PITR metric evidence. The versioned JSON
+file named by `ERPX_WEB_PRODUCTION_EVIDENCE` must match
+`ERPX_WEB_PRODUCTION_REVISION` and include one schema-v2 journey for each of the
+12 modules. Every journey must evidence login, scope, list/detail, create,
+lifecycle transition, read-your-writes, audit, session recovery, authorization,
+validation, conflict, duplicate submission, recovery, English/Thai, desktop/
+390px, and zero unexplained console errors. The same gate requires zero
+critical/high security findings, backup restore, object recovery, PostgreSQL
+PITR, loaded alerts, and verified runbooks.
+Use [the evidence schema example](ops/web-production-evidence.example.json) and
+the runbooks under `ops/runbooks/`; the example is a template, never release
+evidence.
 
 Run `cargo xtask verify-platforms` only when manually assessing the deferred
 Desktop, generic Mobile, iOS, Android, and Android bridge targets. It is not
@@ -252,5 +292,6 @@ called by the daily loop, normal CI, or the final Web gate. Those platforms are
 not certified in this phase.
 
 Non-loopback database, object-store, provider, and directory endpoints must use
-certificate-validating TLS. Production activation and external directory
-certification are deliberately outside this development cutover.
+certificate-validating TLS. External directory certification remains required
+only when that integration is enabled for the launch tenant. Desktop/Mobile
+certification remains outside the Web production target.

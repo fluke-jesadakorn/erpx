@@ -8,10 +8,20 @@ use chrono::{DateTime, Duration, Utc};
 use dioxus::server::axum::{
     Extension, Json,
     body::{Body, to_bytes},
-    extract::{Form, Path, Request},
+    extract::{Form, Path, Query, Request},
     http::{HeaderMap, HeaderValue, Method, StatusCode, header},
     middleware::Next,
     response::{IntoResponse, Response},
+};
+use erpx_domain::corporate_identity::{
+    BrandAssetKind, ResolvedCorporateIdentity, validate_brand_asset_bytes,
+};
+use erpx_ui::{
+    DashboardBreakdown, DashboardBreakdownSegment, DashboardMetric, DashboardRange,
+    DashboardReadModel, MAX_WORK_PAGE_SIZE, NavGroup, ReadModelAvailability, ReadModelFreshness,
+    ReadModelMeta, SafeUiText, WorkDomain, WorkItemKind, WorkItemReadModel, WorkItemSeverity,
+    WorkItemStage, WorkItemTarget, WorkQueueMeta, WorkQueueReadModel, WorkQueueView, WorkRoute,
+    WorkSlaState, WorkSourceContribution, sla_state, valid_work_cursor,
 };
 use erpx_web_session::{
     SafeActiveRole, SafeWebSessionSnapshot, SensitiveToken, WEB_SESSION_COOKIE_NAME,
@@ -19,9 +29,22 @@ use erpx_web_session::{
     WebSessionSelector, WebSessionStore,
 };
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{fmt, io, sync::Arc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
+
+use erpx_proto::{
+    common::v1::{
+        ActorAttribution, ActorKind, AuditContext, EventualConsistency, PlatformScope,
+        QueryConsistency, QueryContext, TenantScope, query_consistency, tenant_scope,
+    },
+    platform::{
+        Incident, ListIncidentsRequest, ListTicketsRequest, Ticket,
+        support_service_client::SupportServiceClient,
+    },
+};
+use tonic::metadata::MetadataValue;
 
 const PRIVATE_NO_STORE: &str = "private, no-store";
 const LEGACY_BUNDLE_COOKIE_NAME: &str = "erpx_session_bundle_v2";
@@ -35,6 +58,7 @@ pub(crate) struct BffState {
     trusted_public_origins: Arc<[Arc<str>]>,
     auth_http: reqwest::Client,
     refresh_lock: Arc<Mutex<()>>,
+    production_profile: bool,
 }
 
 impl BffState {
@@ -43,6 +67,7 @@ impl BffState {
         auth_http_origin: String,
         grpc_origin: String,
         trusted_public_origins: String,
+        production_profile: bool,
     ) -> Result<Self, io::Error> {
         let auth_http_origin = auth_http_origin.trim_end_matches('/');
         let grpc_origin = grpc_origin.trim_end_matches('/');
@@ -51,18 +76,47 @@ impl BffState {
         {
             return Err(io::Error::other("identity HTTP origin is invalid"));
         }
+        let trusted_public_origins = parse_trusted_public_origins(&trusted_public_origins)?;
+        validate_web_runtime_profile(
+            auth_http_origin,
+            grpc_origin,
+            &trusted_public_origins,
+            production_profile,
+        )?;
         Ok(Self {
             sessions,
             auth_http_origin: Arc::from(auth_http_origin),
             grpc_origin: Arc::from(grpc_origin),
-            trusted_public_origins: parse_trusted_public_origins(&trusted_public_origins)?,
+            trusted_public_origins,
             auth_http: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .map_err(|_| io::Error::other("identity HTTP client is unavailable"))?,
             refresh_lock: Arc::new(Mutex::new(())),
+            production_profile,
         })
     }
+}
+
+fn validate_web_runtime_profile(
+    auth_http_origin: &str,
+    grpc_origin: &str,
+    trusted_public_origins: &[Arc<str>],
+    production_profile: bool,
+) -> Result<(), io::Error> {
+    if production_profile
+        && (!auth_http_origin.starts_with("https://")
+            || !grpc_origin.starts_with("https://")
+            || trusted_public_origins.is_empty()
+            || trusted_public_origins
+                .iter()
+                .any(|origin| !origin.starts_with("https://")))
+    {
+        return Err(io::Error::other(
+            "Web production profile requires HTTPS service and public origins",
+        ));
+    }
+    Ok(())
 }
 
 impl fmt::Debug for BffState {
@@ -73,6 +127,7 @@ impl fmt::Debug for BffState {
             .field("auth_http_origin", &self.auth_http_origin)
             .field("grpc_origin", &self.grpc_origin)
             .field("trusted_public_origins", &self.trusted_public_origins)
+            .field("production_profile", &self.production_profile)
             .finish()
     }
 }
@@ -82,6 +137,7 @@ pub(crate) struct BffCredential {
     pub(crate) session_id: Uuid,
     pub(crate) principal_ref: String,
     pub(crate) access_token: SensitiveToken,
+    pub(crate) development_context_token: Option<SensitiveToken>,
 }
 
 impl fmt::Debug for BffCredential {
@@ -91,6 +147,13 @@ impl fmt::Debug for BffCredential {
             .field("session_id", &self.session_id)
             .field("principal_ref", &self.principal_ref)
             .field("access_token", &"[redacted]")
+            .field(
+                "development_context_token",
+                &self
+                    .development_context_token
+                    .as_ref()
+                    .map(|_| "[redacted]"),
+            )
             .finish()
     }
 }
@@ -117,7 +180,15 @@ pub(crate) async fn session_middleware(
     mut request: Request,
     next: Next,
 ) -> Response {
+    if state.production_profile && !request_is_https(request.headers()) {
+        return Response::builder()
+            .status(StatusCode::UPGRADE_REQUIRED)
+            .header(header::CACHE_CONTROL, PRIVATE_NO_STORE)
+            .body(Body::empty())
+            .unwrap_or_else(|_| unavailable());
+    }
     let page_request = is_console_page_request(&request);
+    let mut route_status = console_document_route_status(&request);
     let mut clear_stale_cookie = false;
     let context = match selector_from_headers(request.headers()) {
         None => BffSessionContext::signed_out(),
@@ -136,6 +207,7 @@ pub(crate) async fn session_middleware(
                         session_id: active.session_id,
                         principal_ref: active.principal_ref.clone(),
                         access_token: active.access_token.clone(),
+                        development_context_token: active.development_context_token.clone(),
                     }),
                     bundle: Some(bundle),
                 }
@@ -156,10 +228,20 @@ pub(crate) async fn session_middleware(
         }
         return response;
     }
+    if route_status == Some(StatusCode::OK) && page_request && context.snapshot.authenticated {
+        route_status =
+            Some(authenticated_document_route_status(&state, &context, request.uri().path()).await);
+    }
     let private_response = context.snapshot.authenticated;
     let secure_cookie = request_is_https(request.headers());
     request.extensions_mut().insert(context);
     let mut response = next.run(request).await;
+    if let Some(status) = route_status
+        && status != StatusCode::OK
+        && response.status().is_success()
+    {
+        *response.status_mut() = status;
+    }
     if clear_stale_cookie {
         clear_session_cookie(&mut response, secure_cookie);
     }
@@ -169,7 +251,101 @@ pub(crate) async fn session_middleware(
             HeaderValue::from_static(PRIVATE_NO_STORE),
         );
     }
+    apply_web_security_headers(&mut response, secure_cookie);
     response
+}
+
+fn apply_web_security_headers(response: &mut Response, https: bool) {
+    let headers = response.headers_mut();
+    headers.insert(
+        "content-security-policy",
+        HeaderValue::from_static(
+            "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; connect-src 'self'; manifest-src 'self'",
+        ),
+    );
+    headers.insert(
+        "x-content-type-options",
+        HeaderValue::from_static("nosniff"),
+    );
+    headers.insert("x-frame-options", HeaderValue::from_static("DENY"));
+    headers.insert("referrer-policy", HeaderValue::from_static("no-referrer"));
+    headers.insert(
+        "permissions-policy",
+        HeaderValue::from_static("camera=(), microphone=(), geolocation=()"),
+    );
+    headers.insert(
+        "cross-origin-opener-policy",
+        HeaderValue::from_static("same-origin"),
+    );
+    if https {
+        headers.insert(
+            "strict-transport-security",
+            HeaderValue::from_static("max-age=63072000; includeSubDomains"),
+        );
+    }
+}
+
+async fn authenticated_document_route_status(
+    _state: &BffState,
+    context: &BffSessionContext,
+    path: &str,
+) -> StatusCode {
+    if crate::navigation_authorizes_console_path(path, &[]) {
+        return StatusCode::OK;
+    }
+    let Some(credential) = context.credential.as_ref() else {
+        return StatusCode::UNAUTHORIZED;
+    };
+    let Some(scope_key) = context
+        .snapshot
+        .active_role
+        .as_ref()
+        .and_then(|role| role.scope_key.as_ref())
+    else {
+        return StatusCode::FORBIDDEN;
+    };
+    let development_context_token = credential
+        .development_context_token
+        .as_ref()
+        .map(|token| token.expose().to_owned());
+    match crate::fetch_navigation_manifest(
+        credential.access_token.expose().to_owned(),
+        credential.principal_ref.clone(),
+        credential.session_id.to_string(),
+        scope_key.clone(),
+        development_context_token,
+        false,
+    )
+    .await
+    {
+        Ok(groups) if crate::navigation_authorizes_console_path(path, &groups) => StatusCode::OK,
+        Ok(_) => StatusCode::FORBIDDEN,
+        Err(error) if error.ends_with("Unauthenticated") || error.ends_with("PermissionDenied") => {
+            StatusCode::FORBIDDEN
+        }
+        Err(error) if error == "authorized navigation manifest is empty" => StatusCode::FORBIDDEN,
+        Err(_) => StatusCode::SERVICE_UNAVAILABLE,
+    }
+}
+
+fn console_document_route_status(request: &Request) -> Option<StatusCode> {
+    if request.method() != Method::GET && request.method() != Method::HEAD {
+        return None;
+    }
+    let path = request.uri().path();
+    if path.starts_with("/api/")
+        || path.starts_with("/assets/")
+        || path.starts_with("/_")
+        || path.starts_with("/public/")
+        || path.starts_with("/.well-known/")
+        || path
+            .rsplit('/')
+            .next()
+            .is_some_and(|segment| segment.contains('.'))
+    {
+        return None;
+    }
+    StatusCode::from_u16(crate::console_route_http_status(path)).ok()
 }
 
 fn is_console_page_request(request: &Request) -> bool {
@@ -303,10 +479,9 @@ async fn load_and_refresh_bundle(
     {
         return Err(SessionLoadError::Unavailable);
     }
+    preserve_refreshed_active_role(&mut refreshed, &current);
     refreshed.development_context_token = current.development_context_token;
-    if refreshed.active_role.is_none() {
-        refreshed.active_role = current.active_role;
-    }
+    refreshed.development_active_role = current.development_active_role;
     if refreshed.authorization_context_version.is_none() {
         refreshed.authorization_context_version = current.authorization_context_version;
     }
@@ -372,6 +547,8 @@ pub(crate) async fn session_snapshot(Extension(context): Extension<BffSessionCon
 #[serde(deny_unknown_fields)]
 pub(crate) struct NavigationRequest {
     scope_key: String,
+    #[serde(default)]
+    include_inaccessible: bool,
 }
 
 pub(crate) async fn navigation_manifest(
@@ -392,30 +569,764 @@ pub(crate) async fn navigation_manifest(
     {
         return (StatusCode::BAD_REQUEST, "navigation request invalid").into_response();
     }
+    let development_context_token = credential
+        .development_context_token
+        .as_ref()
+        .map(|token| token.expose().to_owned());
     let groups = match crate::fetch_navigation_manifest(
         credential.access_token.expose().to_owned(),
-        credential.principal_ref,
+        credential.principal_ref.clone(),
         credential.session_id.to_string(),
         request.scope_key,
+        development_context_token,
+        request.include_inaccessible,
     )
     .await
     {
         Ok(groups) => groups,
         Err(error) if error.ends_with("InvalidArgument") => {
+            tracing::warn!(
+                event = "navigation_manifest_failed",
+                category = "invalid_scope",
+                "authorized navigation manifest request failed"
+            );
             return (StatusCode::BAD_REQUEST, "navigation scope invalid").into_response();
         }
         Err(error) if error.ends_with("Unauthenticated") || error.ends_with("PermissionDenied") => {
+            tracing::warn!(
+                event = "navigation_manifest_failed",
+                category = "authorization_denied",
+                "authorized navigation manifest request failed"
+            );
             return (StatusCode::FORBIDDEN, "navigation authorization denied").into_response();
         }
         Err(error) if error == "authorized navigation manifest is empty" => Vec::new(),
-        Err(_) => return unavailable(),
+        Err(_) => {
+            tracing::warn!(
+                event = "navigation_manifest_failed",
+                category = "transport_unavailable",
+                "authorized navigation manifest request failed"
+            );
+            return unavailable();
+        }
     };
+    tracing::info!(
+        event = "navigation_manifest_loaded",
+        group_count = groups.len(),
+        route_count = groups.iter().map(|group| group.items.len()).sum::<usize>(),
+        "authorized navigation manifest loaded"
+    );
     let mut response = Json(crate::navigation_http_groups(&groups)).into_response();
     response.headers_mut().insert(
         header::CACHE_CONTROL,
         HeaderValue::from_static(PRIVATE_NO_STORE),
     );
     response
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct DashboardQuery {
+    range: Option<String>,
+    compare: Option<String>,
+}
+
+pub(crate) async fn dashboard_read_model(
+    Extension(state): Extension<BffState>,
+    Extension(context): Extension<BffSessionContext>,
+    Query(query): Query<DashboardQuery>,
+) -> Response {
+    let Some(credential) = context.credential else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            "authenticated web session required",
+        )
+            .into_response();
+    };
+    let range = match query.range.as_deref().unwrap_or("30d") {
+        value if DashboardRange::parse(value).is_some() => {
+            DashboardRange::parse(value).unwrap_or_default()
+        }
+        _ => return (StatusCode::BAD_REQUEST, "dashboard range invalid").into_response(),
+    };
+    let compared_to_previous = match query.compare.as_deref() {
+        None => false,
+        Some("previous") => true,
+        Some(_) => {
+            return (StatusCode::BAD_REQUEST, "dashboard comparison invalid").into_response();
+        }
+    };
+    let Some(scope_key) = context
+        .bundle
+        .as_ref()
+        .and_then(WebSessionBundle::active_account)
+        .and_then(WebSessionAccount::effective_active_role)
+        .and_then(|role| role.scope_key.clone())
+    else {
+        return (StatusCode::FORBIDDEN, "active role scope required").into_response();
+    };
+    let development_context_token = credential
+        .development_context_token
+        .as_ref()
+        .map(|token| token.expose().to_owned());
+    let groups = match crate::fetch_navigation_manifest(
+        credential.access_token.expose().to_owned(),
+        credential.principal_ref.clone(),
+        credential.session_id.to_string(),
+        scope_key.clone(),
+        development_context_token,
+        false,
+    )
+    .await
+    {
+        Ok(groups) => groups,
+        Err(error) if error.ends_with("InvalidArgument") => {
+            return (StatusCode::BAD_REQUEST, "dashboard scope invalid").into_response();
+        }
+        Err(error) if error.ends_with("Unauthenticated") || error.ends_with("PermissionDenied") => {
+            return (StatusCode::FORBIDDEN, "dashboard authorization denied").into_response();
+        }
+        Err(_) => return unavailable(),
+    };
+    let sources = fetch_platform_work_sources(&state, &credential, Utc::now()).await;
+    let model = dashboard_from_authorized_sources(
+        range,
+        compared_to_previous,
+        scope_key,
+        &groups,
+        &sources,
+        Utc::now(),
+    );
+    if !model.is_bounded() {
+        return unavailable();
+    }
+    private_json(model)
+}
+
+fn dashboard_from_authorized_sources(
+    range: DashboardRange,
+    compared_to_previous: bool,
+    scope: String,
+    groups: &[NavGroup],
+    sources: &AuthorizedWorkSources,
+    as_of: DateTime<Utc>,
+) -> DashboardReadModel {
+    let successful_sources = sources
+        .contributions
+        .iter()
+        .filter(|source| {
+            matches!(
+                source.availability,
+                ReadModelAvailability::Available | ReadModelAvailability::Empty
+            )
+        })
+        .count();
+    let availability = if groups.is_empty() || successful_sources == 0 {
+        if groups.is_empty() {
+            ReadModelAvailability::Empty
+        } else {
+            ReadModelAvailability::Unavailable
+        }
+    } else if successful_sources == sources.contributions.len() {
+        if sources.items.is_empty() {
+            ReadModelAvailability::Empty
+        } else {
+            ReadModelAvailability::Available
+        }
+    } else {
+        ReadModelAvailability::Partial
+    };
+    let counters = WorkQueueReadModel::counters_for(&sources.items, as_of);
+    let metrics = if successful_sources == 0 {
+        Vec::new()
+    } else {
+        [
+            ("active_work", "Active authorized work", counters.total),
+            (
+                "approvals",
+                "Approvals requiring action",
+                counters.approvals,
+            ),
+            (
+                "exceptions",
+                "Open exceptions and incidents",
+                counters.exceptions,
+            ),
+            ("overdue", "Items beyond SLA", counters.overdue),
+        ]
+        .into_iter()
+        .map(|(key, label, value)| DashboardMetric {
+            key: key.into(),
+            label: label.into(),
+            value: value.to_string(),
+            unit: "items".into(),
+            previous_period_delta: None,
+            trend: Vec::new(),
+            drill_target: None,
+        })
+        .collect()
+    };
+    let breakdowns = (successful_sources > 0)
+        .then(|| DashboardBreakdown {
+            key: "authorized_work_by_source".into(),
+            label: "Authorized active work by source".into(),
+            segments: sources
+                .contributions
+                .iter()
+                .filter(|source| {
+                    matches!(
+                        source.availability,
+                        ReadModelAvailability::Available | ReadModelAvailability::Empty
+                    )
+                })
+                .map(|source| DashboardBreakdownSegment {
+                    key: format!("{}:{}", source.domain.as_str(), source.label),
+                    label: source.label.clone(),
+                    value: f64::from(source.item_count),
+                })
+                .collect(),
+        })
+        .into_iter()
+        .collect();
+    DashboardReadModel {
+        range,
+        compared_to_previous,
+        meta: ReadModelMeta {
+            scope,
+            as_of: as_of.to_rfc3339(),
+            freshness: ReadModelFreshness::Live,
+            availability,
+        },
+        metrics,
+        breakdowns,
+        work_items: Vec::new(),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct WorkQueueQuery {
+    view: Option<String>,
+    domain: Option<String>,
+    severity: Option<String>,
+    cursor: Option<String>,
+    page_size: Option<u32>,
+}
+
+pub(crate) async fn work_queue_read_model(
+    Extension(state): Extension<BffState>,
+    Extension(context): Extension<BffSessionContext>,
+    Query(query): Query<WorkQueueQuery>,
+) -> Response {
+    let Some(credential) = context.credential else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            "authenticated web session required",
+        )
+            .into_response();
+    };
+    let Some(scope_key) = context
+        .bundle
+        .as_ref()
+        .and_then(WebSessionBundle::active_account)
+        .and_then(|account| account.active_role.as_ref())
+        .and_then(|role| role.scope_key.clone())
+    else {
+        return (StatusCode::FORBIDDEN, "active role scope required").into_response();
+    };
+    let view = match query.view.as_deref().unwrap_or("all") {
+        value if WorkQueueView::parse(value).is_some() => WorkQueueView::parse(value).unwrap(),
+        _ => return (StatusCode::BAD_REQUEST, "work queue view invalid").into_response(),
+    };
+    let domain = match query.domain.as_deref() {
+        None | Some("") | Some("all") => None,
+        Some(value) => match parse_work_domain(value) {
+            Some(domain) => Some(domain),
+            None => return (StatusCode::BAD_REQUEST, "work queue domain invalid").into_response(),
+        },
+    };
+    let severity = match query.severity.as_deref() {
+        None | Some("") | Some("all") => None,
+        Some(value) => match parse_work_severity(value) {
+            Some(severity) => Some(severity),
+            None => {
+                return (StatusCode::BAD_REQUEST, "work queue severity invalid").into_response();
+            }
+        },
+    };
+    let page_size = query.page_size.unwrap_or(24);
+    if page_size == 0 || page_size > MAX_WORK_PAGE_SIZE {
+        return (StatusCode::BAD_REQUEST, "work queue page size invalid").into_response();
+    }
+    let offset = match query.cursor.as_deref() {
+        None | Some("") => 0,
+        Some(value) if valid_work_cursor(value) => value
+            .strip_prefix("offset:")
+            .and_then(|value| value.parse::<usize>().ok())
+            .unwrap_or_default(),
+        Some(_) => return (StatusCode::BAD_REQUEST, "work queue cursor invalid").into_response(),
+    };
+
+    let now = Utc::now();
+    let mut sources = fetch_platform_work_sources(&state, &credential, now).await;
+    sources.items.sort_by(|left, right| {
+        work_sla_rank(left.sla)
+            .cmp(&work_sla_rank(right.sla))
+            .then_with(|| left.severity.rank().cmp(&right.severity.rank()))
+            .then_with(|| right.updated_at.cmp(&left.updated_at))
+            .then_with(|| left.key.cmp(&right.key))
+    });
+    let counters = WorkQueueReadModel::counters_for(&sources.items, now);
+    let principal = credential.principal_ref.as_str();
+    let filtered = sources
+        .items
+        .into_iter()
+        .filter(|item| domain.is_none_or(|domain| item.domain == domain))
+        .filter(|item| severity.is_none_or(|severity| item.severity == severity))
+        .filter(|item| match view {
+            WorkQueueView::All => true,
+            WorkQueueView::Mine => item.assignee.as_deref() == Some(principal),
+            WorkQueueView::Team => item.assignee.as_deref() != Some(principal),
+            WorkQueueView::Overdue => item.sla == WorkSlaState::Overdue,
+            WorkQueueView::Approvals => item.kind == WorkItemKind::Approval,
+        })
+        .collect::<Vec<_>>();
+    let has_more = offset.saturating_add(page_size as usize) < filtered.len();
+    let items = filtered
+        .into_iter()
+        .skip(offset)
+        .take(page_size as usize)
+        .collect::<Vec<_>>();
+    let available_sources = sources
+        .contributions
+        .iter()
+        .filter(|source| {
+            matches!(
+                source.availability,
+                ReadModelAvailability::Available | ReadModelAvailability::Empty
+            )
+        })
+        .count();
+    let all_sources_responded = sources.contributions.iter().all(|source| {
+        matches!(
+            source.availability,
+            ReadModelAvailability::Available | ReadModelAvailability::Empty
+        )
+    });
+    let availability = if available_sources == 0 {
+        ReadModelAvailability::Unavailable
+    } else if all_sources_responded {
+        if counters.total == 0 {
+            ReadModelAvailability::Empty
+        } else {
+            ReadModelAvailability::Available
+        }
+    } else {
+        ReadModelAvailability::Partial
+    };
+    let model = WorkQueueReadModel {
+        view,
+        meta: WorkQueueMeta {
+            scope: SafeUiText::new(scope_key).as_str().to_owned(),
+            as_of: now.to_rfc3339(),
+            freshness: if available_sources == 0 {
+                ReadModelFreshness::Unknown
+            } else {
+                ReadModelFreshness::Current
+            },
+            availability,
+        },
+        counters,
+        returned_count: items.len() as u32,
+        items,
+        contributions: sources.contributions,
+        page_size,
+        next_cursor: has_more.then(|| format!("offset:{}", offset + page_size as usize)),
+    };
+    if !model.is_bounded() {
+        return unavailable();
+    }
+    private_json(model)
+}
+
+struct AuthorizedWorkSources {
+    items: Vec<WorkItemReadModel>,
+    contributions: Vec<WorkSourceContribution>,
+}
+
+async fn fetch_platform_work_sources(
+    state: &BffState,
+    credential: &BffCredential,
+    now: DateTime<Utc>,
+) -> AuthorizedWorkSources {
+    let mut items = Vec::new();
+    let mut contributions = Vec::new();
+    let channel = tonic::transport::Endpoint::from_shared(state.grpc_origin.to_string())
+        .ok()
+        .map(|endpoint| endpoint.connect_lazy());
+
+    if let Some(channel) = channel {
+        let mut incident_client = SupportServiceClient::new(channel.clone());
+        let mut incident_request = tonic::Request::new(ListIncidentsRequest {
+            page_size: 48,
+            status: String::new(),
+            context: Some(platform_work_query_context(
+                &credential.principal_ref,
+                credential.session_id,
+                "my_work_incident_read",
+            )),
+        });
+        let incidents =
+            add_bff_grpc_metadata(&mut incident_request, credential).map(|_| incident_request);
+        match incidents {
+            Ok(request) => match incident_client.list_incidents(request).await {
+                Ok(response) => {
+                    let incident_items = response
+                        .into_inner()
+                        .incidents
+                        .into_iter()
+                        .filter_map(|incident| work_item_from_incident(incident, now))
+                        .take(48)
+                        .collect::<Vec<_>>();
+                    contributions.push(available_contribution(
+                        WorkDomain::Support,
+                        "Platform incidents",
+                        incident_items.len(),
+                    ));
+                    items.extend(incident_items);
+                }
+                Err(status) => contributions.push(unavailable_contribution(
+                    WorkDomain::Support,
+                    "Platform incidents",
+                    work_source_error(status.code()),
+                )),
+            },
+            Err(_) => contributions.push(unavailable_contribution(
+                WorkDomain::Support,
+                "Platform incidents",
+                "The incident adapter could not create an authenticated request.",
+            )),
+        }
+
+        let mut ticket_client = SupportServiceClient::new(channel);
+        let mut ticket_request = tonic::Request::new(ListTicketsRequest {
+            page_size: 48,
+            status: String::new(),
+            customer_id: String::new(),
+            context: Some(platform_work_query_context(
+                &credential.principal_ref,
+                credential.session_id,
+                "my_work_support_ticket_read",
+            )),
+            after_cursor: String::new(),
+        });
+        let tickets =
+            add_bff_grpc_metadata(&mut ticket_request, credential).map(|_| ticket_request);
+        match tickets {
+            Ok(request) => match ticket_client.list_tickets(request).await {
+                Ok(response) => {
+                    let ticket_items = response
+                        .into_inner()
+                        .tickets
+                        .into_iter()
+                        .filter_map(|ticket| work_item_from_ticket(ticket, now))
+                        .take(48)
+                        .collect::<Vec<_>>();
+                    contributions.push(available_contribution(
+                        WorkDomain::Support,
+                        "Support tickets",
+                        ticket_items.len(),
+                    ));
+                    items.extend(ticket_items);
+                }
+                Err(status) => contributions.push(unavailable_contribution(
+                    WorkDomain::Support,
+                    "Support tickets",
+                    work_source_error(status.code()),
+                )),
+            },
+            Err(_) => contributions.push(unavailable_contribution(
+                WorkDomain::Support,
+                "Support tickets",
+                "The support adapter could not create an authenticated request.",
+            )),
+        }
+    } else {
+        contributions.push(unavailable_contribution(
+            WorkDomain::Support,
+            "Platform incidents",
+            "The authoritative Support service is unavailable.",
+        ));
+        contributions.push(unavailable_contribution(
+            WorkDomain::Support,
+            "Support tickets",
+            "The authoritative Support service is unavailable.",
+        ));
+    }
+
+    for (domain, label) in [
+        (WorkDomain::Operations, "Operations exceptions"),
+        (WorkDomain::Finance, "Finance close reviews"),
+        (WorkDomain::People, "People approvals"),
+        (WorkDomain::Maintenance, "Maintenance work orders"),
+        (WorkDomain::Procurement, "Procurement approvals"),
+    ] {
+        contributions.push(unavailable_contribution(
+            domain,
+            label,
+            "This source needs an explicit server-authorized tenant routing context.",
+        ));
+    }
+    AuthorizedWorkSources {
+        items,
+        contributions,
+    }
+}
+
+fn platform_work_query_context(
+    principal_ref: &str,
+    session_id: Uuid,
+    purpose: &str,
+) -> QueryContext {
+    let correlation_id = Uuid::new_v4().to_string();
+    QueryContext {
+        contract_version: u32::from(erpx_cqrs::CONTRACT_VERSION),
+        request_id: Uuid::new_v4().to_string(),
+        correlation_id: correlation_id.clone(),
+        actor: Some(ActorAttribution {
+            principal_ref: principal_ref.to_owned(),
+            kind: ActorKind::PlatformUser as i32,
+            session_id: session_id.to_string(),
+            represented_principal_ref: String::new(),
+            support_capability_id: String::new(),
+        }),
+        tenant_scope: Some(TenantScope {
+            scope: Some(tenant_scope::Scope::Platform(PlatformScope {})),
+        }),
+        consistency: Some(QueryConsistency {
+            requirement: Some(query_consistency::Requirement::Eventual(
+                EventualConsistency {},
+            )),
+        }),
+        audit: Some(AuditContext {
+            purpose: purpose.to_owned(),
+            customer_visible: false,
+            module: "work_queue".into(),
+            correlation_id,
+        }),
+    }
+}
+
+fn add_bff_grpc_metadata<T>(
+    request: &mut tonic::Request<T>,
+    credential: &BffCredential,
+) -> Result<(), ()> {
+    for (name, value) in [
+        ("x-erpx-access-token", credential.access_token.expose()),
+        ("x-erpx-actor", credential.principal_ref.as_str()),
+    ] {
+        request
+            .metadata_mut()
+            .insert(name, MetadataValue::try_from(value).map_err(|_| ())?);
+    }
+    let session_id = credential.session_id.to_string();
+    request.metadata_mut().insert(
+        "x-erpx-session",
+        MetadataValue::try_from(session_id.as_str()).map_err(|_| ())?,
+    );
+    if let Some(context_token) = credential.development_context_token.as_ref() {
+        request.metadata_mut().insert(
+            "x-erpx-dev-persona-context",
+            MetadataValue::try_from(context_token.expose()).map_err(|_| ())?,
+        );
+    }
+    Ok(())
+}
+
+fn work_item_from_ticket(ticket: Ticket, now: DateTime<Utc>) -> Option<WorkItemReadModel> {
+    let stage = work_stage(&ticket.status);
+    if !stage.active() || ticket.id.trim().is_empty() {
+        return None;
+    }
+    let title = SafeUiText::new(&ticket.description).as_str().to_owned();
+    Some(WorkItemReadModel {
+        key: format!("support-ticket:{}", SafeUiText::new(&ticket.id).as_str()),
+        domain: WorkDomain::Support,
+        kind: WorkItemKind::Task,
+        title: if title.trim().is_empty() {
+            "Support request".into()
+        } else {
+            title
+        },
+        summary: "Customer support request".into(),
+        stage,
+        status_label: SafeUiText::new(&ticket.status).as_str().to_owned(),
+        severity: work_severity(&ticket.severity),
+        assignee: None,
+        due_at: None,
+        updated_at: None,
+        sla: sla_state(None, now),
+        freshness: ReadModelFreshness::Current,
+        target: WorkItemTarget {
+            route: WorkRoute::PlatformSupport,
+            record_ref: Some(SafeUiText::new(ticket.id).as_str().to_owned()),
+        },
+        action_capabilities: Vec::new(),
+    })
+}
+
+fn work_item_from_incident(incident: Incident, now: DateTime<Utc>) -> Option<WorkItemReadModel> {
+    let stage = work_stage(&incident.status);
+    if !stage.active() || incident.id.trim().is_empty() {
+        return None;
+    }
+    let services = incident
+        .affected_services
+        .iter()
+        .take(3)
+        .map(SafeUiText::new)
+        .map(|value| value.as_str().to_owned())
+        .filter(|value| !value.trim().is_empty())
+        .collect::<Vec<_>>();
+    let title = if services.is_empty() {
+        "Platform incident".to_owned()
+    } else {
+        format!("Incident affecting {}", services.join(", "))
+    };
+    Some(WorkItemReadModel {
+        key: format!(
+            "support-incident:{}",
+            SafeUiText::new(&incident.id).as_str()
+        ),
+        domain: WorkDomain::Support,
+        kind: WorkItemKind::Incident,
+        title,
+        summary: format!(
+            "{} affected services · {} customer accounts",
+            incident.affected_services.len(),
+            incident.affected_customer_accounts.len()
+        ),
+        stage,
+        status_label: SafeUiText::new(&incident.status).as_str().to_owned(),
+        // The legacy incident read does not disclose a severity. Keep the item
+        // neutral instead of inventing an operational priority.
+        severity: WorkItemSeverity::Informational,
+        assignee: (!incident.commander_ref.trim().is_empty())
+            .then(|| SafeUiText::new(incident.commander_ref).as_str().to_owned()),
+        due_at: None,
+        updated_at: None,
+        sla: sla_state(None, now),
+        freshness: ReadModelFreshness::Current,
+        target: WorkItemTarget {
+            route: WorkRoute::PlatformIncidents,
+            record_ref: Some(SafeUiText::new(incident.id).as_str().to_owned()),
+        },
+        action_capabilities: Vec::new(),
+    })
+}
+
+fn work_stage(value: &str) -> WorkItemStage {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "resolved" | "customer_confirmed" => WorkItemStage::Resolved,
+        "closed" | "postmortem_complete" => WorkItemStage::Closed,
+        "waiting" | "waiting_for_customer" | "access_requested" => WorkItemStage::Waiting,
+        "in_progress" | "investigating" | "identified" | "monitoring" | "triaged" => {
+            WorkItemStage::InProgress
+        }
+        _ => WorkItemStage::Open,
+    }
+}
+
+fn work_severity(value: &str) -> WorkItemSeverity {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "critical" | "sev0" | "sev1" => WorkItemSeverity::Critical,
+        "high" | "sev2" => WorkItemSeverity::High,
+        "medium" | "normal" | "sev3" => WorkItemSeverity::Medium,
+        "low" | "sev4" => WorkItemSeverity::Low,
+        _ => WorkItemSeverity::Informational,
+    }
+}
+
+fn parse_work_domain(value: &str) -> Option<WorkDomain> {
+    match value {
+        "operations" => Some(WorkDomain::Operations),
+        "support" => Some(WorkDomain::Support),
+        "finance" => Some(WorkDomain::Finance),
+        "people" => Some(WorkDomain::People),
+        "maintenance" => Some(WorkDomain::Maintenance),
+        "procurement" => Some(WorkDomain::Procurement),
+        _ => None,
+    }
+}
+
+fn parse_work_severity(value: &str) -> Option<WorkItemSeverity> {
+    match value {
+        "critical" => Some(WorkItemSeverity::Critical),
+        "high" => Some(WorkItemSeverity::High),
+        "medium" => Some(WorkItemSeverity::Medium),
+        "low" => Some(WorkItemSeverity::Low),
+        "informational" => Some(WorkItemSeverity::Informational),
+        _ => None,
+    }
+}
+
+fn work_sla_rank(value: WorkSlaState) -> u8 {
+    match value {
+        WorkSlaState::Overdue => 0,
+        WorkSlaState::DueToday => 1,
+        WorkSlaState::Healthy => 2,
+        WorkSlaState::NoDueDate => 3,
+    }
+}
+
+fn available_contribution(
+    domain: WorkDomain,
+    label: &str,
+    item_count: usize,
+) -> WorkSourceContribution {
+    WorkSourceContribution {
+        domain,
+        label: label.into(),
+        availability: if item_count == 0 {
+            ReadModelAvailability::Empty
+        } else {
+            ReadModelAvailability::Available
+        },
+        freshness: ReadModelFreshness::Current,
+        item_count: item_count as u32,
+        message: if item_count == 0 {
+            "The authoritative source returned no active work items.".into()
+        } else {
+            "Live authorized work items are included in this queue.".into()
+        },
+    }
+}
+
+fn unavailable_contribution(
+    domain: WorkDomain,
+    label: &str,
+    message: &str,
+) -> WorkSourceContribution {
+    WorkSourceContribution {
+        domain,
+        label: label.into(),
+        availability: ReadModelAvailability::Unavailable,
+        freshness: ReadModelFreshness::Unknown,
+        item_count: 0,
+        message: message.into(),
+    }
+}
+
+fn work_source_error(code: tonic::Code) -> &'static str {
+    match code {
+        tonic::Code::Unauthenticated | tonic::Code::PermissionDenied => {
+            "The active role is not authorized to read this source."
+        }
+        tonic::Code::Unavailable | tonic::Code::DeadlineExceeded => {
+            "The authoritative source is temporarily unavailable."
+        }
+        _ => "The authoritative source could not complete this bounded read.",
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -751,11 +1662,8 @@ pub(crate) async fn accounts(Extension(context): Extension<BffSessionContext>) -
         accounts: bundle
             .accounts
             .into_iter()
-            .map(|account| SafeAccountSummary {
-                session_id: account.session_id,
-                principal_ref: account.principal_ref,
-                active: account.session_id == bundle.active_session_id,
-                selected_role: account.active_role.and_then(|role| {
+            .map(|account| {
+                let selected_role = account.effective_active_role().cloned().and_then(|role| {
                     Some(SelectedRole {
                         selection_id: role.selection_id,
                         source: role.source,
@@ -764,9 +1672,15 @@ pub(crate) async fn accounts(Extension(context): Extension<BffSessionContext>) -
                         expires_at: None,
                         requires_mfa: false,
                     })
-                }),
-                refresh_expires_at: account.refresh_expires_at,
-                last_used_at: account.last_used_at,
+                });
+                SafeAccountSummary {
+                    session_id: account.session_id,
+                    principal_ref: account.principal_ref,
+                    active: account.session_id == bundle.active_session_id,
+                    selected_role,
+                    refresh_expires_at: account.refresh_expires_at,
+                    last_used_at: account.last_used_at,
+                }
             })
             .collect(),
     })
@@ -1244,6 +2158,12 @@ pub(crate) async fn development_proxy(
         Ok(value) => value,
         Err(_) => return unavailable(),
     };
+    if development_path == "personas" {
+        return match safe_development_persona_list(value) {
+            Some(personas) => private_json(personas),
+            None => unavailable(),
+        };
+    }
     let development_context_token = if development_path == "context/begin" {
         let Some(token) = value
             .as_object_mut()
@@ -1259,6 +2179,38 @@ pub(crate) async fn development_proxy(
     } else {
         return private_json(value);
     };
+    let development_active_role = if development_path == "context/begin" {
+        let Some(persona) = value.get("persona") else {
+            return unavailable();
+        };
+        let Some(selection_id) = persona
+            .get("persona_key")
+            .and_then(serde_json::Value::as_str)
+        else {
+            return unavailable();
+        };
+        let Some(role_key) = persona.get("role_key").and_then(serde_json::Value::as_str) else {
+            return unavailable();
+        };
+        let Some(scope_key) = persona
+            .get("organization_scope")
+            .and_then(serde_json::Value::as_str)
+        else {
+            return unavailable();
+        };
+        let role = SafeActiveRole {
+            source: "local".into(),
+            selection_id: selection_id.into(),
+            role_key: Some(role_key.into()),
+            scope_key: Some(scope_key.into()),
+        };
+        if role.validate().is_err() {
+            return unavailable();
+        }
+        Some(role)
+    } else {
+        None
+    };
     let Some(mut bundle) = context.bundle else {
         return unavailable();
     };
@@ -1271,6 +2223,7 @@ pub(crate) async fn development_proxy(
         return unavailable();
     };
     account.development_context_token = development_context_token;
+    account.development_active_role = development_active_role;
     bundle.version += 1;
     bundle.updated_at = Utc::now();
     if state
@@ -1284,15 +2237,202 @@ pub(crate) async fn development_proxy(
     private_json(value)
 }
 
-pub(crate) async fn public_branding_proxy(Extension(state): Extension<BffState>) -> Response {
-    relay_public_response(
+fn safe_development_persona_list(value: serde_json::Value) -> Option<serde_json::Value> {
+    const MAX_PERSONAS: usize = 256;
+    const MAX_FIELD_BYTES: usize = 256;
+
+    let values = value.as_array()?;
+    if values.len() > MAX_PERSONAS {
+        return None;
+    }
+    let mut safe = Vec::with_capacity(values.len());
+    for value in values {
+        let object = value.as_object()?;
+        let string = |key: &str| {
+            object
+                .get(key)?
+                .as_str()
+                .filter(|value| {
+                    !value.trim().is_empty()
+                        && value.len() <= MAX_FIELD_BYTES
+                        && !value.chars().any(char::is_control)
+                })
+                .map(str::to_owned)
+        };
+        let tenant_id = match object.get("tenant_id")? {
+            serde_json::Value::Null => None,
+            serde_json::Value::String(value)
+                if !value.trim().is_empty()
+                    && value.len() <= MAX_FIELD_BYTES
+                    && !value.chars().any(char::is_control) =>
+            {
+                Some(value.clone())
+            }
+            _ => return None,
+        };
+        safe.push(serde_json::json!({
+            "persona_key": string("persona_key")?,
+            "principal_ref": string("principal_ref")?,
+            "tenant_id": tenant_id,
+            "organization_scope": string("organization_scope")?,
+            "role_key": string("role_key")?,
+            "feature": string("feature")?,
+            "entitled": object.get("entitled")?.as_bool()?,
+            "directory_enabled": object.get("directory_enabled")?.as_bool()?,
+        }));
+    }
+    Some(serde_json::Value::Array(safe))
+}
+
+pub(crate) async fn public_branding_proxy(
+    Extension(state): Extension<BffState>,
+    headers: HeaderMap,
+) -> Response {
+    let request = forwarded_brand_request(
         state
             .auth_http
             .get(format!("{}/branding/v1/bootstrap", state.auth_http_origin))
             .header("accept", "application/json"),
-        32 * 1024,
+        &headers,
+    );
+    relay_public_response(request, 32 * 1024).await
+}
+
+pub(crate) async fn public_brand_asset_proxy(
+    Extension(state): Extension<BffState>,
+    Path(kind): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let Some(kind) = brand_asset_kind(&kind) else {
+        return (StatusCode::NOT_FOUND, "brand asset not found").into_response();
+    };
+    let bootstrap = forwarded_brand_request(
+        state
+            .auth_http
+            .get(format!("{}/branding/v1/bootstrap", state.auth_http_origin))
+            .header("accept", "application/json"),
+        &headers,
     )
-    .await
+    .send()
+    .await;
+    let identity = match bootstrap {
+        Ok(response) if response.status().is_success() => response
+            .json::<ResolvedCorporateIdentity>()
+            .await
+            .ok()
+            .filter(|identity| identity.validate().is_ok())
+            .unwrap_or_else(ResolvedCorporateIdentity::neutral_erpx),
+        _ => ResolvedCorporateIdentity::neutral_erpx(),
+    };
+    let reference = match kind {
+        BrandAssetKind::LogoMark => identity.assets.logo_mark.as_ref(),
+        BrandAssetKind::Wordmark => identity.assets.wordmark.as_ref(),
+        BrandAssetKind::Favicon => identity.assets.favicon.as_ref(),
+        BrandAssetKind::LoginArtwork => identity.assets.login_artwork.as_ref(),
+    };
+    if let Some(reference) = reference {
+        let upstream = forwarded_brand_request(
+            state.auth_http.get(format!(
+                "{}/branding/v1/assets/{}",
+                state.auth_http_origin,
+                brand_asset_kind_path(kind)
+            )),
+            &headers,
+        )
+        .header("accept", &reference.media_type)
+        .send()
+        .await;
+        if let Ok(upstream) = upstream
+            && upstream.status().is_success()
+            && upstream
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok())
+                .is_some_and(|value| value.starts_with(&reference.media_type))
+            && let Ok(bytes) = upstream.bytes().await
+            && u64::try_from(bytes.len()).ok() == Some(reference.byte_length)
+            && validate_brand_asset_bytes(kind, &reference.media_type, &bytes)
+                .is_ok_and(|digest| digest.eq_ignore_ascii_case(&reference.sha256))
+        {
+            return public_brand_asset_response(
+                bytes.to_vec(),
+                &reference.media_type,
+                &reference.sha256,
+            );
+        }
+    }
+    let (bytes, digest) = fallback_brand_svg(&identity);
+    public_brand_asset_response(bytes, "image/svg+xml", &digest)
+}
+
+fn forwarded_brand_request(
+    mut request: reqwest::RequestBuilder,
+    headers: &HeaderMap,
+) -> reqwest::RequestBuilder {
+    if let Some(host) = headers
+        .get(header::HOST)
+        .and_then(|value| value.to_str().ok())
+        .filter(|value| {
+            !value.is_empty() && value.len() <= 260 && !value.chars().any(char::is_control)
+        })
+    {
+        request = request.header(header::HOST.as_str(), host);
+    }
+    request
+}
+
+fn brand_asset_kind(value: &str) -> Option<BrandAssetKind> {
+    match value {
+        "logo_mark" => Some(BrandAssetKind::LogoMark),
+        "wordmark" => Some(BrandAssetKind::Wordmark),
+        "favicon" => Some(BrandAssetKind::Favicon),
+        "login_artwork" => Some(BrandAssetKind::LoginArtwork),
+        _ => None,
+    }
+}
+
+const fn brand_asset_kind_path(kind: BrandAssetKind) -> &'static str {
+    match kind {
+        BrandAssetKind::LogoMark => "logo_mark",
+        BrandAssetKind::Wordmark => "wordmark",
+        BrandAssetKind::Favicon => "favicon",
+        BrandAssetKind::LoginArtwork => "login_artwork",
+    }
+}
+
+fn fallback_brand_svg(identity: &ResolvedCorporateIdentity) -> (Vec<u8>, String) {
+    let monogram = identity
+        .short_name
+        .chars()
+        .filter(|character| character.is_alphanumeric())
+        .flat_map(char::to_uppercase)
+        .take(2)
+        .collect::<String>();
+    let monogram = if monogram.is_empty() { "E" } else { &monogram };
+    let primary = identity.tokens.light.primary.as_str();
+    let accent = identity.tokens.light.accent.as_str();
+    let svg = format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Brand mark"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="{primary}"/><stop offset="1" stop-color="{accent}"/></linearGradient></defs><rect width="64" height="64" rx="18" fill="url(#g)"/><text x="32" y="39" text-anchor="middle" font-family="system-ui,sans-serif" font-size="23" font-weight="700" fill="#fff">{monogram}</text></svg>"##
+    );
+    let digest = format!("{:x}", Sha256::digest(svg.as_bytes()));
+    (svg.into_bytes(), digest)
+}
+
+fn public_brand_asset_response(bytes: Vec<u8>, media_type: &str, digest: &str) -> Response {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, media_type)
+        .header(header::CONTENT_LENGTH, bytes.len().to_string())
+        .header(header::ETAG, format!("\"{digest}\""))
+        .header(
+            header::CACHE_CONTROL,
+            "public, max-age=300, stale-if-error=86400",
+        )
+        .header("x-content-type-options", "nosniff")
+        .header("content-security-policy", "default-src 'none'; sandbox")
+        .header(header::VARY, "Host")
+        .body(Body::from(bytes))
+        .unwrap_or_else(|_| unavailable())
 }
 
 pub(crate) async fn public_marketing_proxy(
@@ -1402,10 +2542,12 @@ fn grpc_route_allowed(path: &str) -> bool {
             | "CrmCommandService"
             | "CrmQueryService"
             | "CrmService"
+            | "Customer360DetailQueryService"
             | "Customer360QueryService"
             | "CustomerAccessAuditQueryService"
             | "CustomerAuthorityCommandService"
             | "CustomerAuthorityQueryService"
+            | "CustomerNoteCommandService"
             | "DataPlaneControlService"
             | "DirectoryService"
             | "EntitlementService"
@@ -1934,6 +3076,7 @@ fn rotated_account(rotated: RotatedSession, now: DateTime<Utc>) -> Result<WebSes
         access_token: SensitiveToken::new(rotated.access_token).map_err(|_| ())?,
         refresh_token: SensitiveToken::new(rotated.refresh_token).map_err(|_| ())?,
         development_context_token: None,
+        development_active_role: None,
         access_expires_at: DateTime::parse_from_rfc3339(&rotated.access_expires_at)
             .map_err(|_| ())?
             .with_timezone(&Utc),
@@ -1946,6 +3089,27 @@ fn rotated_account(rotated: RotatedSession, now: DateTime<Utc>) -> Result<WebSes
     };
     account.validate().map_err(|_| ())?;
     Ok(account)
+}
+
+fn preserve_refreshed_active_role(refreshed: &mut WebSessionAccount, current: &WebSessionAccount) {
+    match (&mut refreshed.active_role, current.active_role.as_ref()) {
+        (None, Some(current_role)) => {
+            refreshed.active_role = Some(current_role.clone());
+        }
+        (Some(refreshed_role), Some(current_role))
+            if refreshed_role.source == current_role.source
+                && refreshed_role.selection_id == current_role.selection_id
+                && refreshed_role.role_key.is_none()
+                && refreshed_role.scope_key.is_none() =>
+        {
+            // The refresh contract carries the selected role identity but not the
+            // credential-free role/scope labels used by the BFF. Retain those safe
+            // labels only when the upstream role identity is unchanged.
+            refreshed_role.role_key.clone_from(&current_role.role_key);
+            refreshed_role.scope_key.clone_from(&current_role.scope_key);
+        }
+        _ => {}
+    }
 }
 
 fn cookie_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
@@ -2052,6 +3216,65 @@ mod tests {
     }
 
     #[test]
+    fn development_persona_proxy_exposes_only_ui_safe_fields() {
+        let safe = safe_development_persona_list(serde_json::json!([{
+            "persona_key": "demo:finance_operator",
+            "principal_ref": "dev:demo:finance_operator",
+            "directory_username": "must-not-cross-the-bff@example.test",
+            "tenant_id": "demo",
+            "organization_scope": "branch:00000000-0000-0000-0000-000000000001:00000000-0000-0000-0000-000000000002:00000000-0000-0000-0000-000000000003",
+            "role_key": "finance_operator",
+            "feature": "finance",
+            "permissions": ["finance.read", "finance.write"],
+            "entitled": true,
+            "directory_enabled": true,
+            "requires_totp_for_high_risk": false
+        }]))
+        .expect("safe persona list");
+        let encoded = serde_json::to_string(&safe).unwrap();
+        assert!(encoded.contains("finance_operator"));
+        assert!(!encoded.contains("directory_username"));
+        assert!(!encoded.contains("permissions"));
+        assert!(!encoded.contains("requires_totp"));
+    }
+
+    #[test]
+    fn refresh_preserves_scope_metadata_for_the_unchanged_active_role() {
+        let now = Utc::now();
+        let session_id = Uuid::new_v4().to_string();
+        let rotated = |selection_id: &str| RotatedSession {
+            principal_ref: "local:platform-admin".into(),
+            session_id: session_id.clone(),
+            access_token: "refreshed-access-token".into(),
+            refresh_token: "refreshed-refresh-token".into(),
+            access_expires_at: (now + Duration::minutes(10)).to_rfc3339(),
+            refresh_expires_at: (now + Duration::hours(8)).to_rfc3339(),
+            active_role_source: Some("local".into()),
+            active_role_selection_id: Some(selection_id.into()),
+            authorization_context_version: Some(2),
+        };
+        let mut current = rotated_account(rotated("platform-admin"), now).unwrap();
+        current.active_role = Some(SafeActiveRole {
+            source: "local".into(),
+            selection_id: "platform-admin".into(),
+            role_key: Some("platform_admin".into()),
+            scope_key: Some("platform".into()),
+        });
+
+        let mut refreshed = rotated_account(rotated("platform-admin"), now).unwrap();
+        preserve_refreshed_active_role(&mut refreshed, &current);
+        let refreshed_role = refreshed.active_role.expect("unchanged active role");
+        assert_eq!(refreshed_role.role_key.as_deref(), Some("platform_admin"));
+        assert_eq!(refreshed_role.scope_key.as_deref(), Some("platform"));
+
+        let mut changed = rotated_account(rotated("holding-owner"), now).unwrap();
+        preserve_refreshed_active_role(&mut changed, &current);
+        let changed_role = changed.active_role.expect("changed role identity");
+        assert!(changed_role.role_key.is_none());
+        assert!(changed_role.scope_key.is_none());
+    }
+
+    #[test]
     fn console_pages_redirect_to_the_canonical_login_route() {
         let protected = Request::builder()
             .uri("/platform/tenants?ignored=1")
@@ -2071,6 +3294,42 @@ mod tests {
             console_page_redirect(&legacy, &BffSessionContext::signed_out()),
             Some("/login".to_owned())
         );
+    }
+
+    #[test]
+    fn document_route_status_distinguishes_registered_forbidden_and_unknown_paths() {
+        let registered = Request::builder()
+            .uri("/workspaces/finance")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            console_document_route_status(&registered),
+            Some(StatusCode::OK)
+        );
+
+        let forbidden = Request::builder()
+            .uri("/platform/tenants/demo-tenant/workspace/finance")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            console_document_route_status(&forbidden),
+            Some(StatusCode::FORBIDDEN)
+        );
+
+        let missing = Request::builder()
+            .uri("/this-route-does-not-exist")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            console_document_route_status(&missing),
+            Some(StatusCode::NOT_FOUND)
+        );
+
+        let asset = Request::builder()
+            .uri("/assets/console.css")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(console_document_route_status(&asset), None);
     }
 
     #[test]
@@ -2186,9 +3445,52 @@ mod tests {
     }
 
     #[test]
+    fn production_profile_requires_https_and_a_bounded_public_origin() {
+        let secure = parse_trusted_public_origins("https://console.example").unwrap();
+        assert!(
+            validate_web_runtime_profile(
+                "https://identity.internal",
+                "https://grpc.internal",
+                &secure,
+                true,
+            )
+            .is_ok()
+        );
+        let insecure = parse_trusted_public_origins("http://console.example").unwrap();
+        assert!(
+            validate_web_runtime_profile(
+                "https://identity.internal",
+                "https://grpc.internal",
+                &insecure,
+                true,
+            )
+            .is_err()
+        );
+        assert!(
+            validate_web_runtime_profile(
+                "http://identity.internal",
+                "https://grpc.internal",
+                &secure,
+                true,
+            )
+            .is_err()
+        );
+        assert!(validate_web_runtime_profile("http://local", "http://local", &[], false).is_ok());
+    }
+
+    #[test]
     fn proxy_routes_are_closed_compile_time_allowlists() {
         assert!(grpc_route_allowed(
             "erpx.platform.v1.FinanceQueryService/ListFinanceCharts"
+        ));
+        assert!(grpc_route_allowed(
+            "erpx.platform.v1.Customer360DetailQueryService/GetCustomer360Detail"
+        ));
+        assert!(grpc_route_allowed(
+            "erpx.platform.v1.CustomerAccessAuditQueryService/GetCustomerAccessAudit"
+        ));
+        assert!(grpc_route_allowed(
+            "erpx.platform.v1.CustomerNoteCommandService/AddCustomerNote"
         ));
         assert!(!grpc_route_allowed(
             "erpx.identity.v1.InternalTokenService/DumpTokens"
@@ -2237,5 +3539,187 @@ mod tests {
         assert!(cookie.contains("Secure"));
         assert!(!cookie.contains("access"));
         assert!(!cookie.contains("refresh"));
+    }
+
+    #[test]
+    fn web_security_headers_are_closed_and_hsts_is_https_only() {
+        let mut https_response = StatusCode::OK.into_response();
+        apply_web_security_headers(&mut https_response, true);
+        let headers = https_response.headers();
+        assert_eq!(headers.get("x-content-type-options").unwrap(), "nosniff");
+        assert_eq!(headers.get("x-frame-options").unwrap(), "DENY");
+        assert_eq!(headers.get("referrer-policy").unwrap(), "no-referrer");
+        assert_eq!(
+            headers.get("cross-origin-opener-policy").unwrap(),
+            "same-origin"
+        );
+        let csp = headers
+            .get("content-security-policy")
+            .and_then(|value| value.to_str().ok())
+            .unwrap();
+        assert!(csp.contains("default-src 'self'"));
+        assert!(csp.contains("frame-ancestors 'none'"));
+        // Dioxus Web's interpreter compiles framework-owned evaluator snippets with
+        // `Function`; blocking `unsafe-eval` prevents hydration before the session
+        // request can run. External script origins remain closed by `script-src`.
+        assert!(csp.contains("'unsafe-eval'"));
+        assert!(csp.contains("'wasm-unsafe-eval'"));
+        assert!(headers.contains_key("strict-transport-security"));
+
+        let mut http_response = StatusCode::OK.into_response();
+        apply_web_security_headers(&mut http_response, false);
+        assert!(
+            !http_response
+                .headers()
+                .contains_key("strict-transport-security")
+        );
+    }
+
+    #[test]
+    fn dashboard_read_model_never_converts_navigation_into_business_kpis() {
+        let groups = vec![
+            NavGroup::new(
+                "Finance",
+                vec![
+                    erpx_ui::NavItem::new("Customers", "/platform/customers", "customers")
+                        .with_action_capabilities(vec!["customer.read".to_owned()]),
+                    erpx_ui::NavItem::new("Unknown", "/internal/raw", "unknown"),
+                ],
+            ),
+            NavGroup::new(
+                "access_token=must-not-render",
+                vec![erpx_ui::NavItem::new(
+                    "Marketing",
+                    "/marketing",
+                    "marketing",
+                )],
+            ),
+        ];
+        let sources = AuthorizedWorkSources {
+            items: Vec::new(),
+            contributions: vec![unavailable_contribution(
+                WorkDomain::Finance,
+                "Finance projection",
+                "not available",
+            )],
+        };
+        let model = dashboard_from_authorized_sources(
+            DashboardRange::ThirtyDays,
+            true,
+            "platform".to_owned(),
+            &groups,
+            &sources,
+            Utc::now(),
+        );
+
+        assert!(model.is_bounded());
+        assert_eq!(model.meta.availability, ReadModelAvailability::Unavailable);
+        assert!(model.metrics.is_empty());
+        assert!(model.work_items.is_empty());
+        assert!(model.breakdowns.is_empty());
+        let encoded = serde_json::to_string(&model).expect("dashboard JSON");
+        assert!(!encoded.contains("must-not-render"));
+        assert!(!encoded.contains("/internal/raw"));
+    }
+
+    #[test]
+    fn dashboard_kpis_are_derived_only_from_authoritative_source_items() {
+        let item = WorkItemReadModel {
+            key: "operations:exception-1".into(),
+            domain: WorkDomain::Operations,
+            kind: WorkItemKind::Exception,
+            title: "Inventory allocation exception".into(),
+            summary: "Requires an authorized operator".into(),
+            stage: WorkItemStage::Open,
+            status_label: "open".into(),
+            severity: WorkItemSeverity::High,
+            assignee: None,
+            due_at: None,
+            updated_at: Some(Utc::now().to_rfc3339()),
+            sla: WorkSlaState::Overdue,
+            freshness: ReadModelFreshness::Current,
+            target: WorkItemTarget {
+                route: WorkRoute::OperationsExceptions,
+                record_ref: Some("exception-1".into()),
+            },
+            action_capabilities: vec!["operations.exception.read".into()],
+        };
+        let sources = AuthorizedWorkSources {
+            items: vec![item],
+            contributions: vec![available_contribution(
+                WorkDomain::Operations,
+                "Operations exceptions",
+                1,
+            )],
+        };
+        let groups = vec![NavGroup::new(
+            "Operations",
+            vec![erpx_ui::NavItem::new(
+                "Operations",
+                "/workspaces/operations",
+                "operations",
+            )],
+        )];
+        let model = dashboard_from_authorized_sources(
+            DashboardRange::ThirtyDays,
+            false,
+            "holding:test".into(),
+            &groups,
+            &sources,
+            Utc::now(),
+        );
+
+        assert_eq!(model.meta.availability, ReadModelAvailability::Available);
+        assert_eq!(model.metrics.len(), 4);
+        assert_eq!(model.metrics[0].value, "1");
+        assert_eq!(model.metrics[2].value, "1");
+        assert_eq!(model.metrics[3].value, "1");
+        assert_eq!(model.breakdowns[0].segments[0].value, 1.0);
+    }
+
+    #[test]
+    fn work_queue_normalizes_only_active_stages_and_known_severity() {
+        assert_eq!(work_stage("waiting_for_customer"), WorkItemStage::Waiting);
+        assert_eq!(work_stage("postmortem_complete"), WorkItemStage::Closed);
+        assert!(!work_stage("closed").active());
+        assert_eq!(work_severity("sev1"), WorkItemSeverity::Critical);
+        assert_eq!(
+            work_severity("unpublished"),
+            WorkItemSeverity::Informational
+        );
+        assert_eq!(
+            WorkRoute::OperationsExceptions.path(),
+            "/operations/exceptions"
+        );
+    }
+
+    #[test]
+    fn cached_navigation_clients_default_to_authorized_only_manifests() {
+        let legacy: NavigationRequest =
+            serde_json::from_str(r#"{"scope_key":"platform"}"#).expect("legacy request");
+        assert!(!legacy.include_inaccessible);
+
+        let discovery: NavigationRequest =
+            serde_json::from_str(r#"{"scope_key":"platform","include_inaccessible":true}"#)
+                .expect("discovery request");
+        assert!(discovery.include_inaccessible);
+    }
+
+    #[test]
+    fn brand_asset_endpoint_is_allowlisted_hashed_and_never_embeds_object_keys() {
+        assert_eq!(
+            brand_asset_kind("logo_mark"),
+            Some(BrandAssetKind::LogoMark)
+        );
+        assert_eq!(brand_asset_kind("../../secret"), None);
+        let mut identity = ResolvedCorporateIdentity::neutral_erpx();
+        identity.short_name = "ไทย ERPX".to_owned();
+        let (bytes, digest) = fallback_brand_svg(&identity);
+        let svg = String::from_utf8(bytes).expect("fallback SVG");
+        assert!(svg.starts_with("<svg"));
+        assert!(svg.contains("aria-label=\"Brand mark\""));
+        assert_eq!(digest.len(), 64);
+        assert!(!svg.contains("object_key"));
+        assert!(!svg.contains("branding/"));
     }
 }

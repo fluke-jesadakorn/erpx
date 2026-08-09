@@ -215,7 +215,9 @@
           const bootstrapRetry = document.getElementById("erpx-bootstrap-retry");
           const main = document.getElementById("main");
           const dismissBootstrapWhenMounted = () => {
-            const appSurface = main?.querySelector(":scope > main, :scope > .ui-shell, :scope > .sign-in-surface");
+            const appSurface = main?.querySelector(
+              ':scope > [data-erpx-component="provider"], :scope > main, :scope > .ui-shell, :scope > .sign-in-surface',
+            );
             if (!bootstrap?.isConnected || !appSurface) return false;
             bootstrap.remove();
             return true;

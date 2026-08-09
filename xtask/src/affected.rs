@@ -13,7 +13,7 @@ use sha2::{Digest, Sha256};
 
 pub(crate) type AffectedResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
-const SNAPSHOT_VERSION: u32 = 2;
+const SNAPSHOT_VERSION: u32 = 3;
 const SNAPSHOT_FILE: &str = "affected-tests.json";
 const RELEVANT_ROOT_FILES: [&str; 5] = [
     ".cargo/config.toml",
@@ -648,14 +648,22 @@ fn workspace_packages(root: &Path, metadata: &Metadata) -> AffectedResult<Vec<Wo
 
 fn capture_snapshot(root: &Path, previous: Option<&Snapshot>) -> AffectedResult<Snapshot> {
     let mut files = BTreeMap::new();
-    for relative in RELEVANT_ROOT_FILES {
-        let path = root.join(relative);
-        if path.is_file() {
-            files.insert(relative.into(), file_state(&path, relative, previous)?);
+    for relative in git_inventory(root)? {
+        let path = root.join(&relative);
+        let metadata = match fs::symlink_metadata(&path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                // `git ls-files --cached` includes tracked paths deleted by an
+                // intentional cutover. Their absence is represented by the
+                // previous snapshot key not appearing in the current map.
+                continue;
+            }
+            Err(error) => return Err(error.into()),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            continue;
         }
-    }
-    for directory in RELEVANT_DIRECTORIES {
-        collect_files(root, &root.join(directory), previous, &mut files)?;
+        files.insert(relative.clone(), file_state(&path, &relative, previous)?);
     }
     Ok(Snapshot {
         version: SNAPSHOT_VERSION,
@@ -663,36 +671,38 @@ fn capture_snapshot(root: &Path, previous: Option<&Snapshot>) -> AffectedResult<
     })
 }
 
-fn collect_files(
-    root: &Path,
-    directory: &Path,
-    previous: Option<&Snapshot>,
-    files: &mut BTreeMap<String, FileState>,
-) -> AffectedResult {
-    if !directory.exists() {
-        return Ok(());
+fn git_inventory(root: &Path) -> AffectedResult<BTreeSet<String>> {
+    let mut command = Command::new("git");
+    command.args([
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "-z",
+        "--",
+    ]);
+    command.args(RELEVANT_ROOT_FILES);
+    command.args(RELEVANT_DIRECTORIES);
+    let output = command.current_dir(root).output()?;
+    if !output.status.success() {
+        return Err(format!(
+            "git inventory failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .into());
     }
-    let mut pending = vec![directory.to_path_buf()];
-    while let Some(directory) = pending.pop() {
-        for entry in fs::read_dir(directory)? {
-            let entry = entry?;
-            let metadata = fs::symlink_metadata(entry.path())?;
-            if metadata.file_type().is_symlink() {
-                continue;
+    output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|path| !path.is_empty())
+        .map(|path| {
+            let path = String::from_utf8(path.to_vec())?;
+            if !is_relevant_path(&path) {
+                return Err(format!("git returned an out-of-scope inventory path: {path}").into());
             }
-            if metadata.is_dir() {
-                pending.push(entry.path());
-            } else if metadata.is_file() {
-                let relative = entry.path().strip_prefix(root)?.to_path_buf();
-                let relative_string = relative.to_string_lossy().into_owned();
-                files.insert(
-                    relative_string.clone(),
-                    file_state(&entry.path(), &relative_string, previous)?,
-                );
-            }
-        }
-    }
-    Ok(())
+            Ok(path)
+        })
+        .collect()
 }
 
 fn file_state(
@@ -898,10 +908,12 @@ mod tests {
 
     #[test]
     fn web_assets_do_not_select_rust_or_platform_targets() {
-        assert!(is_web_asset("apps/console/assets/main.css"));
-        assert!(!is_global_change("apps/console/assets/main.css"));
+        assert!(is_web_asset("apps/console/assets/console-surfaces.css"));
+        assert!(!is_global_change(
+            "apps/console/assets/console-surfaces.css"
+        ));
         assert!(
-            ["apps/console/assets/main.css"]
+            ["apps/console/assets/console-surfaces.css"]
                 .into_iter()
                 .all(is_web_asset)
         );
@@ -951,5 +963,51 @@ mod tests {
         assert!(directory.contains("identity_core"));
         assert!(directory.contains("identity_acceptance"));
         assert!(directory.contains("worker_directory"));
+    }
+
+    #[test]
+    fn snapshot_inventory_excludes_ignored_files() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "erpx-affected-inventory-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(root.join("apps/example/src")).expect("create fixture directory");
+        fs::write(root.join(".gitignore"), ".DS_Store\n").expect("write ignore file");
+        fs::write(root.join("Cargo.toml"), "[workspace]\n").expect("write tracked file");
+        fs::write(
+            root.join("apps/example/src/lib.rs"),
+            "pub fn tracked() {}\n",
+        )
+        .expect("write tracked source");
+        let status = Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(&root)
+            .status()
+            .expect("initialize git fixture");
+        assert!(status.success());
+        let status = Command::new("git")
+            .args(["add", "Cargo.toml", "apps/example/src/lib.rs"])
+            .current_dir(&root)
+            .status()
+            .expect("add fixture files");
+        assert!(status.success());
+        fs::write(
+            root.join("apps/example/src/untracked.rs"),
+            "pub fn untracked() {}\n",
+        )
+        .expect("write untracked source");
+        fs::write(root.join("apps/example/.DS_Store"), "ignored\n").expect("write ignored fixture");
+
+        let inventory = git_inventory(&root).expect("capture git inventory");
+        assert!(inventory.contains("Cargo.toml"));
+        assert!(inventory.contains("apps/example/src/lib.rs"));
+        assert!(inventory.contains("apps/example/src/untracked.rs"));
+        assert!(!inventory.contains("apps/example/.DS_Store"));
+
+        fs::remove_dir_all(root).expect("remove inventory fixture");
     }
 }

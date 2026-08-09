@@ -34,6 +34,7 @@ use sqlx::{Connection, Executor, PgConnection, PgPool, Row, postgres::PgPoolOpti
 use uuid::Uuid;
 
 mod affected;
+mod architecture;
 mod dev_access;
 mod directory_lab;
 mod infra;
@@ -48,8 +49,8 @@ const TENANT_ID: &str = "demo-tenant";
 const HOLDING_REF: &str = "demo-holding";
 const RESTRICTED_TENANT_ID: &str = "demo-tenant-restricted";
 const RESTRICTED_HOLDING_REF: &str = "beacon-holding";
-const FIXTURE_VERSION: &str = "erpx-demo-v4";
-const DEV_STATE_VERSION: u32 = 1;
+const FIXTURE_VERSION: &str = "erpx-demo-v5";
+const DEV_STATE_VERSION: u32 = 2;
 const DEV_STATE_FILE: &str = "dev-state.json";
 const FRESH_RUNTIME_MANIFEST_FILE: &str = "cutover/fresh-state.json";
 const DEV_WORKER_POLL_INTERVAL_MS: &str = "5000";
@@ -222,7 +223,7 @@ const STANDARD_WORKERS: [&str; 50] = [
     "marketing-delivery-worker",
     "marketing-journey-integration-worker",
 ];
-const DEDICATED_WORKERS: [&str; 54] = [
+const DEDICATED_WORKERS: [&str; 53] = [
     "support-worker",
     "commercial-catalog-projector",
     "wave5-control-projector",
@@ -276,8 +277,8 @@ const DEDICATED_WORKERS: [&str; 54] = [
     "directory-supervisor",
     "tenant-backup-worker",
     "backup-retention-worker",
-    "pitr-controller",
 ];
+const LEGACY_LOCAL_WORKERS: [&str; 1] = ["pitr-controller"];
 const UCS_LABS: [&str; 1] = ["ucs-lab"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -304,6 +305,7 @@ struct DevState {
     worker_environment_sha256: String,
     ucs_environment_sha256: String,
     web_environment_sha256: String,
+    web_source_sha256: String,
     development_access_enabled: bool,
 }
 
@@ -805,7 +807,15 @@ async fn run() -> TaskResult {
             infra::pitr_rehearsal(&root).await
         }
         [command, subcommand] if command == "pitr" && subcommand == "controller" => {
-            infra::pitr_controller(&root).await
+            Err("continuous local PITR is disabled; use `cargo xtask pitr rehearsal`".into())
+        }
+        [command, subcommand, confirm_flag, confirmation]
+            if command == "pitr"
+                && subcommand == "cleanup-local"
+                && confirm_flag == "--confirm" =>
+        {
+            stop_service_group(&root, &LEGACY_LOCAL_WORKERS)?;
+            infra::pitr_cleanup_local(&root, confirmation).await
         }
         [command, subcommand, confirm_flag, confirmation]
             if command == "pitr" && subcommand == "promote" && confirm_flag == "--confirm" =>
@@ -836,6 +846,10 @@ async fn run() -> TaskResult {
             reset_dev(&root, &config, confirmation).await
         }
         [command] if command == "verify" => verify(&root).await,
+        [command] if command == "verify-web-production" => verify_web_production(&root).await,
+        [command] if command == "verify-core" => verify_core(&root),
+        [command] if command == "verify-runtime" => verify_runtime(&root).await,
+        [command] if command == "verify-sqlx" => verify_sqlx(&root).await,
         [command] if command == "verify-platforms" => verify_platforms(&root),
         _ => {
             println!(
@@ -851,11 +865,16 @@ async fn run() -> TaskResult {
                  cargo xtask dev-access rotate|reset --confirm ...\n\
                  cargo xtask migrate-all-erpx-databases\n\
                  cargo xtask pitr rehearsal\n\
+                 cargo xtask pitr cleanup-local --confirm PURGE_ERPX_LOCAL_PITR\n\
                  cargo xtask pitr promote --confirm PROMOTE_ERPX_PITR\n\
                  cargo xtask reset-dev --confirm {RESET_CONFIRMATION}\n\
                  cargo xtask reset-platform-root --confirm {ROOT_PASSWORD_RESET_CONFIRMATION}\n\
                  cargo xtask seed-demo\n\
-                 cargo xtask verify
+                 cargo xtask verify\n\
+                 cargo xtask verify-web-production\n\
+                 cargo xtask verify-core\n\
+                 cargo xtask verify-runtime\n\
+                 cargo xtask verify-sqlx\n\
                  cargo xtask verify-platforms"
             );
             Ok(())
@@ -948,6 +967,26 @@ async fn migrate_all(config: &DevConfig) -> TaskResult {
     tenant_read.close().await;
     restricted_tenant_write.close().await;
     restricted_tenant_read.close().await;
+    Ok(())
+}
+
+async fn migrate_fresh_runtime(config: &DevConfig, manifest: &FreshRuntimeManifest) -> TaskResult {
+    let control_write = pool(&config.database_url(&manifest.control_write_database)).await?;
+    let control_read = pool(&config.database_url(&manifest.control_read_database)).await?;
+    let tenant_write = pool(&config.database_url(&manifest.tenant_write_database)).await?;
+    let tenant_read = pool(&config.database_url(&manifest.tenant_read_database)).await?;
+    erpx_migration::migrate_control_plane(&control_write).await?;
+    erpx_migration::migrate_control_read(&control_read).await?;
+    erpx_migration::migrate_tenant_write(&tenant_write).await?;
+    erpx_migration::migrate_tenant_read(&tenant_read).await?;
+    apply_identity_migration(&control_write).await?;
+    let control = SqlxControlPlane::new(ControlPlanePools {
+        write: control_write,
+        read: control_read,
+    });
+    control.require_erpx_command_owner().await?;
+    tenant_write.close().await;
+    tenant_read.close().await;
     Ok(())
 }
 
@@ -1150,9 +1189,12 @@ async fn demo_fixture_current(root: &Path, config: &DevConfig) -> TaskResult<boo
            AND configuration_state='configured'
            AND customer_id IS NOT NULL
            AND root_holding_id IS NOT NULL
-           AND cardinality(enabled_modules) > 0",
+           AND ((tenant_id=$2 AND cardinality(enabled_modules)=12)
+                OR (tenant_id=$3 AND cardinality(enabled_modules)=12))",
     )
     .bind([TENANT_ID, RESTRICTED_TENANT_ID])
+    .bind(TENANT_ID)
+    .bind(RESTRICTED_TENANT_ID)
     .fetch_one(&write)
     .await?;
 
@@ -1418,14 +1460,6 @@ async fn configure_demo_tenants(control: &std::sync::Arc<SqlxControlPlane>) -> T
         "point-of-sale",
         "legal",
     ];
-    const RESTRICTED_MODULES: &[&str] = &[
-        "operations",
-        "finance",
-        "sales",
-        "inventory",
-        "hr-payroll",
-        "point-of-sale",
-    ];
     let tenants = [
         (
             TENANT_ID,
@@ -1445,7 +1479,7 @@ async fn configure_demo_tenants(control: &std::sync::Arc<SqlxControlPlane>) -> T
             "DEMO-BEACON",
             "Beacon Services",
             "Beacon Services Co., Ltd.",
-            RESTRICTED_MODULES,
+            ALL_MODULES,
             40_i32,
             12_i32,
             2_i32,
@@ -1839,11 +1873,13 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
     let phase = Instant::now();
     if dedicated {
         if mode == DevMode::Warm && infra::is_running(root) {
-            println!("dev infrastructure: reused ({:?})", phase.elapsed());
+            infra::start(root).await?;
+            println!("dev infrastructure: reconciled ({:?})", phase.elapsed());
         } else {
             infra::start(root).await?;
             println!("dev infrastructure: started ({:?})", phase.elapsed());
         }
+        stop_service_group(root, &LEGACY_LOCAL_WORKERS)?;
     } else {
         println!(
             "dev infrastructure: external host reused ({:?})",
@@ -1882,8 +1918,13 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
     println!("dev binaries: built ({:?})", phase.elapsed());
 
     let phase = Instant::now();
-    if fresh_runtime.is_some() {
-        println!("dev schema: using bootstrap-migrated fresh databases");
+    if let Some(manifest) = fresh_runtime.as_ref() {
+        // A retained installation receipt proves the original bootstrap, but
+        // it does not prove that migrations added after that receipt have run.
+        // Reapply the additive migrators on every warm development start so a
+        // hot-reloaded BFF never runs ahead of its durable session schema.
+        migrate_fresh_runtime(config, manifest).await?;
+        println!("dev schema: reconciled bootstrap databases with additive migrations");
     } else if dedicated {
         let admin_url = infra::admin_runtime_database_url(root)?;
         initialize_databases_with_admin(config, false, &admin_url, Some("erpx_app")).await?;
@@ -1912,6 +1953,7 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
     if mode == DevMode::Warm && (!demo_current || !access_current) {
         stop_service_group(root, &["server"])?;
         stop_service_group(root, &DEDICATED_WORKERS)?;
+        stop_service_group(root, &LEGACY_LOCAL_WORKERS)?;
         stop_service_group(root, &UCS_LABS)?;
         println!("dev runtime services: paused for fixture reconciliation");
     }
@@ -2052,6 +2094,7 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
             "disabled".into()
         },
         web_environment_sha256: environment_sha256(&web_environment),
+        web_source_sha256: web_source_sha256(root)?,
         development_access_enabled,
     };
     let previous_state = read_dev_state(root);
@@ -2533,12 +2576,6 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f554a3",
                 projection_kind: None,
             },
-            WorkerSpec {
-                name: "pitr-controller",
-                handler: "cluster_pitr_controller",
-                worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f554a4",
-                projection_kind: None,
-            },
         ]);
     }
     workers
@@ -2568,6 +2605,60 @@ fn environment_sha256(environment: &[(&str, String)]) -> String {
         update_digest(&mut digest, &value);
     }
     format!("{:x}", digest.finalize())
+}
+
+fn web_source_sha256(root: &Path) -> TaskResult<String> {
+    fn collect(path: &Path, files: &mut Vec<PathBuf>) -> TaskResult {
+        if path.is_file() {
+            files.push(path.to_owned());
+            return Ok(());
+        }
+        let mut entries = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
+        entries.sort_by_key(|entry| entry.file_name());
+        for entry in entries {
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path)?;
+            if metadata.file_type().is_symlink() {
+                return Err(
+                    format!("web source fingerprint refused symlink: {}", path.display()).into(),
+                );
+            }
+            if metadata.is_dir() {
+                collect(&path, files)?;
+            } else if metadata.is_file()
+                && path
+                    .extension()
+                    .and_then(OsStr::to_str)
+                    .is_some_and(|extension| {
+                        matches!(extension, "rs" | "toml" | "proto" | "css" | "html")
+                    })
+            {
+                files.push(path);
+            }
+        }
+        Ok(())
+    }
+
+    let mut files = vec![root.join("Cargo.toml"), root.join("Cargo.lock")];
+    for relative in [
+        "apps/console",
+        "crates/ui",
+        "crates/domain",
+        "crates/proto",
+        "crates/web-session",
+        "crates/adapters/web-session-sqlx",
+    ] {
+        collect(&root.join(relative), &mut files)?;
+    }
+    files.sort();
+    files.dedup();
+    let mut digest = Sha256::new();
+    for path in files {
+        let relative = path.strip_prefix(root).unwrap_or(&path);
+        update_digest(&mut digest, &relative.to_string_lossy());
+        update_digest(&mut digest, &required_file_sha256(&path)?);
+    }
+    Ok(format!("{:x}", digest.finalize()))
 }
 
 fn ucs_environment_sha256(root: &Path) -> TaskResult<String> {
@@ -2678,8 +2769,10 @@ fn plan_dev_restart(
             || state.ucs_environment_sha256 != desired.ucs_environment_sha256
             || state.development_access_enabled != desired.development_access_enabled
     });
-    let web_changed =
-        previous.is_none_or(|state| state.web_environment_sha256 != desired.web_environment_sha256);
+    let web_changed = previous.is_none_or(|state| {
+        state.web_environment_sha256 != desired.web_environment_sha256
+            || state.web_source_sha256 != desired.web_source_sha256
+    });
     DevRestartPlan {
         server: fresh || !runtime.server || server_changed,
         workers: fresh || !runtime.all_workers || workers_changed,
@@ -2733,6 +2826,7 @@ fn apply_worker_plan(
         return Ok(());
     }
     stop_service_group(root, &DEDICATED_WORKERS)?;
+    stop_service_group(root, &LEGACY_LOCAL_WORKERS)?;
     for spec in worker_specs(dedicated) {
         let mut environment = common.to_vec();
         environment.extend([
@@ -3058,6 +3152,7 @@ fn prune_stale_pid_files(root: &Path) -> TaskResult {
     for name in ["server", "web"]
         .into_iter()
         .chain(DEDICATED_WORKERS)
+        .chain(LEGACY_LOCAL_WORKERS)
         .chain(UCS_LABS)
     {
         let path = runtime.join(format!("{name}.pid"));
@@ -3203,6 +3298,7 @@ fn stop(root: &Path) -> TaskResult {
     for name in ["web", "ucs-lab"]
         .into_iter()
         .chain(DEDICATED_WORKERS)
+        .chain(LEGACY_LOCAL_WORKERS)
         .chain(["worker", "server"])
     {
         let pid_path = runtime.join(format!("{name}.pid"));
@@ -3248,13 +3344,519 @@ fn recorded_command_matches(name: &str, command: &str) -> bool {
         "ucs-lab" => command.contains("erpx-ucs-lab"),
         "worker" => command.contains("erpx-worker"),
         "web" => command.contains("dx serve"),
-        _ if DEDICATED_WORKERS.contains(&name) => command.contains("erpx-worker"),
+        _ if DEDICATED_WORKERS.contains(&name) || LEGACY_LOCAL_WORKERS.contains(&name) => {
+            command.contains("erpx-worker")
+        }
         _ => false,
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WebProductionEvidence {
+    schema_version: u32,
+    release_revision: String,
+    captured_at: String,
+    browser: WebProductionBrowserEvidence,
+    security: WebProductionSecurityEvidence,
+    recovery: WebProductionRecoveryEvidence,
+    operations: WebProductionOperationsEvidence,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WebProductionBrowserEvidence {
+    passed: bool,
+    modules: Vec<String>,
+    locales: Vec<String>,
+    viewports: Vec<String>,
+    negative_cases: Vec<String>,
+    module_journeys: Vec<WebProductionModuleJourney>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WebProductionModuleJourney {
+    module: String,
+    passed: bool,
+    positive_cases: Vec<String>,
+    negative_cases: Vec<String>,
+    locales: Vec<String>,
+    viewports: Vec<String>,
+    unexplained_console_errors: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WebProductionSecurityEvidence {
+    passed: bool,
+    critical_findings: u32,
+    high_findings: u32,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WebProductionRecoveryEvidence {
+    backup_restore_passed: bool,
+    object_recovery_passed: bool,
+    pitr_passed: bool,
+    measured_rpo_seconds: u64,
+    measured_rto_seconds: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct WebProductionOperationsEvidence {
+    alerts_loaded: bool,
+    runbooks_verified: bool,
+    projection_lag_seconds: u64,
+    unexplained_console_errors: u32,
+}
+
+const WEB_PRODUCTION_MODULES: [&str; 12] = [
+    "finance",
+    "sales",
+    "procurement",
+    "inventory",
+    "operations",
+    "assets",
+    "maintenance",
+    "quality",
+    "marketing-crm",
+    "hr-payroll",
+    "point-of-sale",
+    "legal",
+];
+
+fn require_secure_production_url(name: &str) -> TaskResult<reqwest::Url> {
+    let raw = env::var(name).map_err(|_| format!("{name} is required"))?;
+    let url = reqwest::Url::parse(&raw).map_err(|_| format!("{name} is not a valid URL"))?;
+    if url.scheme() != "https"
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(format!("{name} must be an HTTPS URL without credentials or fragment").into());
+    }
+    Ok(url)
+}
+
+fn validate_web_production_profile() -> TaskResult<String> {
+    if env::var("ERPX_WEB_PRODUCTION_PROFILE").as_deref() != Ok("enabled") {
+        return Err("ERPX_WEB_PRODUCTION_PROFILE=enabled is required".into());
+    }
+    if env::var("ERPX_LOG_FORMAT").as_deref() != Ok("json") {
+        return Err("ERPX_LOG_FORMAT=json is required".into());
+    }
+    for forbidden in [
+        "ERPX_DEV_PERSONA_MODE",
+        "ERPX_DEVELOPMENT_CLUSTER",
+        "ERPX_DEV_CONTROLLER_ROLE_PROFILE",
+        "ERPX_DEV_CONTROLLER_TARGET_TENANT",
+        "ERPX_DEV_CONTROLLER_MFA_BYPASS",
+        "ERPX_DEV_CONTROLLER_SOD_BYPASS",
+    ] {
+        if env::var_os(forbidden).is_some() {
+            return Err(format!("{forbidden} is forbidden in the production profile").into());
+        }
+    }
+    if env::var("ERPX_DEVELOPMENT_PROFILE").is_ok_and(|value| value.starts_with("local")) {
+        return Err("local ERPX_DEVELOPMENT_PROFILE is forbidden in production".into());
+    }
+    for endpoint in [
+        "ERPX_CONSOLE_AUTH_HTTP_ORIGIN",
+        "ERPX_CONSOLE_GRPC_ENDPOINT",
+        "ERPX_WEB_PRODUCTION_BASE_URL",
+        "ERPX_WEB_PRODUCTION_HEALTH_URL",
+        "ERPX_WEB_PRODUCTION_METRICS_URL",
+    ] {
+        require_secure_production_url(endpoint)?;
+    }
+    let origins =
+        env::var("ERPX_WEB_TRUSTED_ORIGINS").map_err(|_| "ERPX_WEB_TRUSTED_ORIGINS is required")?;
+    let origins = origins
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    if origins.is_empty() || origins.len() > 16 {
+        return Err("ERPX_WEB_TRUSTED_ORIGINS must contain 1..=16 HTTPS origins".into());
+    }
+    for origin in origins {
+        let parsed = reqwest::Url::parse(origin)
+            .map_err(|_| "ERPX_WEB_TRUSTED_ORIGINS contains an invalid origin")?;
+        if parsed.scheme() != "https"
+            || parsed.host_str().is_none()
+            || parsed.path() != "/"
+            || parsed.query().is_some()
+            || parsed.fragment().is_some()
+            || !parsed.username().is_empty()
+            || parsed.password().is_some()
+        {
+            return Err(
+                "ERPX_WEB_TRUSTED_ORIGINS accepts HTTPS origins without path or credentials".into(),
+            );
+        }
+    }
+    let key_reference = env::var("ERPX_WEB_SESSION_KEY_REFERENCE")
+        .map_err(|_| "ERPX_WEB_SESSION_KEY_REFERENCE is required")?;
+    if key_reference.trim().is_empty()
+        || key_reference.len() > 128
+        || key_reference.starts_with("local-")
+        || key_reference.chars().any(char::is_control)
+    {
+        return Err("ERPX_WEB_SESSION_KEY_REFERENCE must be a non-local key reference".into());
+    }
+    let session_key =
+        env::var("ERPX_WEB_SESSION_KEY").map_err(|_| "ERPX_WEB_SESSION_KEY is required")?;
+    if STANDARD
+        .decode(session_key)
+        .map(|decoded| decoded.len())
+        .ok()
+        != Some(32)
+    {
+        return Err("ERPX_WEB_SESSION_KEY must decode to exactly 32 bytes".into());
+    }
+    let signing_key = env::var("ERPX_ACCESS_TOKEN_SIGNING_KEY")
+        .map_err(|_| "ERPX_ACCESS_TOKEN_SIGNING_KEY is required")?;
+    if signing_key.len() < 32 {
+        return Err("ERPX_ACCESS_TOKEN_SIGNING_KEY must contain at least 32 bytes".into());
+    }
+    let revision = env::var("ERPX_WEB_PRODUCTION_REVISION")
+        .map_err(|_| "ERPX_WEB_PRODUCTION_REVISION is required")?;
+    if revision.len() < 7
+        || revision.len() > 128
+        || revision
+            .chars()
+            .any(|value| value.is_control() || value.is_whitespace())
+    {
+        return Err("ERPX_WEB_PRODUCTION_REVISION is not a bounded immutable revision".into());
+    }
+    Ok(revision)
+}
+
+fn load_web_production_evidence(
+    root: &Path,
+    expected_revision: &str,
+) -> TaskResult<WebProductionEvidence> {
+    let evidence_path = env::var("ERPX_WEB_PRODUCTION_EVIDENCE")
+        .map(PathBuf::from)
+        .map_err(|_| "ERPX_WEB_PRODUCTION_EVIDENCE is required")?;
+    let metadata =
+        fs::metadata(&evidence_path).map_err(|_| "Web production evidence file is unavailable")?;
+    if !metadata.is_file() || metadata.len() == 0 || metadata.len() > 256 * 1024 {
+        return Err(
+            "Web production evidence must be a non-empty file no larger than 256 KiB".into(),
+        );
+    }
+    let evidence: WebProductionEvidence = serde_json::from_slice(&fs::read(&evidence_path)?)?;
+    if evidence.schema_version != 2 || evidence.release_revision != expected_revision {
+        return Err("Web production evidence schema or release revision does not match".into());
+    }
+    let captured_at = chrono::DateTime::parse_from_rfc3339(&evidence.captured_at)
+        .map_err(|_| "Web production evidence captured_at is invalid")?
+        .with_timezone(&Utc);
+    let age = Utc::now().signed_duration_since(captured_at);
+    if age < chrono::Duration::minutes(-5) || age > chrono::Duration::days(7) {
+        return Err("Web production evidence must be current within seven days".into());
+    }
+    let modules = evidence
+        .browser
+        .modules
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    if modules != WEB_PRODUCTION_MODULES.into_iter().collect() {
+        return Err("Browser evidence must cover exactly the 12 production modules".into());
+    }
+    let locales = evidence
+        .browser
+        .locales
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    if !["en", "th"]
+        .into_iter()
+        .all(|value| locales.contains(value))
+    {
+        return Err("Browser evidence must cover English and Thai".into());
+    }
+    let viewports = evidence
+        .browser
+        .viewports
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    if !["desktop", "390px"]
+        .into_iter()
+        .all(|value| viewports.contains(value))
+    {
+        return Err("Browser evidence must cover desktop and 390px layouts".into());
+    }
+    let negative_cases = evidence
+        .browser
+        .negative_cases
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    if !["403", "404", "validation", "conflict", "duplicate", "retry"]
+        .into_iter()
+        .all(|value| negative_cases.contains(value))
+    {
+        return Err("Browser evidence is missing required negative cases".into());
+    }
+    let journey_modules = evidence
+        .browser
+        .module_journeys
+        .iter()
+        .map(|journey| journey.module.as_str())
+        .collect::<BTreeSet<_>>();
+    if journey_modules != WEB_PRODUCTION_MODULES.into_iter().collect()
+        || evidence.browser.module_journeys.len() != WEB_PRODUCTION_MODULES.len()
+    {
+        return Err("Browser evidence must contain exactly one journey for every module".into());
+    }
+    let required_positive = [
+        "login",
+        "scope",
+        "list",
+        "detail",
+        "create",
+        "transition",
+        "read_your_writes",
+        "audit",
+        "session_recovery",
+    ];
+    let required_negative = [
+        "authorization",
+        "validation",
+        "conflict",
+        "duplicate",
+        "recovery",
+    ];
+    for journey in &evidence.browser.module_journeys {
+        let positive = journey
+            .positive_cases
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        let negative = journey
+            .negative_cases
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        let locales = journey
+            .locales
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        let viewports = journey
+            .viewports
+            .iter()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
+        if !journey.passed
+            || journey.unexplained_console_errors != 0
+            || !required_positive
+                .into_iter()
+                .all(|case| positive.contains(case))
+            || !required_negative
+                .into_iter()
+                .all(|case| negative.contains(case))
+            || !["en", "th"]
+                .into_iter()
+                .all(|value| locales.contains(value))
+            || !["desktop", "390px"]
+                .into_iter()
+                .all(|value| viewports.contains(value))
+        {
+            return Err(format!(
+                "Browser journey evidence is incomplete for module {}",
+                journey.module
+            )
+            .into());
+        }
+    }
+    if !evidence.browser.passed
+        || !evidence.security.passed
+        || evidence.security.critical_findings != 0
+        || evidence.security.high_findings != 0
+        || !evidence.recovery.backup_restore_passed
+        || !evidence.recovery.object_recovery_passed
+        || !evidence.recovery.pitr_passed
+        || evidence.recovery.measured_rpo_seconds > 86_400
+        || evidence.recovery.measured_rto_seconds > 14_400
+        || !evidence.operations.alerts_loaded
+        || !evidence.operations.runbooks_verified
+        || evidence.operations.projection_lag_seconds > 60
+        || evidence.operations.unexplained_console_errors != 0
+    {
+        return Err(
+            "Web production evidence did not satisfy functional, security, recovery, or operational gates"
+                .into(),
+        );
+    }
+    for required in [
+        "ops/observability/erpx-web-production-alerts.yml",
+        "ops/runbooks/web-production-incident.md",
+        "ops/runbooks/web-production-recovery.md",
+    ] {
+        if !root.join(required).is_file() {
+            return Err(
+                format!("required production operations artifact is missing: {required}").into(),
+            );
+        }
+    }
+    Ok(evidence)
+}
+
 async fn verify(root: &Path) -> TaskResult {
     let config = DevConfig::load(root)?;
+    verify_core(root)?;
+    verify_local_sqlx(root, &config).await?;
+    verify_runtime_readiness(root, &config).await?;
+    for url in [
+        "http://127.0.0.1:50052/health",
+        "http://127.0.0.1:50052/ready",
+        "http://127.0.0.1:3004",
+    ] {
+        wait_for_http(url, 5).await?;
+    }
+    verify_web_ssr_and_bff().await?;
+    affected::record_verified_snapshot(root)?;
+    println!("ERPX Web verification completed.");
+    Ok(())
+}
+
+fn production_metric_value(body: &str, metric: &str) -> TaskResult<f64> {
+    body.lines()
+        .find_map(|line| {
+            let (name, value) = line.rsplit_once(' ')?;
+            (name == metric)
+                .then(|| value.parse::<f64>().ok())
+                .flatten()
+        })
+        .ok_or_else(|| format!("production metrics omitted {metric}").into())
+}
+
+async fn verify_web_production_endpoints() -> TaskResult {
+    let base = require_secure_production_url("ERPX_WEB_PRODUCTION_BASE_URL")?;
+    if base.path() != "/" || base.query().is_some() {
+        return Err("ERPX_WEB_PRODUCTION_BASE_URL must be an HTTPS origin".into());
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?;
+    let login = client
+        .get(base.join("login")?)
+        .header(reqwest::header::ACCEPT_LANGUAGE, "th")
+        .send()
+        .await?;
+    if !login.status().is_success() {
+        return Err(format!("production login route returned {}", login.status()).into());
+    }
+    for (header, expected) in [
+        ("strict-transport-security", "max-age="),
+        ("content-security-policy", "default-src 'self'"),
+        ("x-content-type-options", "nosniff"),
+        ("x-frame-options", "DENY"),
+        ("referrer-policy", "no-referrer"),
+        ("cross-origin-opener-policy", "same-origin"),
+    ] {
+        let value = login
+            .headers()
+            .get(header)
+            .and_then(|value| value.to_str().ok())
+            .ok_or_else(|| format!("production response omitted {header}"))?;
+        if !value.contains(expected) {
+            return Err(format!("production response {header} is not closed").into());
+        }
+    }
+    let login_html = login.text().await?;
+    if !login_html.contains("ERPX")
+        || login_html.to_ascii_lowercase().contains("access_token")
+        || login_html.to_ascii_lowercase().contains("refresh_token")
+    {
+        return Err("production login HTML failed the credential-boundary check".into());
+    }
+    let protected = client.get(base.join("workspaces/finance")?).send().await?;
+    if protected.status() != reqwest::StatusCode::TEMPORARY_REDIRECT
+        || protected
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            != Some("/login?return_to=/workspaces/finance")
+    {
+        return Err("anonymous production module route did not fail closed to login".into());
+    }
+    let unknown = client
+        .get(base.join("__erpx-production-route-must-not-exist")?)
+        .send()
+        .await?;
+    if unknown.status() != reqwest::StatusCode::NOT_FOUND {
+        return Err(format!("unknown production route returned {}", unknown.status()).into());
+    }
+    let health = client
+        .get(require_secure_production_url(
+            "ERPX_WEB_PRODUCTION_HEALTH_URL",
+        )?)
+        .send()
+        .await?;
+    if !health.status().is_success() {
+        return Err(format!("production health endpoint returned {}", health.status()).into());
+    }
+    let metrics = client
+        .get(require_secure_production_url(
+            "ERPX_WEB_PRODUCTION_METRICS_URL",
+        )?)
+        .send()
+        .await?;
+    if !metrics.status().is_success() {
+        return Err(format!("production metrics endpoint returned {}", metrics.status()).into());
+    }
+    let metrics = metrics.text().await?;
+    for (metric, expected) in [
+        ("erpx_server_up", 1.0),
+        ("erpx_runtime_metrics_observation_up", 1.0),
+        (
+            "erpx_worker_heartbeats{state=\"stale_or_unavailable\"}",
+            0.0,
+        ),
+        ("erpx_outbox_dead_letters", 0.0),
+        ("erpx_projection_dead_letters", 0.0),
+    ] {
+        if production_metric_value(&metrics, metric)? != expected {
+            return Err(format!("production metric {metric} failed its release threshold").into());
+        }
+    }
+    if production_metric_value(&metrics, "erpx_projection_lag_seconds")? > 60.0 {
+        return Err("production projection lag exceeds 60 seconds".into());
+    }
+    for metric in [
+        "erpx_last_verified_backup_timestamp_seconds",
+        "erpx_last_verified_pitr_timestamp_seconds",
+    ] {
+        if production_metric_value(&metrics, metric)? <= 0.0 {
+            return Err(format!("production metric {metric} has no verified evidence").into());
+        }
+    }
+    Ok(())
+}
+
+async fn verify_web_production(root: &Path) -> TaskResult {
+    // This release-only command deliberately includes the normal Web gate.
+    // The production checks are additive and may never replace it.
+    verify(root).await?;
+    let revision = validate_web_production_profile()?;
+    let _evidence = load_web_production_evidence(root, &revision)?;
+    verify_web_production_endpoints().await?;
+    println!("ERPX Web production verification completed for revision {revision}.");
+    Ok(())
+}
+
+fn verify_core(root: &Path) -> TaskResult {
     for (program, args) in [
         ("cargo", vec!["fmt", "--all", "--check"]),
         (
@@ -3318,6 +3920,8 @@ async fn verify(root: &Path) -> TaskResult {
                 "--fullstack",
                 "true",
                 "--no-default-features",
+                "--release",
+                "--locked",
                 "--offline",
                 "-p",
                 "erpx-console",
@@ -3328,18 +3932,105 @@ async fn verify(root: &Path) -> TaskResult {
     ] {
         run_command(root, program, args)?;
     }
-    verify_local_sqlx(root, &config).await?;
+    architecture::scan(root)?;
     repository_scan(root)?;
-    for url in [
-        "http://127.0.0.1:50052/health",
-        "http://127.0.0.1:50052/ready",
-        "http://127.0.0.1:3004",
-    ] {
-        wait_for_http(url, 5).await?;
+    println!("ERPX offline core verification completed.");
+    Ok(())
+}
+
+async fn verify_sqlx(root: &Path) -> TaskResult {
+    let config = DevConfig::load(root)?;
+    verify_local_sqlx(root, &config).await?;
+    println!("ERPX PostgreSQL acceptance verification completed.");
+    Ok(())
+}
+
+async fn verify_runtime(root: &Path) -> TaskResult {
+    let config = DevConfig::load(root)?;
+    verify_runtime_readiness(root, &config).await
+}
+
+async fn verify_runtime_readiness(root: &Path, config: &DevConfig) -> TaskResult {
+    config.validate_local()?;
+    let dedicated = config.port == 55_432;
+    let development_access_enabled = development_access_requested(root)?;
+    require_runtime_services(root, dedicated, development_access_enabled)?;
+
+    let manifest = FreshRuntimeManifest::load(root)?;
+    let control_write_database = manifest.as_ref().map_or(DATABASES[0], |manifest| {
+        manifest.control_write_database.as_str()
+    });
+    let write = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&config.database_url(control_write_database))
+        .await
+        .map_err(|_| "runtime verification could not connect to control-write")?;
+
+    let heartbeat_rows = sqlx::query_as::<_, (Uuid, String, bool)>(
+        "SELECT worker_id, status, last_seen_at >= now() - interval '60 seconds'
+         FROM erpx_control.worker_heartbeats",
+    )
+    .fetch_all(&write)
+    .await
+    .map_err(|_| "runtime verification could not evaluate worker heartbeats")?;
+    let heartbeat_by_id = heartbeat_rows
+        .into_iter()
+        .map(|(worker_id, status, fresh)| (worker_id, (status, fresh)))
+        .collect::<BTreeMap<_, _>>();
+    let mut unhealthy_workers = Vec::new();
+    for spec in worker_specs(dedicated) {
+        let worker_id = Uuid::parse_str(spec.worker_id)
+            .map_err(|_| "runtime worker catalog contains an invalid worker ID")?;
+        match heartbeat_by_id.get(&worker_id) {
+            Some((status, true)) if status == "ready" => {}
+            Some((status, fresh)) => unhealthy_workers.push(format!(
+                "{} (status={}, heartbeat={})",
+                spec.name,
+                status,
+                if *fresh { "fresh" } else { "stale" }
+            )),
+            None => unhealthy_workers.push(format!("{} (heartbeat=missing)", spec.name)),
+        }
     }
-    verify_web_ssr_and_bff().await?;
-    affected::record_verified_snapshot(root)?;
-    println!("ERPX Web verification completed.");
+    if !unhealthy_workers.is_empty() {
+        write.close().await;
+        return Err(format!(
+            "runtime worker heartbeat gate failed: {}",
+            unhealthy_workers.join(", ")
+        )
+        .into());
+    }
+
+    let projection_states: (i64, i64, i64, i64) = sqlx::query_as(
+        "SELECT
+            count(*) FILTER (WHERE state='retryable'),
+            count(*) FILTER (WHERE state='dead_letter'),
+            count(*) FILTER (WHERE state='claimed' AND lease_until <= now()),
+            count(*) FILTER (
+                WHERE state IN ('pending', 'rebuild_pending')
+                  AND available_at < now() - interval '60 seconds'
+            )
+         FROM erpx_control.tenant_projection_jobs",
+    )
+    .fetch_one(&write)
+    .await
+    .map_err(|_| "runtime verification could not evaluate projection jobs")?;
+    write.close().await;
+    if projection_states != (0, 0, 0, 0) {
+        return Err(format!(
+            "runtime projection gate failed: retryable={}, dead_letter={}, expired_claims={}, overdue={}",
+            projection_states.0,
+            projection_states.1,
+            projection_states.2,
+            projection_states.3
+        )
+        .into());
+    }
+
+    println!(
+        "runtime readiness verified: {} required worker processes and heartbeats",
+        worker_specs(dedicated).len()
+    );
     Ok(())
 }
 
@@ -3465,10 +4156,19 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     {
         return Err("SSR sign-in did not render the localized route content".into());
     }
+    let enabled_submit = sign_in_html
+        .split("<button")
+        .skip(1)
+        .filter_map(|tail| tail.split_once('>').map(|(opening_tag, _)| opening_tag))
+        .any(|opening_tag| {
+            opening_tag.contains("auth-submit")
+                && opening_tag.contains("data-erpx-component=\"button\"")
+                && opening_tag.contains("type=\"submit\"")
+                && !opening_tag.contains("disabled")
+        });
     if !sign_in_html.contains(
         "<form class=\"auth-form\" method=\"post\" action=\"/api/bff/v1/auth/password/form\"",
-    ) || !sign_in_html.contains("<button class=\"button auth-submit\" type=\"submit\"")
-        || sign_in_html.contains("<button class=\"button auth-submit\" type=\"submit\" disabled")
+    ) || !enabled_submit
     {
         return Err(
             "SSR password form did not render an enabled same-origin submit control".into(),
@@ -4073,6 +4773,7 @@ mod tests {
             worker_environment_sha256: "worker-env".into(),
             ucs_environment_sha256: "ucs-env".into(),
             web_environment_sha256: "web-env".into(),
+            web_source_sha256: "web-source".into(),
             development_access_enabled: true,
         }
     }
@@ -4158,7 +4859,7 @@ mod tests {
     fn development_starts_the_complete_direct_v1_worker_catalog() {
         let standard = worker_specs(false);
         assert_eq!(standard.len(), 50);
-        assert_eq!(worker_specs(true).len(), 54);
+        assert_eq!(worker_specs(true).len(), 53);
         assert_eq!(
             standard.iter().map(|spec| spec.name).collect::<Vec<_>>(),
             STANDARD_WORKERS
@@ -4169,6 +4870,11 @@ mod tests {
                 .map(|spec| spec.name)
                 .collect::<Vec<_>>(),
             DEDICATED_WORKERS
+        );
+        assert!(
+            !worker_specs(true)
+                .iter()
+                .any(|spec| spec.name == "pitr-controller")
         );
         let projection_kinds = standard
             .iter()
@@ -4305,6 +5011,16 @@ mod tests {
 
         let mut desired = previous.clone();
         desired.web_environment_sha256 = "new-web-env".into();
+        assert_eq!(
+            plan_dev_restart(DevMode::Warm, Some(&previous), &desired, healthy_runtime()),
+            DevRestartPlan {
+                web: true,
+                ..DevRestartPlan::default()
+            }
+        );
+
+        let mut desired = previous.clone();
+        desired.web_source_sha256 = "new-web-source".into();
         assert_eq!(
             plan_dev_restart(DevMode::Warm, Some(&previous), &desired, healthy_runtime()),
             DevRestartPlan {
@@ -4467,5 +5183,57 @@ mod tests {
             .map(str::to_owned)
             .collect();
         assert!(validate_buckets(&unknown).is_err());
+    }
+
+    #[test]
+    fn production_evidence_example_is_versioned_and_covers_every_module() {
+        let evidence: WebProductionEvidence = serde_json::from_str(include_str!(
+            "../../ops/web-production-evidence.example.json"
+        ))
+        .expect("versioned production evidence example");
+        assert_eq!(evidence.schema_version, 2);
+        assert!(evidence.browser.passed);
+        assert_eq!(
+            evidence
+                .browser
+                .modules
+                .iter()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
+            WEB_PRODUCTION_MODULES.into_iter().collect()
+        );
+        assert!(evidence.recovery.backup_restore_passed);
+        assert!(evidence.recovery.object_recovery_passed);
+        assert!(evidence.recovery.pitr_passed);
+        assert_eq!(
+            evidence
+                .browser
+                .module_journeys
+                .iter()
+                .map(|journey| journey.module.as_str())
+                .collect::<BTreeSet<_>>(),
+            WEB_PRODUCTION_MODULES.into_iter().collect()
+        );
+        assert!(
+            evidence
+                .browser
+                .module_journeys
+                .iter()
+                .all(|journey| journey.passed && journey.unexplained_console_errors == 0)
+        );
+    }
+
+    #[test]
+    fn production_metric_parser_requires_exact_metric_names() {
+        let body = "erpx_server_up 1\nerpx_projection_lag_seconds 4.250\n";
+        assert_eq!(
+            production_metric_value(body, "erpx_server_up").unwrap(),
+            1.0
+        );
+        assert_eq!(
+            production_metric_value(body, "erpx_projection_lag_seconds").unwrap(),
+            4.25
+        );
+        assert!(production_metric_value(body, "erpx_server").is_err());
     }
 }

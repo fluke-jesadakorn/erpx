@@ -88,6 +88,7 @@ const CONSOLE_WAVE67_REGISTRY: &str = include_str!("../../console/src/transport/
 const CONSOLE_QUALITY_REGISTRY: &str = include_str!("../../console/src/transport/quality/mod.rs");
 const CONSOLE_WAVE8_REGISTRY: &str = include_str!("../../console/src/transport/wave8/mod.rs");
 const CONSOLE_RUNTIME: &str = include_str!("../../console/src/lib.rs");
+const CONSOLE_COMPOSITION: &str = include_str!("../../console/src/transport/composition.rs");
 const CONSOLE_SALES_TRANSPORT: &str = include_str!("../../console/src/transport/wave6_7/sales.rs");
 const CONSOLE_PROCUREMENT_TRANSPORT: &str =
     include_str!("../../console/src/transport/wave6_7/procurement.rs");
@@ -245,6 +246,7 @@ fn product_server_sources() -> String {
 fn product_console_sources() -> String {
     let mut sources = vec![
         CONSOLE_RUNTIME,
+        CONSOLE_COMPOSITION,
         CONSOLE_TRANSPORT_REGISTRY,
         CONSOLE_WAVE67_REGISTRY,
         CONSOLE_QUALITY_REGISTRY,

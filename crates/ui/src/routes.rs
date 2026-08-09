@@ -11,7 +11,8 @@ pub enum RouteAuthRequirement {
 }
 
 /// Stable identifiers for the existing platform Customer 360 route set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum RouteId {
     /// Platform landing page.
     PlatformHome,
@@ -299,7 +300,7 @@ pub const MARKETING_CRM_ROUTES: &[RouteDefinition] = &[
     },
     RouteDefinition {
         id: RouteId::CrmLeads,
-        template: "/crm/leads",
+        template: "/workspaces/marketing-crm",
         label: "Leads",
         auth: RouteAuthRequirement::Authenticated,
     },
@@ -1153,7 +1154,7 @@ mod tests {
             "/marketing/domains",
             "/crm/accounts",
             "/crm/contacts",
-            "/crm/leads",
+            "/workspaces/marketing-crm",
             "/crm/opportunities",
             "/crm/activities",
         ];

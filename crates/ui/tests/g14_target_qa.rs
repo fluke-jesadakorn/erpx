@@ -22,6 +22,7 @@ fn dialog_fixture() -> Element {
 fn g14_dialog_accessibility_contract_is_rendered_by_the_shared_ui() {
     let mut dom = VirtualDom::new(dialog_fixture);
     let edits = dom.rebuild_to_vec().edits;
+    let html = dioxus_ssr::render(&dom);
     let attributes = edits
         .iter()
         .filter_map(|mutation| match mutation {
@@ -34,25 +35,25 @@ fn g14_dialog_accessibility_contract_is_rendered_by_the_shared_ui() {
         })
         .collect::<Vec<_>>();
 
-    assert!(attributes.contains(&("role", "dialog")));
-    assert!(attributes.contains(&("aria-modal", "true")));
-    assert!(attributes.contains(&("aria-keyshortcuts", "Escape")));
-    assert!(attributes.contains(&("data-dialog-focus-trap", "true")));
-    assert!(attributes.contains(&("data-dialog-focus-restore", "caller-target-required")));
+    assert!(html.contains("role=\"dialog\""));
+    assert!(html.contains("aria-modal=\"true\""));
+    assert!(html.contains("aria-keyshortcuts=\"Escape\""));
+    assert!(html.contains("data-dialog-focus-trap=\"true\""));
+    assert!(html.contains("data-dialog-focus-restore=\"caller-target-required\""));
+    assert!(html.contains("data-state=\"open\""));
+    assert!(html.contains("data-erpx-component=\"dialog\""));
     assert_eq!(
         attributes
             .iter()
             .filter(|(name, value)| *name == "data-dialog-focus-guard"
                 && matches!(*value, "start" | "end"))
             .count(),
-        2
+        0
     );
-    assert!(edits.iter().any(|mutation| {
-        matches!(
-            mutation,
-            Mutation::NewEventListener { name, .. } if name == "keydown"
-        )
-    }));
+    assert!(edits.iter().any(|mutation| matches!(
+        mutation,
+        Mutation::NewEventListener { name, .. } if name == "click"
+    )));
 }
 
 #[test]

@@ -192,6 +192,8 @@ const OPERATIONS_QUERY_METHODS: &[&str] = &[
 ];
 const CUSTOMER_360_QUERY_METHODS: &[&str] = &["GetCustomer360"];
 const CUSTOMER_ACCESS_AUDIT_QUERY_METHODS: &[&str] = &["GetCustomerAccessAudit"];
+const CUSTOMER_360_DETAIL_QUERY_METHODS: &[&str] = &["GetCustomer360Detail"];
+const CUSTOMER_NOTE_COMMAND_METHODS: &[&str] = &["AddCustomerNote"];
 const SUPPORT_METHODS: &[&str] = &[
     "CreateTicket",
     "UpdateTicket",
@@ -657,6 +659,18 @@ pub const RPC_WORKFLOW_SERVICES: &[RpcServiceWorkflow] = &[
     RpcServiceWorkflow {
         service: "CustomerAccessAuditQueryService",
         methods: CUSTOMER_ACCESS_AUDIT_QUERY_METHODS,
+        classification: RpcClassification::HumanInteractive,
+        routes: CUSTOMER_ROUTES,
+    },
+    RpcServiceWorkflow {
+        service: "Customer360DetailQueryService",
+        methods: CUSTOMER_360_DETAIL_QUERY_METHODS,
+        classification: RpcClassification::HumanInteractive,
+        routes: CUSTOMER_ROUTES,
+    },
+    RpcServiceWorkflow {
+        service: "CustomerNoteCommandService",
+        methods: CUSTOMER_NOTE_COMMAND_METHODS,
         classification: RpcClassification::HumanInteractive,
         routes: CUSTOMER_ROUTES,
     },

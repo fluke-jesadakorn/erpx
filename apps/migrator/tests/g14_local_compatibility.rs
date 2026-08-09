@@ -32,7 +32,7 @@ const PLATFORM_ADMINISTRATION_PROTO: &str =
 const MOBILE_AUTH: &str = include_str!("../../../crates/ui/src/auth.rs");
 const MOBILE_SESSION_TARGET: &str = include_str!("../../../crates/ui/src/session_target.rs");
 const ANDROID_BRIDGE: &str = include_str!("../../../crates/android-bridge/src/lib.rs");
-const CONSOLE_LIB: &str = include_str!("../../console/src/lib.rs");
+const CONSOLE_COMPOSITION: &str = include_str!("../../console/src/transport/composition.rs");
 const CONSOLE_TRANSPORT: &str = include_str!("../../console/src/transport/mod.rs");
 const PITR: &str = include_str!("../../../crates/infrastructure/src/pitr.rs");
 const BACKUP_RUNTIME: &str = include_str!("../../worker/src/backup_runtime.rs");
@@ -1270,8 +1270,8 @@ fn g14_mobile_and_pitr_boundaries_are_source_verified_and_external_proof_is_queu
         ],
     );
     require_markers(
-        CONSOLE_LIB,
-        "apps/console/src/lib.rs",
+        CONSOLE_COMPOSITION,
+        "apps/console/src/transport/composition.rs",
         &[
             "TargetSecureSessionAdapter::new",
             "restore_and_revalidate_secure_session",
@@ -1372,10 +1372,10 @@ fn g14_console_deployment_inputs_are_source_bound_and_tls_when_configured() {
         ],
     );
     require_markers(
-        CONSOLE_LIB,
-        "apps/console/src/lib.rs",
+        CONSOLE_COMPOSITION,
+        "apps/console/src/transport/composition.rs",
         &[
-            "use transport::GRPC_ENDPOINT",
+            "use crate::transport::GRPC_ENDPOINT",
             "Endpoint::from_static(GRPC_ENDPOINT)",
             "cache: \"no-store\"",
             "credentials: \"omit\"",
@@ -1416,20 +1416,25 @@ fn g14_console_deployment_inputs_are_source_bound_and_tls_when_configured() {
 #[test]
 fn g14_console_startup_deep_link_contract_is_bound_and_hash_restore_is_queued_if_absent() {
     require_ordered_markers(
-        CONSOLE_LIB,
-        "apps/console/src/lib.rs",
+        CONSOLE_COMPOSITION,
+        "apps/console/src/transport/composition.rs",
         &[
-            "let initial_destination = authorized_console_deep_link(&initial_path)",
+            "let initial_resolution = console_route_resolution_for(&initial_path",
+            "let initial_destination = match initial_resolution.clone()",
+            "let mut route_failure = use_signal",
             "let mut active_route = use_signal",
             "while let Ok(path) = eval.recv::<String>().await",
-            "route_signals.activate(&path)",
+            "let _ = route_signals.activate(&path)",
         ],
     );
     require_markers(
-        CONSOLE_LIB,
-        "apps/console/src/lib.rs",
+        CONSOLE_COMPOSITION,
+        "apps/console/src/transport/composition.rs",
         &[
-            "let Some(destination) = authorized_console_deep_link(path)",
+            "enum ConsoleRouteResolution",
+            "ConsoleRouteFailureKind::Forbidden",
+            "ConsoleRouteFailureKind::NotFound",
+            "let resolution = console_route_resolution_for(path",
             "ConsoleDeepLink::Customer(route) => self.active_route.set(route)",
             "window.location.hash.startsWith",
             "window.addEventListener('popstate', emitPath)",
@@ -1437,7 +1442,7 @@ fn g14_console_startup_deep_link_contract_is_bound_and_hash_restore_is_queued_if
             "emitPath();",
         ],
     );
-    if !CONSOLE_LIB.contains("window.location.hash") {
+    if !CONSOLE_COMPOSITION.contains("window.location.hash") {
         eprintln!(
             "G14 blocker queued: console startup restores pathname deep links, but hash-style web deep-link restoration is not source-proven"
         );
