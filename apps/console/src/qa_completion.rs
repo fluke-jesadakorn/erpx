@@ -19,7 +19,7 @@ use super::product_completion::{
     ProjectionFreshness, ReconciliationEvidence, RevocationPolicy, RoleMappingMode,
     RoleRevocationMode, SafeDisplayText, safe_return_path,
 };
-use erpx_ui::{ClientTarget, SecureSessionSupport, UiStateKind};
+use erpx_ui_core::{ClientTarget, SecureSessionSupport, UiStateKind};
 
 /// Contract identifiers used by the coordinator's G12 evidence roll-up.
 pub const G12_QA_CONTRACTS: &[&str] = &[
@@ -170,7 +170,7 @@ mod tests {
     const CONSOLE_MAIN_SOURCE: &str = concat!(
         include_str!("lib.rs"),
         include_str!("transport/mod.rs"),
-        include_str!("transport/composition.rs")
+        include_str!("composition.rs")
     );
 
     #[test]
@@ -1533,12 +1533,12 @@ mod tests {
         let credential_bearing_hash =
             "/#/platform/customers?access_token=should-not-enter-the-route-registry";
         assert_eq!(
-            erpx_ui::redact_deep_link(credential_bearing_hash),
+            erpx_ui_core::redact_deep_link(credential_bearing_hash),
             "/",
             "hash-style credential-bearing links must be redacted before route restoration"
         );
         assert!(
-            erpx_ui::PlatformRoute::parse(credential_bearing_hash).is_err(),
+            erpx_ui_core::PlatformRoute::parse(credential_bearing_hash).is_err(),
             "console startup must delegate hash links to the credential-redacting route parser"
         );
     }

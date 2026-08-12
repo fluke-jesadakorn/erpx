@@ -14,7 +14,10 @@ use erpx_cqrs::{
     ProjectionNotReady, ProjectionTarget, QueryConsistency, QueryEnvelope, QueryHandler,
     ReadYourWrites,
 };
-use erpx_integration_contracts::{CurrencyCode, IntegrationEvent, MoneyAmount, crm, customer};
+use erpx_integration_contracts::{
+    CostCenterRef, CurrencyCode, DimensionSet, IntegrationEvent, MoneyAmount, crm, customer,
+    organization, sales,
+};
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     FixedClock, QueryId, TenantScope,
@@ -23,7 +26,7 @@ use uuid::Uuid;
 
 use super::*;
 use crate::{
-    domain::{QuoteStatus, SalesOrderLineId, SalesOrderStatus},
+    domain::{QuoteStatus, RevenueArrangementStatus, SalesOrderLineId, SalesOrderStatus},
     ports::{
         AuthorizationRequest, CommandIdentity, PortError, ReadProjection, SalesCommit, StoredCommit,
     },
@@ -118,6 +121,41 @@ fn draft_order() -> SalesOrder {
     .unwrap()
 }
 
+fn confirmed_order() -> SalesOrder {
+    let mut order = draft_order();
+    order.confirm(at(9)).unwrap();
+    order.take_uncommitted_events();
+    order
+}
+
+fn dimensions() -> DimensionSet {
+    let mut value =
+        DimensionSet::for_legal_entity(organization::CompanyRef::try_from_uuid(id(2)).unwrap());
+    value.business_unit = Some(organization::BusinessUnitRef::try_from_uuid(id(30)).unwrap());
+    value.cost_center = Some(CostCenterRef::try_from_uuid(id(31)).unwrap());
+    value
+}
+
+fn arrangement() -> RevenueArrangement {
+    let mut value = RevenueArrangement::activate_from_order(
+        RevenueArrangementId::try_from_uuid(id(40)).unwrap(),
+        &confirmed_order(),
+        None,
+        dimensions(),
+        vec![PerformanceObligationDefinition {
+            obligation_id: PerformanceObligationId::try_from_uuid(id(41)).unwrap(),
+            line_id: SalesOrderLineId::try_from_uuid(id(11)).unwrap(),
+            model: sales::RevenueModel::Goods,
+            service_starts_on: None,
+            service_ends_on: None,
+        }],
+        at(9),
+    )
+    .unwrap();
+    value.take_uncommitted_events();
+    value
+}
+
 fn command_envelope(
     sequence: u128,
     expected: Option<u64>,
@@ -177,6 +215,7 @@ impl EntitlementPort for FakeEntitlement {
 struct FakeWriteRepository {
     quote: Option<Quote>,
     order: Option<SalesOrder>,
+    arrangement: Option<RevenueArrangement>,
     loads: Arc<AtomicUsize>,
 }
 
@@ -198,6 +237,15 @@ impl WriteRepository for FakeWriteRepository {
     ) -> Result<Option<SalesOrder>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
         Ok(self.order.clone())
+    }
+
+    async fn load_revenue_arrangement(
+        &self,
+        _authority_scope: &TenantScope,
+        _arrangement_id: RevenueArrangementId,
+    ) -> Result<Option<RevenueArrangement>, PortError> {
+        self.loads.fetch_add(1, Ordering::SeqCst);
+        Ok(self.arrangement.clone())
     }
 }
 
@@ -403,6 +451,45 @@ fn confirmed_order_publishes_only_sales_owned_fact() {
     );
 }
 
+#[test]
+fn accepted_fulfillment_publishes_billing_eligibility_but_no_finance_event() {
+    let unit_of_work = FakeUnitOfWork::default();
+    let receipt = block_on(
+        handler(
+            FakeWriteRepository {
+                arrangement: Some(arrangement()),
+                ..FakeWriteRepository::default()
+            },
+            unit_of_work.clone(),
+            true,
+            true,
+        )
+        .handle(command_envelope(
+            6,
+            Some(1),
+            SalesCommand::AcceptRevenueFulfillment(AcceptRevenueFulfillment {
+                arrangement_id: RevenueArrangementId::try_from_uuid(id(40)).unwrap(),
+                fulfillment_id: FulfillmentId::try_from_uuid(id(42)).unwrap(),
+                billing_event_id: BillingEventId::try_from_uuid(id(43)).unwrap(),
+                obligation_id: PerformanceObligationId::try_from_uuid(id(41)).unwrap(),
+                kind: sales::FulfillmentKind::GoodsDelivery,
+                accepted_minor: 1_800,
+                tax_minor: 200,
+                eligible_on: at(9).date_naive(),
+            }),
+        )),
+    )
+    .unwrap();
+    let SalesMutationResult::RevenueArrangement(value) = receipt.response else {
+        panic!("expected revenue arrangement response");
+    };
+    assert_eq!(value.status, RevenueArrangementStatus::Completed);
+    assert_eq!(
+        unit_of_work.event_types.lock().unwrap().as_slice(),
+        &[vec!["sales.fulfillment_accepted", "sales.billing_eligible"]]
+    );
+}
+
 #[derive(Clone)]
 struct NotReadyRead {
     reads: Arc<AtomicUsize>,
@@ -434,6 +521,15 @@ impl ReadRepository for NotReadyRead {
         _sales_order_id: SalesOrderId,
         _consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SalesOrderView>>, PortError> {
+        Err(PortError::Internal)
+    }
+
+    async fn get_revenue_arrangement(
+        &self,
+        _authority_scope: &TenantScope,
+        _arrangement_id: RevenueArrangementId,
+        _consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<RevenueArrangementView>>, PortError> {
         Err(PortError::Internal)
     }
 

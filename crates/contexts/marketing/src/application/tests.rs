@@ -99,12 +99,20 @@ struct Write {
 }
 #[async_trait]
 impl WriteRepository for Write {
-    async fn load(
+    async fn load_lead(
         &self,
         _: &TenantScope,
         _: LeadCandidateId,
     ) -> Result<Option<LeadCandidate>, PortError> {
         Ok(Some(self.value.clone()))
+    }
+
+    async fn load_budget(
+        &self,
+        _: &TenantScope,
+        _: CampaignBudgetId,
+    ) -> Result<Option<CampaignBudget>, PortError> {
+        Ok(None)
     }
 }
 #[derive(Clone)]
@@ -181,7 +189,7 @@ async fn authorization_denial_happens_before_commit() {
 struct NotReadyRead;
 #[async_trait]
 impl ReadRepository for NotReadyRead {
-    async fn get(
+    async fn get_lead(
         &self,
         _: &TenantScope,
         _: LeadCandidateId,
@@ -197,7 +205,7 @@ impl ReadRepository for NotReadyRead {
             observed: None,
         }))
     }
-    async fn list(
+    async fn list_leads(
         &self,
         _: &TenantScope,
         _: &LeadCandidateListFilter,
@@ -208,6 +216,22 @@ impl ReadRepository for NotReadyRead {
                 candidates: vec![],
                 next_cursor: None,
             },
+            metadata: ProjectionMetadata {
+                checkpoint: None,
+                freshness: FreshnessState::Current,
+                lag_millis: None,
+            },
+        })
+    }
+
+    async fn get_budget(
+        &self,
+        _: &TenantScope,
+        _: CampaignBudgetId,
+        _: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<CampaignBudgetView>>, PortError> {
+        Ok(ReadProjection {
+            value: None,
             metadata: ProjectionMetadata {
                 checkpoint: None,
                 freshness: FreshnessState::Current,

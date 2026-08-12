@@ -8,15 +8,15 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_kernel::TenantScope;
 use erpx_sales::{
-    PortError, QuoteId, QuoteView, ReadRepository, SalesOrderId, SalesOrderList,
-    SalesOrderListFilter, SalesOrderView, ports::ReadProjection,
+    PortError, QuoteId, QuoteView, ReadRepository, RevenueArrangementId, RevenueArrangementView,
+    SalesOrderId, SalesOrderList, SalesOrderListFilter, SalesOrderView, ports::ReadProjection,
 };
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    ORDER_PROJECTION, QUOTE_PROJECTION, order_partition, projection::order_status_name,
-    quote_partition,
+    ARRANGEMENT_PROJECTION, ORDER_PROJECTION, QUOTE_PROJECTION, arrangement_partition,
+    order_partition, projection::order_status_name, quote_partition,
 };
 
 const CURSOR_SEPARATOR: char = '|';
@@ -202,6 +202,49 @@ impl ReadRepository for SalesReadRepository {
         Ok(ReadProjection {
             value,
             metadata: self.metadata(ORDER_PROJECTION, checkpoint).await?,
+        })
+    }
+
+    async fn get_revenue_arrangement(
+        &self,
+        authority_scope: &TenantScope,
+        arrangement_id: RevenueArrangementId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<RevenueArrangementView>>, PortError> {
+        let partition = arrangement_partition(arrangement_id);
+        let checkpoint = self
+            .checkpoint(
+                ARRANGEMENT_PROJECTION,
+                "sales.arrangement:",
+                consistency,
+                Some(&partition),
+            )
+            .await?;
+        let row = sqlx::query(
+            "SELECT projection.state
+             FROM erpx_sales_read.revenue_arrangement_projection projection
+             JOIN erpx_cqrs_read.projection_generations generation
+               ON generation.projection_name=projection.projection_name
+              AND generation.generation=projection.generation AND generation.status='active'
+             WHERE projection.projection_name=$1 AND projection.arrangement_id=$2
+               AND projection.partition_key=$3",
+        )
+        .bind(ARRANGEMENT_PROJECTION)
+        .bind(arrangement_id.as_uuid())
+        .bind(&partition)
+        .fetch_optional(self.pool.as_pg_pool())
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        let value = row.map(decode_state).transpose()?;
+        if value
+            .as_ref()
+            .is_some_and(|view: &RevenueArrangementView| !authority_scope.contains(&view.scope))
+        {
+            return Err(PortError::Denied);
+        }
+        Ok(ReadProjection {
+            value,
+            metadata: self.metadata(ARRANGEMENT_PROJECTION, checkpoint).await?,
         })
     }
 

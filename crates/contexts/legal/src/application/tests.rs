@@ -10,6 +10,7 @@ use erpx_cqrs::{
     ProjectionMetadata, ProjectionNotReady, ProjectionTarget, QueryConsistency, QueryEnvelope,
     QueryHandler, ReadYourWrites,
 };
+use erpx_integration_contracts::{BoundedContext, IntegrationEvent, RecordRef};
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     FixedClock, QueryId,
@@ -50,6 +51,9 @@ fn document_id() -> LegalDocumentId {
 }
 fn access_id() -> AccessEntryId {
     AccessEntryId::try_from_uuid(id(30)).unwrap()
+}
+fn matter_id() -> LegalMatterId {
+    LegalMatterId::try_from_uuid(id(40)).unwrap()
 }
 fn digest(byte: char) -> String {
     format!("sha256:{}", byte.to_string().repeat(64))
@@ -106,6 +110,18 @@ fn document() -> LegalDocument {
     value
 }
 
+fn matter() -> LegalMatter {
+    LegalMatter::create(
+        matter_id(),
+        scope(),
+        "MAT-40".into(),
+        "Customer dispute".into(),
+        "legal-owner".into(),
+        at(),
+    )
+    .unwrap()
+}
+
 #[derive(Clone)]
 struct FakeAuthorization(bool);
 #[async_trait]
@@ -140,6 +156,7 @@ impl EntitlementPort for FakeEntitlement {
 struct FakeWrite {
     contract: Option<LegalContract>,
     document: Option<LegalDocument>,
+    matter: Option<LegalMatter>,
 }
 
 #[async_trait]
@@ -158,6 +175,14 @@ impl WriteRepository for FakeWrite {
         _id: LegalDocumentId,
     ) -> Result<Option<LegalDocument>, PortError> {
         Ok(self.document.clone())
+    }
+
+    async fn load_matter(
+        &self,
+        _scope: &TenantScope,
+        _id: LegalMatterId,
+    ) -> Result<Option<LegalMatter>, PortError> {
+        Ok(self.matter.clone())
     }
 }
 
@@ -227,6 +252,7 @@ async fn mutation_requires_expected_version_before_atomic_commit() {
         FakeWrite {
             contract: Some(contract()),
             document: None,
+            matter: None,
         },
         uow.clone(),
         true,
@@ -294,6 +320,64 @@ async fn create_contract_commits_snapshot_receipt_audit_and_outbox_as_one_reques
 }
 
 #[tokio::test]
+async fn create_matter_publishes_typed_graph_fact_without_copying_source_records() {
+    let uow = FakeUnitOfWork::default();
+    handler(FakeWrite::default(), uow.clone(), true)
+        .handle(envelope(
+            LegalCommand::CreateMatter(CreateMatter {
+                matter_id: matter_id(),
+                scope: scope(),
+                reference: "MAT-40".into(),
+                title: "Customer dispute".into(),
+            }),
+            None,
+            "legal-owner",
+        ))
+        .await
+        .unwrap();
+    let request = uow.request.lock().unwrap().clone().unwrap();
+    assert_eq!(request.aggregate.aggregate_type(), "legal_matter");
+    assert_eq!(request.integration_events.len(), 1);
+    assert_eq!(
+        request.integration_events[0].event_type(),
+        "legal.matter_changed"
+    );
+}
+
+#[tokio::test]
+async fn company_authority_cannot_link_a_sibling_company_record() {
+    let uow = FakeUnitOfWork::default();
+    let error = handler(
+        FakeWrite {
+            contract: None,
+            document: None,
+            matter: Some(matter()),
+        },
+        uow.clone(),
+        true,
+    )
+    .handle(envelope(
+        LegalCommand::LinkMatterRecord(LinkMatterRecord {
+            matter_id: matter_id(),
+            relation: RecordRelation::Disputes,
+            target: RecordRef::try_new(BoundedContext::Finance, "customer_invoice", id(41), 3)
+                .unwrap(),
+            target_scope: TenantScope::Company {
+                holding_id: id(1),
+                company_id: id(3),
+            },
+            target_digest: digest('c'),
+        }),
+        Some(1),
+        "legal-owner",
+    ))
+    .await
+    .unwrap_err();
+    assert_eq!(error.category(), ErrorCategory::Denied);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
 async fn stable_idempotency_replays_without_a_second_commit() {
     let uow = FakeUnitOfWork::default();
     let command = LegalCommand::CreateDocument(CreateDocument {
@@ -321,6 +405,7 @@ async fn access_audit_is_bound_to_existing_document_version_and_committed_append
         FakeWrite {
             contract: None,
             document: Some(document()),
+            matter: None,
         },
         uow.clone(),
         true,
@@ -355,6 +440,7 @@ async fn access_audit_rejects_a_document_version_that_is_not_authoritative() {
         FakeWrite {
             contract: None,
             document: Some(document()),
+            matter: None,
         },
         uow.clone(),
         true,
@@ -479,6 +565,19 @@ impl ReadRepository for FakeRead {
                 entries: Vec::new(),
                 next_cursor: None,
             },
+            metadata: metadata(),
+        })
+    }
+
+    async fn get_matter(
+        &self,
+        _scope: &TenantScope,
+        _id: LegalMatterId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<MatterView>>, PortError> {
+        *self.consistency.lock().unwrap() = Some(consistency.clone());
+        Ok(ReadProjection {
+            value: None,
             metadata: metadata(),
         })
     }

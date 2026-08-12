@@ -17,6 +17,10 @@ mod affected;
 mod architecture;
 #[path = "../cache.rs"]
 mod cache;
+#[path = "../wasm.rs"]
+mod wasm;
+#[path = "../web_toolchain.rs"]
+mod web_toolchain;
 
 type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
@@ -33,7 +37,7 @@ struct ServiceRecord {
     expected_command: &'static str,
 }
 
-const SERVICES: [ServiceRecord; 57] = [
+const SERVICES: [ServiceRecord; 63] = [
     ServiceRecord {
         name: "server",
         expected_command: "erpx-server",
@@ -83,6 +87,10 @@ const SERVICES: [ServiceRecord; 57] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
+        name: "marketing-campaign-budgets-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
         name: "crm-leads-projector",
         expected_command: "erpx-worker",
     },
@@ -116,6 +124,10 @@ const SERVICES: [ServiceRecord; 57] = [
     },
     ServiceRecord {
         name: "sales-orders-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "sales-revenue-arrangements-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -171,6 +183,14 @@ const SERVICES: [ServiceRecord; 57] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
+        name: "finance-customer-invoices-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "finance-revenue-schedules-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
         name: "legal-contracts-projector",
         expected_command: "erpx-worker",
     },
@@ -180,6 +200,10 @@ const SERVICES: [ServiceRecord; 57] = [
     },
     ServiceRecord {
         name: "legal-access-history-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "legal-matters-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -212,6 +236,10 @@ const SERVICES: [ServiceRecord; 57] = [
     },
     ServiceRecord {
         name: "operations-source-ingestion-worker",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "marketing-approval-decisions-worker",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -270,7 +298,7 @@ struct Harness {
     package: &'static str,
 }
 
-const HARNESSES: [Harness; 18] = [
+const HARNESSES: [Harness; 19] = [
     Harness {
         name: "infra_platform",
         package: "erpx-infrastructure",
@@ -340,6 +368,10 @@ const HARNESSES: [Harness; 18] = [
         package: "erpx-ui",
     },
     Harness {
+        name: "ui_kit",
+        package: "erpx-ui",
+    },
+    Harness {
         name: "ui_platform",
         package: "erpx-ui",
     },
@@ -362,6 +394,9 @@ enum Route<'a> {
     Stop,
     CheckFast,
     TestFast,
+    CheckAffected {
+        dry_run: bool,
+    },
     TestAffected {
         dry_run: bool,
     },
@@ -371,6 +406,13 @@ enum Route<'a> {
         dry_run: bool,
         incremental: bool,
     },
+    CachePruneDebug {
+        dry_run: bool,
+    },
+    WasmSize {
+        profile: wasm::WasmProfile,
+    },
+    WebToolchain,
     CacheUsage,
     Harness {
         name: &'a str,
@@ -456,6 +498,7 @@ fn run() -> TaskResult {
                 "--no-fail-fast",
             ],
         ),
+        Route::CheckAffected { dry_run } => run_affected_check(&root, dry_run),
         Route::TestAffected { dry_run } => run_affected(&root, dry_run),
         Route::Architecture => architecture::scan(&root),
         Route::CacheStatus => cache::status(&root),
@@ -471,9 +514,17 @@ fn run() -> TaskResult {
             }
             .map(|_| ())
         }
-        Route::CacheUsage => {
-            Err("usage: cargo xtask cache status|prune [--dry-run] [--incremental]".into())
+        Route::CachePruneDebug { dry_run } => {
+            let _guard = CommandGuard::acquire(&root, "cargo xtask cache prune-debug")?;
+            cache::prune_workspace_debug(&root, dry_run)
         }
+        Route::CacheUsage => {
+            Err("usage: cargo xtask cache status|prune [--dry-run] [--incremental]|prune-debug [--dry-run]".into())
+        }
+        Route::WasmSize { profile } => {
+            wasm::compress_and_measure(&root, profile, true).map(|_| ())
+        }
+        Route::WebToolchain => web_toolchain::ensure(&root).map(|_| ()),
         Route::Harness { name, filter } => run_harness(&root, name, filter),
         Route::TestUsage => Err("usage: cargo xtask test <harness> [filter]".into()),
         Route::Heavy => run_heavy(&root, &args),
@@ -488,12 +539,31 @@ fn route(args: &[String]) -> Route<'_> {
         [command] if command == "stop" => Route::Stop,
         [command] if command == "check-fast" => Route::CheckFast,
         [command] if command == "test-fast" => Route::TestFast,
+        [command] if command == "check-affected" => Route::CheckAffected { dry_run: false },
+        [command, flag] if command == "check-affected" && flag == "--dry-run" => {
+            Route::CheckAffected { dry_run: true }
+        }
         [command] if command == "test-affected" => Route::TestAffected { dry_run: false },
         [command, flag] if command == "test-affected" && flag == "--dry-run" => {
             Route::TestAffected { dry_run: true }
         }
         [command] if command == "architecture" => Route::Architecture,
+        [command] if command == "web-toolchain" => Route::WebToolchain,
+        [command, flag] if command == "wasm-size" && flag == "--dev" => Route::WasmSize {
+            profile: wasm::WasmProfile::Dev,
+        },
+        [command, flag] if command == "wasm-size" && flag == "--release" => Route::WasmSize {
+            profile: wasm::WasmProfile::Release,
+        },
         [command, subcommand] if command == "cache" && subcommand == "status" => Route::CacheStatus,
+        [command, subcommand] if command == "cache" && subcommand == "prune-debug" => {
+            Route::CachePruneDebug { dry_run: false }
+        }
+        [command, subcommand, flag]
+            if command == "cache" && subcommand == "prune-debug" && flag == "--dry-run" =>
+        {
+            Route::CachePruneDebug { dry_run: true }
+        }
         [command, subcommand] if command == "cache" && subcommand == "prune" => Route::CachePrune {
             dry_run: false,
             incremental: false,
@@ -549,16 +619,20 @@ fn workspace_root() -> TaskResult<PathBuf> {
 fn print_help() {
     println!(
         "ERPX development tasks\n\n\
-         cargo xtask dev --detach [--fresh]\n\
+         cargo xtask dev --detach [--fresh] [--web-debug]\n\
          cargo xtask status\n\
          cargo xtask stop\n\
          cargo xtask test <harness> [filter]\n\
+         cargo xtask check-affected [--dry-run]\n\
          cargo xtask test-affected [--dry-run]\n\
          cargo check-fast\n\
          cargo test-fast\n\
          cargo xtask architecture\n\
+         cargo xtask wasm-size --dev|--release\n\
+         cargo xtask web-toolchain\n\
          cargo xtask cache status\n\
          cargo xtask cache prune [--dry-run] [--incremental]\n\
+         cargo xtask cache prune-debug [--dry-run]\n\
          cargo xtask verify\n\
          cargo xtask verify-web-production\n\
          cargo xtask verify-platforms\n\n\
@@ -673,17 +747,90 @@ fn run_affected(root: &Path, dry_run: bool) -> TaskResult {
     Ok(())
 }
 
+fn run_affected_check(root: &Path, dry_run: bool) -> TaskResult {
+    let total_started = Instant::now();
+    let selector_started = Instant::now();
+    let plan = affected::build_check_plan(root)?;
+    let selector_elapsed = selector_started.elapsed();
+    plan.print();
+    if dry_run {
+        print_check_timings(
+            selector_elapsed,
+            Duration::ZERO,
+            Duration::ZERO,
+            total_started.elapsed(),
+        );
+        return Ok(());
+    }
+
+    let _guard = CommandGuard::acquire(root, "cargo xtask check-affected")?;
+    let target = root.join("target/debug");
+    cache_preflight(root, std::slice::from_ref(&target));
+    let cache_started = SystemTime::now();
+
+    let rustfmt_started = Instant::now();
+    if !plan.rust_files.is_empty() {
+        let status = Command::new("rustfmt")
+            .args([
+                "--edition",
+                "2024",
+                "--check",
+                "--config",
+                "skip_children=true",
+            ])
+            .args(&plan.rust_files)
+            .current_dir(root)
+            .status()?;
+        require_success(status, "affected Rust formatting")?;
+    }
+    let rustfmt_elapsed = rustfmt_started.elapsed();
+
+    let cargo_started = Instant::now();
+    for invocation in &plan.invocations {
+        println!("affected check lane: {}", invocation.label);
+        let status = cargo_command(root).args(&invocation.args).status()?;
+        require_success(status, &invocation.label)?;
+    }
+    let cargo_elapsed = cargo_started.elapsed();
+
+    affected::commit_check_plan(root, &plan)?;
+    cache_postflight(root, cache_started, &[target]);
+    if plan.is_empty() {
+        println!("affected-check baseline recorded");
+    } else {
+        println!("affected checks passed; check snapshot advanced");
+    }
+    print_check_timings(
+        selector_elapsed,
+        rustfmt_elapsed,
+        cargo_elapsed,
+        total_started.elapsed(),
+    );
+    Ok(())
+}
+
+fn print_check_timings(selector: Duration, rustfmt: Duration, cargo: Duration, total: Duration) {
+    println!(
+        "affected check timings: selector={:.2}s rustfmt={:.2}s cargo={:.2}s total={:.2}s",
+        selector.as_secs_f64(),
+        rustfmt.as_secs_f64(),
+        cargo.as_secs_f64(),
+        total.as_secs_f64()
+    );
+}
+
 fn run_heavy(root: &Path, args: &[String]) -> TaskResult {
     let label = format!("cargo xtask {}", args.join(" "));
     let _guard = CommandGuard::acquire(root, &label)?;
-    let target = root.join("target/debug");
-    cache_preflight(root, std::slice::from_ref(&target));
+    let workspace_target = root.join("target/debug");
+    let heavy_target = runtime_dir(root).join("heavy-xtask-target");
+    let pins = [workspace_target, heavy_target.clone()];
+    cache_preflight(root, &pins);
     let started = SystemTime::now();
     let status = cargo_command(root)
+        .args(["run", "--locked", "--offline", "--target-dir"])
+        .arg(&heavy_target)
         .args([
-            "run",
-            "--locked",
-            "--offline",
             "-p",
             "xtask",
             "--no-default-features",
@@ -695,7 +842,7 @@ fn run_heavy(root: &Path, args: &[String]) -> TaskResult {
         ])
         .args(args)
         .status()?;
-    cache_postflight(root, started, &[target]);
+    cache_postflight(root, started, &pins);
     require_success(status, &label)
 }
 
@@ -757,14 +904,48 @@ fn runtime_dir(root: &Path) -> PathBuf {
 
 fn status(root: &Path) -> TaskResult {
     let runtime = runtime_dir(root);
+    let toolchain = web_toolchain::status(root)?;
+    println!(
+        "web-toolchain: {} (version={}, patch={}, path={})",
+        if toolchain.ready {
+            "ready"
+        } else {
+            "missing-or-stale"
+        },
+        toolchain
+            .dx_version
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("missing"),
+        toolchain.patch_fingerprint,
+        toolchain.dx_path.display(),
+    );
     for service in SERVICES {
         let pid = read_pid(&runtime.join(format!("{}.pid", service.name)))?;
         match pid {
             Some(pid) if recorded_process_matches(service, pid) => {
-                println!("{}: running (pid {pid})", service.name);
+                if service.name == "web" {
+                    let command = process_command(pid).unwrap_or_default();
+                    let (split, mode, debug) = web_process_mode(&command);
+                    println!("web: running (pid {pid}, {split}, {mode}, {debug})");
+                } else {
+                    println!("{}: running (pid {pid})", service.name);
+                }
             }
             Some(pid) => println!("{}: stopped (stale pid {pid})", service.name),
             None => println!("{}: stopped", service.name),
+        }
+    }
+    for profile in [wasm::WasmProfile::Dev, wasm::WasmProfile::Release] {
+        if let Some(report) = wasm::latest_report(root, profile)? {
+            println!(
+                "web-wasm-{}: base raw={}, Brotli={}, chunks={}, total Brotli={}",
+                profile.label(),
+                wasm::display_bytes(report.base_raw_bytes),
+                wasm::display_bytes(report.base_brotli_bytes),
+                report.chunk_count,
+                wasm::display_bytes(report.total_brotli_bytes),
+            );
         }
     }
     println!(
@@ -819,6 +1000,25 @@ fn status(root: &Path) -> TaskResult {
         );
     }
     Ok(())
+}
+
+fn web_process_mode(command: &str) -> (&'static str, &'static str, &'static str) {
+    let split = if command.contains("--wasm-split") {
+        "split"
+    } else {
+        "monolithic"
+    };
+    let mode = if command.contains("--hot-patch") {
+        "hot-patch"
+    } else {
+        "stable"
+    };
+    let debug = if command.contains("--debug-symbols true") {
+        "debug-on"
+    } else {
+        "debug-off"
+    };
+    (split, mode, debug)
 }
 
 fn flat_private_file_summary(path: &Path) -> TaskResult<(u64, u64)> {
@@ -1064,7 +1264,7 @@ mod tests {
             .iter()
             .map(|harness| harness.name)
             .collect::<BTreeSet<_>>();
-        assert_eq!(names.len(), 18);
+        assert_eq!(names.len(), 19);
         assert_eq!(names.len(), HARNESSES.len());
     }
 
@@ -1099,10 +1299,21 @@ mod tests {
         assert_eq!(route(&["status".into()]), Route::Status);
         assert_eq!(route(&["test-fast".into()]), Route::TestFast);
         assert_eq!(
+            route(&["check-affected".into(), "--dry-run".into()]),
+            Route::CheckAffected { dry_run: true }
+        );
+        assert_eq!(
             route(&["test-affected".into(), "--dry-run".into()]),
             Route::TestAffected { dry_run: true }
         );
         assert_eq!(route(&["architecture".into()]), Route::Architecture);
+        assert_eq!(route(&["web-toolchain".into()]), Route::WebToolchain);
+        assert_eq!(
+            route(&["wasm-size".into(), "--dev".into()]),
+            Route::WasmSize {
+                profile: wasm::WasmProfile::Dev
+            }
+        );
         assert_eq!(
             route(&["cache".into(), "status".into()]),
             Route::CacheStatus
@@ -1113,6 +1324,10 @@ mod tests {
                 dry_run: true,
                 incremental: false
             }
+        );
+        assert_eq!(
+            route(&["cache".into(), "prune-debug".into(), "--dry-run".into()]),
+            Route::CachePruneDebug { dry_run: true }
         );
         assert_eq!(
             route(&[
@@ -1218,6 +1433,18 @@ mod tests {
                     *service,
                     "/workspace/target/debug/erpx-worker run"
                 ))
+        );
+    }
+
+    #[test]
+    fn web_status_reports_launch_mode() {
+        assert_eq!(
+            web_process_mode("dx serve --wasm-split --hot-patch --debug-symbols false"),
+            ("split", "hot-patch", "debug-off")
+        );
+        assert_eq!(
+            web_process_mode("dx serve --debug-symbols true"),
+            ("monolithic", "stable", "debug-on")
         );
     }
 }

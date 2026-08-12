@@ -30,6 +30,10 @@ pub enum Event {
     MaintenanceRequested {
         asset: AssetRef,
         request_code: ReferenceCode,
+        /// Human-readable maintenance title. Older retained events do not
+        /// carry this field, so consumers must fall back to `request_code`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title: Option<DisplayName>,
     },
 }
 
@@ -37,3 +41,29 @@ impl_integration_event!(Event, BoundedContext::Assets, {
     Self::AssetConditionChanged(_) => "assets.condition_changed",
     Self::MaintenanceRequested { .. } => "assets.maintenance_requested",
 });
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retained_maintenance_request_without_title_remains_decodable() {
+        let asset = uuid::Uuid::from_u128(1);
+        let payload = serde_json::json!({
+            "type": "maintenance_requested",
+            "fact": {
+                "asset": asset,
+                "request_code": "MR-1"
+            }
+        });
+        let event: Event = serde_json::from_value(payload).unwrap();
+        assert!(matches!(
+            event,
+            Event::MaintenanceRequested {
+                asset: decoded,
+                request_code,
+                title: None,
+            } if decoded.as_uuid() == asset && request_code.as_str() == "MR-1"
+        ));
+    }
+}

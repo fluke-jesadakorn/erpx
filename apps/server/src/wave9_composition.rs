@@ -357,6 +357,7 @@ impl OperationsRequestAuthenticator for Wave9ServerAuthenticator {
             operations::OperationsAction::ReassignException
             | operations::OperationsAction::AcknowledgeException
             | operations::OperationsAction::EscalateException
+            | operations::OperationsAction::DecideApproval
             | operations::OperationsAction::ResolveException
             | operations::OperationsAction::CloseException => "operations.exception.manage",
             operations::OperationsAction::ViewException
@@ -506,6 +507,7 @@ mod tests {
     fn operations_high_risk_actions_require_current_mfa() {
         assert!(operations::OperationsAction::ReassignException.requires_current_mfa());
         assert!(operations::OperationsAction::EscalateException.requires_current_mfa());
+        assert!(operations::OperationsAction::DecideApproval.requires_current_mfa());
         assert!(!operations::OperationsAction::ResolveException.requires_current_mfa());
     }
 

@@ -3125,6 +3125,30 @@ impl SqlxCommercialStore {
         .transpose()
     }
 
+    /// Return the authoritative billing subscription identities owned by one
+    /// customer. Callers that require an exact workspace binding must reject
+    /// zero or multiple rows rather than selecting one implicitly.
+    pub async fn customer_subscription_ids(
+        &self,
+        customer_id: Uuid,
+    ) -> Result<Vec<Uuid>, PersistenceError> {
+        if customer_id.is_nil() {
+            return Err(PersistenceError::InvalidData(
+                "customer subscription lookup requires a non-nil customer".into(),
+            ));
+        }
+        sqlx::query_scalar(
+            "SELECT subscription_id
+             FROM erpx_control.billing_lifecycles
+             WHERE customer_id = $1
+             ORDER BY subscription_id",
+        )
+        .bind(customer_id)
+        .fetch_all(&self.write)
+        .await
+        .map_err(Into::into)
+    }
+
     pub async fn get_entitlement_book(
         &self,
         customer_id: Uuid,

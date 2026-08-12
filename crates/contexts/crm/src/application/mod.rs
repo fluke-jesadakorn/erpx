@@ -1,9 +1,10 @@
 use async_trait::async_trait;
+use chrono::NaiveDate;
 use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
-use erpx_integration_contracts::marketing::QualifiedLeadFact;
+use erpx_integration_contracts::{crm, marketing, marketing::QualifiedLeadFact};
 use erpx_kernel::{Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -45,11 +46,23 @@ pub struct TransitionOpportunity {
     pub stage: OpportunityStage,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateOpportunityForecast {
+    pub opportunity_id: OpportunityId,
+    pub account: crm::CrmAccountRef,
+    pub owner: String,
+    pub category: crm::PipelineCategory,
+    pub probability_basis_points: u16,
+    pub expected_value_minor: i64,
+    pub expected_close_on: NaiveDate,
+    pub originating_campaign: Option<marketing::CampaignRef>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "command", content = "payload", rename_all = "snake_case")]
 pub enum CrmCommand {
     AcceptMarketingLead(AcceptMarketingLead),
     CreateOpportunity(CreateOpportunity),
     TransitionOpportunity(TransitionOpportunity),
+    UpdateOpportunityForecast(UpdateOpportunityForecast),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -232,6 +245,19 @@ where
                     stage: c.stage,
                 },
             ),
+            CrmCommand::UpdateOpportunityForecast(c) => (
+                CrmAction::UpdateOpportunityForecast,
+                CommandFingerprint::UpdateOpportunityForecast {
+                    opportunity_id: c.opportunity_id,
+                    account: c.account,
+                    owner: c.owner.clone(),
+                    category: c.category,
+                    probability_basis_points: c.probability_basis_points,
+                    expected_value_minor: c.expected_value_minor,
+                    expected_close_on: c.expected_close_on,
+                    originating_campaign: c.originating_campaign,
+                },
+            ),
         };
         let identity = CommandIdentity {
             command_id: envelope.command_id,
@@ -333,6 +359,38 @@ where
                         .map_err(|e| to_cqrs(e, correlation))?;
                 opportunity
                     .transition(c.stage, at)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (CrmAggregate::Opportunity(opportunity), Some(expected))
+            }
+            CrmCommand::UpdateOpportunityForecast(c) => {
+                let mut opportunity = self
+                    .write
+                    .load_opportunity(&envelope.tenant_scope, c.opportunity_id)
+                    .await
+                    .map_err(|e| to_cqrs(e.into(), correlation))?
+                    .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+                self.preflight(
+                    &envelope.actor,
+                    &envelope.tenant_scope,
+                    opportunity.scope(),
+                    action,
+                )
+                .await
+                .map_err(|e| to_cqrs(e, correlation))?;
+                let expected =
+                    Self::expected(envelope.expected_aggregate_version, opportunity.version())
+                        .map_err(|e| to_cqrs(e, correlation))?;
+                opportunity
+                    .update_forecast(
+                        c.account,
+                        c.owner,
+                        c.category,
+                        c.probability_basis_points,
+                        c.expected_value_minor,
+                        c.expected_close_on,
+                        c.originating_campaign,
+                        at,
+                    )
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
                 (CrmAggregate::Opportunity(opportunity), Some(expected))
             }

@@ -1,9 +1,12 @@
+mod asset_maintenance_workspace;
+pub(crate) use erpx_console_transport as typed_cqrs;
 pub(crate) mod quality;
-pub(crate) mod typed_cqrs;
 pub(crate) mod wave4_5;
 pub(crate) mod wave6_7;
 pub(crate) mod wave8;
 pub(crate) mod wave9;
+
+pub(crate) use asset_maintenance_workspace::ActiveAssetMaintenanceSurface;
 
 // Endpoints are compile-time deployment inputs for packaged/native clients. The loopback
 // defaults keep local development usable; production and device builds must provide the

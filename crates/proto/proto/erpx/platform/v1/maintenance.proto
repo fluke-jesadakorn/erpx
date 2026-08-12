@@ -25,6 +25,7 @@ message AssetMaintenanceRequestEvent {
   string occurred_at = 8;
   string asset_id = 9;
   string request_code = 10;
+  optional string title = 11;
 }
 message MaintenanceRequestRecord {
   string source_event_id = 1;

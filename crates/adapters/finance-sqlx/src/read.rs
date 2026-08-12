@@ -7,12 +7,14 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
 use erpx_finance::{
-    ChartId, JournalId, PortError, StatutoryTaxKind, SubledgerId,
+    ChartId, CustomerInvoiceId, JournalId, PortError, RevenueScheduleId, StatutoryTaxKind,
+    SubledgerId,
     ports::{
         BankTransactionList, BankTransactionListFilter, BankTransactionView, ChartView,
-        JournalList, JournalListFilter, JournalView, PeriodView, ReadProjection, ReadRepository,
-        StatutoryTaxFactView, StatutoryTaxReport, SubledgerList, SubledgerListFilter,
-        SubledgerView, TrialBalanceLine, TrialBalanceView,
+        CustomerInvoiceView, JournalList, JournalListFilter, JournalView, PeriodView,
+        ReadProjection, ReadRepository, RevenueScheduleView, StatutoryTaxFactView,
+        StatutoryTaxReport, SubledgerList, SubledgerListFilter, SubledgerView, TrialBalanceLine,
+        TrialBalanceView,
     },
 };
 use erpx_kernel::TenantScope;
@@ -20,11 +22,12 @@ use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    BANK_TRANSACTION_PROJECTION, CHART_PROJECTION, JOURNAL_PROJECTION, PERIOD_PROJECTION,
-    STATUTORY_TAX_PROJECTION, SUBLEDGER_PROJECTION, TRIAL_BALANCE_PROJECTION, chart_partition,
-    journal_partition, period_partition,
+    BANK_TRANSACTION_PROJECTION, CHART_PROJECTION, CUSTOMER_INVOICE_PROJECTION, JOURNAL_PROJECTION,
+    PERIOD_PROJECTION, REVENUE_SCHEDULE_PROJECTION, STATUTORY_TAX_PROJECTION, SUBLEDGER_PROJECTION,
+    TRIAL_BALANCE_PROJECTION, chart_partition, customer_invoice_partition, journal_partition,
+    period_partition,
     projection::{journal_status_name, subledger_status_name},
-    subledger_partition,
+    revenue_schedule_partition, subledger_partition,
 };
 
 const SEP: char = '|';
@@ -219,6 +222,66 @@ impl ReadRepository for FinanceReadRepository {
         Ok(ReadProjection {
             value: v,
             metadata: self.metadata(SUBLEDGER_PROJECTION, cp).await?,
+        })
+    }
+    async fn get_customer_invoice(
+        &self,
+        scope: &TenantScope,
+        id: CustomerInvoiceId,
+        c: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<CustomerInvoiceView>>, PortError> {
+        let p = customer_invoice_partition(id);
+        let cp = self
+            .checkpoint(
+                CUSTOMER_INVOICE_PROJECTION,
+                "finance.customer_invoice:",
+                c,
+                Some(&p),
+            )
+            .await?;
+        let v = self
+            .get_state(
+                "erpx_finance_read.customer_invoice_projection",
+                "invoice_id",
+                id.as_uuid(),
+                CUSTOMER_INVOICE_PROJECTION,
+                &p,
+            )
+            .await?;
+        scope_option(scope, &v)?;
+        Ok(ReadProjection {
+            value: v,
+            metadata: self.metadata(CUSTOMER_INVOICE_PROJECTION, cp).await?,
+        })
+    }
+    async fn get_revenue_schedule(
+        &self,
+        scope: &TenantScope,
+        id: RevenueScheduleId,
+        c: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<RevenueScheduleView>>, PortError> {
+        let p = revenue_schedule_partition(id);
+        let cp = self
+            .checkpoint(
+                REVENUE_SCHEDULE_PROJECTION,
+                "finance.revenue_schedule:",
+                c,
+                Some(&p),
+            )
+            .await?;
+        let v = self
+            .get_state(
+                "erpx_finance_read.revenue_schedule_projection",
+                "schedule_id",
+                id.as_uuid(),
+                REVENUE_SCHEDULE_PROJECTION,
+                &p,
+            )
+            .await?;
+        scope_option(scope, &v)?;
+        Ok(ReadProjection {
+            value: v,
+            metadata: self.metadata(REVENUE_SCHEDULE_PROJECTION, cp).await?,
         })
     }
     async fn list_subledger(
@@ -527,6 +590,16 @@ impl ScopeView for JournalView {
     }
 }
 impl ScopeView for SubledgerView {
+    fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+}
+impl ScopeView for CustomerInvoiceView {
+    fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+}
+impl ScopeView for RevenueScheduleView {
     fn scope(&self) -> &TenantScope {
         &self.scope
     }

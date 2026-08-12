@@ -9,7 +9,7 @@
 use dioxus::dioxus_core::current_scope_id;
 use dioxus::prelude::*;
 use erpx_domain::data_plane::BusinessUnitId;
-use erpx_ui::{
+use erpx_ui_core::{
     ClientTarget, Locale, LocaleContext, LocalizedText, SecureSessionSupport,
     UiAccessibilityContract, UiStateKind, redact_deep_link,
 };

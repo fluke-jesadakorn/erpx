@@ -6,8 +6,8 @@ use erpx_cqrs_sqlx::{
 use erpx_integration_contracts::IntegrationEvent;
 use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
 use erpx_sales::{
-    CommandUnitOfWork, PortError, Quote, QuoteId, SalesAggregate, SalesCommit, SalesOrder,
-    SalesOrderId, StoredCommit, WriteRepository,
+    CommandUnitOfWork, PortError, Quote, QuoteId, RevenueArrangement, RevenueArrangementId,
+    SalesAggregate, SalesCommit, SalesOrder, SalesOrderId, StoredCommit, WriteRepository,
     ports::{CommandFingerprint, CommandIdentity},
 };
 use serde_json::json;
@@ -16,9 +16,13 @@ use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
-    CONTEXT_NAME, EVENT_VERSION, ORDER_AGGREGATE_TYPE, ORDER_SNAPSHOT_EVENT, QUOTE_AGGREGATE_TYPE,
-    QUOTE_SNAPSHOT_EVENT, order_partition,
-    projection::{SalesOutboxPayload, SalesSnapshot, order_status_name, quote_status_name},
+    ARRANGEMENT_AGGREGATE_TYPE, ARRANGEMENT_SNAPSHOT_EVENT, CONTEXT_NAME, EVENT_VERSION,
+    ORDER_AGGREGATE_TYPE, ORDER_SNAPSHOT_EVENT, QUOTE_AGGREGATE_TYPE, QUOTE_SNAPSHOT_EVENT,
+    arrangement_partition, order_partition,
+    projection::{
+        SalesOutboxPayload, SalesSnapshot, arrangement_status_name, order_status_name,
+        quote_status_name,
+    },
     quote_partition,
 };
 
@@ -105,6 +109,26 @@ impl WriteRepository for SalesWriteRepository {
             None => Ok(None),
         }
     }
+
+    async fn load_revenue_arrangement(
+        &self,
+        authority_scope: &TenantScope,
+        arrangement_id: RevenueArrangementId,
+    ) -> Result<Option<RevenueArrangement>, PortError> {
+        match self
+            .load(
+                authority_scope,
+                &arrangement_partition(arrangement_id),
+                ARRANGEMENT_AGGREGATE_TYPE,
+                arrangement_id.as_uuid(),
+            )
+            .await?
+        {
+            Some(SalesAggregate::RevenueArrangement(value)) => Ok(Some(*value)),
+            Some(_) => Err(PortError::Internal),
+            None => Ok(None),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -150,6 +174,7 @@ impl CommandUnitOfWork for SalesCommandAdapter {
         let snapshot_event = match &request.aggregate {
             SalesAggregate::Quote(_) => QUOTE_SNAPSHOT_EVENT,
             SalesAggregate::SalesOrder(_) => ORDER_SNAPSHOT_EVENT,
+            SalesAggregate::RevenueArrangement(_) => ARRANGEMENT_SNAPSHOT_EVENT,
         };
         let command_id = request.identity.command_id;
         let mut events = request
@@ -232,6 +257,9 @@ impl AtomicCommandGuard for SalesGuard {
         match &self.0 {
             SalesAggregate::Quote(value) => validate_quote(transaction, context, value).await,
             SalesAggregate::SalesOrder(value) => validate_order(transaction, context, value).await,
+            SalesAggregate::RevenueArrangement(value) => {
+                validate_arrangement(transaction, context, value).await
+            }
         }
     }
 
@@ -253,6 +281,9 @@ impl AtomicCommandGuard for SalesGuard {
         match &self.0 {
             SalesAggregate::Quote(value) => apply_quote(transaction, value).await,
             SalesAggregate::SalesOrder(value) => apply_order(transaction, value).await,
+            SalesAggregate::RevenueArrangement(value) => {
+                apply_arrangement(transaction, value).await
+            }
         }
     }
 }
@@ -346,6 +377,67 @@ async fn validate_order(
     Ok(())
 }
 
+async fn validate_arrangement(
+    transaction: &mut Transaction<'_, Postgres>,
+    context: &GuardCommandContext<'_>,
+    value: &RevenueArrangement,
+) -> Result<(), CqrsSqlxError> {
+    let current: Option<i64> = sqlx::query_scalar(
+        "SELECT aggregate_version FROM erpx_sales_write.revenue_arrangement_guards
+         WHERE arrangement_id=$1 FOR UPDATE",
+    )
+    .bind(value.id().as_uuid())
+    .fetch_optional(&mut **transaction)
+    .await?;
+    ensure_existence(
+        context.expected_version,
+        current,
+        "Sales revenue arrangement",
+    )?;
+    let order = sqlx::query(
+        "SELECT scope_key,customer_id,order_code,currency,order_status
+         FROM erpx_sales_write.sales_order_guards WHERE sales_order_id=$1 FOR SHARE",
+    )
+    .bind(value.sales_order_id().as_uuid())
+    .fetch_optional(&mut **transaction)
+    .await?;
+    let Some(order) = order else {
+        return Err(CqrsSqlxError::GuardRejected(
+            "Sales order guard for revenue arrangement is missing",
+        ));
+    };
+    let order_scope: String = order.try_get("scope_key")?;
+    let customer: Uuid = order.try_get("customer_id")?;
+    let order_code: String = order.try_get("order_code")?;
+    let currency: String = order.try_get("currency")?;
+    let status: String = order.try_get("order_status")?;
+    if order_scope != scope_key(value.scope())?
+        || customer != value.customer().as_uuid()
+        || order_code != value.order_code()
+        || currency != value.currency()
+        || (current.is_none() && status != "confirmed")
+    {
+        return Err(CqrsSqlxError::GuardRejected(
+            "Sales revenue arrangement does not match its confirmed order",
+        ));
+    }
+    let duplicate: Option<Uuid> = sqlx::query_scalar(
+        "SELECT arrangement_id FROM erpx_sales_write.revenue_arrangement_guards
+         WHERE sales_order_id=$1 AND arrangement_id<>$2
+         ORDER BY arrangement_id LIMIT 1 FOR UPDATE",
+    )
+    .bind(value.sales_order_id().as_uuid())
+    .bind(value.id().as_uuid())
+    .fetch_optional(&mut **transaction)
+    .await?;
+    if duplicate.is_some() {
+        return Err(CqrsSqlxError::GuardRejected(
+            "Sales order already has a revenue arrangement",
+        ));
+    }
+    Ok(())
+}
+
 fn ensure_existence(
     expected: Option<u64>,
     current: Option<i64>,
@@ -354,7 +446,8 @@ fn ensure_existence(
     if matches!((expected, current), (None, Some(_)) | (Some(_), None)) {
         Err(CqrsSqlxError::GuardRejected(match kind {
             "Sales quote" => "Sales quote guard existence mismatch",
-            _ => "Sales order guard existence mismatch",
+            "Sales order" => "Sales order guard existence mismatch",
+            _ => "Sales revenue arrangement guard existence mismatch",
         }))
     } else {
         Ok(())
@@ -427,6 +520,52 @@ async fn apply_order(
     Ok(())
 }
 
+async fn apply_arrangement(
+    transaction: &mut Transaction<'_, Postgres>,
+    value: &RevenueArrangement,
+) -> Result<(), CqrsSqlxError> {
+    let dimensions = serde_json::to_value(value.dimensions()).map_err(|_| {
+        CqrsSqlxError::GuardRejected("Sales arrangement dimensions cannot be serialized")
+    })?;
+    let obligations = serde_json::to_value(value.obligations()).map_err(|_| {
+        CqrsSqlxError::GuardRejected("Sales arrangement obligations cannot be serialized")
+    })?;
+    let fulfillments = serde_json::to_value(value.fulfillments()).map_err(|_| {
+        CqrsSqlxError::GuardRejected("Sales arrangement fulfillments cannot be serialized")
+    })?;
+    sqlx::query(
+        "INSERT INTO erpx_sales_write.revenue_arrangement_guards
+          (arrangement_id,scope_key,sales_order_id,customer_id,legal_contract_id,order_code,
+           currency,arrangement_status,dimensions,obligations,fulfillments,aggregate_version,
+           created_at,updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+         ON CONFLICT (arrangement_id) DO UPDATE SET
+          scope_key=EXCLUDED.scope_key,sales_order_id=EXCLUDED.sales_order_id,
+          customer_id=EXCLUDED.customer_id,legal_contract_id=EXCLUDED.legal_contract_id,
+          order_code=EXCLUDED.order_code,currency=EXCLUDED.currency,
+          arrangement_status=EXCLUDED.arrangement_status,dimensions=EXCLUDED.dimensions,
+          obligations=EXCLUDED.obligations,fulfillments=EXCLUDED.fulfillments,
+          aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at",
+    )
+    .bind(value.id().as_uuid())
+    .bind(scope_key(value.scope())?)
+    .bind(value.sales_order_id().as_uuid())
+    .bind(value.customer().as_uuid())
+    .bind(value.legal_contract().map(|reference| reference.as_uuid()))
+    .bind(value.order_code())
+    .bind(value.currency())
+    .bind(arrangement_status_name(value.status()))
+    .bind(dimensions)
+    .bind(obligations)
+    .bind(fulfillments)
+    .bind(to_i64(value.version())?)
+    .bind(value.created_at())
+    .bind(value.updated_at())
+    .execute(&mut **transaction)
+    .await?;
+    Ok(())
+}
+
 fn validate_guard_context(
     aggregate: &SalesAggregate,
     context: &GuardCommandContext<'_>,
@@ -473,6 +612,12 @@ fn fingerprint_target(value: &CommandFingerprint) -> (String, &'static str) {
         | CommandFingerprint::CancelOrder { sales_order_id } => {
             (order_partition(*sales_order_id), ORDER_AGGREGATE_TYPE)
         }
+        CommandFingerprint::ActivateRevenueArrangement { arrangement_id, .. }
+        | CommandFingerprint::AcceptRevenueFulfillment { arrangement_id, .. }
+        | CommandFingerprint::CancelRevenueArrangement { arrangement_id } => (
+            arrangement_partition(*arrangement_id),
+            ARRANGEMENT_AGGREGATE_TYPE,
+        ),
     }
 }
 
@@ -480,6 +625,7 @@ fn aggregate_partition(value: &SalesAggregate) -> String {
     match value {
         SalesAggregate::Quote(value) => quote_partition(value.id()),
         SalesAggregate::SalesOrder(value) => order_partition(value.id()),
+        SalesAggregate::RevenueArrangement(value) => arrangement_partition(value.id()),
     }
 }
 
@@ -487,6 +633,7 @@ fn aggregate_updated_at(value: &SalesAggregate) -> chrono::DateTime<chrono::Utc>
     match value {
         SalesAggregate::Quote(value) => value.updated_at(),
         SalesAggregate::SalesOrder(value) => value.updated_at(),
+        SalesAggregate::RevenueArrangement(value) => value.updated_at(),
     }
 }
 
@@ -502,6 +649,13 @@ fn audit_action(value: &CommandFingerprint) -> &'static str {
         CommandFingerprint::PartiallyFulfillOrder { .. } => "sales.order.partially_fulfill",
         CommandFingerprint::FulfillOrder { .. } => "sales.order.fulfill",
         CommandFingerprint::CancelOrder { .. } => "sales.order.cancel",
+        CommandFingerprint::ActivateRevenueArrangement { .. } => {
+            "sales.revenue_arrangement.activate"
+        }
+        CommandFingerprint::AcceptRevenueFulfillment { .. } => {
+            "sales.revenue_arrangement.fulfillment.accept"
+        }
+        CommandFingerprint::CancelRevenueArrangement { .. } => "sales.revenue_arrangement.cancel",
     }
 }
 

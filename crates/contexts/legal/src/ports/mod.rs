@@ -4,6 +4,7 @@ use erpx_cqrs::{
     CommandReceipt, EventPosition, IdempotencyKey, ProjectionMetadata, ProjectionNotReady,
     QueryConsistency,
 };
+use erpx_integration_contracts::RecordRef;
 use erpx_integration_contracts::legal;
 use erpx_kernel::{
     ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
@@ -13,7 +14,8 @@ use thiserror::Error;
 
 use crate::domain::{
     AccessEntry, AccessEntryId, ContractParty, ContractStatus, ContractTransition, DocumentVersion,
-    LegalAggregate, LegalContract, LegalContractId, LegalDocument, LegalDocumentId,
+    LegalAggregate, LegalContract, LegalContractId, LegalDocument, LegalDocumentId, LegalHold,
+    LegalMatter, LegalMatterId, MatterStatus, RecordLink, RecordRelation,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,6 +33,12 @@ pub enum LegalAction {
     ViewDocument,
     ListDocuments,
     ListAccessHistory,
+    CreateMatter,
+    LinkMatterRecord,
+    PlaceLegalHold,
+    ReleaseLegalHold,
+    CloseMatter,
+    ViewMatter,
 }
 
 impl LegalAction {
@@ -44,6 +52,11 @@ impl LegalAction {
                 | Self::AddDocumentVersion
                 | Self::ArchiveDocument
                 | Self::RecordDocumentAccess
+                | Self::CreateMatter
+                | Self::LinkMatterRecord
+                | Self::PlaceLegalHold
+                | Self::ReleaseLegalHold
+                | Self::CloseMatter
         )
     }
 }
@@ -108,6 +121,29 @@ pub enum CommandFingerprint {
         purpose: String,
         observed_at: DateTime<Utc>,
     },
+    CreateMatter {
+        matter_id: LegalMatterId,
+        scope: TenantScope,
+        reference: String,
+        title: String,
+    },
+    LinkMatterRecord {
+        matter_id: LegalMatterId,
+        relation: RecordRelation,
+        target: RecordRef,
+        target_scope: TenantScope,
+        target_digest: String,
+    },
+    PlaceLegalHold {
+        matter_id: LegalMatterId,
+        reason: String,
+    },
+    ReleaseLegalHold {
+        matter_id: LegalMatterId,
+    },
+    CloseMatter {
+        matter_id: LegalMatterId,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -130,6 +166,12 @@ pub trait WriteRepository: Send + Sync {
         authority_scope: &TenantScope,
         document_id: LegalDocumentId,
     ) -> Result<Option<LegalDocument>, PortError>;
+
+    async fn load_matter(
+        &self,
+        authority_scope: &TenantScope,
+        matter_id: LegalMatterId,
+    ) -> Result<Option<LegalMatter>, PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -283,6 +325,39 @@ impl From<&AccessEntry> for AccessEntryView {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MatterView {
+    pub matter_id: LegalMatterId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub reference: String,
+    pub title: String,
+    pub status: MatterStatus,
+    pub links: Vec<RecordLink>,
+    pub legal_hold: Option<LegalHold>,
+    pub created_by: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<&LegalMatter> for MatterView {
+    fn from(value: &LegalMatter) -> Self {
+        Self {
+            matter_id: value.id(),
+            version: value.version(),
+            scope: value.scope().clone(),
+            reference: value.reference().into(),
+            title: value.title().into(),
+            status: value.status(),
+            links: value.links().to_vec(),
+            legal_hold: value.legal_hold().cloned(),
+            created_by: value.created_by().into(),
+            created_at: value.created_at(),
+            updated_at: value.updated_at(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct ContractListFilter {
     pub status: Option<ContractStatus>,
@@ -365,6 +440,13 @@ pub trait ReadRepository: Send + Sync {
         filter: &AccessHistoryFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<AccessHistoryList>, PortError>;
+
+    async fn get_matter(
+        &self,
+        authority_scope: &TenantScope,
+        matter_id: LegalMatterId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<MatterView>>, PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]

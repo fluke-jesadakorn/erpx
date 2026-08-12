@@ -1,16 +1,17 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_integration_contracts::legal;
-use erpx_legal::ports::{AccessEntryView, ContractView, DocumentView};
-use erpx_legal::{ContractStatus, LegalAggregate};
+use erpx_legal::ports::{AccessEntryView, ContractView, DocumentView, MatterView};
+use erpx_legal::{ContractStatus, LegalAggregate, MatterStatus};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 
 use crate::{
     ACCESS_AGGREGATE_TYPE, ACCESS_PROJECTION, ACCESS_SNAPSHOT_EVENT, CONTEXT_NAME,
     CONTRACT_AGGREGATE_TYPE, CONTRACT_PROJECTION, CONTRACT_SNAPSHOT_EVENT, DOCUMENT_AGGREGATE_TYPE,
-    DOCUMENT_PROJECTION, DOCUMENT_SNAPSHOT_EVENT, EVENT_VERSION, access_partition,
-    command::scope_key, contract_partition, document_partition,
+    DOCUMENT_PROJECTION, DOCUMENT_SNAPSHOT_EVENT, EVENT_VERSION, MATTER_AGGREGATE_TYPE,
+    MATTER_PROJECTION, MATTER_SNAPSHOT_EVENT, access_partition, command::scope_key,
+    contract_partition, document_partition, matter_partition,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,6 +20,7 @@ pub enum LegalSnapshot {
     Contract(ContractView),
     Document(DocumentView),
     AccessEntry(AccessEntryView),
+    Matter(MatterView),
 }
 impl From<&LegalAggregate> for LegalSnapshot {
     fn from(value: &LegalAggregate) -> Self {
@@ -26,6 +28,7 @@ impl From<&LegalAggregate> for LegalSnapshot {
             LegalAggregate::Contract(value) => Self::Contract(value.into()),
             LegalAggregate::Document(value) => Self::Document(value.into()),
             LegalAggregate::AccessEntry(value) => Self::AccessEntry(value.into()),
+            LegalAggregate::Matter(value) => Self::Matter(value.into()),
         }
     }
 }
@@ -69,6 +72,11 @@ projector_type!(
     LegalContractProjector,
     CONTRACT_PROJECTION,
     CONTRACT_SNAPSHOT_EVENT
+);
+projector_type!(
+    LegalMatterProjector,
+    MATTER_PROJECTION,
+    MATTER_SNAPSHOT_EVENT
 );
 projector_type!(
     LegalDocumentProjector,
@@ -228,6 +236,56 @@ impl Projector for LegalAccessHistoryProjector {
     }
 }
 
+#[async_trait]
+impl Projector for LegalMatterProjector {
+    fn name(&self) -> &str {
+        self.projection_name()
+    }
+    fn event_types(&self) -> &[String] {
+        self.subscribed_events()
+    }
+    async fn apply(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        context: &ProjectorContext<'_>,
+        event: &ProjectionEvent,
+    ) -> Result<(), ProjectionFailure> {
+        let LegalSnapshot::Matter(view) = validate_event(
+            context,
+            event,
+            MATTER_PROJECTION,
+            MATTER_AGGREGATE_TYPE,
+            MATTER_SNAPSHOT_EVENT,
+        )?
+        else {
+            return Err(ProjectionFailure::new(
+                "Legal matter projector received another aggregate",
+            ));
+        };
+        let state = serde_json::to_value(&view).map_err(failure)?;
+        let links = serde_json::to_value(&view.links).map_err(failure)?;
+        let legal_hold = serde_json::to_value(&view.legal_hold).map_err(failure)?;
+        sqlx::query("INSERT INTO erpx_legal_read.matter_projection (projection_name,generation,partition_key,matter_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,reference,title,matter_status,links,legal_hold,created_by,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (projection_name,generation,partition_key,matter_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,reference=EXCLUDED.reference,title=EXCLUDED.title,matter_status=EXCLUDED.matter_status,links=EXCLUDED.links,legal_hold=EXCLUDED.legal_hold,created_by=EXCLUDED.created_by,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_legal_read.matter_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+            .bind(MATTER_PROJECTION).bind(context.generation).bind(&event.partition).bind(view.matter_id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
+            .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?).bind(&view.reference).bind(&view.title).bind(matter_status_name(view.status)).bind(links).bind(legal_hold).bind(&view.created_by).bind(state).bind(view.created_at).bind(view.updated_at)
+            .execute(&mut **tx).await.map_err(failure)?;
+        Ok(())
+    }
+    async fn reset(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        context: &ProjectorContext<'_>,
+    ) -> Result<(), ProjectionFailure> {
+        reset(
+            tx,
+            context,
+            "erpx_legal_read.matter_projection",
+            MATTER_PROJECTION,
+        )
+        .await
+    }
+}
+
 fn validate_event(
     context: &ProjectorContext<'_>,
     event: &ProjectionEvent,
@@ -274,6 +332,13 @@ fn validate_event(
                 && v.scope == event.tenant_scope
                 && event.partition == access_partition(v.access_entry_id)
         }
+        LegalSnapshot::Matter(v) => {
+            aggregate_type == MATTER_AGGREGATE_TYPE
+                && v.version == event.aggregate_version
+                && v.matter_id.as_uuid() == event.aggregate_id.as_uuid()
+                && v.scope == event.tenant_scope
+                && event.partition == matter_partition(v.matter_id)
+        }
     };
     if !matches {
         return Err(ProjectionFailure::new("Legal snapshot metadata mismatch"));
@@ -306,6 +371,12 @@ pub(crate) const fn contract_status_name(value: ContractStatus) -> &'static str 
         ContractStatus::Archived => "archived",
     }
 }
+pub(crate) const fn matter_status_name(value: MatterStatus) -> &'static str {
+    match value {
+        MatterStatus::Open => "open",
+        MatterStatus::Closed => "closed",
+    }
+}
 fn to_i64(value: u64) -> Result<i64, ProjectionFailure> {
     i64::try_from(value).map_err(|_| ProjectionFailure::new("numeric value is too large"))
 }
@@ -317,7 +388,7 @@ fn failure(error: impl std::fmt::Display) -> ProjectionFailure {
 mod tests {
     use super::*;
     #[test]
-    fn three_projectors_are_snapshot_specific() {
+    fn four_projectors_are_snapshot_specific() {
         assert_eq!(
             LegalContractProjector::new().event_types(),
             &[CONTRACT_SNAPSHOT_EVENT.to_owned()]
@@ -330,6 +401,10 @@ mod tests {
             LegalAccessHistoryProjector::new().event_types(),
             &[ACCESS_SNAPSHOT_EVENT.to_owned()]
         );
+        assert_eq!(
+            LegalMatterProjector::new().event_types(),
+            &[MATTER_SNAPSHOT_EVENT.to_owned()]
+        );
     }
     #[test]
     fn projectors_are_duplicate_safe_and_rebuildable() {
@@ -341,9 +416,9 @@ mod tests {
                     "EXCLUDED.source_aggregate_version"
                 ))
                 .count(),
-            2
+            3
         );
         assert!(source.contains("DO NOTHING"));
-        assert_eq!(source.matches(concat!("async fn ", "reset(")).count(), 4);
+        assert_eq!(source.matches(concat!("async fn ", "reset(")).count(), 5);
     }
 }

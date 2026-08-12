@@ -823,7 +823,7 @@ impl TranslationKey {
         }
     }
 
-    pub(crate) const fn text(self, locale: Locale) -> &'static str {
+    pub const fn text(self, locale: Locale) -> &'static str {
         let english = self.english();
         let localized = match locale {
             Locale::Th => self.thai(),

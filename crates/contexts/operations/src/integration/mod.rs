@@ -56,7 +56,17 @@ impl PublishedSourceEvent {
                     operations::SourceFact::Marketing(fact.clone()),
                 )
                 .map(Some),
-                marketing::Event::LeadQualified(_) => Ok(None),
+                marketing::Event::CampaignBudgetApprovalRequested(fact) => {
+                    SourceFactMessage::from_envelope(
+                        &envelope,
+                        operations::SourceFact::MarketingBudgetApproval(fact.clone()),
+                    )
+                    .map(Some)
+                }
+                marketing::Event::LeadQualified(_)
+                | marketing::Event::CampaignBudgetApproved(_)
+                | marketing::Event::CampaignSpendRequested(_)
+                | marketing::Event::AttributionRevisionPublished(_) => Ok(None),
             },
             Self::Crm(envelope) => match envelope.payload() {
                 crm::Event::OpportunityChanged(fact) => SourceFactMessage::from_envelope(
@@ -64,7 +74,7 @@ impl PublishedSourceEvent {
                     operations::SourceFact::Crm(fact.clone()),
                 )
                 .map(Some),
-                crm::Event::LeadAccepted(_) => Ok(None),
+                crm::Event::LeadAccepted(_) | crm::Event::OpportunityForecastChanged(_) => Ok(None),
             },
             Self::Procurement(envelope) => match envelope.payload() {
                 procurement::Event::PurchaseOrderReleased(fact) => {
@@ -115,6 +125,9 @@ impl PublishedSourceEvent {
                     operations::SourceFact::Sales(fact.clone()),
                 )
                 .map(Some),
+                sales::Event::RevenueArrangementActivated(_)
+                | sales::Event::FulfillmentAccepted(_)
+                | sales::Event::BillingEligible(_) => Ok(None),
             },
             Self::PeoplePayroll(envelope) => match envelope.payload() {
                 people_payroll::Event::PayrollFinalized(fact) => SourceFactMessage::from_envelope(
@@ -143,7 +156,11 @@ impl PublishedSourceEvent {
                     operations::SourceFact::Finance(fact.clone()),
                 )
                 .map(Some),
-                finance::Event::ReceivableChanged(_) => Ok(None),
+                finance::Event::ReceivableChanged(_)
+                | finance::Event::CustomerInvoicePosted(_)
+                | finance::Event::RevenueRecognized(_)
+                | finance::Event::CashApplied(_)
+                | finance::Event::MarketingSpendPosted(_) => Ok(None),
             },
             Self::Support(envelope) => match envelope.payload() {
                 support::Event::SupportCaseChanged(fact) => SourceFactMessage::from_envelope(
@@ -209,6 +226,7 @@ fn map_event(event: &DomainEvent) -> Result<operations::Event, IntegrationMappin
                 published_at: *at,
             },
         )),
+        DomainEvent::ApprovalDecided(fact) => Ok(operations::Event::ApprovalDecided(fact.clone())),
     }
 }
 

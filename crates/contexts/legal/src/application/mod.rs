@@ -4,6 +4,7 @@ use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
+use erpx_integration_contracts::RecordRef;
 use erpx_kernel::{Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -12,14 +13,15 @@ use crate::{
     domain::{
         AccessEntry, AccessEntryId, ContractParty, ContractTransition, LegalAggregate,
         LegalContract, LegalContractId, LegalDocument, LegalDocumentId, LegalDomainError,
+        LegalMatter, LegalMatterId, RecordRelation,
     },
     integration,
     ports::{
         AccessEntryView, AccessHistoryFilter, AccessHistoryList, AuthorizationPort,
         AuthorizationRequest, CommandFingerprint, CommandIdentity, CommandUnitOfWork, ContractList,
         ContractListFilter, ContractView, DocumentList, DocumentListFilter, DocumentView,
-        EntitlementPort, LegalAction, LegalCommit, PortError, ReadRepository, StoredCommit,
-        WriteRepository,
+        EntitlementPort, LegalAction, LegalCommit, MatterView, PortError, ReadRepository,
+        StoredCommit, WriteRepository,
     },
 };
 
@@ -78,6 +80,39 @@ pub struct RecordDocumentAccess {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateMatter {
+    pub matter_id: LegalMatterId,
+    pub scope: TenantScope,
+    pub reference: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LinkMatterRecord {
+    pub matter_id: LegalMatterId,
+    pub relation: RecordRelation,
+    pub target: RecordRef,
+    pub target_scope: TenantScope,
+    pub target_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlaceLegalHold {
+    pub matter_id: LegalMatterId,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReleaseLegalHold {
+    pub matter_id: LegalMatterId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CloseMatter {
+    pub matter_id: LegalMatterId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "command", content = "payload", rename_all = "snake_case")]
 pub enum LegalCommand {
     CreateContract(CreateContract),
@@ -87,6 +122,11 @@ pub enum LegalCommand {
     AddDocumentVersion(AddDocumentVersion),
     ArchiveDocument(ArchiveDocument),
     RecordDocumentAccess(RecordDocumentAccess),
+    CreateMatter(CreateMatter),
+    LinkMatterRecord(LinkMatterRecord),
+    PlaceLegalHold(PlaceLegalHold),
+    ReleaseLegalHold(ReleaseLegalHold),
+    CloseMatter(CloseMatter),
 }
 
 impl LegalCommand {
@@ -99,13 +139,21 @@ impl LegalCommand {
             Self::AddDocumentVersion(_) => LegalAction::AddDocumentVersion,
             Self::ArchiveDocument(_) => LegalAction::ArchiveDocument,
             Self::RecordDocumentAccess(_) => LegalAction::RecordDocumentAccess,
+            Self::CreateMatter(_) => LegalAction::CreateMatter,
+            Self::LinkMatterRecord(_) => LegalAction::LinkMatterRecord,
+            Self::PlaceLegalHold(_) => LegalAction::PlaceLegalHold,
+            Self::ReleaseLegalHold(_) => LegalAction::ReleaseLegalHold,
+            Self::CloseMatter(_) => LegalAction::CloseMatter,
         }
     }
 
     const fn is_create(&self) -> bool {
         matches!(
             self,
-            Self::CreateContract(_) | Self::CreateDocument(_) | Self::RecordDocumentAccess(_)
+            Self::CreateContract(_)
+                | Self::CreateDocument(_)
+                | Self::RecordDocumentAccess(_)
+                | Self::CreateMatter(_)
         )
     }
 
@@ -149,6 +197,29 @@ impl LegalCommand {
                 purpose: value.purpose.clone(),
                 observed_at: value.observed_at,
             },
+            Self::CreateMatter(value) => CommandFingerprint::CreateMatter {
+                matter_id: value.matter_id,
+                scope: value.scope.clone(),
+                reference: value.reference.clone(),
+                title: value.title.clone(),
+            },
+            Self::LinkMatterRecord(value) => CommandFingerprint::LinkMatterRecord {
+                matter_id: value.matter_id,
+                relation: value.relation,
+                target: value.target.clone(),
+                target_scope: value.target_scope.clone(),
+                target_digest: value.target_digest.clone(),
+            },
+            Self::PlaceLegalHold(value) => CommandFingerprint::PlaceLegalHold {
+                matter_id: value.matter_id,
+                reason: value.reason.clone(),
+            },
+            Self::ReleaseLegalHold(value) => CommandFingerprint::ReleaseLegalHold {
+                matter_id: value.matter_id,
+            },
+            Self::CloseMatter(value) => CommandFingerprint::CloseMatter {
+                matter_id: value.matter_id,
+            },
         }
     }
 }
@@ -178,6 +249,11 @@ pub struct ListAccessHistory {
     pub filter: AccessHistoryFilter,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetMatter {
+    pub matter_id: LegalMatterId,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "query", content = "payload", rename_all = "snake_case")]
 pub enum LegalQuery {
@@ -186,6 +262,7 @@ pub enum LegalQuery {
     GetDocument(GetDocument),
     ListDocuments(ListDocuments),
     ListAccessHistory(ListAccessHistory),
+    GetMatter(GetMatter),
 }
 
 impl LegalQuery {
@@ -196,6 +273,7 @@ impl LegalQuery {
             Self::GetDocument(_) => LegalAction::ViewDocument,
             Self::ListDocuments(_) => LegalAction::ListDocuments,
             Self::ListAccessHistory(_) => LegalAction::ListAccessHistory,
+            Self::GetMatter(_) => LegalAction::ViewMatter,
         }
     }
 }
@@ -206,6 +284,7 @@ pub enum LegalMutationResult {
     Contract(ContractView),
     Document(DocumentView),
     AccessEntry(AccessEntryView),
+    Matter(MatterView),
 }
 
 impl From<&LegalAggregate> for LegalMutationResult {
@@ -214,6 +293,7 @@ impl From<&LegalAggregate> for LegalMutationResult {
             LegalAggregate::Contract(value) => Self::Contract(value.into()),
             LegalAggregate::Document(value) => Self::Document(value.into()),
             LegalAggregate::AccessEntry(value) => Self::AccessEntry(value.into()),
+            LegalAggregate::Matter(value) => Self::Matter(value.into()),
         }
     }
 }
@@ -226,6 +306,7 @@ pub enum LegalQueryResponse {
     Document(Option<DocumentView>),
     Documents(DocumentList),
     AccessHistory(AccessHistoryList),
+    Matter(Option<MatterView>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -562,10 +643,151 @@ where
                 .map_err(|error| to_cqrs(error.into(), correlation))?;
                 (LegalAggregate::AccessEntry(access), None)
             }
+            LegalCommand::CreateMatter(value) => {
+                self.preflight(
+                    &envelope.actor,
+                    &envelope.tenant_scope,
+                    &value.scope,
+                    action,
+                )
+                .await
+                .map_err(|error| to_cqrs(error, correlation))?;
+                let matter = LegalMatter::create(
+                    value.matter_id,
+                    value.scope,
+                    value.reference,
+                    value.title,
+                    actor_ref,
+                    now,
+                )
+                .map_err(|error| to_cqrs(error.into(), correlation))?;
+                (LegalAggregate::Matter(matter), None)
+            }
+            LegalCommand::LinkMatterRecord(value) => {
+                let matter = self
+                    .write
+                    .load_matter(&envelope.tenant_scope, value.matter_id)
+                    .await
+                    .map_err(|error| to_cqrs(error.into(), correlation))?
+                    .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+                let mut aggregate = LegalAggregate::Matter(matter);
+                let expected = self
+                    .existing(
+                        &aggregate,
+                        &envelope.actor,
+                        &envelope.tenant_scope,
+                        action,
+                        envelope.expected_aggregate_version,
+                    )
+                    .await
+                    .map_err(|error| to_cqrs(error, correlation))?;
+                // Cross-company links are authorized against the target scope as well;
+                // a company authority therefore cannot create a sibling-company edge.
+                self.preflight(
+                    &envelope.actor,
+                    &envelope.tenant_scope,
+                    &value.target_scope,
+                    action,
+                )
+                .await
+                .map_err(|error| to_cqrs(error, correlation))?;
+                let LegalAggregate::Matter(matter) = &mut aggregate else {
+                    unreachable!()
+                };
+                matter
+                    .link_record(
+                        value.relation,
+                        value.target,
+                        value.target_scope,
+                        value.target_digest,
+                        actor_ref,
+                        now,
+                    )
+                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+                (aggregate, Some(expected))
+            }
+            LegalCommand::PlaceLegalHold(value) => {
+                let matter = self
+                    .write
+                    .load_matter(&envelope.tenant_scope, value.matter_id)
+                    .await
+                    .map_err(|error| to_cqrs(error.into(), correlation))?
+                    .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+                let mut aggregate = LegalAggregate::Matter(matter);
+                let expected = self
+                    .existing(
+                        &aggregate,
+                        &envelope.actor,
+                        &envelope.tenant_scope,
+                        action,
+                        envelope.expected_aggregate_version,
+                    )
+                    .await
+                    .map_err(|error| to_cqrs(error, correlation))?;
+                let LegalAggregate::Matter(matter) = &mut aggregate else {
+                    unreachable!()
+                };
+                matter
+                    .place_hold(value.reason, actor_ref, now)
+                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+                (aggregate, Some(expected))
+            }
+            LegalCommand::ReleaseLegalHold(value) => {
+                let matter = self
+                    .write
+                    .load_matter(&envelope.tenant_scope, value.matter_id)
+                    .await
+                    .map_err(|error| to_cqrs(error.into(), correlation))?
+                    .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+                let mut aggregate = LegalAggregate::Matter(matter);
+                let expected = self
+                    .existing(
+                        &aggregate,
+                        &envelope.actor,
+                        &envelope.tenant_scope,
+                        action,
+                        envelope.expected_aggregate_version,
+                    )
+                    .await
+                    .map_err(|error| to_cqrs(error, correlation))?;
+                let LegalAggregate::Matter(matter) = &mut aggregate else {
+                    unreachable!()
+                };
+                matter
+                    .release_hold(actor_ref, now)
+                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+                (aggregate, Some(expected))
+            }
+            LegalCommand::CloseMatter(value) => {
+                let matter = self
+                    .write
+                    .load_matter(&envelope.tenant_scope, value.matter_id)
+                    .await
+                    .map_err(|error| to_cqrs(error.into(), correlation))?
+                    .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+                let mut aggregate = LegalAggregate::Matter(matter);
+                let expected = self
+                    .existing(
+                        &aggregate,
+                        &envelope.actor,
+                        &envelope.tenant_scope,
+                        action,
+                        envelope.expected_aggregate_version,
+                    )
+                    .await
+                    .map_err(|error| to_cqrs(error, correlation))?;
+                let LegalAggregate::Matter(matter) = &mut aggregate else {
+                    unreachable!()
+                };
+                matter
+                    .close(now)
+                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+                (aggregate, Some(expected))
+            }
         };
 
         let domain_events = aggregate.take_uncommitted_events();
-        let integration_events = integration::published_events(&domain_events);
+        let integration_events = integration::published_events(&aggregate, &domain_events);
         let stored = self
             .unit_of_work
             .commit(LegalCommit {
@@ -703,6 +925,21 @@ where
                     .map_err(|error| port_to_cqrs(error, correlation))?;
                 (
                     LegalQueryResponse::AccessHistory(projected.value),
+                    projected.metadata,
+                )
+            }
+            LegalQuery::GetMatter(value) => {
+                let projected = self
+                    .read
+                    .get_matter(
+                        &envelope.tenant_scope,
+                        value.matter_id,
+                        &envelope.consistency,
+                    )
+                    .await
+                    .map_err(|error| port_to_cqrs(error, correlation))?;
+                (
+                    LegalQueryResponse::Matter(projected.value),
                     projected.metadata,
                 )
             }

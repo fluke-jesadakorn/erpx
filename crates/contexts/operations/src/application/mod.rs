@@ -49,6 +49,13 @@ pub struct EscalateException {
     pub manager: identity_access::PrincipalRef,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DecideApproval {
+    pub exception_id: ExceptionId,
+    pub decision: erpx_integration_contracts::operations::ApprovalDecision,
+    pub reason_code: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResolveException {
     pub exception_id: ExceptionId,
@@ -75,6 +82,7 @@ pub enum OperationsCommand {
     Reassign(ReassignException),
     Acknowledge(AcknowledgeException),
     Escalate(EscalateException),
+    DecideApproval(DecideApproval),
     Resolve(ResolveException),
     Close(CloseException),
     PublishWorkQueuePolicy(PublishWorkQueuePolicy),
@@ -86,6 +94,7 @@ impl OperationsCommand {
             Self::Reassign(value) => Some(value.exception_id),
             Self::Acknowledge(value) => Some(value.exception_id),
             Self::Escalate(value) => Some(value.exception_id),
+            Self::DecideApproval(value) => Some(value.exception_id),
             Self::Resolve(value) => Some(value.exception_id),
             Self::Close(value) => Some(value.exception_id),
             Self::PublishWorkQueuePolicy(_) => None,
@@ -97,6 +106,7 @@ impl OperationsCommand {
             Self::Reassign(_) => OperationsAction::ReassignException,
             Self::Acknowledge(_) => OperationsAction::AcknowledgeException,
             Self::Escalate(_) => OperationsAction::EscalateException,
+            Self::DecideApproval(_) => OperationsAction::DecideApproval,
             Self::Resolve(_) => OperationsAction::ResolveException,
             Self::Close(_) => OperationsAction::CloseException,
             Self::PublishWorkQueuePolicy(_) => OperationsAction::PublishWorkQueuePolicy,
@@ -113,6 +123,7 @@ impl OperationsCommand {
             Self::Reassign(value) => (Some(value.assignee), Some(value.manager)),
             Self::Escalate(value) => (None, Some(value.manager)),
             Self::Acknowledge(_)
+            | Self::DecideApproval(_)
             | Self::Resolve(_)
             | Self::Close(_)
             | Self::PublishWorkQueuePolicy(_) => (None, None),
@@ -132,6 +143,11 @@ impl OperationsCommand {
             Self::Escalate(value) => Some(CommandFingerprint::Escalate {
                 exception_id: value.exception_id,
                 manager: value.manager,
+            }),
+            Self::DecideApproval(value) => Some(CommandFingerprint::DecideApproval {
+                exception_id: value.exception_id,
+                decision: value.decision,
+                reason_code: value.reason_code.clone(),
             }),
             Self::Resolve(value) => Some(CommandFingerprint::Resolve {
                 exception_id: value.exception_id,
@@ -564,6 +580,14 @@ where
                     .escalate(assignment, at)
                     .map_err(|error| to_cqrs(error.into(), correlation))?;
             }
+            OperationsCommand::DecideApproval(value) => aggregate
+                .decide_approval(
+                    value.decision,
+                    envelope.actor.principal_ref.clone(),
+                    value.reason_code.clone(),
+                    at,
+                )
+                .map_err(|error| to_cqrs(error.into(), correlation))?,
             OperationsCommand::Resolve(_) => aggregate
                 .resolve(at)
                 .map_err(|error| to_cqrs(error.into(), correlation))?,

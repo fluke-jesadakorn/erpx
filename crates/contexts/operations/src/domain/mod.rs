@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
 use erpx_integration_contracts::{
-    BoundedContext, IntegrationEvent, IntegrationEventEnvelope, operations,
+    BoundedContext, IntegrationEvent, IntegrationEventEnvelope, ReferenceCode, operations,
 };
 use erpx_kernel::{AggregateId, CorrelationId, EventId, TenantScope};
 use serde::{Deserialize, Serialize};
@@ -76,6 +76,8 @@ pub enum OperationsDomainError {
     AssignmentSeparation,
     #[error("exception lifecycle transition is not allowed")]
     InvalidTransition,
+    #[error("approval decision is invalid or violates maker-checker")]
+    InvalidApprovalDecision,
     #[error("exception aggregate timestamp cannot move backwards")]
     InvalidTimestamp,
     #[error("SLA escalation cannot happen before the due time")]
@@ -354,6 +356,7 @@ pub(crate) enum DomainEvent {
         escalation_after_minutes: u32,
         at: DateTime<Utc>,
     },
+    ApprovalDecided(operations::ApprovalDecisionFact),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -598,7 +601,45 @@ impl OperationsException {
     }
 
     pub fn resolve(&mut self, at: DateTime<Utc>) -> Result<(), OperationsDomainError> {
+        if matches!(
+            self.source_fact,
+            operations::SourceFact::MarketingBudgetApproval(_)
+        ) {
+            return Err(OperationsDomainError::InvalidApprovalDecision);
+        }
         self.transition(ExceptionStatus::Resolved, at)
+    }
+
+    pub fn decide_approval(
+        &mut self,
+        decision: operations::ApprovalDecision,
+        decided_by: String,
+        reason_code: String,
+        at: DateTime<Utc>,
+    ) -> Result<(), OperationsDomainError> {
+        let operations::SourceFact::MarketingBudgetApproval(source) = &self.source_fact else {
+            return Err(OperationsDomainError::InvalidApprovalDecision);
+        };
+        let approval = &source.approval;
+        let decided_by = ReferenceCode::try_new(decided_by)
+            .map_err(|_| OperationsDomainError::InvalidApprovalDecision)?;
+        let reason_code = ReferenceCode::try_new(reason_code)
+            .map_err(|_| OperationsDomainError::InvalidApprovalDecision)?;
+        if approval.requested_by == decided_by || at < approval.requested_at {
+            return Err(OperationsDomainError::InvalidApprovalDecision);
+        }
+        let fact = operations::ApprovalDecisionFact {
+            request: approval.request,
+            subject: approval.subject.clone(),
+            decision,
+            decided_by,
+            reason_code,
+            decided_at: at,
+        };
+        self.transition(ExceptionStatus::Resolved, at)?;
+        self.uncommitted_events
+            .push(DomainEvent::ApprovalDecided(fact));
+        Ok(())
     }
 
     pub fn close(&mut self, at: DateTime<Utc>) -> Result<(), OperationsDomainError> {

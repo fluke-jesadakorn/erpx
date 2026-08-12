@@ -38,6 +38,8 @@ mod architecture;
 mod dev_access;
 mod directory_lab;
 mod infra;
+mod wasm;
+mod web_toolchain;
 
 const RESET_CONFIRMATION: &str = "RESET_ERPX_DEV";
 const ROOT_PASSWORD_RESET_CONFIRMATION: &str = "RESET_ERPX_PLATFORM_ROOT";
@@ -50,8 +52,10 @@ const HOLDING_REF: &str = "demo-holding";
 const RESTRICTED_TENANT_ID: &str = "demo-tenant-restricted";
 const RESTRICTED_HOLDING_REF: &str = "beacon-holding";
 const FIXTURE_VERSION: &str = "erpx-demo-v5";
-const DEV_STATE_VERSION: u32 = 2;
+const DEV_STATE_VERSION: u32 = 3;
+const WEB_LAUNCH_CONTRACT_VERSION: u32 = 3;
 const DEV_STATE_FILE: &str = "dev-state.json";
+const RUNTIME_DEV_TARGET_DIR: &str = "runtime-dev-target";
 const FRESH_RUNTIME_MANIFEST_FILE: &str = "cutover/fresh-state.json";
 const DEV_WORKER_POLL_INTERVAL_MS: &str = "5000";
 const DEVELOPMENT_TAILSCALE_IP_ENV: &str = "ERPX_DEV_TAILSCALE_IP";
@@ -171,7 +175,7 @@ const PLATFORM_PERMISSIONS: &[&str] = &[
 
 type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
-const STANDARD_WORKERS: [&str; 50] = [
+const STANDARD_WORKERS: [&str; 56] = [
     "support-worker",
     "commercial-catalog-projector",
     "wave5-control-projector",
@@ -182,6 +186,7 @@ const STANDARD_WORKERS: [&str; 50] = [
     "commercial-subscriptions-projector",
     "commercial-entitlements-projector",
     "marketing-lead-candidates-projector",
+    "marketing-campaign-budgets-projector",
     "crm-leads-projector",
     "crm-opportunities-projector",
     "procurement-purchase-orders-projector",
@@ -191,6 +196,7 @@ const STANDARD_WORKERS: [&str; 50] = [
     "maintenance-asset-facts-worker",
     "sales-quotes-projector",
     "sales-orders-projector",
+    "sales-revenue-arrangements-projector",
     "people-payroll-employees-projector",
     "people-payroll-leave-requests-projector",
     "people-payroll-expense-claims-projector",
@@ -204,9 +210,12 @@ const STANDARD_WORKERS: [&str; 50] = [
     "finance-trial-balance-projector",
     "finance-bank-transactions-projector",
     "finance-statutory-tax-projector",
+    "finance-customer-invoices-projector",
+    "finance-revenue-schedules-projector",
     "legal-contracts-projector",
     "legal-documents-projector",
     "legal-access-history-projector",
+    "legal-matters-projector",
     "support-tickets-projector",
     "support-incidents-projector",
     "support-sessions-projector",
@@ -215,6 +224,7 @@ const STANDARD_WORKERS: [&str; 50] = [
     "operations-source-signals-projector",
     "operations-work-queue-policies-projector",
     "operations-source-ingestion-worker",
+    "marketing-approval-decisions-worker",
     "customer360-control-customers-projector",
     "customer360-tenant-activity-projector",
     "branch-provisioning-worker",
@@ -223,7 +233,7 @@ const STANDARD_WORKERS: [&str; 50] = [
     "marketing-delivery-worker",
     "marketing-journey-integration-worker",
 ];
-const DEDICATED_WORKERS: [&str; 53] = [
+const DEDICATED_WORKERS: [&str; 59] = [
     "support-worker",
     "commercial-catalog-projector",
     "wave5-control-projector",
@@ -234,6 +244,7 @@ const DEDICATED_WORKERS: [&str; 53] = [
     "commercial-subscriptions-projector",
     "commercial-entitlements-projector",
     "marketing-lead-candidates-projector",
+    "marketing-campaign-budgets-projector",
     "crm-leads-projector",
     "crm-opportunities-projector",
     "procurement-purchase-orders-projector",
@@ -243,6 +254,7 @@ const DEDICATED_WORKERS: [&str; 53] = [
     "maintenance-asset-facts-worker",
     "sales-quotes-projector",
     "sales-orders-projector",
+    "sales-revenue-arrangements-projector",
     "people-payroll-employees-projector",
     "people-payroll-leave-requests-projector",
     "people-payroll-expense-claims-projector",
@@ -256,9 +268,12 @@ const DEDICATED_WORKERS: [&str; 53] = [
     "finance-trial-balance-projector",
     "finance-bank-transactions-projector",
     "finance-statutory-tax-projector",
+    "finance-customer-invoices-projector",
+    "finance-revenue-schedules-projector",
     "legal-contracts-projector",
     "legal-documents-projector",
     "legal-access-history-projector",
+    "legal-matters-projector",
     "support-tickets-projector",
     "support-incidents-projector",
     "support-sessions-projector",
@@ -267,6 +282,7 @@ const DEDICATED_WORKERS: [&str; 53] = [
     "operations-source-signals-projector",
     "operations-work-queue-policies-projector",
     "operations-source-ingestion-worker",
+    "marketing-approval-decisions-worker",
     "customer360-control-customers-projector",
     "customer360-tenant-activity-projector",
     "branch-provisioning-worker",
@@ -288,6 +304,12 @@ enum DevMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DevOptions {
+    mode: DevMode,
+    web_debug: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct WorkerSpec {
     name: &'static str,
     handler: &'static str,
@@ -305,7 +327,7 @@ struct DevState {
     worker_environment_sha256: String,
     ucs_environment_sha256: String,
     web_environment_sha256: String,
-    web_source_sha256: String,
+    web_launch_sha256: String,
     development_access_enabled: bool,
 }
 
@@ -690,9 +712,9 @@ async fn main() {
 async fn run() -> TaskResult {
     let root = workspace_root()?;
     let args = env::args().skip(1).collect::<Vec<_>>();
-    if let Some(mode) = parse_dev_mode(&args) {
+    if let Some(options) = parse_dev_options(&args)? {
         let config = DevConfig::load(&root)?;
-        return dev(&root, &config, mode).await;
+        return dev(&root, &config, options).await;
     }
     match args.as_slice() {
         [command, subcommand] if command == "infra" && subcommand == "init" => infra::init(&root),
@@ -854,8 +876,7 @@ async fn run() -> TaskResult {
         _ => {
             println!(
                 "ERPX development tasks\n\n\
-                 cargo xtask dev --detach\n\
-                 cargo xtask dev --detach --fresh\n\
+                 cargo xtask dev --detach [--fresh] [--web-debug]\n\
                  cargo xtask status\n\
                  cargo xtask stop\n\
                  cargo xtask infra init|start|status|stop\n\
@@ -870,6 +891,7 @@ async fn run() -> TaskResult {
                  cargo xtask reset-dev --confirm {RESET_CONFIRMATION}\n\
                  cargo xtask reset-platform-root --confirm {ROOT_PASSWORD_RESET_CONFIRMATION}\n\
                  cargo xtask seed-demo\n\
+                 cargo xtask web-toolchain\n\
                  cargo xtask verify\n\
                  cargo xtask verify-web-production\n\
                  cargo xtask verify-core\n\
@@ -882,14 +904,31 @@ async fn run() -> TaskResult {
     }
 }
 
-fn parse_dev_mode(args: &[String]) -> Option<DevMode> {
-    match args {
-        [command, flag] if command == "dev" && flag == "--detach" => Some(DevMode::Warm),
-        [command, flag, fresh] if command == "dev" && flag == "--detach" && fresh == "--fresh" => {
-            Some(DevMode::Fresh)
-        }
-        _ => None,
+fn parse_dev_options(args: &[String]) -> TaskResult<Option<DevOptions>> {
+    if args.first().map(String::as_str) != Some("dev") {
+        return Ok(None);
     }
+    let mut options = DevOptions {
+        mode: DevMode::Warm,
+        web_debug: false,
+    };
+    let mut seen = BTreeSet::new();
+    let mut detach = false;
+    for flag in &args[1..] {
+        if !seen.insert(flag.as_str()) {
+            return Err(format!("duplicate dev flag: {flag}").into());
+        }
+        match flag.as_str() {
+            "--detach" => detach = true,
+            "--fresh" => options.mode = DevMode::Fresh,
+            "--web-debug" => options.web_debug = true,
+            _ => return Err(format!("unknown dev flag: {flag}").into()),
+        }
+    }
+    if !detach {
+        return Err("usage: cargo xtask dev --detach [--fresh] [--web-debug]".into());
+    }
+    Ok(Some(options))
 }
 
 fn workspace_root() -> TaskResult<PathBuf> {
@@ -1850,8 +1889,10 @@ fn require_development_access_requested(root: &Path) -> TaskResult {
     }
 }
 
-async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
+async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult {
     let total_started = Instant::now();
+    let mode = options.mode;
+    web_toolchain::ensure(root)?;
     config.validate_local()?;
     let fresh_runtime = FreshRuntimeManifest::load(root)?;
     let development_access_enabled = development_access_requested(root)?;
@@ -1869,6 +1910,31 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
     } else {
         prune_stale_pid_files(root)?;
     }
+
+    let phase = Instant::now();
+    let mut build_arguments = vec![
+        "build",
+        "--offline",
+        "-p",
+        "erpx-server",
+        "-p",
+        "erpx-worker",
+        "-p",
+        "erpx-ucs-lab",
+    ];
+    if dedicated {
+        build_arguments.extend(["-p", "erpx-wal-archive"]);
+    }
+    run_command_with_env(
+        root,
+        "cargo",
+        build_arguments,
+        &[(
+            "CARGO_TARGET_DIR",
+            runtime_target_dir(root).to_string_lossy().into_owned(),
+        )],
+    )?;
+    println!("dev binaries: built ({:?})", phase.elapsed());
 
     let phase = Instant::now();
     if dedicated {
@@ -1899,23 +1965,6 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
             manifest.installation_generation
         );
     }
-
-    let phase = Instant::now();
-    let mut build_arguments = vec![
-        "build",
-        "--offline",
-        "-p",
-        "erpx-server",
-        "-p",
-        "erpx-worker",
-        "-p",
-        "erpx-ucs-lab",
-    ];
-    if dedicated {
-        build_arguments.extend(["-p", "erpx-wal-archive"]);
-    }
-    run_command(root, "cargo", build_arguments)?;
-    println!("dev binaries: built ({:?})", phase.elapsed());
 
     let phase = Instant::now();
     if let Some(manifest) = fresh_runtime.as_ref() {
@@ -2047,10 +2096,16 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
         common.push(("ERPX_HTTP_ALLOWED_ORIGINS", allowed_origins));
     }
     let mut server_environment = common.clone();
-    server_environment.push((
-        "ERPX_SUPPORT_CAPABILITY_ESCROW_KEY",
-        secret_file(&runtime.join("support-capability-escrow.key"))?,
-    ));
+    server_environment.extend([
+        (
+            "ERPX_SUPPORT_CAPABILITY_ESCROW_KEY",
+            secret_file(&runtime.join("support-capability-escrow.key"))?,
+        ),
+        (
+            "ERPX_TENANT_PROJECTION_SCHEDULER_ACTOR_REF",
+            "local:platform-root".into(),
+        ),
+    ]);
     let mut web_environment = vec![
         ("ERPX_DEV_WEB_BIND_ADDR", "127.0.0.1".to_owned()),
         ("ERPX_CONSOLE_API_BASE", auth_http_origin.clone()),
@@ -2081,11 +2136,17 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
     if development_access_enabled {
         web_environment.push(("ERPX_CONSOLE_DEV_PERSONA_ENABLED", "1".into()));
     }
+    if options.web_debug {
+        web_environment.extend([
+            ("CARGO_PROFILE_SERVER_DEV_DEBUG", "1".into()),
+            ("CARGO_PROFILE_WASM_DEV_DEBUG", "1".into()),
+        ]);
+    }
     let desired_state = DevState {
         version: DEV_STATE_VERSION,
-        server_binary_sha256: required_file_sha256(&root.join("target/debug/erpx-server"))?,
-        worker_binary_sha256: required_file_sha256(&root.join("target/debug/erpx-worker"))?,
-        ucs_binary_sha256: required_file_sha256(&root.join("target/debug/erpx-ucs-lab"))?,
+        server_binary_sha256: required_file_sha256(&runtime_binary(root, "erpx-server"))?,
+        worker_binary_sha256: required_file_sha256(&runtime_binary(root, "erpx-worker"))?,
+        ucs_binary_sha256: required_file_sha256(&runtime_binary(root, "erpx-ucs-lab"))?,
         server_environment_sha256: environment_sha256(&server_environment),
         worker_environment_sha256: worker_environment_sha256(&common, dedicated),
         ucs_environment_sha256: if development_access_enabled {
@@ -2094,7 +2155,7 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
             "disabled".into()
         },
         web_environment_sha256: environment_sha256(&web_environment),
-        web_source_sha256: web_source_sha256(root)?,
+        web_launch_sha256: web_launch_sha256(root, options)?,
         development_access_enabled,
     };
     let previous_state = read_dev_state(root);
@@ -2154,6 +2215,7 @@ async fn dev(root: &Path, config: &DevConfig, mode: DevMode) -> TaskResult {
         restart_plan.web,
         snapshot.web,
         web_environment,
+        options,
     )?;
     println!("dev runtime services: applied ({:?})", phase.elapsed());
 
@@ -2347,6 +2409,11 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "marketing_lead_candidates",
                 "b14c",
             ),
+            (
+                "marketing-campaign-budgets-projector",
+                "marketing_campaign_budgets",
+                "b161",
+            ),
             ("crm-leads-projector", "crm_leads", "b14d"),
             ("crm-opportunities-projector", "crm_opportunities", "b14e"),
             (
@@ -2372,6 +2439,11 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
             ),
             ("sales-quotes-projector", "sales_quotes", "b154"),
             ("sales-orders-projector", "sales_orders", "b155"),
+            (
+                "sales-revenue-arrangements-projector",
+                "sales_revenue_arrangements",
+                "b162",
+            ),
             (
                 "people-payroll-employees-projector",
                 "people_payroll_employees",
@@ -2422,6 +2494,8 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "b159" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b159",
                 "b15a" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b15a",
                 "b15b" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b15b",
+                "b161" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b161",
+                "b162" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b162",
                 _ => unreachable!("frozen direct-v1 projection worker suffix"),
             },
             projection_kind: Some(projection_kind),
@@ -2448,6 +2522,16 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "finance_statutory_tax",
                 "b136",
             ),
+            (
+                "finance-customer-invoices-projector",
+                "finance_customer_invoices",
+                "b163",
+            ),
+            (
+                "finance-revenue-schedules-projector",
+                "finance_revenue_schedules",
+                "b164",
+            ),
             ("legal-contracts-projector", "legal_contracts", "b137"),
             ("legal-documents-projector", "legal_documents", "b138"),
             (
@@ -2455,6 +2539,7 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "legal_access_history",
                 "b139",
             ),
+            ("legal-matters-projector", "legal_matters", "b165"),
             ("support-tickets-projector", "support_tickets", "b13a"),
             ("support-incidents-projector", "support_incidents", "b13b"),
             ("support-sessions-projector", "support_sessions", "b13c"),
@@ -2501,6 +2586,9 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "b13e" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b13e",
                 "b13f" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b13f",
                 "b140" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b140",
+                "b163" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b163",
+                "b164" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b164",
+                "b165" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b165",
                 _ => unreachable!("frozen typed projection worker suffix"),
             },
             projection_kind: Some(projection_kind),
@@ -2511,6 +2599,12 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
             name: "operations-source-ingestion-worker",
             handler: "operations_source_ingestion",
             worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f5b143",
+            projection_kind: None,
+        },
+        WorkerSpec {
+            name: "marketing-approval-decisions-worker",
+            handler: "marketing_approval_decisions",
+            worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f5b166",
             projection_kind: None,
         },
         WorkerSpec {
@@ -2607,52 +2701,65 @@ fn environment_sha256(environment: &[(&str, String)]) -> String {
     format!("{:x}", digest.finalize())
 }
 
-fn web_source_sha256(root: &Path) -> TaskResult<String> {
-    fn collect(path: &Path, files: &mut Vec<PathBuf>) -> TaskResult {
-        if path.is_file() {
-            files.push(path.to_owned());
-            return Ok(());
-        }
+fn web_launch_sha256(root: &Path, options: DevOptions) -> TaskResult<String> {
+    fn collect_manifests(path: &Path, files: &mut Vec<PathBuf>) -> TaskResult {
         let mut entries = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
         entries.sort_by_key(|entry| entry.file_name());
         for entry in entries {
             let path = entry.path();
             let metadata = fs::symlink_metadata(&path)?;
             if metadata.file_type().is_symlink() {
-                return Err(
-                    format!("web source fingerprint refused symlink: {}", path.display()).into(),
-                );
+                continue;
             }
             if metadata.is_dir() {
-                collect(&path, files)?;
-            } else if metadata.is_file()
-                && path
-                    .extension()
-                    .and_then(OsStr::to_str)
-                    .is_some_and(|extension| {
-                        matches!(extension, "rs" | "toml" | "proto" | "css" | "html")
-                    })
-            {
+                collect_manifests(&path, files)?;
+            } else if metadata.is_file() && path.file_name() == Some(OsStr::new("Cargo.toml")) {
                 files.push(path);
             }
         }
         Ok(())
     }
 
-    let mut files = vec![root.join("Cargo.toml"), root.join("Cargo.lock")];
+    let mut files = Vec::new();
     for relative in [
-        "apps/console",
-        "crates/ui",
-        "crates/domain",
-        "crates/proto",
-        "crates/web-session",
-        "crates/adapters/web-session-sqlx",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain",
+        "rust-toolchain.toml",
+        "Dioxus.toml",
+        ".cargo/config",
+        ".cargo/config.toml",
     ] {
-        collect(&root.join(relative), &mut files)?;
+        let path = root.join(relative);
+        if path.is_file() {
+            files.push(path);
+        }
+    }
+    for relative in ["apps", "crates", "xtask"] {
+        let path = root.join(relative);
+        if path.is_dir() {
+            collect_manifests(&path, &mut files)?;
+        }
     }
     files.sort();
     files.dedup();
     let mut digest = Sha256::new();
+    update_digest(&mut digest, &WEB_LAUNCH_CONTRACT_VERSION.to_string());
+    update_digest(&mut digest, "hot-patch");
+    update_digest(
+        &mut digest,
+        if options.web_debug {
+            "debug-on"
+        } else {
+            "debug-off"
+        },
+    );
+    let dx = web_toolchain::require(root)?;
+    let dx_version = Command::new(dx).arg("--version").output()?;
+    if !dx_version.status.success() {
+        return Err("dx --version failed while calculating the Web launch fingerprint".into());
+    }
+    update_digest(&mut digest, &String::from_utf8_lossy(&dx_version.stdout));
     for path in files {
         let relative = path.strip_prefix(root).unwrap_or(&path);
         update_digest(&mut digest, &relative.to_string_lossy());
@@ -2771,7 +2878,7 @@ fn plan_dev_restart(
     });
     let web_changed = previous.is_none_or(|state| {
         state.web_environment_sha256 != desired.web_environment_sha256
-            || state.web_source_sha256 != desired.web_source_sha256
+            || state.web_launch_sha256 != desired.web_launch_sha256
     });
     DevRestartPlan {
         server: fresh || !runtime.server || server_changed,
@@ -2799,7 +2906,7 @@ fn apply_server_plan(
         root,
         runtime,
         "server",
-        root.join("target/debug/erpx-server"),
+        runtime_binary(root, "erpx-server"),
         std::iter::empty::<&str>(),
         environment.to_vec(),
     )?;
@@ -2851,7 +2958,7 @@ fn apply_worker_plan(
             root,
             runtime,
             spec.name,
-            root.join("target/debug/erpx-worker"),
+            runtime_binary(root, "erpx-worker"),
             ["run"],
             environment,
         )?;
@@ -3098,6 +3205,7 @@ fn apply_web_plan(
     restart: bool,
     was_running: bool,
     environment: Vec<(&str, String)>,
+    options: DevOptions,
 ) -> TaskResult {
     if !restart {
         println!("dev web: reused (Dioxus hot reload remains active)");
@@ -3107,30 +3215,14 @@ fn apply_web_plan(
         .iter()
         .find_map(|(key, value)| (*key == "ERPX_DEV_WEB_BIND_ADDR").then_some(value.clone()))
         .unwrap_or_else(|| "127.0.0.1".to_owned());
+    fs::create_dir_all(web_session_cache_dir(root))?;
     stop_service_group(root, &["web"])?;
     spawn_service(
         root,
         runtime,
         "web",
-        PathBuf::from("dx"),
-        vec![
-            "serve".to_owned(),
-            "--web".to_owned(),
-            "--fullstack".to_owned(),
-            "true".to_owned(),
-            "--no-default-features".to_owned(),
-            "--offline".to_owned(),
-            "--debug-symbols".to_owned(),
-            "false".to_owned(),
-            "-p".to_owned(),
-            "erpx-console".to_owned(),
-            "--port".to_owned(),
-            "3004".to_owned(),
-            "--addr".to_owned(),
-            bind_addr,
-            "--open".to_owned(),
-            "false".to_owned(),
-        ],
+        web_toolchain::require(root)?,
+        web_serve_arguments(root, &bind_addr, options),
         environment,
     )?;
     println!(
@@ -3138,6 +3230,39 @@ fn apply_web_plan(
         if was_running { "restarted" } else { "started" }
     );
     Ok(())
+}
+
+fn web_serve_arguments(root: &Path, bind_addr: &str, options: DevOptions) -> Vec<String> {
+    let mut arguments = vec!["serve".to_owned(), "--hot-patch".to_owned()];
+    arguments.extend([
+        "--wasm-split".to_owned(),
+        "--web".to_owned(),
+        "--fullstack".to_owned(),
+        "true".to_owned(),
+        "--no-default-features".to_owned(),
+        "--offline".to_owned(),
+        "--debug-symbols".to_owned(),
+        options.web_debug.to_string(),
+        "--session-cache-dir".to_owned(),
+        web_session_cache_dir(root).to_string_lossy().into_owned(),
+        "-p".to_owned(),
+        "erpx-console".to_owned(),
+        "--port".to_owned(),
+        "3004".to_owned(),
+        "--addr".to_owned(),
+        bind_addr.to_owned(),
+        "--open".to_owned(),
+        "false".to_owned(),
+    ]);
+    arguments
+}
+
+fn web_session_cache_dir(root: &Path) -> PathBuf {
+    root.join("target/dx-hotpatch").join(format!(
+        "{}-{}",
+        web_toolchain::DX_VERSION,
+        &web_toolchain::PATCH_FINGERPRINT[..12]
+    ))
 }
 
 fn service_running(root: &Path, name: &str) -> bool {
@@ -3857,6 +3982,7 @@ async fn verify_web_production(root: &Path) -> TaskResult {
 }
 
 fn verify_core(root: &Path) -> TaskResult {
+    let dx = web_toolchain::ensure(root)?;
     for (program, args) in [
         ("cargo", vec!["fmt", "--all", "--check"]),
         (
@@ -3912,26 +4038,30 @@ fn verify_core(root: &Path) -> TaskResult {
                 "--offline",
             ],
         ),
-        (
-            "dx",
-            vec![
-                "build",
-                "--web",
-                "--fullstack",
-                "true",
-                "--no-default-features",
-                "--release",
-                "--locked",
-                "--offline",
-                "-p",
-                "erpx-console",
-                "--debug-symbols",
-                "false",
-            ],
-        ),
     ] {
         run_command(root, program, args)?;
     }
+    wasm::reconcile_release_generated_assets(root)?;
+    run_command(
+        root,
+        dx.to_str().ok_or("patched Dioxus CLI path is not UTF-8")?,
+        [
+            "build",
+            "--web",
+            "--fullstack",
+            "true",
+            "--no-default-features",
+            "--release",
+            "--locked",
+            "--offline",
+            "-p",
+            "erpx-console",
+            "--debug-symbols",
+            "false",
+            "--wasm-split",
+        ],
+    )?;
+    wasm::compress_and_measure(root, wasm::WasmProfile::Release, true)?;
     architecture::scan(root)?;
     repository_scan(root)?;
     println!("ERPX offline core verification completed.");
@@ -4174,6 +4304,19 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
             "SSR password form did not render an enabled same-origin submit control".into(),
         );
     }
+    let native_form_entry = redirect_client
+        .get("http://127.0.0.1:3004/api/bff/v1/auth/password/form")
+        .send()
+        .await?;
+    if native_form_entry.status() != reqwest::StatusCode::SEE_OTHER
+        || native_form_entry
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            != Some("/login")
+    {
+        return Err("native password form entry did not redirect to /login".into());
+    }
     let native_form = redirect_client
         .post("http://127.0.0.1:3004/api/bff/v1/auth/password/form")
         .header(reqwest::header::ORIGIN, "http://127.0.0.1:3004")
@@ -4184,10 +4327,16 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         ])
         .send()
         .await?;
-    if native_form.status() != reqwest::StatusCode::BAD_REQUEST {
+    if native_form.status() != reqwest::StatusCode::SEE_OTHER
+        || native_form
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            != Some("/login?auth_error=invalid_request")
+    {
         return Err(format!(
-            "native password form was not accepted by the BFF: {}",
-            native_form.status()
+            "native password form did not return a safe validation redirect: {}",
+            native_form.status(),
         )
         .into());
     }
@@ -4620,6 +4769,14 @@ fn runtime_dir(root: &Path) -> PathBuf {
     root.join(".runtime/erpx")
 }
 
+pub(crate) fn runtime_target_dir(root: &Path) -> PathBuf {
+    runtime_dir(root).join(RUNTIME_DEV_TARGET_DIR)
+}
+
+pub(crate) fn runtime_binary(root: &Path, name: &str) -> PathBuf {
+    runtime_target_dir(root).join("debug").join(name)
+}
+
 fn secret_file(path: &Path) -> TaskResult<String> {
     if path.exists() {
         let metadata = fs::symlink_metadata(path)?;
@@ -4773,7 +4930,7 @@ mod tests {
             worker_environment_sha256: "worker-env".into(),
             ucs_environment_sha256: "ucs-env".into(),
             web_environment_sha256: "web-env".into(),
-            web_source_sha256: "web-source".into(),
+            web_launch_sha256: "web-launch".into(),
             development_access_enabled: true,
         }
     }
@@ -4858,8 +5015,8 @@ mod tests {
     #[test]
     fn development_starts_the_complete_direct_v1_worker_catalog() {
         let standard = worker_specs(false);
-        assert_eq!(standard.len(), 50);
-        assert_eq!(worker_specs(true).len(), 53);
+        assert_eq!(standard.len(), 56);
+        assert_eq!(worker_specs(true).len(), 59);
         assert_eq!(
             standard.iter().map(|spec| spec.name).collect::<Vec<_>>(),
             STANDARD_WORKERS
@@ -4880,22 +5037,30 @@ mod tests {
             .iter()
             .filter_map(|spec| spec.projection_kind)
             .collect::<BTreeSet<_>>();
-        assert_eq!(projection_kinds.len(), 39);
+        assert_eq!(projection_kinds.len(), 44);
         assert!(projection_kinds.contains("quality"));
         assert!(projection_kinds.contains("identity_access_principals"));
         assert!(projection_kinds.contains("commercial_entitlements"));
         assert!(projection_kinds.contains("marketing_lead_candidates"));
+        assert!(projection_kinds.contains("marketing_campaign_budgets"));
         assert!(projection_kinds.contains("maintenance_asset_facts"));
         assert!(projection_kinds.contains("people_payroll_payroll_runs"));
         assert!(projection_kinds.contains("pos_refunds"));
         assert!(projection_kinds.contains("finance_charts"));
+        assert!(projection_kinds.contains("finance_customer_invoices"));
+        assert!(projection_kinds.contains("finance_revenue_schedules"));
         assert!(projection_kinds.contains("legal_access_history"));
+        assert!(projection_kinds.contains("legal_matters"));
+        assert!(projection_kinds.contains("sales_revenue_arrangements"));
         assert!(projection_kinds.contains("support_capabilities"));
         assert!(projection_kinds.contains("operations_exceptions"));
         assert!(projection_kinds.contains("operations_source_signals"));
         assert!(projection_kinds.contains("operations_work_queue_policies"));
         assert!(standard.iter().any(|spec| {
             spec.handler == "operations_source_ingestion" && spec.projection_kind.is_none()
+        }));
+        assert!(standard.iter().any(|spec| {
+            spec.handler == "marketing_approval_decisions" && spec.projection_kind.is_none()
         }));
         assert!(standard.iter().any(|spec| {
             spec.handler == "customer360_control_customers_projection"
@@ -4952,17 +5117,79 @@ mod tests {
     }
 
     #[test]
-    fn development_cli_modes_are_exact() {
+    fn development_cli_flags_accept_any_order_and_reject_invalid_input() {
         assert_eq!(
-            parse_dev_mode(&args(&["dev", "--detach"])),
-            Some(DevMode::Warm)
+            parse_dev_options(&args(&["dev", "--detach"])).expect("default dev options"),
+            Some(DevOptions {
+                mode: DevMode::Warm,
+                web_debug: false,
+            })
         );
         assert_eq!(
-            parse_dev_mode(&args(&["dev", "--detach", "--fresh"])),
-            Some(DevMode::Fresh)
+            parse_dev_options(&args(&["dev", "--web-debug", "--fresh", "--detach",]))
+                .expect("reordered dev options"),
+            Some(DevOptions {
+                mode: DevMode::Fresh,
+                web_debug: true,
+            })
         );
-        assert_eq!(parse_dev_mode(&args(&["dev"])), None);
-        assert_eq!(parse_dev_mode(&args(&["dev", "--detach", "--reset"])), None);
+        assert!(parse_dev_options(&args(&["dev", "--detach", "--no-hot-patch"])).is_err());
+        assert!(parse_dev_options(&args(&["dev"])).is_err());
+        assert!(parse_dev_options(&args(&["dev", "--detach", "--detach"])).is_err());
+        assert!(parse_dev_options(&args(&["dev", "--detach", "--reset"])).is_err());
+        assert_eq!(
+            parse_dev_options(&args(&["status"])).expect("non-dev command"),
+            None
+        );
+    }
+
+    #[test]
+    fn web_arguments_enable_hot_patch_and_persistent_cache_by_default() {
+        let root = Path::new("/workspace/erpx");
+        let arguments = web_serve_arguments(
+            root,
+            "127.0.0.1",
+            DevOptions {
+                mode: DevMode::Warm,
+                web_debug: false,
+            },
+        );
+        assert!(arguments.iter().any(|value| value == "--hot-patch"));
+        assert!(
+            arguments
+                .windows(2)
+                .any(|values| { values == ["--debug-symbols", "false"] })
+        );
+        assert!(arguments.windows(2).any(|values| {
+            values
+                == [
+                    "--session-cache-dir",
+                    "/workspace/erpx/target/dx-hotpatch/0.8.0-alpha.1-b27e5de15fb9",
+                ]
+        }));
+
+        let debug = web_serve_arguments(
+            root,
+            "127.0.0.1",
+            DevOptions {
+                mode: DevMode::Fresh,
+                web_debug: true,
+            },
+        );
+        assert!(debug.iter().any(|value| value == "--hot-patch"));
+        assert!(
+            debug
+                .windows(2)
+                .any(|values| { values == ["--debug-symbols", "true"] })
+        );
+    }
+
+    #[test]
+    fn native_runtime_binaries_use_the_isolated_target() {
+        assert_eq!(
+            runtime_binary(Path::new("/workspace/erpx"), "erpx-server"),
+            PathBuf::from("/workspace/erpx/.runtime/erpx/runtime-dev-target/debug/erpx-server")
+        );
     }
 
     #[test]
@@ -5020,7 +5247,7 @@ mod tests {
         );
 
         let mut desired = previous.clone();
-        desired.web_source_sha256 = "new-web-source".into();
+        desired.web_launch_sha256 = "new-web-launch".into();
         assert_eq!(
             plan_dev_restart(DevMode::Warm, Some(&previous), &desired, healthy_runtime()),
             DevRestartPlan {

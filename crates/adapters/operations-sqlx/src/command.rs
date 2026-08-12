@@ -515,6 +515,7 @@ fn exception_target(value: &CommandFingerprint) -> ExceptionId {
         CommandFingerprint::Reassign { exception_id, .. }
         | CommandFingerprint::Acknowledge { exception_id }
         | CommandFingerprint::Escalate { exception_id, .. }
+        | CommandFingerprint::DecideApproval { exception_id, .. }
         | CommandFingerprint::Resolve { exception_id }
         | CommandFingerprint::Close { exception_id } => *exception_id,
     }
@@ -525,6 +526,7 @@ fn exception_audit_action(value: &CommandFingerprint) -> &'static str {
         CommandFingerprint::Reassign { .. } => "operations.exception.reassign",
         CommandFingerprint::Acknowledge { .. } => "operations.exception.acknowledge",
         CommandFingerprint::Escalate { .. } => "operations.exception.escalate",
+        CommandFingerprint::DecideApproval { .. } => "operations.approval.decide",
         CommandFingerprint::Resolve { .. } => "operations.exception.resolve",
         CommandFingerprint::Close { .. } => "operations.exception.close",
     }
@@ -664,5 +666,6 @@ mod tests {
         for action in ["reassign", "acknowledge", "escalate", "resolve", "close"] {
             assert!(source.contains(&format!("operations.exception.{action}")));
         }
+        assert!(source.contains("operations.approval.decide"));
     }
 }

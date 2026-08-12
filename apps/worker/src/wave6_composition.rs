@@ -21,13 +21,14 @@ use crate::contexts::{
         MaintenanceAssetFactRuntime, MaintenanceAssetFactRuntimeError,
         MaintenanceProjectionFactory, MaintenanceProjectionRuntime,
     },
-    marketing::{MarketingProjectionFactory, MarketingProjectionRuntime},
+    marketing::{MarketingProjectionFactory, MarketingProjectionKind, MarketingProjectionRuntime},
     procurement::{ProcurementProjectionFactory, ProcurementProjectionRuntime},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wave6ProjectionKind {
     MarketingLeadCandidates,
+    MarketingCampaignBudgets,
     CrmLeads,
     CrmOpportunities,
     ProcurementPurchaseOrders,
@@ -55,10 +56,17 @@ impl Wave6ProjectionExecutor {
 
     pub const fn projection_name(&self) -> &'static str {
         match self.kind {
-            Wave6ProjectionKind::MarketingLeadCandidates => erpx_marketing_sqlx::PROJECTION_NAME,
+            Wave6ProjectionKind::MarketingLeadCandidates => {
+                erpx_marketing_sqlx::LEAD_PROJECTION_NAME
+            }
+            Wave6ProjectionKind::MarketingCampaignBudgets => {
+                erpx_marketing_sqlx::BUDGET_PROJECTION_NAME
+            }
             Wave6ProjectionKind::CrmLeads => erpx_crm_sqlx::LEAD_PROJECTION,
             Wave6ProjectionKind::CrmOpportunities => erpx_crm_sqlx::OPPORTUNITY_PROJECTION,
-            Wave6ProjectionKind::ProcurementPurchaseOrders => erpx_procurement_sqlx::PROJECTION_NAME,
+            Wave6ProjectionKind::ProcurementPurchaseOrders => {
+                erpx_procurement_sqlx::PROJECTION_NAME
+            }
             Wave6ProjectionKind::InventoryStockItems => erpx_inventory_sqlx::PROJECTION_NAME,
             Wave6ProjectionKind::Assets => erpx_assets_sqlx::PROJECTION_NAME,
             Wave6ProjectionKind::MaintenanceWorkOrders => erpx_maintenance_sqlx::PROJECTION_NAME,
@@ -100,15 +108,25 @@ impl Wave6ProjectionExecutor {
             ..ProjectionRunnerConfig::default()
         };
         let runtime = match self.kind {
-            Wave6ProjectionKind::MarketingLeadCandidates => {
+            Wave6ProjectionKind::MarketingLeadCandidates
+            | Wave6ProjectionKind::MarketingCampaignBudgets => {
                 let runtime = MarketingProjectionFactory
                     .build(write, read, config)
                     .map_err(crate::map_cqrs_projection_error)?;
                 debug_assert_eq!(
-                    runtime.registration(),
-                    MarketingProjectionFactory.registration()
+                    runtime.registrations(),
+                    MarketingProjectionFactory.registrations()
                 );
-                SnapshotRuntime::Marketing(runtime)
+                let kind = match self.kind {
+                    Wave6ProjectionKind::MarketingLeadCandidates => {
+                        MarketingProjectionKind::LeadCandidates
+                    }
+                    Wave6ProjectionKind::MarketingCampaignBudgets => {
+                        MarketingProjectionKind::CampaignBudgets
+                    }
+                    _ => unreachable!("matched Marketing projection kind"),
+                };
+                SnapshotRuntime::Marketing(runtime, kind)
             }
             Wave6ProjectionKind::CrmLeads => {
                 let runtime = CrmProjectionFactory
@@ -208,8 +226,8 @@ impl Wave6ProjectionExecutor {
         )
         .map_err(map_fact_error)?;
         debug_assert_eq!(
-            runtime.registration().event_type,
-            "assets.condition_changed"
+            runtime.registration().event_types,
+            ["assets.condition_changed", "assets.maintenance_requested"]
         );
         self.fact_runtimes
             .lock()
@@ -231,9 +249,36 @@ impl Wave6ProjectionExecutor {
         loop {
             let run = runtime.run_once().await.map_err(map_fact_error)?;
             if !rebuild || run.fetched < page_size {
-                return Ok(());
+                break;
             }
         }
+        // A maintenance request writes the Work Order snapshot while consuming
+        // the authoritative Assets event. Project that snapshot before this
+        // dependency job completes so a separate projector cannot race ahead
+        // of Work Order creation and permanently miss the new write.
+        let (write, read) = self.route_pools(tenant_id, holding_ref).await?;
+        let work_orders = MaintenanceProjectionFactory
+            .build(
+                WritePool::from_pg_pool(write),
+                ProjectionPool::from_pg_pool(read),
+                ProjectionRunnerConfig {
+                    page_size,
+                    ..ProjectionRunnerConfig::default()
+                },
+            )
+            .map_err(crate::map_cqrs_projection_error)?;
+        loop {
+            let run = work_orders
+                .run_once()
+                .await
+                .map_err(crate::map_cqrs_projection_error)?;
+            let complete = run.fetched < page_size;
+            validate_run(run)?;
+            if complete {
+                break;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -285,7 +330,7 @@ impl TenantProjectionExecutor for Wave6ProjectionExecutor {
 
 #[derive(Debug, Clone)]
 enum SnapshotRuntime {
-    Marketing(MarketingProjectionRuntime),
+    Marketing(MarketingProjectionRuntime, MarketingProjectionKind),
     Crm(CrmProjectionRuntime, CrmProjectionKind),
     Procurement(ProcurementProjectionRuntime),
     Inventory(InventoryProjectionRuntime),
@@ -296,7 +341,7 @@ enum SnapshotRuntime {
 impl SnapshotRuntime {
     async fn run_once(&self) -> Result<ProjectionRun, erpx_cqrs_sqlx::CqrsSqlxError> {
         match self {
-            Self::Marketing(runtime) => runtime.run_once().await,
+            Self::Marketing(runtime, kind) => runtime.run_once(*kind).await,
             Self::Crm(runtime, kind) => runtime.run_once(*kind).await,
             Self::Procurement(runtime) => runtime.run_once().await,
             Self::Inventory(runtime) => runtime.run_once().await,
@@ -356,7 +401,29 @@ impl SnapshotRuntime {
                     .await
                     .map_err(crate::map_cqrs_projection_error)
             }
-            Self::Marketing(runtime) => rebuild_single!(runtime),
+            Self::Marketing(runtime, kind) => {
+                let handle = runtime
+                    .begin_rebuild(*kind)
+                    .await
+                    .map_err(crate::map_cqrs_projection_error)?;
+                let mut cursor = 0;
+                loop {
+                    let run = runtime
+                        .run_rebuild_page(*kind, &handle, cursor)
+                        .await
+                        .map_err(crate::map_cqrs_projection_error)?;
+                    cursor = run.cursor;
+                    let complete = run.fetched < page_size;
+                    validate_run(run)?;
+                    if complete {
+                        break;
+                    }
+                }
+                runtime
+                    .activate_rebuild(*kind, &handle)
+                    .await
+                    .map_err(crate::map_cqrs_projection_error)
+            }
             Self::Procurement(runtime) => rebuild_single!(runtime),
             Self::Inventory(runtime) => rebuild_single!(runtime),
             Self::Assets(runtime) => rebuild_single!(runtime),
@@ -383,6 +450,15 @@ fn map_fact_error(error: MaintenanceAssetFactRuntimeError) -> TenantProjectionEx
         | MaintenanceAssetFactRuntimeError::Inbox(MaintenancePortError::NotReady(_)) => {
             TenantProjectionExecutorError::Retryable
         }
+        MaintenanceAssetFactRuntimeError::Command(error)
+            if matches!(
+                error.category(),
+                erpx_kernel::ErrorCategory::NotReady | erpx_kernel::ErrorCategory::Unavailable
+            ) =>
+        {
+            TenantProjectionExecutorError::Retryable
+        }
+        MaintenanceAssetFactRuntimeError::Command(_) => TenantProjectionExecutorError::Permanent,
         MaintenanceAssetFactRuntimeError::Inbox(_)
         | MaintenanceAssetFactRuntimeError::InvalidContract(_) => {
             TenantProjectionExecutorError::Permanent

@@ -262,7 +262,12 @@ fn opportunity_fact(event: &ProjectionEvent) -> Result<crm::OpportunityFact, Pro
 fn sales_order_fact(event: &ProjectionEvent) -> Result<sales::SalesOrderFact, ProjectionFailure> {
     validate_owner(event, "sales", "sales_order", SALES_ORDER_EVENT)?;
     let sales::Event::SalesOrderChanged(fact) =
-        serde_json::from_value(event.payload.clone()).map_err(failure)?;
+        serde_json::from_value(event.payload.clone()).map_err(failure)?
+    else {
+        return Err(ProjectionFailure::new(
+            "sales order event carried another Sales payload",
+        ));
+    };
     validate_aggregate(event, fact.sales_order.as_uuid())?;
     if fact.lines.is_empty() {
         return Err(ProjectionFailure::new("sales order fact omitted lines"));

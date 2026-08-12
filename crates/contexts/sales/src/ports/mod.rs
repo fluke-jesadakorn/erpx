@@ -12,8 +12,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::domain::{
-    Quote, QuoteId, QuoteStatus, SalesAggregate, SalesOrder, SalesOrderId, SalesOrderLine,
-    SalesOrderStatus,
+    BillingEventId, FulfillmentId, PerformanceObligationDefinition, PerformanceObligationId, Quote,
+    QuoteId, QuoteStatus, RevenueArrangement, RevenueArrangementId, RevenueArrangementStatus,
+    SalesAggregate, SalesOrder, SalesOrderId, SalesOrderLine, SalesOrderStatus,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,14 +30,21 @@ pub enum SalesAction {
     PartiallyFulfillOrder,
     FulfillOrder,
     CancelOrder,
+    ActivateRevenueArrangement,
+    AcceptRevenueFulfillment,
+    CancelRevenueArrangement,
     ViewQuote,
     ViewOrder,
+    ViewRevenueArrangement,
     ListOrders,
 }
 
 impl SalesAction {
     pub const fn requires_write_entitlement(self) -> bool {
-        !matches!(self, Self::ViewQuote | Self::ViewOrder | Self::ListOrders)
+        !matches!(
+            self,
+            Self::ViewQuote | Self::ViewOrder | Self::ViewRevenueArrangement | Self::ListOrders
+        )
     }
 }
 
@@ -100,6 +108,27 @@ pub enum CommandFingerprint {
     CancelOrder {
         sales_order_id: SalesOrderId,
     },
+    ActivateRevenueArrangement {
+        arrangement_id: RevenueArrangementId,
+        sales_order_id: SalesOrderId,
+        expected_sales_order_version: u64,
+        legal_contract: Option<erpx_integration_contracts::legal::LegalContractRef>,
+        dimensions: erpx_integration_contracts::DimensionSet,
+        obligations: Vec<PerformanceObligationDefinition>,
+    },
+    AcceptRevenueFulfillment {
+        arrangement_id: RevenueArrangementId,
+        fulfillment_id: FulfillmentId,
+        billing_event_id: BillingEventId,
+        obligation_id: PerformanceObligationId,
+        kind: sales::FulfillmentKind,
+        accepted_minor: i64,
+        tax_minor: i64,
+        eligible_on: chrono::NaiveDate,
+    },
+    CancelRevenueArrangement {
+        arrangement_id: RevenueArrangementId,
+    },
 }
 
 /// Stable retry identity. Retry time, actor session, correlation and causation
@@ -124,6 +153,12 @@ pub trait WriteRepository: Send + Sync {
         authority_scope: &TenantScope,
         sales_order_id: SalesOrderId,
     ) -> Result<Option<SalesOrder>, PortError>;
+
+    async fn load_revenue_arrangement(
+        &self,
+        authority_scope: &TenantScope,
+        arrangement_id: RevenueArrangementId,
+    ) -> Result<Option<RevenueArrangement>, PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -255,6 +290,45 @@ impl From<&SalesOrder> for SalesOrderView {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevenueArrangementView {
+    pub arrangement_id: RevenueArrangementId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub sales_order_id: SalesOrderId,
+    pub customer: customer::CustomerRef,
+    pub legal_contract: Option<erpx_integration_contracts::legal::LegalContractRef>,
+    pub order_code: String,
+    pub currency: String,
+    pub dimensions: erpx_integration_contracts::DimensionSet,
+    pub obligations: Vec<crate::domain::PerformanceObligation>,
+    pub fulfillments: Vec<crate::domain::AcceptedFulfillment>,
+    pub status: RevenueArrangementStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<&RevenueArrangement> for RevenueArrangementView {
+    fn from(value: &RevenueArrangement) -> Self {
+        Self {
+            arrangement_id: value.id(),
+            version: value.version(),
+            scope: value.scope().clone(),
+            sales_order_id: value.sales_order_id(),
+            customer: value.customer(),
+            legal_contract: value.legal_contract(),
+            order_code: value.order_code().into(),
+            currency: value.currency().into(),
+            dimensions: value.dimensions().clone(),
+            obligations: value.obligations().to_vec(),
+            fulfillments: value.fulfillments().to_vec(),
+            status: value.status(),
+            created_at: value.created_at(),
+            updated_at: value.updated_at(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct SalesOrderListFilter {
     pub status: Option<SalesOrderStatus>,
@@ -292,6 +366,13 @@ pub trait ReadRepository: Send + Sync {
         sales_order_id: SalesOrderId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SalesOrderView>>, PortError>;
+
+    async fn get_revenue_arrangement(
+        &self,
+        authority_scope: &TenantScope,
+        arrangement_id: RevenueArrangementId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<RevenueArrangementView>>, PortError>;
 
     async fn list_orders(
         &self,

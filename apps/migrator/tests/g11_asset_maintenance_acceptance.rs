@@ -243,8 +243,10 @@ fn asset_maintenance_coordinator_transport_is_present() {
         SERVER_WAVE6_COMPOSITION,
         "server/wave6_composition.rs routing and authorization",
         &[
-            "asset_maintenance.write",
-            "asset_maintenance.read",
+            "assets.write",
+            "assets.read",
+            "maintenance.write",
+            "maintenance.read",
             "RoutedDatabaseSide::Write",
             "RoutedDatabaseSide::Read",
         ],

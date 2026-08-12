@@ -30,6 +30,22 @@ pub(crate) struct OrganizationGrpcTransport {
 }
 
 impl OrganizationGrpcTransport {
+    pub(crate) fn try_active_scope(
+        channel: GrpcChannel,
+        access_token: impl AsRef<str>,
+    ) -> Result<Self, UiError> {
+        Ok(Self {
+            command:
+                platform::organization_command_service_client::OrganizationCommandServiceClient::new(
+                    channel.clone(),
+                ),
+            query: platform::organization_query_service_client::OrganizationQueryServiceClient::new(
+                channel,
+            ),
+            authority: RpcAuthority::active_scope(access_token)?,
+        })
+    }
+
     pub(crate) fn try_new(
         channel: GrpcChannel,
         access_token: impl AsRef<str>,

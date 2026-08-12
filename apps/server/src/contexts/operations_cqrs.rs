@@ -9,17 +9,17 @@ use erpx_cqrs::{
     ProjectionCheckpoint, ProjectionMetadata, QueryConsistency, QueryEnvelope, QueryMetadata,
     QueryResult, ReadYourWrites,
 };
-use erpx_integration_contracts::{BoundedContext, identity_access};
+use erpx_integration_contracts::{BoundedContext, identity_access, operations};
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId, TenantScope,
 };
 use erpx_operations::{
-    AcknowledgeException, CloseException, EscalateException, ExceptionId, ExceptionStatus,
-    ExceptionView, GetException, GetOperationsSummary, ListExceptionQueue, ListWorkQueuePolicies,
-    OperationsAction, OperationsCommand, OperationsMutationResult, OperationsQuery,
-    OperationsQueryResponse, OperationsSummary, PublishWorkQueuePolicy, QueueFilter,
-    ReassignException, ResolveException, WorkQueuePolicyId, WorkQueuePolicyListFilter,
+    AcknowledgeException, CloseException, DecideApproval, EscalateException, ExceptionId,
+    ExceptionStatus, ExceptionView, GetException, GetOperationsSummary, ListExceptionQueue,
+    ListWorkQueuePolicies, OperationsAction, OperationsCommand, OperationsMutationResult,
+    OperationsQuery, OperationsQueryResponse, OperationsSummary, PublishWorkQueuePolicy,
+    QueueFilter, ReassignException, ResolveException, WorkQueuePolicyId, WorkQueuePolicyListFilter,
     WorkQueuePolicyStatus, WorkQueuePolicyView,
 };
 use erpx_proto::{common, platform};
@@ -239,6 +239,25 @@ impl<A: OperationsCommandApplication, G: OperationsRequestAuthenticator> Operati
             OperationsCommand::Escalate(EscalateException {
                 exception_id: exception_id(&value.exception_id)?,
                 manager: principal(&value.manager_id, "manager_id")?,
+            }),
+        )
+        .await
+    }
+
+    async fn decide_approval(
+        &self,
+        request: Request<platform::DecideOperationsApprovalRequest>,
+    ) -> Result<Response<platform::OperationsExceptionMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let value = request.into_inner();
+        self.exception_command(
+            transport,
+            value.metadata,
+            OperationsAction::DecideApproval,
+            OperationsCommand::DecideApproval(DecideApproval {
+                exception_id: exception_id(&value.exception_id)?,
+                decision: decode_approval_decision(value.decision)?,
+                reason_code: value.reason_code,
             }),
         )
         .await
@@ -796,6 +815,20 @@ fn decode_status(value: i32) -> Result<ExceptionStatus, Status> {
         Some(platform::OperationsExceptionStatus::Resolved) => Ok(ExceptionStatus::Resolved),
         Some(platform::OperationsExceptionStatus::Closed) => Ok(ExceptionStatus::Closed),
         _ => Err(invalid("exception status is invalid")),
+    }
+}
+fn decode_approval_decision(value: i32) -> Result<operations::ApprovalDecision, Status> {
+    match platform::OperationsApprovalDecision::try_from(value).ok() {
+        Some(platform::OperationsApprovalDecision::Approved) => {
+            Ok(operations::ApprovalDecision::Approved)
+        }
+        Some(platform::OperationsApprovalDecision::Rejected) => {
+            Ok(operations::ApprovalDecision::Rejected)
+        }
+        Some(platform::OperationsApprovalDecision::Cancelled) => {
+            Ok(operations::ApprovalDecision::Cancelled)
+        }
+        _ => Err(invalid("approval decision is invalid")),
     }
 }
 fn decode_source(value: i32) -> Result<BoundedContext, Status> {

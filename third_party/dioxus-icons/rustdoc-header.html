@@ -1,0 +1,261 @@
+<style>
+.dioxus-icons-widget {
+  margin: 18px 0 26px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, rgba(24, 24, 27, 0.10));
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--main-color, #18181b);
+}
+.dioxus-icons-widget-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+.dioxus-icons-widget-preview {
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 5px;
+  border: 1px solid var(--border-color, rgba(24, 24, 27, 0.10));
+  color: var(--main-color, inherit);
+  flex: none;
+  overflow: hidden;
+}
+.dioxus-icons-widget-preview svg,
+.dioxus-icons-widget-preview img {
+  max-width: 100%;
+  max-height: 100%;
+}
+.dioxus-icons-widget-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 10px;
+  flex: 1;
+  min-width: 260px;
+}
+.dioxus-icons-widget label {
+  display: grid;
+  gap: 5px;
+  font: inherit;
+}
+.dioxus-icons-widget-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--right-side-color, #888);
+}
+.dioxus-icons-widget input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: 0 0 0 1px var(--border-color, rgba(24, 24, 27, 0.10));
+  padding: 6px 8px;
+  color: var(--main-color, inherit);
+  font: inherit;
+  font-size: 13px;
+  outline: 0;
+  transition: box-shadow 120ms ease;
+}
+.dioxus-icons-widget input:focus-visible {
+  box-shadow:
+    0 0 0 1px var(--search-input-focused-border-color, var(--main-color, rgba(24, 24, 27, 0.45))),
+    0 0 0 3px rgba(102, 175, 233, 0.18);
+}
+.dioxus-icons-widget input[type="color"] {
+  padding: 3px;
+  height: 30px;
+  cursor: pointer;
+}
+.dioxus-icons-widget input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.dioxus-icons-widget input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 3px; }
+.dioxus-icons-widget input[type="color"]::-moz-color-swatch { border: 0; border-radius: 3px; }
+.dioxus-icons-widget-output {
+  position: relative;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color, rgba(24, 24, 27, 0.10));
+}
+.dioxus-icons-widget .dxc-system {
+  --dxc-light-on: initial;
+  --dxc-dark-on: ;
+}
+@media (prefers-color-scheme: dark) {
+  .dioxus-icons-widget .dxc-system {
+    --dxc-light-on: ;
+    --dxc-dark-on: initial;
+  }
+}
+.dioxus-icons-widget .dxc-system-light-github-light {
+  --dxc-light-background: #ffffff;
+  --dxc-light-color: #1f2328;
+  --dxc-light-a-co-color: #0550ae;
+  --dxc-light-a-p-color: #1f2328;
+  --dxc-light-a-pr-color: #0550ae;
+  --dxc-light-a-s-color: #0a3069;
+  --dxc-light-a-t-color: #953800;
+}
+.dioxus-icons-widget .dxc-system-dark-github-dark {
+  --dxc-dark-background: #0d1117;
+  --dxc-dark-color: #e6edf3;
+  --dxc-dark-a-co-color: #79c0ff;
+  --dxc-dark-a-p-color: #e6edf3;
+  --dxc-dark-a-pr-color: #79c0ff;
+  --dxc-dark-a-s-color: #a5d6ff;
+  --dxc-dark-a-t-color: #ffa657;
+}
+.dioxus-icons-widget .dxc {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px 10px;
+  padding-right: 100px;
+  border-radius: 4px;
+  background: var(--dxc-light-on, var(--dxc-light-background,)) var(--dxc-dark-on, var(--dxc-dark-background,));
+  overflow-x: auto;
+  tab-size: 4;
+  font-family: var(--font-family-code, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dxc-light-on, var(--dxc-light-color,)) var(--dxc-dark-on, var(--dxc-dark-color,));
+}
+.dioxus-icons-widget .dxc code {
+  font-family: var(--font-family-code, ui-monospace, "SF Mono", Menlo, Consolas, monospace);
+  background: transparent;
+  padding: 0;
+}
+.dioxus-icons-widget .dxc span {
+  background: transparent;
+  padding: 0;
+}
+.dioxus-icons-widget .dxc .a-co {
+  color: var(--dxc-light-on, var(--dxc-light-a-co-color,)) var(--dxc-dark-on, var(--dxc-dark-a-co-color,));
+}
+.dioxus-icons-widget .dxc .a-p {
+  color: var(--dxc-light-on, var(--dxc-light-a-p-color,)) var(--dxc-dark-on, var(--dxc-dark-a-p-color,));
+}
+.dioxus-icons-widget .dxc .a-pr {
+  color: var(--dxc-light-on, var(--dxc-light-a-pr-color,)) var(--dxc-dark-on, var(--dxc-dark-a-pr-color,));
+}
+.dioxus-icons-widget .dxc .a-s {
+  color: var(--dxc-light-on, var(--dxc-light-a-s-color,)) var(--dxc-dark-on, var(--dxc-dark-a-s-color,));
+}
+.dioxus-icons-widget .dxc .a-t {
+  color: var(--dxc-light-on, var(--dxc-light-a-t-color,)) var(--dxc-dark-on, var(--dxc-dark-a-t-color,));
+}
+.dioxus-icons-widget-copy {
+  position: absolute;
+  top: 16px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--border-color, rgba(24, 24, 27, 0.10));
+  color: var(--main-color, inherit);
+  padding: 4px 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: box-shadow 120ms ease, color 120ms ease;
+}
+.dioxus-icons-widget-copy:hover {
+  box-shadow: inset 0 0 0 1px var(--main-color, rgba(24, 24, 27, 0.45));
+}
+.dioxus-icons-widget-copy:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--main-color, rgba(24, 24, 27, 0.45)),
+    0 0 0 3px rgba(102, 175, 233, 0.18);
+}
+.dioxus-icons-widget-copy[data-copied="true"] { color: var(--right-side-color, #888); }
+.dioxus-icons-widget-copy [data-di-copy-icon] { display: inline-flex; align-items: center; justify-content: center; }
+.dioxus-icons-widget-copy svg { width: 13px; height: 13px; flex: none; }
+
+.dioxus-icons-related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 24px;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.dioxus-icons-related-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border-color, rgba(24, 24, 27, 0.10));
+  background: transparent;
+  color: var(--main-color, inherit);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  line-height: 1.2;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+.dioxus-icons-related-link:hover {
+  border-color: var(--main-color, rgba(24, 24, 27, 0.45));
+  color: var(--link-color, var(--main-color, inherit));
+  text-decoration: none;
+}
+.dioxus-icons-related-link img {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  filter: var(--toggle-filter, none);
+}
+
+@media (max-width: 640px) {
+  .dioxus-icons-widget-controls { grid-template-columns: 1fr; min-width: 0; }
+  .dioxus-icons-widget .dxc { padding-right: 12px; }
+  .dioxus-icons-widget-copy {
+    position: static;
+    margin-top: 8px;
+    width: 100%;
+    justify-content: center;
+  }
+}
+</style>
+<script>
+(function(){
+if(window.__dioxusIconsWidgetReady){return;}
+window.__dioxusIconsWidgetReady=true;
+var COPY_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+var CHECK_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>';
+function text(value){return String(value==null?"":value);}
+function escapeHtml(value){return text(value).split("&").join("&amp;").split("<").join("&lt;").split(">").join("&gt;").split('"').join("&quot;");}
+function highlightedSnippet(name,size,color,stroke){return '<span class="a-t">'+escapeHtml(name)+'</span><span> </span><span class="a-p">{</span><span> </span><span class="a-pr">size</span><span class="a-p">:</span><span> </span><span class="a-co">'+escapeHtml(size)+'</span><span class="a-p">,</span><span> </span><span class="a-pr">stroke</span><span class="a-p">:</span><span> </span><span class="a-s">&quot;'+escapeHtml(color)+'&quot;</span><span class="a-p">,</span><span> </span><span class="a-pr">stroke_width</span><span class="a-p">:</span><span> </span><span class="a-co">'+escapeHtml(stroke)+'</span><span> </span><span class="a-p">}</span>';}
+function svgFor(container,size,color,stroke){var host=document.createElement("div");host.innerHTML=container.dataset.svg||"";var svg=host.firstElementChild;if(!svg){return "";}svg.setAttribute("width",size);svg.setAttribute("height",size);svg.setAttribute("stroke",color);svg.setAttribute("stroke-width",stroke);return svg.outerHTML;}
+function render(container){
+if(container.dataset.ready==="true"){return;}
+container.dataset.ready="true";
+var name=container.dataset.iconName||"Icon";
+var sizeInput=container.querySelector("[data-di-size]");
+var colorInput=container.querySelector("[data-di-color]");
+var strokeInput=container.querySelector("[data-di-stroke]");
+var preview=container.querySelector("[data-di-preview]");
+var code=container.querySelector("[data-di-code]");
+var copy=container.querySelector("[data-di-copy]");
+var copyLabel=container.querySelector("[data-di-copy-label]");
+var copyIcon=container.querySelector("[data-di-copy-icon]");
+function update(){var size=text(sizeInput&&sizeInput.value||24);var color=text(colorInput&&colorInput.value||"currentColor");var stroke=text(strokeInput&&strokeInput.value||2);container.dataset.size=size;container.dataset.color=color;container.dataset.stroke=stroke;if(preview){preview.innerHTML=svgFor(container,size,color,stroke);}if(code){code.innerHTML=highlightedSnippet(name,size,color,stroke);}}
+[sizeInput,colorInput,strokeInput].forEach(function(input){if(input){input.addEventListener("input",update);}});
+var copyTimer=null;
+function showCopied(){if(copy){copy.dataset.copied="true";}if(copyLabel){copyLabel.textContent="Copied";}if(copyIcon){copyIcon.innerHTML=CHECK_ICON;}if(copyTimer){window.clearTimeout(copyTimer);}copyTimer=window.setTimeout(function(){if(copy){copy.dataset.copied="false";}if(copyLabel){copyLabel.textContent="Copy RSX";}if(copyIcon){copyIcon.innerHTML=COPY_ICON;}},1600);}
+if(copyIcon){copyIcon.innerHTML=COPY_ICON;}
+if(copy){copy.addEventListener("click",function(){var value=code?code.textContent:"";if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(value).then(showCopied,function(){});}else{var area=document.createElement("textarea");area.value=value;document.body.appendChild(area);area.select();try{document.execCommand("copy");showCopied();}catch(_){}area.remove();}});}
+update();
+}
+function start(){document.querySelectorAll(".dioxus-icons-widget").forEach(render);}
+if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",start);}else{start();}
+})();
+</script>

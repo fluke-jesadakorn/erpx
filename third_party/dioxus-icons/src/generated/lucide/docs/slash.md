@@ -1,0 +1,30 @@
+# Slash
+
+<img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMiAyIDIgMjIiPjwvcGF0aD48L3N2Zz4=" alt="Slash icon">
+
+<div class="dioxus-icons-widget" data-icon-name="Slash" data-svg="&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; width=&quot;24&quot; height=&quot;24&quot; viewBox=&quot;0 0 24 24&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;path d=&quot;M22 2 2 22&quot;&gt;&lt;/path&gt;&lt;/svg&gt;" data-size="24" data-color="#000000" data-stroke="2"><div class="dioxus-icons-widget-header"><div class="dioxus-icons-widget-preview" data-di-preview="true" aria-label="Slash preview"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMiAyIDIgMjIiPjwvcGF0aD48L3N2Zz4=" alt="Slash icon"></div><div class="dioxus-icons-widget-controls"><label><span class="dioxus-icons-widget-label">Size</span><input data-di-size="true" type="number" min="1" max="256" value="24"></label><label><span class="dioxus-icons-widget-label">Color</span><input data-di-color="true" type="color" value="#000000"></label><label><span class="dioxus-icons-widget-label">Stroke</span><input data-di-stroke="true" type="number" min="1" max="12" value="2"></label></div></div><div class="dioxus-icons-widget-output"><pre class="dioxus-icons-widget-code dxc dxc-system dxc-system-light-github-light dxc-system-dark-github-dark" data-language="rust"><code data-di-code="true"><span class="a-t">Slash</span><span> </span><span class="a-p">{</span><span> </span><span class="a-pr">size</span><span class="a-p">:</span><span> </span><span class="a-co">24</span><span class="a-p">,</span><span> </span><span class="a-pr">stroke</span><span class="a-p">:</span><span> </span><span class="a-s">&quot;#000000&quot;</span><span class="a-p">,</span><span> </span><span class="a-pr">stroke_width</span><span class="a-p">:</span><span> </span><span class="a-co">2</span><span> </span><span class="a-p">}</span></code></pre><button type="button" class="dioxus-icons-widget-copy" data-di-copy="true" aria-label="Copy RSX snippet"><span data-di-copy-icon="true"></span><span data-di-copy-label="true">Copy RSX</span></button></div></div>
+
+## Example
+```rust
+use dioxus::prelude::*;
+use dioxus_icons::lucide::Slash;
+
+fn app() -> Element {
+    rsx! {
+        Slash { size: 20, stroke: "red" }
+    }
+}
+```
+
+## Tags
+divide, division, or, /
+
+## Categories
+development, math
+
+## Source
+[Lucide v1.14.0](https://lucide.dev/icons/slash)
+
+## Related Icons
+
+<div class="dioxus-icons-related"><a class="dioxus-icons-related-link" href="fn.Slice.html" title="Slice"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xMSAxNi41ODZWMTlhMSAxIDAgMCAxLTEgMUgyTDE4LjM3IDMuNjNhMSAxIDAgMSAxIDMgM2wtOS42NjMgOS42NjNhMSAxIDAgMCAxLTEuNDE0IDBMOCAxNCI+PC9wYXRoPjwvc3ZnPg==" alt="Slice icon"><span>Slice</span></a><a class="dioxus-icons-related-link" href="fn.Minus.html" title="Minus"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik01IDEyaDE0Ij48L3BhdGg+PC9zdmc+" alt="Minus icon"><span>Minus</span></a><a class="dioxus-icons-related-link" href="fn.Pen.html" title="Pen"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0yMS4xNzQgNi44MTJhMSAxIDAgMCAwLTMuOTg2LTMuOTg3TDMuODQyIDE2LjE3NGEyIDIgMCAwIDAtLjUuODNsLTEuMzIxIDQuMzUyYS41LjUgMCAwIDAgLjYyMy42MjJsNC4zNTMtMS4zMmEyIDIgMCAwIDAgLjgzLS40OTd6Ij48L3BhdGg+PC9zdmc+" alt="Pen icon"><span>Pen</span></a><a class="dioxus-icons-related-link" href="fn.SquareSlash.html" title="SquareSlash"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxyZWN0IGhlaWdodD0iMTgiIHJ4PSIyIiB3aWR0aD0iMTgiIHg9IjMiIHk9IjMiPjwvcmVjdD48bGluZSB4MT0iOSIgeDI9IjE1IiB5MT0iMTUiIHkyPSI5Ij48L2xpbmU+PC9zdmc+" alt="SquareSlash icon"><span>SquareSlash</span></a><a class="dioxus-icons-related-link" href="fn.CircleSlash.html" title="CircleSlash"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIj48L2NpcmNsZT48bGluZSB4MT0iOSIgeDI9IjE1IiB5MT0iMTUiIHkyPSI5Ij48L2xpbmU+PC9zdmc+" alt="CircleSlash icon"><span>CircleSlash</span></a><a class="dioxus-icons-related-link" href="fn.Tally1.html" title="Tally1"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9ImN1cnJlbnRDb2xvciIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik00IDR2MTYiPjwvcGF0aD48L3N2Zz4=" alt="Tally1 icon"><span>Tally1</span></a></div>

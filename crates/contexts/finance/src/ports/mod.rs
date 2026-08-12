@@ -12,9 +12,11 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::domain::{
-    Account, AccountId, AccountStatus, AccountingPeriod, Chart, ChartId, FinanceAggregate, Journal,
-    JournalId, JournalLine, JournalSource, JournalStatus, PeriodId, PeriodStatus, SubledgerId,
-    SubledgerItem, SubledgerKind, SubledgerStatus,
+    Account, AccountId, AccountStatus, AccountingPeriod, Chart, ChartId, CustomerInvoice,
+    CustomerInvoiceId, CustomerInvoiceStatus, FinanceAggregate, Journal, JournalId, JournalLine,
+    JournalSource, JournalStatus, PeriodId, PeriodStatus, RevenueObligation,
+    RevenueRecognitionEntry, RevenueSchedule, RevenueScheduleId, RevenueScheduleStatus,
+    SubledgerId, SubledgerItem, SubledgerKind, SubledgerStatus,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,11 +31,18 @@ pub enum FinanceAction {
     ReopenPeriod,
     CreateJournal,
     PostJournal,
+    CreateCustomerInvoice,
+    PostCustomerInvoice,
+    CancelCustomerInvoice,
+    CreateRevenueSchedule,
+    RecognizeRevenue,
     CreateSubledger,
     SettleSubledger,
     ViewChart,
     ViewPeriod,
     ViewJournal,
+    ViewCustomerInvoice,
+    ViewRevenueSchedule,
     ListJournals,
     ViewSubledger,
     ListSubledger,
@@ -49,6 +58,8 @@ impl FinanceAction {
             Self::ViewChart
                 | Self::ViewPeriod
                 | Self::ViewJournal
+                | Self::ViewCustomerInvoice
+                | Self::ViewRevenueSchedule
                 | Self::ListJournals
                 | Self::ViewSubledger
                 | Self::ListSubledger
@@ -61,7 +72,11 @@ impl FinanceAction {
     pub const fn is_high_risk(self) -> bool {
         matches!(
             self,
-            Self::PostJournal | Self::ClosePeriod | Self::ReopenPeriod
+            Self::PostJournal
+                | Self::PostCustomerInvoice
+                | Self::RecognizeRevenue
+                | Self::ClosePeriod
+                | Self::ReopenPeriod
         )
     }
 }
@@ -140,10 +155,35 @@ pub enum CommandFingerprint {
         expected_chart_version: u64,
         expected_period_version: u64,
     },
-    CreateReceivableFromSales {
+    CreateCustomerInvoice {
+        invoice_id: CustomerInvoiceId,
+        scope: TenantScope,
+        invoice_code: String,
+        source: erpx_integration_contracts::RecordRef,
+        fact: sales::BillingEligibilityFact,
+        due_on: NaiveDate,
+    },
+    PostCustomerInvoice {
+        invoice_id: CustomerInvoiceId,
+    },
+    CancelCustomerInvoice {
+        invoice_id: CustomerInvoiceId,
+    },
+    CreateRevenueSchedule {
+        schedule_id: RevenueScheduleId,
+        scope: TenantScope,
+        source: erpx_integration_contracts::RecordRef,
+        fact: sales::RevenueArrangementFact,
+    },
+    RecognizeRevenueFromFulfillment {
+        schedule_id: RevenueScheduleId,
+        source: erpx_integration_contracts::RecordRef,
+        fact: sales::FulfillmentAcceptedFact,
+    },
+    CreateReceivableFromInvoice {
         subledger_id: SubledgerId,
         scope: TenantScope,
-        fact: sales::SalesOrderFact,
+        fact: finance::CustomerInvoicePostedFact,
     },
     CreatePayableFromProcurement {
         subledger_id: SubledgerId,
@@ -185,6 +225,16 @@ pub trait WriteRepository: Send + Sync {
         authority_scope: &TenantScope,
         id: SubledgerId,
     ) -> Result<Option<SubledgerItem>, PortError>;
+    async fn load_customer_invoice(
+        &self,
+        authority_scope: &TenantScope,
+        id: CustomerInvoiceId,
+    ) -> Result<Option<CustomerInvoice>, PortError>;
+    async fn load_revenue_schedule(
+        &self,
+        authority_scope: &TenantScope,
+        id: RevenueScheduleId,
+    ) -> Result<Option<RevenueSchedule>, PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -393,6 +443,86 @@ impl From<&SubledgerItem> for SubledgerView {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CustomerInvoiceView {
+    pub invoice_id: CustomerInvoiceId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub invoice_code: String,
+    pub source: erpx_integration_contracts::RecordRef,
+    pub billing: sales::BillingEligibilityFact,
+    pub due_on: NaiveDate,
+    pub prepared_by: String,
+    pub posted_by: Option<String>,
+    pub posted_at: Option<DateTime<Utc>>,
+    pub receivable_minor: i64,
+    pub status: CustomerInvoiceStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<&CustomerInvoice> for CustomerInvoiceView {
+    fn from(value: &CustomerInvoice) -> Self {
+        Self {
+            invoice_id: value.id(),
+            version: value.version(),
+            scope: value.scope().clone(),
+            invoice_code: value.invoice_code().into(),
+            source: value.source().clone(),
+            billing: value.billing().clone(),
+            due_on: value.due_on(),
+            prepared_by: value.prepared_by().into(),
+            posted_by: value.posted_by().map(str::to_owned),
+            posted_at: value.posted_at(),
+            receivable_minor: value
+                .receivable_minor()
+                .expect("validated Customer invoice amount"),
+            status: value.status(),
+            created_at: value.created_at(),
+            updated_at: value.updated_at(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevenueScheduleView {
+    pub schedule_id: RevenueScheduleId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub arrangement_source: erpx_integration_contracts::RecordRef,
+    pub last_source: erpx_integration_contracts::RecordRef,
+    pub arrangement: sales::RevenueArrangementFact,
+    pub currency: String,
+    pub obligations: Vec<RevenueObligation>,
+    pub recognitions: Vec<RevenueRecognitionEntry>,
+    pub recognized_total_minor: i64,
+    pub status: RevenueScheduleStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl From<&RevenueSchedule> for RevenueScheduleView {
+    fn from(value: &RevenueSchedule) -> Self {
+        Self {
+            schedule_id: value.id(),
+            version: value.version(),
+            scope: value.scope().clone(),
+            arrangement_source: value.arrangement_source().clone(),
+            last_source: value.last_source().clone(),
+            arrangement: value.arrangement().clone(),
+            currency: value.currency().into(),
+            obligations: value.obligations().to_vec(),
+            recognitions: value.recognitions().to_vec(),
+            recognized_total_minor: value
+                .recognized_total_minor()
+                .expect("validated revenue recognition total"),
+            status: value.status(),
+            created_at: value.created_at(),
+            updated_at: value.updated_at(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct JournalListFilter {
     pub status: Option<JournalStatus>,
@@ -516,6 +646,18 @@ pub trait ReadRepository: Send + Sync {
         id: SubledgerId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SubledgerView>>, PortError>;
+    async fn get_customer_invoice(
+        &self,
+        scope: &TenantScope,
+        id: CustomerInvoiceId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<CustomerInvoiceView>>, PortError>;
+    async fn get_revenue_schedule(
+        &self,
+        scope: &TenantScope,
+        id: RevenueScheduleId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<RevenueScheduleView>>, PortError>;
     async fn list_subledger(
         &self,
         scope: &TenantScope,

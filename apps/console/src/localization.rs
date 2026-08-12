@@ -4,7 +4,7 @@
 //! catalog covers the shared console families and provides one reviewable
 //! inventory spanning every shipped presentation area.
 
-use erpx_ui::{Locale, LocalizedText};
+use erpx_ui_core::{Locale, LocalizedText};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ConsoleCopyGroup {
@@ -135,11 +135,11 @@ mod tests {
         ("product completion", include_str!("product_completion.rs")),
         (
             "shared components",
-            include_str!("../../../crates/ui/src/components.rs"),
+            include_str!("../../../crates/ui-kit/src/components.rs"),
         ),
         (
             "support surfaces",
-            include_str!("../../../crates/ui/src/support_surfaces.rs"),
+            include_str!("../../../crates/ui-domains/support/src/support_surfaces.rs"),
         ),
     ];
 

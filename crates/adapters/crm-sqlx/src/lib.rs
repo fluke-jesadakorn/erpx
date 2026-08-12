@@ -21,6 +21,14 @@ pub const WRITE_DDL: &str =
 pub const READ_DDL: &str = include_str!(
     "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
 );
+#[cfg(test)]
+pub const FORECAST_WRITE_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_write/0067_crm_opportunity_forecast_guards.sql"
+);
+#[cfg(test)]
+pub const FORECAST_READ_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_read/0059_crm_opportunity_forecast_projection.sql"
+);
 
 pub fn lead_partition(id: erpx_crm::CrmLeadId) -> String {
     format!("crm.lead:{}", id.as_uuid().simple())
@@ -41,6 +49,8 @@ mod tests {
         assert!(opportunity_partition(opportunity).starts_with("crm.opportunity:"));
         assert!(WRITE_DDL.contains("'discovery'"));
         assert!(READ_DDL.contains("crm.opportunities"));
+        assert!(FORECAST_WRITE_DDL.contains("pipeline_category"));
+        assert!(FORECAST_READ_DDL.contains("forecast_cockpit"));
     }
     #[test]
     fn reads_have_no_snapshot_fallback() {

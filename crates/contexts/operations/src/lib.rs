@@ -7,11 +7,12 @@ pub mod integration;
 pub mod ports;
 
 pub use application::{
-    AcknowledgeException, CloseException, EscalateException, GetException, GetOperationsSummary,
-    ListExceptionQueue, ListWorkQueuePolicies, OperationsApplicationError, OperationsCommand,
-    OperationsCommandHandler, OperationsMutationResult, OperationsQuery, OperationsQueryHandler,
-    OperationsQueryResponse, OperationsSourceHandler, PublishWorkQueuePolicy, ReassignException,
-    ResolveException, SourceHandlingContext, SourceHandlingOutcome, SourceHandlingResult,
+    AcknowledgeException, CloseException, DecideApproval, EscalateException, GetException,
+    GetOperationsSummary, ListExceptionQueue, ListWorkQueuePolicies, OperationsApplicationError,
+    OperationsCommand, OperationsCommandHandler, OperationsMutationResult, OperationsQuery,
+    OperationsQueryHandler, OperationsQueryResponse, OperationsSourceHandler,
+    PublishWorkQueuePolicy, ReassignException, ResolveException, SourceHandlingContext,
+    SourceHandlingOutcome, SourceHandlingResult,
 };
 pub use domain::{
     DetectionPolicy, ExceptionId, ExceptionStatus, OperationsDomainError, OperationsException,

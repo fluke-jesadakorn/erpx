@@ -7,7 +7,7 @@ use erpx_integration_contracts::IntegrationEvent;
 use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
 use erpx_legal::{
     CommandUnitOfWork, LegalAggregate, LegalCommit, LegalContract, LegalContractId, LegalDocument,
-    LegalDocumentId, PortError, WriteRepository,
+    LegalDocumentId, LegalMatter, LegalMatterId, PortError, WriteRepository,
     ports::{CommandFingerprint, CommandIdentity, StoredCommit},
 };
 use serde_json::json;
@@ -18,8 +18,9 @@ use uuid::Uuid;
 use crate::{
     ACCESS_AGGREGATE_TYPE, ACCESS_SNAPSHOT_EVENT, CONTEXT_NAME, CONTRACT_AGGREGATE_TYPE,
     CONTRACT_SNAPSHOT_EVENT, DOCUMENT_AGGREGATE_TYPE, DOCUMENT_SNAPSHOT_EVENT, EVENT_VERSION,
-    access_partition, contract_partition, document_partition,
-    projection::{LegalOutboxPayload, LegalSnapshot, contract_status_name},
+    MATTER_AGGREGATE_TYPE, MATTER_SNAPSHOT_EVENT, access_partition, contract_partition,
+    document_partition, matter_partition,
+    projection::{LegalOutboxPayload, LegalSnapshot, contract_status_name, matter_status_name},
 };
 
 #[derive(Debug, Clone)]
@@ -101,6 +102,26 @@ impl WriteRepository for LegalWriteRepository {
             .await?
         {
             Some(LegalAggregate::Document(value)) => Ok(Some(value)),
+            Some(_) => Err(PortError::Internal),
+            None => Ok(None),
+        }
+    }
+
+    async fn load_matter(
+        &self,
+        authority: &TenantScope,
+        id: LegalMatterId,
+    ) -> Result<Option<LegalMatter>, PortError> {
+        match self
+            .load_aggregate(
+                authority,
+                &matter_partition(id),
+                MATTER_AGGREGATE_TYPE,
+                id.as_uuid(),
+            )
+            .await?
+        {
+            Some(LegalAggregate::Matter(value)) => Ok(Some(value)),
             Some(_) => Err(PortError::Internal),
             None => Ok(None),
         }
@@ -250,6 +271,16 @@ impl AtomicCommandGuard for LegalAtomicGuard {
                     ));
                 }
             }
+            LegalAggregate::Matter(value) if context.expected_version.is_none() => {
+                let existing: Option<Uuid> = sqlx::query_scalar("SELECT matter_id FROM erpx_legal_write.matter_guards WHERE scope_key=$1 AND reference=$2 FOR UPDATE")
+                    .bind(scope_key(value.scope())?).bind(value.reference()).fetch_optional(&mut **tx).await?;
+                if existing.is_some_and(|id| id != value.id().as_uuid()) {
+                    return Err(CqrsSqlxError::GuardRejected(
+                        "Legal matter reference already exists",
+                    ));
+                }
+                validate_existing_links(tx, value).await?;
+            }
             LegalAggregate::Document(value) => validate_existing_versions(tx, value).await?,
             LegalAggregate::AccessEntry(value) => {
                 let row = sqlx::query("SELECT d.scope_key FROM erpx_legal_write.document_guards d JOIN erpx_legal_write.document_version_guards v ON v.document_id=d.document_id WHERE d.document_id=$1 AND v.document_version=$2 FOR SHARE")
@@ -267,6 +298,7 @@ impl AtomicCommandGuard for LegalAtomicGuard {
                     ));
                 }
             }
+            LegalAggregate::Matter(value) => validate_existing_links(tx, value).await?,
             LegalAggregate::Contract(_) => {}
         }
         Ok(())
@@ -328,6 +360,29 @@ impl AtomicCommandGuard for LegalAtomicGuard {
                     .bind(to_i64(value.document_version())?).bind(value.actor_ref()).bind(value.action())
                     .bind(value.purpose()).bind(value.observed_at()).bind(version).execute(&mut **tx).await?;
             }
+            LegalAggregate::Matter(value) => {
+                sqlx::query("INSERT INTO erpx_legal_write.matter_guards (matter_id,scope_key,reference,title,matter_status,legal_hold,created_by,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (matter_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,reference=EXCLUDED.reference,title=EXCLUDED.title,matter_status=EXCLUDED.matter_status,legal_hold=EXCLUDED.legal_hold,created_by=EXCLUDED.created_by,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at")
+                    .bind(value.id().as_uuid()).bind(scope_key(value.scope())?).bind(value.reference()).bind(value.title())
+                    .bind(matter_status_name(value.status())).bind(serde_json::to_value(value.legal_hold()).map_err(|_| CqrsSqlxError::InvalidInput("Legal hold cannot be encoded"))?)
+                    .bind(value.created_by()).bind(version).bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?;
+                let existing: i64 = sqlx::query_scalar(
+                    "SELECT count(*) FROM erpx_legal_write.matter_link_guards WHERE matter_id=$1",
+                )
+                .bind(value.id().as_uuid())
+                .fetch_one(&mut **tx)
+                .await?;
+                let existing =
+                    usize::try_from(existing).map_err(|_| CqrsSqlxError::NumericRange)?;
+                for (ordinal, link) in value.links().iter().enumerate().skip(existing) {
+                    sqlx::query("INSERT INTO erpx_legal_write.matter_link_guards (matter_id,link_ordinal,relation,target_context,target_aggregate_kind,target_aggregate_id,target_aggregate_version,target_scope,target_scope_key,target_digest,linked_by,linked_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)")
+                        .bind(value.id().as_uuid()).bind(to_i64(u64::try_from(ordinal + 1).map_err(|_| CqrsSqlxError::NumericRange)?)?)
+                        .bind(record_relation_name(link.relation)).bind(bounded_context_name(link.target.context)?)
+                        .bind(link.target.aggregate_kind.as_str()).bind(link.target.aggregate_id).bind(to_i64(link.target.aggregate_version)?)
+                        .bind(serde_json::to_value(&link.target_scope).map_err(|_| CqrsSqlxError::InvalidInput("target scope cannot be encoded"))?)
+                        .bind(scope_key(&link.target_scope)?).bind(&link.target_digest).bind(&link.linked_by).bind(link.linked_at)
+                        .execute(&mut **tx).await?;
+                }
+            }
         }
         Ok(())
     }
@@ -364,6 +419,47 @@ async fn validate_existing_versions(
     Ok(())
 }
 
+async fn validate_existing_links(
+    tx: &mut Transaction<'_, Postgres>,
+    value: &LegalMatter,
+) -> Result<(), CqrsSqlxError> {
+    let rows = sqlx::query("SELECT relation,target_context,target_aggregate_kind,target_aggregate_id,target_aggregate_version,target_scope,target_digest,linked_by,linked_at FROM erpx_legal_write.matter_link_guards WHERE matter_id=$1 ORDER BY link_ordinal FOR SHARE")
+        .bind(value.id().as_uuid()).fetch_all(&mut **tx).await?;
+    if rows.len() > value.links().len() {
+        return Err(CqrsSqlxError::GuardRejected(
+            "Legal matter links cannot be removed",
+        ));
+    }
+    for (row, expected) in rows.iter().zip(value.links()) {
+        let relation: String = row.try_get("relation")?;
+        let target_context: String = row.try_get("target_context")?;
+        let target_kind: String = row.try_get("target_aggregate_kind")?;
+        let target_id: Uuid = row.try_get("target_aggregate_id")?;
+        let target_version: i64 = row.try_get("target_aggregate_version")?;
+        let target_scope: serde_json::Value = row.try_get("target_scope")?;
+        let target_digest: String = row.try_get("target_digest")?;
+        let linked_by: String = row.try_get("linked_by")?;
+        let linked_at: chrono::DateTime<chrono::Utc> = row.try_get("linked_at")?;
+        if relation != record_relation_name(expected.relation)
+            || target_context != bounded_context_name(expected.target.context)?
+            || target_kind != expected.target.aggregate_kind.as_str()
+            || target_id != expected.target.aggregate_id
+            || u64::try_from(target_version).ok() != Some(expected.target.aggregate_version)
+            || target_scope
+                != serde_json::to_value(&expected.target_scope)
+                    .map_err(|_| CqrsSqlxError::InvalidInput("target scope cannot be encoded"))?
+            || target_digest != expected.target_digest
+            || linked_by != expected.linked_by
+            || linked_at.timestamp_micros() != expected.linked_at.timestamp_micros()
+        {
+            return Err(CqrsSqlxError::GuardRejected(
+                "Legal matter link evidence changed",
+            ));
+        }
+    }
+    Ok(())
+}
+
 async fn guard_version(
     tx: &mut Transaction<'_, Postgres>,
     value: &LegalAggregate,
@@ -379,6 +475,10 @@ async fn guard_version(
         ),
         LegalAggregate::AccessEntry(v) => (
             "SELECT aggregate_version FROM erpx_legal_write.access_entry_guards WHERE access_entry_id=$1 FOR UPDATE",
+            v.id().as_uuid(),
+        ),
+        LegalAggregate::Matter(v) => (
+            "SELECT aggregate_version FROM erpx_legal_write.matter_guards WHERE matter_id=$1 FOR UPDATE",
             v.id().as_uuid(),
         ),
     };
@@ -431,6 +531,13 @@ fn fingerprint_target(value: &CommandFingerprint) -> (String, &'static str) {
         CommandFingerprint::RecordDocumentAccess {
             access_entry_id, ..
         } => (access_partition(*access_entry_id), ACCESS_AGGREGATE_TYPE),
+        CommandFingerprint::CreateMatter { matter_id, .. }
+        | CommandFingerprint::LinkMatterRecord { matter_id, .. }
+        | CommandFingerprint::PlaceLegalHold { matter_id, .. }
+        | CommandFingerprint::ReleaseLegalHold { matter_id }
+        | CommandFingerprint::CloseMatter { matter_id } => {
+            (matter_partition(*matter_id), MATTER_AGGREGATE_TYPE)
+        }
     }
 }
 fn aggregate_partition(value: &LegalAggregate) -> String {
@@ -438,6 +545,7 @@ fn aggregate_partition(value: &LegalAggregate) -> String {
         LegalAggregate::Contract(v) => contract_partition(v.id()),
         LegalAggregate::Document(v) => document_partition(v.id()),
         LegalAggregate::AccessEntry(v) => access_partition(v.id()),
+        LegalAggregate::Matter(v) => matter_partition(v.id()),
     }
 }
 fn snapshot_event(value: &LegalAggregate) -> &'static str {
@@ -445,6 +553,7 @@ fn snapshot_event(value: &LegalAggregate) -> &'static str {
         LegalAggregate::Contract(_) => CONTRACT_SNAPSHOT_EVENT,
         LegalAggregate::Document(_) => DOCUMENT_SNAPSHOT_EVENT,
         LegalAggregate::AccessEntry(_) => ACCESS_SNAPSHOT_EVENT,
+        LegalAggregate::Matter(_) => MATTER_SNAPSHOT_EVENT,
     }
 }
 fn audit_action(value: &CommandFingerprint) -> &'static str {
@@ -456,7 +565,38 @@ fn audit_action(value: &CommandFingerprint) -> &'static str {
         CommandFingerprint::AddDocumentVersion { .. } => "legal.document.add_version",
         CommandFingerprint::ArchiveDocument { .. } => "legal.document.archive",
         CommandFingerprint::RecordDocumentAccess { .. } => "legal.access.record",
+        CommandFingerprint::CreateMatter { .. } => "legal.matter.create",
+        CommandFingerprint::LinkMatterRecord { .. } => "legal.matter.link_record",
+        CommandFingerprint::PlaceLegalHold { .. } => "legal.matter.place_hold",
+        CommandFingerprint::ReleaseLegalHold { .. } => "legal.matter.release_hold",
+        CommandFingerprint::CloseMatter { .. } => "legal.matter.close",
     }
+}
+
+fn record_relation_name(value: erpx_legal::RecordRelation) -> &'static str {
+    match value {
+        erpx_legal::RecordRelation::GovernedBy => "governed_by",
+        erpx_legal::RecordRelation::Supports => "supports",
+        erpx_legal::RecordRelation::BilledUnder => "billed_under",
+        erpx_legal::RecordRelation::AttributedTo => "attributed_to",
+        erpx_legal::RecordRelation::Disputes => "disputes",
+        erpx_legal::RecordRelation::SettlementFor => "settlement_for",
+        erpx_legal::RecordRelation::Supersedes => "supersedes",
+        erpx_legal::RecordRelation::AccountingFor => "accounting_for",
+    }
+}
+
+fn bounded_context_name(
+    value: erpx_integration_contracts::BoundedContext,
+) -> Result<String, CqrsSqlxError> {
+    let encoded = serde_json::to_value(value)
+        .map_err(|_| CqrsSqlxError::InvalidInput("bounded context cannot be encoded"))?;
+    encoded
+        .as_str()
+        .map(str::to_owned)
+        .ok_or(CqrsSqlxError::InvalidInput(
+            "bounded context must encode as text",
+        ))
 }
 fn request_hash(value: &CommandFingerprint) -> Result<RequestHash, PortError> {
     let mut digest = Sha256::new();

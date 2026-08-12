@@ -16,12 +16,14 @@ use dioxus::server::axum::{
 use erpx_domain::corporate_identity::{
     BrandAssetKind, ResolvedCorporateIdentity, validate_brand_asset_bytes,
 };
-use erpx_ui::{
+use erpx_ui_core::{
+    MAX_WORK_PAGE_SIZE, NavGroup, SafeUiText, WorkDomain, WorkItemKind, WorkItemReadModel,
+    WorkItemSeverity, WorkItemStage, WorkItemTarget, WorkQueueMeta, WorkQueueReadModel,
+    WorkQueueView, WorkRoute, WorkSlaState, WorkSourceContribution, sla_state, valid_work_cursor,
+};
+use erpx_ui_kit::{
     DashboardBreakdown, DashboardBreakdownSegment, DashboardMetric, DashboardRange,
-    DashboardReadModel, MAX_WORK_PAGE_SIZE, NavGroup, ReadModelAvailability, ReadModelFreshness,
-    ReadModelMeta, SafeUiText, WorkDomain, WorkItemKind, WorkItemReadModel, WorkItemSeverity,
-    WorkItemStage, WorkItemTarget, WorkQueueMeta, WorkQueueReadModel, WorkQueueView, WorkRoute,
-    WorkSlaState, WorkSourceContribution, sla_state, valid_work_cursor,
+    DashboardReadModel, ReadModelAvailability, ReadModelFreshness, ReadModelMeta,
 };
 use erpx_web_session::{
     SafeActiveRole, SafeWebSessionSnapshot, SensitiveToken, WEB_SESSION_COOKIE_NAME,
@@ -77,7 +79,7 @@ impl BffState {
             return Err(io::Error::other("identity HTTP origin is invalid"));
         }
         let trusted_public_origins = parse_trusted_public_origins(&trusted_public_origins)?;
-        validate_web_runtime_profile(
+        erpx_console_bff::validate_runtime_origins(
             auth_http_origin,
             grpc_origin,
             &trusted_public_origins,
@@ -98,25 +100,19 @@ impl BffState {
     }
 }
 
+#[cfg(test)]
 fn validate_web_runtime_profile(
     auth_http_origin: &str,
     grpc_origin: &str,
     trusted_public_origins: &[Arc<str>],
     production_profile: bool,
 ) -> Result<(), io::Error> {
-    if production_profile
-        && (!auth_http_origin.starts_with("https://")
-            || !grpc_origin.starts_with("https://")
-            || trusted_public_origins.is_empty()
-            || trusted_public_origins
-                .iter()
-                .any(|origin| !origin.starts_with("https://")))
-    {
-        return Err(io::Error::other(
-            "Web production profile requires HTTPS service and public origins",
-        ));
-    }
-    Ok(())
+    erpx_console_bff::validate_runtime_origins(
+        auth_http_origin,
+        grpc_origin,
+        trusted_public_origins,
+        production_profile,
+    )
 }
 
 impl fmt::Debug for BffState {
@@ -1453,6 +1449,10 @@ pub(crate) async fn password_login(
     exchange_password_login(&state, context, &headers, request).await
 }
 
+pub(crate) async fn password_login_form_entry() -> Response {
+    see_other(crate::LOGIN_PATH)
+}
+
 pub(crate) async fn password_login_form(
     Extension(state): Extension<BffState>,
     Extension(context): Extension<BffSessionContext>,
@@ -1500,9 +1500,6 @@ async fn exchange_password_login(
 }
 
 fn password_form_response(login_response: Response, headers: &HeaderMap) -> Response {
-    if !login_response.status().is_success() {
-        return login_response;
-    }
     let return_to = headers
         .get(header::REFERER)
         .and_then(|value| value.to_str().ok())
@@ -1518,6 +1515,15 @@ fn password_form_response(login_response: Response, headers: &HeaderMap) -> Resp
     let location = return_to
         .map(|path| crate::login_redirect_location(&path))
         .unwrap_or_else(|| crate::LOGIN_PATH.to_owned());
+    if !login_response.status().is_success() {
+        let error = match login_response.status() {
+            StatusCode::BAD_REQUEST => "invalid_request",
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => "authentication_rejected",
+            _ => "authentication_unavailable",
+        };
+        let separator = if location.contains('?') { '&' } else { '?' };
+        return see_other(&format!("{location}{separator}auth_error={error}"));
+    }
     let cookies = login_response
         .headers()
         .get_all(header::SET_COOKIE)
@@ -3380,6 +3386,26 @@ mod tests {
         );
         let response = password_form_response(StatusCode::OK.into_response(), &headers);
         assert_eq!(response.headers().get(header::LOCATION).unwrap(), "/login");
+
+        headers.insert(
+            header::REFERER,
+            HeaderValue::from_static("https://console.example/login?return_to=/platform/tenants"),
+        );
+        let response = password_form_response(StatusCode::BAD_REQUEST.into_response(), &headers);
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers().get(header::LOCATION).unwrap(),
+            "/login?return_to=/platform/tenants&auth_error=invalid_request"
+        );
+        assert!(response.headers().get(header::SET_COOKIE).is_none());
+
+        let response =
+            password_form_response(StatusCode::UNAUTHORIZED.into_response(), &HeaderMap::new());
+        assert_eq!(response.status(), StatusCode::SEE_OTHER);
+        assert_eq!(
+            response.headers().get(header::LOCATION).unwrap(),
+            "/login?auth_error=authentication_rejected"
+        );
     }
 
     #[test]
@@ -3581,14 +3607,14 @@ mod tests {
             NavGroup::new(
                 "Finance",
                 vec![
-                    erpx_ui::NavItem::new("Customers", "/platform/customers", "customers")
+                    erpx_ui_core::NavItem::new("Customers", "/platform/customers", "customers")
                         .with_action_capabilities(vec!["customer.read".to_owned()]),
-                    erpx_ui::NavItem::new("Unknown", "/internal/raw", "unknown"),
+                    erpx_ui_core::NavItem::new("Unknown", "/internal/raw", "unknown"),
                 ],
             ),
             NavGroup::new(
                 "access_token=must-not-render",
-                vec![erpx_ui::NavItem::new(
+                vec![erpx_ui_core::NavItem::new(
                     "Marketing",
                     "/marketing",
                     "marketing",
@@ -3654,7 +3680,7 @@ mod tests {
         };
         let groups = vec![NavGroup::new(
             "Operations",
-            vec![erpx_ui::NavItem::new(
+            vec![erpx_ui_core::NavItem::new(
                 "Operations",
                 "/workspaces/operations",
                 "operations",

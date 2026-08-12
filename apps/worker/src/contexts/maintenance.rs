@@ -5,6 +5,7 @@ use std::sync::{
     atomic::{AtomicU64, Ordering},
 };
 
+use erpx_cqrs::{CONTRACT_VERSION, CommandEnvelope, CommandHandler, CqrsError, IdempotencyKey};
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionEvent, ProjectionPool, ProjectionRun, ProjectionRunner,
     ProjectionRunnerConfig, ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
@@ -12,9 +13,24 @@ use erpx_cqrs_sqlx::{
 use erpx_integration_contracts::{
     AggregateKind, IntegrationEvent, IntegrationEventEnvelope, assets,
 };
-use erpx_maintenance::PortError;
-use erpx_maintenance_sqlx::{ASSET_FACT_EVENT_TYPE, MaintenanceAssetFactInbox, WorkOrderProjector};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, EventId, SystemClock,
+    TenantScope,
+};
+use erpx_maintenance::{
+    AuthorizationPort, EntitlementPort, MaintenanceAction, OpenWorkOrder, PortError, WorkOrderId,
+    ports::AuthorizationRequest,
+};
+use erpx_maintenance_sqlx::{
+    ASSET_FACT_EVENT_TYPE, MaintenanceAssetFactInbox, MaintenanceAssetFactRepository,
+    MaintenanceCommandAdapter, MaintenanceWriteRepository, WorkOrderProjector,
+};
 use sqlx::PgPool;
+use uuid::Uuid;
+
+const MAINTENANCE_REQUEST_EVENT_TYPE: &str = "assets.maintenance_requested";
+const WORK_ORDER_NAMESPACE: Uuid = Uuid::from_u128(0x236d_9e8a_7c0a_5ee4_a4ed_b745_88d9_1a7f);
+const COMMAND_NAMESPACE: Uuid = Uuid::from_u128(0xa708_8ee3_d9cd_5e7d_aa6d_19e2_a7bc_d4ba);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaintenanceProjectionRegistration {
@@ -87,7 +103,43 @@ impl MaintenanceProjectionRuntime {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaintenanceAssetFactRegistration {
-    pub event_type: &'static str,
+    pub event_types: [&'static str; 2],
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct TrustedMaintenanceRequestAccess;
+
+#[async_trait::async_trait]
+impl AuthorizationPort for TrustedMaintenanceRequestAccess {
+    async fn authorize(&self, request: AuthorizationRequest<'_>) -> Result<(), PortError> {
+        if request.action == MaintenanceAction::Open
+            && request.actor.kind == ActorKind::SystemWorker
+            && request.actor.session_id.is_none()
+            && request.actor.represented_principal_ref.is_none()
+            && request.actor.support_capability_id.is_none()
+            && request.authority_scope == request.target_scope
+            && request.target_scope != &TenantScope::Platform
+        {
+            Ok(())
+        } else {
+            Err(PortError::Denied)
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl EntitlementPort for TrustedMaintenanceRequestAccess {
+    async fn ensure_maintenance_enabled(
+        &self,
+        scope: &TenantScope,
+        write: bool,
+    ) -> Result<(), PortError> {
+        if write && scope.validate().is_ok() && scope != &TenantScope::Platform {
+            Ok(())
+        } else {
+            Err(PortError::EntitlementDenied)
+        }
+    }
 }
 
 /// Targeted consumer called by root worker orchestration after it has decoded
@@ -95,6 +147,7 @@ pub struct MaintenanceAssetFactRegistration {
 #[derive(Debug, Clone)]
 pub struct MaintenanceAssetFactRuntime {
     inbox: MaintenanceAssetFactInbox,
+    tenant_write_pool: PgPool,
     source: Option<ProjectionSource>,
     after_sequence: Arc<AtomicU64>,
     page_size: u32,
@@ -106,7 +159,8 @@ impl MaintenanceAssetFactRuntime {
     #[allow(dead_code)] // Manual typed-ingest boundary retained for non-polling consumers.
     pub fn new(tenant_write_pool: PgPool) -> Self {
         Self {
-            inbox: MaintenanceAssetFactInbox::new(tenant_write_pool),
+            inbox: MaintenanceAssetFactInbox::new(tenant_write_pool.clone()),
+            tenant_write_pool,
             source: None,
             after_sequence: Arc::new(AtomicU64::new(0)),
             page_size: 100,
@@ -127,7 +181,8 @@ impl MaintenanceAssetFactRuntime {
             ));
         }
         Ok(Self {
-            inbox: MaintenanceAssetFactInbox::new(tenant_write_pool),
+            inbox: MaintenanceAssetFactInbox::new(tenant_write_pool.clone()),
+            tenant_write_pool,
             source: Some(ProjectionSource::new(source_write)),
             after_sequence: Arc::new(AtomicU64::new(0)),
             page_size,
@@ -136,7 +191,7 @@ impl MaintenanceAssetFactRuntime {
 
     pub const fn registration(&self) -> MaintenanceAssetFactRegistration {
         MaintenanceAssetFactRegistration {
-            event_type: ASSET_FACT_EVENT_TYPE,
+            event_types: [ASSET_FACT_EVENT_TYPE, MAINTENANCE_REQUEST_EVENT_TYPE],
         }
     }
 
@@ -160,8 +215,9 @@ impl MaintenanceAssetFactRuntime {
                     "Assets fact runtime has no outbox source",
                 ))?;
         let after = self.after_sequence.load(Ordering::Acquire);
+        let event_types = self.registration().event_types.map(str::to_owned);
         let page = source
-            .page_after(after, &[ASSET_FACT_EVENT_TYPE.to_owned()], self.page_size)
+            .page_after(after, &event_types, self.page_size)
             .await
             .map_err(MaintenanceAssetFactRuntimeError::Source)?;
         let fetched = u32::try_from(page.events.len()).map_err(|_| {
@@ -172,15 +228,26 @@ impl MaintenanceAssetFactRuntime {
         let mut last = after;
         for event in &page.events {
             let envelope = decode_projection_event(event)?;
-            if self
-                .inbox
-                .ingest(&envelope)
-                .await
-                .map_err(MaintenanceAssetFactRuntimeError::Inbox)?
-            {
-                applied = applied.saturating_add(1);
-            } else {
-                duplicates = duplicates.saturating_add(1);
+            match envelope.payload() {
+                assets::Event::AssetConditionChanged(_) => {
+                    if self
+                        .inbox
+                        .ingest(&envelope)
+                        .await
+                        .map_err(MaintenanceAssetFactRuntimeError::Inbox)?
+                    {
+                        applied = applied.saturating_add(1);
+                    } else {
+                        duplicates = duplicates.saturating_add(1);
+                    }
+                }
+                assets::Event::MaintenanceRequested { .. } => {
+                    if self.open_work_order(envelope).await? {
+                        applied = applied.saturating_add(1);
+                    } else {
+                        duplicates = duplicates.saturating_add(1);
+                    }
+                }
             }
             last = event.global_sequence;
             self.after_sequence.store(last, Ordering::Release);
@@ -192,6 +259,112 @@ impl MaintenanceAssetFactRuntime {
             after_sequence: last,
         })
     }
+
+    async fn open_work_order(
+        &self,
+        request: IntegrationEventEnvelope<assets::Event>,
+    ) -> Result<bool, MaintenanceAssetFactRuntimeError> {
+        let assets::Event::MaintenanceRequested {
+            request_code,
+            title,
+            ..
+        } = request.payload()
+        else {
+            return Err(MaintenanceAssetFactRuntimeError::InvalidContract(
+                "Assets event is not a maintenance request",
+            ));
+        };
+        let source_event_id = request.event_id();
+        let work_order_id = work_order_id_for(source_event_id)?;
+        let command_id = CommandId::try_from_uuid(Uuid::new_v5(
+            &COMMAND_NAMESPACE,
+            source_event_id.as_uuid().as_bytes(),
+        ))
+        .map_err(|_| {
+            MaintenanceAssetFactRuntimeError::InvalidContract(
+                "derived Maintenance command ID is invalid",
+            )
+        })?;
+        let correlation_id = CorrelationId::try_from_uuid(request.correlation_id().as_uuid())
+            .map_err(|_| {
+                MaintenanceAssetFactRuntimeError::InvalidContract(
+                    "Assets correlation ID is invalid",
+                )
+            })?;
+        let scope = request.tenant_scope().clone();
+        let display_title = maintenance_request_title(request_code, title.as_ref());
+        let raw_pool = self.tenant_write_pool.clone();
+        let pool = WritePool::from_pg_pool(raw_pool.clone());
+        let access = TrustedMaintenanceRequestAccess;
+        let receipt = erpx_maintenance::MaintenanceCommandHandler::new(
+            MaintenanceWriteRepository::new(pool.clone()),
+            MaintenanceCommandAdapter::new(pool),
+            access,
+            access,
+            MaintenanceAssetFactRepository::new(raw_pool),
+            SystemClock,
+        )
+        .handle(CommandEnvelope {
+            contract_version: CONTRACT_VERSION,
+            command_id,
+            idempotency_key: IdempotencyKey::try_new(format!(
+                "assets-maintenance-request:{}",
+                source_event_id
+            ))
+            .map_err(|_| {
+                MaintenanceAssetFactRuntimeError::InvalidContract(
+                    "Maintenance idempotency key is invalid",
+                )
+            })?,
+            correlation_id,
+            causation_id: Some(source_event_id),
+            actor: ActorAttribution {
+                principal_ref: "maintenance-request-worker".into(),
+                kind: ActorKind::SystemWorker,
+                session_id: None,
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            tenant_scope: scope,
+            audit: AuditContext {
+                purpose: "open work order from Assets maintenance request".into(),
+                customer_visible: true,
+                module: Some("maintenance".into()),
+            },
+            expected_aggregate_version: None,
+            command: OpenWorkOrder {
+                work_order_id,
+                request,
+                title: display_title,
+            },
+        })
+        .await
+        .map_err(MaintenanceAssetFactRuntimeError::Command)?;
+        Ok(!receipt.replayed)
+    }
+}
+
+fn work_order_id_for(
+    source_event_id: EventId,
+) -> Result<WorkOrderId, MaintenanceAssetFactRuntimeError> {
+    WorkOrderId::try_from_uuid(Uuid::new_v5(
+        &WORK_ORDER_NAMESPACE,
+        source_event_id.as_uuid().as_bytes(),
+    ))
+    .map_err(|_| {
+        MaintenanceAssetFactRuntimeError::InvalidContract(
+            "derived Maintenance work-order ID is invalid",
+        )
+    })
+}
+
+fn maintenance_request_title(
+    request_code: &erpx_integration_contracts::ReferenceCode,
+    title: Option<&erpx_integration_contracts::DisplayName>,
+) -> String {
+    title
+        .map_or_else(|| request_code.as_str(), |value| value.as_str())
+        .to_owned()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -206,6 +379,7 @@ pub struct MaintenanceAssetFactRun {
 pub enum MaintenanceAssetFactRuntimeError {
     Source(CqrsSqlxError),
     Inbox(PortError),
+    Command(CqrsError),
     InvalidContract(&'static str),
 }
 
@@ -214,6 +388,7 @@ impl std::fmt::Display for MaintenanceAssetFactRuntimeError {
         match self {
             Self::Source(_) => formatter.write_str("Assets fact source is unavailable"),
             Self::Inbox(_) => formatter.write_str("Maintenance Assets fact inbox failed"),
+            Self::Command(_) => formatter.write_str("Maintenance work-order opening failed"),
             Self::InvalidContract(message) => formatter.write_str(message),
         }
     }
@@ -226,21 +401,22 @@ fn decode_projection_event(
 ) -> Result<IntegrationEventEnvelope<assets::Event>, MaintenanceAssetFactRuntimeError> {
     if event.context != "assets"
         || event.aggregate_type != "asset"
-        || event.event_type != ASSET_FACT_EVENT_TYPE
+        || !matches!(
+            event.event_type.as_str(),
+            ASSET_FACT_EVENT_TYPE | MAINTENANCE_REQUEST_EVENT_TYPE
+        )
         || event.event_version != 1
     {
         return Err(MaintenanceAssetFactRuntimeError::InvalidContract(
-            "outbox event is not an Assets condition fact",
+            "outbox event is not a supported Assets maintenance event",
         ));
     }
     let payload: assets::Event = serde_json::from_value(event.payload.clone()).map_err(|_| {
         MaintenanceAssetFactRuntimeError::InvalidContract("Assets fact payload is invalid")
     })?;
-    if payload.event_type() != ASSET_FACT_EVENT_TYPE
-        || !matches!(&payload, assets::Event::AssetConditionChanged(_))
-    {
+    if payload.event_type() != event.event_type {
         return Err(MaintenanceAssetFactRuntimeError::InvalidContract(
-            "Assets fact payload type does not match its envelope",
+            "Assets maintenance payload type does not match its envelope",
         ));
     }
     IntegrationEventEnvelope::try_new(
@@ -263,6 +439,8 @@ fn decode_projection_event(
 
 #[cfg(test)]
 mod tests {
+    use erpx_integration_contracts::{DisplayName, ReferenceCode};
+    use erpx_kernel::EventId;
     use erpx_maintenance_sqlx::{PROJECTION_NAME, SNAPSHOT_EVENT_TYPE};
 
     use super::*;
@@ -279,7 +457,10 @@ mod tests {
         let facts = MaintenanceAssetFactRuntime::new(
             sqlx::PgPool::connect_lazy("postgres://localhost/maintenance_write").unwrap(),
         );
-        assert_eq!(facts.registration().event_type, "assets.condition_changed");
+        assert_eq!(
+            facts.registration().event_types,
+            ["assets.condition_changed", "assets.maintenance_requested"]
+        );
     }
 
     #[tokio::test]
@@ -312,5 +493,21 @@ mod tests {
         );
         let target = sqlx::PgPool::connect_lazy("postgres://localhost/maintenance_write").unwrap();
         assert!(MaintenanceAssetFactRuntime::with_source(source, target, 0).is_err());
+    }
+
+    #[test]
+    fn maintenance_request_derives_stable_work_order_and_supports_legacy_title_fallback() {
+        let source = EventId::try_from_uuid(Uuid::from_u128(42)).unwrap();
+        assert_eq!(
+            work_order_id_for(source).unwrap(),
+            work_order_id_for(source).unwrap()
+        );
+        let request_code = ReferenceCode::try_new("MR-42").unwrap();
+        assert_eq!(maintenance_request_title(&request_code, None), "MR-42");
+        let title = DisplayName::try_new("Replace drive belt").unwrap();
+        assert_eq!(
+            maintenance_request_title(&request_code, Some(&title)),
+            "Replace drive belt"
+        );
     }
 }

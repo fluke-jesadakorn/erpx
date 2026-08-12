@@ -1,6 +1,9 @@
 use erpx_integration_contracts::{CurrencyCode, MoneyAmount, Quantity, ReferenceCode, sales};
 
-use crate::domain::{DomainEvent, SalesOrderFactState, SalesOrderStatus};
+use crate::domain::{
+    BillingEligibilityFactState, DomainEvent, FulfillmentAcceptedFactState,
+    RevenueArrangementFactState, SalesOrderFactState, SalesOrderStatus,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum IntegrationMappingError {
@@ -19,7 +22,98 @@ fn map_event(event: &DomainEvent) -> Option<Result<sales::Event, IntegrationMapp
         DomainEvent::OrderChanged { state } => {
             Some(fact(state).map(sales::Event::SalesOrderChanged))
         }
+        DomainEvent::RevenueArrangementActivated { state } => {
+            Some(arrangement_fact(state).map(sales::Event::RevenueArrangementActivated))
+        }
+        DomainEvent::FulfillmentAccepted { state } => {
+            Some(fulfillment_fact(state).map(sales::Event::FulfillmentAccepted))
+        }
+        DomainEvent::BillingEligible { state } => {
+            Some(billing_fact(state).map(sales::Event::BillingEligible))
+        }
     }
+}
+
+fn arrangement_fact(
+    state: &RevenueArrangementFactState,
+) -> Result<sales::RevenueArrangementFact, IntegrationMappingError> {
+    let currency = CurrencyCode::try_new(&state.currency)
+        .map_err(|_| IntegrationMappingError::InvalidContractValue)?;
+    let obligations = state
+        .obligations
+        .iter()
+        .map(|value| {
+            Ok(sales::PerformanceObligationFact {
+                obligation: sales::PerformanceObligationRef::try_from_uuid(
+                    value.obligation_id().as_uuid(),
+                )
+                .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+                line: sales::SalesOrderLineRef::try_from_uuid(value.line_id().as_uuid())
+                    .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+                model: value.model(),
+                allocated_amount: MoneyAmount::new(value.allocated_minor(), currency),
+                service_starts_on: value.service_starts_on(),
+                service_ends_on: value.service_ends_on(),
+            })
+        })
+        .collect::<Result<Vec<_>, IntegrationMappingError>>()?;
+    Ok(sales::RevenueArrangementFact {
+        arrangement: sales::RevenueArrangementRef::try_from_uuid(state.arrangement_id.as_uuid())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        sales_order: sales::SalesOrderRef::try_from_uuid(state.sales_order_id.as_uuid())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        customer: state.customer,
+        legal_contract: state.legal_contract,
+        order_code: ReferenceCode::try_new(state.order_code.clone())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        dimensions: state.dimensions.clone(),
+        obligations,
+    })
+}
+
+fn fulfillment_fact(
+    state: &FulfillmentAcceptedFactState,
+) -> Result<sales::FulfillmentAcceptedFact, IntegrationMappingError> {
+    let currency = CurrencyCode::try_new(&state.currency)
+        .map_err(|_| IntegrationMappingError::InvalidContractValue)?;
+    Ok(sales::FulfillmentAcceptedFact {
+        fulfillment: sales::FulfillmentRef::try_from_uuid(state.fulfillment_id.as_uuid())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        arrangement: sales::RevenueArrangementRef::try_from_uuid(state.arrangement_id.as_uuid())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        sales_order: sales::SalesOrderRef::try_from_uuid(state.sales_order_id.as_uuid())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        obligation: sales::PerformanceObligationRef::try_from_uuid(state.obligation_id.as_uuid())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        kind: state.kind,
+        accepted_amount: MoneyAmount::new(state.accepted_minor, currency),
+        accepted_at: state.accepted_at,
+        dimensions: state.dimensions.clone(),
+    })
+}
+
+fn billing_fact(
+    state: &BillingEligibilityFactState,
+) -> Result<sales::BillingEligibilityFact, IntegrationMappingError> {
+    let currency = CurrencyCode::try_new(&state.currency)
+        .map_err(|_| IntegrationMappingError::InvalidContractValue)?;
+    Ok(sales::BillingEligibilityFact {
+        billing_event: sales::BillingEventRef::try_from_uuid(state.billing_event_id.as_uuid())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        fulfillment: sales::FulfillmentRef::try_from_uuid(state.fulfillment_id.as_uuid())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        arrangement: sales::RevenueArrangementRef::try_from_uuid(state.arrangement_id.as_uuid())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        sales_order: sales::SalesOrderRef::try_from_uuid(state.sales_order_id.as_uuid())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        customer: state.customer,
+        order_code: ReferenceCode::try_new(state.order_code.clone())
+            .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+        billable_amount: MoneyAmount::new(state.billable_minor, currency),
+        tax_amount: MoneyAmount::new(state.tax_minor, currency),
+        eligible_on: state.eligible_on,
+        dimensions: state.dimensions.clone(),
+    })
 }
 
 fn fact(state: &SalesOrderFactState) -> Result<sales::SalesOrderFact, IntegrationMappingError> {
@@ -124,7 +218,9 @@ mod tests {
         let events = published_events(&order.take_uncommitted_events()).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].event_type(), "sales.order_changed");
-        let sales::Event::SalesOrderChanged(fact) = &events[0];
+        let sales::Event::SalesOrderChanged(fact) = &events[0] else {
+            panic!("expected sales order event");
+        };
         assert_eq!(fact.sales_order.as_uuid(), Uuid::from_u128(7));
         assert_eq!(fact.total.minor_units(), 200);
         assert_eq!(fact.lines.len(), 1);

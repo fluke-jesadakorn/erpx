@@ -1,9 +1,12 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_finance::{
-    AccountCategory, AccountStatus, FinanceAggregate, JournalSource, JournalStatus, NormalBalance,
-    PeriodStatus, StatutoryTaxKind, SubledgerKind, SubledgerStatus,
-    ports::{ChartView, JournalView, PeriodView, SubledgerView},
+    AccountCategory, AccountStatus, CustomerInvoiceStatus, FinanceAggregate, JournalSource,
+    JournalStatus, NormalBalance, PeriodStatus, RevenueScheduleStatus, StatutoryTaxKind,
+    SubledgerKind, SubledgerStatus,
+    ports::{
+        ChartView, CustomerInvoiceView, JournalView, PeriodView, RevenueScheduleView, SubledgerView,
+    },
 };
 use erpx_integration_contracts::finance;
 use serde::{Deserialize, Serialize};
@@ -12,11 +15,14 @@ use uuid::Uuid;
 
 use crate::{
     BANK_TRANSACTION_PROJECTION, CHART_AGGREGATE_TYPE, CHART_PROJECTION, CHART_SNAPSHOT_EVENT,
-    CONTEXT_NAME, EVENT_VERSION, JOURNAL_AGGREGATE_TYPE, JOURNAL_PROJECTION,
+    CONTEXT_NAME, CUSTOMER_INVOICE_AGGREGATE_TYPE, CUSTOMER_INVOICE_PROJECTION,
+    CUSTOMER_INVOICE_SNAPSHOT_EVENT, EVENT_VERSION, JOURNAL_AGGREGATE_TYPE, JOURNAL_PROJECTION,
     JOURNAL_SNAPSHOT_EVENT, PERIOD_AGGREGATE_TYPE, PERIOD_PROJECTION, PERIOD_SNAPSHOT_EVENT,
+    REVENUE_SCHEDULE_AGGREGATE_TYPE, REVENUE_SCHEDULE_PROJECTION, REVENUE_SCHEDULE_SNAPSHOT_EVENT,
     STATUTORY_TAX_PROJECTION, SUBLEDGER_AGGREGATE_TYPE, SUBLEDGER_PROJECTION,
-    SUBLEDGER_SNAPSHOT_EVENT, TRIAL_BALANCE_PROJECTION, chart_partition, journal_partition,
-    period_partition, subledger_partition,
+    SUBLEDGER_SNAPSHOT_EVENT, TRIAL_BALANCE_PROJECTION, chart_partition,
+    customer_invoice_partition, journal_partition, period_partition, revenue_schedule_partition,
+    subledger_partition,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,6 +32,8 @@ pub enum FinanceSnapshot {
     Period(PeriodView),
     Journal(JournalView),
     Subledger(SubledgerView),
+    CustomerInvoice(CustomerInvoiceView),
+    RevenueSchedule(RevenueScheduleView),
 }
 impl From<&FinanceAggregate> for FinanceSnapshot {
     fn from(v: &FinanceAggregate) -> Self {
@@ -34,6 +42,8 @@ impl From<&FinanceAggregate> for FinanceSnapshot {
             FinanceAggregate::Period(x) => Self::Period(x.into()),
             FinanceAggregate::Journal(x) => Self::Journal(x.into()),
             FinanceAggregate::Subledger(x) => Self::Subledger(x.into()),
+            FinanceAggregate::CustomerInvoice(x) => Self::CustomerInvoice(x.into()),
+            FinanceAggregate::RevenueSchedule(x) => Self::RevenueSchedule(x.into()),
         }
     }
 }
@@ -102,6 +112,13 @@ projector!(
     reset_chart
 );
 projector!(
+    FinanceRevenueScheduleProjector,
+    REVENUE_SCHEDULE_PROJECTION,
+    REVENUE_SCHEDULE_SNAPSHOT_EVENT,
+    apply_revenue_schedule,
+    reset_revenue_schedule
+);
+projector!(
     FinancePeriodProjector,
     PERIOD_PROJECTION,
     PERIOD_SNAPSHOT_EVENT,
@@ -121,6 +138,13 @@ projector!(
     SUBLEDGER_SNAPSHOT_EVENT,
     apply_subledger,
     reset_subledger
+);
+projector!(
+    FinanceCustomerInvoiceProjector,
+    CUSTOMER_INVOICE_PROJECTION,
+    CUSTOMER_INVOICE_SNAPSHOT_EVENT,
+    apply_customer_invoice,
+    reset_customer_invoice
 );
 projector!(
     FinanceTrialBalanceProjector,
@@ -196,6 +220,20 @@ fn snapshot(
                 && v.subledger_id.as_uuid() == event.aggregate_id.as_uuid()
                 && v.scope == event.tenant_scope
                 && event.partition == subledger_partition(v.subledger_id)
+        }
+        FinanceSnapshot::CustomerInvoice(v) => {
+            kind == CUSTOMER_INVOICE_AGGREGATE_TYPE
+                && v.version == event.aggregate_version
+                && v.invoice_id.as_uuid() == event.aggregate_id.as_uuid()
+                && v.scope == event.tenant_scope
+                && event.partition == customer_invoice_partition(v.invoice_id)
+        }
+        FinanceSnapshot::RevenueSchedule(v) => {
+            kind == REVENUE_SCHEDULE_AGGREGATE_TYPE
+                && v.version == event.aggregate_version
+                && v.schedule_id.as_uuid() == event.aggregate_id.as_uuid()
+                && v.scope == event.tenant_scope
+                && event.partition == revenue_schedule_partition(v.schedule_id)
         }
     };
     if !matches {
@@ -283,6 +321,138 @@ async fn apply_subledger(
     let (kind, party) = subledger_identity(&v.kind);
     let state = serde_json::to_value(&v).map_err(failure)?;
     changed(sqlx::query("INSERT INTO erpx_finance_read.subledger_projection (projection_name,generation,partition_key,subledger_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,subledger_kind,party_id,document_code,source_reference,currency,original_minor,outstanding_minor,subledger_status,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now()) ON CONFLICT (projection_name,generation,partition_key,subledger_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,subledger_kind=EXCLUDED.subledger_kind,party_id=EXCLUDED.party_id,document_code=EXCLUDED.document_code,source_reference=EXCLUDED.source_reference,currency=EXCLUDED.currency,original_minor=EXCLUDED.original_minor,outstanding_minor=EXCLUDED.outstanding_minor,subledger_status=EXCLUDED.subledger_status,state=EXCLUDED.state,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_finance_read.subledger_projection.source_aggregate_version<EXCLUDED.source_aggregate_version").bind(SUBLEDGER_PROJECTION).bind(ctx.generation).bind(&event.partition).bind(v.subledger_id.as_uuid()).bind(i64v(v.version)?).bind(i64v(event.global_sequence)?).bind(serde_json::to_value(&v.scope).map_err(failure)?).bind(scope_key(&v.scope)?).bind(kind).bind(party).bind(&v.document_code).bind(&v.source_reference).bind(&v.currency).bind(v.original_minor).bind(v.outstanding_minor).bind(subledger_status_name(v.status)).bind(state).bind(v.created_at).bind(v.updated_at).execute(&mut **tx).await.map_err(failure)?,"Finance subledger snapshot is duplicate or out of order")
+}
+
+async fn apply_customer_invoice(
+    tx: &mut Transaction<'_, Postgres>,
+    ctx: &ProjectorContext<'_>,
+    event: &ProjectionEvent,
+) -> Result<(), ProjectionFailure> {
+    let FinanceSnapshot::CustomerInvoice(v) = snapshot(
+        ctx,
+        event,
+        CUSTOMER_INVOICE_PROJECTION,
+        CUSTOMER_INVOICE_AGGREGATE_TYPE,
+        CUSTOMER_INVOICE_SNAPSHOT_EVENT,
+    )?
+    else {
+        return Err(ProjectionFailure::new(
+            "Finance customer invoice snapshot mismatch",
+        ));
+    };
+    let state = serde_json::to_value(&v).map_err(failure)?;
+    changed(
+        sqlx::query(
+            "INSERT INTO erpx_finance_read.customer_invoice_projection
+              (projection_name,generation,partition_key,invoice_id,source_aggregate_version,
+               source_global_sequence,tenant_scope,scope_key,invoice_code,customer_id,
+               billing_event_id,currency,receivable_minor,due_on,invoice_status,state,
+               aggregate_created_at,aggregate_updated_at,projected_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now())
+             ON CONFLICT (projection_name,generation,partition_key,invoice_id) DO UPDATE SET
+               source_aggregate_version=EXCLUDED.source_aggregate_version,
+               source_global_sequence=EXCLUDED.source_global_sequence,
+               tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+               invoice_code=EXCLUDED.invoice_code,customer_id=EXCLUDED.customer_id,
+               billing_event_id=EXCLUDED.billing_event_id,currency=EXCLUDED.currency,
+               receivable_minor=EXCLUDED.receivable_minor,due_on=EXCLUDED.due_on,
+               invoice_status=EXCLUDED.invoice_status,state=EXCLUDED.state,
+               aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now()
+             WHERE erpx_finance_read.customer_invoice_projection.source_aggregate_version
+                   < EXCLUDED.source_aggregate_version",
+        )
+        .bind(CUSTOMER_INVOICE_PROJECTION)
+        .bind(ctx.generation)
+        .bind(&event.partition)
+        .bind(v.invoice_id.as_uuid())
+        .bind(i64v(v.version)?)
+        .bind(i64v(event.global_sequence)?)
+        .bind(serde_json::to_value(&v.scope).map_err(failure)?)
+        .bind(scope_key(&v.scope)?)
+        .bind(&v.invoice_code)
+        .bind(v.billing.customer.as_uuid())
+        .bind(v.billing.billing_event.as_uuid())
+        .bind(v.billing.billable_amount.currency().as_str())
+        .bind(v.receivable_minor)
+        .bind(v.due_on)
+        .bind(customer_invoice_status_name(v.status))
+        .bind(state)
+        .bind(v.created_at)
+        .bind(v.updated_at)
+        .execute(&mut **tx)
+        .await
+        .map_err(failure)?,
+        "Finance customer invoice snapshot is duplicate or out of order",
+    )
+}
+
+async fn apply_revenue_schedule(
+    tx: &mut Transaction<'_, Postgres>,
+    ctx: &ProjectorContext<'_>,
+    event: &ProjectionEvent,
+) -> Result<(), ProjectionFailure> {
+    let FinanceSnapshot::RevenueSchedule(v) = snapshot(
+        ctx,
+        event,
+        REVENUE_SCHEDULE_PROJECTION,
+        REVENUE_SCHEDULE_AGGREGATE_TYPE,
+        REVENUE_SCHEDULE_SNAPSHOT_EVENT,
+    )?
+    else {
+        return Err(ProjectionFailure::new(
+            "Finance revenue schedule snapshot mismatch",
+        ));
+    };
+    let allocated_minor = v.obligations.iter().try_fold(0_i64, |total, value| {
+        total
+            .checked_add(value.allocated_minor())
+            .ok_or_else(|| ProjectionFailure::new("Finance revenue allocation overflow"))
+    })?;
+    let state = serde_json::to_value(&v).map_err(failure)?;
+    changed(
+        sqlx::query(
+            "INSERT INTO erpx_finance_read.revenue_schedule_projection
+              (projection_name,generation,partition_key,schedule_id,source_aggregate_version,
+               source_global_sequence,tenant_scope,scope_key,arrangement_id,sales_order_id,
+               customer_id,currency,allocated_minor,recognized_minor,schedule_status,state,
+               aggregate_created_at,aggregate_updated_at,projected_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now())
+             ON CONFLICT (projection_name,generation,partition_key,schedule_id) DO UPDATE SET
+               source_aggregate_version=EXCLUDED.source_aggregate_version,
+               source_global_sequence=EXCLUDED.source_global_sequence,
+               tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
+               arrangement_id=EXCLUDED.arrangement_id,sales_order_id=EXCLUDED.sales_order_id,
+               customer_id=EXCLUDED.customer_id,currency=EXCLUDED.currency,
+               allocated_minor=EXCLUDED.allocated_minor,
+               recognized_minor=EXCLUDED.recognized_minor,
+               schedule_status=EXCLUDED.schedule_status,state=EXCLUDED.state,
+               aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now()
+             WHERE erpx_finance_read.revenue_schedule_projection.source_aggregate_version
+                   < EXCLUDED.source_aggregate_version",
+        )
+        .bind(REVENUE_SCHEDULE_PROJECTION)
+        .bind(ctx.generation)
+        .bind(&event.partition)
+        .bind(v.schedule_id.as_uuid())
+        .bind(i64v(v.version)?)
+        .bind(i64v(event.global_sequence)?)
+        .bind(serde_json::to_value(&v.scope).map_err(failure)?)
+        .bind(scope_key(&v.scope)?)
+        .bind(v.arrangement.arrangement.as_uuid())
+        .bind(v.arrangement.sales_order.as_uuid())
+        .bind(v.arrangement.customer.as_uuid())
+        .bind(&v.currency)
+        .bind(allocated_minor)
+        .bind(v.recognized_total_minor)
+        .bind(revenue_schedule_status_name(v.status))
+        .bind(state)
+        .bind(v.created_at)
+        .bind(v.updated_at)
+        .execute(&mut **tx)
+        .await
+        .map_err(failure)?,
+        "Finance revenue schedule snapshot is duplicate or out of order",
+    )
 }
 
 async fn apply_trial_balance(
@@ -409,6 +579,16 @@ reset!(
     SUBLEDGER_PROJECTION
 );
 reset!(
+    reset_customer_invoice,
+    "erpx_finance_read.customer_invoice_projection",
+    CUSTOMER_INVOICE_PROJECTION
+);
+reset!(
+    reset_revenue_schedule,
+    "erpx_finance_read.revenue_schedule_projection",
+    REVENUE_SCHEDULE_PROJECTION
+);
+reset!(
     reset_trial_balance,
     "erpx_finance_read.trial_balance_projection",
     TRIAL_BALANCE_PROJECTION
@@ -472,6 +652,19 @@ pub(crate) const fn subledger_status_name(v: SubledgerStatus) -> &'static str {
         SubledgerStatus::Settled => "settled",
     }
 }
+pub(crate) const fn customer_invoice_status_name(v: CustomerInvoiceStatus) -> &'static str {
+    match v {
+        CustomerInvoiceStatus::Draft => "draft",
+        CustomerInvoiceStatus::Posted => "posted",
+        CustomerInvoiceStatus::Cancelled => "cancelled",
+    }
+}
+pub(crate) const fn revenue_schedule_status_name(v: RevenueScheduleStatus) -> &'static str {
+    match v {
+        RevenueScheduleStatus::Active => "active",
+        RevenueScheduleStatus::Completed => "completed",
+    }
+}
 pub(crate) const fn statutory_tax_kind_name(v: StatutoryTaxKind) -> &'static str {
     match v {
         StatutoryTaxKind::OutputVat => "output_vat",
@@ -515,21 +708,32 @@ fn failure(e: impl std::fmt::Display) -> ProjectionFailure {
 mod tests {
     use super::*;
     #[test]
-    fn seven_projectors_are_collision_free() {
+    fn nine_projectors_are_collision_free() {
         let chart = FinanceChartProjector::new();
         let period = FinancePeriodProjector::new();
         let journal = FinanceJournalProjector::new();
         let subledger = FinanceSubledgerProjector::new();
+        let customer_invoice = FinanceCustomerInvoiceProjector::new();
+        let revenue_schedule = FinanceRevenueScheduleProjector::new();
         let trial = FinanceTrialBalanceProjector::new();
         let bank = FinanceBankTransactionProjector::new();
         let tax = FinanceStatutoryTaxProjector::new();
-        let values: [&dyn Projector; 7] =
-            [&chart, &period, &journal, &subledger, &trial, &bank, &tax];
+        let values: [&dyn Projector; 9] = [
+            &chart,
+            &period,
+            &journal,
+            &subledger,
+            &customer_invoice,
+            &revenue_schedule,
+            &trial,
+            &bank,
+            &tax,
+        ];
         let names = values
             .iter()
             .map(|v| v.name())
             .collect::<std::collections::BTreeSet<_>>();
-        assert_eq!(names.len(), 7);
+        assert_eq!(names.len(), 9);
         assert!(
             include_str!("projection.rs")
                 .contains("source_aggregate_version<EXCLUDED.source_aggregate_version")

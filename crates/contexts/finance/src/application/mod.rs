@@ -4,24 +4,25 @@ use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
-use erpx_integration_contracts::{procurement, sales};
+use erpx_integration_contracts::{RecordRef, finance, procurement, sales};
 use erpx_kernel::{Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
     domain::{
-        Account, AccountId, AccountStatus, AccountingPeriod, Chart, ChartId, FinanceAggregate,
-        FinanceDomainError, Journal, JournalId, JournalLine, JournalSource, PeriodId, SubledgerId,
-        SubledgerItem,
+        Account, AccountId, AccountStatus, AccountingPeriod, Chart, ChartId, CustomerInvoice,
+        CustomerInvoiceId, FinanceAggregate, FinanceDomainError, Journal, JournalId, JournalLine,
+        JournalSource, PeriodId, RevenueSchedule, RevenueScheduleId, SubledgerId, SubledgerItem,
     },
     integration,
     ports::{
         AuthorizationPort, AuthorizationRequest, BankTransactionList, BankTransactionListFilter,
-        ChartView, CommandFingerprint, CommandIdentity, CommandUnitOfWork, EntitlementPort,
-        FinanceAction, FinanceCommit, JournalList, JournalListFilter, JournalView, PeriodView,
-        PortError, ReadRepository, ReferenceVersion, StatutoryTaxReport, StoredCommit,
-        SubledgerList, SubledgerListFilter, SubledgerView, TrialBalanceView, WriteRepository,
+        ChartView, CommandFingerprint, CommandIdentity, CommandUnitOfWork, CustomerInvoiceView,
+        EntitlementPort, FinanceAction, FinanceCommit, JournalList, JournalListFilter, JournalView,
+        PeriodView, PortError, ReadRepository, ReferenceVersion, RevenueScheduleView,
+        StatutoryTaxReport, StoredCommit, SubledgerList, SubledgerListFilter, SubledgerView,
+        TrialBalanceView, WriteRepository,
     },
 };
 
@@ -87,10 +88,40 @@ pub struct PostJournal {
     pub expected_period_version: u64,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CreateReceivableFromSales {
+pub struct CreateCustomerInvoiceFromBilling {
+    pub invoice_id: CustomerInvoiceId,
+    pub scope: TenantScope,
+    pub invoice_code: String,
+    pub source: RecordRef,
+    pub fact: sales::BillingEligibilityFact,
+    pub due_on: NaiveDate,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PostCustomerInvoice {
+    pub invoice_id: CustomerInvoiceId,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CancelCustomerInvoice {
+    pub invoice_id: CustomerInvoiceId,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateRevenueScheduleFromArrangement {
+    pub schedule_id: RevenueScheduleId,
+    pub scope: TenantScope,
+    pub source: RecordRef,
+    pub fact: sales::RevenueArrangementFact,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecognizeRevenueFromFulfillment {
+    pub schedule_id: RevenueScheduleId,
+    pub source: RecordRef,
+    pub fact: sales::FulfillmentAcceptedFact,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateReceivableFromInvoice {
     pub subledger_id: SubledgerId,
     pub scope: TenantScope,
-    pub fact: sales::SalesOrderFact,
+    pub fact: finance::CustomerInvoicePostedFact,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreatePayableFromProcurement {
@@ -116,7 +147,12 @@ pub enum FinanceCommand {
     ReopenPeriod(ReopenPeriod),
     CreateJournal(CreateJournal),
     PostJournal(PostJournal),
-    CreateReceivableFromSales(CreateReceivableFromSales),
+    CreateCustomerInvoiceFromBilling(CreateCustomerInvoiceFromBilling),
+    PostCustomerInvoice(PostCustomerInvoice),
+    CancelCustomerInvoice(CancelCustomerInvoice),
+    CreateRevenueScheduleFromArrangement(CreateRevenueScheduleFromArrangement),
+    RecognizeRevenueFromFulfillment(RecognizeRevenueFromFulfillment),
+    CreateReceivableFromInvoice(CreateReceivableFromInvoice),
     CreatePayableFromProcurement(CreatePayableFromProcurement),
     ApplySubledgerSettlement(ApplySubledgerSettlement),
 }
@@ -133,7 +169,12 @@ impl FinanceCommand {
             Self::ReopenPeriod(_) => FinanceAction::ReopenPeriod,
             Self::CreateJournal(_) => FinanceAction::CreateJournal,
             Self::PostJournal(_) => FinanceAction::PostJournal,
-            Self::CreateReceivableFromSales(_) | Self::CreatePayableFromProcurement(_) => {
+            Self::CreateCustomerInvoiceFromBilling(_) => FinanceAction::CreateCustomerInvoice,
+            Self::PostCustomerInvoice(_) => FinanceAction::PostCustomerInvoice,
+            Self::CancelCustomerInvoice(_) => FinanceAction::CancelCustomerInvoice,
+            Self::CreateRevenueScheduleFromArrangement(_) => FinanceAction::CreateRevenueSchedule,
+            Self::RecognizeRevenueFromFulfillment(_) => FinanceAction::RecognizeRevenue,
+            Self::CreateReceivableFromInvoice(_) | Self::CreatePayableFromProcurement(_) => {
                 FinanceAction::CreateSubledger
             }
             Self::ApplySubledgerSettlement(_) => FinanceAction::SettleSubledger,
@@ -146,7 +187,9 @@ impl FinanceCommand {
             Self::CreateChart(_)
                 | Self::CreatePeriod(_)
                 | Self::CreateJournal(_)
-                | Self::CreateReceivableFromSales(_)
+                | Self::CreateCustomerInvoiceFromBilling(_)
+                | Self::CreateRevenueScheduleFromArrangement(_)
+                | Self::CreateReceivableFromInvoice(_)
                 | Self::CreatePayableFromProcurement(_)
         )
     }
@@ -203,11 +246,44 @@ impl FinanceCommand {
                 expected_chart_version: v.expected_chart_version,
                 expected_period_version: v.expected_period_version,
             },
-            Self::CreateReceivableFromSales(v) => CommandFingerprint::CreateReceivableFromSales {
-                subledger_id: v.subledger_id,
-                scope: v.scope.clone(),
-                fact: v.fact.clone(),
+            Self::CreateCustomerInvoiceFromBilling(v) => {
+                CommandFingerprint::CreateCustomerInvoice {
+                    invoice_id: v.invoice_id,
+                    scope: v.scope.clone(),
+                    invoice_code: v.invoice_code.clone(),
+                    source: v.source.clone(),
+                    fact: v.fact.clone(),
+                    due_on: v.due_on,
+                }
+            }
+            Self::PostCustomerInvoice(v) => CommandFingerprint::PostCustomerInvoice {
+                invoice_id: v.invoice_id,
             },
+            Self::CancelCustomerInvoice(v) => CommandFingerprint::CancelCustomerInvoice {
+                invoice_id: v.invoice_id,
+            },
+            Self::CreateRevenueScheduleFromArrangement(v) => {
+                CommandFingerprint::CreateRevenueSchedule {
+                    schedule_id: v.schedule_id,
+                    scope: v.scope.clone(),
+                    source: v.source.clone(),
+                    fact: v.fact.clone(),
+                }
+            }
+            Self::RecognizeRevenueFromFulfillment(v) => {
+                CommandFingerprint::RecognizeRevenueFromFulfillment {
+                    schedule_id: v.schedule_id,
+                    source: v.source.clone(),
+                    fact: v.fact.clone(),
+                }
+            }
+            Self::CreateReceivableFromInvoice(v) => {
+                CommandFingerprint::CreateReceivableFromInvoice {
+                    subledger_id: v.subledger_id,
+                    scope: v.scope.clone(),
+                    fact: v.fact.clone(),
+                }
+            }
             Self::CreatePayableFromProcurement(v) => {
                 CommandFingerprint::CreatePayableFromProcurement {
                     subledger_id: v.subledger_id,
@@ -243,6 +319,14 @@ pub struct ListJournals {
 pub struct GetSubledger {
     pub subledger_id: SubledgerId,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetCustomerInvoice {
+    pub invoice_id: CustomerInvoiceId,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetRevenueSchedule {
+    pub schedule_id: RevenueScheduleId,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListSubledger {
     pub filter: SubledgerListFilter,
@@ -269,6 +353,8 @@ pub enum FinanceQuery {
     GetJournal(GetJournal),
     ListJournals(ListJournals),
     GetSubledger(GetSubledger),
+    GetCustomerInvoice(GetCustomerInvoice),
+    GetRevenueSchedule(GetRevenueSchedule),
     ListSubledger(ListSubledger),
     GetTrialBalance(GetTrialBalance),
     ListBankTransactions(ListBankTransactions),
@@ -283,6 +369,8 @@ impl FinanceQuery {
             Self::GetJournal(_) => FinanceAction::ViewJournal,
             Self::ListJournals(_) => FinanceAction::ListJournals,
             Self::GetSubledger(_) => FinanceAction::ViewSubledger,
+            Self::GetCustomerInvoice(_) => FinanceAction::ViewCustomerInvoice,
+            Self::GetRevenueSchedule(_) => FinanceAction::ViewRevenueSchedule,
             Self::ListSubledger(_) => FinanceAction::ListSubledger,
             Self::GetTrialBalance(_) => FinanceAction::ViewTrialBalance,
             Self::ListBankTransactions(_) => FinanceAction::ViewBanking,
@@ -298,6 +386,8 @@ pub enum FinanceMutationResult {
     Period(PeriodView),
     Journal(JournalView),
     Subledger(SubledgerView),
+    CustomerInvoice(CustomerInvoiceView),
+    RevenueSchedule(RevenueScheduleView),
 }
 
 impl From<&FinanceAggregate> for FinanceMutationResult {
@@ -307,6 +397,8 @@ impl From<&FinanceAggregate> for FinanceMutationResult {
             FinanceAggregate::Period(v) => Self::Period(v.into()),
             FinanceAggregate::Journal(v) => Self::Journal(v.into()),
             FinanceAggregate::Subledger(v) => Self::Subledger(v.into()),
+            FinanceAggregate::CustomerInvoice(v) => Self::CustomerInvoice(v.into()),
+            FinanceAggregate::RevenueSchedule(v) => Self::RevenueSchedule(v.into()),
         }
     }
 }
@@ -319,6 +411,8 @@ pub enum FinanceQueryResponse {
     Journal(Option<JournalView>),
     Journals(JournalList),
     Subledger(Option<SubledgerView>),
+    CustomerInvoice(Option<CustomerInvoiceView>),
+    RevenueSchedule(Option<RevenueScheduleView>),
     SubledgerList(SubledgerList),
     TrialBalance(TrialBalanceView),
     BankTransactions(BankTransactionList),
@@ -725,12 +819,129 @@ where
                 });
                 (value, Some(expected))
             }
-            FinanceCommand::CreateReceivableFromSales(v) => {
+            FinanceCommand::CreateCustomerInvoiceFromBilling(v) => {
+                self.preflight(&envelope.actor, &envelope.tenant_scope, &v.scope, action)
+                    .await
+                    .map_err(|e| to_cqrs(e, correlation))?;
+                (
+                    FinanceAggregate::CustomerInvoice(
+                        CustomerInvoice::create_from_billing(
+                            v.invoice_id,
+                            v.scope,
+                            v.invoice_code,
+                            v.source,
+                            v.fact,
+                            v.due_on,
+                            actor_ref.into(),
+                            at,
+                        )
+                        .map_err(|e| to_cqrs(e.into(), correlation))?,
+                    ),
+                    None,
+                )
+            }
+            FinanceCommand::PostCustomerInvoice(v) => {
+                let mut value = FinanceAggregate::CustomerInvoice(
+                    self.write
+                        .load_customer_invoice(&envelope.tenant_scope, v.invoice_id)
+                        .await
+                        .map_err(|e| to_cqrs(e.into(), correlation))?
+                        .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
+                );
+                let expected = self
+                    .validate_existing(
+                        &value,
+                        &envelope.actor,
+                        &envelope.tenant_scope,
+                        action,
+                        envelope.expected_aggregate_version,
+                    )
+                    .await
+                    .map_err(|e| to_cqrs(e, correlation))?;
+                let FinanceAggregate::CustomerInvoice(invoice) = &mut value else {
+                    unreachable!()
+                };
+                invoice
+                    .post(actor_ref, at)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (value, Some(expected))
+            }
+            FinanceCommand::CancelCustomerInvoice(v) => {
+                let mut value = FinanceAggregate::CustomerInvoice(
+                    self.write
+                        .load_customer_invoice(&envelope.tenant_scope, v.invoice_id)
+                        .await
+                        .map_err(|e| to_cqrs(e.into(), correlation))?
+                        .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
+                );
+                let expected = self
+                    .validate_existing(
+                        &value,
+                        &envelope.actor,
+                        &envelope.tenant_scope,
+                        action,
+                        envelope.expected_aggregate_version,
+                    )
+                    .await
+                    .map_err(|e| to_cqrs(e, correlation))?;
+                let FinanceAggregate::CustomerInvoice(invoice) = &mut value else {
+                    unreachable!()
+                };
+                invoice
+                    .cancel(at)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (value, Some(expected))
+            }
+            FinanceCommand::CreateRevenueScheduleFromArrangement(v) => {
+                self.preflight(&envelope.actor, &envelope.tenant_scope, &v.scope, action)
+                    .await
+                    .map_err(|e| to_cqrs(e, correlation))?;
+                (
+                    FinanceAggregate::RevenueSchedule(
+                        RevenueSchedule::create_from_arrangement(
+                            v.schedule_id,
+                            v.scope,
+                            v.source,
+                            v.fact,
+                            at,
+                        )
+                        .map_err(|e| to_cqrs(e.into(), correlation))?,
+                    ),
+                    None,
+                )
+            }
+            FinanceCommand::RecognizeRevenueFromFulfillment(v) => {
+                let mut value = FinanceAggregate::RevenueSchedule(
+                    self.write
+                        .load_revenue_schedule(&envelope.tenant_scope, v.schedule_id)
+                        .await
+                        .map_err(|e| to_cqrs(e.into(), correlation))?
+                        .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?,
+                );
+                let expected = self
+                    .validate_existing(
+                        &value,
+                        &envelope.actor,
+                        &envelope.tenant_scope,
+                        action,
+                        envelope.expected_aggregate_version,
+                    )
+                    .await
+                    .map_err(|e| to_cqrs(e, correlation))?;
+                let FinanceAggregate::RevenueSchedule(schedule) = &mut value else {
+                    unreachable!()
+                };
+                schedule
+                    .recognize_fulfillment(v.source, v.fact, at)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (value, Some(expected))
+            }
+            FinanceCommand::CreateReceivableFromInvoice(v) => {
                 self.preflight(&envelope.actor, &envelope.tenant_scope, &v.scope, action)
                     .await
                     .map_err(|e| to_cqrs(e, correlation))?;
                 let mut item =
-                    SubledgerItem::receivable_from_sales(v.subledger_id, v.scope, v.fact, at)
+                    SubledgerItem::receivable_from_invoice(v.subledger_id, v.scope, v.fact, at)
                         .map_err(|e| to_cqrs(e.into(), correlation))?;
                 item.publish_opened_receivable();
                 (FinanceAggregate::Subledger(item), None)
@@ -890,6 +1101,30 @@ where
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (FinanceQueryResponse::Subledger(p.value), p.metadata)
             }
+            FinanceQuery::GetCustomerInvoice(v) => {
+                let p = self
+                    .read
+                    .get_customer_invoice(
+                        &envelope.tenant_scope,
+                        v.invoice_id,
+                        &envelope.consistency,
+                    )
+                    .await
+                    .map_err(|e| port_to_cqrs(e, correlation))?;
+                (FinanceQueryResponse::CustomerInvoice(p.value), p.metadata)
+            }
+            FinanceQuery::GetRevenueSchedule(v) => {
+                let p = self
+                    .read
+                    .get_revenue_schedule(
+                        &envelope.tenant_scope,
+                        v.schedule_id,
+                        &envelope.consistency,
+                    )
+                    .await
+                    .map_err(|e| port_to_cqrs(e, correlation))?;
+                (FinanceQueryResponse::RevenueSchedule(p.value), p.metadata)
+            }
             FinanceQuery::ListSubledger(v) => {
                 validate_page(v.filter.page_size).map_err(|e| to_cqrs(e, correlation))?;
                 let p = self
@@ -970,6 +1205,12 @@ fn response_within_scope(value: &FinanceQueryResponse, authority: &TenantScope) 
             .iter()
             .all(|value| authority.contains(&value.scope)),
         FinanceQueryResponse::Subledger(value) => value
+            .as_ref()
+            .is_none_or(|value| authority.contains(&value.scope)),
+        FinanceQueryResponse::CustomerInvoice(value) => value
+            .as_ref()
+            .is_none_or(|value| authority.contains(&value.scope)),
+        FinanceQueryResponse::RevenueSchedule(value) => value
             .as_ref()
             .is_none_or(|value| authority.contains(&value.scope)),
         FinanceQueryResponse::SubledgerList(value) => value

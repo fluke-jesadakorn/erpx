@@ -58,6 +58,42 @@ members = [
   "crates/migration",
   "crates/android-bridge",
   "crates/ui",
+  "crates/ui-facade",
+  "crates/ui-kit",
+  "crates/ui-domains/crm",
+  "crates/ui-domains/customer-360",
+  "crates/ui-domains/finance",
+  "crates/ui-domains/people-payroll",
+  "crates/ui-domains/legal",
+  "crates/ui-domains/operations",
+  "crates/ui-domains/platform",
+  "crates/ui-domains/pos",
+  "crates/ui-domains/support",
+  "crates/console-features/assets",
+  "crates/console-features/brand",
+  "crates/console-features/commercial",
+  "crates/console-features/crm",
+  "crates/console-features/customer-360",
+  "crates/console-features/customer-authority",
+  "crates/console-features/finance",
+  "crates/console-features/identity-access",
+  "crates/console-features/inventory",
+  "crates/console-features/legal",
+  "crates/console-features/maintenance",
+  "crates/console-features/marketing",
+  "crates/console-features/operations",
+  "crates/console-features/organization",
+  "crates/console-features/people-payroll",
+  "crates/console-features/platform-administration",
+  "crates/console-features/pos",
+  "crates/console-features/procurement",
+  "crates/console-features/quality",
+  "crates/console-features/sales",
+  "crates/console-features/support",
+  "crates/console-transport-core",
+  "crates/console-transport",
+  "crates/console-shell",
+  "crates/console-bff",
   "apps/server",
   "apps/worker",
   "apps/console",
@@ -71,13 +107,16 @@ exclude = [
   "third_party/tonic-web-wasm-client",
   "third_party/dioxus-components/primitives",
   "third_party/dioxus-components/dioxus-attributes",
+  "third_party/dioxus-icons",
+  "third_party/dioxus-sdk-time",
+  "third_party/wasm-split-cli",
 ]
 resolver = "2"
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.91"
+rust-version = "1.93.1"
 license = "LicenseRef-Proprietary"
 
 [workspace.dependencies]
@@ -85,10 +124,11 @@ aes-gcm = "0.10.3"
 async-trait = "0.1.91"
 argon2 = "0.5.3"
 base64 = "0.22.1"
+brotli = "8.0.4"
 chrono = { version = "0.4.42", features = ["serde"] }
-dioxus = { version = "=0.7.9", default-features = false }
-dioxus-icons = "=0.1.0"
-dioxus-ssr = "=0.7.9"
+dioxus = { version = "=0.8.0-alpha.1", default-features = false }
+dioxus-icons = { path = "third_party/dioxus-icons" }
+dioxus-ssr = "=0.8.0-alpha.1"
 dioxus-primitives = { path = "third_party/dioxus-components/primitives", default-features = false }
 erpx-android-bridge = { path = "crates/android-bridge" }
 erpx-application = { path = "crates/application" }
@@ -98,6 +138,31 @@ erpx-brand = { path = "crates/contexts/brand" }
 erpx-brand-sqlx = { path = "crates/adapters/brand-sqlx" }
 erpx-commercial = { path = "crates/contexts/commercial" }
 erpx-commercial-sqlx = { path = "crates/adapters/commercial-sqlx" }
+erpx-console-feature-assets = { path = "crates/console-features/assets" }
+erpx-console-feature-brand = { path = "crates/console-features/brand" }
+erpx-console-feature-commercial = { path = "crates/console-features/commercial" }
+erpx-console-feature-crm = { path = "crates/console-features/crm" }
+erpx-console-feature-customer-360 = { path = "crates/console-features/customer-360" }
+erpx-console-feature-customer-authority = { path = "crates/console-features/customer-authority" }
+erpx-console-feature-finance = { path = "crates/console-features/finance" }
+erpx-console-feature-identity-access = { path = "crates/console-features/identity-access" }
+erpx-console-feature-inventory = { path = "crates/console-features/inventory" }
+erpx-console-feature-legal = { path = "crates/console-features/legal" }
+erpx-console-feature-maintenance = { path = "crates/console-features/maintenance" }
+erpx-console-feature-marketing = { path = "crates/console-features/marketing" }
+erpx-console-feature-operations = { path = "crates/console-features/operations" }
+erpx-console-feature-organization = { path = "crates/console-features/organization" }
+erpx-console-feature-people-payroll = { path = "crates/console-features/people-payroll" }
+erpx-console-feature-platform-administration = { path = "crates/console-features/platform-administration" }
+erpx-console-feature-pos = { path = "crates/console-features/pos" }
+erpx-console-feature-procurement = { path = "crates/console-features/procurement" }
+erpx-console-feature-quality = { path = "crates/console-features/quality" }
+erpx-console-feature-sales = { path = "crates/console-features/sales" }
+erpx-console-feature-support = { path = "crates/console-features/support" }
+erpx-console-transport-core = { path = "crates/console-transport-core" }
+erpx-console-transport = { path = "crates/console-transport" }
+erpx-console-shell = { path = "crates/console-shell" }
+erpx-console-bff = { path = "crates/console-bff" }
 erpx-cqrs = { path = "crates/cqrs" }
 erpx-cqrs-sqlx = { path = "crates/adapters/cqrs-sqlx" }
 erpx-crm = { path = "crates/contexts/crm" }
@@ -143,8 +208,19 @@ erpx-sales = { path = "crates/contexts/sales" }
 erpx-sales-sqlx = { path = "crates/adapters/sales-sqlx" }
 erpx-support = { path = "crates/contexts/support" }
 erpx-support-sqlx = { path = "crates/adapters/support-sqlx" }
-erpx-ui = { path = "crates/ui" }
+erpx-ui = { path = "crates/ui-facade" }
+erpx-ui-core = { path = "crates/ui" }
 erpx-ui-foundation = { path = "crates/ui-foundation" }
+erpx-ui-kit = { path = "crates/ui-kit" }
+erpx-ui-crm = { path = "crates/ui-domains/crm" }
+erpx-ui-customer-360 = { path = "crates/ui-domains/customer-360" }
+erpx-ui-finance = { path = "crates/ui-domains/finance" }
+erpx-ui-people-payroll = { path = "crates/ui-domains/people-payroll" }
+erpx-ui-legal = { path = "crates/ui-domains/legal" }
+erpx-ui-operations = { path = "crates/ui-domains/operations" }
+erpx-ui-platform = { path = "crates/ui-domains/platform" }
+erpx-ui-pos = { path = "crates/ui-domains/pos" }
+erpx-ui-support = { path = "crates/ui-domains/support" }
 erpx-web-session = { path = "crates/web-session" }
 erpx-web-session-sqlx = { path = "crates/adapters/web-session-sqlx" }
 erpx-worker = { path = "apps/worker" }
@@ -175,12 +251,13 @@ tonic-prost = "0.14.6"
 tonic-prost-build = "0.14.6"
 tonic-web = "0.14.6"
 tonic-web-wasm-client = { version = "=0.8.0", path = "third_party/tonic-web-wasm-client" }
-tower-http = { version = "0.6.11", features = ["cors"] }
+tower-http = { version = "0.6.11", features = ["compression-br", "compression-gzip", "cors"] }
 time = { version = "=0.3.54", features = ["std", "macros", "parsing", "local-offset"] }
 sha2 = "0.10.9"
 subtle = "2.6.1"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "json"] }
+url = "2.5.8"
 uuid = { version = "1.18.1", features = ["v4", "v5", "serde"] }
 web-sys = "0.3.103"
 webauthn-rs = "=0.5.5"
@@ -197,7 +274,7 @@ module_name_repetitions = "allow"
 must_use_candidate = "allow"
 
 [profile.dev]
-debug = "line-tables-only"
+debug = 0
 incremental = true
 split-debuginfo = "off"
 

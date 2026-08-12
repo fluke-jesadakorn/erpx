@@ -22,6 +22,7 @@ pub enum OperationsAction {
     ReassignException,
     AcknowledgeException,
     EscalateException,
+    DecideApproval,
     ResolveException,
     CloseException,
     PublishWorkQueuePolicy,
@@ -41,7 +42,10 @@ impl OperationsAction {
     }
 
     pub const fn requires_current_mfa(self) -> bool {
-        matches!(self, Self::ReassignException | Self::EscalateException)
+        matches!(
+            self,
+            Self::ReassignException | Self::EscalateException | Self::DecideApproval
+        )
     }
 
     pub const fn is_internal(self) -> bool {
@@ -102,6 +106,11 @@ pub enum CommandFingerprint {
     Escalate {
         exception_id: ExceptionId,
         manager: identity_access::PrincipalRef,
+    },
+    DecideApproval {
+        exception_id: ExceptionId,
+        decision: operations::ApprovalDecision,
+        reason_code: String,
     },
     Resolve {
         exception_id: ExceptionId,

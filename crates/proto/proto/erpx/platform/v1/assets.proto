@@ -52,6 +52,7 @@ message BeginAssetMaintenanceRequest {
   erpx.common.v1.CommandRequestMetadata metadata = 1;
   string asset_id = 2;
   string request_code = 3;
+  string title = 4;
 }
 message AssetMutationResponse {
   erpx.common.v1.CommandReceipt receipt = 1;

@@ -1,10 +1,13 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{BoundedContext, ContractValidationError, DisplayName, ReferenceCode};
+use crate::{
+    BoundedContext, ContractValidationError, DisplayName, MoneyAmount, RecordRef, ReferenceCode,
+};
 
 owned_uuid_reference!(OperationalProcessRef);
 owned_uuid_reference!(WorkQueuePolicyRef);
+owned_uuid_reference!(ApprovalRequestRef);
 
 /// Typed source facts accepted by the Operations projector. Adding a source is
 /// an explicit contract change, so source ownership cannot be hidden in JSON.
@@ -14,6 +17,7 @@ pub enum SourceFact {
     Commercial(crate::commercial::SubscriptionFact),
     Customer(crate::customer::CustomerProfileFact),
     Marketing(crate::marketing::EngagementFact),
+    MarketingBudgetApproval(crate::marketing::CampaignBudgetApprovalRequestedFact),
     Crm(crate::crm::OpportunityFact),
     Procurement(crate::procurement::ReleasedPurchaseOrderFact),
     Inventory(crate::inventory::StockMovementFact),
@@ -35,7 +39,7 @@ impl SourceFact {
         match self {
             Self::Commercial(_) => BoundedContext::Commercial,
             Self::Customer(_) => BoundedContext::Customer,
-            Self::Marketing(_) => BoundedContext::Marketing,
+            Self::Marketing(_) | Self::MarketingBudgetApproval(_) => BoundedContext::Marketing,
             Self::Crm(_) => BoundedContext::Crm,
             Self::Procurement(_) => BoundedContext::Procurement,
             Self::Inventory(_) => BoundedContext::Inventory,
@@ -70,11 +74,41 @@ pub struct WorkQueuePolicyFact {
     pub published_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApprovalDecision {
+    Approved,
+    Rejected,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApprovalRequestFact {
+    pub request: ApprovalRequestRef,
+    pub subject: RecordRef,
+    pub policy_code: ReferenceCode,
+    pub amount: Option<MoneyAmount>,
+    pub requested_by: ReferenceCode,
+    pub requested_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApprovalDecisionFact {
+    pub request: ApprovalRequestRef,
+    pub subject: RecordRef,
+    pub decision: ApprovalDecision,
+    pub decided_by: ReferenceCode,
+    pub reason_code: ReferenceCode,
+    pub decided_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "fact", rename_all = "snake_case")]
 pub enum Event {
     OperationalStateChanged(OperationalSignalFact),
     WorkQueuePolicyPublished(WorkQueuePolicyFact),
+    ApprovalRequested(ApprovalRequestFact),
+    ApprovalDecided(ApprovalDecisionFact),
 }
 
 impl crate::IntegrationEvent for Event {
@@ -86,6 +120,8 @@ impl crate::IntegrationEvent for Event {
         match self {
             Self::OperationalStateChanged(_) => "operations.state_changed",
             Self::WorkQueuePolicyPublished(_) => "operations.work_queue_policy_published",
+            Self::ApprovalRequested(_) => "operations.approval_requested",
+            Self::ApprovalDecided(_) => "operations.approval_decided",
         }
     }
 
@@ -94,29 +130,37 @@ impl crate::IntegrationEvent for Event {
     }
 
     fn validate(&self) -> Result<(), ContractValidationError> {
-        let Self::WorkQueuePolicyPublished(fact) = self else {
-            return Ok(());
-        };
-        if fact.allowed_sources.is_empty()
-            || fact.allowed_sources.len() > 16
-            || fact.allowed_sources.contains(&BoundedContext::Operations)
-            || fact
-                .allowed_sources
-                .iter()
-                .enumerate()
-                .any(|(index, source)| fact.allowed_sources[..index].contains(source))
-        {
-            return Err(ContractValidationError::OutOfRange(
-                "operations.allowed_sources",
-            ));
-        }
-        if !(1..=10_080).contains(&fact.escalation_after_minutes) {
-            return Err(ContractValidationError::OutOfRange(
-                "operations.escalation_after_minutes",
-            ));
-        }
-        if fact.published_at.timestamp() < 0 {
-            return Err(ContractValidationError::InvalidTimestamp);
+        match self {
+            Self::WorkQueuePolicyPublished(fact) => {
+                if fact.allowed_sources.is_empty()
+                    || fact.allowed_sources.len() > 16
+                    || fact.allowed_sources.contains(&BoundedContext::Operations)
+                    || fact
+                        .allowed_sources
+                        .iter()
+                        .enumerate()
+                        .any(|(index, source)| fact.allowed_sources[..index].contains(source))
+                {
+                    return Err(ContractValidationError::OutOfRange(
+                        "operations.allowed_sources",
+                    ));
+                }
+                if !(1..=10_080).contains(&fact.escalation_after_minutes) {
+                    return Err(ContractValidationError::OutOfRange(
+                        "operations.escalation_after_minutes",
+                    ));
+                }
+                if fact.published_at.timestamp() < 0 {
+                    return Err(ContractValidationError::InvalidTimestamp);
+                }
+            }
+            Self::ApprovalRequested(fact) if fact.requested_at.timestamp() < 0 => {
+                return Err(ContractValidationError::InvalidTimestamp);
+            }
+            Self::ApprovalDecided(fact) if fact.decided_at.timestamp() < 0 => {
+                return Err(ContractValidationError::InvalidTimestamp);
+            }
+            _ => {}
         }
         Ok(())
     }

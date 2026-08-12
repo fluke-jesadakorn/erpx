@@ -46,6 +46,7 @@ const MAX_CONFIG_TEXT_BYTES: usize = 128;
 pub const OPERATIONS_RELEVANT_TENANT_EVENT_TYPES: &[&str] = &[
     "commercial.subscription_changed",
     "marketing.engagement_captured",
+    "marketing.campaign_budget_approval_requested",
     "crm.opportunity_changed",
     "procurement.purchase_order_released",
     "inventory.stock_moved",
@@ -326,8 +327,10 @@ fn decode_published_source(
             decode_envelope::<commercial::Event>(row, "commercial")
                 .map(PublishedSourceEvent::Commercial)
         }
-        "marketing.engagement_captured" => decode_envelope::<marketing::Event>(row, "marketing")
-            .map(PublishedSourceEvent::Marketing),
+        "marketing.engagement_captured" | "marketing.campaign_budget_approval_requested" => {
+            decode_envelope::<marketing::Event>(row, "marketing")
+                .map(PublishedSourceEvent::Marketing)
+        }
         "crm.opportunity_changed" => {
             decode_envelope::<crm::Event>(row, "crm").map(PublishedSourceEvent::Crm)
         }
@@ -519,11 +522,23 @@ where
         source: &SourceFactMessage,
         evaluated_at: DateTime<Utc>,
     ) -> Result<DetectionDecision, PortError> {
+        let is_approval = matches!(
+            source.fact(),
+            erpx_integration_contracts::operations::SourceFact::MarketingBudgetApproval(_)
+        );
         let OperationsDetectionMode::Enabled(policy) = &self.mode else {
-            return Ok(DetectionDecision::Ignore);
+            return if is_approval {
+                Err(PortError::EntitlementDenied)
+            } else {
+                Ok(DetectionDecision::Ignore)
+            };
         };
         if !policy.allowed_sources.contains(&source.source_context()) {
-            return Ok(DetectionDecision::Ignore);
+            return if is_approval {
+                Err(PortError::Denied)
+            } else {
+                Ok(DetectionDecision::Ignore)
+            };
         }
         let assignment = self
             .manager_chain
@@ -661,6 +676,10 @@ mod tests {
     fn relevant_inventory_excludes_events_that_cannot_advance_the_tenant_cursor() {
         assert!(OPERATIONS_RELEVANT_TENANT_EVENT_TYPES.contains(&"sales.order_changed"));
         assert!(OPERATIONS_RELEVANT_TENANT_EVENT_TYPES.contains(&"pos.refund_approved"));
+        assert!(
+            OPERATIONS_RELEVANT_TENANT_EVENT_TYPES
+                .contains(&"marketing.campaign_budget_approval_requested")
+        );
         assert!(!OPERATIONS_RELEVANT_TENANT_EVENT_TYPES.contains(&"pos.settlement_closed"));
         assert!(!OPERATIONS_RELEVANT_TENANT_EVENT_TYPES.contains(&"customer.profile_changed"));
     }
@@ -689,5 +708,7 @@ mod tests {
         let source = include_str!("operations_source.rs");
         assert!(source.contains("current_assignment"));
         assert!(source.contains("Err(PortError::Denied)"));
+        assert!(source.contains("SourceFact::MarketingBudgetApproval"));
+        assert!(source.contains("Err(PortError::EntitlementDenied)"));
     }
 }

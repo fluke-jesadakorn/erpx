@@ -6,23 +6,26 @@ use erpx_cqrs_sqlx::{
 use erpx_integration_contracts::IntegrationEvent;
 use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
 use erpx_marketing::{
-    CommandUnitOfWork, LeadCandidate, LeadCandidateId, MarketingCommit, PortError, WriteRepository,
+    CampaignBudget, CampaignBudgetId, CommandUnitOfWork, LeadCandidate, LeadCandidateId,
+    MarketingAggregate, MarketingCommit, PortError, SpendReservationStatus, WriteRepository,
     ports::{CommandFingerprint, CommandIdentity, StoredCommit},
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
-    AGGREGATE_TYPE, CONTEXT_NAME, EVENT_VERSION, SNAPSHOT_EVENT_TYPE, lead_partition,
-    projection::{MarketingOutboxPayload, MarketingSnapshot, status_name},
+    BUDGET_AGGREGATE_TYPE, BUDGET_SNAPSHOT_EVENT_TYPE, CONTEXT_NAME, EVENT_VERSION,
+    LEAD_AGGREGATE_TYPE, LEAD_SNAPSHOT_EVENT_TYPE, budget_partition, lead_partition,
+    projection::{MarketingOutboxPayload, MarketingSnapshot, budget_status_name, lead_status_name},
 };
 
 #[derive(Debug, Clone)]
 pub struct MarketingWriteRepository {
     store: CommandStore,
 }
+
 impl MarketingWriteRepository {
     pub fn new(pool: WritePool) -> Self {
         Self {
@@ -33,34 +36,74 @@ impl MarketingWriteRepository {
 
 #[async_trait]
 impl WriteRepository for MarketingWriteRepository {
-    async fn load(
+    async fn load_lead(
         &self,
         authority_scope: &TenantScope,
         id: LeadCandidateId,
     ) -> Result<Option<LeadCandidate>, PortError> {
         let snapshot = self
             .store
-            .load_snapshot::<LeadCandidate>(
+            .load_snapshot::<MarketingAggregate>(
                 CONTEXT_NAME,
                 &lead_partition(id),
-                AGGREGATE_TYPE,
-                aggregate_id(id)?,
+                LEAD_AGGREGATE_TYPE,
+                aggregate_id(id.as_uuid())?,
             )
             .await
             .map_err(map_store_error)?;
         let Some(snapshot) = snapshot else {
             return Ok(None);
         };
-        if snapshot.version != snapshot.state.version()
-            || snapshot.state.id() != id
-            || snapshot.state.validate().is_err()
-        {
+        let MarketingAggregate::LeadCandidate(value) = snapshot.state else {
             return Err(PortError::Internal);
+        };
+        if snapshot.version != value.version()
+            || value.id() != id
+            || value.validate().is_err()
+            || !authority_scope.contains(value.scope())
+        {
+            return Err(if authority_scope.contains(value.scope()) {
+                PortError::Internal
+            } else {
+                PortError::Denied
+            });
         }
-        if !authority_scope.contains(snapshot.state.scope()) {
-            return Err(PortError::Denied);
+        Ok(Some(*value))
+    }
+
+    async fn load_budget(
+        &self,
+        authority_scope: &TenantScope,
+        id: CampaignBudgetId,
+    ) -> Result<Option<CampaignBudget>, PortError> {
+        let snapshot = self
+            .store
+            .load_snapshot::<MarketingAggregate>(
+                CONTEXT_NAME,
+                &budget_partition(id),
+                BUDGET_AGGREGATE_TYPE,
+                aggregate_id(id.as_uuid())?,
+            )
+            .await
+            .map_err(map_store_error)?;
+        let Some(snapshot) = snapshot else {
+            return Ok(None);
+        };
+        let MarketingAggregate::CampaignBudget(value) = snapshot.state else {
+            return Err(PortError::Internal);
+        };
+        if snapshot.version != value.version()
+            || value.id() != id
+            || value.validate().is_err()
+            || !authority_scope.contains(value.scope())
+        {
+            return Err(if authority_scope.contains(value.scope()) {
+                PortError::Internal
+            } else {
+                PortError::Denied
+            });
         }
-        Ok(Some(snapshot.state))
+        Ok(Some(*value))
     }
 }
 
@@ -68,6 +111,7 @@ impl WriteRepository for MarketingWriteRepository {
 pub struct MarketingCommandAdapter {
     store: CommandStore,
 }
+
 impl MarketingCommandAdapter {
     pub fn new(pool: WritePool) -> Self {
         Self {
@@ -82,11 +126,11 @@ impl CommandUnitOfWork for MarketingCommandAdapter {
         &self,
         identity: &CommandIdentity,
     ) -> Result<Option<StoredCommit>, PortError> {
-        let id = fingerprint_id(&identity.fingerprint);
+        let target = fingerprint_target(&identity.fingerprint);
         self.store
-            .find_receipt::<LeadCandidate>(
+            .find_receipt::<MarketingAggregate>(
                 CONTEXT_NAME,
-                &lead_partition(id),
+                &target.partition,
                 &identity.idempotency_key,
                 identity.command_id,
                 request_hash(&identity.fingerprint)?,
@@ -99,9 +143,8 @@ impl CommandUnitOfWork for MarketingCommandAdapter {
 
     async fn commit(&self, request: MarketingCommit) -> Result<StoredCommit, PortError> {
         validate_commit(&request)?;
-        let id = request.aggregate.id();
-        let partition = lead_partition(id);
-        let occurred_at = request.aggregate.updated_at();
+        let target = aggregate_target(&request.aggregate);
+        let occurred_at = aggregate_updated_at(&request.aggregate);
         let command_id = request.identity.command_id;
         let mut events = request
             .integration_events
@@ -111,22 +154,20 @@ impl CommandUnitOfWork for MarketingCommandAdapter {
                 event_id: deterministic_event_id(command_id, event.event_type(), index),
                 event_type: event.event_type().into(),
                 event_version: u32::from(event.schema_version()),
-                partition: partition.clone(),
+                partition: target.partition.clone(),
                 causation_id: request.causation_id,
                 occurred_at,
                 payload: MarketingOutboxPayload::Integration(event.clone()),
             })
             .collect::<Vec<_>>();
         events.push(OutboxEventWrite {
-            event_id: deterministic_event_id(command_id, SNAPSHOT_EVENT_TYPE, events.len()),
-            event_type: SNAPSHOT_EVENT_TYPE.into(),
+            event_id: deterministic_event_id(command_id, target.snapshot_event, events.len()),
+            event_type: target.snapshot_event.into(),
             event_version: EVENT_VERSION,
-            partition: partition.clone(),
+            partition: target.partition.clone(),
             causation_id: request.causation_id,
             occurred_at,
-            payload: MarketingOutboxPayload::Snapshot(MarketingSnapshot {
-                candidate: (&request.aggregate).into(),
-            }),
+            payload: MarketingOutboxPayload::Snapshot(MarketingSnapshot::from(&request.aggregate)),
         });
         let guard = MarketingAtomicGuard {
             aggregate: request.aggregate.clone(),
@@ -134,7 +175,7 @@ impl CommandUnitOfWork for MarketingCommandAdapter {
         let aggregate = request.aggregate;
         let command = AtomicCommand {
             context: CONTEXT_NAME.into(),
-            partition,
+            partition: target.partition,
             command_id,
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
@@ -142,16 +183,20 @@ impl CommandUnitOfWork for MarketingCommandAdapter {
             tenant_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
-            aggregate_type: AGGREGATE_TYPE.into(),
-            aggregate_id: aggregate_id(id)?,
+            aggregate_type: target.aggregate_type.into(),
+            aggregate_id: aggregate_id(target.id)?,
             expected_version: request.expected_version,
             aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
-                audit_id: deterministic_uuid(command_id.as_uuid(), b"marketing-audit-v1"),
+                audit_id: deterministic_uuid(command_id.as_uuid(), b"marketing-audit-v2"),
                 action: audit_action(&request.identity.fingerprint).into(),
                 occurred_at,
-                details: json!({"lead_id": id.as_uuid(), "expected_version": request.expected_version}),
+                details: json!({
+                    "aggregate_type": target.aggregate_type,
+                    "aggregate_id": target.id,
+                    "expected_version": request.expected_version
+                }),
             },
             events,
         };
@@ -162,7 +207,7 @@ impl CommandUnitOfWork for MarketingCommandAdapter {
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
         let receipt = match outcome {
-            AtomicCommandOutcome::Committed(v) | AtomicCommandOutcome::Replayed(v) => v,
+            AtomicCommandOutcome::Committed(value) | AtomicCommandOutcome::Replayed(value) => value,
         };
         let mut stored = receipt_to_stored(receipt)?;
         stored.replayed = replayed;
@@ -171,8 +216,9 @@ impl CommandUnitOfWork for MarketingCommandAdapter {
 }
 
 struct MarketingAtomicGuard {
-    aggregate: LeadCandidate,
+    aggregate: MarketingAggregate,
 }
+
 #[async_trait]
 impl AtomicCommandGuard for MarketingAtomicGuard {
     async fn validate(
@@ -181,46 +227,127 @@ impl AtomicCommandGuard for MarketingAtomicGuard {
         context: &GuardCommandContext<'_>,
     ) -> Result<(), CqrsSqlxError> {
         validate_guard_context(&self.aggregate, context)?;
-        let current: Option<i64> = sqlx::query_scalar("SELECT aggregate_version FROM erpx_marketing_write.lead_candidate_guards WHERE lead_id=$1 FOR UPDATE").bind(self.aggregate.id().as_uuid()).fetch_optional(&mut **transaction).await?;
+        let current = match &self.aggregate {
+            MarketingAggregate::LeadCandidate(value) => {
+                sqlx::query_scalar::<_, i64>(
+                    "SELECT aggregate_version FROM erpx_marketing_write.lead_candidate_guards WHERE lead_id=$1 FOR UPDATE",
+                )
+                .bind(value.id().as_uuid())
+                .fetch_optional(&mut **transaction)
+                .await?
+            }
+            MarketingAggregate::CampaignBudget(value) => {
+                let current = sqlx::query_scalar::<_, i64>(
+                    "SELECT aggregate_version FROM erpx_marketing_write.campaign_budget_guards WHERE budget_id=$1 FOR UPDATE",
+                )
+                .bind(value.id().as_uuid())
+                .fetch_optional(&mut **transaction)
+                .await?;
+                if current.is_some() {
+                    let rows = sqlx::query(
+                        "SELECT request_id FROM erpx_marketing_write.campaign_spend_request_guards WHERE budget_id=$1 FOR UPDATE",
+                    )
+                    .bind(value.id().as_uuid())
+                    .fetch_all(&mut **transaction)
+                    .await?;
+                    if rows.iter().any(|row| {
+                        row.try_get::<Uuid, _>("request_id")
+                            .ok()
+                            .and_then(|id| erpx_marketing::SpendRequestId::try_from_uuid(id).ok())
+                            .is_none_or(|id| !value.reservations().contains_key(&id))
+                    }) {
+                        return Err(CqrsSqlxError::GuardRejected(
+                            "Marketing spend request history cannot be removed",
+                        ));
+                    }
+                }
+                current
+            }
+        };
         match (context.expected_version, current) {
             (None, Some(_)) => Err(CqrsSqlxError::GuardRejected(
-                "Marketing lead already exists",
+                "Marketing aggregate already exists",
             )),
             (Some(_), None) => Err(CqrsSqlxError::GuardRejected(
-                "Marketing lead guard is missing",
+                "Marketing aggregate guard is missing",
             )),
             _ => Ok(()),
         }
     }
+
     async fn apply(
         &self,
         transaction: &mut Transaction<'_, Postgres>,
         context: &AppliedGuardContext<'_>,
     ) -> Result<(), CqrsSqlxError> {
-        if context.context != CONTEXT_NAME
-            || context.aggregate_type != AGGREGATE_TYPE
-            || context.aggregate_id.as_uuid() != self.aggregate.id().as_uuid()
-            || context.partition != lead_partition(self.aggregate.id())
-            || context.aggregate_version != self.aggregate.version()
-        {
-            return Err(CqrsSqlxError::GuardRejected(
-                "Marketing applied guard metadata mismatch",
-            ));
+        validate_applied_context(&self.aggregate, context)?;
+        match &self.aggregate {
+            MarketingAggregate::LeadCandidate(value) => {
+                sqlx::query("INSERT INTO erpx_marketing_write.lead_candidate_guards (lead_id,scope_key,campaign_id,audience_member_id,lead_status,aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (lead_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,campaign_id=EXCLUDED.campaign_id,audience_member_id=EXCLUDED.audience_member_id,lead_status=EXCLUDED.lead_status,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at")
+                    .bind(value.id().as_uuid())
+                    .bind(scope_key(value.scope())?)
+                    .bind(value.campaign_id().as_uuid())
+                    .bind(value.audience_member_id().as_uuid())
+                    .bind(lead_status_name(value.status()))
+                    .bind(to_i64(context.aggregate_version)?)
+                    .bind(value.updated_at())
+                    .execute(&mut **transaction)
+                    .await?;
+            }
+            MarketingAggregate::CampaignBudget(value) => {
+                sqlx::query("INSERT INTO erpx_marketing_write.campaign_budget_guards (budget_id,scope_key,campaign_id,budget_code,budget_status,currency,requested_minor,approved_minor,reserved_minor,aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (budget_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,campaign_id=EXCLUDED.campaign_id,budget_code=EXCLUDED.budget_code,budget_status=EXCLUDED.budget_status,currency=EXCLUDED.currency,requested_minor=EXCLUDED.requested_minor,approved_minor=EXCLUDED.approved_minor,reserved_minor=EXCLUDED.reserved_minor,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at")
+                    .bind(value.id().as_uuid())
+                    .bind(scope_key(value.scope())?)
+                    .bind(value.campaign_id().as_uuid())
+                    .bind(value.code())
+                    .bind(budget_status_name(value.status()))
+                    .bind(value.requested_amount().currency().as_str())
+                    .bind(value.requested_amount().minor_units())
+                    .bind(value.approved_amount().map(|amount| amount.minor_units()))
+                    .bind(value.reserved_minor().map_err(|_| CqrsSqlxError::NumericRange)?)
+                    .bind(to_i64(context.aggregate_version)?)
+                    .bind(value.updated_at())
+                    .execute(&mut **transaction)
+                    .await?;
+                for reservation in value.reservations().values() {
+                    let status = match reservation.status {
+                        SpendReservationStatus::Active => "active",
+                        SpendReservationStatus::Released => "released",
+                    };
+                    let result = sqlx::query("INSERT INTO erpx_marketing_write.campaign_spend_request_guards (request_id,budget_id,allocation_id,currency,amount_minor,expected_outcome,spend_status,requested_at,released_at,budget_aggregate_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (request_id) DO UPDATE SET spend_status=EXCLUDED.spend_status,released_at=EXCLUDED.released_at,budget_aggregate_version=EXCLUDED.budget_aggregate_version WHERE erpx_marketing_write.campaign_spend_request_guards.budget_id=EXCLUDED.budget_id AND erpx_marketing_write.campaign_spend_request_guards.allocation_id=EXCLUDED.allocation_id AND erpx_marketing_write.campaign_spend_request_guards.currency=EXCLUDED.currency AND erpx_marketing_write.campaign_spend_request_guards.amount_minor=EXCLUDED.amount_minor AND erpx_marketing_write.campaign_spend_request_guards.expected_outcome=EXCLUDED.expected_outcome AND erpx_marketing_write.campaign_spend_request_guards.requested_at=EXCLUDED.requested_at AND (erpx_marketing_write.campaign_spend_request_guards.spend_status=EXCLUDED.spend_status OR (erpx_marketing_write.campaign_spend_request_guards.spend_status='active' AND EXCLUDED.spend_status='released'))")
+                        .bind(reservation.request_id.as_uuid())
+                        .bind(value.id().as_uuid())
+                        .bind(reservation.allocation_id.as_uuid())
+                        .bind(reservation.amount.currency().as_str())
+                        .bind(reservation.amount.minor_units())
+                        .bind(&reservation.expected_outcome)
+                        .bind(status)
+                        .bind(reservation.requested_at)
+                        .bind(reservation.released_at)
+                        .bind(to_i64(context.aggregate_version)?)
+                        .execute(&mut **transaction)
+                        .await?;
+                    if result.rows_affected() != 1 {
+                        return Err(CqrsSqlxError::GuardRejected(
+                            "Marketing spend request immutable fields changed",
+                        ));
+                    }
+                }
+            }
         }
-        sqlx::query("INSERT INTO erpx_marketing_write.lead_candidate_guards (lead_id,scope_key,campaign_id,audience_member_id,lead_status,aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (lead_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,campaign_id=EXCLUDED.campaign_id,audience_member_id=EXCLUDED.audience_member_id,lead_status=EXCLUDED.lead_status,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at")
-            .bind(self.aggregate.id().as_uuid()).bind(scope_key(self.aggregate.scope())?).bind(self.aggregate.campaign_id().as_uuid()).bind(self.aggregate.audience_member_id().as_uuid()).bind(status_name(self.aggregate.status())).bind(to_i64(context.aggregate_version)?).bind(self.aggregate.updated_at()).execute(&mut **transaction).await?;
         Ok(())
     }
 }
 
 fn validate_guard_context(
-    value: &LeadCandidate,
+    value: &MarketingAggregate,
     context: &GuardCommandContext<'_>,
 ) -> Result<(), CqrsSqlxError> {
+    let target = aggregate_target(value);
     if context.context != CONTEXT_NAME
-        || context.aggregate_type != AGGREGATE_TYPE
-        || context.aggregate_id.as_uuid() != value.id().as_uuid()
-        || context.partition != lead_partition(value.id())
+        || context.aggregate_type != target.aggregate_type
+        || context.aggregate_id.as_uuid() != target.id
+        || context.partition != target.partition
     {
         Err(CqrsSqlxError::GuardRejected(
             "Marketing guard metadata mismatch",
@@ -229,9 +356,33 @@ fn validate_guard_context(
         Ok(())
     }
 }
+
+fn validate_applied_context(
+    value: &MarketingAggregate,
+    context: &AppliedGuardContext<'_>,
+) -> Result<(), CqrsSqlxError> {
+    let target = aggregate_target(value);
+    if context.context != CONTEXT_NAME
+        || context.aggregate_type != target.aggregate_type
+        || context.aggregate_id.as_uuid() != target.id
+        || context.partition != target.partition
+        || context.aggregate_version != value.version()
+    {
+        Err(CqrsSqlxError::GuardRejected(
+            "Marketing applied guard metadata mismatch",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 fn validate_commit(request: &MarketingCommit) -> Result<(), PortError> {
+    let fingerprint = fingerprint_target(&request.identity.fingerprint);
+    let aggregate = aggregate_target(&request.aggregate);
     if request.aggregate.validate().is_err()
-        || fingerprint_id(&request.identity.fingerprint) != request.aggregate.id()
+        || fingerprint.id != aggregate.id
+        || fingerprint.aggregate_type != aggregate.aggregate_type
+        || fingerprint.partition != aggregate.partition
         || !request.authority_scope.contains(request.aggregate.scope())
     {
         Err(PortError::Internal)
@@ -239,36 +390,99 @@ fn validate_commit(request: &MarketingCommit) -> Result<(), PortError> {
         Ok(())
     }
 }
-fn fingerprint_id(value: &CommandFingerprint) -> LeadCandidateId {
+
+struct AggregateTarget {
+    id: Uuid,
+    aggregate_type: &'static str,
+    partition: String,
+    snapshot_event: &'static str,
+}
+
+fn aggregate_target(value: &MarketingAggregate) -> AggregateTarget {
     match value {
-        CommandFingerprint::Create { lead_id, .. }
-        | CommandFingerprint::CaptureEngagement { lead_id, .. }
-        | CommandFingerprint::Qualify { lead_id, .. }
-        | CommandFingerprint::Reject { lead_id } => *lead_id,
+        MarketingAggregate::LeadCandidate(value) => AggregateTarget {
+            id: value.id().as_uuid(),
+            aggregate_type: LEAD_AGGREGATE_TYPE,
+            partition: lead_partition(value.id()),
+            snapshot_event: LEAD_SNAPSHOT_EVENT_TYPE,
+        },
+        MarketingAggregate::CampaignBudget(value) => AggregateTarget {
+            id: value.id().as_uuid(),
+            aggregate_type: BUDGET_AGGREGATE_TYPE,
+            partition: budget_partition(value.id()),
+            snapshot_event: BUDGET_SNAPSHOT_EVENT_TYPE,
+        },
     }
 }
+
+fn fingerprint_target(value: &CommandFingerprint) -> AggregateTarget {
+    match value {
+        CommandFingerprint::CreateLead { lead_id, .. }
+        | CommandFingerprint::CaptureEngagement { lead_id, .. }
+        | CommandFingerprint::Qualify { lead_id, .. }
+        | CommandFingerprint::Reject { lead_id } => AggregateTarget {
+            id: lead_id.as_uuid(),
+            aggregate_type: LEAD_AGGREGATE_TYPE,
+            partition: lead_partition(*lead_id),
+            snapshot_event: LEAD_SNAPSHOT_EVENT_TYPE,
+        },
+        CommandFingerprint::CreateBudget { budget_id, .. }
+        | CommandFingerprint::SubmitBudget { budget_id, .. }
+        | CommandFingerprint::ApplyBudgetDecision { budget_id, .. }
+        | CommandFingerprint::StartBudget { budget_id }
+        | CommandFingerprint::CompleteBudget { budget_id }
+        | CommandFingerprint::CancelBudget { budget_id }
+        | CommandFingerprint::ReserveSpend { budget_id, .. }
+        | CommandFingerprint::ReleaseSpend { budget_id, .. } => AggregateTarget {
+            id: budget_id.as_uuid(),
+            aggregate_type: BUDGET_AGGREGATE_TYPE,
+            partition: budget_partition(*budget_id),
+            snapshot_event: BUDGET_SNAPSHOT_EVENT_TYPE,
+        },
+    }
+}
+
+fn aggregate_updated_at(value: &MarketingAggregate) -> chrono::DateTime<chrono::Utc> {
+    match value {
+        MarketingAggregate::LeadCandidate(value) => value.updated_at(),
+        MarketingAggregate::CampaignBudget(value) => value.updated_at(),
+    }
+}
+
 fn audit_action(value: &CommandFingerprint) -> &'static str {
     match value {
-        CommandFingerprint::Create { .. } => "marketing.lead.create",
+        CommandFingerprint::CreateLead { .. } => "marketing.lead.create",
         CommandFingerprint::CaptureEngagement { .. } => "marketing.engagement.capture",
         CommandFingerprint::Qualify { .. } => "marketing.lead.qualify",
         CommandFingerprint::Reject { .. } => "marketing.lead.reject",
+        CommandFingerprint::CreateBudget { .. } => "marketing.budget.create",
+        CommandFingerprint::SubmitBudget { .. } => "marketing.budget.submit",
+        CommandFingerprint::ApplyBudgetDecision { .. } => "marketing.budget.apply_decision",
+        CommandFingerprint::StartBudget { .. } => "marketing.budget.start",
+        CommandFingerprint::CompleteBudget { .. } => "marketing.budget.complete",
+        CommandFingerprint::CancelBudget { .. } => "marketing.budget.cancel",
+        CommandFingerprint::ReserveSpend { .. } => "marketing.spend.reserve",
+        CommandFingerprint::ReleaseSpend { .. } => "marketing.spend.release",
     }
 }
-fn aggregate_id(id: LeadCandidateId) -> Result<AggregateId, PortError> {
-    AggregateId::try_from_uuid(id.as_uuid()).map_err(|_| PortError::Internal)
+
+fn aggregate_id(id: Uuid) -> Result<AggregateId, PortError> {
+    AggregateId::try_from_uuid(id).map_err(|_| PortError::Internal)
 }
+
 fn request_hash(value: &CommandFingerprint) -> Result<RequestHash, PortError> {
     let mut digest = Sha256::new();
-    digest.update(b"erpx.marketing.command.v1\0");
+    digest.update(b"erpx.marketing.command.v2\0");
     digest.update(serde_json::to_vec(value).map_err(|_| PortError::Internal)?);
     Ok(RequestHash::new(digest.finalize().into()))
 }
+
 fn deterministic_event_id(command: CommandId, kind: &str, index: usize) -> EventId {
     let mut bytes = kind.as_bytes().to_vec();
     bytes.extend_from_slice(&index.to_be_bytes());
     EventId::try_from_uuid(deterministic_uuid(command.as_uuid(), &bytes)).expect("derived id")
 }
+
 fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
     let mut digest = Sha256::new();
     digest.update(seed.as_bytes());
@@ -280,6 +494,7 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     Uuid::from_bytes(bytes)
 }
+
 pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
     match scope {
         TenantScope::Company {
@@ -294,15 +509,17 @@ pub(crate) fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
         _ => Err(CqrsSqlxError::InvalidInput("Marketing scope must be exact")),
     }
 }
+
 fn to_i64(value: u64) -> Result<i64, CqrsSqlxError> {
     i64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
 }
+
 fn receipt_to_stored(
-    receipt: erpx_cqrs::CommandReceipt<LeadCandidate>,
+    receipt: erpx_cqrs::CommandReceipt<MarketingAggregate>,
 ) -> Result<StoredCommit, PortError> {
     if receipt.aggregate.context != CONTEXT_NAME
-        || receipt.aggregate.aggregate_type != AGGREGATE_TYPE
-        || receipt.aggregate.aggregate_id.as_uuid() != receipt.response.id().as_uuid()
+        || receipt.aggregate.aggregate_type != receipt.response.aggregate_type()
+        || receipt.aggregate.aggregate_id.as_uuid() != receipt.response.id_uuid()
         || receipt.aggregate.version != receipt.response.version()
         || receipt.response.validate().is_err()
     {
@@ -317,6 +534,7 @@ fn receipt_to_stored(
         replayed: receipt.replayed,
     })
 }
+
 fn map_store_error(error: CqrsSqlxError) -> PortError {
     match error {
         CqrsSqlxError::IdempotencyConflict | CqrsSqlxError::CommandReplayConflict => {
@@ -342,13 +560,24 @@ fn map_store_error(error: CqrsSqlxError) -> PortError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_marketing::LeadCandidateStatus;
 
     #[test]
-    fn stable_hash_and_status_names() {
-        let id = LeadCandidateId::try_from_uuid(Uuid::from_u128(1)).unwrap();
-        let value = CommandFingerprint::Reject { lead_id: id };
-        assert_eq!(request_hash(&value).unwrap(), request_hash(&value).unwrap());
-        assert_eq!(status_name(LeadCandidateStatus::Captured), "open");
+    fn fingerprint_targets_are_aggregate_specific() {
+        let lead = LeadCandidateId::try_from_uuid(Uuid::from_u128(1)).unwrap();
+        let budget = CampaignBudgetId::try_from_uuid(Uuid::from_u128(2)).unwrap();
+        let lead_target = fingerprint_target(&CommandFingerprint::Reject { lead_id: lead });
+        let budget_target =
+            fingerprint_target(&CommandFingerprint::StartBudget { budget_id: budget });
+        assert_eq!(lead_target.aggregate_type, LEAD_AGGREGATE_TYPE);
+        assert_eq!(budget_target.aggregate_type, BUDGET_AGGREGATE_TYPE);
+        assert_ne!(lead_target.partition, budget_target.partition);
+    }
+
+    #[test]
+    fn stable_hash_is_payload_sensitive() {
+        let budget = CampaignBudgetId::try_from_uuid(Uuid::from_u128(2)).unwrap();
+        let first = request_hash(&CommandFingerprint::StartBudget { budget_id: budget }).unwrap();
+        let second = request_hash(&CommandFingerprint::CancelBudget { budget_id: budget }).unwrap();
+        assert_ne!(first, second);
     }
 }

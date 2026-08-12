@@ -9,15 +9,15 @@ use erpx_cqrs_sqlx::{
 use erpx_kernel::TenantScope;
 use erpx_legal::ports::{
     AccessEntryView, AccessHistoryFilter, AccessHistoryList, ContractList, ContractListFilter,
-    ContractView, DocumentList, DocumentListFilter, DocumentView, ReadProjection,
+    ContractView, DocumentList, DocumentListFilter, DocumentView, MatterView, ReadProjection,
 };
-use erpx_legal::{LegalContractId, LegalDocumentId, PortError, ReadRepository};
+use erpx_legal::{LegalContractId, LegalDocumentId, LegalMatterId, PortError, ReadRepository};
 use sqlx::Row;
 use uuid::Uuid;
 
 use crate::{
-    ACCESS_PROJECTION, CONTRACT_PROJECTION, DOCUMENT_PROJECTION, contract_partition,
-    document_partition, projection::contract_status_name,
+    ACCESS_PROJECTION, CONTRACT_PROJECTION, DOCUMENT_PROJECTION, MATTER_PROJECTION,
+    contract_partition, document_partition, matter_partition, projection::contract_status_name,
 };
 
 #[derive(Debug, Clone)]
@@ -258,6 +258,33 @@ impl ReadRepository for LegalReadRepository {
             metadata: self.metadata(ACCESS_PROJECTION, checkpoint).await?,
         })
     }
+
+    async fn get_matter(
+        &self,
+        authority: &TenantScope,
+        id: LegalMatterId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<MatterView>>, PortError> {
+        let partition = matter_partition(id);
+        let checkpoint = self
+            .checkpoint(MATTER_PROJECTION, consistency, Some(&partition))
+            .await?;
+        let scope = ScopeFilter::from(authority)?;
+        let row = sqlx::query("SELECT item.state FROM erpx_legal_read.matter_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.matter_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))")
+            .bind(MATTER_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform)
+            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await
+            .map_err(|_| PortError::Unavailable)?;
+        let value = row.map(decode_state).transpose()?;
+        if value.as_ref().is_some_and(|value: &MatterView| {
+            value.matter_id != id || !authority.contains(&value.scope)
+        }) {
+            return Err(PortError::Internal);
+        }
+        Ok(ReadProjection {
+            value,
+            metadata: self.metadata(MATTER_PROJECTION, checkpoint).await?,
+        })
+    }
 }
 
 pub fn encode_cursor(id: Uuid) -> String {
@@ -312,6 +339,7 @@ fn valid_partition(projection: &str, partition: &str) -> bool {
         CONTRACT_PROJECTION => "legal.contract:",
         DOCUMENT_PROJECTION => "legal.document:",
         ACCESS_PROJECTION => "legal.access:",
+        MATTER_PROJECTION => "legal.matter:",
         _ => return false,
     };
     partition

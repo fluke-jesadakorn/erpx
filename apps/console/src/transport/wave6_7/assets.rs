@@ -25,6 +25,17 @@ pub(crate) struct AssetsGrpcTransport {
     queries: Queries,
 }
 impl AssetsGrpcTransport {
+    pub(crate) fn try_active_scope(
+        channel: GrpcChannel,
+        token: impl Into<String>,
+    ) -> Result<Self, UiError> {
+        Ok(Self {
+            auth: AuthenticatedRoute::try_active_scope(token)?,
+            commands: Commands::new(channel.clone()),
+            queries: Queries::new(channel),
+        })
+    }
+
     pub(crate) fn try_new(
         channel: GrpcChannel,
         token: impl Into<String>,
@@ -146,6 +157,7 @@ impl AssetsProtoTransport for AssetsGrpcTransport {
                     metadata: Some(metadata),
                     asset_id: value.asset_id.as_uuid().to_string(),
                     request_code: value.request_code,
+                    title: value.title,
                 },
                 &actor,
             )?)

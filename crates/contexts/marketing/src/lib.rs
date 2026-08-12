@@ -7,17 +7,21 @@ pub mod integration;
 pub mod ports;
 
 pub use application::{
-    CaptureEngagement, CreateLeadCandidate, GetLeadCandidate, ListLeadCandidates,
-    MarketingApplicationError, MarketingCommand, MarketingCommandHandler, MarketingMutationResult,
-    MarketingQuery, MarketingQueryHandler, MarketingQueryResponse, QualifyLeadCandidate,
-    RejectLeadCandidate,
+    ApplyCampaignBudgetDecision, CancelCampaignBudget, CaptureEngagement, CompleteCampaignBudget,
+    CreateCampaignBudget, CreateLeadCandidate, GetCampaignBudget, GetLeadCandidate,
+    ListLeadCandidates, MarketingApplicationError, MarketingCommand, MarketingCommandHandler,
+    MarketingMutationResult, MarketingQuery, MarketingQueryHandler, MarketingQueryResponse,
+    QualifyLeadCandidate, RejectLeadCandidate, ReleaseCampaignSpend, ReserveCampaignSpend,
+    StartCampaignBudget, SubmitCampaignBudget,
 };
 pub use domain::{
-    AudienceMemberId, CampaignId, LeadCandidate, LeadCandidateId, LeadCandidateStatus,
-    MarketingDomainError,
+    AudienceMemberId, BudgetAllocation, BudgetAllocationId, CampaignBudget, CampaignBudgetId,
+    CampaignBudgetStatus, CampaignId, LeadCandidate, LeadCandidateId, LeadCandidateStatus,
+    MarketingAggregate, MarketingDomainError, SpendRequestId, SpendReservation,
+    SpendReservationStatus,
 };
 pub use ports::{
-    AuthorizationPort, CommandUnitOfWork, EntitlementPort, LeadCandidateList,
+    AuthorizationPort, CampaignBudgetView, CommandUnitOfWork, EntitlementPort, LeadCandidateList,
     LeadCandidateListFilter, LeadCandidateView, MarketingAction, MarketingCommit, PortError,
     ReadRepository, WriteRepository,
 };

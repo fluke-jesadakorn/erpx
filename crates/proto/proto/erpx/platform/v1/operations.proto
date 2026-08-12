@@ -192,6 +192,13 @@ enum OperationsWorkQueuePolicyStatus {
   OPERATIONS_WORK_QUEUE_POLICY_STATUS_RETIRED = 3;
 }
 
+enum OperationsApprovalDecision {
+  OPERATIONS_APPROVAL_DECISION_UNSPECIFIED = 0;
+  OPERATIONS_APPROVAL_DECISION_APPROVED = 1;
+  OPERATIONS_APPROVAL_DECISION_REJECTED = 2;
+  OPERATIONS_APPROVAL_DECISION_CANCELLED = 3;
+}
+
 message OperationsSourceReference {
   OperationsSourceContext context = 1;
   string event_id = 2;
@@ -235,6 +242,12 @@ message EscalateOperationsExceptionRequest {
   erpx.common.v1.CommandRequestMetadata metadata = 1;
   string exception_id = 2;
   string manager_id = 3;
+}
+message DecideOperationsApprovalRequest {
+  erpx.common.v1.CommandRequestMetadata metadata = 1;
+  string exception_id = 2;
+  OperationsApprovalDecision decision = 3;
+  string reason_code = 4;
 }
 message ResolveOperationsExceptionRequest {
   erpx.common.v1.CommandRequestMetadata metadata = 1;
@@ -331,6 +344,8 @@ service OperationsCommandService {
   rpc AcknowledgeException(AcknowledgeOperationsExceptionRequest)
       returns (OperationsExceptionMutationResponse);
   rpc EscalateException(EscalateOperationsExceptionRequest)
+      returns (OperationsExceptionMutationResponse);
+  rpc DecideApproval(DecideOperationsApprovalRequest)
       returns (OperationsExceptionMutationResponse);
   rpc ResolveException(ResolveOperationsExceptionRequest)
       returns (OperationsExceptionMutationResponse);

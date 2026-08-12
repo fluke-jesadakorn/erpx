@@ -4,9 +4,9 @@ use crate::bff::{
     BffState, accounts, activate_account, activate_role, dashboard_read_model, delete_account,
     delete_session, development_proxy, directory_login, grpc_proxy, identity_proxy,
     navigation_manifest, passkey_authentication_begin, passkey_authentication_finish,
-    password_login, password_login_form, public_brand_asset_proxy, public_branding_proxy,
-    public_marketing_proxy, recovery_login, role_options, session_middleware, session_snapshot,
-    upgrade_legacy_session, work_queue_read_model,
+    password_login, password_login_form, password_login_form_entry, public_brand_asset_proxy,
+    public_branding_proxy, public_marketing_proxy, recovery_login, role_options,
+    session_middleware, session_snapshot, upgrade_legacy_session, work_queue_read_model,
 };
 use dioxus::server::{
     axum::{
@@ -19,6 +19,7 @@ use erpx_web_session::WebSessionStore;
 use erpx_web_session_sqlx::{SqlxWebSessionStore, WebSessionCipher};
 use sqlx::postgres::PgPoolOptions;
 use std::{env, io, sync::Arc};
+use tower_http::compression::CompressionLayer;
 
 const DATABASE_URL_ENV: &str = "ERPX_CONTROL_WRITE_DATABASE_URL";
 const AUTH_HTTP_ORIGIN_ENV: &str = "ERPX_CONSOLE_AUTH_HTTP_ORIGIN";
@@ -60,12 +61,18 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
     )?;
 
     Ok(dioxus_router(crate::App)
-        .route("/api/bff/v1/session", get(session_snapshot))
-        .route("/api/bff/v1/navigation", post(navigation_manifest))
-        .route("/api/bff/v1/dashboard", get(dashboard_read_model))
-        .route("/api/bff/v1/work-items", get(work_queue_read_model))
+        .route(erpx_console_bff::SESSION_PATH, get(session_snapshot))
+        .route(erpx_console_bff::NAVIGATION_PATH, post(navigation_manifest))
+        .route(erpx_console_bff::DASHBOARD_PATH, get(dashboard_read_model))
+        .route(
+            erpx_console_bff::WORK_ITEMS_PATH,
+            get(work_queue_read_model),
+        )
         .route("/api/bff/v1/auth/password", post(password_login))
-        .route("/api/bff/v1/auth/password/form", post(password_login_form))
+        .route(
+            "/api/bff/v1/auth/password/form",
+            get(password_login_form_entry).post(password_login_form),
+        )
         .route("/api/bff/v1/auth/directory", post(directory_login))
         .route(
             "/api/bff/v1/auth/passkeys/authentication/begin",
@@ -81,8 +88,8 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
         .route("/api/bff/v1/accounts/{session_id}", delete(delete_account))
         .route("/api/bff/v1/roles", get(role_options))
         .route("/api/bff/v1/roles/activate", post(activate_role))
-        .route("/api/bff/v1/session", delete(delete_session))
-        .route("/api/bff/v1/grpc/{*grpc_path}", post(grpc_proxy))
+        .route(erpx_console_bff::SESSION_PATH, delete(delete_session))
+        .route(erpx_console_bff::GRPC_PROXY_PATH, post(grpc_proxy))
         .route(
             "/api/bff/v1/identity/{*identity_path}",
             post(identity_proxy).get(identity_proxy),
@@ -101,6 +108,7 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
             post(public_marketing_proxy).get(public_marketing_proxy),
         )
         .route("/auth/bff/upgrade", post(upgrade_legacy_session))
+        .layer(CompressionLayer::new())
         .layer(middleware::from_fn(session_middleware))
         .layer(Extension(state)))
 }

@@ -28,6 +28,17 @@ pub(crate) struct MaintenanceGrpcTransport {
     queries: Queries,
 }
 impl MaintenanceGrpcTransport {
+    pub(crate) fn try_active_scope(
+        channel: GrpcChannel,
+        token: impl Into<String>,
+    ) -> Result<Self, UiError> {
+        Ok(Self {
+            auth: AuthenticatedRoute::try_active_scope(token)?,
+            commands: Commands::new(channel.clone()),
+            queries: Queries::new(channel),
+        })
+    }
+
     pub(crate) fn try_new(
         channel: GrpcChannel,
         token: impl Into<String>,
@@ -80,6 +91,7 @@ impl MaintenanceProtoTransport for MaintenanceGrpcTransport {
         let assets::Event::MaintenanceRequested {
             asset,
             request_code,
+            title,
         } = source.payload()
         else {
             return Err(unsupported_ui("maintenance open source event"));
@@ -95,6 +107,7 @@ impl MaintenanceProtoTransport for MaintenanceGrpcTransport {
             occurred_at: source.occurred_at().to_rfc3339(),
             asset_id: asset.as_uuid().to_string(),
             request_code: request_code.as_str().into(),
+            title: title.as_ref().map(|value| value.as_str().to_owned()),
         };
         let response = self
             .commands

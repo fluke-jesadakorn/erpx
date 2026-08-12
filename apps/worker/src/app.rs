@@ -11,6 +11,7 @@ pub(crate) mod contexts {
     pub mod legal;
     pub mod maintenance;
     pub mod marketing;
+    pub mod marketing_approval;
     pub mod operations;
     pub mod operations_source;
     pub mod organization;
@@ -94,6 +95,10 @@ use erpx_worker::{
 use uuid::Uuid;
 
 use contexts::commercial::CommercialProjectionKind;
+use contexts::marketing_approval::{
+    MARKETING_APPROVAL_DECISIONS_HANDLER_NAME, MARKETING_APPROVAL_DECISIONS_MAX_ACTIVE_TENANTS,
+    MARKETING_APPROVAL_DECISIONS_MAX_PAGE_SIZE, MarketingApprovalDecisionHandler,
+};
 use contexts::operations_source::{
     OPERATIONS_SOURCE_INGESTION_HANDLER_NAME, OPERATIONS_SOURCE_MAX_ACTIVE_TENANTS,
     OPERATIONS_SOURCE_MAX_PAGE_SIZE,
@@ -1363,6 +1368,21 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 let mut registry = runtime.handler_registry()?;
                 registry.register(handler)?;
                 registry
+            } else if handler_name == MARKETING_APPROVAL_DECISIONS_HANDLER_NAME {
+                let routing = TenantDatabaseProvisioningConfig::from_env()?;
+                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let handler = MarketingApprovalDecisionHandler::new(
+                    SqlxTenantStoreRegistry::new(Arc::clone(runtime.store())),
+                    router,
+                    runtime
+                        .config()
+                        .batch_size
+                        .min(MARKETING_APPROVAL_DECISIONS_MAX_PAGE_SIZE),
+                    MARKETING_APPROVAL_DECISIONS_MAX_ACTIVE_TENANTS,
+                )?;
+                let mut registry = runtime.handler_registry()?;
+                registry.register(Arc::new(handler))?;
+                registry
             } else if handler_name == BRANCH_PROVISIONING_HANDLER_NAME {
                 let handler =
                     BranchProvisioningRuntimeHandler::from_env(Arc::clone(runtime.store()))?;
@@ -1823,6 +1843,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             )?
                     }
                     kind @ ("marketing_lead_candidates"
+                    | "marketing_campaign_budgets"
                     | "crm_leads"
                     | "crm_opportunities"
                     | "procurement_purchase_orders"
@@ -1833,6 +1854,9 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         let kind = match kind {
                             "marketing_lead_candidates" => {
                                 Wave6ProjectionKind::MarketingLeadCandidates
+                            }
+                            "marketing_campaign_budgets" => {
+                                Wave6ProjectionKind::MarketingCampaignBudgets
                             }
                             "crm_leads" => Wave6ProjectionKind::CrmLeads,
                             "crm_opportunities" => Wave6ProjectionKind::CrmOpportunities,
@@ -1857,6 +1881,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     kind @ ("sales_quotes"
                     | "sales_orders"
+                    | "sales_revenue_arrangements"
                     | "people_payroll_employees"
                     | "people_payroll_leave_requests"
                     | "people_payroll_expense_claims"
@@ -1866,6 +1891,9 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         let kind = match kind {
                             "sales_quotes" => Wave7ProjectionKind::SalesQuotes,
                             "sales_orders" => Wave7ProjectionKind::SalesOrders,
+                            "sales_revenue_arrangements" => {
+                                Wave7ProjectionKind::SalesRevenueArrangements
+                            }
                             "people_payroll_employees" => {
                                 Wave7ProjectionKind::PeoplePayrollEmployees
                             }
@@ -1896,12 +1924,15 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     | "finance_periods"
                     | "finance_journals"
                     | "finance_subledger"
+                    | "finance_customer_invoices"
+                    | "finance_revenue_schedules"
                     | "finance_trial_balance"
                     | "finance_bank_transactions"
                     | "finance_statutory_tax"
                     | "legal_contracts"
                     | "legal_documents"
                     | "legal_access_history"
+                    | "legal_matters"
                     | "support_tickets"
                     | "support_incidents"
                     | "support_sessions"
@@ -1911,6 +1942,12 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             "finance_periods" => Wave8ProjectionKind::FinancePeriods,
                             "finance_journals" => Wave8ProjectionKind::FinanceJournals,
                             "finance_subledger" => Wave8ProjectionKind::FinanceSubledger,
+                            "finance_customer_invoices" => {
+                                Wave8ProjectionKind::FinanceCustomerInvoices
+                            }
+                            "finance_revenue_schedules" => {
+                                Wave8ProjectionKind::FinanceRevenueSchedules
+                            }
                             "finance_trial_balance" => Wave8ProjectionKind::FinanceTrialBalance,
                             "finance_bank_transactions" => {
                                 Wave8ProjectionKind::FinanceBankTransactions
@@ -1919,6 +1956,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             "legal_contracts" => Wave8ProjectionKind::LegalContracts,
                             "legal_documents" => Wave8ProjectionKind::LegalDocuments,
                             "legal_access_history" => Wave8ProjectionKind::LegalAccessHistory,
+                            "legal_matters" => Wave8ProjectionKind::LegalMatters,
                             "support_tickets" => Wave8ProjectionKind::SupportTickets,
                             "support_incidents" => Wave8ProjectionKind::SupportIncidents,
                             "support_sessions" => Wave8ProjectionKind::SupportSessions,

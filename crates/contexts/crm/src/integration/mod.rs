@@ -58,6 +58,46 @@ pub(crate) fn published_events(
                         .map_err(|_| IntegrationMappingError::InvalidValue)?,
                 ),
             })),
+            DomainEvent::OpportunityForecastChanged {
+                opportunity_id,
+                account,
+                customer_id,
+                owner,
+                stage,
+                category,
+                probability_basis_points,
+                expected_value_minor,
+                currency,
+                expected_close_on,
+                originating_campaign,
+            } => Ok(crm::Event::OpportunityForecastChanged(
+                crm::OpportunityForecastFact {
+                    opportunity: crm::OpportunityRef::try_from_uuid(opportunity_id.as_uuid())
+                        .map_err(|_| IntegrationMappingError::InvalidId)?,
+                    account: *account,
+                    customer: customer::CustomerRef::try_from_uuid(*customer_id)
+                        .map_err(|_| IntegrationMappingError::InvalidId)?,
+                    owner: ReferenceCode::try_new(owner.clone())
+                        .map_err(|_| IntegrationMappingError::InvalidValue)?,
+                    stage: match stage {
+                        OpportunityStage::Qualified => crm::OpportunityStage::Qualified,
+                        OpportunityStage::Discovery => crm::OpportunityStage::Discovery,
+                        OpportunityStage::Proposal => crm::OpportunityStage::Proposal,
+                        OpportunityStage::Negotiation => crm::OpportunityStage::Negotiation,
+                        OpportunityStage::Won => crm::OpportunityStage::Won,
+                        OpportunityStage::Lost => crm::OpportunityStage::Lost,
+                    },
+                    category: *category,
+                    probability_basis_points: *probability_basis_points,
+                    expected_value: MoneyAmount::new(
+                        *expected_value_minor,
+                        CurrencyCode::try_new(currency)
+                            .map_err(|_| IntegrationMappingError::InvalidValue)?,
+                    ),
+                    expected_close_on: *expected_close_on,
+                    originating_campaign: *originating_campaign,
+                },
+            )),
         })
         .collect()
 }

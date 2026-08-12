@@ -1,7 +1,7 @@
 use chrono::{Duration, TimeZone, Utc};
 use erpx_integration_contracts::{
     AggregateKind, CurrencyCode, IntegrationEventEnvelope, MoneyAmount, ReferenceCode, customer,
-    identity_access, operations, sales,
+    identity_access, marketing, operations, sales,
 };
 use erpx_kernel::{AggregateId, CorrelationId, EventId, TenantScope};
 use uuid::Uuid;
@@ -44,6 +44,9 @@ fn source_message() -> SourceFactMessage {
     .unwrap();
     let fact = match envelope.payload() {
         sales::Event::SalesOrderChanged(fact) => operations::SourceFact::Sales(fact.clone()),
+        sales::Event::RevenueArrangementActivated(_)
+        | sales::Event::FulfillmentAccepted(_)
+        | sales::Event::BillingEligible(_) => unreachable!("fixture carries a sales order fact"),
     };
     SourceFactMessage::from_envelope(&envelope, fact).unwrap()
 }
@@ -78,6 +81,69 @@ fn exception() -> OperationsException {
         ExceptionId::try_from_uuid(Uuid::from_u128(20)).unwrap(),
         source_message(),
         policy(),
+        assignment(),
+        at(),
+    )
+    .unwrap()
+}
+
+fn approval_source_message() -> SourceFactMessage {
+    let budget_id = Uuid::from_u128(70);
+    let fact = marketing::CampaignBudgetApprovalRequestedFact {
+        budget: marketing::CampaignBudgetRef::try_from_uuid(budget_id).unwrap(),
+        campaign: marketing::CampaignRef::try_from_uuid(Uuid::from_u128(71)).unwrap(),
+        approval: operations::ApprovalRequestFact {
+            request: operations::ApprovalRequestRef::try_from_uuid(Uuid::from_u128(72)).unwrap(),
+            subject: erpx_integration_contracts::RecordRef::try_new(
+                BoundedContext::Marketing,
+                "campaign_budget",
+                budget_id,
+                1,
+            )
+            .unwrap(),
+            policy_code: ReferenceCode::try_new("marketing-budget").unwrap(),
+            amount: Some(MoneyAmount::new(
+                100_000,
+                CurrencyCode::try_new("THB").unwrap(),
+            )),
+            requested_by: ReferenceCode::try_new("budget-maker").unwrap(),
+            requested_at: at(),
+        },
+    };
+    let envelope = IntegrationEventEnvelope::try_new(
+        EventId::try_from_uuid(Uuid::from_u128(73)).unwrap(),
+        TenantScope::Company {
+            holding_id: Uuid::from_u128(2),
+            company_id: Uuid::from_u128(3),
+        },
+        AggregateKind::try_new("campaign_budget").unwrap(),
+        AggregateId::try_from_uuid(budget_id).unwrap(),
+        2,
+        CorrelationId::try_from_uuid(Uuid::from_u128(74)).unwrap(),
+        None,
+        at(),
+        marketing::Event::CampaignBudgetApprovalRequested(fact.clone()),
+    )
+    .unwrap();
+    SourceFactMessage::from_envelope(
+        &envelope,
+        operations::SourceFact::MarketingBudgetApproval(fact),
+    )
+    .unwrap()
+}
+
+fn approval_exception() -> OperationsException {
+    OperationsException::detect(
+        ExceptionId::try_from_uuid(Uuid::from_u128(75)).unwrap(),
+        approval_source_message(),
+        DetectionPolicy {
+            policy_ref: "marketing-budget-approval".into(),
+            allowed_sources: vec![BoundedContext::Marketing],
+            category: "approval".into(),
+            severity: "review".into(),
+            due_after_minutes: 30,
+            escalation_after_minutes: 60,
+        },
         assignment(),
         at(),
     )
@@ -172,6 +238,43 @@ fn lifecycle_transitions_are_versioned_and_fail_atomically() {
     value.close(at() + Duration::minutes(8)).unwrap();
     assert_eq!(value.version(), 4);
     assert_eq!(value.status(), ExceptionStatus::Closed);
+}
+
+#[test]
+fn approval_requires_typed_decision_and_enforces_maker_checker() {
+    let mut value = approval_exception();
+    value.take_uncommitted_events();
+    assert_eq!(
+        value.resolve(at() + Duration::minutes(1)),
+        Err(OperationsDomainError::InvalidApprovalDecision)
+    );
+    assert_eq!(
+        value.decide_approval(
+            operations::ApprovalDecision::Approved,
+            "budget-maker".into(),
+            "within-ceiling".into(),
+            at() + Duration::minutes(1),
+        ),
+        Err(OperationsDomainError::InvalidApprovalDecision)
+    );
+
+    value
+        .decide_approval(
+            operations::ApprovalDecision::Approved,
+            "finance-controller".into(),
+            "within-ceiling".into(),
+            at() + Duration::minutes(1),
+        )
+        .unwrap();
+    assert_eq!(value.status(), ExceptionStatus::Resolved);
+    let events = crate::integration::published_events(&value.take_uncommitted_events()).unwrap();
+    assert!(matches!(
+        events.as_slice(),
+        [
+            operations::Event::OperationalStateChanged(_),
+            operations::Event::ApprovalDecided(decision)
+        ] if decision.decided_by.as_str() == "finance-controller"
+    ));
 }
 
 #[test]

@@ -1,4 +1,4 @@
-use erpx_integration_contracts::{ReferenceCode, customer, marketing};
+use erpx_integration_contracts::{DisplayName, ReferenceCode, customer, marketing};
 
 use crate::domain::DomainEvent;
 
@@ -21,7 +21,7 @@ pub(crate) fn published_events(
                 existing_customer_id,
                 source,
                 qualification_score_basis_points,
-            } => Ok(marketing::Event::LeadQualified(
+            } => Ok(Some(marketing::Event::LeadQualified(
                 marketing::QualifiedLeadFact {
                     candidate: marketing::LeadCandidateRef::try_from_uuid(candidate_id.as_uuid())
                         .map_err(|_| IntegrationMappingError::InvalidId)?,
@@ -39,13 +39,13 @@ pub(crate) fn published_events(
                         .map_err(|_| IntegrationMappingError::InvalidText)?,
                     qualification_score_basis_points: *qualification_score_basis_points,
                 },
-            )),
+            ))),
             DomainEvent::EngagementCaptured {
                 campaign_id,
                 audience_member_id,
                 channel,
                 action,
-            } => Ok(marketing::Event::EngagementCaptured(
+            } => Ok(Some(marketing::Event::EngagementCaptured(
                 marketing::EngagementFact {
                     campaign: marketing::CampaignRef::try_from_uuid(campaign_id.as_uuid())
                         .map_err(|_| IntegrationMappingError::InvalidId)?,
@@ -58,7 +58,73 @@ pub(crate) fn published_events(
                     action: ReferenceCode::try_new(action.clone())
                         .map_err(|_| IntegrationMappingError::InvalidText)?,
                 },
-            )),
+            ))),
+            DomainEvent::CampaignBudgetApprovalRequested {
+                budget_id,
+                campaign_id,
+                approval,
+            } => Ok(Some(marketing::Event::CampaignBudgetApprovalRequested(
+                marketing::CampaignBudgetApprovalRequestedFact {
+                    budget: marketing::CampaignBudgetRef::try_from_uuid(budget_id.as_uuid())
+                        .map_err(|_| IntegrationMappingError::InvalidId)?,
+                    campaign: marketing::CampaignRef::try_from_uuid(campaign_id.as_uuid())
+                        .map_err(|_| IntegrationMappingError::InvalidId)?,
+                    approval: approval.clone(),
+                },
+            ))),
+            DomainEvent::CampaignBudgetApproved {
+                budget_id,
+                campaign_id,
+                period,
+                approved_amount,
+                dimensions,
+                approved_at,
+            } => Ok(Some(marketing::Event::CampaignBudgetApproved(
+                marketing::CampaignBudgetApprovedFact {
+                    budget: marketing::CampaignBudgetRef::try_from_uuid(budget_id.as_uuid())
+                        .map_err(|_| IntegrationMappingError::InvalidId)?,
+                    campaign: marketing::CampaignRef::try_from_uuid(campaign_id.as_uuid())
+                        .map_err(|_| IntegrationMappingError::InvalidId)?,
+                    period: *period,
+                    approved_amount: *approved_amount,
+                    dimensions: dimensions.clone(),
+                    approved_at: *approved_at,
+                },
+            ))),
+            DomainEvent::SpendRequested {
+                budget_id,
+                request_id,
+                campaign_id,
+                allocation_id,
+                tactic,
+                channel,
+                amount,
+                dimensions,
+                expected_outcome,
+                requested_at,
+            } => Ok(Some(marketing::Event::CampaignSpendRequested(
+                marketing::CampaignSpendRequestedFact {
+                    request: marketing::SpendRequestRef::try_from_uuid(request_id.as_uuid())
+                        .map_err(|_| IntegrationMappingError::InvalidId)?,
+                    budget: marketing::CampaignBudgetRef::try_from_uuid(budget_id.as_uuid())
+                        .map_err(|_| IntegrationMappingError::InvalidId)?,
+                    campaign: marketing::CampaignRef::try_from_uuid(campaign_id.as_uuid())
+                        .map_err(|_| IntegrationMappingError::InvalidId)?,
+                    allocation: marketing::BudgetAllocationRef::try_from_uuid(
+                        allocation_id.as_uuid(),
+                    )
+                    .map_err(|_| IntegrationMappingError::InvalidId)?,
+                    tactic: *tactic,
+                    channel: *channel,
+                    amount: *amount,
+                    dimensions: dimensions.clone(),
+                    expected_outcome: DisplayName::try_new(expected_outcome.clone())
+                        .map_err(|_| IntegrationMappingError::InvalidText)?,
+                    requested_at: *requested_at,
+                },
+            ))),
+            DomainEvent::CampaignBudgetChanged => Ok(None),
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()
+        .map(|events| events.into_iter().flatten().collect())
 }

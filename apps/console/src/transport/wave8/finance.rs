@@ -215,11 +215,18 @@ impl FinanceProtoTransport for FinanceGrpcTransport {
                     .into_inner();
                 journal_command(response, command_id, correlation_id)
             }
-            FinanceCommand::CreateReceivableFromSales(_)
+            FinanceCommand::CreateCustomerInvoiceFromBilling(_)
+            | FinanceCommand::PostCustomerInvoice(_)
+            | FinanceCommand::CancelCustomerInvoice(_)
+            | FinanceCommand::CreateRevenueScheduleFromArrangement(_)
+            | FinanceCommand::RecognizeRevenueFromFulfillment(_)
+            | FinanceCommand::CreateReceivableFromInvoice(_)
             | FinanceCommand::CreatePayableFromProcurement(_) => {
                 // These commands are process-manager inbound operations and
                 // intentionally have no public Console RPC.
-                Err(unsupported_ui("finance integration subledger command"))
+                Err(unsupported_ui(
+                    "finance invoice or integration subledger command",
+                ))
             }
             FinanceCommand::ApplySubledgerSettlement(value) => {
                 let request = wire::ApplyFinanceSubledgerSettlementRequest {
@@ -354,6 +361,12 @@ impl FinanceProtoTransport for FinanceGrpcTransport {
                     correlation,
                     consistency,
                 )
+            }
+            FinanceQuery::GetCustomerInvoice(_) => {
+                Err(unsupported_ui("finance customer invoice query"))
+            }
+            FinanceQuery::GetRevenueSchedule(_) => {
+                Err(unsupported_ui("finance revenue schedule query"))
             }
             FinanceQuery::ListSubledger(value) => {
                 let request = wire::ListTypedFinanceSubledgerRequest {

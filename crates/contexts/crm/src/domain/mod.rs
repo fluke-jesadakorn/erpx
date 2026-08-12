@@ -1,4 +1,5 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
+use erpx_integration_contracts::{crm, marketing};
 use erpx_kernel::TenantScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -82,6 +83,8 @@ pub enum CrmDomainError {
     InvalidCurrency,
     #[error("CRM opportunity transition is not allowed")]
     InvalidTransition,
+    #[error("CRM opportunity forecast is incomplete or inconsistent with its stage")]
+    InvalidForecast,
     #[error("CRM timestamp cannot move backwards")]
     InvalidTimestamp,
     #[error("CRM aggregate version overflowed")]
@@ -203,6 +206,18 @@ pub struct CrmOpportunity {
     expected_value_minor: i64,
     currency: String,
     stage: OpportunityStage,
+    #[serde(default)]
+    account: Option<crm::CrmAccountRef>,
+    #[serde(default)]
+    owner: Option<String>,
+    #[serde(default)]
+    pipeline_category: Option<crm::PipelineCategory>,
+    #[serde(default)]
+    probability_basis_points: Option<u16>,
+    #[serde(default)]
+    expected_close_on: Option<NaiveDate>,
+    #[serde(default)]
+    originating_campaign: Option<marketing::CampaignRef>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     #[serde(skip)]
@@ -234,6 +249,12 @@ impl CrmOpportunity {
             expected_value_minor,
             currency,
             stage: OpportunityStage::Qualified,
+            account: None,
+            owner: None,
+            pipeline_category: None,
+            probability_basis_points: None,
+            expected_close_on: None,
+            originating_campaign: None,
             created_at: at,
             updated_at: at,
             uncommitted_events: vec![],
@@ -252,6 +273,68 @@ impl CrmOpportunity {
         if self.updated_at < self.created_at {
             return Err(CrmDomainError::InvalidTimestamp);
         }
+        let forecast_fields = [
+            self.account.is_some(),
+            self.owner.is_some(),
+            self.pipeline_category.is_some(),
+            self.probability_basis_points.is_some(),
+            self.expected_close_on.is_some(),
+        ];
+        if forecast_fields.iter().any(|value| *value)
+            && (!forecast_fields.iter().all(|value| *value)
+                || self
+                    .owner
+                    .as_deref()
+                    .is_none_or(|value| validate_text(value, "opportunity_owner").is_err())
+                || self
+                    .probability_basis_points
+                    .is_none_or(|value| !forecast_probability_matches(self.stage, value))
+                || !forecast_category_matches(
+                    self.stage,
+                    self.pipeline_category.expect("checked complete forecast"),
+                ))
+        {
+            return Err(CrmDomainError::InvalidForecast);
+        }
+        Ok(())
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_forecast(
+        &mut self,
+        account: crm::CrmAccountRef,
+        owner: String,
+        category: crm::PipelineCategory,
+        probability_basis_points: u16,
+        expected_value_minor: i64,
+        expected_close_on: NaiveDate,
+        originating_campaign: Option<marketing::CampaignRef>,
+        at: DateTime<Utc>,
+    ) -> Result<(), CrmDomainError> {
+        if matches!(self.stage, OpportunityStage::Won | OpportunityStage::Lost)
+            || !forecast_category_matches(self.stage, category)
+            || probability_basis_points == 0
+            || probability_basis_points > 10_000
+            || expected_close_on < at.date_naive()
+            || at < self.updated_at
+        {
+            return Err(CrmDomainError::InvalidForecast);
+        }
+        validate_text(&owner, "opportunity_owner")?;
+        validate_money(expected_value_minor, &self.currency)?;
+        self.version = self
+            .version
+            .checked_add(1)
+            .ok_or(CrmDomainError::VersionOverflow)?;
+        self.account = Some(account);
+        self.owner = Some(owner);
+        self.pipeline_category = Some(category);
+        self.probability_basis_points = Some(probability_basis_points);
+        self.expected_value_minor = expected_value_minor;
+        self.expected_close_on = Some(expected_close_on);
+        self.originating_campaign = originating_campaign;
+        self.updated_at = at;
+        self.publish_changed();
+        self.publish_forecast_changed();
         Ok(())
     }
     pub fn transition(
@@ -270,8 +353,19 @@ impl CrmOpportunity {
             .checked_add(1)
             .ok_or(CrmDomainError::VersionOverflow)?;
         self.stage = next;
+        if matches!(next, OpportunityStage::Won | OpportunityStage::Lost)
+            && self.pipeline_category.is_some()
+        {
+            self.pipeline_category = Some(crm::PipelineCategory::Closed);
+            self.probability_basis_points = Some(if next == OpportunityStage::Won {
+                10_000
+            } else {
+                0
+            });
+        }
         self.updated_at = at;
         self.publish_changed();
+        self.publish_forecast_changed();
         Ok(())
     }
     fn publish_changed(&mut self) {
@@ -282,6 +376,38 @@ impl CrmOpportunity {
                 stage: self.stage,
                 expected_value_minor: self.expected_value_minor,
                 currency: self.currency.clone(),
+            });
+    }
+    fn publish_forecast_changed(&mut self) {
+        let (
+            Some(account),
+            Some(owner),
+            Some(category),
+            Some(probability_basis_points),
+            Some(expected_close_on),
+        ) = (
+            self.account,
+            self.owner.clone(),
+            self.pipeline_category,
+            self.probability_basis_points,
+            self.expected_close_on,
+        )
+        else {
+            return;
+        };
+        self.uncommitted_events
+            .push(DomainEvent::OpportunityForecastChanged {
+                opportunity_id: self.id,
+                account,
+                customer_id: self.customer_id,
+                owner,
+                stage: self.stage,
+                category,
+                probability_basis_points,
+                expected_value_minor: self.expected_value_minor,
+                currency: self.currency.clone(),
+                expected_close_on,
+                originating_campaign: self.originating_campaign,
             });
     }
     pub const fn id(&self) -> OpportunityId {
@@ -310,6 +436,24 @@ impl CrmOpportunity {
     }
     pub const fn stage(&self) -> OpportunityStage {
         self.stage
+    }
+    pub const fn account(&self) -> Option<crm::CrmAccountRef> {
+        self.account
+    }
+    pub fn owner(&self) -> Option<&str> {
+        self.owner.as_deref()
+    }
+    pub const fn pipeline_category(&self) -> Option<crm::PipelineCategory> {
+        self.pipeline_category
+    }
+    pub const fn probability_basis_points(&self) -> Option<u16> {
+        self.probability_basis_points
+    }
+    pub const fn expected_close_on(&self) -> Option<NaiveDate> {
+        self.expected_close_on
+    }
+    pub const fn originating_campaign(&self) -> Option<marketing::CampaignRef> {
+        self.originating_campaign
     }
     pub const fn created_at(&self) -> DateTime<Utc> {
         self.created_at
@@ -382,6 +526,39 @@ pub(crate) enum DomainEvent {
         expected_value_minor: i64,
         currency: String,
     },
+    OpportunityForecastChanged {
+        opportunity_id: OpportunityId,
+        account: crm::CrmAccountRef,
+        customer_id: Uuid,
+        owner: String,
+        stage: OpportunityStage,
+        category: crm::PipelineCategory,
+        probability_basis_points: u16,
+        expected_value_minor: i64,
+        currency: String,
+        expected_close_on: NaiveDate,
+        originating_campaign: Option<marketing::CampaignRef>,
+    },
+}
+
+const fn forecast_category_matches(
+    stage: OpportunityStage,
+    category: crm::PipelineCategory,
+) -> bool {
+    match stage {
+        OpportunityStage::Won | OpportunityStage::Lost => {
+            matches!(category, crm::PipelineCategory::Closed)
+        }
+        _ => !matches!(category, crm::PipelineCategory::Closed),
+    }
+}
+
+const fn forecast_probability_matches(stage: OpportunityStage, probability: u16) -> bool {
+    match stage {
+        OpportunityStage::Won => probability == 10_000,
+        OpportunityStage::Lost => probability == 0,
+        _ => probability > 0 && probability <= 10_000,
+    }
 }
 
 fn exact_scope(scope: &TenantScope) -> Result<(), CrmDomainError> {
@@ -483,6 +660,43 @@ mod tests {
             ),
             Err(CrmDomainError::NegativeAmount)
         ));
+    }
+    #[test]
+    fn opportunity_forecast_is_typed_and_closes_with_pipeline_stage() {
+        let mut value = opportunity();
+        let at = value.created_at();
+        value.take_uncommitted_events();
+        value
+            .update_forecast(
+                crm::CrmAccountRef::try_from_uuid(Uuid::from_u128(20)).unwrap(),
+                "sales-owner".into(),
+                crm::PipelineCategory::Commit,
+                8_000,
+                12_500,
+                at.date_naive(),
+                Some(marketing::CampaignRef::try_from_uuid(Uuid::from_u128(21)).unwrap()),
+                at,
+            )
+            .unwrap();
+        assert_eq!(value.expected_value_minor(), 12_500);
+        assert_eq!(
+            value.pipeline_category(),
+            Some(crm::PipelineCategory::Commit)
+        );
+        assert!(matches!(
+            value.take_uncommitted_events().as_slice(),
+            [
+                DomainEvent::OpportunityChanged { .. },
+                DomainEvent::OpportunityForecastChanged { .. }
+            ]
+        ));
+        value.transition(OpportunityStage::Lost, at).unwrap();
+        assert_eq!(
+            value.pipeline_category(),
+            Some(crm::PipelineCategory::Closed)
+        );
+        assert_eq!(value.probability_basis_points(), Some(0));
+        value.validate().unwrap();
     }
     #[test]
     fn accepted_marketing_fact_is_immutable_inside_crm() {

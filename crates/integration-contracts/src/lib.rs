@@ -5,6 +5,7 @@ mod macros;
 
 mod common;
 mod envelope;
+mod foundation;
 
 pub mod assets;
 pub mod brand;
@@ -33,6 +34,9 @@ pub use common::{
 };
 pub use envelope::{
     AggregateKind, BoundedContext, EventType, IntegrationEvent, IntegrationEventEnvelope,
+};
+pub use foundation::{
+    CostCenterRef, DimensionSet, LocationRef, MonetaryAmountSet, PartyRef, ProjectRef, RecordRef,
 };
 
 #[cfg(test)]

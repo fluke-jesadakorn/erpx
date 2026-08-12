@@ -3907,7 +3907,6 @@ mod tests {
             Err(SupportIntersectionDenial::AgentDeviceInactive)
         );
 
-        request.agent_device_active = true;
         fixture.session.expires_at = fixture.now;
         assert_eq!(
             evaluate_support_intersection(&fixture.request()),

@@ -11,7 +11,7 @@ use erpx_ui_foundation::UiError;
 
 use super::common::{
     AuthenticatedRoute, Wave67Route, command_result, decode_scope, encode_scope, invalid_response,
-    query_result, status_ui, timestamp, uuid,
+    query_result, status_ui, timestamp, unsupported_ui, uuid,
 };
 use crate::{features::sales::SalesProtoTransport, transport::typed_cqrs::GrpcChannel};
 
@@ -184,6 +184,11 @@ impl SalesProtoTransport for SalesGrpcTransport {
                     .into_inner();
                 order_result(response, command_id, correlation)
             }
+            SalesCommand::ActivateRevenueArrangement(_)
+            | SalesCommand::AcceptRevenueFulfillment(_)
+            | SalesCommand::CancelRevenueArrangement(_) => {
+                Err(unsupported_ui("sales revenue arrangement command"))
+            }
         }
     }
     async fn query(
@@ -235,6 +240,9 @@ impl SalesProtoTransport for SalesGrpcTransport {
                     correlation,
                     consistency,
                 )
+            }
+            SalesQuery::GetRevenueArrangement(_) => {
+                Err(unsupported_ui("sales revenue arrangement query"))
             }
             SalesQuery::ListSalesOrders(value) => {
                 let filter = value.filter;

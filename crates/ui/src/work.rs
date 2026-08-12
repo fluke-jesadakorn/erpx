@@ -7,7 +7,23 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::{ReadModelAvailability, ReadModelFreshness};
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadModelAvailability {
+    Available,
+    Partial,
+    Empty,
+    Unavailable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadModelFreshness {
+    Live,
+    Current,
+    Stale,
+    Unknown,
+}
 
 pub const MAX_WORK_ITEMS: usize = 48;
 pub const MAX_WORK_SOURCE_CONTRIBUTIONS: usize = 12;

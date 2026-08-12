@@ -109,7 +109,7 @@ impl SqlxHrPersistence {
             next_version,
         )?;
 
-        if current.is_some() {
+        if let Some(current_version) = current {
             let affected = sqlx::query(
                 "UPDATE erpx_tenant.hr_employee_records
                  SET holding_id=$3, company_id=$4, branch_id=$5, employee_ref=$6,
@@ -130,16 +130,13 @@ impl SqlxHrPersistence {
             .bind(as_i64(next_version, "employee version")?)
             .bind(employee.last_command_id)
             .bind(key)
-            .bind(as_i64(
-                current.expect("checked current"),
-                "employee version",
-            )?)
+            .bind(as_i64(current_version, "employee version")?)
             .execute(&mut *tx)
             .await?;
             ensure_update_affected(
                 EMPLOYEE_AGGREGATE,
                 aggregate_id,
-                current.expect("checked current"),
+                current_version,
                 affected.rows_affected(),
             )?;
         } else {
@@ -308,7 +305,7 @@ impl SqlxHrPersistence {
         ensure_expected_version(LEAVE_AGGREGATE, aggregate_id, expected_version, current)?;
         let next_version = next_version(current)?;
         ensure_domain_version(LEAVE_AGGREGATE, aggregate_id, leave.version, next_version)?;
-        if current.is_some() {
+        if let Some(current_version) = current {
             sqlx::query(
                 "UPDATE erpx_tenant.hr_leave_requests
                  SET holding_id=$3, company_id=$4, branch_id=$5, employee_id=$6,
@@ -332,7 +329,7 @@ impl SqlxHrPersistence {
             .bind(as_i64(next_version, "leave version")?)
             .bind(leave.last_command_id)
             .bind(idempotency_key)
-            .bind(as_i64(current.expect("checked current"), "leave version")?)
+            .bind(as_i64(current_version, "leave version")?)
             .execute(&mut *tx)
             .await?;
         } else {
@@ -437,7 +434,7 @@ impl SqlxHrPersistence {
             expense.version,
             next_version,
         )?;
-        if current.is_some() {
+        if let Some(current_version) = current {
             sqlx::query(
                 "UPDATE erpx_tenant.hr_expense_claims
                  SET holding_id=$3, company_id=$4, branch_id=$5, employee_id=$6,
@@ -458,10 +455,7 @@ impl SqlxHrPersistence {
             .bind(&expense.approved_by)
             .bind(as_i64(next_version, "expense version")?)
             .bind(idempotency_key)
-            .bind(as_i64(
-                current.expect("checked current"),
-                "expense version",
-            )?)
+            .bind(as_i64(current_version, "expense version")?)
             .execute(&mut *tx)
             .await?;
         } else {
@@ -563,7 +557,7 @@ impl SqlxHrPersistence {
             payroll.version,
             next_version,
         )?;
-        if current.is_some() {
+        if let Some(current_version) = current {
             sqlx::query(
                 "UPDATE erpx_tenant.hr_payroll_runs
                  SET holding_id=$3, company_id=$4, branch_id=$5, starts_on=$6, ends_on=$7,
@@ -589,10 +583,7 @@ impl SqlxHrPersistence {
             .bind(as_i64(next_version, "payroll version")?)
             .bind(payroll.created_at)
             .bind(idempotency_key)
-            .bind(as_i64(
-                current.expect("checked current"),
-                "payroll version",
-            )?)
+            .bind(as_i64(current_version, "payroll version")?)
             .execute(&mut *tx)
             .await?;
         } else {
@@ -708,15 +699,12 @@ impl SqlxHrPersistence {
         .bind(&reassignment.workflow_ref)
         .fetch_optional(&mut *tx)
         .await?;
-        if existing.is_some() {
+        if let Some(existing_version) = existing {
             return Err(PersistenceError::OptimisticConcurrency {
                 aggregate_type: REASSIGNMENT_AGGREGATE.into(),
                 aggregate_id,
                 expected: None,
-                actual: Some(as_u64(
-                    existing.expect("checked existing"),
-                    "reassignment version",
-                )?),
+                actual: Some(as_u64(existing_version, "reassignment version")?),
             });
         }
         sqlx::query(

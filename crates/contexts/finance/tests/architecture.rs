@@ -37,7 +37,7 @@ fn reads_are_projection_only_and_inbound_dependencies_are_contract_facts() {
     assert!(ports.contains("QueryConsistency"));
     assert!(!ports.contains("fallback_to_write"));
     for fact in [
-        "sales::SalesOrderFact",
+        "sales::BillingEligibilityFact",
         "inventory::StockMovementFact",
         "people_payroll::PayrollFinalizationFact",
         "pos::PosSaleFact",

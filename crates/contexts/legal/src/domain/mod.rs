@@ -1,4 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
+use erpx_integration_contracts::RecordRef;
 use erpx_kernel::TenantScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -11,6 +12,7 @@ pub const MAX_PARTIES: usize = 128;
 pub const MAX_DOCUMENT_VERSIONS: usize = 1_024;
 pub const MAX_RETENTION_DAYS: i64 = 36_525;
 pub const MAX_ACCESS_CLOCK_SKEW_MINUTES: i64 = 5;
+pub const MAX_MATTER_LINKS: usize = 1_024;
 
 macro_rules! context_id {
     ($name:ident, $field:literal) => {
@@ -52,6 +54,7 @@ macro_rules! context_id {
 context_id!(LegalContractId, "contract_id");
 context_id!(LegalDocumentId, "document_id");
 context_id!(AccessEntryId, "access_entry_id");
+context_id!(LegalMatterId, "matter_id");
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum LegalDomainError {
@@ -87,6 +90,12 @@ pub enum LegalDomainError {
     VersionOverflow,
     #[error("the aggregate timestamp moved backwards")]
     TimestampRegression,
+    #[error("the Legal matter record link is invalid, duplicated, or exceeds the bounded limit")]
+    InvalidRecordLink,
+    #[error("the linked record belongs to another tenant holding")]
+    CrossTenantLink,
+    #[error("the Legal hold transition is not allowed")]
+    InvalidLegalHold,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -133,6 +142,9 @@ pub(crate) enum DomainEvent {
     ContractChanged,
     DocumentChanged,
     AccessRecorded,
+    MatterChanged,
+    RecordLinked(RecordLink),
+    LegalHoldChanged(LegalHold),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -632,12 +644,308 @@ impl AccessEntry {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MatterStatus {
+    Open,
+    Closed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordRelation {
+    GovernedBy,
+    Supports,
+    BilledUnder,
+    AttributedTo,
+    Disputes,
+    SettlementFor,
+    Supersedes,
+    AccountingFor,
+}
+
+/// Immutable evidence of the exact external record revision Legal reviewed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecordLink {
+    pub relation: RecordRelation,
+    pub target: RecordRef,
+    pub target_scope: TenantScope,
+    pub target_digest: String,
+    pub linked_by: String,
+    pub linked_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LegalHold {
+    pub active: bool,
+    pub reason: String,
+    pub placed_by: String,
+    pub placed_at: DateTime<Utc>,
+    pub released_by: Option<String>,
+    pub released_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LegalMatter {
+    id: LegalMatterId,
+    version: u64,
+    scope: TenantScope,
+    reference: String,
+    title: String,
+    status: MatterStatus,
+    links: Vec<RecordLink>,
+    legal_hold: Option<LegalHold>,
+    created_by: String,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    #[serde(skip)]
+    uncommitted_events: Vec<DomainEvent>,
+}
+
+impl LegalMatter {
+    pub fn create(
+        id: LegalMatterId,
+        scope: TenantScope,
+        reference: String,
+        title: String,
+        created_by: String,
+        at: DateTime<Utc>,
+    ) -> Result<Self, LegalDomainError> {
+        validate_scope(&scope)?;
+        validate_text(&reference, "matter_reference", MAX_REFERENCE_BYTES)?;
+        validate_text(&title, "matter_title", MAX_TITLE_BYTES)?;
+        validate_text(&created_by, "created_by", MAX_REFERENCE_BYTES)?;
+        let value = Self {
+            id,
+            version: 1,
+            scope,
+            reference,
+            title,
+            status: MatterStatus::Open,
+            links: Vec::new(),
+            legal_hold: None,
+            created_by,
+            created_at: at,
+            updated_at: at,
+            uncommitted_events: vec![DomainEvent::MatterChanged],
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn link_record(
+        &mut self,
+        relation: RecordRelation,
+        target: RecordRef,
+        target_scope: TenantScope,
+        target_digest: String,
+        actor: String,
+        at: DateTime<Utc>,
+    ) -> Result<(), LegalDomainError> {
+        if self.status != MatterStatus::Open || self.links.len() >= MAX_MATTER_LINKS {
+            return Err(LegalDomainError::InvalidRecordLink);
+        }
+        validate_scope(&target_scope)?;
+        validate_same_holding(&self.scope, &target_scope)?;
+        validate_digest(&target_digest)?;
+        validate_text(&actor, "linked_by", MAX_REFERENCE_BYTES)?;
+        if self.links.iter().any(|link| {
+            link.relation == relation
+                && link.target.context == target.context
+                && link.target.aggregate_kind == target.aggregate_kind
+                && link.target.aggregate_id == target.aggregate_id
+        }) {
+            return Err(LegalDomainError::InvalidRecordLink);
+        }
+        let link = RecordLink {
+            relation,
+            target,
+            target_scope,
+            target_digest,
+            linked_by: actor,
+            linked_at: at,
+        };
+        validate_record_link(&self.scope, &link, self.created_at, at)?;
+        let mut next = self.clone();
+        next.advance(at)?;
+        next.links.push(link.clone());
+        next.uncommitted_events
+            .push(DomainEvent::RecordLinked(link));
+        next.uncommitted_events.push(DomainEvent::MatterChanged);
+        next.validate()?;
+        *self = next;
+        Ok(())
+    }
+
+    pub fn place_hold(
+        &mut self,
+        reason: String,
+        actor: String,
+        at: DateTime<Utc>,
+    ) -> Result<(), LegalDomainError> {
+        if self.status != MatterStatus::Open
+            || self.legal_hold.as_ref().is_some_and(|hold| hold.active)
+        {
+            return Err(LegalDomainError::InvalidLegalHold);
+        }
+        validate_text(&reason, "legal_hold_reason", MAX_TITLE_BYTES)?;
+        validate_text(&actor, "placed_by", MAX_REFERENCE_BYTES)?;
+        let hold = LegalHold {
+            active: true,
+            reason,
+            placed_by: actor,
+            placed_at: at,
+            released_by: None,
+            released_at: None,
+        };
+        let mut next = self.clone();
+        next.advance(at)?;
+        next.legal_hold = Some(hold.clone());
+        next.uncommitted_events
+            .push(DomainEvent::LegalHoldChanged(hold));
+        next.uncommitted_events.push(DomainEvent::MatterChanged);
+        next.validate()?;
+        *self = next;
+        Ok(())
+    }
+
+    pub fn release_hold(
+        &mut self,
+        actor: String,
+        at: DateTime<Utc>,
+    ) -> Result<(), LegalDomainError> {
+        validate_text(&actor, "released_by", MAX_REFERENCE_BYTES)?;
+        let Some(current) = self.legal_hold.as_ref() else {
+            return Err(LegalDomainError::InvalidLegalHold);
+        };
+        if !current.active || current.placed_by == actor {
+            return Err(LegalDomainError::InvalidLegalHold);
+        }
+        let mut hold = current.clone();
+        hold.active = false;
+        hold.released_by = Some(actor);
+        hold.released_at = Some(at);
+        let mut next = self.clone();
+        next.advance(at)?;
+        next.legal_hold = Some(hold.clone());
+        next.uncommitted_events
+            .push(DomainEvent::LegalHoldChanged(hold));
+        next.uncommitted_events.push(DomainEvent::MatterChanged);
+        next.validate()?;
+        *self = next;
+        Ok(())
+    }
+
+    pub fn close(&mut self, at: DateTime<Utc>) -> Result<(), LegalDomainError> {
+        if self.status != MatterStatus::Open
+            || self.legal_hold.as_ref().is_some_and(|hold| hold.active)
+        {
+            return Err(LegalDomainError::InvalidTransition);
+        }
+        let mut next = self.clone();
+        next.advance(at)?;
+        next.status = MatterStatus::Closed;
+        next.uncommitted_events.push(DomainEvent::MatterChanged);
+        next.validate()?;
+        *self = next;
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), LegalDomainError> {
+        validate_scope(&self.scope)?;
+        validate_text(&self.reference, "matter_reference", MAX_REFERENCE_BYTES)?;
+        validate_text(&self.title, "matter_title", MAX_TITLE_BYTES)?;
+        validate_text(&self.created_by, "created_by", MAX_REFERENCE_BYTES)?;
+        validate_common(self.version, self.created_at, self.updated_at)?;
+        if self.links.len() > MAX_MATTER_LINKS {
+            return Err(LegalDomainError::InvalidRecordLink);
+        }
+        for (index, link) in self.links.iter().enumerate() {
+            validate_record_link(&self.scope, link, self.created_at, self.updated_at)?;
+            if self.links[..index].iter().any(|existing| {
+                existing.relation == link.relation
+                    && existing.target.context == link.target.context
+                    && existing.target.aggregate_kind == link.target.aggregate_kind
+                    && existing.target.aggregate_id == link.target.aggregate_id
+            }) {
+                return Err(LegalDomainError::InvalidRecordLink);
+            }
+        }
+        if let Some(hold) = &self.legal_hold {
+            validate_text(&hold.reason, "legal_hold_reason", MAX_TITLE_BYTES)?;
+            validate_text(&hold.placed_by, "placed_by", MAX_REFERENCE_BYTES)?;
+            if hold.placed_at < self.created_at || hold.placed_at > self.updated_at {
+                return Err(LegalDomainError::InvalidLegalHold);
+            }
+            match (hold.active, hold.released_by.as_deref(), hold.released_at) {
+                (true, None, None) => {}
+                (false, Some(released_by), Some(released_at))
+                    if released_by != hold.placed_by
+                        && released_at >= hold.placed_at
+                        && released_at <= self.updated_at =>
+                {
+                    validate_text(released_by, "released_by", MAX_REFERENCE_BYTES)?;
+                }
+                _ => return Err(LegalDomainError::InvalidLegalHold),
+            }
+        }
+        if self.status == MatterStatus::Closed
+            && self.legal_hold.as_ref().is_some_and(|hold| hold.active)
+        {
+            return Err(LegalDomainError::InvalidLegalHold);
+        }
+        Ok(())
+    }
+
+    fn advance(&mut self, at: DateTime<Utc>) -> Result<(), LegalDomainError> {
+        advance(&mut self.version, &mut self.updated_at, at)
+    }
+
+    pub const fn id(&self) -> LegalMatterId {
+        self.id
+    }
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+    pub fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+    pub fn reference(&self) -> &str {
+        &self.reference
+    }
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+    pub const fn status(&self) -> MatterStatus {
+        self.status
+    }
+    pub fn links(&self) -> &[RecordLink] {
+        &self.links
+    }
+    pub fn legal_hold(&self) -> Option<&LegalHold> {
+        self.legal_hold.as_ref()
+    }
+    pub fn created_by(&self) -> &str {
+        &self.created_by
+    }
+    pub const fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+    pub const fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        std::mem::take(&mut self.uncommitted_events)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "aggregate", content = "state", rename_all = "snake_case")]
 pub enum LegalAggregate {
     Contract(LegalContract),
     Document(LegalDocument),
     AccessEntry(AccessEntry),
+    Matter(LegalMatter),
 }
 
 impl LegalAggregate {
@@ -646,6 +954,7 @@ impl LegalAggregate {
             Self::Contract(value) => value.validate(),
             Self::Document(value) => value.validate(),
             Self::AccessEntry(value) => value.validate(),
+            Self::Matter(value) => value.validate(),
         }
     }
 
@@ -654,6 +963,7 @@ impl LegalAggregate {
             Self::Contract(value) => value.updated_at(),
             Self::Document(value) => value.updated_at(),
             Self::AccessEntry(value) => value.observed_at(),
+            Self::Matter(value) => value.updated_at(),
         }
     }
     pub fn scope(&self) -> &TenantScope {
@@ -661,6 +971,7 @@ impl LegalAggregate {
             Self::Contract(value) => value.scope(),
             Self::Document(value) => value.scope(),
             Self::AccessEntry(value) => value.scope(),
+            Self::Matter(value) => value.scope(),
         }
     }
 
@@ -669,6 +980,7 @@ impl LegalAggregate {
             Self::Contract(value) => value.version(),
             Self::Document(value) => value.version(),
             Self::AccessEntry(value) => value.version(),
+            Self::Matter(value) => value.version(),
         }
     }
 
@@ -677,6 +989,7 @@ impl LegalAggregate {
             Self::Contract(_) => "legal_contract",
             Self::Document(_) => "legal_document",
             Self::AccessEntry(_) => "legal_access_entry",
+            Self::Matter(_) => "legal_matter",
         }
     }
 
@@ -685,6 +998,7 @@ impl LegalAggregate {
             Self::Contract(value) => value.id().as_uuid(),
             Self::Document(value) => value.id().as_uuid(),
             Self::AccessEntry(value) => value.id().as_uuid(),
+            Self::Matter(value) => value.id().as_uuid(),
         }
     }
 
@@ -693,7 +1007,48 @@ impl LegalAggregate {
             Self::Contract(value) => value.take_uncommitted_events(),
             Self::Document(value) => value.take_uncommitted_events(),
             Self::AccessEntry(value) => value.take_uncommitted_events(),
+            Self::Matter(value) => value.take_uncommitted_events(),
         }
+    }
+}
+
+fn validate_record_link(
+    matter_scope: &TenantScope,
+    link: &RecordLink,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+) -> Result<(), LegalDomainError> {
+    validate_scope(&link.target_scope)?;
+    validate_same_holding(matter_scope, &link.target_scope)?;
+    if link.target.aggregate_id.is_nil() || link.target.aggregate_version == 0 {
+        return Err(LegalDomainError::InvalidRecordLink);
+    }
+    validate_text(
+        link.target.aggregate_kind.as_str(),
+        "target_aggregate_kind",
+        MAX_REFERENCE_BYTES,
+    )?;
+    validate_digest(&link.target_digest)?;
+    validate_text(&link.linked_by, "linked_by", MAX_REFERENCE_BYTES)?;
+    if link.linked_at < created_at || link.linked_at > updated_at {
+        return Err(LegalDomainError::InvalidRecordLink);
+    }
+    Ok(())
+}
+
+fn validate_same_holding(left: &TenantScope, right: &TenantScope) -> Result<(), LegalDomainError> {
+    fn holding(scope: &TenantScope) -> Option<Uuid> {
+        match scope {
+            TenantScope::Company { holding_id, .. } | TenantScope::Branch { holding_id, .. } => {
+                Some(*holding_id)
+            }
+            _ => None,
+        }
+    }
+    if holding(left).is_some() && holding(left) == holding(right) {
+        Ok(())
+    } else {
+        Err(LegalDomainError::CrossTenantLink)
     }
 }
 

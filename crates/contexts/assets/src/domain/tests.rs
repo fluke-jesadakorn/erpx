@@ -65,7 +65,7 @@ fn service_and_maintenance_lifecycle_preserves_condition_invariants() {
     aggregate.mark_degraded(at() + Duration::hours(2)).unwrap();
     assert_eq!(aggregate.condition(), AssetCondition::Degraded);
     aggregate
-        .begin_maintenance("REQ-100", at() + Duration::hours(3))
+        .begin_maintenance("REQ-100", "Inspect packing line", at() + Duration::hours(3))
         .unwrap();
     assert_eq!(aggregate.status(), AssetStatus::UnderMaintenance);
     assert_eq!(aggregate.condition(), AssetCondition::OutOfService);
@@ -81,7 +81,7 @@ fn maintenance_request_emits_owner_private_events_in_order() {
         .unwrap();
     aggregate.take_uncommitted_events();
     aggregate
-        .begin_maintenance("REQ-100", at() + Duration::hours(2))
+        .begin_maintenance("REQ-100", "Inspect packing line", at() + Duration::hours(2))
         .unwrap();
     let events = aggregate.take_uncommitted_events();
     assert!(matches!(
@@ -91,8 +91,8 @@ fn maintenance_request_emits_owner_private_events_in_order() {
                 condition: AssetCondition::OutOfService,
                 ..
             },
-            DomainEvent::MaintenanceRequested { request_code, .. }
-        ] if request_code == "REQ-100"
+            DomainEvent::MaintenanceRequested { request_code, title, .. }
+        ] if request_code == "REQ-100" && title == "Inspect packing line"
     ));
 }
 

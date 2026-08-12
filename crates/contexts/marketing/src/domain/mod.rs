@@ -1,4 +1,9 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use chrono::{DateTime, Utc};
+use erpx_integration_contracts::{
+    BoundedContext, DimensionSet, MoneyAmount, RecordRef, marketing, operations,
+};
 use erpx_kernel::TenantScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -45,6 +50,12 @@ macro_rules! marketing_id {
 marketing_id!(LeadCandidateId, "lead_candidate_id");
 marketing_id!(CampaignId, "campaign_id");
 marketing_id!(AudienceMemberId, "audience_member_id");
+marketing_id!(CampaignBudgetId, "campaign_budget_id");
+marketing_id!(BudgetAllocationId, "budget_allocation_id");
+marketing_id!(SpendRequestId, "spend_request_id");
+
+pub const MAX_BUDGET_ALLOCATIONS: usize = 256;
+pub const MAX_SPEND_RESERVATIONS: usize = 1_024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -52,6 +63,37 @@ pub enum LeadCandidateStatus {
     Captured,
     Qualified,
     Rejected,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CampaignBudgetStatus {
+    Draft,
+    Review,
+    Approved,
+    Running,
+    Completed,
+    Cancelled,
+}
+
+impl CampaignBudgetStatus {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Draft => "draft",
+            Self::Review => "review",
+            Self::Approved => "approved",
+            Self::Running => "running",
+            Self::Completed => "completed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpendReservationStatus {
+    Active,
+    Released,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -70,6 +112,22 @@ pub enum MarketingDomainError {
     InvalidQualificationScore,
     #[error("lead candidate lifecycle transition is not allowed")]
     InvalidTransition,
+    #[error("campaign budget lifecycle transition is not allowed")]
+    InvalidBudgetTransition,
+    #[error(
+        "campaign budget dimensions must bind the exact legal entity, branch, campaign, business unit, and cost center"
+    )]
+    InvalidBudgetDimensions,
+    #[error(
+        "campaign budget allocations must be unique, positive, currency-consistent, and equal the budget amount"
+    )]
+    InvalidBudgetAllocations,
+    #[error("campaign budget approval evidence is invalid or violates maker-checker")]
+    InvalidBudgetApproval,
+    #[error("campaign spend reservation is invalid, duplicated, or exceeds the allocation")]
+    InvalidSpendReservation,
+    #[error("Marketing amount arithmetic overflowed")]
+    ArithmeticOverflow,
     #[error("Marketing timestamp cannot move backwards")]
     InvalidTimestamp,
     #[error("Marketing aggregate version overflowed")]
@@ -283,6 +341,560 @@ pub(crate) enum DomainEvent {
         channel: String,
         action: String,
     },
+    CampaignBudgetChanged,
+    CampaignBudgetApprovalRequested {
+        budget_id: CampaignBudgetId,
+        campaign_id: CampaignId,
+        approval: operations::ApprovalRequestFact,
+    },
+    CampaignBudgetApproved {
+        budget_id: CampaignBudgetId,
+        campaign_id: CampaignId,
+        period: marketing::CampaignBudgetPeriod,
+        approved_amount: MoneyAmount,
+        dimensions: DimensionSet,
+        approved_at: DateTime<Utc>,
+    },
+    SpendRequested {
+        budget_id: CampaignBudgetId,
+        request_id: SpendRequestId,
+        campaign_id: CampaignId,
+        allocation_id: BudgetAllocationId,
+        tactic: marketing::TacticRef,
+        channel: marketing::ChannelRef,
+        amount: MoneyAmount,
+        dimensions: DimensionSet,
+        expected_outcome: String,
+        requested_at: DateTime<Utc>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BudgetAllocation {
+    pub allocation_id: BudgetAllocationId,
+    pub tactic: marketing::TacticRef,
+    pub channel: marketing::ChannelRef,
+    pub planned_amount: MoneyAmount,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpendReservation {
+    pub request_id: SpendRequestId,
+    pub allocation_id: BudgetAllocationId,
+    pub amount: MoneyAmount,
+    pub expected_outcome: String,
+    pub status: SpendReservationStatus,
+    pub requested_at: DateTime<Utc>,
+    pub released_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CampaignBudget {
+    id: CampaignBudgetId,
+    version: u64,
+    scope: TenantScope,
+    campaign_id: CampaignId,
+    code: String,
+    name: String,
+    period: marketing::CampaignBudgetPeriod,
+    requested_amount: MoneyAmount,
+    approved_amount: Option<MoneyAmount>,
+    dimensions: DimensionSet,
+    allocations: Vec<BudgetAllocation>,
+    reservations: BTreeMap<SpendRequestId, SpendReservation>,
+    approval_request: Option<operations::ApprovalRequestRef>,
+    approval_subject: Option<RecordRef>,
+    approval_requested_by: Option<erpx_integration_contracts::ReferenceCode>,
+    approval_requested_at: Option<DateTime<Utc>>,
+    status: CampaignBudgetStatus,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    #[serde(skip)]
+    uncommitted_events: Vec<DomainEvent>,
+}
+
+impl CampaignBudget {
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        id: CampaignBudgetId,
+        scope: TenantScope,
+        campaign_id: CampaignId,
+        code: String,
+        name: String,
+        period: marketing::CampaignBudgetPeriod,
+        requested_amount: MoneyAmount,
+        dimensions: DimensionSet,
+        allocations: Vec<BudgetAllocation>,
+        at: DateTime<Utc>,
+    ) -> Result<Self, MarketingDomainError> {
+        let value = Self {
+            id,
+            version: 1,
+            scope,
+            campaign_id,
+            code,
+            name,
+            period,
+            requested_amount,
+            approved_amount: None,
+            dimensions,
+            allocations,
+            reservations: BTreeMap::new(),
+            approval_request: None,
+            approval_subject: None,
+            approval_requested_by: None,
+            approval_requested_at: None,
+            status: CampaignBudgetStatus::Draft,
+            created_at: at,
+            updated_at: at,
+            uncommitted_events: vec![DomainEvent::CampaignBudgetChanged],
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn submit_for_review(
+        &mut self,
+        approval: operations::ApprovalRequestFact,
+        at: DateTime<Utc>,
+    ) -> Result<(), MarketingDomainError> {
+        if self.status != CampaignBudgetStatus::Draft
+            || approval.subject.context != BoundedContext::Marketing
+            || approval.subject.aggregate_kind.as_str() != "campaign_budget"
+            || approval.subject.aggregate_id != self.id.as_uuid()
+            || approval.subject.aggregate_version != self.version
+            || approval.amount != Some(self.requested_amount)
+            || approval.requested_at < self.updated_at
+            || approval.requested_at > at
+        {
+            return Err(MarketingDomainError::InvalidBudgetApproval);
+        }
+        self.bump(at)?;
+        self.approval_request = Some(approval.request);
+        self.approval_subject = Some(approval.subject.clone());
+        self.approval_requested_by = Some(approval.requested_by.clone());
+        self.approval_requested_at = Some(approval.requested_at);
+        self.status = CampaignBudgetStatus::Review;
+        self.uncommitted_events
+            .push(DomainEvent::CampaignBudgetApprovalRequested {
+                budget_id: self.id,
+                campaign_id: self.campaign_id,
+                approval,
+            });
+        Ok(())
+    }
+
+    pub fn apply_approval_decision(
+        &mut self,
+        decision: operations::ApprovalDecisionFact,
+        at: DateTime<Utc>,
+    ) -> Result<(), MarketingDomainError> {
+        let requested_at = self
+            .approval_requested_at
+            .ok_or(MarketingDomainError::InvalidBudgetApproval)?;
+        let requested_by = self
+            .approval_requested_by
+            .as_ref()
+            .ok_or(MarketingDomainError::InvalidBudgetApproval)?;
+        if self.status != CampaignBudgetStatus::Review
+            || self.approval_request != Some(decision.request)
+            || self.approval_subject.as_ref() != Some(&decision.subject)
+            || requested_by == &decision.decided_by
+            || decision.decided_at < requested_at
+            || decision.decided_at > at
+        {
+            return Err(MarketingDomainError::InvalidBudgetApproval);
+        }
+        self.bump(at)?;
+        match decision.decision {
+            operations::ApprovalDecision::Approved => {
+                self.approved_amount = Some(self.requested_amount);
+                self.status = CampaignBudgetStatus::Approved;
+                self.uncommitted_events
+                    .push(DomainEvent::CampaignBudgetApproved {
+                        budget_id: self.id,
+                        campaign_id: self.campaign_id,
+                        period: self.period,
+                        approved_amount: self.requested_amount,
+                        dimensions: self.dimensions.clone(),
+                        approved_at: decision.decided_at,
+                    });
+            }
+            operations::ApprovalDecision::Rejected | operations::ApprovalDecision::Cancelled => {
+                self.status = CampaignBudgetStatus::Cancelled;
+                self.uncommitted_events
+                    .push(DomainEvent::CampaignBudgetChanged);
+            }
+        }
+        Ok(())
+    }
+
+    pub fn start(&mut self, at: DateTime<Utc>) -> Result<(), MarketingDomainError> {
+        if self.status != CampaignBudgetStatus::Approved {
+            return Err(MarketingDomainError::InvalidBudgetTransition);
+        }
+        self.bump(at)?;
+        self.status = CampaignBudgetStatus::Running;
+        self.uncommitted_events
+            .push(DomainEvent::CampaignBudgetChanged);
+        Ok(())
+    }
+
+    pub fn complete(&mut self, at: DateTime<Utc>) -> Result<(), MarketingDomainError> {
+        if self.status != CampaignBudgetStatus::Running {
+            return Err(MarketingDomainError::InvalidBudgetTransition);
+        }
+        self.bump(at)?;
+        self.status = CampaignBudgetStatus::Completed;
+        self.uncommitted_events
+            .push(DomainEvent::CampaignBudgetChanged);
+        Ok(())
+    }
+
+    pub fn cancel(&mut self, at: DateTime<Utc>) -> Result<(), MarketingDomainError> {
+        if matches!(
+            self.status,
+            CampaignBudgetStatus::Completed | CampaignBudgetStatus::Cancelled
+        ) || self
+            .reservations
+            .values()
+            .any(|value| value.status == SpendReservationStatus::Active)
+        {
+            return Err(MarketingDomainError::InvalidBudgetTransition);
+        }
+        self.bump(at)?;
+        self.status = CampaignBudgetStatus::Cancelled;
+        self.uncommitted_events
+            .push(DomainEvent::CampaignBudgetChanged);
+        Ok(())
+    }
+
+    pub fn reserve_spend(
+        &mut self,
+        request_id: SpendRequestId,
+        allocation_id: BudgetAllocationId,
+        amount: MoneyAmount,
+        expected_outcome: String,
+        at: DateTime<Utc>,
+    ) -> Result<(), MarketingDomainError> {
+        if !matches!(
+            self.status,
+            CampaignBudgetStatus::Approved | CampaignBudgetStatus::Running
+        ) || amount.minor_units() <= 0
+            || amount.currency() != self.requested_amount.currency()
+            || self.reservations.contains_key(&request_id)
+            || self.reservations.len() >= MAX_SPEND_RESERVATIONS
+        {
+            return Err(MarketingDomainError::InvalidSpendReservation);
+        }
+        validate_text(&expected_outcome, "expected_outcome")?;
+        let allocation = self
+            .allocations
+            .iter()
+            .find(|value| value.allocation_id == allocation_id)
+            .ok_or(MarketingDomainError::InvalidSpendReservation)?;
+        let reserved = self.reservations.values().try_fold(0_i64, |total, value| {
+            if value.allocation_id == allocation_id
+                && value.status == SpendReservationStatus::Active
+            {
+                total.checked_add(value.amount.minor_units())
+            } else {
+                Some(total)
+            }
+        });
+        let next = reserved.and_then(|value| value.checked_add(amount.minor_units()));
+        if next.is_none_or(|value| value > allocation.planned_amount.minor_units()) {
+            return Err(MarketingDomainError::InvalidSpendReservation);
+        }
+        let tactic = allocation.tactic;
+        let channel = allocation.channel;
+        self.bump(at)?;
+        self.reservations.insert(
+            request_id,
+            SpendReservation {
+                request_id,
+                allocation_id,
+                amount,
+                expected_outcome: expected_outcome.clone(),
+                status: SpendReservationStatus::Active,
+                requested_at: at,
+                released_at: None,
+            },
+        );
+        self.uncommitted_events.push(DomainEvent::SpendRequested {
+            budget_id: self.id,
+            request_id,
+            campaign_id: self.campaign_id,
+            allocation_id,
+            tactic,
+            channel,
+            amount,
+            dimensions: self.dimensions.clone(),
+            expected_outcome,
+            requested_at: at,
+        });
+        Ok(())
+    }
+
+    pub fn release_spend(
+        &mut self,
+        request_id: SpendRequestId,
+        at: DateTime<Utc>,
+    ) -> Result<(), MarketingDomainError> {
+        let reservation = self
+            .reservations
+            .get(&request_id)
+            .ok_or(MarketingDomainError::InvalidSpendReservation)?;
+        if reservation.status != SpendReservationStatus::Active {
+            return Err(MarketingDomainError::InvalidSpendReservation);
+        }
+        self.bump(at)?;
+        let reservation = self
+            .reservations
+            .get_mut(&request_id)
+            .ok_or(MarketingDomainError::InvalidSpendReservation)?;
+        reservation.status = SpendReservationStatus::Released;
+        reservation.released_at = Some(at);
+        self.uncommitted_events
+            .push(DomainEvent::CampaignBudgetChanged);
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), MarketingDomainError> {
+        exact_scope(&self.scope)?;
+        validate_text(&self.code, "budget_code")?;
+        validate_text(&self.name, "budget_name")?;
+        validate_budget_dimensions(&self.scope, self.campaign_id, &self.dimensions)?;
+        if self.version == 0 || self.updated_at < self.created_at {
+            return Err(MarketingDomainError::InvalidTimestamp);
+        }
+        if self.requested_amount.minor_units() <= 0
+            || self.allocations.is_empty()
+            || self.allocations.len() > MAX_BUDGET_ALLOCATIONS
+        {
+            return Err(MarketingDomainError::InvalidBudgetAllocations);
+        }
+        let mut ids = BTreeSet::new();
+        let allocated = self.allocations.iter().try_fold(0_i64, |total, value| {
+            if !ids.insert(value.allocation_id)
+                || value.planned_amount.minor_units() <= 0
+                || value.planned_amount.currency() != self.requested_amount.currency()
+            {
+                return None;
+            }
+            total.checked_add(value.planned_amount.minor_units())
+        });
+        if allocated != Some(self.requested_amount.minor_units()) {
+            return Err(MarketingDomainError::InvalidBudgetAllocations);
+        }
+        let approval_shape = self.approval_request.is_some()
+            && self.approval_subject.is_some()
+            && self.approval_requested_by.is_some()
+            && self.approval_requested_at.is_some();
+        if matches!(self.status, CampaignBudgetStatus::Draft) && approval_shape
+            || !matches!(self.status, CampaignBudgetStatus::Draft) && !approval_shape
+            || matches!(
+                self.status,
+                CampaignBudgetStatus::Approved
+                    | CampaignBudgetStatus::Running
+                    | CampaignBudgetStatus::Completed
+            ) && self.approved_amount != Some(self.requested_amount)
+            || matches!(
+                self.status,
+                CampaignBudgetStatus::Draft | CampaignBudgetStatus::Review
+            ) && self.approved_amount.is_some()
+        {
+            return Err(MarketingDomainError::InvalidBudgetApproval);
+        }
+        for reservation in self.reservations.values() {
+            validate_text(&reservation.expected_outcome, "expected_outcome")?;
+            if reservation.amount.minor_units() <= 0
+                || reservation.amount.currency() != self.requested_amount.currency()
+                || !self
+                    .allocations
+                    .iter()
+                    .any(|value| value.allocation_id == reservation.allocation_id)
+                || reservation.requested_at < self.created_at
+                || reservation.requested_at > self.updated_at
+                || (reservation.status == SpendReservationStatus::Active
+                    && reservation.released_at.is_some())
+                || (reservation.status == SpendReservationStatus::Released
+                    && reservation
+                        .released_at
+                        .is_none_or(|released| released < reservation.requested_at))
+            {
+                return Err(MarketingDomainError::InvalidSpendReservation);
+            }
+        }
+        for allocation in &self.allocations {
+            let active = self.reservations.values().try_fold(0_i64, |total, value| {
+                if value.allocation_id == allocation.allocation_id
+                    && value.status == SpendReservationStatus::Active
+                {
+                    total.checked_add(value.amount.minor_units())
+                } else {
+                    Some(total)
+                }
+            });
+            if active.is_none_or(|value| value > allocation.planned_amount.minor_units()) {
+                return Err(MarketingDomainError::InvalidSpendReservation);
+            }
+        }
+        Ok(())
+    }
+
+    fn bump(&mut self, at: DateTime<Utc>) -> Result<(), MarketingDomainError> {
+        if at < self.updated_at {
+            return Err(MarketingDomainError::InvalidTimestamp);
+        }
+        self.version = self
+            .version
+            .checked_add(1)
+            .ok_or(MarketingDomainError::VersionOverflow)?;
+        self.updated_at = at;
+        Ok(())
+    }
+
+    pub const fn id(&self) -> CampaignBudgetId {
+        self.id
+    }
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+    pub const fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+    pub const fn campaign_id(&self) -> CampaignId {
+        self.campaign_id
+    }
+    pub fn code(&self) -> &str {
+        &self.code
+    }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub const fn period(&self) -> marketing::CampaignBudgetPeriod {
+        self.period
+    }
+    pub const fn requested_amount(&self) -> MoneyAmount {
+        self.requested_amount
+    }
+    pub const fn approved_amount(&self) -> Option<MoneyAmount> {
+        self.approved_amount
+    }
+    pub const fn dimensions(&self) -> &DimensionSet {
+        &self.dimensions
+    }
+    pub fn allocations(&self) -> &[BudgetAllocation] {
+        &self.allocations
+    }
+    pub fn reservations(&self) -> &BTreeMap<SpendRequestId, SpendReservation> {
+        &self.reservations
+    }
+    pub const fn approval_request(&self) -> Option<operations::ApprovalRequestRef> {
+        self.approval_request
+    }
+    pub const fn status(&self) -> CampaignBudgetStatus {
+        self.status
+    }
+    pub const fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+    pub const fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+    pub fn reserved_minor(&self) -> Result<i64, MarketingDomainError> {
+        self.reservations.values().try_fold(0_i64, |total, value| {
+            if value.status == SpendReservationStatus::Active {
+                total
+                    .checked_add(value.amount.minor_units())
+                    .ok_or(MarketingDomainError::ArithmeticOverflow)
+            } else {
+                Ok(total)
+            }
+        })
+    }
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        std::mem::take(&mut self.uncommitted_events)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "aggregate", content = "state", rename_all = "snake_case")]
+pub enum MarketingAggregate {
+    LeadCandidate(Box<LeadCandidate>),
+    CampaignBudget(Box<CampaignBudget>),
+}
+
+impl MarketingAggregate {
+    pub const fn id_uuid(&self) -> Uuid {
+        match self {
+            Self::LeadCandidate(value) => value.id().as_uuid(),
+            Self::CampaignBudget(value) => value.id().as_uuid(),
+        }
+    }
+    pub const fn version(&self) -> u64 {
+        match self {
+            Self::LeadCandidate(value) => value.version(),
+            Self::CampaignBudget(value) => value.version(),
+        }
+    }
+    pub const fn scope(&self) -> &TenantScope {
+        match self {
+            Self::LeadCandidate(value) => value.scope(),
+            Self::CampaignBudget(value) => value.scope(),
+        }
+    }
+    pub const fn aggregate_type(&self) -> &'static str {
+        match self {
+            Self::LeadCandidate(_) => "lead_candidate",
+            Self::CampaignBudget(_) => "campaign_budget",
+        }
+    }
+    pub fn validate(&self) -> Result<(), MarketingDomainError> {
+        match self {
+            Self::LeadCandidate(value) => value.validate(),
+            Self::CampaignBudget(value) => value.validate(),
+        }
+    }
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        match self {
+            Self::LeadCandidate(value) => value.take_uncommitted_events(),
+            Self::CampaignBudget(value) => value.take_uncommitted_events(),
+        }
+    }
+}
+
+fn validate_budget_dimensions(
+    scope: &TenantScope,
+    campaign_id: CampaignId,
+    dimensions: &DimensionSet,
+) -> Result<(), MarketingDomainError> {
+    let (company_id, branch_id) = match scope {
+        TenantScope::Company { company_id, .. } => (*company_id, None),
+        TenantScope::Branch {
+            company_id,
+            branch_id,
+            ..
+        } => (*company_id, Some(*branch_id)),
+        _ => return Err(MarketingDomainError::InvalidScope),
+    };
+    let branch_matches = match (branch_id, dimensions.branch) {
+        (None, None) => true,
+        (Some(expected), Some(actual)) => expected == actual.as_uuid(),
+        _ => false,
+    };
+    if dimensions.legal_entity.as_uuid() != company_id
+        || !branch_matches
+        || dimensions.business_unit.is_none()
+        || dimensions.cost_center.is_none()
+        || dimensions.campaign.map(|value| value.as_uuid()) != Some(campaign_id.as_uuid())
+        || dimensions.channel.is_some()
+    {
+        Err(MarketingDomainError::InvalidBudgetDimensions)
+    } else {
+        Ok(())
+    }
 }
 
 fn exact_scope(scope: &TenantScope) -> Result<(), MarketingDomainError> {
@@ -320,6 +932,7 @@ fn validate_text(value: &str, field: &'static str) -> Result<(), MarketingDomain
 mod tests {
     use super::*;
     use chrono::Duration;
+    use erpx_integration_contracts::{CostCenterRef, CurrencyCode, ReferenceCode, organization};
 
     fn scope() -> TenantScope {
         TenantScope::Company {
@@ -338,6 +951,76 @@ mod tests {
             Utc::now(),
         )
         .unwrap()
+    }
+
+    fn campaign_id() -> CampaignId {
+        CampaignId::try_from_uuid(Uuid::from_u128(40)).unwrap()
+    }
+
+    fn money(minor_units: i64) -> MoneyAmount {
+        MoneyAmount::new(minor_units, CurrencyCode::try_new("THB").unwrap())
+    }
+
+    fn budget_dimensions() -> DimensionSet {
+        DimensionSet {
+            legal_entity: organization::CompanyRef::try_from_uuid(Uuid::from_u128(2)).unwrap(),
+            branch: None,
+            business_unit: Some(
+                organization::BusinessUnitRef::try_from_uuid(Uuid::from_u128(41)).unwrap(),
+            ),
+            cost_center: Some(CostCenterRef::try_from_uuid(Uuid::from_u128(42)).unwrap()),
+            location: None,
+            project: None,
+            campaign: Some(marketing::CampaignRef::try_from_uuid(campaign_id().as_uuid()).unwrap()),
+            channel: None,
+            party: None,
+            employee: None,
+            asset: None,
+            legal_matter: None,
+            intercompany_partner: None,
+        }
+    }
+
+    fn allocation(id: u128, amount: i64) -> BudgetAllocation {
+        BudgetAllocation {
+            allocation_id: BudgetAllocationId::try_from_uuid(Uuid::from_u128(id)).unwrap(),
+            tactic: marketing::TacticRef::try_from_uuid(Uuid::from_u128(id + 100)).unwrap(),
+            channel: marketing::ChannelRef::try_from_uuid(Uuid::from_u128(id + 200)).unwrap(),
+            planned_amount: money(amount),
+        }
+    }
+
+    fn budget() -> CampaignBudget {
+        CampaignBudget::create(
+            CampaignBudgetId::try_from_uuid(Uuid::from_u128(43)).unwrap(),
+            scope(),
+            campaign_id(),
+            "FY27-GROWTH".into(),
+            "FY27 growth plan".into(),
+            marketing::CampaignBudgetPeriod::Annual,
+            money(100_000),
+            budget_dimensions(),
+            vec![allocation(44, 60_000), allocation(45, 40_000)],
+            Utc::now(),
+        )
+        .unwrap()
+    }
+
+    fn approval_request(budget: &CampaignBudget) -> operations::ApprovalRequestFact {
+        operations::ApprovalRequestFact {
+            request: operations::ApprovalRequestRef::try_from_uuid(Uuid::from_u128(46)).unwrap(),
+            subject: RecordRef::try_new(
+                BoundedContext::Marketing,
+                "campaign_budget",
+                budget.id().as_uuid(),
+                budget.version(),
+            )
+            .unwrap(),
+            policy_code: ReferenceCode::try_new("marketing-budget").unwrap(),
+            amount: Some(budget.requested_amount()),
+            requested_by: ReferenceCode::try_new("budget-owner").unwrap(),
+            requested_at: budget.updated_at(),
+        }
     }
 
     #[test]
@@ -388,5 +1071,139 @@ mod tests {
             ),
             Err(MarketingDomainError::InvalidScope)
         ));
+    }
+
+    #[test]
+    fn budget_requires_complete_dimensions_and_conserved_allocations() {
+        let mut dimensions = budget_dimensions();
+        dimensions.cost_center = None;
+        assert_eq!(
+            CampaignBudget::create(
+                CampaignBudgetId::try_from_uuid(Uuid::from_u128(50)).unwrap(),
+                scope(),
+                campaign_id(),
+                "INVALID-DIMS".into(),
+                "Invalid dimensions".into(),
+                marketing::CampaignBudgetPeriod::Campaign,
+                money(100),
+                dimensions,
+                vec![allocation(51, 100)],
+                Utc::now(),
+            )
+            .unwrap_err(),
+            MarketingDomainError::InvalidBudgetDimensions
+        );
+
+        assert_eq!(
+            CampaignBudget::create(
+                CampaignBudgetId::try_from_uuid(Uuid::from_u128(52)).unwrap(),
+                scope(),
+                campaign_id(),
+                "INVALID-TOTAL".into(),
+                "Invalid allocation total".into(),
+                marketing::CampaignBudgetPeriod::Campaign,
+                money(100),
+                budget_dimensions(),
+                vec![allocation(53, 99)],
+                Utc::now(),
+            )
+            .unwrap_err(),
+            MarketingDomainError::InvalidBudgetAllocations
+        );
+    }
+
+    #[test]
+    fn budget_approval_is_version_bound_and_maker_checker() {
+        let mut budget = budget();
+        let request = approval_request(&budget);
+        let subject = request.subject.clone();
+        let requested_at = request.requested_at;
+        budget
+            .submit_for_review(request.clone(), requested_at)
+            .unwrap();
+        assert_eq!(budget.status(), CampaignBudgetStatus::Review);
+
+        let self_approval = operations::ApprovalDecisionFact {
+            request: request.request,
+            subject: subject.clone(),
+            decision: operations::ApprovalDecision::Approved,
+            decided_by: request.requested_by.clone(),
+            reason_code: ReferenceCode::try_new("within-ceiling").unwrap(),
+            decided_at: requested_at,
+        };
+        assert_eq!(
+            budget.apply_approval_decision(self_approval, requested_at),
+            Err(MarketingDomainError::InvalidBudgetApproval)
+        );
+
+        budget
+            .apply_approval_decision(
+                operations::ApprovalDecisionFact {
+                    request: request.request,
+                    subject,
+                    decision: operations::ApprovalDecision::Approved,
+                    decided_by: ReferenceCode::try_new("finance-controller").unwrap(),
+                    reason_code: ReferenceCode::try_new("within-ceiling").unwrap(),
+                    decided_at: requested_at,
+                },
+                requested_at,
+            )
+            .unwrap();
+        assert_eq!(budget.status(), CampaignBudgetStatus::Approved);
+        assert_eq!(budget.approved_amount(), Some(money(100_000)));
+
+        let events =
+            crate::integration::published_events(&budget.take_uncommitted_events()).unwrap();
+        assert!(matches!(
+            events.as_slice(),
+            [
+                marketing::Event::CampaignBudgetApprovalRequested(_),
+                marketing::Event::CampaignBudgetApproved(_)
+            ]
+        ));
+    }
+
+    #[test]
+    fn spend_reservation_cannot_exceed_its_approved_allocation() {
+        let mut budget = budget();
+        let request = approval_request(&budget);
+        let subject = request.subject.clone();
+        let at = request.requested_at;
+        budget.submit_for_review(request.clone(), at).unwrap();
+        budget
+            .apply_approval_decision(
+                operations::ApprovalDecisionFact {
+                    request: request.request,
+                    subject,
+                    decision: operations::ApprovalDecision::Approved,
+                    decided_by: ReferenceCode::try_new("finance-controller").unwrap(),
+                    reason_code: ReferenceCode::try_new("approved").unwrap(),
+                    decided_at: at,
+                },
+                at,
+            )
+            .unwrap();
+
+        let allocation_id = BudgetAllocationId::try_from_uuid(Uuid::from_u128(44)).unwrap();
+        budget
+            .reserve_spend(
+                SpendRequestId::try_from_uuid(Uuid::from_u128(60)).unwrap(),
+                allocation_id,
+                money(50_000),
+                "Agency production".into(),
+                at,
+            )
+            .unwrap();
+        assert_eq!(
+            budget.reserve_spend(
+                SpendRequestId::try_from_uuid(Uuid::from_u128(61)).unwrap(),
+                allocation_id,
+                money(10_001),
+                "Media placement".into(),
+                at,
+            ),
+            Err(MarketingDomainError::InvalidSpendReservation)
+        );
+        assert_eq!(budget.reserved_minor().unwrap(), 50_000);
     }
 }

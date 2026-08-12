@@ -37,7 +37,7 @@ pub struct MarketingAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
     presented_scope: TenantScope,
-    presented_route: MarketingTenantRoute,
+    presented_route: Option<MarketingTenantRoute>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: MarketingAccessMode,
@@ -52,8 +52,8 @@ impl MarketingAuthenticationRequest {
     pub const fn presented_scope(&self) -> &TenantScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> &MarketingTenantRoute {
-        &self.presented_route
+    pub const fn presented_route(&self) -> Option<&MarketingTenantRoute> {
+        self.presented_route.as_ref()
     }
     pub fn subscription_id(&self) -> Option<&str> {
         self.subscription_id.as_deref()
@@ -84,7 +84,7 @@ impl AuthenticatedMarketingRequest {
             .validate()
             .map_err(|_| MarketingAuthenticationError::Internal)?;
         validate_route(&route).map_err(|_| MarketingAuthenticationError::Internal)?;
-        validate_route_scope(&route, &tenant_scope)
+        validate_legacy_uuid_route_scope(&route, &tenant_scope)
             .map_err(|_| MarketingAuthenticationError::Internal)?;
         Ok(Self {
             actor,
@@ -253,10 +253,13 @@ impl<A: MarketingCommandApplication, G: MarketingRequestAuthenticator> Marketing
             .execute(route, envelope)
             .await
             .map_err(status_from_cqrs)?;
+        let MarketingMutationResult::Candidate(candidate) = &receipt.response else {
+            return Err(Status::internal("Marketing command response mismatch"));
+        };
         Ok(Response::new(
             platform::MarketingLeadCandidateMutationResponse {
                 receipt: Some(encode_receipt(&receipt)),
-                candidate: Some(encode_candidate(&receipt.response.candidate)),
+                candidate: Some(encode_candidate(candidate)),
             },
         ))
     }
@@ -331,13 +334,13 @@ impl<A: MarketingQueryApplication, G: MarketingRequestAuthenticator> MarketingQu
 }
 
 struct DecodedCommand<C> {
-    route: MarketingTenantRoute,
+    route: Option<MarketingTenantRoute>,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 struct DecodedQuery<Q> {
-    route: MarketingTenantRoute,
+    route: Option<MarketingTenantRoute>,
     envelope: QueryEnvelope<Q>,
 }
 async fn authenticate_command<C, G: MarketingRequestAuthenticator>(
@@ -576,14 +579,16 @@ fn encode_consistency(v: &QueryConsistency) -> common::QueryConsistency {
         }),
     }
 }
-fn decode_route(v: Option<common::TenantRoute>) -> Result<MarketingTenantRoute, Status> {
-    let v = v.ok_or_else(|| invalid("tenant route is required"))?;
+fn decode_route(v: Option<common::TenantRoute>) -> Result<Option<MarketingTenantRoute>, Status> {
+    let Some(v) = v else {
+        return Ok(None);
+    };
     let route = MarketingTenantRoute {
         tenant_id: v.tenant_id.trim().into(),
         holding_ref: v.holding_ref.trim().into(),
     };
     validate_route(&route)?;
-    Ok(route)
+    Ok(Some(route))
 }
 fn validate_route(v: &MarketingTenantRoute) -> Result<(), Status> {
     if [&v.tenant_id, &v.holding_ref]
@@ -595,7 +600,13 @@ fn validate_route(v: &MarketingTenantRoute) -> Result<(), Status> {
         Ok(())
     }
 }
-fn validate_route_scope(route: &MarketingTenantRoute, scope: &TenantScope) -> Result<(), Status> {
+fn validate_legacy_uuid_route_scope(
+    route: &MarketingTenantRoute,
+    scope: &TenantScope,
+) -> Result<(), Status> {
+    let Ok(presented_holding) = Uuid::parse_str(&route.holding_ref) else {
+        return Ok(());
+    };
     let holding = match scope {
         TenantScope::Platform => return Ok(()),
         TenantScope::Holding { holding_id }
@@ -603,7 +614,7 @@ fn validate_route_scope(route: &MarketingTenantRoute, scope: &TenantScope) -> Re
         | TenantScope::Branch { holding_id, .. }
         | TenantScope::Subtree { holding_id, .. } => holding_id,
     };
-    if parse_uuid(&route.holding_ref, "holding_ref")? == *holding {
+    if presented_holding == *holding {
         Ok(())
     } else {
         Err(invalid("tenant route does not match Marketing scope"))
@@ -825,5 +836,10 @@ mod tests {
             AuthenticatedMarketingRequest::try_new(actor(), scope, mismatched),
             Err(MarketingAuthenticationError::Internal)
         );
+    }
+
+    #[test]
+    fn tenant_route_may_be_omitted_for_server_resolution() {
+        assert_eq!(decode_route(None).expect("optional route"), None);
     }
 }

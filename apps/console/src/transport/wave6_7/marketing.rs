@@ -12,7 +12,7 @@ use crate::{features::marketing::MarketingProtoTransport, transport::typed_cqrs:
 
 use super::common::{
     AuthenticatedRoute, Wave67Route, command_result, decode_scope, invalid_response, query_result,
-    status_ui, timestamp, uuid,
+    status_ui, timestamp, unsupported_ui, uuid,
 };
 
 type Commands = wire::marketing_command_service_client::MarketingCommandServiceClient<GrpcChannel>;
@@ -103,6 +103,16 @@ impl MarketingProtoTransport for MarketingGrpcTransport {
                 .await
                 .map_err(|status| status_ui("marketing reject lead candidate", status))?
                 .into_inner(),
+            MarketingCommand::CreateBudget(_)
+            | MarketingCommand::SubmitBudget(_)
+            | MarketingCommand::ApplyBudgetDecision(_)
+            | MarketingCommand::StartBudget(_)
+            | MarketingCommand::CompleteBudget(_)
+            | MarketingCommand::CancelBudget(_)
+            | MarketingCommand::ReserveSpend(_)
+            | MarketingCommand::ReleaseSpend(_) => {
+                return Err(unsupported_ui("marketing campaign budget command"));
+            }
         };
         let candidate = decode_candidate(
             response
@@ -111,7 +121,7 @@ impl MarketingProtoTransport for MarketingGrpcTransport {
         )?;
         command_result(
             response.receipt,
-            MarketingMutationResult { candidate },
+            MarketingMutationResult::Candidate(candidate),
             command_id,
             correlation,
         )
@@ -176,6 +186,7 @@ impl MarketingProtoTransport for MarketingGrpcTransport {
                     consistency,
                 )
             }
+            MarketingQuery::GetBudget(_) => Err(unsupported_ui("marketing campaign budget query")),
         }
     }
 }

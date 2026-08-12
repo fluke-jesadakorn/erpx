@@ -19,12 +19,15 @@ pub enum Wave8ProjectionKind {
     FinancePeriods,
     FinanceJournals,
     FinanceSubledger,
+    FinanceCustomerInvoices,
+    FinanceRevenueSchedules,
     FinanceTrialBalance,
     FinanceBankTransactions,
     FinanceStatutoryTax,
     LegalContracts,
     LegalDocuments,
     LegalAccessHistory,
+    LegalMatters,
     SupportTickets,
     SupportIncidents,
     SupportSessions,
@@ -38,12 +41,15 @@ impl Wave8ProjectionKind {
             Self::FinancePeriods => erpx_finance_sqlx::PERIOD_PROJECTION,
             Self::FinanceJournals => erpx_finance_sqlx::JOURNAL_PROJECTION,
             Self::FinanceSubledger => erpx_finance_sqlx::SUBLEDGER_PROJECTION,
+            Self::FinanceCustomerInvoices => erpx_finance_sqlx::CUSTOMER_INVOICE_PROJECTION,
+            Self::FinanceRevenueSchedules => erpx_finance_sqlx::REVENUE_SCHEDULE_PROJECTION,
             Self::FinanceTrialBalance => erpx_finance_sqlx::TRIAL_BALANCE_PROJECTION,
             Self::FinanceBankTransactions => erpx_finance_sqlx::BANK_TRANSACTION_PROJECTION,
             Self::FinanceStatutoryTax => erpx_finance_sqlx::STATUTORY_TAX_PROJECTION,
             Self::LegalContracts => erpx_legal_sqlx::CONTRACT_PROJECTION,
             Self::LegalDocuments => erpx_legal_sqlx::DOCUMENT_PROJECTION,
             Self::LegalAccessHistory => erpx_legal_sqlx::ACCESS_PROJECTION,
+            Self::LegalMatters => erpx_legal_sqlx::MATTER_PROJECTION,
             Self::SupportTickets => erpx_support_sqlx::TICKET_PROJECTION,
             Self::SupportIncidents => erpx_support_sqlx::INCIDENT_PROJECTION,
             Self::SupportSessions => erpx_support_sqlx::SESSION_PROJECTION,
@@ -98,6 +104,12 @@ impl Wave8ProjectionExecutor {
             Wave8ProjectionKind::FinanceSubledger => {
                 finance_runtime(write, read, config, FinanceProjectionKind::Subledger)
             }
+            Wave8ProjectionKind::FinanceCustomerInvoices => {
+                finance_runtime(write, read, config, FinanceProjectionKind::CustomerInvoices)
+            }
+            Wave8ProjectionKind::FinanceRevenueSchedules => {
+                finance_runtime(write, read, config, FinanceProjectionKind::RevenueSchedules)
+            }
             Wave8ProjectionKind::FinanceTrialBalance => {
                 finance_runtime(write, read, config, FinanceProjectionKind::TrialBalance)
             }
@@ -115,6 +127,9 @@ impl Wave8ProjectionExecutor {
             }
             Wave8ProjectionKind::LegalAccessHistory => {
                 legal_runtime(write, read, config, LegalProjectionKind::AccessHistory)
+            }
+            Wave8ProjectionKind::LegalMatters => {
+                legal_runtime(write, read, config, LegalProjectionKind::Matters)
             }
             Wave8ProjectionKind::SupportTickets => {
                 support_runtime(write, read, config, SupportProjectionKind::Tickets)
@@ -304,18 +319,21 @@ mod tests {
             Wave8ProjectionKind::FinancePeriods,
             Wave8ProjectionKind::FinanceJournals,
             Wave8ProjectionKind::FinanceSubledger,
+            Wave8ProjectionKind::FinanceCustomerInvoices,
+            Wave8ProjectionKind::FinanceRevenueSchedules,
             Wave8ProjectionKind::FinanceTrialBalance,
             Wave8ProjectionKind::FinanceBankTransactions,
             Wave8ProjectionKind::FinanceStatutoryTax,
             Wave8ProjectionKind::LegalContracts,
             Wave8ProjectionKind::LegalDocuments,
             Wave8ProjectionKind::LegalAccessHistory,
+            Wave8ProjectionKind::LegalMatters,
             Wave8ProjectionKind::SupportTickets,
             Wave8ProjectionKind::SupportIncidents,
             Wave8ProjectionKind::SupportSessions,
             Wave8ProjectionKind::SupportCapabilities,
         ];
-        assert_eq!(kinds.len(), 14);
+        assert_eq!(kinds.len(), 17);
     }
 
     #[test]
@@ -325,6 +343,14 @@ mod tests {
             (Wave8ProjectionKind::FinancePeriods, "finance.periods"),
             (Wave8ProjectionKind::FinanceJournals, "finance.journals"),
             (Wave8ProjectionKind::FinanceSubledger, "finance.subledger"),
+            (
+                Wave8ProjectionKind::FinanceCustomerInvoices,
+                "finance.customer_invoices",
+            ),
+            (
+                Wave8ProjectionKind::FinanceRevenueSchedules,
+                "finance.revenue_schedules",
+            ),
             (
                 Wave8ProjectionKind::FinanceTrialBalance,
                 "finance.trial_balance",
@@ -343,6 +369,7 @@ mod tests {
                 Wave8ProjectionKind::LegalAccessHistory,
                 "legal.access_history",
             ),
+            (Wave8ProjectionKind::LegalMatters, "legal.matters"),
             (Wave8ProjectionKind::SupportTickets, "support.tickets"),
             (Wave8ProjectionKind::SupportIncidents, "support.incidents"),
             (Wave8ProjectionKind::SupportSessions, "support.sessions"),

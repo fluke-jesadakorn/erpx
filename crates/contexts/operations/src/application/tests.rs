@@ -28,6 +28,11 @@ fn public_command_inventory_contains_human_lifecycle_only() {
             exception_id: exception_id(),
             manager: principal(3),
         }),
+        OperationsCommand::DecideApproval(DecideApproval {
+            exception_id: exception_id(),
+            decision: erpx_integration_contracts::operations::ApprovalDecision::Approved,
+            reason_code: "approved".into(),
+        }),
         OperationsCommand::Resolve(ResolveException {
             exception_id: exception_id(),
         }),
@@ -71,6 +76,7 @@ fn human_command_fingerprint_contains_stable_selectors_only() {
 fn high_risk_and_internal_actions_are_explicit() {
     assert!(OperationsAction::ReassignException.requires_current_mfa());
     assert!(OperationsAction::EscalateException.requires_current_mfa());
+    assert!(OperationsAction::DecideApproval.requires_current_mfa());
     assert!(!OperationsAction::ResolveException.requires_current_mfa());
     assert!(OperationsAction::ConsumeSourceFact.is_internal());
     assert!(!OperationsAction::ListQueue.requires_write_entitlement());

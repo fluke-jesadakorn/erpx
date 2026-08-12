@@ -4,7 +4,7 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
-use erpx_sales_sqlx::{SalesOrderProjector, SalesQuoteProjector};
+use erpx_sales_sqlx::{SalesOrderProjector, SalesQuoteProjector, SalesRevenueArrangementProjector};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SalesProjectionRegistration {
@@ -16,6 +16,7 @@ pub struct SalesProjectionRegistration {
 pub enum SalesProjectionKind {
     Quotes,
     Orders,
+    RevenueArrangements,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -26,6 +27,7 @@ impl SalesProjectionFactory {
         [
             registration(&SalesQuoteProjector::new()),
             registration(&SalesOrderProjector::new()),
+            registration(&SalesRevenueArrangementProjector::new()),
         ]
         .into()
     }
@@ -41,6 +43,7 @@ impl SalesProjectionFactory {
         Ok(SalesProjectionRuntime {
             quotes: SalesQuoteProjector::new(),
             orders: SalesOrderProjector::new(),
+            revenue_arrangements: SalesRevenueArrangementProjector::new(),
             runner,
             store,
         })
@@ -51,6 +54,7 @@ impl SalesProjectionFactory {
 pub struct SalesProjectionRuntime {
     quotes: SalesQuoteProjector,
     orders: SalesOrderProjector,
+    revenue_arrangements: SalesRevenueArrangementProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
@@ -69,6 +73,9 @@ impl SalesProjectionRuntime {
         match kind {
             SalesProjectionKind::Quotes => self.runner.run_active(&self.quotes).await,
             SalesProjectionKind::Orders => self.runner.run_active(&self.orders).await,
+            SalesProjectionKind::RevenueArrangements => {
+                self.runner.run_active(&self.revenue_arrangements).await
+            }
         }
     }
 
@@ -79,6 +86,9 @@ impl SalesProjectionRuntime {
         match kind {
             SalesProjectionKind::Quotes => self.store.begin_rebuild(&self.quotes).await,
             SalesProjectionKind::Orders => self.store.begin_rebuild(&self.orders).await,
+            SalesProjectionKind::RevenueArrangements => {
+                self.store.begin_rebuild(&self.revenue_arrangements).await
+            }
         }
     }
 
@@ -99,6 +109,11 @@ impl SalesProjectionRuntime {
                     .run_rebuild(&self.orders, handle, after_sequence)
                     .await
             }
+            SalesProjectionKind::RevenueArrangements => {
+                self.runner
+                    .run_rebuild(&self.revenue_arrangements, handle, after_sequence)
+                    .await
+            }
         }
     }
 
@@ -110,6 +125,7 @@ impl SalesProjectionRuntime {
         let expected = match kind {
             SalesProjectionKind::Quotes => self.quotes.name(),
             SalesProjectionKind::Orders => self.orders.name(),
+            SalesProjectionKind::RevenueArrangements => self.revenue_arrangements.name(),
         };
         if handle.projection != expected {
             return Err(CqrsSqlxError::InvalidInput(
@@ -134,7 +150,8 @@ mod tests {
     use super::*;
     use erpx_cqrs_sqlx::RetryPolicy;
     use erpx_sales_sqlx::{
-        ORDER_PROJECTION, ORDER_SNAPSHOT_EVENT, QUOTE_PROJECTION, QUOTE_SNAPSHOT_EVENT,
+        ARRANGEMENT_PROJECTION, ARRANGEMENT_SNAPSHOT_EVENT, ORDER_PROJECTION, ORDER_SNAPSHOT_EVENT,
+        QUOTE_PROJECTION, QUOTE_SNAPSHOT_EVENT,
     };
 
     #[test]
@@ -149,6 +166,10 @@ mod tests {
                 SalesProjectionRegistration {
                     name: ORDER_PROJECTION.into(),
                     event_types: vec![ORDER_SNAPSHOT_EVENT.into()],
+                },
+                SalesProjectionRegistration {
+                    name: ARRANGEMENT_PROJECTION.into(),
+                    event_types: vec![ARRANGEMENT_SNAPSHOT_EVENT.into()],
                 },
             ]
         );

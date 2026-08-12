@@ -4,8 +4,9 @@ use erpx_cqrs_sqlx::{
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
 use erpx_finance::{
-    AccountingPeriod, Chart, ChartId, CommandUnitOfWork, FinanceAggregate, FinanceCommit, Journal,
-    JournalId, JournalSource, PortError, StoredCommit, SubledgerId, SubledgerItem, WriteRepository,
+    AccountingPeriod, Chart, ChartId, CommandUnitOfWork, CustomerInvoice, CustomerInvoiceId,
+    FinanceAggregate, FinanceCommit, Journal, JournalId, JournalSource, PortError, RevenueSchedule,
+    RevenueScheduleId, StoredCommit, SubledgerId, SubledgerItem, WriteRepository,
     ports::{CommandFingerprint, CommandIdentity, ReferenceVersion},
 };
 use erpx_integration_contracts::IntegrationEvent;
@@ -16,16 +17,18 @@ use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
-    CHART_AGGREGATE_TYPE, CHART_SNAPSHOT_EVENT, CONTEXT_NAME, EVENT_VERSION,
-    JOURNAL_AGGREGATE_TYPE, JOURNAL_SNAPSHOT_EVENT, PERIOD_AGGREGATE_TYPE, PERIOD_SNAPSHOT_EVENT,
-    SUBLEDGER_AGGREGATE_TYPE, SUBLEDGER_SNAPSHOT_EVENT, chart_partition, journal_partition,
-    period_partition,
+    CHART_AGGREGATE_TYPE, CHART_SNAPSHOT_EVENT, CONTEXT_NAME, CUSTOMER_INVOICE_AGGREGATE_TYPE,
+    CUSTOMER_INVOICE_SNAPSHOT_EVENT, EVENT_VERSION, JOURNAL_AGGREGATE_TYPE, JOURNAL_SNAPSHOT_EVENT,
+    PERIOD_AGGREGATE_TYPE, PERIOD_SNAPSHOT_EVENT, REVENUE_SCHEDULE_AGGREGATE_TYPE,
+    REVENUE_SCHEDULE_SNAPSHOT_EVENT, SUBLEDGER_AGGREGATE_TYPE, SUBLEDGER_SNAPSHOT_EVENT,
+    chart_partition, customer_invoice_partition, journal_partition, period_partition,
     projection::{
         FinanceOutboxPayload, FinanceSnapshot, account_category_name, account_status_name,
-        journal_source_identity, journal_status_name, normal_balance_name, period_status_name,
+        customer_invoice_status_name, journal_source_identity, journal_status_name,
+        normal_balance_name, period_status_name, revenue_schedule_status_name,
         statutory_tax_kind_name, subledger_identity, subledger_status_name,
     },
-    subledger_partition,
+    revenue_schedule_partition, subledger_partition,
 };
 
 #[derive(Debug, Clone)]
@@ -144,6 +147,44 @@ impl WriteRepository for FinanceWriteRepository {
             .await?
         {
             Some(FinanceAggregate::Subledger(v)) => Ok(Some(v)),
+            Some(_) => Err(PortError::Internal),
+            None => Ok(None),
+        }
+    }
+    async fn load_customer_invoice(
+        &self,
+        scope: &TenantScope,
+        id: CustomerInvoiceId,
+    ) -> Result<Option<CustomerInvoice>, PortError> {
+        match self
+            .load(
+                scope,
+                &customer_invoice_partition(id),
+                CUSTOMER_INVOICE_AGGREGATE_TYPE,
+                id.as_uuid(),
+            )
+            .await?
+        {
+            Some(FinanceAggregate::CustomerInvoice(v)) => Ok(Some(v)),
+            Some(_) => Err(PortError::Internal),
+            None => Ok(None),
+        }
+    }
+    async fn load_revenue_schedule(
+        &self,
+        scope: &TenantScope,
+        id: RevenueScheduleId,
+    ) -> Result<Option<RevenueSchedule>, PortError> {
+        match self
+            .load(
+                scope,
+                &revenue_schedule_partition(id),
+                REVENUE_SCHEDULE_AGGREGATE_TYPE,
+                id.as_uuid(),
+            )
+            .await?
+        {
+            Some(FinanceAggregate::RevenueSchedule(v)) => Ok(Some(v)),
             Some(_) => Err(PortError::Internal),
             None => Ok(None),
         }
@@ -276,8 +317,17 @@ impl AtomicCommandGuard for FinanceGuard {
             FinanceAggregate::Period(v) => sqlx::query_scalar("SELECT aggregate_version FROM erpx_finance_write.period_guards WHERE period_id=$1 FOR UPDATE").bind(v.id().as_uuid()).fetch_optional(&mut **tx).await?,
             FinanceAggregate::Journal(v) => sqlx::query_scalar("SELECT aggregate_version FROM erpx_finance_write.journal_guards WHERE journal_id=$1 FOR UPDATE").bind(v.id().as_uuid()).fetch_optional(&mut **tx).await?,
             FinanceAggregate::Subledger(v) => sqlx::query_scalar("SELECT aggregate_version FROM erpx_finance_write.subledger_guards WHERE subledger_id=$1 FOR UPDATE").bind(v.id().as_uuid()).fetch_optional(&mut **tx).await?,
+            FinanceAggregate::CustomerInvoice(v) => sqlx::query_scalar("SELECT aggregate_version FROM erpx_finance_write.customer_invoice_guards WHERE invoice_id=$1 FOR UPDATE").bind(v.id().as_uuid()).fetch_optional(&mut **tx).await?,
+            FinanceAggregate::RevenueSchedule(v) => sqlx::query_scalar("SELECT aggregate_version FROM erpx_finance_write.revenue_schedule_guards WHERE schedule_id=$1 FOR UPDATE").bind(v.id().as_uuid()).fetch_optional(&mut **tx).await?,
         };
-        ensure_existence(context.expected_version, current)
+        ensure_existence(context.expected_version, current)?;
+        if let FinanceAggregate::CustomerInvoice(value) = &self.aggregate {
+            validate_customer_invoice_uniqueness(tx, value).await?;
+        }
+        if let FinanceAggregate::RevenueSchedule(value) = &self.aggregate {
+            validate_revenue_schedule_uniqueness(tx, value).await?;
+        }
+        Ok(())
     }
 
     async fn apply(
@@ -300,7 +350,55 @@ impl AtomicCommandGuard for FinanceGuard {
             FinanceAggregate::Period(v) => apply_period(tx, v).await,
             FinanceAggregate::Journal(v) => apply_journal(tx, v).await,
             FinanceAggregate::Subledger(v) => apply_subledger(tx, v).await,
+            FinanceAggregate::CustomerInvoice(v) => apply_customer_invoice(tx, v).await,
+            FinanceAggregate::RevenueSchedule(v) => apply_revenue_schedule(tx, v).await,
         }
+    }
+}
+
+async fn validate_customer_invoice_uniqueness(
+    tx: &mut Transaction<'_, Postgres>,
+    value: &CustomerInvoice,
+) -> Result<(), CqrsSqlxError> {
+    let duplicate: Option<Uuid> = sqlx::query_scalar(
+        "SELECT invoice_id FROM erpx_finance_write.customer_invoice_guards
+         WHERE (scope_key=$1 AND invoice_code=$2 OR billing_event_id=$3)
+           AND invoice_id<>$4 ORDER BY invoice_id LIMIT 1 FOR UPDATE",
+    )
+    .bind(scope_key(value.scope())?)
+    .bind(value.invoice_code())
+    .bind(value.billing().billing_event.as_uuid())
+    .bind(value.id().as_uuid())
+    .fetch_optional(&mut **tx)
+    .await?;
+    if duplicate.is_some() {
+        Err(CqrsSqlxError::GuardRejected(
+            "Finance invoice code or billing event already exists",
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+async fn validate_revenue_schedule_uniqueness(
+    tx: &mut Transaction<'_, Postgres>,
+    value: &RevenueSchedule,
+) -> Result<(), CqrsSqlxError> {
+    let duplicate: Option<Uuid> = sqlx::query_scalar(
+        "SELECT schedule_id FROM erpx_finance_write.revenue_schedule_guards
+         WHERE arrangement_id=$1 AND schedule_id<>$2
+         ORDER BY schedule_id LIMIT 1 FOR UPDATE",
+    )
+    .bind(value.arrangement().arrangement.as_uuid())
+    .bind(value.id().as_uuid())
+    .fetch_optional(&mut **tx)
+    .await?;
+    if duplicate.is_some() {
+        Err(CqrsSqlxError::GuardRejected(
+            "Finance revenue arrangement already has a schedule",
+        ))
+    } else {
+        Ok(())
     }
 }
 
@@ -420,6 +518,114 @@ async fn apply_subledger(
     Ok(())
 }
 
+async fn apply_customer_invoice(
+    tx: &mut Transaction<'_, Postgres>,
+    v: &CustomerInvoice,
+) -> Result<(), CqrsSqlxError> {
+    let billing = v.billing();
+    let receivable_minor = v
+        .receivable_minor()
+        .map_err(|_| CqrsSqlxError::GuardRejected("Finance customer invoice amount is invalid"))?;
+    let dimensions = serde_json::to_value(&billing.dimensions).map_err(|_| {
+        CqrsSqlxError::GuardRejected("Finance customer invoice dimensions are invalid")
+    })?;
+    sqlx::query(
+        "INSERT INTO erpx_finance_write.customer_invoice_guards
+          (invoice_id,scope_key,invoice_code,customer_id,billing_event_id,source_context,
+           source_aggregate_kind,source_aggregate_id,source_aggregate_version,currency,
+           net_minor,tax_minor,receivable_minor,eligible_on,due_on,dimensions,prepared_by,
+           posted_by,posted_at,invoice_status,aggregate_version,created_at,updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+         ON CONFLICT (invoice_id) DO UPDATE SET
+          scope_key=EXCLUDED.scope_key,invoice_code=EXCLUDED.invoice_code,
+          customer_id=EXCLUDED.customer_id,billing_event_id=EXCLUDED.billing_event_id,
+          source_context=EXCLUDED.source_context,
+          source_aggregate_kind=EXCLUDED.source_aggregate_kind,
+          source_aggregate_id=EXCLUDED.source_aggregate_id,
+          source_aggregate_version=EXCLUDED.source_aggregate_version,currency=EXCLUDED.currency,
+          net_minor=EXCLUDED.net_minor,tax_minor=EXCLUDED.tax_minor,
+          receivable_minor=EXCLUDED.receivable_minor,eligible_on=EXCLUDED.eligible_on,
+          due_on=EXCLUDED.due_on,dimensions=EXCLUDED.dimensions,prepared_by=EXCLUDED.prepared_by,
+          posted_by=EXCLUDED.posted_by,posted_at=EXCLUDED.posted_at,
+          invoice_status=EXCLUDED.invoice_status,aggregate_version=EXCLUDED.aggregate_version,
+          updated_at=EXCLUDED.updated_at",
+    )
+    .bind(v.id().as_uuid())
+    .bind(scope_key(v.scope())?)
+    .bind(v.invoice_code())
+    .bind(billing.customer.as_uuid())
+    .bind(billing.billing_event.as_uuid())
+    .bind("sales")
+    .bind(v.source().aggregate_kind.as_str())
+    .bind(v.source().aggregate_id)
+    .bind(to_i64(v.source().aggregate_version)?)
+    .bind(billing.billable_amount.currency().as_str())
+    .bind(billing.billable_amount.minor_units())
+    .bind(billing.tax_amount.minor_units())
+    .bind(receivable_minor)
+    .bind(billing.eligible_on)
+    .bind(v.due_on())
+    .bind(dimensions)
+    .bind(v.prepared_by())
+    .bind(v.posted_by())
+    .bind(v.posted_at())
+    .bind(customer_invoice_status_name(v.status()))
+    .bind(to_i64(v.version())?)
+    .bind(v.created_at())
+    .bind(v.updated_at())
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+async fn apply_revenue_schedule(
+    tx: &mut Transaction<'_, Postgres>,
+    v: &RevenueSchedule,
+) -> Result<(), CqrsSqlxError> {
+    let allocated_minor = v
+        .allocated_total_minor()
+        .map_err(|_| CqrsSqlxError::GuardRejected("Finance revenue allocation is invalid"))?;
+    let recognized_minor = v
+        .recognized_total_minor()
+        .map_err(|_| CqrsSqlxError::GuardRejected("Finance recognized revenue is invalid"))?;
+    sqlx::query(
+        "INSERT INTO erpx_finance_write.revenue_schedule_guards
+          (schedule_id,scope_key,arrangement_id,sales_order_id,customer_id,source_context,
+           source_aggregate_kind,source_aggregate_version,last_source_version,currency,
+           allocated_minor,recognized_minor,schedule_status,aggregate_version,created_at,updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+         ON CONFLICT (schedule_id) DO UPDATE SET
+          scope_key=EXCLUDED.scope_key,arrangement_id=EXCLUDED.arrangement_id,
+          sales_order_id=EXCLUDED.sales_order_id,customer_id=EXCLUDED.customer_id,
+          source_context=EXCLUDED.source_context,
+          source_aggregate_kind=EXCLUDED.source_aggregate_kind,
+          source_aggregate_version=EXCLUDED.source_aggregate_version,
+          last_source_version=EXCLUDED.last_source_version,currency=EXCLUDED.currency,
+          allocated_minor=EXCLUDED.allocated_minor,recognized_minor=EXCLUDED.recognized_minor,
+          schedule_status=EXCLUDED.schedule_status,aggregate_version=EXCLUDED.aggregate_version,
+          updated_at=EXCLUDED.updated_at",
+    )
+    .bind(v.id().as_uuid())
+    .bind(scope_key(v.scope())?)
+    .bind(v.arrangement().arrangement.as_uuid())
+    .bind(v.arrangement().sales_order.as_uuid())
+    .bind(v.arrangement().customer.as_uuid())
+    .bind("sales")
+    .bind(v.arrangement_source().aggregate_kind.as_str())
+    .bind(to_i64(v.arrangement_source().aggregate_version)?)
+    .bind(to_i64(v.last_source().aggregate_version)?)
+    .bind(v.currency())
+    .bind(allocated_minor)
+    .bind(recognized_minor)
+    .bind(revenue_schedule_status_name(v.status()))
+    .bind(to_i64(v.version())?)
+    .bind(v.created_at())
+    .bind(v.updated_at())
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
 fn ensure_existence(expected: Option<u64>, current: Option<i64>) -> Result<(), CqrsSqlxError> {
     if matches!((expected, current), (None, Some(_)) | (Some(_), None)) {
         Err(CqrsSqlxError::GuardRejected(
@@ -463,6 +669,8 @@ fn aggregate_valid(v: &FinanceAggregate) -> bool {
         FinanceAggregate::Period(x) => x.validate().is_ok(),
         FinanceAggregate::Journal(x) => x.validate().is_ok(),
         FinanceAggregate::Subledger(x) => x.validate().is_ok(),
+        FinanceAggregate::CustomerInvoice(x) => x.validate().is_ok(),
+        FinanceAggregate::RevenueSchedule(x) => x.validate().is_ok(),
     }
 }
 fn fingerprint_target(v: &CommandFingerprint) -> (String, &'static str) {
@@ -482,11 +690,22 @@ fn fingerprint_target(v: &CommandFingerprint) -> (String, &'static str) {
         | CommandFingerprint::PostJournal { journal_id, .. } => {
             (journal_partition(*journal_id), JOURNAL_AGGREGATE_TYPE)
         }
-        CommandFingerprint::CreateReceivableFromSales { subledger_id, .. }
+        CommandFingerprint::CreateReceivableFromInvoice { subledger_id, .. }
         | CommandFingerprint::CreatePayableFromProcurement { subledger_id, .. }
         | CommandFingerprint::ApplySubledgerSettlement { subledger_id, .. } => {
             (subledger_partition(*subledger_id), SUBLEDGER_AGGREGATE_TYPE)
         }
+        CommandFingerprint::CreateCustomerInvoice { invoice_id, .. }
+        | CommandFingerprint::PostCustomerInvoice { invoice_id }
+        | CommandFingerprint::CancelCustomerInvoice { invoice_id } => (
+            customer_invoice_partition(*invoice_id),
+            CUSTOMER_INVOICE_AGGREGATE_TYPE,
+        ),
+        CommandFingerprint::CreateRevenueSchedule { schedule_id, .. }
+        | CommandFingerprint::RecognizeRevenueFromFulfillment { schedule_id, .. } => (
+            revenue_schedule_partition(*schedule_id),
+            REVENUE_SCHEDULE_AGGREGATE_TYPE,
+        ),
     }
 }
 fn aggregate_partition(v: &FinanceAggregate) -> String {
@@ -495,6 +714,8 @@ fn aggregate_partition(v: &FinanceAggregate) -> String {
         FinanceAggregate::Period(x) => period_partition(x.id()),
         FinanceAggregate::Journal(x) => journal_partition(x.id()),
         FinanceAggregate::Subledger(x) => subledger_partition(x.id()),
+        FinanceAggregate::CustomerInvoice(x) => customer_invoice_partition(x.id()),
+        FinanceAggregate::RevenueSchedule(x) => revenue_schedule_partition(x.id()),
     }
 }
 fn snapshot_event(v: &FinanceAggregate) -> &'static str {
@@ -503,6 +724,8 @@ fn snapshot_event(v: &FinanceAggregate) -> &'static str {
         FinanceAggregate::Period(_) => PERIOD_SNAPSHOT_EVENT,
         FinanceAggregate::Journal(_) => JOURNAL_SNAPSHOT_EVENT,
         FinanceAggregate::Subledger(_) => SUBLEDGER_SNAPSHOT_EVENT,
+        FinanceAggregate::CustomerInvoice(_) => CUSTOMER_INVOICE_SNAPSHOT_EVENT,
+        FinanceAggregate::RevenueSchedule(_) => REVENUE_SCHEDULE_SNAPSHOT_EVENT,
     }
 }
 fn aggregate_updated_at(v: &FinanceAggregate) -> chrono::DateTime<chrono::Utc> {
@@ -511,6 +734,8 @@ fn aggregate_updated_at(v: &FinanceAggregate) -> chrono::DateTime<chrono::Utc> {
         FinanceAggregate::Period(x) => x.updated_at(),
         FinanceAggregate::Journal(x) => x.updated_at(),
         FinanceAggregate::Subledger(x) => x.updated_at(),
+        FinanceAggregate::CustomerInvoice(x) => x.updated_at(),
+        FinanceAggregate::RevenueSchedule(x) => x.updated_at(),
     }
 }
 fn audit_action(v: &CommandFingerprint) -> &'static str {
@@ -524,7 +749,16 @@ fn audit_action(v: &CommandFingerprint) -> &'static str {
         CommandFingerprint::ReopenPeriod { .. } => "finance.period.reopen",
         CommandFingerprint::CreateJournal { .. } => "finance.journal.create",
         CommandFingerprint::PostJournal { .. } => "finance.journal.post",
-        CommandFingerprint::CreateReceivableFromSales { .. } => "finance.receivable.create",
+        CommandFingerprint::CreateCustomerInvoice { .. } => "finance.customer_invoice.create",
+        CommandFingerprint::PostCustomerInvoice { .. } => "finance.customer_invoice.post",
+        CommandFingerprint::CancelCustomerInvoice { .. } => "finance.customer_invoice.cancel",
+        CommandFingerprint::CreateRevenueSchedule { .. } => "finance.revenue_schedule.create",
+        CommandFingerprint::RecognizeRevenueFromFulfillment { .. } => {
+            "finance.revenue_schedule.recognize"
+        }
+        CommandFingerprint::CreateReceivableFromInvoice { .. } => {
+            "finance.receivable.create_from_invoice"
+        }
         CommandFingerprint::CreatePayableFromProcurement { .. } => "finance.payable.create",
         CommandFingerprint::ApplySubledgerSettlement { .. } => "finance.subledger.settle",
     }

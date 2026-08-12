@@ -1,4 +1,5 @@
 use chrono::{Duration, TimeZone, Utc};
+use erpx_integration_contracts::{BoundedContext, RecordRef};
 use erpx_kernel::TenantScope;
 use uuid::Uuid;
 
@@ -263,4 +264,79 @@ fn legal_core_rejects_broad_scope_and_secret_bearing_metadata() {
         ),
         Err(LegalDomainError::SensitiveMaterial { .. })
     ));
+}
+
+#[test]
+fn matter_graph_pins_version_digest_scope_and_rejects_cross_tenant_edges() {
+    let mut matter = LegalMatter::create(
+        LegalMatterId::try_from_uuid(Uuid::from_u128(40)).unwrap(),
+        scope(),
+        "MAT-040".into(),
+        "Customer dispute".into(),
+        "legal-owner".into(),
+        at(),
+    )
+    .unwrap();
+    let target =
+        RecordRef::try_new(BoundedContext::Sales, "sales_order", Uuid::from_u128(41), 7).unwrap();
+    matter
+        .link_record(
+            RecordRelation::Disputes,
+            target.clone(),
+            scope(),
+            format!("sha256:{}", "e".repeat(64)),
+            "legal-owner".into(),
+            at() + Duration::minutes(1),
+        )
+        .unwrap();
+    assert_eq!(matter.links()[0].target.aggregate_version, 7);
+    assert_eq!(matter.links()[0].target, target);
+    assert_eq!(
+        matter.link_record(
+            RecordRelation::Disputes,
+            RecordRef::try_new(BoundedContext::Sales, "sales_order", Uuid::from_u128(42), 1,)
+                .unwrap(),
+            TenantScope::Company {
+                holding_id: Uuid::from_u128(99),
+                company_id: Uuid::from_u128(2),
+            },
+            format!("sha256:{}", "f".repeat(64)),
+            "legal-owner".into(),
+            at() + Duration::minutes(2),
+        ),
+        Err(LegalDomainError::CrossTenantLink)
+    );
+}
+
+#[test]
+fn legal_hold_requires_separate_release_and_blocks_matter_close() {
+    let mut matter = LegalMatter::create(
+        LegalMatterId::try_from_uuid(Uuid::from_u128(50)).unwrap(),
+        scope(),
+        "MAT-050".into(),
+        "Regulatory review".into(),
+        "legal-owner".into(),
+        at(),
+    )
+    .unwrap();
+    matter
+        .place_hold(
+            "Preserve all linked evidence".into(),
+            "legal-owner".into(),
+            at() + Duration::minutes(1),
+        )
+        .unwrap();
+    assert_eq!(
+        matter.close(at() + Duration::minutes(2)),
+        Err(LegalDomainError::InvalidTransition)
+    );
+    assert_eq!(
+        matter.release_hold("legal-owner".into(), at() + Duration::minutes(2)),
+        Err(LegalDomainError::InvalidLegalHold)
+    );
+    matter
+        .release_hold("legal-reviewer".into(), at() + Duration::minutes(2))
+        .unwrap();
+    matter.close(at() + Duration::minutes(3)).unwrap();
+    assert_eq!(matter.status(), MatterStatus::Closed);
 }

@@ -88,7 +88,7 @@ const CONSOLE_WAVE67_REGISTRY: &str = include_str!("../../console/src/transport/
 const CONSOLE_QUALITY_REGISTRY: &str = include_str!("../../console/src/transport/quality/mod.rs");
 const CONSOLE_WAVE8_REGISTRY: &str = include_str!("../../console/src/transport/wave8/mod.rs");
 const CONSOLE_RUNTIME: &str = include_str!("../../console/src/lib.rs");
-const CONSOLE_COMPOSITION: &str = include_str!("../../console/src/transport/composition.rs");
+const CONSOLE_COMPOSITION: &str = include_str!("../../console/src/composition.rs");
 const CONSOLE_SALES_TRANSPORT: &str = include_str!("../../console/src/transport/wave6_7/sales.rs");
 const CONSOLE_PROCUREMENT_TRANSPORT: &str =
     include_str!("../../console/src/transport/wave6_7/procurement.rs");
@@ -109,73 +109,74 @@ const CONSOLE_MARKETING_TRANSPORT: &str =
 const CONSOLE_CRM_TRANSPORT: &str = include_str!("../../console/src/transport/wave6_7/crm.rs");
 
 const CONSOLE_SALES_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/sales/mod.rs"),
-    include_str!("../../console/src/features/sales/gateway.rs"),
-    include_str!("../../console/src/features/sales/presenter.rs"),
-    include_str!("../../console/src/features/sales/view.rs"),
+    include_str!("../../../crates/console-features/sales/src/lib.rs"),
+    include_str!("../../../crates/console-features/sales/src/gateway.rs"),
+    include_str!("../../../crates/console-features/sales/src/presenter.rs"),
+    include_str!("../../../crates/console-features/sales/src/view.rs"),
 ];
 const CONSOLE_PROCUREMENT_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/procurement/mod.rs"),
-    include_str!("../../console/src/features/procurement/gateway.rs"),
-    include_str!("../../console/src/features/procurement/presenter.rs"),
-    include_str!("../../console/src/features/procurement/view.rs"),
+    include_str!("../../../crates/console-features/procurement/src/lib.rs"),
+    include_str!("../../../crates/console-features/procurement/src/gateway.rs"),
+    include_str!("../../../crates/console-features/procurement/src/presenter.rs"),
+    include_str!("../../../crates/console-features/procurement/src/view.rs"),
 ];
 const CONSOLE_INVENTORY_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/inventory/mod.rs"),
-    include_str!("../../console/src/features/inventory/gateway.rs"),
-    include_str!("../../console/src/features/inventory/presenter.rs"),
-    include_str!("../../console/src/features/inventory/view.rs"),
+    include_str!("../../../crates/console-features/inventory/src/lib.rs"),
+    include_str!("../../../crates/console-features/inventory/src/gateway.rs"),
+    include_str!("../../../crates/console-features/inventory/src/presenter.rs"),
+    include_str!("../../../crates/console-features/inventory/src/view.rs"),
 ];
 const CONSOLE_ASSETS_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/assets/mod.rs"),
-    include_str!("../../console/src/features/assets/gateway.rs"),
-    include_str!("../../console/src/features/assets/presenter.rs"),
-    include_str!("../../console/src/features/assets/view.rs"),
+    include_str!("../../../crates/console-features/assets/src/lib.rs"),
+    include_str!("../../../crates/console-features/assets/src/gateway.rs"),
+    include_str!("../../../crates/console-features/assets/src/presenter.rs"),
+    include_str!("../../../crates/console-features/assets/src/view.rs"),
 ];
 const CONSOLE_MAINTENANCE_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/maintenance/mod.rs"),
-    include_str!("../../console/src/features/maintenance/gateway.rs"),
-    include_str!("../../console/src/features/maintenance/presenter.rs"),
-    include_str!("../../console/src/features/maintenance/view.rs"),
+    include_str!("../../../crates/console-features/maintenance/src/lib.rs"),
+    include_str!("../../../crates/console-features/maintenance/src/gateway.rs"),
+    include_str!("../../../crates/console-features/maintenance/src/presenter.rs"),
+    include_str!("../../../crates/console-features/maintenance/src/view.rs"),
 ];
 const CONSOLE_QUALITY_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/quality/mod.rs"),
-    include_str!("../../console/src/features/quality/gateway.rs"),
-    include_str!("../../console/src/features/quality/presenter.rs"),
-    include_str!("../../console/src/features/quality/view.rs"),
+    include_str!("../../../crates/console-features/quality/src/lib.rs"),
+    include_str!("../../../crates/console-features/quality/src/gateway.rs"),
+    include_str!("../../../crates/console-features/quality/src/presenter.rs"),
+    include_str!("../../../crates/console-features/quality/src/view.rs"),
 ];
 const CONSOLE_PEOPLE_PAYROLL_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/people_payroll/mod.rs"),
-    include_str!("../../console/src/features/people_payroll/gateway.rs"),
-    include_str!("../../console/src/features/people_payroll/presenter.rs"),
-    include_str!("../../console/src/features/people_payroll/view.rs"),
+    include_str!("../../../crates/console-features/people-payroll/src/lib.rs"),
+    include_str!("../../../crates/console-features/people-payroll/src/gateway.rs"),
+    include_str!("../../../crates/console-features/people-payroll/src/presenter.rs"),
+    include_str!("../../../crates/console-features/people-payroll/src/view.rs"),
 ];
 const CONSOLE_LEGAL_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/legal/mod.rs"),
-    include_str!("../../console/src/features/legal/gateway.rs"),
-    include_str!("../../console/src/features/legal/presenter.rs"),
-    include_str!("../../console/src/features/legal/view.rs"),
+    include_str!("../../../crates/console-features/legal/src/lib.rs"),
+    include_str!("../../../crates/console-features/legal/src/gateway.rs"),
+    include_str!("../../../crates/console-features/legal/src/presenter.rs"),
+    include_str!("../../../crates/console-features/legal/src/view.rs"),
 ];
 const CONSOLE_POS_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/pos/mod.rs"),
-    include_str!("../../console/src/features/pos/gateway.rs"),
-    include_str!("../../console/src/features/pos/presenter.rs"),
-    include_str!("../../console/src/features/pos/view.rs"),
+    include_str!("../../../crates/console-features/pos/src/lib.rs"),
+    include_str!("../../../crates/console-features/pos/src/gateway.rs"),
+    include_str!("../../../crates/console-features/pos/src/presenter.rs"),
+    include_str!("../../../crates/console-features/pos/src/view.rs"),
 ];
 const CONSOLE_MARKETING_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/marketing/mod.rs"),
-    include_str!("../../console/src/features/marketing/gateway.rs"),
-    include_str!("../../console/src/features/marketing/presenter.rs"),
-    include_str!("../../console/src/features/marketing/view.rs"),
+    include_str!("../../../crates/console-features/marketing/src/lib.rs"),
+    include_str!("../../../crates/console-features/marketing/src/gateway.rs"),
+    include_str!("../../../crates/console-features/marketing/src/presenter.rs"),
+    include_str!("../../../crates/console-features/marketing/src/view.rs"),
 ];
 const CONSOLE_CRM_FEATURE: &[&str] = &[
-    include_str!("../../console/src/features/crm/mod.rs"),
-    include_str!("../../console/src/features/crm/gateway.rs"),
-    include_str!("../../console/src/features/crm/presenter.rs"),
-    include_str!("../../console/src/features/crm/view.rs"),
+    include_str!("../../../crates/console-features/crm/src/lib.rs"),
+    include_str!("../../../crates/console-features/crm/src/gateway.rs"),
+    include_str!("../../../crates/console-features/crm/src/presenter.rs"),
+    include_str!("../../../crates/console-features/crm/src/view.rs"),
 ];
 const CONSOLE_PRODUCT_COMPLETION: &str = include_str!("../../console/src/product_completion.rs");
-const UI_PRODUCT_CONTEXTS: &str = include_str!("../../../crates/ui/src/product_contexts.rs");
+const UI_PRODUCT_CONTEXTS: &str =
+    include_str!("../../../crates/ui-domains/platform/src/product_contexts.rs");
 const PRODUCT_PROTOS: &[&str] = &[
     include_str!("../../../crates/proto/proto/erpx/platform/v1/sales.proto"),
     include_str!("../../../crates/proto/proto/erpx/platform/v1/supply_chain.proto"),
@@ -532,7 +533,7 @@ fn g11_authoritative_write_projection_and_reconciliation_contracts_are_present()
 fn g11_product_shell_registry_is_authenticated_and_read_only_by_default() {
     require_markers(
         UI_PRODUCT_CONTEXTS,
-        "crates/ui/src/product_contexts.rs",
+        "crates/ui-domains/platform/src/product_contexts.rs",
         &[
             "PRODUCT_CONTEXT_ROUTES",
             "ProductContextId::Sales",

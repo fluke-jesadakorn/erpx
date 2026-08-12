@@ -43,14 +43,17 @@ unconfigured and never report synthetic success.
 ## Runtime commands
 
 ```bash
-cargo xtask dev --detach  # migrate, reuse fixtures, and selectively restart changed services
+cargo xtask dev --detach  # hot-patch Web, debug-off; reuse healthy services
 cargo xtask dev --detach --fresh  # full non-destructive stop/reconcile/start
+cargo xtask dev --detach --no-hot-patch  # stable Dioxus fallback
+cargo xtask dev --detach --web-debug  # enable Web debug symbols/line tables
 cargo xtask status        # report only recorded ERPX child processes
 cargo xtask stop          # stop only recorded ERPX child processes
 cargo xtask seed-demo     # idempotent development fixture
 cargo xtask dev-access credentials  # explicitly reveal the local controller login
 cargo xtask pitr rehearsal # temporarily enable bounded PITR, verify restore, then purge artifacts
 cargo xtask pitr cleanup-local --confirm PURGE_ERPX_LOCAL_PITR # purge the fixed local PITR chain
+cargo xtask check-affected # quick owning-package compile checkpoint; no tests or linking
 cargo xtask test-affected # test only changed packages, consumers, and domain harnesses
 cargo xtask verify-core   # offline CI-parity core gate (after cargo fetch)
 cargo xtask verify-runtime # strict process, heartbeat, and projection evidence
@@ -142,14 +145,45 @@ topology without printing credentials. A first transition uses
 `cargo xtask dev --detach --fresh`; later starts reuse all three infrastructure
 instances.
 
-Start the stack once and leave Dioxus hot reload running. After backend edits,
-run `cargo xtask dev --detach` again: healthy infrastructure and the web process
-are reused, current fixtures are skipped, and only changed or missing backend
-service groups restart. Use `--fresh` when local runtime configuration must be
-fully reconciled; it does not drop databases or buckets and never touches
-`.runtime/n8n/`.
+Start the stack once and leave Dioxus hot reload running. Web development uses
+Rust hot-patch with debug symbols disabled by default and keeps its persistent
+session cache in `target/dx-hotpatch`. Source, RSX, CSS, and asset edits are left
+to the running Dioxus watcher; `xtask` restarts Web only when its environment,
+workspace manifests/toolchain, DX version, or launch mode changes. Use
+`--no-hot-patch` for the stable fallback and `--web-debug` when runtime line
+tables are needed. Optional flags may appear in any order and duplicates or
+unknown flags fail closed.
 
-For the daily compile/test loop, start with the affected lane:
+After backend edits, run `cargo xtask dev --detach` again: healthy
+infrastructure and Web are reused, current fixtures are skipped, and only
+changed or missing backend service groups restart. Use `--fresh` when local
+runtime configuration must be fully reconciled; it does not drop databases or
+buckets and never touches `.runtime/n8n/`. `cargo xtask status` includes the
+active Web launch mode (`hot-patch`/`stable`, `debug-on`/`debug-off`).
+
+For the daily feedback loop, keep `cargo xtask dev --detach` running and let
+Dioxus hot reload handle each Rust/RSX/CSS/asset edit. Do not run Cargo tests
+after every UI edit. At a small checkpoint run the quick compile lane:
+
+```bash
+cargo xtask check-affected --dry-run
+cargo xtask check-affected
+```
+
+`check-affected` stores an independent successful snapshot at
+`.runtime/erpx/affected-checks.json`, seeded initially from the last successful
+test/verify snapshot. It format-checks changed Rust files and uses `cargo check`
+for only the owning library, changed binary, or exact integration target. It
+does not link or run tests, scan architecture, or walk reverse dependencies.
+Console checks exactly one feature combination (`web`, or `server` for
+server-only source). CSS/HTML/image-only changes stay with Dioxus hot reload.
+Root manifests, the lockfile/toolchain, protobuf, migrations, and shared
+contract changes explicitly escalate outside the quick path to a workspace
+check. Selector, rustfmt, Cargo, and total timings are printed on every run.
+A failed quick check never advances either snapshot, and a successful quick
+check never causes the thorough lane to skip tests.
+
+Finish a related change set with the thorough affected lane:
 
 ```bash
 cargo xtask test-affected --dry-run
@@ -158,9 +192,11 @@ cargo xtask test-affected
 
 The selector stores its successful snapshot in ignored `.runtime/erpx/`, uses
 locked/offline Cargo metadata, formats only changed Rust files, tests changed
-package library/binary targets, compile-checks reverse dependents, and dispatches
-only mapped domain harnesses. A changed integration-test file runs its own test
-binary. Console Rust changes check only the `web` and `server` feature targets;
+package library targets and only explicitly changed bin targets, compile-checks
+reverse dependents, and dispatches only the owning domain harness. A changed
+integration-test file runs its own exact test binary. A Console feature change
+checks the thin Console consumer once; broader Console Rust changes retain the
+`web` and `server` checks;
 Console CSS/HTML/image-only changes do not start Rust workspace tests. Shared
 contracts, protobuf, migrations, root manifests, CI, or toolchain changes
 escalate to the workspace fast lanes and architecture scan. The snapshot moves
@@ -182,12 +218,18 @@ executables, and doctests. ERPX workflow commands use one advisory Cargo lock an
 fail with the owning PID/command instead of starting a competing build. Direct
 Cargo commands remain available for focused, uncoordinated diagnosis.
 
-ERPX keeps allowlisted Cargo build caches under a 16 GiB budget. The lightweight
+ERPX keeps allowlisted Cargo build caches under a 128 GiB budget while preserving
+at least 64 GiB of filesystem free space. The lightweight
 `xtask`, `check-fast`, and `test-fast` launchers share
-`.runtime/erpx/xtask-target`; all nested workspace commands share root `target/`.
-Managed build
+`.runtime/erpx/xtask-target`; heavy orchestration builds in
+`.runtime/erpx/heavy-xtask-target`, native development services build and run
+from `.runtime/erpx/runtime-dev-target`, and normal workspace checks use root
+`target/`. Managed build
 commands update each cache group's last-used marker and automatically remove
-the least recently used complete target groups when the budget is exceeded.
+the least recently used complete target groups when the effective budget is
+exceeded. Active process pins are separate from warm validation pins, so a
+Dioxus/runtime pin does not evict the root validation cache merely because the
+workflows alternate.
 An evicted target is safe to rebuild, but its next compilation will take
 longer. A recorded, active Dioxus hot-reload process pins the WASM and Dioxus
 target groups it may write, and recorded native ERPX processes pin their debug
@@ -199,6 +241,8 @@ cargo xtask cache prune --dry-run
 cargo xtask cache prune
 cargo xtask cache prune --incremental --dry-run
 cargo xtask cache prune --incremental
+cargo xtask cache prune-debug --dry-run
+cargo xtask cache prune-debug
 ```
 
 The cache allowlist contains only immediate groups below `target/` and the
@@ -208,11 +252,12 @@ Cargo commands do not run the janitor themselves, but their target groups are
 included the next time an ERPX-managed build command runs. Manual pruning also
 removes superseded split fast-lane targets and regenerable deferred iOS/Android
 target groups. Incremental pruning is separately opt-in and refuses to run while
-Dioxus or a workspace compiler is active. The native Dioxus server cache shares
-its host target group with Desktop tooling, so an active Web process pins that
-group rather than risking a live Web rebuild.
+Dioxus or a workspace compiler is active. `prune-debug` is the narrower
+migration cleanup: it selects only root `target/debug` and refuses to run while
+a recorded native ERPX process still uses that legacy path. Active Web,
+isolated native runtime, and heavy-xtask target groups are pinned independently.
 
-The 18 integration harnesses are grouped by domain:
+The 19 integration harnesses are grouped by domain:
 
 - Infrastructure: `infra_platform`, `infra_tenant_runtime`, `infra_finance`,
   `infra_marketing`, `infra_operations`, `infra_people_support`, `infra_backup`,
@@ -221,11 +266,12 @@ The 18 integration harnesses are grouped by domain:
 - Migrator: `migrator_products`, `migrator_cutover`.
 - Identity: `identity_core`, `identity_acceptance`.
 - Domain: `domain_contracts`.
-- UI: `ui_domains`, `ui_platform`.
+- UI: `ui_domains`, `ui_kit`, `ui_platform`.
 
-Development builds keep Cargo incremental compilation and source-line
-backtraces. The test profile disables incremental state, preventing full test
-lanes from accumulating another large incremental cache.
+Development builds keep Cargo incremental compilation with debug information
+disabled by default. `--web-debug` enables line tables only for the Dioxus Web
+profiles. The test profile remains unchanged and disables incremental state,
+preventing full test lanes from accumulating another large incremental cache.
 
 ## Workspace
 
@@ -240,7 +286,11 @@ lanes from accumulating another large incremental cache.
 - `crates/identity`: native identity, MFA, and directory connectors
 - `crates/migration`: control/tenant write/read migrations
 - `crates/proto`: public gRPC contracts and descriptor baseline
-- `crates/ui`, `crates/ui-foundation`: shared Web-first product UI boundaries
+- `crates/ui` (`erpx-ui-core`), `crates/ui-kit`, and `crates/ui-domains/*`:
+  independently compiled UI core, component kit, and domain presentation models
+- `crates/ui-facade` (`erpx-ui`): compatibility re-export surface for existing clients
+- `crates/console-shell`, `crates/console-transport`, `crates/console-bff`, and
+  `crates/console-features/*`: Console shell/wire/BFF boundaries and 21 independent features
 - `audits`: retained ERPX implementation and acceptance evidence
 - `audits/CURRENT-CERTIFICATION.md`: current certification scope and latest gate result
 - `xtask`: bounded development lifecycle and verification

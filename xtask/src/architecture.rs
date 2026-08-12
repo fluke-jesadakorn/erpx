@@ -72,21 +72,65 @@ pub(crate) fn scan(root: &Path) -> ArchitectureResult {
     }
 
     // A feature gateway is a Console transport adapter and may translate the
-    // wire contract. Presenters and views remain transport/domain agnostic.
-    let console_features = root.join("apps/console/src/features");
+    // wire contract. Presenters and views remain transport/domain agnostic,
+    // and feature packages must stay as independent leaves.
+    let console_features = root.join("crates/console-features");
     if console_features.is_dir() {
-        for file in rust_files(&console_features)? {
-            let boundary_file = file
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| matches!(name, "presenter.rs" | "view.rs"));
-            if boundary_file {
-                reject_rust_imports(
-                    &file,
-                    &["erpx_proto::", "tonic::", "prost::", "erpx_domain::"],
-                )?;
+        for entry in fs::read_dir(&console_features)? {
+            let feature = entry?.path();
+            if !feature.is_dir() {
+                continue;
+            }
+            let manifest = feature.join("Cargo.toml");
+            if manifest.is_file() {
+                reject_manifest_dependency_prefix(&manifest, "erpx-console-feature-")?;
+            }
+            for file in rust_files(&feature.join("src"))? {
+                let boundary_file = file
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| matches!(name, "presenter.rs" | "view.rs"));
+                if boundary_file {
+                    reject_rust_imports(
+                        &file,
+                        &["erpx_proto::", "tonic::", "prost::", "erpx_domain::"],
+                    )?;
+                }
             }
         }
+    }
+
+    let console_shell_manifest = root.join("crates/console-shell/Cargo.toml");
+    if console_shell_manifest.is_file() {
+        reject_manifest_dependencies_except_prefix(
+            &console_shell_manifest,
+            "erpx-",
+            &["erpx-ui-core", "erpx-ui-kit"],
+        )?;
+        reject_rust_imports(
+            &root.join("crates/console-shell/src"),
+            &[
+                "erpx_proto::",
+                "tonic::",
+                "prost::",
+                "erpx_domain::",
+                "erpx_cqrs::",
+            ],
+        )?;
+    }
+
+    let console_transport_manifest = root.join("crates/console-transport/Cargo.toml");
+    if console_transport_manifest.is_file() {
+        reject_manifest_dependency_prefix(&console_transport_manifest, "erpx-console-feature-")?;
+        reject_manifest_dependencies(
+            &console_transport_manifest,
+            &[
+                "erpx-console-shell",
+                "erpx-ui",
+                "erpx-ui-core",
+                "erpx-ui-kit",
+            ],
+        )?;
     }
 
     // Keep the public Console entry point as a composition shell. Wire and
@@ -99,11 +143,23 @@ pub(crate) fn scan(root: &Path) -> ArchitectureResult {
         )?;
     }
 
-    let console_bff = root.join("apps/console/src/bff");
+    let console_manifest = root.join("apps/console/Cargo.toml");
+    if console_manifest.is_file() {
+        reject_manifest_dependencies(&console_manifest, &["erpx-ui"])?;
+    }
+
+    let console_bff = root.join("crates/console-bff/src");
     if console_bff.is_dir() {
         reject_rust_imports(
             &console_bff,
             &["sqlx::", "erpx_infrastructure::", "erpx_web_session_sqlx::"],
+        )?;
+    }
+    let console_bff_manifest = root.join("crates/console-bff/Cargo.toml");
+    if console_bff_manifest.is_file() {
+        reject_manifest_dependencies(
+            &console_bff_manifest,
+            &["sqlx", "erpx-infrastructure", "erpx-web-session-sqlx"],
         )?;
     }
 
@@ -136,8 +192,14 @@ pub(crate) fn scan(root: &Path) -> ArchitectureResult {
 }
 
 fn enforce_ui_kit_boundary(root: &Path) -> ArchitectureResult {
-    let ui_kit = root.join("crates/ui/src/kit");
-    let scan_roots = [root.join("crates/ui/src"), root.join("apps/console/src")];
+    let ui_kit = root.join("crates/ui-kit/src");
+    let scan_roots = [
+        root.join("crates/ui/src"),
+        root.join("crates/ui-kit/src"),
+        root.join("crates/ui-domains"),
+        root.join("apps/console/src"),
+        root.join("crates/console-features"),
+    ];
     for scan_root in scan_roots {
         if !scan_root.is_dir() {
             continue;
@@ -155,6 +217,16 @@ fn enforce_ui_kit_boundary(root: &Path) -> ArchitectureResult {
                 if line.contains("dioxus_primitives") {
                     return Err(format!(
                         "dioxus_primitives may only be imported by erpx_ui::kit: {}:{}",
+                        file.display(),
+                        index + 1
+                    )
+                    .into());
+                }
+                if !file.starts_with(root.join("crates/ui-kit"))
+                    && line.contains("erpx_ui_core::kit")
+                {
+                    return Err(format!(
+                        "Console code must import shared controls through erpx_ui_kit: {}:{}",
                         file.display(),
                         index + 1
                     )
@@ -204,6 +276,44 @@ fn reject_manifest_dependencies(path: &Path, forbidden: &[&str]) -> Architecture
         if forbidden.contains(&dependency) {
             return Err(format!(
                 "forbidden context-core dependency {dependency} in {}",
+                path.display()
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn reject_manifest_dependency_prefix(path: &Path, forbidden_prefix: &str) -> ArchitectureResult {
+    let source = fs::read_to_string(path)?;
+    for line in source.lines() {
+        let Some((name, _)) = line.split_once('=') else {
+            continue;
+        };
+        let dependency = name.trim();
+        let dependency = dependency.strip_suffix(".workspace").unwrap_or(dependency);
+        if dependency.starts_with(forbidden_prefix) {
+            return Err(format!("forbidden dependency {dependency} in {}", path.display()).into());
+        }
+    }
+    Ok(())
+}
+
+fn reject_manifest_dependencies_except_prefix(
+    path: &Path,
+    prefix: &str,
+    allowed: &[&str],
+) -> ArchitectureResult {
+    let source = fs::read_to_string(path)?;
+    for line in source.lines() {
+        let Some((name, _)) = line.split_once('=') else {
+            continue;
+        };
+        let dependency = name.trim();
+        let dependency = dependency.strip_suffix(".workspace").unwrap_or(dependency);
+        if dependency.starts_with(prefix) && !allowed.contains(&dependency) {
+            return Err(format!(
+                "forbidden shell dependency {dependency} in {}",
                 path.display()
             )
             .into());
@@ -376,5 +486,28 @@ mod tests {
         ));
         assert!(!contains_rsx_tag("let value = match input {", "input"));
         assert!(!contains_rsx_tag("fn input() {", "input"));
+    }
+
+    #[test]
+    fn feature_manifests_reject_cross_feature_dependencies() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "erpx-architecture-feature-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("create architecture fixture");
+        let manifest = root.join("Cargo.toml");
+        fs::write(
+            &manifest,
+            "[dependencies]\nerpx-console-feature-finance.workspace = true\n",
+        )
+        .expect("write architecture fixture");
+        let error = reject_manifest_dependency_prefix(&manifest, "erpx-console-feature-")
+            .expect_err("cross-feature edge must be rejected");
+        assert!(error.to_string().contains("forbidden dependency"));
+        fs::remove_dir_all(root).expect("remove architecture fixture");
     }
 }

@@ -8,13 +8,17 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    domain::{AudienceMemberId, CampaignId, LeadCandidate, LeadCandidateId, MarketingDomainError},
+    domain::{
+        AudienceMemberId, BudgetAllocation, BudgetAllocationId, CampaignBudget, CampaignBudgetId,
+        CampaignId, LeadCandidate, LeadCandidateId, MarketingAggregate, MarketingDomainError,
+        SpendRequestId,
+    },
     integration,
     ports::{
-        AuthorizationPort, AuthorizationRequest, CommandFingerprint, CommandIdentity,
-        CommandUnitOfWork, EntitlementPort, LeadCandidateList, LeadCandidateListFilter,
-        LeadCandidateView, MarketingAction, MarketingCommit, PortError, ReadRepository,
-        StoredCommit, WriteRepository,
+        AuthorizationPort, AuthorizationRequest, CampaignBudgetView, CommandFingerprint,
+        CommandIdentity, CommandUnitOfWork, EntitlementPort, LeadCandidateList,
+        LeadCandidateListFilter, LeadCandidateView, MarketingAction, MarketingCommit, PortError,
+        ReadRepository, StoredCommit, WriteRepository,
     },
 };
 
@@ -45,12 +49,72 @@ pub struct RejectLeadCandidate {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateCampaignBudget {
+    pub budget_id: CampaignBudgetId,
+    pub campaign_id: CampaignId,
+    pub code: String,
+    pub name: String,
+    pub period: erpx_integration_contracts::marketing::CampaignBudgetPeriod,
+    pub requested_amount: erpx_integration_contracts::MoneyAmount,
+    pub dimensions: erpx_integration_contracts::DimensionSet,
+    pub allocations: Vec<BudgetAllocation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubmitCampaignBudget {
+    pub budget_id: CampaignBudgetId,
+    pub approval: erpx_integration_contracts::operations::ApprovalRequestFact,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApplyCampaignBudgetDecision {
+    pub budget_id: CampaignBudgetId,
+    pub decision: erpx_integration_contracts::operations::ApprovalDecisionFact,
+}
+
+macro_rules! budget_command {
+    ($name:ident) => {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+        pub struct $name {
+            pub budget_id: CampaignBudgetId,
+        }
+    };
+}
+
+budget_command!(StartCampaignBudget);
+budget_command!(CompleteCampaignBudget);
+budget_command!(CancelCampaignBudget);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReserveCampaignSpend {
+    pub budget_id: CampaignBudgetId,
+    pub request_id: SpendRequestId,
+    pub allocation_id: BudgetAllocationId,
+    pub amount: erpx_integration_contracts::MoneyAmount,
+    pub expected_outcome: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReleaseCampaignSpend {
+    pub budget_id: CampaignBudgetId,
+    pub request_id: SpendRequestId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "command", content = "payload", rename_all = "snake_case")]
 pub enum MarketingCommand {
     Create(CreateLeadCandidate),
     CaptureEngagement(CaptureEngagement),
     Qualify(QualifyLeadCandidate),
     Reject(RejectLeadCandidate),
+    CreateBudget(CreateCampaignBudget),
+    SubmitBudget(SubmitCampaignBudget),
+    ApplyBudgetDecision(ApplyCampaignBudgetDecision),
+    StartBudget(StartCampaignBudget),
+    CompleteBudget(CompleteCampaignBudget),
+    CancelBudget(CancelCampaignBudget),
+    ReserveSpend(ReserveCampaignSpend),
+    ReleaseSpend(ReleaseCampaignSpend),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -61,22 +125,40 @@ pub struct GetLeadCandidate {
 pub struct ListLeadCandidates {
     pub filter: LeadCandidateListFilter,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetCampaignBudget {
+    pub budget_id: CampaignBudgetId,
+}
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "query", content = "payload", rename_all = "snake_case")]
 pub enum MarketingQuery {
     Get(GetLeadCandidate),
     List(ListLeadCandidates),
+    GetBudget(GetCampaignBudget),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MarketingMutationResult {
-    pub candidate: LeadCandidateView,
+#[serde(tag = "aggregate", content = "value", rename_all = "snake_case")]
+pub enum MarketingMutationResult {
+    Candidate(LeadCandidateView),
+    CampaignBudget(Box<CampaignBudgetView>),
+}
+impl MarketingMutationResult {
+    fn from_aggregate(value: &MarketingAggregate) -> Result<Self, MarketingApplicationError> {
+        match value {
+            MarketingAggregate::LeadCandidate(value) => Ok(Self::Candidate(value.as_ref().into())),
+            MarketingAggregate::CampaignBudget(value) => Ok(Self::CampaignBudget(Box::new(
+                CampaignBudgetView::try_from(value.as_ref())?,
+            ))),
+        }
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "result", content = "value", rename_all = "snake_case")]
 pub enum MarketingQueryResponse {
     Candidate(Option<LeadCandidateView>),
     Candidates(LeadCandidateList),
+    CampaignBudget(Option<Box<CampaignBudgetView>>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -184,29 +266,97 @@ where
     ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
         envelope.validate()?;
         let correlation = envelope.correlation_id;
-        let action = match &envelope.command {
-            MarketingCommand::Create(_) => MarketingAction::Create,
-            MarketingCommand::CaptureEngagement(_) => MarketingAction::CaptureEngagement,
-            MarketingCommand::Qualify(_) => MarketingAction::Qualify,
-            MarketingCommand::Reject(_) => MarketingAction::Reject,
-        };
-        let fingerprint = match &envelope.command {
-            MarketingCommand::Create(c) => CommandFingerprint::Create {
-                lead_id: c.lead_id,
-                campaign_id: c.campaign_id,
-                audience_member_id: c.audience_member_id,
-                source: c.source.clone(),
-            },
-            MarketingCommand::CaptureEngagement(c) => CommandFingerprint::CaptureEngagement {
-                lead_id: c.lead_id,
-                channel: c.channel.clone(),
-                action: c.action.clone(),
-            },
-            MarketingCommand::Qualify(c) => CommandFingerprint::Qualify {
-                lead_id: c.lead_id,
-                score_basis_points: c.score_basis_points,
-            },
-            MarketingCommand::Reject(c) => CommandFingerprint::Reject { lead_id: c.lead_id },
+        let (action, fingerprint) = match &envelope.command {
+            MarketingCommand::Create(c) => (
+                MarketingAction::CreateLead,
+                CommandFingerprint::CreateLead {
+                    lead_id: c.lead_id,
+                    campaign_id: c.campaign_id,
+                    audience_member_id: c.audience_member_id,
+                    source: c.source.clone(),
+                },
+            ),
+            MarketingCommand::CaptureEngagement(c) => (
+                MarketingAction::CaptureEngagement,
+                CommandFingerprint::CaptureEngagement {
+                    lead_id: c.lead_id,
+                    channel: c.channel.clone(),
+                    action: c.action.clone(),
+                },
+            ),
+            MarketingCommand::Qualify(c) => (
+                MarketingAction::Qualify,
+                CommandFingerprint::Qualify {
+                    lead_id: c.lead_id,
+                    score_basis_points: c.score_basis_points,
+                },
+            ),
+            MarketingCommand::Reject(c) => (
+                MarketingAction::Reject,
+                CommandFingerprint::Reject { lead_id: c.lead_id },
+            ),
+            MarketingCommand::CreateBudget(c) => (
+                MarketingAction::CreateBudget,
+                CommandFingerprint::CreateBudget {
+                    budget_id: c.budget_id,
+                    campaign_id: c.campaign_id,
+                    code: c.code.clone(),
+                    name: c.name.clone(),
+                    period: c.period,
+                    requested_amount: c.requested_amount,
+                    dimensions: c.dimensions.clone(),
+                    allocations: c.allocations.clone(),
+                },
+            ),
+            MarketingCommand::SubmitBudget(c) => (
+                MarketingAction::SubmitBudget,
+                CommandFingerprint::SubmitBudget {
+                    budget_id: c.budget_id,
+                    approval: c.approval.clone(),
+                },
+            ),
+            MarketingCommand::ApplyBudgetDecision(c) => (
+                MarketingAction::ApplyBudgetDecision,
+                CommandFingerprint::ApplyBudgetDecision {
+                    budget_id: c.budget_id,
+                    decision: c.decision.clone(),
+                },
+            ),
+            MarketingCommand::StartBudget(c) => (
+                MarketingAction::StartBudget,
+                CommandFingerprint::StartBudget {
+                    budget_id: c.budget_id,
+                },
+            ),
+            MarketingCommand::CompleteBudget(c) => (
+                MarketingAction::CompleteBudget,
+                CommandFingerprint::CompleteBudget {
+                    budget_id: c.budget_id,
+                },
+            ),
+            MarketingCommand::CancelBudget(c) => (
+                MarketingAction::CancelBudget,
+                CommandFingerprint::CancelBudget {
+                    budget_id: c.budget_id,
+                },
+            ),
+            MarketingCommand::ReserveSpend(c) => (
+                MarketingAction::ReserveSpend,
+                CommandFingerprint::ReserveSpend {
+                    budget_id: c.budget_id,
+                    request_id: c.request_id,
+                    allocation_id: c.allocation_id,
+                    amount: c.amount,
+                    expected_outcome: c.expected_outcome.clone(),
+                },
+            ),
+            MarketingCommand::ReleaseSpend(c) => (
+                MarketingAction::ReleaseSpend,
+                CommandFingerprint::ReleaseSpend {
+                    budget_id: c.budget_id,
+                    request_id: c.request_id,
+                },
+            ),
         };
         let identity = CommandIdentity {
             command_id: envelope.command_id,
@@ -218,9 +368,8 @@ where
             .await
             .map_err(|e| to_cqrs(e, correlation))?
         {
-            let response = MarketingMutationResult {
-                candidate: (&stored.aggregate).into(),
-            };
+            let response = MarketingMutationResult::from_aggregate(&stored.aggregate)
+                .map_err(|e| to_cqrs(e, correlation))?;
             return Ok(stored.into_receipt(response));
         }
 
@@ -242,16 +391,18 @@ where
                 .await
                 .map_err(|e| to_cqrs(e, correlation))?;
                 (
-                    LeadCandidate::create(
-                        c.lead_id,
-                        envelope.tenant_scope.clone(),
-                        c.campaign_id,
-                        c.audience_member_id,
-                        c.source,
-                        c.existing_customer_id,
-                        at,
-                    )
-                    .map_err(|e| to_cqrs(e.into(), correlation))?,
+                    MarketingAggregate::LeadCandidate(Box::new(
+                        LeadCandidate::create(
+                            c.lead_id,
+                            envelope.tenant_scope.clone(),
+                            c.campaign_id,
+                            c.audience_member_id,
+                            c.source,
+                            c.existing_customer_id,
+                            at,
+                        )
+                        .map_err(|e| to_cqrs(e.into(), correlation))?,
+                    )),
                     None,
                 )
             }
@@ -270,7 +421,7 @@ where
                 value
                     .capture_engagement(c.channel, c.action, at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
-                (value, expected)
+                (MarketingAggregate::LeadCandidate(Box::new(value)), expected)
             }
             MarketingCommand::Qualify(c) => {
                 let mut value = self
@@ -287,7 +438,7 @@ where
                 value
                     .qualify(c.score_basis_points, at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
-                (value, expected)
+                (MarketingAggregate::LeadCandidate(Box::new(value)), expected)
             }
             MarketingCommand::Reject(c) => {
                 let mut value = self
@@ -304,7 +455,183 @@ where
                 value
                     .reject(at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
-                (value, expected)
+                (MarketingAggregate::LeadCandidate(Box::new(value)), expected)
+            }
+            MarketingCommand::CreateBudget(c) => {
+                if envelope.expected_aggregate_version.is_some() {
+                    return Err(to_cqrs(
+                        MarketingApplicationError::UnexpectedCreateVersion,
+                        correlation,
+                    ));
+                }
+                self.preflight(
+                    &envelope.actor,
+                    &envelope.tenant_scope,
+                    &envelope.tenant_scope,
+                    action,
+                )
+                .await
+                .map_err(|e| to_cqrs(e, correlation))?;
+                let budget = CampaignBudget::create(
+                    c.budget_id,
+                    envelope.tenant_scope.clone(),
+                    c.campaign_id,
+                    c.code,
+                    c.name,
+                    c.period,
+                    c.requested_amount,
+                    c.dimensions,
+                    c.allocations,
+                    at,
+                )
+                .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (MarketingAggregate::CampaignBudget(Box::new(budget)), None)
+            }
+            MarketingCommand::SubmitBudget(c) => {
+                let mut value = self
+                    .load_budget(
+                        &envelope.tenant_scope,
+                        c.budget_id,
+                        envelope.expected_aggregate_version,
+                        &envelope.actor,
+                        action,
+                        correlation,
+                    )
+                    .await?;
+                let expected = Some(value.version());
+                value
+                    .submit_for_review(c.approval, at)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (
+                    MarketingAggregate::CampaignBudget(Box::new(value)),
+                    expected,
+                )
+            }
+            MarketingCommand::ApplyBudgetDecision(c) => {
+                let mut value = self
+                    .load_budget(
+                        &envelope.tenant_scope,
+                        c.budget_id,
+                        envelope.expected_aggregate_version,
+                        &envelope.actor,
+                        action,
+                        correlation,
+                    )
+                    .await?;
+                let expected = Some(value.version());
+                value
+                    .apply_approval_decision(c.decision, at)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (
+                    MarketingAggregate::CampaignBudget(Box::new(value)),
+                    expected,
+                )
+            }
+            MarketingCommand::StartBudget(c) => {
+                let mut value = self
+                    .load_budget(
+                        &envelope.tenant_scope,
+                        c.budget_id,
+                        envelope.expected_aggregate_version,
+                        &envelope.actor,
+                        action,
+                        correlation,
+                    )
+                    .await?;
+                let expected = Some(value.version());
+                value
+                    .start(at)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (
+                    MarketingAggregate::CampaignBudget(Box::new(value)),
+                    expected,
+                )
+            }
+            MarketingCommand::CompleteBudget(c) => {
+                let mut value = self
+                    .load_budget(
+                        &envelope.tenant_scope,
+                        c.budget_id,
+                        envelope.expected_aggregate_version,
+                        &envelope.actor,
+                        action,
+                        correlation,
+                    )
+                    .await?;
+                let expected = Some(value.version());
+                value
+                    .complete(at)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (
+                    MarketingAggregate::CampaignBudget(Box::new(value)),
+                    expected,
+                )
+            }
+            MarketingCommand::CancelBudget(c) => {
+                let mut value = self
+                    .load_budget(
+                        &envelope.tenant_scope,
+                        c.budget_id,
+                        envelope.expected_aggregate_version,
+                        &envelope.actor,
+                        action,
+                        correlation,
+                    )
+                    .await?;
+                let expected = Some(value.version());
+                value
+                    .cancel(at)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (
+                    MarketingAggregate::CampaignBudget(Box::new(value)),
+                    expected,
+                )
+            }
+            MarketingCommand::ReserveSpend(c) => {
+                let mut value = self
+                    .load_budget(
+                        &envelope.tenant_scope,
+                        c.budget_id,
+                        envelope.expected_aggregate_version,
+                        &envelope.actor,
+                        action,
+                        correlation,
+                    )
+                    .await?;
+                let expected = Some(value.version());
+                value
+                    .reserve_spend(
+                        c.request_id,
+                        c.allocation_id,
+                        c.amount,
+                        c.expected_outcome,
+                        at,
+                    )
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (
+                    MarketingAggregate::CampaignBudget(Box::new(value)),
+                    expected,
+                )
+            }
+            MarketingCommand::ReleaseSpend(c) => {
+                let mut value = self
+                    .load_budget(
+                        &envelope.tenant_scope,
+                        c.budget_id,
+                        envelope.expected_aggregate_version,
+                        &envelope.actor,
+                        action,
+                        correlation,
+                    )
+                    .await?;
+                let expected = Some(value.version());
+                value
+                    .release_spend(c.request_id, at)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                (
+                    MarketingAggregate::CampaignBudget(Box::new(value)),
+                    expected,
+                )
             }
         };
         let events = integration::published_events(&aggregate.take_uncommitted_events())
@@ -324,9 +651,8 @@ where
             })
             .await
             .map_err(|e| to_cqrs(e.into(), correlation))?;
-        let response = MarketingMutationResult {
-            candidate: (&stored.aggregate).into(),
-        };
+        let response = MarketingMutationResult::from_aggregate(&stored.aggregate)
+            .map_err(|e| to_cqrs(e, correlation))?;
         Ok(stored.into_receipt(response))
     }
 }
@@ -350,7 +676,43 @@ where
     ) -> Result<LeadCandidate, CqrsError> {
         let value = self
             .write
-            .load(scope, id)
+            .load_lead(scope, id)
+            .await
+            .map_err(|e| to_cqrs(e.into(), correlation))?
+            .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+        self.preflight(actor, scope, value.scope(), action)
+            .await
+            .map_err(|e| to_cqrs(e, correlation))?;
+        let expected = expected.ok_or_else(|| {
+            to_cqrs(
+                MarketingApplicationError::MissingExpectedVersion,
+                correlation,
+            )
+        })?;
+        if expected != value.version() {
+            return Err(to_cqrs(
+                MarketingApplicationError::VersionConflict {
+                    expected,
+                    actual: value.version(),
+                },
+                correlation,
+            ));
+        }
+        Ok(value)
+    }
+
+    async fn load_budget(
+        &self,
+        scope: &TenantScope,
+        id: CampaignBudgetId,
+        expected: Option<u64>,
+        actor: &erpx_kernel::ActorAttribution,
+        action: MarketingAction,
+        correlation: CorrelationId,
+    ) -> Result<CampaignBudget, CqrsError> {
+        let value = self
+            .write
+            .load_budget(scope, id)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation))?
             .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
@@ -409,10 +771,10 @@ where
             .ensure_marketing_enabled(&envelope.tenant_scope, false)
             .await
             .map_err(|e| to_cqrs(e.into(), correlation))?;
-        let action = if matches!(&envelope.query, MarketingQuery::Get(_)) {
-            MarketingAction::View
-        } else {
-            MarketingAction::List
+        let action = match &envelope.query {
+            MarketingQuery::Get(_) => MarketingAction::ViewLead,
+            MarketingQuery::List(_) => MarketingAction::ListLeads,
+            MarketingQuery::GetBudget(_) => MarketingAction::ViewBudget,
         };
         self.authorization
             .authorize(AuthorizationRequest {
@@ -427,7 +789,7 @@ where
             MarketingQuery::Get(q) => {
                 let projected = self
                     .read
-                    .get(&envelope.tenant_scope, q.lead_id, &envelope.consistency)
+                    .get_lead(&envelope.tenant_scope, q.lead_id, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 Ok(QueryResult {
@@ -448,11 +810,26 @@ where
                 }
                 let projected = self
                     .read
-                    .list(&envelope.tenant_scope, &q.filter, &envelope.consistency)
+                    .list_leads(&envelope.tenant_scope, &q.filter, &envelope.consistency)
                     .await
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 Ok(QueryResult {
                     value: MarketingQueryResponse::Candidates(projected.value),
+                    metadata: QueryMetadata {
+                        correlation_id: correlation,
+                        projection: projected.metadata,
+                        consistency: envelope.consistency,
+                    },
+                })
+            }
+            MarketingQuery::GetBudget(q) => {
+                let projected = self
+                    .read
+                    .get_budget(&envelope.tenant_scope, q.budget_id, &envelope.consistency)
+                    .await
+                    .map_err(|e| port_to_cqrs(e, correlation))?;
+                Ok(QueryResult {
+                    value: MarketingQueryResponse::CampaignBudget(projected.value.map(Box::new)),
                     metadata: QueryMetadata {
                         correlation_id: correlation,
                         projection: projected.metadata,

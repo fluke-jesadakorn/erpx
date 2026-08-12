@@ -258,11 +258,9 @@ impl NamedWorkerHandler for TenantBackupRetentionRuntimeHandler {
                     }
                 }
             }
-            if !claim.dry_run && self.backup_adapter.is_some() {
-                let adapter = self
-                    .backup_adapter
-                    .as_ref()
-                    .expect("adapter presence was checked above");
+            if !claim.dry_run
+                && let Some(adapter) = self.backup_adapter.as_ref()
+            {
                 let objects = match self.control.list_backup_retention_objects(&claim).await {
                     Ok(objects) => objects,
                     Err(_) => {

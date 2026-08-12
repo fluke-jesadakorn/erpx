@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use erpx_cqrs::{
     CommandReceipt, EventPosition, IdempotencyKey, ProjectionMetadata, ProjectionNotReady,
     QueryConsistency,
@@ -19,6 +19,7 @@ pub enum CrmAction {
     AcceptLead,
     CreateOpportunity,
     TransitionOpportunity,
+    UpdateOpportunityForecast,
     ViewLead,
     ViewOpportunity,
     ListOpportunities,
@@ -27,7 +28,10 @@ impl CrmAction {
     pub const fn write(self) -> bool {
         matches!(
             self,
-            Self::AcceptLead | Self::CreateOpportunity | Self::TransitionOpportunity
+            Self::AcceptLead
+                | Self::CreateOpportunity
+                | Self::TransitionOpportunity
+                | Self::UpdateOpportunityForecast
         )
     }
 }
@@ -49,6 +53,16 @@ pub enum CommandFingerprint {
     TransitionOpportunity {
         opportunity_id: OpportunityId,
         stage: OpportunityStage,
+    },
+    UpdateOpportunityForecast {
+        opportunity_id: OpportunityId,
+        account: crm::CrmAccountRef,
+        owner: String,
+        category: crm::PipelineCategory,
+        probability_basis_points: u16,
+        expected_value_minor: i64,
+        expected_close_on: NaiveDate,
+        originating_campaign: Option<erpx_integration_contracts::marketing::CampaignRef>,
     },
 }
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -171,6 +185,12 @@ pub struct OpportunityView {
     pub expected_value_minor: i64,
     pub currency: String,
     pub stage: OpportunityStage,
+    pub account: Option<crm::CrmAccountRef>,
+    pub owner: Option<String>,
+    pub pipeline_category: Option<crm::PipelineCategory>,
+    pub probability_basis_points: Option<u16>,
+    pub expected_close_on: Option<NaiveDate>,
+    pub originating_campaign: Option<erpx_integration_contracts::marketing::CampaignRef>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -186,6 +206,12 @@ impl From<&crate::domain::CrmOpportunity> for OpportunityView {
             expected_value_minor: v.expected_value_minor(),
             currency: v.currency().into(),
             stage: v.stage(),
+            account: v.account(),
+            owner: v.owner().map(str::to_owned),
+            pipeline_category: v.pipeline_category(),
+            probability_basis_points: v.probability_basis_points(),
+            expected_close_on: v.expected_close_on(),
+            originating_campaign: v.originating_campaign(),
             created_at: v.created_at(),
             updated_at: v.updated_at(),
         }

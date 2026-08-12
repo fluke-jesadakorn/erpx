@@ -105,7 +105,7 @@ const OWNER_PERMISSIONS: &[&str] = &[
 
 /// Tenant-scoped direct-v1 projectors that must establish an initial durable
 /// checkpoint before the Server is allowed to accept traffic.
-const INITIAL_TENANT_PROJECTIONS: [&str; 22] = [
+const INITIAL_TENANT_PROJECTIONS: [&str; 26] = [
     "quality.inspections",
     "identity_access.principals",
     "identity_access.roles",
@@ -113,6 +113,7 @@ const INITIAL_TENANT_PROJECTIONS: [&str; 22] = [
     "commercial.subscriptions",
     "commercial.entitlements",
     "marketing.lead_candidates",
+    "marketing.campaign_budgets",
     "crm.leads",
     "crm.opportunities",
     "procurement.purchase_orders",
@@ -122,6 +123,9 @@ const INITIAL_TENANT_PROJECTIONS: [&str; 22] = [
     "maintenance.asset_facts",
     "sales.quotes",
     "sales.orders",
+    "sales.revenue_arrangements",
+    "finance.customer_invoices",
+    "finance.revenue_schedules",
     "people_payroll.employees",
     "people_payroll.leave_requests",
     "people_payroll.expense_claims",

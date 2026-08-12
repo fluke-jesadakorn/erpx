@@ -1,0 +1,43 @@
+[package]
+name = "erpx-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+autotests = false
+
+[[test]]
+name = "ui_domains"
+path = "tests/ui_domains.rs"
+
+[[test]]
+name = "ui_platform"
+path = "tests/ui_platform.rs"
+
+[[test]]
+name = "ui_kit"
+path = "tests/ui_kit.rs"
+
+[dependencies]
+erpx-ui-core.workspace = true
+erpx-ui-crm.workspace = true
+erpx-ui-customer-360.workspace = true
+erpx-ui-finance.workspace = true
+erpx-ui-kit.workspace = true
+erpx-ui-legal.workspace = true
+erpx-ui-operations.workspace = true
+erpx-ui-people-payroll.workspace = true
+erpx-ui-platform.workspace = true
+erpx-ui-pos.workspace = true
+erpx-ui-support.workspace = true
+dioxus = { workspace = true, features = ["asset", "document", "html", "hooks", "macro", "signals"] }
+
+[features]
+default = []
+web = ["erpx-ui-core/web", "erpx-ui-kit/web"]
+
+[dev-dependencies]
+dioxus-ssr.workspace = true
+
+[lints]
+workspace = true

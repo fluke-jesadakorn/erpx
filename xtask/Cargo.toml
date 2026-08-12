@@ -34,6 +34,7 @@ required-features = ["heavy"]
 
 [dependencies]
 base64 = { workspace = true, optional = true }
+brotli.workspace = true
 chrono = { workspace = true, optional = true }
 erpx-application = { workspace = true, optional = true }
 erpx-domain = { workspace = true, optional = true }

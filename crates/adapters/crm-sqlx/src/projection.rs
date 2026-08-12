@@ -141,8 +141,8 @@ impl Projector for CrmOpportunityProjector {
             ));
         };
         let state = serde_json::to_value(&view).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_crm_read.opportunity_projection (projection_name,generation,partition_key,opportunity_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,accepted_lead_id,customer_id,name,expected_value_minor,currency,opportunity_stage,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (projection_name,generation,partition_key,opportunity_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,accepted_lead_id=EXCLUDED.accepted_lead_id,customer_id=EXCLUDED.customer_id,name=EXCLUDED.name,expected_value_minor=EXCLUDED.expected_value_minor,currency=EXCLUDED.currency,opportunity_stage=EXCLUDED.opportunity_stage,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_crm_read.opportunity_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
-            .bind(OPPORTUNITY_PROJECTION).bind(context.generation).bind(&event.partition).bind(view.id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?).bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?).bind(view.accepted_lead_id.as_uuid()).bind(view.customer_id).bind(&view.name).bind(view.expected_value_minor).bind(&view.currency).bind(stage_name(view.stage)).bind(state).bind(view.created_at).bind(view.updated_at).execute(&mut **transaction).await.map_err(failure)?;
+        sqlx::query("INSERT INTO erpx_crm_read.opportunity_projection (projection_name,generation,partition_key,opportunity_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,accepted_lead_id,customer_id,name,expected_value_minor,currency,opportunity_stage,account_id,owner_ref,pipeline_category,probability_basis_points,expected_close_on,originating_campaign_id,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,now()) ON CONFLICT (projection_name,generation,partition_key,opportunity_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,accepted_lead_id=EXCLUDED.accepted_lead_id,customer_id=EXCLUDED.customer_id,name=EXCLUDED.name,expected_value_minor=EXCLUDED.expected_value_minor,currency=EXCLUDED.currency,opportunity_stage=EXCLUDED.opportunity_stage,account_id=EXCLUDED.account_id,owner_ref=EXCLUDED.owner_ref,pipeline_category=EXCLUDED.pipeline_category,probability_basis_points=EXCLUDED.probability_basis_points,expected_close_on=EXCLUDED.expected_close_on,originating_campaign_id=EXCLUDED.originating_campaign_id,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_crm_read.opportunity_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+            .bind(OPPORTUNITY_PROJECTION).bind(context.generation).bind(&event.partition).bind(view.id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?).bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?).bind(view.accepted_lead_id.as_uuid()).bind(view.customer_id).bind(&view.name).bind(view.expected_value_minor).bind(&view.currency).bind(stage_name(view.stage)).bind(view.account.map(|v|v.as_uuid())).bind(&view.owner).bind(view.pipeline_category.map(pipeline_category_name)).bind(view.probability_basis_points.map(i32::from)).bind(view.expected_close_on).bind(view.originating_campaign.map(|v|v.as_uuid())).bind(state).bind(view.created_at).bind(view.updated_at).execute(&mut **transaction).await.map_err(failure)?;
         Ok(())
     }
     async fn reset(
@@ -208,6 +208,16 @@ pub(crate) const fn stage_name(value: OpportunityStage) -> &'static str {
         OpportunityStage::Negotiation => "negotiation",
         OpportunityStage::Won => "won",
         OpportunityStage::Lost => "lost",
+    }
+}
+pub(crate) const fn pipeline_category_name(
+    value: erpx_integration_contracts::crm::PipelineCategory,
+) -> &'static str {
+    match value {
+        erpx_integration_contracts::crm::PipelineCategory::Pipeline => "pipeline",
+        erpx_integration_contracts::crm::PipelineCategory::BestCase => "best_case",
+        erpx_integration_contracts::crm::PipelineCategory::Commit => "commit",
+        erpx_integration_contracts::crm::PipelineCategory::Closed => "closed",
     }
 }
 fn to_i64(value: u64) -> Result<i64, ProjectionFailure> {

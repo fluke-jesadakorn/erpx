@@ -9,7 +9,7 @@ pub mod ports;
 pub use application::{
     AcceptMarketingLead, CreateOpportunity, CrmApplicationError, CrmCommand, CrmCommandHandler,
     CrmMutationResult, CrmQuery, CrmQueryHandler, CrmQueryResponse, GetCrmLead, GetOpportunity,
-    ListOpportunities, TransitionOpportunity,
+    ListOpportunities, TransitionOpportunity, UpdateOpportunityForecast,
 };
 pub use domain::{
     CrmAggregate, CrmDomainError, CrmLead, CrmLeadId, CrmOpportunity, OpportunityId,

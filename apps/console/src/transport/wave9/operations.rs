@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
-use erpx_integration_contracts::{BoundedContext, identity_access};
+use erpx_integration_contracts::{BoundedContext, identity_access, operations};
 use erpx_kernel::{AggregateId, CorrelationId, EventId};
 use erpx_operations::{
     ExceptionId, ExceptionQueue, ExceptionStatus, ExceptionView, OperationsCommand,
@@ -94,6 +94,20 @@ impl OperationsProtoTransport for OperationsGrpcTransport {
                     .escalate_exception(self.auth.request(request, &actor)?)
                     .await
                     .map_err(|status| status_ui("escalate Operations exception", status))?
+                    .into_inner();
+                exception_command(response, expected_command, expected_correlation)
+            }
+            OperationsCommand::DecideApproval(value) => {
+                let request = wire::DecideOperationsApprovalRequest {
+                    metadata: Some(metadata),
+                    exception_id: value.exception_id.as_uuid().to_string(),
+                    decision: encode_approval_decision(value.decision),
+                    reason_code: value.reason_code,
+                };
+                let response = client
+                    .decide_approval(self.auth.request(request, &actor)?)
+                    .await
+                    .map_err(|status| status_ui("decide Operations approval", status))?
                     .into_inner();
                 exception_command(response, expected_command, expected_correlation)
             }
@@ -376,6 +390,16 @@ fn decode_summary(value: wire::OperationsSummaryRecord) -> Result<OperationsSumm
             .map(|value| timestamp(&value))
             .transpose()?,
     })
+}
+
+fn encode_approval_decision(value: operations::ApprovalDecision) -> i32 {
+    match value {
+        operations::ApprovalDecision::Approved => wire::OperationsApprovalDecision::Approved as i32,
+        operations::ApprovalDecision::Rejected => wire::OperationsApprovalDecision::Rejected as i32,
+        operations::ApprovalDecision::Cancelled => {
+            wire::OperationsApprovalDecision::Cancelled as i32
+        }
+    }
 }
 
 fn encode_status(value: ExceptionStatus) -> i32 {

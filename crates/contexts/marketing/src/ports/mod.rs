@@ -11,28 +11,41 @@ use erpx_kernel::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::domain::{LeadCandidate, LeadCandidateId, LeadCandidateStatus};
+use crate::domain::{
+    BudgetAllocation, BudgetAllocationId, CampaignBudget, CampaignBudgetId, CampaignBudgetStatus,
+    LeadCandidate, LeadCandidateId, LeadCandidateStatus, MarketingAggregate, SpendRequestId,
+    SpendReservation,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MarketingAction {
-    Create,
+    CreateLead,
     CaptureEngagement,
     Qualify,
     Reject,
-    View,
-    List,
+    CreateBudget,
+    SubmitBudget,
+    ApplyBudgetDecision,
+    StartBudget,
+    CompleteBudget,
+    CancelBudget,
+    ReserveSpend,
+    ReleaseSpend,
+    ViewLead,
+    ListLeads,
+    ViewBudget,
 }
 impl MarketingAction {
     pub const fn write(self) -> bool {
-        !matches!(self, Self::View | Self::List)
+        !matches!(self, Self::ViewLead | Self::ListLeads | Self::ViewBudget)
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
 pub enum CommandFingerprint {
-    Create {
+    CreateLead {
         lead_id: LeadCandidateId,
         campaign_id: crate::domain::CampaignId,
         audience_member_id: crate::domain::AudienceMemberId,
@@ -49,6 +62,44 @@ pub enum CommandFingerprint {
     },
     Reject {
         lead_id: LeadCandidateId,
+    },
+    CreateBudget {
+        budget_id: CampaignBudgetId,
+        campaign_id: crate::domain::CampaignId,
+        code: String,
+        name: String,
+        period: erpx_integration_contracts::marketing::CampaignBudgetPeriod,
+        requested_amount: erpx_integration_contracts::MoneyAmount,
+        dimensions: erpx_integration_contracts::DimensionSet,
+        allocations: Vec<BudgetAllocation>,
+    },
+    SubmitBudget {
+        budget_id: CampaignBudgetId,
+        approval: erpx_integration_contracts::operations::ApprovalRequestFact,
+    },
+    ApplyBudgetDecision {
+        budget_id: CampaignBudgetId,
+        decision: erpx_integration_contracts::operations::ApprovalDecisionFact,
+    },
+    StartBudget {
+        budget_id: CampaignBudgetId,
+    },
+    CompleteBudget {
+        budget_id: CampaignBudgetId,
+    },
+    CancelBudget {
+        budget_id: CampaignBudgetId,
+    },
+    ReserveSpend {
+        budget_id: CampaignBudgetId,
+        request_id: SpendRequestId,
+        allocation_id: BudgetAllocationId,
+        amount: erpx_integration_contracts::MoneyAmount,
+        expected_outcome: String,
+    },
+    ReleaseSpend {
+        budget_id: CampaignBudgetId,
+        request_id: SpendRequestId,
     },
 }
 
@@ -80,11 +131,16 @@ pub trait EntitlementPort: Send + Sync {
 }
 #[async_trait]
 pub trait WriteRepository: Send + Sync {
-    async fn load(
+    async fn load_lead(
         &self,
         scope: &TenantScope,
         id: LeadCandidateId,
     ) -> Result<Option<LeadCandidate>, PortError>;
+    async fn load_budget(
+        &self,
+        scope: &TenantScope,
+        id: CampaignBudgetId,
+    ) -> Result<Option<CampaignBudget>, PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,7 +152,7 @@ pub struct MarketingCommit {
     pub authority_scope: TenantScope,
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
-    pub aggregate: LeadCandidate,
+    pub aggregate: MarketingAggregate,
     pub integration_events: Vec<marketing::Event>,
 }
 
@@ -104,7 +160,7 @@ pub struct MarketingCommit {
 pub struct StoredCommit {
     pub command_id: CommandId,
     pub correlation_id: CorrelationId,
-    pub aggregate: LeadCandidate,
+    pub aggregate: MarketingAggregate,
     pub committed_events: Vec<EventPosition>,
     pub committed_at: DateTime<Utc>,
     pub replayed: bool,
@@ -116,8 +172,8 @@ impl StoredCommit {
             correlation_id: self.correlation_id,
             aggregate: erpx_cqrs::AggregateVersion {
                 context: "marketing".into(),
-                aggregate_type: "lead_candidate".into(),
-                aggregate_id: AggregateId::try_from_uuid(self.aggregate.id().as_uuid())
+                aggregate_type: self.aggregate.aggregate_type().into(),
+                aggregate_id: AggregateId::try_from_uuid(self.aggregate.id_uuid())
                     .expect("validated Marketing id"),
                 version: self.aggregate.version(),
             },
@@ -173,6 +229,61 @@ impl From<&LeadCandidate> for LeadCandidateView {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CampaignBudgetView {
+    pub id: CampaignBudgetId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub campaign_id: crate::domain::CampaignId,
+    pub code: String,
+    pub name: String,
+    pub period: erpx_integration_contracts::marketing::CampaignBudgetPeriod,
+    pub requested_amount: erpx_integration_contracts::MoneyAmount,
+    pub approved_amount: Option<erpx_integration_contracts::MoneyAmount>,
+    pub reserved_minor: i64,
+    pub available_minor: i64,
+    pub dimensions: erpx_integration_contracts::DimensionSet,
+    pub allocations: Vec<BudgetAllocation>,
+    pub reservations: Vec<SpendReservation>,
+    pub approval_request: Option<erpx_integration_contracts::operations::ApprovalRequestRef>,
+    pub status: CampaignBudgetStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl TryFrom<&CampaignBudget> for CampaignBudgetView {
+    type Error = PortError;
+
+    fn try_from(value: &CampaignBudget) -> Result<Self, Self::Error> {
+        let reserved_minor = value.reserved_minor().map_err(|_| PortError::Internal)?;
+        let available_minor = value
+            .approved_amount()
+            .map_or(0, |amount| amount.minor_units())
+            .checked_sub(reserved_minor)
+            .ok_or(PortError::Internal)?;
+        Ok(Self {
+            id: value.id(),
+            version: value.version(),
+            scope: value.scope().clone(),
+            campaign_id: value.campaign_id(),
+            code: value.code().into(),
+            name: value.name().into(),
+            period: value.period(),
+            requested_amount: value.requested_amount(),
+            approved_amount: value.approved_amount(),
+            reserved_minor,
+            available_minor,
+            dimensions: value.dimensions().clone(),
+            allocations: value.allocations().to_vec(),
+            reservations: value.reservations().values().cloned().collect(),
+            approval_request: value.approval_request(),
+            status: value.status(),
+            created_at: value.created_at(),
+            updated_at: value.updated_at(),
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct LeadCandidateListFilter {
     pub status: Option<LeadCandidateStatus>,
@@ -193,18 +304,24 @@ pub struct ReadProjection<T> {
 /// Disposable projection access. This port intentionally cannot access the write database.
 #[async_trait]
 pub trait ReadRepository: Send + Sync {
-    async fn get(
+    async fn get_lead(
         &self,
         scope: &TenantScope,
         id: LeadCandidateId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<LeadCandidateView>>, PortError>;
-    async fn list(
+    async fn list_leads(
         &self,
         scope: &TenantScope,
         filter: &LeadCandidateListFilter,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<LeadCandidateList>, PortError>;
+    async fn get_budget(
+        &self,
+        scope: &TenantScope,
+        id: CampaignBudgetId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<CampaignBudgetView>>, PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]

@@ -330,6 +330,7 @@ where
             assets::Event::MaintenanceRequested {
                 asset,
                 request_code,
+                ..
             } => (*asset, request_code.as_str().to_owned()),
             assets::Event::AssetConditionChanged(_) => {
                 return Err(to_cqrs(

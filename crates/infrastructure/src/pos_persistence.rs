@@ -177,7 +177,7 @@ impl SqlxPosPersistence {
         let customer = optional_reference_columns(sale.customer.as_ref(), "customer")?;
         let register = optional_reference_columns(sale.register.as_ref(), "register")?;
 
-        if current.is_some() {
+        if let Some((current_version, ..)) = current.as_ref() {
             sqlx::query(
                 "UPDATE erpx_tenant.pos_sales
                  SET holding_id=$3, company_id=$4, branch_id=$5, reference=$6,
@@ -217,10 +217,7 @@ impl SqlxPosPersistence {
             .bind(idempotency_key)
             .bind(sale.created_at)
             .bind(sale.updated_at)
-            .bind(as_i64(
-                current.as_ref().expect("current row checked").0,
-                "POS sale version",
-            )?)
+            .bind(as_i64(*current_version, "POS sale version")?)
             .execute(&mut *tx)
             .await?
             .rows_affected();

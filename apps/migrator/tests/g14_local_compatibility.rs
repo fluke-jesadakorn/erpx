@@ -32,7 +32,7 @@ const PLATFORM_ADMINISTRATION_PROTO: &str =
 const MOBILE_AUTH: &str = include_str!("../../../crates/ui/src/auth.rs");
 const MOBILE_SESSION_TARGET: &str = include_str!("../../../crates/ui/src/session_target.rs");
 const ANDROID_BRIDGE: &str = include_str!("../../../crates/android-bridge/src/lib.rs");
-const CONSOLE_COMPOSITION: &str = include_str!("../../console/src/transport/composition.rs");
+const CONSOLE_COMPOSITION: &str = include_str!("../../console/src/composition.rs");
 const CONSOLE_TRANSPORT: &str = include_str!("../../console/src/transport/mod.rs");
 const PITR: &str = include_str!("../../../crates/infrastructure/src/pitr.rs");
 const BACKUP_RUNTIME: &str = include_str!("../../worker/src/backup_runtime.rs");
@@ -1271,7 +1271,7 @@ fn g14_mobile_and_pitr_boundaries_are_source_verified_and_external_proof_is_queu
     );
     require_markers(
         CONSOLE_COMPOSITION,
-        "apps/console/src/transport/composition.rs",
+        "apps/console/src/composition.rs",
         &[
             "TargetSecureSessionAdapter::new",
             "restore_and_revalidate_secure_session",
@@ -1373,7 +1373,7 @@ fn g14_console_deployment_inputs_are_source_bound_and_tls_when_configured() {
     );
     require_markers(
         CONSOLE_COMPOSITION,
-        "apps/console/src/transport/composition.rs",
+        "apps/console/src/composition.rs",
         &[
             "use crate::transport::GRPC_ENDPOINT",
             "Endpoint::from_static(GRPC_ENDPOINT)",
@@ -1417,7 +1417,7 @@ fn g14_console_deployment_inputs_are_source_bound_and_tls_when_configured() {
 fn g14_console_startup_deep_link_contract_is_bound_and_hash_restore_is_queued_if_absent() {
     require_ordered_markers(
         CONSOLE_COMPOSITION,
-        "apps/console/src/transport/composition.rs",
+        "apps/console/src/composition.rs",
         &[
             "let initial_resolution = console_route_resolution_for(&initial_path",
             "let initial_destination = match initial_resolution.clone()",
@@ -1429,7 +1429,7 @@ fn g14_console_startup_deep_link_contract_is_bound_and_hash_restore_is_queued_if
     );
     require_markers(
         CONSOLE_COMPOSITION,
-        "apps/console/src/transport/composition.rs",
+        "apps/console/src/composition.rs",
         &[
             "enum ConsoleRouteResolution",
             "ConsoleRouteFailureKind::Forbidden",

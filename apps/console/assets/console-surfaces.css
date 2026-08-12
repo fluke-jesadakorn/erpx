@@ -416,10 +416,7 @@ html, body { min-height: 100%; max-width: 100%; background: var(--erpx-light-bg,
   align-content: start;
   gap: 20px;
   min-height: 0;
-  overflow-y: auto;
   padding: 2px 6px 12px 1px;
-  scrollbar-gutter: stable;
-  overscroll-behavior: contain;
 }
 .work-role-group { display: grid; gap: 9px; }
 .work-role-group-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--erpx-border); padding: 0 2px 8px; }
@@ -1160,6 +1157,40 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
 /* The authorized side rail already owns Platform Operations navigation. */
 .ui-shell .platform-operations-route-tabs { display: none; }
 
+/* Role-scoped Assets / Maintenance CQRS flow. */
+.active-asset-maintenance-workspace { display: grid; min-width: 0; gap: 14px; }
+.active-workspace-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.active-workspace-toolbar h2 { margin: 3px 0 0; }
+.active-workspace-toolbar p { margin: 5px 0 0; color: var(--erpx-text-muted); font-size: 11px; }
+.active-workspace-state { display: grid; min-height: 210px; place-content: center; gap: 8px; text-align: center; }
+.active-workspace-state p { max-width: 58ch; color: var(--erpx-text-muted); }
+.active-workspace-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }
+.active-workspace-form label,
+.active-workspace-actions label,
+.downtime-form label { display: grid; min-width: 0; gap: 6px; color: var(--erpx-text-muted); font-size: 11px; font-weight: 650; }
+.active-workspace-form :where(input, select),
+.active-workspace-actions :where(input, select),
+.downtime-form :where(input, select) { width: 100%; min-height: 40px; border: 1px solid var(--erpx-border); border-radius: var(--erpx-radius, 9px); outline: 0; padding: 9px 11px; background: var(--erpx-bg); color: var(--erpx-text); }
+.active-workspace-locked-field { display: grid; gap: 6px; border: 1px solid var(--erpx-border); border-radius: var(--erpx-radius, 9px); padding: 9px 11px; background: var(--erpx-surface-raised); }
+.active-workspace-locked-field span { color: var(--erpx-text-muted); font-size: 10px; }
+.active-workspace-list .table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--erpx-border); border-radius: var(--erpx-radius, 10px); }
+.active-workspace-list table { width: 100%; min-width: 620px; border-collapse: collapse; }
+.active-workspace-list :where(th, td) { border-bottom: 1px solid var(--erpx-border); padding: 10px 12px; text-align: left; font-size: 11px; }
+.active-workspace-list th { color: var(--erpx-text-muted); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+.active-workspace-list tbody tr:last-child td { border-bottom: 0; }
+.active-workspace-list tbody tr.selected { background: color-mix(in srgb, var(--erpx-primary) 9%, transparent); }
+.table-row-link { border: 0; padding: 0; background: transparent; color: var(--erpx-link); cursor: pointer; font: inherit; font-weight: 700; text-align: left; }
+.active-detail-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.active-detail-heading h3 { margin: 0; }
+.active-detail-heading p { margin: 5px 0 0; color: var(--erpx-text-muted); font-size: 11px; }
+.active-workspace-actions { display: flex; align-items: end; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.active-workspace-actions > label { flex: 1 1 220px; }
+.maintenance-title-field { min-width: min(100%, 280px); }
+.downtime-form { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)) auto; align-items: end; width: 100%; gap: 10px; border-top: 1px solid var(--erpx-border); margin-top: 4px; padding-top: 14px; }
+.active-workspace-actions .button.danger { color: var(--erpx-danger); }
+.active-workspace-state .button,
+.active-asset-create > .button { justify-self: start; }
+
 @media (max-width: 760px) {
   .ui-shell .projection-card { grid-template-columns: minmax(0, 1fr); }
   .ui-shell .projection-card > * { grid-column: 1; }
@@ -1173,6 +1204,14 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
   .ui-shell .erpx-directory-commands > .command-grid:has(> label) { grid-template-columns: minmax(0, 1fr) !important; }
   .ui-shell .erpx-directory-commands > .command-grid:has(> label) > * { grid-column: 1 !important; }
   .ui-shell .erpx-directory-commands > .command-grid .button { width: 100%; }
+  .active-workspace-toolbar { flex-direction: column; }
+  .active-workspace-toolbar > .button { width: 100%; }
+  .active-workspace-form { grid-template-columns: minmax(0, 1fr); }
+  .active-workspace-actions { align-items: stretch; flex-direction: column; }
+  .active-workspace-actions > :where(.button, label) { width: 100%; }
+  .downtime-form { grid-template-columns: minmax(0, 1fr); }
+  .active-asset-create > .button,
+  .downtime-form > .button { width: 100%; }
 }
 
 /* Premium command center and public-shell cutover. */

@@ -53,7 +53,7 @@ impl Wave67Route {
 #[derive(Clone)]
 pub(crate) struct AuthenticatedRoute {
     token: String,
-    route: Wave67Route,
+    route: Option<Wave67Route>,
 }
 
 impl AuthenticatedRoute {
@@ -65,7 +65,21 @@ impl AuthenticatedRoute {
         {
             return Err(invalid_request("build authenticated transport"));
         }
-        Ok(Self { token, route })
+        Ok(Self {
+            token,
+            route: Some(route),
+        })
+    }
+
+    pub(crate) fn try_active_scope(token: impl Into<String>) -> Result<Self, UiError> {
+        let token = token.into();
+        if token.trim().is_empty()
+            || token.len() > MAX_ACCESS_TOKEN_LENGTH
+            || token.chars().any(char::is_control)
+        {
+            return Err(invalid_request("build authenticated transport"));
+        }
+        Ok(Self { token, route: None })
     }
 
     pub(crate) fn command<C>(
@@ -92,7 +106,7 @@ impl AuthenticatedRoute {
             expected_aggregate_version: value.expected_aggregate_version,
             subscription_id: None,
             mfa_code: None,
-            tenant_route: Some(self.route.wire()),
+            tenant_route: self.route.as_ref().map(Wave67Route::wire),
         })
     }
 
@@ -116,7 +130,7 @@ impl AuthenticatedRoute {
                 correlation_id: value.correlation_id.to_string(),
             }),
             consistency: Some(encode_consistency(&value.consistency)),
-            tenant_route: Some(self.route.wire()),
+            tenant_route: self.route.as_ref().map(Wave67Route::wire),
         })
     }
 

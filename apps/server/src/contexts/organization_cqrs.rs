@@ -49,7 +49,7 @@ pub struct OrganizationAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
     presented_scope: TenantScope,
-    presented_route: OrganizationTenantRoute,
+    presented_route: Option<OrganizationTenantRoute>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: OrganizationAccessMode,
@@ -65,8 +65,8 @@ impl OrganizationAuthenticationRequest {
     pub const fn presented_scope(&self) -> &TenantScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> &OrganizationTenantRoute {
-        &self.presented_route
+    pub const fn presented_route(&self) -> Option<&OrganizationTenantRoute> {
+        self.presented_route.as_ref()
     }
     pub fn subscription_id(&self) -> Option<&str> {
         self.subscription_id.as_deref()
@@ -99,8 +99,6 @@ impl AuthenticatedOrganizationRequest {
             .validate()
             .map_err(|_| OrganizationAuthenticationError::Internal)?;
         validate_route(&tenant_route).map_err(|_| OrganizationAuthenticationError::Internal)?;
-        validate_route_scope(&tenant_route, &tenant_scope)
-            .map_err(|_| OrganizationAuthenticationError::Internal)?;
         Ok(Self {
             actor,
             tenant_scope,
@@ -504,14 +502,14 @@ where
 }
 
 struct DecodedCommand<C> {
-    presented_route: OrganizationTenantRoute,
+    presented_route: Option<OrganizationTenantRoute>,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 
 struct DecodedQuery<Q> {
-    presented_route: OrganizationTenantRoute,
+    presented_route: Option<OrganizationTenantRoute>,
     envelope: QueryEnvelope<Q>,
 }
 
@@ -601,7 +599,6 @@ fn decode_command<C>(
     envelope
         .validate()
         .map_err(|_| invalid("command metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.tenant_scope)?;
     Ok(DecodedCommand {
         presented_route: route,
         envelope,
@@ -636,7 +633,6 @@ fn decode_query<Q>(
     envelope
         .validate()
         .map_err(|_| invalid("query metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.tenant_scope)?;
     Ok(DecodedQuery {
         presented_route: route,
         envelope,
@@ -818,14 +814,18 @@ const fn encode_status(value: OrganizationNodeStatus) -> i32 {
     }
 }
 
-fn decode_route(route: Option<common::TenantRoute>) -> Result<OrganizationTenantRoute, Status> {
-    let route = route.ok_or_else(|| invalid("tenant route is required"))?;
+fn decode_route(
+    route: Option<common::TenantRoute>,
+) -> Result<Option<OrganizationTenantRoute>, Status> {
+    let Some(route) = route else {
+        return Ok(None);
+    };
     let route = OrganizationTenantRoute {
         tenant_id: route.tenant_id.trim().to_owned(),
         holding_ref: route.holding_ref.trim().to_owned(),
     };
     validate_route(&route)?;
-    Ok(route)
+    Ok(Some(route))
 }
 fn validate_route(route: &OrganizationTenantRoute) -> Result<(), Status> {
     if [&route.tenant_id, &route.holding_ref]
@@ -837,24 +837,6 @@ fn validate_route(route: &OrganizationTenantRoute) -> Result<(), Status> {
         Ok(())
     }
 }
-fn validate_route_scope(
-    route: &OrganizationTenantRoute,
-    scope: &TenantScope,
-) -> Result<(), Status> {
-    let holding = match scope {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
-    };
-    if parse_uuid(&route.holding_ref, "holding_ref")? == *holding {
-        Ok(())
-    } else {
-        Err(invalid("tenant route does not match scope"))
-    }
-}
-
 fn decode_actor(actor: Option<common::ActorAttribution>) -> Result<ActorAttribution, Status> {
     let actor = actor.ok_or_else(|| invalid("actor is required"))?;
     let kind = match common::ActorKind::try_from(actor.kind).ok() {

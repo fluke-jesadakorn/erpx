@@ -1,7 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, NaiveDate, Utc};
-use erpx_integration_contracts::{customer, inventory, people_payroll, pos, procurement, sales};
+use erpx_integration_contracts::{
+    BoundedContext, DimensionSet, RecordRef, customer, finance, inventory, people_payroll, pos,
+    procurement, sales,
+};
 use erpx_kernel::TenantScope;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -49,6 +52,8 @@ finance_id!(PeriodId, "period_id");
 finance_id!(JournalId, "journal_id");
 finance_id!(JournalLineId, "journal_line_id");
 finance_id!(SubledgerId, "subledger_id");
+finance_id!(CustomerInvoiceId, "customer_invoice_id");
+finance_id!(RevenueScheduleId, "revenue_schedule_id");
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum FinanceDomainError {
@@ -100,6 +105,18 @@ pub enum FinanceDomainError {
     InvalidSubledgerSource,
     #[error("settlement must be positive and cannot exceed the outstanding amount")]
     InvalidSettlement,
+    #[error("customer invoice source, dimensions, amount, or due date is invalid")]
+    InvalidCustomerInvoiceSource,
+    #[error("customer invoice lifecycle transition is not allowed")]
+    InvalidCustomerInvoiceTransition,
+    #[error("customer invoice preparer and poster must be distinct")]
+    InvoiceApprovalSeparation,
+    #[error("revenue schedule source, dimensions, or obligation allocation is invalid")]
+    InvalidRevenueScheduleSource,
+    #[error("revenue recognition fulfillment is invalid or duplicated")]
+    InvalidRevenueRecognition,
+    #[error("revenue schedule lifecycle transition is not allowed")]
+    InvalidRevenueScheduleTransition,
     #[error("Finance amount arithmetic overflowed")]
     ArithmeticOverflow,
     #[error("Finance timestamp cannot move backwards")]
@@ -162,6 +179,10 @@ pub(crate) enum DomainEvent {
     JournalPosted(JournalPostingState),
     SubledgerChanged,
     ReceivableChanged(ReceivableState),
+    CustomerInvoiceChanged,
+    CustomerInvoicePosted(CustomerInvoicePostingState),
+    RevenueScheduleChanged,
+    RevenueRecognized(RevenueRecognitionState),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,6 +203,33 @@ pub(crate) struct ReceivableState {
     pub document_code: String,
     pub currency: String,
     pub outstanding_minor: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CustomerInvoicePostingState {
+    pub invoice_id: CustomerInvoiceId,
+    pub customer: customer::CustomerRef,
+    pub invoice_code: String,
+    pub source: RecordRef,
+    pub currency: String,
+    pub net_minor: i64,
+    pub tax_minor: i64,
+    pub receivable_minor: i64,
+    pub dimensions: DimensionSet,
+    pub posted_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RevenueRecognitionState {
+    pub schedule_id: RevenueScheduleId,
+    pub customer: customer::CustomerRef,
+    pub source: RecordRef,
+    pub fulfillment: sales::FulfillmentRef,
+    pub obligation: sales::PerformanceObligationRef,
+    pub currency: String,
+    pub recognized_minor: i64,
+    pub dimensions: DimensionSet,
+    pub recognized_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -844,6 +892,596 @@ impl Journal {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RevenueScheduleStatus {
+    Active,
+    Completed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevenueObligation {
+    obligation: sales::PerformanceObligationRef,
+    line: sales::SalesOrderLineRef,
+    model: sales::RevenueModel,
+    allocated_minor: i64,
+    recognized_minor: i64,
+    service_starts_on: Option<NaiveDate>,
+    service_ends_on: Option<NaiveDate>,
+}
+
+impl RevenueObligation {
+    pub const fn obligation(&self) -> sales::PerformanceObligationRef {
+        self.obligation
+    }
+    pub const fn line(&self) -> sales::SalesOrderLineRef {
+        self.line
+    }
+    pub const fn model(&self) -> sales::RevenueModel {
+        self.model
+    }
+    pub const fn allocated_minor(&self) -> i64 {
+        self.allocated_minor
+    }
+    pub const fn recognized_minor(&self) -> i64 {
+        self.recognized_minor
+    }
+    pub const fn service_starts_on(&self) -> Option<NaiveDate> {
+        self.service_starts_on
+    }
+    pub const fn service_ends_on(&self) -> Option<NaiveDate> {
+        self.service_ends_on
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevenueRecognitionEntry {
+    fulfillment: sales::FulfillmentRef,
+    obligation: sales::PerformanceObligationRef,
+    source: RecordRef,
+    recognized_minor: i64,
+    recognized_at: DateTime<Utc>,
+}
+
+impl RevenueRecognitionEntry {
+    pub const fn fulfillment(&self) -> sales::FulfillmentRef {
+        self.fulfillment
+    }
+    pub const fn obligation(&self) -> sales::PerformanceObligationRef {
+        self.obligation
+    }
+    pub const fn source(&self) -> &RecordRef {
+        &self.source
+    }
+    pub const fn recognized_minor(&self) -> i64 {
+        self.recognized_minor
+    }
+    pub const fn recognized_at(&self) -> DateTime<Utc> {
+        self.recognized_at
+    }
+}
+
+/// Finance-owned IFRS/TFRS 15 schedule. Billing is deliberately absent: the
+/// schedule consumes the Sales arrangement and accepted fulfillment facts so
+/// recognition can happen before, with, or after invoicing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevenueSchedule {
+    id: RevenueScheduleId,
+    version: u64,
+    scope: TenantScope,
+    arrangement_source: RecordRef,
+    last_source: RecordRef,
+    arrangement: sales::RevenueArrangementFact,
+    currency: String,
+    obligations: Vec<RevenueObligation>,
+    recognitions: Vec<RevenueRecognitionEntry>,
+    status: RevenueScheduleStatus,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    #[serde(skip)]
+    uncommitted_events: Vec<DomainEvent>,
+}
+
+impl RevenueSchedule {
+    pub fn create_from_arrangement(
+        id: RevenueScheduleId,
+        scope: TenantScope,
+        source: RecordRef,
+        arrangement: sales::RevenueArrangementFact,
+        at: DateTime<Utc>,
+    ) -> Result<Self, FinanceDomainError> {
+        let currency = arrangement
+            .obligations
+            .first()
+            .map(|value| value.allocated_amount.currency().as_str().to_owned())
+            .ok_or(FinanceDomainError::InvalidRevenueScheduleSource)?;
+        let obligations = arrangement
+            .obligations
+            .iter()
+            .map(|value| RevenueObligation {
+                obligation: value.obligation,
+                line: value.line,
+                model: value.model,
+                allocated_minor: value.allocated_amount.minor_units(),
+                recognized_minor: 0,
+                service_starts_on: value.service_starts_on,
+                service_ends_on: value.service_ends_on,
+            })
+            .collect();
+        let value = Self {
+            id,
+            version: 1,
+            scope,
+            arrangement_source: source.clone(),
+            last_source: source,
+            arrangement,
+            currency,
+            obligations,
+            recognitions: Vec::new(),
+            status: RevenueScheduleStatus::Active,
+            created_at: at,
+            updated_at: at,
+            uncommitted_events: vec![DomainEvent::RevenueScheduleChanged],
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn recognize_fulfillment(
+        &mut self,
+        source: RecordRef,
+        fact: sales::FulfillmentAcceptedFact,
+        at: DateTime<Utc>,
+    ) -> Result<(), FinanceDomainError> {
+        if self.status != RevenueScheduleStatus::Active {
+            return Err(FinanceDomainError::InvalidRevenueScheduleTransition);
+        }
+        if at < self.updated_at
+            || at < fact.accepted_at
+            || source.context != BoundedContext::Sales
+            || source.aggregate_kind.as_str() != "revenue_arrangement"
+            || source.aggregate_id != self.arrangement.arrangement.as_uuid()
+            || source.aggregate_version <= self.last_source.aggregate_version
+            || fact.arrangement != self.arrangement.arrangement
+            || fact.sales_order != self.arrangement.sales_order
+            || fact.dimensions != self.arrangement.dimensions
+            || fact.accepted_amount.currency().as_str() != self.currency
+            || fact.accepted_amount.minor_units() <= 0
+            || self
+                .recognitions
+                .iter()
+                .any(|value| value.fulfillment == fact.fulfillment)
+        {
+            return Err(FinanceDomainError::InvalidRevenueRecognition);
+        }
+        let obligation = self
+            .obligations
+            .iter_mut()
+            .find(|value| value.obligation == fact.obligation)
+            .ok_or(FinanceDomainError::InvalidRevenueRecognition)?;
+        let kind_matches = matches!(
+            (obligation.model, fact.kind),
+            (
+                sales::RevenueModel::Goods,
+                sales::FulfillmentKind::GoodsDelivery
+            ) | (
+                sales::RevenueModel::ServiceMilestone,
+                sales::FulfillmentKind::ServiceMilestone
+            ) | (
+                sales::RevenueModel::Recurring,
+                sales::FulfillmentKind::RecurringPeriod
+            )
+        );
+        let recognized_minor = obligation
+            .recognized_minor
+            .checked_add(fact.accepted_amount.minor_units())
+            .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+        if !kind_matches || recognized_minor > obligation.allocated_minor {
+            return Err(FinanceDomainError::InvalidRevenueRecognition);
+        }
+        self.version = self
+            .version
+            .checked_add(1)
+            .ok_or(FinanceDomainError::VersionOverflow)?;
+        obligation.recognized_minor = recognized_minor;
+        self.last_source = source.clone();
+        self.recognitions.push(RevenueRecognitionEntry {
+            fulfillment: fact.fulfillment,
+            obligation: fact.obligation,
+            source: source.clone(),
+            recognized_minor: fact.accepted_amount.minor_units(),
+            recognized_at: at,
+        });
+        self.updated_at = at;
+        if self
+            .obligations
+            .iter()
+            .all(|value| value.recognized_minor == value.allocated_minor)
+        {
+            self.status = RevenueScheduleStatus::Completed;
+        }
+        self.uncommitted_events
+            .push(DomainEvent::RevenueRecognized(RevenueRecognitionState {
+                schedule_id: self.id,
+                customer: self.arrangement.customer,
+                source,
+                fulfillment: fact.fulfillment,
+                obligation: fact.obligation,
+                currency: self.currency.clone(),
+                recognized_minor: fact.accepted_amount.minor_units(),
+                dimensions: self.arrangement.dimensions.clone(),
+                recognized_at: at,
+            }));
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), FinanceDomainError> {
+        validate_scope(&self.scope)?;
+        validate_currency(&self.currency)?;
+        validate_finance_dimensions(&self.scope, &self.arrangement.dimensions)
+            .map_err(|_| FinanceDomainError::InvalidRevenueScheduleSource)?;
+        if self.version == 0
+            || self.arrangement_source.context != BoundedContext::Sales
+            || self.arrangement_source.aggregate_kind.as_str() != "revenue_arrangement"
+            || self.arrangement_source.aggregate_id != self.arrangement.arrangement.as_uuid()
+            || self.arrangement_source.aggregate_version == 0
+            || self.last_source.context != BoundedContext::Sales
+            || self.last_source.aggregate_kind.as_str() != "revenue_arrangement"
+            || self.last_source.aggregate_id != self.arrangement.arrangement.as_uuid()
+            || self.last_source.aggregate_version < self.arrangement_source.aggregate_version
+            || self.obligations.is_empty()
+            || self.updated_at < self.created_at
+        {
+            return Err(FinanceDomainError::InvalidRevenueScheduleSource);
+        }
+        let mut obligation_ids = BTreeSet::new();
+        let mut allocated_total = 0_i64;
+        let mut recognized_total = 0_i64;
+        for obligation in &self.obligations {
+            let source = self
+                .arrangement
+                .obligations
+                .iter()
+                .find(|value| value.obligation == obligation.obligation)
+                .ok_or(FinanceDomainError::InvalidRevenueScheduleSource)?;
+            let dates_valid = match obligation.model {
+                sales::RevenueModel::Goods => {
+                    obligation.service_starts_on.is_none() && obligation.service_ends_on.is_none()
+                }
+                sales::RevenueModel::ServiceMilestone => {
+                    match (obligation.service_starts_on, obligation.service_ends_on) {
+                        (None, None) => true,
+                        (Some(start), Some(end)) => start <= end,
+                        _ => false,
+                    }
+                }
+                sales::RevenueModel::Recurring => obligation
+                    .service_starts_on
+                    .zip(obligation.service_ends_on)
+                    .is_some_and(|(start, end)| start <= end),
+            };
+            if !obligation_ids.insert(obligation.obligation)
+                || obligation.line != source.line
+                || obligation.model != source.model
+                || obligation.allocated_minor != source.allocated_amount.minor_units()
+                || source.allocated_amount.currency().as_str() != self.currency
+                || obligation.allocated_minor <= 0
+                || obligation.recognized_minor < 0
+                || obligation.recognized_minor > obligation.allocated_minor
+                || !dates_valid
+            {
+                return Err(FinanceDomainError::InvalidRevenueScheduleSource);
+            }
+            allocated_total = allocated_total
+                .checked_add(obligation.allocated_minor)
+                .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+            recognized_total = recognized_total
+                .checked_add(obligation.recognized_minor)
+                .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+        }
+        let mut fulfillment_ids = BTreeSet::new();
+        let mut history_total = 0_i64;
+        let mut history_by_obligation = BTreeMap::new();
+        let mut previous_version = self.arrangement_source.aggregate_version;
+        for entry in &self.recognitions {
+            if !fulfillment_ids.insert(entry.fulfillment)
+                || !obligation_ids.contains(&entry.obligation)
+                || entry.source.context != BoundedContext::Sales
+                || entry.source.aggregate_kind.as_str() != "revenue_arrangement"
+                || entry.source.aggregate_id != self.arrangement.arrangement.as_uuid()
+                || entry.source.aggregate_version <= previous_version
+                || entry.recognized_minor <= 0
+                || entry.recognized_at < self.created_at
+            {
+                return Err(FinanceDomainError::InvalidRevenueRecognition);
+            }
+            previous_version = entry.source.aggregate_version;
+            history_total = history_total
+                .checked_add(entry.recognized_minor)
+                .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+            let amount = history_by_obligation
+                .entry(entry.obligation)
+                .or_insert(0_i64);
+            *amount = amount
+                .checked_add(entry.recognized_minor)
+                .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+        }
+        if history_total != recognized_total
+            || self.last_source.aggregate_version != previous_version
+            || self.obligations.iter().any(|value| {
+                history_by_obligation
+                    .get(&value.obligation)
+                    .copied()
+                    .unwrap_or_default()
+                    != value.recognized_minor
+            })
+            || (self.status == RevenueScheduleStatus::Completed
+                && recognized_total != allocated_total)
+            || (self.status == RevenueScheduleStatus::Active && recognized_total == allocated_total)
+        {
+            return Err(FinanceDomainError::InvalidRevenueScheduleTransition);
+        }
+        Ok(())
+    }
+
+    pub const fn id(&self) -> RevenueScheduleId {
+        self.id
+    }
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+    pub const fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+    pub const fn arrangement_source(&self) -> &RecordRef {
+        &self.arrangement_source
+    }
+    pub const fn last_source(&self) -> &RecordRef {
+        &self.last_source
+    }
+    pub const fn arrangement(&self) -> &sales::RevenueArrangementFact {
+        &self.arrangement
+    }
+    pub fn currency(&self) -> &str {
+        &self.currency
+    }
+    pub fn obligations(&self) -> &[RevenueObligation] {
+        &self.obligations
+    }
+    pub fn recognitions(&self) -> &[RevenueRecognitionEntry] {
+        &self.recognitions
+    }
+    pub fn recognized_total_minor(&self) -> Result<i64, FinanceDomainError> {
+        self.obligations.iter().try_fold(0_i64, |total, value| {
+            total
+                .checked_add(value.recognized_minor)
+                .ok_or(FinanceDomainError::ArithmeticOverflow)
+        })
+    }
+    pub fn allocated_total_minor(&self) -> Result<i64, FinanceDomainError> {
+        self.obligations.iter().try_fold(0_i64, |total, value| {
+            total
+                .checked_add(value.allocated_minor)
+                .ok_or(FinanceDomainError::ArithmeticOverflow)
+        })
+    }
+    pub const fn status(&self) -> RevenueScheduleStatus {
+        self.status
+    }
+    pub const fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+    pub const fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        std::mem::take(&mut self.uncommitted_events)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CustomerInvoiceStatus {
+    Draft,
+    Posted,
+    Cancelled,
+}
+
+/// Finance-owned tax invoice. Sales contributes only an immutable billing
+/// eligibility fact plus a versioned source record reference; posting and AR
+/// remain Finance decisions.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CustomerInvoice {
+    id: CustomerInvoiceId,
+    version: u64,
+    scope: TenantScope,
+    invoice_code: String,
+    source: RecordRef,
+    billing: sales::BillingEligibilityFact,
+    due_on: NaiveDate,
+    prepared_by: String,
+    posted_by: Option<String>,
+    posted_at: Option<DateTime<Utc>>,
+    status: CustomerInvoiceStatus,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    #[serde(skip)]
+    uncommitted_events: Vec<DomainEvent>,
+}
+
+impl CustomerInvoice {
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_from_billing(
+        id: CustomerInvoiceId,
+        scope: TenantScope,
+        invoice_code: String,
+        source: RecordRef,
+        billing: sales::BillingEligibilityFact,
+        due_on: NaiveDate,
+        prepared_by: String,
+        at: DateTime<Utc>,
+    ) -> Result<Self, FinanceDomainError> {
+        let value = Self {
+            id,
+            version: 1,
+            scope,
+            invoice_code,
+            source,
+            billing,
+            due_on,
+            prepared_by,
+            posted_by: None,
+            posted_at: None,
+            status: CustomerInvoiceStatus::Draft,
+            created_at: at,
+            updated_at: at,
+            uncommitted_events: vec![DomainEvent::CustomerInvoiceChanged],
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    pub fn post(&mut self, posted_by: &str, at: DateTime<Utc>) -> Result<(), FinanceDomainError> {
+        if self.status != CustomerInvoiceStatus::Draft {
+            return Err(FinanceDomainError::InvalidCustomerInvoiceTransition);
+        }
+        validate_text(posted_by, "invoice_posted_by", MAX_CODE_BYTES)?;
+        if posted_by == self.prepared_by {
+            return Err(FinanceDomainError::InvoiceApprovalSeparation);
+        }
+        self.bump_invoice(at)?;
+        self.status = CustomerInvoiceStatus::Posted;
+        self.posted_by = Some(posted_by.into());
+        self.posted_at = Some(at);
+        self.uncommitted_events
+            .push(DomainEvent::CustomerInvoicePosted(
+                CustomerInvoicePostingState {
+                    invoice_id: self.id,
+                    customer: self.billing.customer,
+                    invoice_code: self.invoice_code.clone(),
+                    source: self.source.clone(),
+                    currency: self.billing.billable_amount.currency().as_str().into(),
+                    net_minor: self.billing.billable_amount.minor_units(),
+                    tax_minor: self.billing.tax_amount.minor_units(),
+                    receivable_minor: self.receivable_minor()?,
+                    dimensions: self.billing.dimensions.clone(),
+                    posted_at: at,
+                },
+            ));
+        Ok(())
+    }
+
+    pub fn cancel(&mut self, at: DateTime<Utc>) -> Result<(), FinanceDomainError> {
+        if self.status != CustomerInvoiceStatus::Draft {
+            return Err(FinanceDomainError::InvalidCustomerInvoiceTransition);
+        }
+        self.bump_invoice(at)?;
+        self.status = CustomerInvoiceStatus::Cancelled;
+        self.uncommitted_events
+            .push(DomainEvent::CustomerInvoiceChanged);
+        Ok(())
+    }
+
+    pub fn validate(&self) -> Result<(), FinanceDomainError> {
+        validate_scope(&self.scope)?;
+        validate_text(&self.invoice_code, "invoice_code", MAX_CODE_BYTES)?;
+        validate_text(&self.prepared_by, "invoice_prepared_by", MAX_CODE_BYTES)?;
+        validate_finance_dimensions(&self.scope, &self.billing.dimensions)?;
+        if self.source.context != BoundedContext::Sales
+            || self.source.aggregate_kind.as_str() != "revenue_arrangement"
+            || self.source.aggregate_id != self.billing.arrangement.as_uuid()
+            || self.source.aggregate_version == 0
+            || self.billing.billable_amount.minor_units() <= 0
+            || self.billing.tax_amount.minor_units() < 0
+            || self.billing.billable_amount.currency() != self.billing.tax_amount.currency()
+            || self.created_at.date_naive() < self.billing.eligible_on
+            || self.due_on < self.billing.eligible_on
+            || self.receivable_minor()? <= 0
+            || self.version == 0
+            || self.updated_at < self.created_at
+        {
+            return Err(FinanceDomainError::InvalidCustomerInvoiceSource);
+        }
+        let lifecycle_valid = match self.status {
+            CustomerInvoiceStatus::Draft | CustomerInvoiceStatus::Cancelled => {
+                self.posted_by.is_none() && self.posted_at.is_none()
+            }
+            CustomerInvoiceStatus::Posted => {
+                self.posted_by
+                    .as_deref()
+                    .is_some_and(|poster| poster != self.prepared_by)
+                    && self.posted_at.is_some()
+            }
+        };
+        if !lifecycle_valid {
+            return Err(FinanceDomainError::InvalidCustomerInvoiceTransition);
+        }
+        Ok(())
+    }
+
+    fn bump_invoice(&mut self, at: DateTime<Utc>) -> Result<(), FinanceDomainError> {
+        if at < self.updated_at {
+            return Err(FinanceDomainError::InvalidTimestamp);
+        }
+        self.version = self
+            .version
+            .checked_add(1)
+            .ok_or(FinanceDomainError::VersionOverflow)?;
+        self.updated_at = at;
+        Ok(())
+    }
+
+    pub fn receivable_minor(&self) -> Result<i64, FinanceDomainError> {
+        self.billing
+            .billable_amount
+            .minor_units()
+            .checked_add(self.billing.tax_amount.minor_units())
+            .ok_or(FinanceDomainError::ArithmeticOverflow)
+    }
+    pub const fn id(&self) -> CustomerInvoiceId {
+        self.id
+    }
+    pub const fn version(&self) -> u64 {
+        self.version
+    }
+    pub const fn scope(&self) -> &TenantScope {
+        &self.scope
+    }
+    pub fn invoice_code(&self) -> &str {
+        &self.invoice_code
+    }
+    pub const fn source(&self) -> &RecordRef {
+        &self.source
+    }
+    pub const fn billing(&self) -> &sales::BillingEligibilityFact {
+        &self.billing
+    }
+    pub const fn due_on(&self) -> NaiveDate {
+        self.due_on
+    }
+    pub fn prepared_by(&self) -> &str {
+        &self.prepared_by
+    }
+    pub fn posted_by(&self) -> Option<&str> {
+        self.posted_by.as_deref()
+    }
+    pub const fn posted_at(&self) -> Option<DateTime<Utc>> {
+        self.posted_at
+    }
+    pub const fn status(&self) -> CustomerInvoiceStatus {
+        self.status
+    }
+    pub const fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+    pub const fn updated_at(&self) -> DateTime<Utc> {
+        self.updated_at
+    }
+    pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
+        std::mem::take(&mut self.uncommitted_events)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "party", rename_all = "snake_case")]
 pub enum SubledgerKind {
@@ -878,23 +1516,36 @@ pub struct SubledgerItem {
 }
 
 impl SubledgerItem {
-    pub fn receivable_from_sales(
+    pub fn receivable_from_invoice(
         id: SubledgerId,
         scope: TenantScope,
-        fact: sales::SalesOrderFact,
+        fact: finance::CustomerInvoicePostedFact,
         at: DateTime<Utc>,
     ) -> Result<Self, FinanceDomainError> {
-        if fact.status == sales::SalesOrderStatus::Cancelled || fact.total.minor_units() <= 0 {
+        if fact.net_amount.minor_units() <= 0
+            || fact.tax_amount.minor_units() < 0
+            || fact.receivable_amount.minor_units() <= 0
+            || fact.net_amount.currency() != fact.tax_amount.currency()
+            || fact.net_amount.currency() != fact.receivable_amount.currency()
+        {
+            return Err(FinanceDomainError::InvalidSubledgerSource);
+        }
+        let calculated = fact
+            .net_amount
+            .minor_units()
+            .checked_add(fact.tax_amount.minor_units())
+            .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+        if calculated != fact.receivable_amount.minor_units() {
             return Err(FinanceDomainError::InvalidSubledgerSource);
         }
         Self::create(
             id,
             scope,
             SubledgerKind::Receivable(fact.customer),
-            fact.order_code.as_str().into(),
-            fact.sales_order.as_uuid().to_string(),
-            fact.total.currency().as_str().into(),
-            fact.total.minor_units(),
+            fact.invoice_code.as_str().into(),
+            fact.invoice.as_uuid().to_string(),
+            fact.receivable_amount.currency().as_str().into(),
+            fact.receivable_amount.minor_units(),
             at,
         )
     }
@@ -1087,6 +1738,8 @@ pub enum FinanceAggregate {
     Period(AccountingPeriod),
     Journal(Journal),
     Subledger(SubledgerItem),
+    CustomerInvoice(CustomerInvoice),
+    RevenueSchedule(RevenueSchedule),
 }
 
 impl FinanceAggregate {
@@ -1096,6 +1749,8 @@ impl FinanceAggregate {
             Self::Period(_) => "period",
             Self::Journal(_) => "journal",
             Self::Subledger(_) => "subledger",
+            Self::CustomerInvoice(_) => "customer_invoice",
+            Self::RevenueSchedule(_) => "revenue_schedule",
         }
     }
     pub const fn id_uuid(&self) -> Uuid {
@@ -1104,6 +1759,8 @@ impl FinanceAggregate {
             Self::Period(v) => v.id().as_uuid(),
             Self::Journal(v) => v.id().as_uuid(),
             Self::Subledger(v) => v.id().as_uuid(),
+            Self::CustomerInvoice(v) => v.id().as_uuid(),
+            Self::RevenueSchedule(v) => v.id().as_uuid(),
         }
     }
     pub const fn version(&self) -> u64 {
@@ -1112,6 +1769,8 @@ impl FinanceAggregate {
             Self::Period(v) => v.version(),
             Self::Journal(v) => v.version(),
             Self::Subledger(v) => v.version(),
+            Self::CustomerInvoice(v) => v.version(),
+            Self::RevenueSchedule(v) => v.version(),
         }
     }
     pub fn scope(&self) -> &TenantScope {
@@ -1120,6 +1779,8 @@ impl FinanceAggregate {
             Self::Period(v) => v.scope(),
             Self::Journal(v) => v.scope(),
             Self::Subledger(v) => v.scope(),
+            Self::CustomerInvoice(v) => v.scope(),
+            Self::RevenueSchedule(v) => v.scope(),
         }
     }
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
@@ -1128,6 +1789,8 @@ impl FinanceAggregate {
             Self::Period(v) => v.take_uncommitted_events(),
             Self::Journal(v) => v.take_uncommitted_events(),
             Self::Subledger(v) => v.take_uncommitted_events(),
+            Self::CustomerInvoice(v) => v.take_uncommitted_events(),
+            Self::RevenueSchedule(v) => v.take_uncommitted_events(),
         }
     }
 }
@@ -1169,6 +1832,36 @@ fn validate_scope(scope: &TenantScope) -> Result<(), FinanceDomainError> {
             Ok(())
         }
         _ => Err(FinanceDomainError::InvalidScope),
+    }
+}
+
+fn validate_finance_dimensions(
+    scope: &TenantScope,
+    dimensions: &DimensionSet,
+) -> Result<(), FinanceDomainError> {
+    let (company_id, branch_id) = match scope {
+        TenantScope::Company { company_id, .. } => (*company_id, None),
+        TenantScope::Branch {
+            company_id,
+            branch_id,
+            ..
+        } => (*company_id, Some(*branch_id)),
+        _ => return Err(FinanceDomainError::InvalidScope),
+    };
+    let branch_matches = match (branch_id, dimensions.branch) {
+        (None, None) => true,
+        (Some(expected), Some(actual)) => expected == actual.as_uuid(),
+        _ => false,
+    };
+    if dimensions.legal_entity.as_uuid() != company_id
+        || !branch_matches
+        || dimensions.business_unit.is_none()
+        || dimensions.cost_center.is_none()
+        || dimensions.campaign.is_some() != dimensions.channel.is_some()
+    {
+        Err(FinanceDomainError::InvalidCustomerInvoiceSource)
+    } else {
+        Ok(())
     }
 }
 

@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 use sqlx::{Connection, Executor, PgConnection, Row, postgres::PgPoolOptions};
 use uuid::Uuid;
 
-use crate::TaskResult;
+use crate::{TaskResult, runtime_binary, runtime_target_dir};
 
 const POSTGRES_DATA: &str = "/Users/fluke/erpx-postgres-data";
 const WAL_SPOOL: &str = "/Users/fluke/erpx-wal-spool";
@@ -182,7 +182,7 @@ fn pitr_minio_chain_path() -> PathBuf {
 fn archive_command_setting(root: &Path) -> TaskResult<String> {
     let lease = pitr_lease_path(root);
     let secret = runtime(root).join("secrets/pitr/minio.json");
-    let program = root.join("target/debug/erpx-wal-archive");
+    let program = runtime_binary(root, "erpx-wal-archive");
     for path in [&lease, &secret, &program] {
         let value = path.to_str().ok_or("invalid WAL archive path")?;
         if value.bytes().any(|byte| {
@@ -809,6 +809,7 @@ pub(crate) async fn start(root: &Path) -> TaskResult {
     let secrets = read_secrets(root)?;
     let build = Command::new("cargo")
         .args(["build", "--offline", "-p", "erpx-wal-archive"])
+        .env("CARGO_TARGET_DIR", runtime_target_dir(root))
         .current_dir(root)
         .status()?;
     if !build.success() {

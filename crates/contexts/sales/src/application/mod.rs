@@ -3,7 +3,7 @@ use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
-use erpx_integration_contracts::crm;
+use erpx_integration_contracts::{DimensionSet, crm, legal, sales};
 use erpx_kernel::{
     ActorAttribution, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError, TenantScope,
 };
@@ -12,14 +12,16 @@ use thiserror::Error;
 
 use crate::{
     domain::{
-        Quote, QuoteId, SalesAggregate, SalesDomainError, SalesOrder, SalesOrderId, SalesOrderLine,
+        BillingEventId, FulfillmentId, PerformanceObligationDefinition, PerformanceObligationId,
+        Quote, QuoteId, RevenueArrangement, RevenueArrangementId, SalesAggregate, SalesDomainError,
+        SalesOrder, SalesOrderId, SalesOrderLine,
     },
     integration,
     ports::{
         AuthorizationPort, AuthorizationRequest, CommandFingerprint, CommandIdentity,
-        CommandUnitOfWork, EntitlementPort, PortError, QuoteView, ReadRepository, SalesAction,
-        SalesCommit, SalesOrderList, SalesOrderListFilter, SalesOrderView, StoredCommit,
-        WriteRepository,
+        CommandUnitOfWork, EntitlementPort, PortError, QuoteView, ReadRepository,
+        RevenueArrangementView, SalesAction, SalesCommit, SalesOrderList, SalesOrderListFilter,
+        SalesOrderView, StoredCommit, WriteRepository,
     },
 };
 
@@ -73,6 +75,33 @@ order_command!(MarkSalesOrderFulfilled);
 order_command!(CancelSalesOrder);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActivateRevenueArrangement {
+    pub arrangement_id: RevenueArrangementId,
+    pub sales_order_id: SalesOrderId,
+    pub expected_sales_order_version: u64,
+    pub legal_contract: Option<legal::LegalContractRef>,
+    pub dimensions: DimensionSet,
+    pub obligations: Vec<PerformanceObligationDefinition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AcceptRevenueFulfillment {
+    pub arrangement_id: RevenueArrangementId,
+    pub fulfillment_id: FulfillmentId,
+    pub billing_event_id: BillingEventId,
+    pub obligation_id: PerformanceObligationId,
+    pub kind: sales::FulfillmentKind,
+    pub accepted_minor: i64,
+    pub tax_minor: i64,
+    pub eligible_on: chrono::NaiveDate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CancelRevenueArrangement {
+    pub arrangement_id: RevenueArrangementId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "command", content = "payload", rename_all = "snake_case")]
 pub enum SalesCommand {
     CreateQuote(CreateQuote),
@@ -85,6 +114,9 @@ pub enum SalesCommand {
     MarkSalesOrderPartiallyFulfilled(MarkSalesOrderPartiallyFulfilled),
     MarkSalesOrderFulfilled(MarkSalesOrderFulfilled),
     CancelSalesOrder(CancelSalesOrder),
+    ActivateRevenueArrangement(ActivateRevenueArrangement),
+    AcceptRevenueFulfillment(AcceptRevenueFulfillment),
+    CancelRevenueArrangement(CancelRevenueArrangement),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -97,6 +129,11 @@ pub struct GetSalesOrder {
     pub sales_order_id: SalesOrderId,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetRevenueArrangement {
+    pub arrangement_id: RevenueArrangementId,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListSalesOrders {
     pub filter: SalesOrderListFilter,
@@ -107,6 +144,7 @@ pub struct ListSalesOrders {
 pub enum SalesQuery {
     GetQuote(GetQuote),
     GetSalesOrder(GetSalesOrder),
+    GetRevenueArrangement(GetRevenueArrangement),
     ListSalesOrders(ListSalesOrders),
 }
 
@@ -115,6 +153,7 @@ pub enum SalesQuery {
 pub enum SalesMutationResult {
     Quote(QuoteView),
     SalesOrder(SalesOrderView),
+    RevenueArrangement(Box<RevenueArrangementView>),
 }
 
 impl SalesMutationResult {
@@ -122,6 +161,9 @@ impl SalesMutationResult {
         match aggregate {
             SalesAggregate::Quote(value) => Self::Quote(value.into()),
             SalesAggregate::SalesOrder(value) => Self::SalesOrder(value.into()),
+            SalesAggregate::RevenueArrangement(value) => {
+                Self::RevenueArrangement(Box::new(value.as_ref().into()))
+            }
         }
     }
 }
@@ -131,6 +173,7 @@ impl SalesMutationResult {
 pub enum SalesQueryResponse {
     Quote(Option<QuoteView>),
     SalesOrder(Option<SalesOrderView>),
+    RevenueArrangement(Option<Box<RevenueArrangementView>>),
     SalesOrders(SalesOrderList),
 }
 
@@ -148,6 +191,8 @@ pub enum SalesApplicationError {
     VersionConflict { expected: u64, actual: u64 },
     #[error("the accepted quote changed before the Sales order was created")]
     QuoteVersionConflict { expected: u64, actual: u64 },
+    #[error("the confirmed Sales order changed before the revenue arrangement was activated")]
+    SalesOrderVersionConflict { expected: u64, actual: u64 },
     #[error("Sales page size must be between 1 and 100")]
     InvalidPageSize,
     #[error("Sales integration event mapping failed")]
@@ -261,6 +306,17 @@ where
             .await?
             .ok_or_else(|| PortError::NotFound.into())
     }
+
+    async fn load_revenue_arrangement(
+        &self,
+        authority_scope: &TenantScope,
+        arrangement_id: RevenueArrangementId,
+    ) -> Result<RevenueArrangement, SalesApplicationError> {
+        self.write
+            .load_revenue_arrangement(authority_scope, arrangement_id)
+            .await?
+            .ok_or_else(|| PortError::NotFound.into())
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -279,6 +335,12 @@ enum OrderMutation {
     Cancel,
 }
 
+#[derive(Debug, Clone)]
+enum ArrangementMutation {
+    Accept(AcceptRevenueFulfillment),
+    Cancel,
+}
+
 #[derive(Debug)]
 enum Execution {
     CreateQuote(CreateQuote),
@@ -290,6 +352,11 @@ enum Execution {
     MutateOrder {
         sales_order_id: SalesOrderId,
         mutation: OrderMutation,
+    },
+    ActivateArrangement(ActivateRevenueArrangement),
+    MutateArrangement {
+        arrangement_id: RevenueArrangementId,
+        mutation: ArrangementMutation,
     },
 }
 
@@ -397,6 +464,45 @@ impl SalesCommand {
                 Execution::MutateOrder {
                     sales_order_id: command.sales_order_id,
                     mutation: OrderMutation::Cancel,
+                },
+            ),
+            Self::ActivateRevenueArrangement(command) => (
+                SalesAction::ActivateRevenueArrangement,
+                CommandFingerprint::ActivateRevenueArrangement {
+                    arrangement_id: command.arrangement_id,
+                    sales_order_id: command.sales_order_id,
+                    expected_sales_order_version: command.expected_sales_order_version,
+                    legal_contract: command.legal_contract,
+                    dimensions: command.dimensions.clone(),
+                    obligations: command.obligations.clone(),
+                },
+                Execution::ActivateArrangement(command.clone()),
+            ),
+            Self::AcceptRevenueFulfillment(command) => (
+                SalesAction::AcceptRevenueFulfillment,
+                CommandFingerprint::AcceptRevenueFulfillment {
+                    arrangement_id: command.arrangement_id,
+                    fulfillment_id: command.fulfillment_id,
+                    billing_event_id: command.billing_event_id,
+                    obligation_id: command.obligation_id,
+                    kind: command.kind,
+                    accepted_minor: command.accepted_minor,
+                    tax_minor: command.tax_minor,
+                    eligible_on: command.eligible_on,
+                },
+                Execution::MutateArrangement {
+                    arrangement_id: command.arrangement_id,
+                    mutation: ArrangementMutation::Accept(command.clone()),
+                },
+            ),
+            Self::CancelRevenueArrangement(command) => (
+                SalesAction::CancelRevenueArrangement,
+                CommandFingerprint::CancelRevenueArrangement {
+                    arrangement_id: command.arrangement_id,
+                },
+                Execution::MutateArrangement {
+                    arrangement_id: command.arrangement_id,
+                    mutation: ArrangementMutation::Cancel,
                 },
             ),
         }
@@ -553,6 +659,86 @@ where
                 .map_err(|error| to_cqrs(error.into(), correlation_id))?;
                 (SalesAggregate::SalesOrder(order), Some(expected))
             }
+            Execution::ActivateArrangement(command) => {
+                if envelope.expected_aggregate_version.is_some() {
+                    return Err(to_cqrs(
+                        SalesApplicationError::UnexpectedCreateVersion,
+                        correlation_id,
+                    ));
+                }
+                let order = self
+                    .load_order(&envelope.tenant_scope, command.sales_order_id)
+                    .await
+                    .map_err(|error| to_cqrs(error, correlation_id))?;
+                self.preflight(
+                    &envelope.actor,
+                    &envelope.tenant_scope,
+                    order.scope(),
+                    action,
+                )
+                .await
+                .map_err(|error| to_cqrs(error, correlation_id))?;
+                if command.expected_sales_order_version != order.version() {
+                    return Err(to_cqrs(
+                        SalesApplicationError::SalesOrderVersionConflict {
+                            expected: command.expected_sales_order_version,
+                            actual: order.version(),
+                        },
+                        correlation_id,
+                    ));
+                }
+                let arrangement = RevenueArrangement::activate_from_order(
+                    command.arrangement_id,
+                    &order,
+                    command.legal_contract,
+                    command.dimensions,
+                    command.obligations,
+                    now,
+                )
+                .map_err(|error| to_cqrs(error.into(), correlation_id))?;
+                (
+                    SalesAggregate::RevenueArrangement(Box::new(arrangement)),
+                    None,
+                )
+            }
+            Execution::MutateArrangement {
+                arrangement_id,
+                mutation,
+            } => {
+                let mut arrangement = self
+                    .load_revenue_arrangement(&envelope.tenant_scope, arrangement_id)
+                    .await
+                    .map_err(|error| to_cqrs(error, correlation_id))?;
+                self.preflight(
+                    &envelope.actor,
+                    &envelope.tenant_scope,
+                    arrangement.scope(),
+                    action,
+                )
+                .await
+                .map_err(|error| to_cqrs(error, correlation_id))?;
+                let expected =
+                    Self::expected(envelope.expected_aggregate_version, arrangement.version())
+                        .map_err(|error| to_cqrs(error, correlation_id))?;
+                match mutation {
+                    ArrangementMutation::Accept(command) => arrangement.accept_fulfillment(
+                        command.fulfillment_id,
+                        command.billing_event_id,
+                        command.obligation_id,
+                        command.kind,
+                        command.accepted_minor,
+                        command.tax_minor,
+                        command.eligible_on,
+                        now,
+                    ),
+                    ArrangementMutation::Cancel => arrangement.cancel(now),
+                }
+                .map_err(|error| to_cqrs(error.into(), correlation_id))?;
+                (
+                    SalesAggregate::RevenueArrangement(Box::new(arrangement)),
+                    Some(expected),
+                )
+            }
         };
 
         let integration_events =
@@ -695,6 +881,38 @@ where
                     result.metadata,
                 )
             }
+            SalesQuery::GetRevenueArrangement(command) => {
+                self.preflight(
+                    &envelope.actor,
+                    &envelope.tenant_scope,
+                    SalesAction::ViewRevenueArrangement,
+                )
+                .await
+                .map_err(|error| to_cqrs(error.into(), correlation_id))?;
+                let result = self
+                    .read
+                    .get_revenue_arrangement(
+                        &envelope.tenant_scope,
+                        command.arrangement_id,
+                        &envelope.consistency,
+                    )
+                    .await
+                    .map_err(|error| port_to_cqrs(error, correlation_id))?;
+                if result
+                    .value
+                    .as_ref()
+                    .is_some_and(|value| !envelope.tenant_scope.contains(&value.scope))
+                {
+                    return Err(to_cqrs(
+                        SalesApplicationError::ScopeOutsideAuthority,
+                        correlation_id,
+                    ));
+                }
+                (
+                    SalesQueryResponse::RevenueArrangement(result.value.map(Box::new)),
+                    result.metadata,
+                )
+            }
             SalesQuery::ListSalesOrders(command) => {
                 if !(1..=MAX_SALES_PAGE_SIZE).contains(&command.filter.page_size) {
                     return Err(to_cqrs(
@@ -776,6 +994,7 @@ fn to_cqrs(error: SalesApplicationError, correlation_id: CorrelationId) -> CqrsE
         ),
         SalesApplicationError::VersionConflict { .. }
         | SalesApplicationError::QuoteVersionConflict { .. }
+        | SalesApplicationError::SalesOrderVersionConflict { .. }
         | SalesApplicationError::Port(PortError::Conflict { .. })
         | SalesApplicationError::Port(PortError::IdempotencyConflict) => (
             "sales.conflict",

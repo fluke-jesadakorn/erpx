@@ -15,7 +15,8 @@ use erpx_cqrs::{
     QueryEnvelope, QueryHandler, ReadYourWrites,
 };
 use erpx_integration_contracts::{
-    CurrencyCode, IntegrationEvent, MoneyAmount, ReferenceCode, customer, sales,
+    BoundedContext, CostCenterRef, CurrencyCode, DimensionSet, IntegrationEvent, MoneyAmount,
+    RecordRef, ReferenceCode, customer, finance, organization, sales,
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
@@ -25,7 +26,9 @@ use uuid::Uuid;
 
 use super::*;
 use crate::{
-    domain::{AccountCategory, JournalLineId, NormalBalance},
+    domain::{
+        AccountCategory, CustomerInvoiceStatus, JournalLineId, NormalBalance, RevenueScheduleStatus,
+    },
     ports::{ReadProjection, SubledgerView},
 };
 
@@ -126,19 +129,98 @@ fn journal() -> Journal {
     )
     .unwrap()
 }
-fn sales_fact() -> sales::SalesOrderFact {
-    sales::SalesOrderFact {
+fn billing_fact() -> sales::BillingEligibilityFact {
+    sales::BillingEligibilityFact {
+        billing_event: sales::BillingEventRef::try_from_uuid(id(39)).unwrap(),
+        fulfillment: sales::FulfillmentRef::try_from_uuid(id(38)).unwrap(),
+        arrangement: sales::RevenueArrangementRef::try_from_uuid(id(37)).unwrap(),
         sales_order: sales::SalesOrderRef::try_from_uuid(id(40)).unwrap(),
         order_code: ReferenceCode::try_new("SO-40").unwrap(),
         customer: customer::CustomerRef::try_from_uuid(id(41)).unwrap(),
-        status: sales::SalesOrderStatus::Confirmed,
-        total: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
-        lines: vec![sales::SalesOrderLineFact {
-            line: sales::SalesOrderLineRef::try_from_uuid(id(42)).unwrap(),
-            item_code: ReferenceCode::try_new("ITEM").unwrap(),
-            quantity: erpx_integration_contracts::Quantity::try_new(1, 0).unwrap(),
-            line_value: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
+        billable_amount: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
+        tax_amount: MoneyAmount::new(35, CurrencyCode::try_new("THB").unwrap()),
+        eligible_on: chrono::NaiveDate::from_ymd_opt(2026, 8, 5).unwrap(),
+        dimensions: dimensions(),
+    }
+}
+
+fn dimensions() -> DimensionSet {
+    let mut value =
+        DimensionSet::for_legal_entity(organization::CompanyRef::try_from_uuid(id(2)).unwrap());
+    value.business_unit = Some(organization::BusinessUnitRef::try_from_uuid(id(30)).unwrap());
+    value.cost_center = Some(CostCenterRef::try_from_uuid(id(31)).unwrap());
+    value
+}
+
+fn invoice_fact() -> finance::CustomerInvoicePostedFact {
+    finance::CustomerInvoicePostedFact {
+        invoice: finance::CustomerInvoiceRef::try_from_uuid(id(49)).unwrap(),
+        customer: customer::CustomerRef::try_from_uuid(id(41)).unwrap(),
+        invoice_code: ReferenceCode::try_new("INV-49").unwrap(),
+        source: RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 2)
+            .unwrap(),
+        net_amount: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
+        tax_amount: MoneyAmount::new(35, CurrencyCode::try_new("THB").unwrap()),
+        receivable_amount: MoneyAmount::new(535, CurrencyCode::try_new("THB").unwrap()),
+        dimensions: dimensions(),
+        posted_at: at(),
+    }
+}
+
+fn draft_invoice() -> CustomerInvoice {
+    CustomerInvoice::create_from_billing(
+        CustomerInvoiceId::try_from_uuid(id(48)).unwrap(),
+        scope(),
+        "INV-48".into(),
+        RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 1).unwrap(),
+        billing_fact(),
+        chrono::NaiveDate::from_ymd_opt(2026, 8, 30).unwrap(),
+        "preparer".into(),
+        at(),
+    )
+    .unwrap()
+}
+
+fn arrangement_fact() -> sales::RevenueArrangementFact {
+    sales::RevenueArrangementFact {
+        arrangement: sales::RevenueArrangementRef::try_from_uuid(id(37)).unwrap(),
+        sales_order: sales::SalesOrderRef::try_from_uuid(id(40)).unwrap(),
+        customer: customer::CustomerRef::try_from_uuid(id(41)).unwrap(),
+        legal_contract: None,
+        order_code: ReferenceCode::try_new("SO-40").unwrap(),
+        dimensions: dimensions(),
+        obligations: vec![sales::PerformanceObligationFact {
+            obligation: sales::PerformanceObligationRef::try_from_uuid(id(42)).unwrap(),
+            line: sales::SalesOrderLineRef::try_from_uuid(id(43)).unwrap(),
+            model: sales::RevenueModel::Goods,
+            allocated_amount: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
+            service_starts_on: None,
+            service_ends_on: None,
         }],
+    }
+}
+
+fn active_revenue_schedule() -> RevenueSchedule {
+    RevenueSchedule::create_from_arrangement(
+        RevenueScheduleId::try_from_uuid(id(70)).unwrap(),
+        scope(),
+        RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 1).unwrap(),
+        arrangement_fact(),
+        at(),
+    )
+    .unwrap()
+}
+
+fn fulfillment_fact() -> sales::FulfillmentAcceptedFact {
+    sales::FulfillmentAcceptedFact {
+        fulfillment: sales::FulfillmentRef::try_from_uuid(id(71)).unwrap(),
+        arrangement: sales::RevenueArrangementRef::try_from_uuid(id(37)).unwrap(),
+        sales_order: sales::SalesOrderRef::try_from_uuid(id(40)).unwrap(),
+        obligation: sales::PerformanceObligationRef::try_from_uuid(id(42)).unwrap(),
+        kind: sales::FulfillmentKind::GoodsDelivery,
+        accepted_amount: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
+        accepted_at: at(),
+        dimensions: dimensions(),
     }
 }
 
@@ -196,6 +278,8 @@ struct FakeWrite {
     period: Option<AccountingPeriod>,
     journal: Option<Journal>,
     subledger: Option<SubledgerItem>,
+    invoice: Option<CustomerInvoice>,
+    revenue_schedule: Option<RevenueSchedule>,
     loads: Arc<AtomicUsize>,
 }
 #[async_trait]
@@ -227,6 +311,22 @@ impl WriteRepository for FakeWrite {
     ) -> Result<Option<SubledgerItem>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
         Ok(self.subledger.clone())
+    }
+    async fn load_customer_invoice(
+        &self,
+        _: &TenantScope,
+        _: CustomerInvoiceId,
+    ) -> Result<Option<CustomerInvoice>, PortError> {
+        self.loads.fetch_add(1, Ordering::SeqCst);
+        Ok(self.invoice.clone())
+    }
+    async fn load_revenue_schedule(
+        &self,
+        _: &TenantScope,
+        _: RevenueScheduleId,
+    ) -> Result<Option<RevenueSchedule>, PortError> {
+        self.loads.fetch_add(1, Ordering::SeqCst);
+        Ok(self.revenue_schedule.clone())
     }
 }
 
@@ -290,10 +390,10 @@ fn denied_create_never_reaches_atomic_commit() {
         command_envelope(
             1,
             None,
-            FinanceCommand::CreateReceivableFromSales(CreateReceivableFromSales {
+            FinanceCommand::CreateReceivableFromInvoice(CreateReceivableFromInvoice {
                 subledger_id: SubledgerId::try_from_uuid(id(50)).unwrap(),
                 scope: scope(),
-                fact: sales_fact(),
+                fact: invoice_fact(),
             }),
         ),
     ))
@@ -364,11 +464,77 @@ fn posting_fences_chart_and_period_and_publishes_owner_fact() {
 }
 
 #[test]
+fn posting_customer_invoice_publishes_invoice_fact_before_ar_creation() {
+    let uow = FakeUnitOfWork::default();
+    let receipt = block_on(
+        handler(
+            FakeWrite {
+                invoice: Some(draft_invoice()),
+                ..FakeWrite::default()
+            },
+            uow.clone(),
+            true,
+        )
+        .handle(command_envelope(
+            6,
+            Some(1),
+            FinanceCommand::PostCustomerInvoice(PostCustomerInvoice {
+                invoice_id: CustomerInvoiceId::try_from_uuid(id(48)).unwrap(),
+            }),
+        )),
+    )
+    .unwrap();
+    let FinanceMutationResult::CustomerInvoice(value) = receipt.response else {
+        panic!("expected customer invoice response");
+    };
+    assert_eq!(value.status, CustomerInvoiceStatus::Posted);
+    assert_eq!(
+        uow.event_types.lock().unwrap().as_slice(),
+        &[vec!["finance.customer_invoice_posted"]]
+    );
+}
+
+#[test]
+fn recognizing_fulfillment_publishes_revenue_without_invoice_or_ar_event() {
+    let uow = FakeUnitOfWork::default();
+    let receipt = block_on(
+        handler(
+            FakeWrite {
+                revenue_schedule: Some(active_revenue_schedule()),
+                ..FakeWrite::default()
+            },
+            uow.clone(),
+            true,
+        )
+        .handle(command_envelope(
+            7,
+            Some(1),
+            FinanceCommand::RecognizeRevenueFromFulfillment(RecognizeRevenueFromFulfillment {
+                schedule_id: RevenueScheduleId::try_from_uuid(id(70)).unwrap(),
+                source: RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 2)
+                    .unwrap(),
+                fact: fulfillment_fact(),
+            }),
+        )),
+    )
+    .unwrap();
+    let FinanceMutationResult::RevenueSchedule(value) = receipt.response else {
+        panic!("expected revenue schedule response");
+    };
+    assert_eq!(value.status, RevenueScheduleStatus::Completed);
+    assert_eq!(value.recognized_total_minor, 500);
+    assert_eq!(
+        uow.event_types.lock().unwrap().as_slice(),
+        &[vec!["finance.revenue_recognized"]]
+    );
+}
+
+#[test]
 fn stable_fingerprint_excludes_actor_and_retry_time() {
-    let command = FinanceCommand::CreateReceivableFromSales(CreateReceivableFromSales {
+    let command = FinanceCommand::CreateReceivableFromInvoice(CreateReceivableFromInvoice {
         subledger_id: SubledgerId::try_from_uuid(id(50)).unwrap(),
         scope: scope(),
-        fact: sales_fact(),
+        fact: invoice_fact(),
     });
     let first = command.fingerprint();
     let second = command.clone().fingerprint();
@@ -428,6 +594,22 @@ impl ReadRepository for NotReadyRead {
         _: SubledgerId,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<Option<SubledgerView>>, PortError> {
+        Err(PortError::Internal)
+    }
+    async fn get_customer_invoice(
+        &self,
+        _: &TenantScope,
+        _: CustomerInvoiceId,
+        _: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<CustomerInvoiceView>>, PortError> {
+        Err(PortError::Internal)
+    }
+    async fn get_revenue_schedule(
+        &self,
+        _: &TenantScope,
+        _: RevenueScheduleId,
+        _: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<RevenueScheduleView>>, PortError> {
         Err(PortError::Internal)
     }
     async fn list_subledger(

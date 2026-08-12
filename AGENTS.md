@@ -9,14 +9,24 @@ Next.js are not part of this repository.
 
 ## Verification
 
-Use the affected lane while developing:
+Keep Dioxus hot reload running while editing UI Rust/RSX. Do not run Cargo tests
+after every UI edit. Use the quick affected lane at a small checkpoint:
+
+```bash
+cargo xtask check-affected --dry-run
+cargo xtask check-affected
+```
+
+It format-checks changed Rust files and runs owning-package `cargo check`
+targets without linking tests, scanning architecture, or checking reverse
+dependencies. Finish a related change set with the thorough affected lane:
 
 ```bash
 cargo xtask test-affected --dry-run
 cargo xtask test-affected
 ```
 
-The selector formats changed Rust files, tests changed package targets,
+The thorough selector formats changed Rust files, tests changed package targets,
 compile-checks reverse dependencies, and runs mapped domain harnesses. Use
 `cargo check-fast` and `cargo test-fast` when deliberately escalating to the
 whole Web workspace. Run `cargo xtask test <harness> [filter]` for a specific

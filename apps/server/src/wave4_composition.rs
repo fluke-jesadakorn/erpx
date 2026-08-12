@@ -84,6 +84,7 @@ use crate::contexts::organization_cqrs::{
     OrganizationAuthenticationRequest, OrganizationCommandApplication,
     OrganizationQueryApplication, OrganizationRequestAuthenticator, OrganizationTenantRoute,
 };
+use crate::tenant_workspace::{PresentedTenantRoute, resolve_tenant_workspace};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AuthorizedMode {
@@ -678,28 +679,60 @@ impl OrganizationRequestAuthenticator for OrganizationServerAuthenticator {
         request: OrganizationAuthenticationRequest,
     ) -> Result<AuthenticatedOrganizationRequest, OrganizationAuthenticationError> {
         let write = request.access_mode() == OrganizationAccessMode::Write;
-        let actor = authenticate_context(
+        let presented_route = request.presented_route().map(|route| PresentedTenantRoute {
+            tenant_id: &route.tenant_id,
+            holding_ref: &route.holding_ref,
+        });
+        let workspace = resolve_tenant_workspace(
             &self.state,
-            request.transport_metadata(),
-            request.presented_actor(),
             request.presented_scope(),
-            &request.presented_route().tenant_id,
-            if write {
-                "organization.write"
-            } else {
-                "organization.read"
-            },
-            "organization",
-            write,
+            presented_route,
             request.subscription_id(),
-            request.mfa_code(),
+            write,
         )
         .await
+        .map_err(organization_auth_error)?;
+        let customer_id = workspace.customer_id.to_string();
+        let subscription_id = workspace.subscription_id.map(|value| value.to_string());
+        let actor = if write {
+            authenticate_context_for_tenant(
+                &self.state,
+                request.transport_metadata(),
+                request.presented_actor(),
+                request.presented_scope(),
+                &customer_id,
+                &workspace.tenant_id,
+                "organization.write",
+                "organization",
+                true,
+                subscription_id.as_deref(),
+                request.mfa_code(),
+            )
+            .await
+        } else {
+            authenticate_context_with_permissions(
+                &self.state,
+                request.transport_metadata(),
+                request.presented_actor(),
+                request.presented_scope(),
+                &customer_id,
+                &["assets.read", "maintenance.read", "organization.read"],
+                Some(&workspace.tenant_id),
+                "organization",
+                false,
+                subscription_id.as_deref(),
+                request.mfa_code(),
+            )
+            .await
+        }
         .map_err(organization_auth_error)?;
         AuthenticatedOrganizationRequest::try_new(
             actor,
             request.presented_scope().clone(),
-            request.presented_route().clone(),
+            OrganizationTenantRoute {
+                tenant_id: workspace.tenant_id,
+                holding_ref: workspace.holding_ref,
+            },
         )
     }
 }
@@ -1433,6 +1466,66 @@ pub(crate) async fn authenticate_context(
     subscription_id: Option<&str>,
     mfa_code: Option<&str>,
 ) -> Result<ActorAttribution, Status> {
+    authenticate_context_with_permissions(
+        state,
+        metadata,
+        presented_actor,
+        presented_scope,
+        tenant_id,
+        &[permission],
+        None,
+        product,
+        write,
+        subscription_id,
+        mfa_code,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn authenticate_context_for_tenant(
+    state: &AppState,
+    metadata: &MetadataMap,
+    presented_actor: &ActorAttribution,
+    presented_scope: &TenantScope,
+    customer_id: &str,
+    authorization_tenant: &str,
+    permission: &'static str,
+    product: &'static str,
+    write: bool,
+    subscription_id: Option<&str>,
+    mfa_code: Option<&str>,
+) -> Result<ActorAttribution, Status> {
+    authenticate_context_with_permissions(
+        state,
+        metadata,
+        presented_actor,
+        presented_scope,
+        customer_id,
+        &[permission],
+        Some(authorization_tenant),
+        product,
+        write,
+        subscription_id,
+        mfa_code,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn authenticate_context_with_permissions(
+    state: &AppState,
+    metadata: &MetadataMap,
+    presented_actor: &ActorAttribution,
+    presented_scope: &TenantScope,
+    tenant_id: &str,
+    permissions: &[&'static str],
+    authorization_tenant: Option<&str>,
+    product: &'static str,
+    write: bool,
+    subscription_id: Option<&str>,
+    mfa_code: Option<&str>,
+) -> Result<ActorAttribution, Status> {
     let mut transport_request = Request::new(());
     *transport_request.metadata_mut() = metadata.clone();
     let claims = state.auth.authorize(&transport_request).await?;
@@ -1442,10 +1535,29 @@ pub(crate) async fn authenticate_context(
         "typed context actor must match the authenticated principal",
     )?;
     let access_scope = crate::quality_access_scope(presented_scope);
-    state
-        .auth
-        .authorize_role(&state.store, &claims, &access_scope, permission)
-        .await?;
+    let mut authorized_permission = None;
+    for permission in permissions {
+        match state
+            .auth
+            .authorize_role_for_tenant(
+                &state.store,
+                &claims,
+                &access_scope,
+                permission,
+                authorization_tenant,
+            )
+            .await
+        {
+            Ok(()) => {
+                authorized_permission = Some(*permission);
+                break;
+            }
+            Err(status) if status.code() == tonic::Code::PermissionDenied => {}
+            Err(status) => return Err(status),
+        }
+    }
+    let permission = authorized_permission
+        .ok_or_else(|| Status::permission_denied("active role does not authorize this read"))?;
     let customer_id = Uuid::parse_str(crate::validate_transport_reference(tenant_id, "tenant_id")?)
         .map_err(|_| Status::invalid_argument("tenant_id must be a UUID"))?;
     if presented_scope != &TenantScope::Platform
@@ -1467,9 +1579,22 @@ pub(crate) async fn authenticate_context(
                     .map_err(|_| Status::permission_denied("write entitlement proof is invalid"))
             })?;
         let context = legacy_command_context(&claims, presented_scope, subscription_id, product);
-        state
-            .authorize_entitled_command(&claims, &context, customer_id, product, permission)
-            .await?;
+        if let Some(authorization_tenant) = authorization_tenant {
+            state
+                .authorize_entitled_command_for_tenant(
+                    &claims,
+                    &context,
+                    customer_id,
+                    product,
+                    permission,
+                    authorization_tenant,
+                )
+                .await?;
+        } else {
+            state
+                .authorize_entitled_command(&claims, &context, customer_id, product, permission)
+                .await?;
+        }
         if let Some(code) = mfa_code {
             state.auth.authorize_mfa(&claims, code).await?;
         }
@@ -1615,9 +1740,9 @@ fn organization_auth_error(status: Status) -> OrganizationAuthenticationError {
         tonic::Code::PermissionDenied | tonic::Code::InvalidArgument => {
             OrganizationAuthenticationError::Denied
         }
-        tonic::Code::Unavailable | tonic::Code::DeadlineExceeded => {
-            OrganizationAuthenticationError::Unavailable
-        }
+        tonic::Code::Unavailable
+        | tonic::Code::DeadlineExceeded
+        | tonic::Code::FailedPrecondition => OrganizationAuthenticationError::Unavailable,
         _ => OrganizationAuthenticationError::Internal,
     }
 }

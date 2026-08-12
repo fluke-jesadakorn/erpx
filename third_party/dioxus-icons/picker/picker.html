@@ -1,0 +1,165 @@
+<style>
+.dxi-picker {
+  margin: 24px 0;
+  padding: 12px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color, rgba(24, 24, 27, 0.10));
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: var(--main-color, #18181b);
+}
+.dxi-picker-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border-color, rgba(24, 24, 27, 0.10));
+}
+.dxi-picker-bar:focus-within {
+  border-bottom-color: var(--main-color, rgba(24, 24, 27, 0.45));
+}
+.dxi-picker-icon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0.55;
+}
+.dxi-picker-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 4px 0;
+  font: inherit;
+  font-size: 14px;
+  color: inherit;
+}
+.dxi-picker-input::-webkit-search-cancel-button { display: none; }
+.dxi-picker-input::placeholder { color: var(--right-side-color, #888); opacity: 0.7; }
+.dxi-picker-clear {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 18px;
+  line-height: 1;
+  opacity: 0.5;
+}
+.dxi-picker-clear:hover { opacity: 1; }
+.dxi-picker-meta {
+  padding: 8px 0 0;
+  font-size: 12px;
+  color: var(--right-side-color, #888);
+}
+.dxi-picker-meta strong {
+  color: var(--main-color, inherit);
+  font-weight: 600;
+}
+.dxi-picker-scroll {
+  max-height: min(420px, 60vh);
+  overflow: auto;
+  padding-top: 8px;
+  scrollbar-width: thin;
+  scroll-padding: 4px;
+}
+.dxi-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 4px;
+}
+.dxi-picker-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 8px 4px 10px;
+  border-radius: 5px;
+  text-decoration: none;
+  color: inherit;
+  background: transparent;
+  outline: 0;
+  min-width: 0;
+  min-height: 92px;
+  box-sizing: border-box;
+}
+.dxi-picker-cell-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--main-color, currentColor);
+  opacity: 0.85;
+  flex: none;
+}
+.dxi-picker-cell-preview svg { width: 24px; height: 24px; }
+.dxi-picker-cell-name {
+  width: 100%;
+  font-size: 11px;
+  line-height: 1.3;
+  font-weight: 400;
+  text-align: center;
+  color: var(--right-side-color, #888);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.dxi-picker-cell:hover,
+.dxi-picker-cell[data-active="true"] {
+  text-decoration: none;
+  color: var(--link-color, #3873ad);
+}
+.dxi-picker-cell:hover .dxi-picker-cell-preview,
+.dxi-picker-cell[data-active="true"] .dxi-picker-cell-preview {
+  opacity: 1;
+  color: var(--link-color, #3873ad);
+}
+.dxi-picker-cell:hover .dxi-picker-cell-name,
+.dxi-picker-cell[data-active="true"] .dxi-picker-cell-name {
+  color: var(--link-color, inherit);
+  font-weight: 500;
+}
+.dxi-picker-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--right-side-color, #888);
+}
+.dxi-picker-empty-icon {
+  width: 28px;
+  height: 28px;
+  color: var(--right-side-color, #888);
+  opacity: 0.6;
+}
+.dxi-picker-empty-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--main-color, inherit);
+}
+.dxi-picker-empty-hint { font-size: 12px; }
+@media (max-width: 640px) {
+  .dxi-picker-grid { grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); }
+}
+</style>
+<section id="dxi-picker" class="dxi-picker" data-dxi-picker hidden>
+<div class="dxi-picker-bar">
+<svg class="dxi-picker-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+<input id="dxi-picker-input" class="dxi-picker-input" data-dxi-input type="search" placeholder="Search icons by name, tag, or category" aria-label="Search icons" autocomplete="off" spellcheck="false">
+<button id="dxi-picker-clear" class="dxi-picker-clear" data-dxi-clear type="button" aria-label="Clear search" hidden>×</button>
+</div>
+<div id="dxi-picker-count" class="dxi-picker-meta" data-dxi-count aria-live="polite"><strong>0</strong> icons</div>
+<div class="dxi-picker-scroll" data-dxi-scroll tabindex="-1">
+<div id="dxi-picker-grid" class="dxi-picker-grid" data-dxi-grid></div>
+</div>
+</section>

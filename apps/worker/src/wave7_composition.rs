@@ -19,6 +19,7 @@ use crate::contexts::{
 pub enum Wave7ProjectionKind {
     SalesQuotes,
     SalesOrders,
+    SalesRevenueArrangements,
     PeoplePayrollEmployees,
     PeoplePayrollLeaveRequests,
     PeoplePayrollExpenseClaims,
@@ -42,6 +43,9 @@ impl Wave7ProjectionExecutor {
         match self.kind {
             Wave7ProjectionKind::SalesQuotes => erpx_sales_sqlx::QUOTE_PROJECTION,
             Wave7ProjectionKind::SalesOrders => erpx_sales_sqlx::ORDER_PROJECTION,
+            Wave7ProjectionKind::SalesRevenueArrangements => {
+                erpx_sales_sqlx::ARRANGEMENT_PROJECTION
+            }
             Wave7ProjectionKind::PeoplePayrollEmployees => {
                 erpx_people_payroll_sqlx::EMPLOYEE_PROJECTION
             }
@@ -99,6 +103,15 @@ impl Wave7ProjectionExecutor {
                         SalesProjectionFactory.registrations()
                     );
                     SnapshotRuntime::Sales(runtime, SalesProjectionKind::Orders)
+                }),
+            Wave7ProjectionKind::SalesRevenueArrangements => SalesProjectionFactory
+                .build(write, read, config)
+                .map(|runtime| {
+                    debug_assert_eq!(
+                        runtime.registrations(),
+                        SalesProjectionFactory.registrations()
+                    );
+                    SnapshotRuntime::Sales(runtime, SalesProjectionKind::RevenueArrangements)
                 }),
             Wave7ProjectionKind::PeoplePayrollEmployees => PeoplePayrollProjectionFactory
                 .build(write, read, config)
@@ -274,6 +287,7 @@ mod tests {
         let kinds = [
             Wave7ProjectionKind::SalesQuotes,
             Wave7ProjectionKind::SalesOrders,
+            Wave7ProjectionKind::SalesRevenueArrangements,
             Wave7ProjectionKind::PeoplePayrollEmployees,
             Wave7ProjectionKind::PeoplePayrollLeaveRequests,
             Wave7ProjectionKind::PeoplePayrollExpenseClaims,
@@ -281,6 +295,6 @@ mod tests {
             Wave7ProjectionKind::PosSales,
             Wave7ProjectionKind::PosRefunds,
         ];
-        assert_eq!(kinds.len(), 8);
+        assert_eq!(kinds.len(), 9);
     }
 }

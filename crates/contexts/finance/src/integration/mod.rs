@@ -45,10 +45,50 @@ fn map_event(event: &DomainEvent) -> Option<Result<finance::Event, IntegrationMa
                 outstanding_amount: MoneyAmount::new(state.outstanding_minor, currency),
             }))
         })()),
+        DomainEvent::CustomerInvoicePosted(state) => Some((|| {
+            let currency = CurrencyCode::try_new(&state.currency)
+                .map_err(|_| IntegrationMappingError::InvalidContractValue)?;
+            Ok(finance::Event::CustomerInvoicePosted(
+                finance::CustomerInvoicePostedFact {
+                    invoice: finance::CustomerInvoiceRef::try_from_uuid(state.invoice_id.as_uuid())
+                        .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+                    customer: state.customer,
+                    invoice_code: ReferenceCode::try_new(state.invoice_code.clone())
+                        .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+                    source: state.source.clone(),
+                    net_amount: MoneyAmount::new(state.net_minor, currency),
+                    tax_amount: MoneyAmount::new(state.tax_minor, currency),
+                    receivable_amount: MoneyAmount::new(state.receivable_minor, currency),
+                    dimensions: state.dimensions.clone(),
+                    posted_at: state.posted_at,
+                },
+            ))
+        })()),
+        DomainEvent::RevenueRecognized(state) => Some((|| {
+            let currency = CurrencyCode::try_new(&state.currency)
+                .map_err(|_| IntegrationMappingError::InvalidContractValue)?;
+            Ok(finance::Event::RevenueRecognized(
+                finance::RecognizedRevenueFact {
+                    schedule: finance::RevenueScheduleRef::try_from_uuid(
+                        state.schedule_id.as_uuid(),
+                    )
+                    .map_err(|_| IntegrationMappingError::InvalidContractValue)?,
+                    customer: state.customer,
+                    source: state.source.clone(),
+                    fulfillment: state.fulfillment,
+                    obligation: state.obligation,
+                    recognized_amount: MoneyAmount::new(state.recognized_minor, currency),
+                    dimensions: state.dimensions.clone(),
+                    recognized_at: state.recognized_at,
+                },
+            ))
+        })()),
         DomainEvent::ChartChanged
         | DomainEvent::PeriodChanged
         | DomainEvent::JournalChanged
-        | DomainEvent::SubledgerChanged => None,
+        | DomainEvent::SubledgerChanged
+        | DomainEvent::CustomerInvoiceChanged
+        | DomainEvent::RevenueScheduleChanged => None,
     }
 }
 

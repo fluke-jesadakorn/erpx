@@ -1,4 +1,5 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     fs,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
@@ -8,6 +9,7 @@ use std::{
 use chrono::Utc;
 use erpx_domain::{
     access::{RiskTier, RoleAssignment, Scope},
+    commercial::{BillingLifecycle, BillingState, EntitlementAllocationBook, EntitlementCapacity},
     data_plane::BusinessUnitId,
 };
 use erpx_identity::{
@@ -17,8 +19,9 @@ use erpx_identity::{
 };
 use erpx_infrastructure::{
     ApprovedDatabaseProfileConnection, BranchProvisioningState, DatabaseProfileRegistration,
-    PersistenceError, ProvisionBranchRequest, SqlxBranchProvisioningStore, SqlxControlPlane,
-    TenantDatabaseProvisioner, branch_database_keys, tenant_holding_scope_id,
+    PersistenceError, ProvisionBranchRequest, SodDecision, SqlxBranchProvisioningStore,
+    SqlxCommercialStore, SqlxControlPlane, TenantDatabaseProvisioner, branch_database_keys,
+    tenant_holding_scope_id,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -32,7 +35,7 @@ use crate::{
 
 const CONTROLLER_PASSWORD_FILE: &str = "secrets/dev-controller.password";
 const UCS_SHARED_PASSWORD_FILE: &str = "secrets/ucs-shared.password";
-const FIXTURE_VERSION: &str = "erpx-dev-access-v6";
+const FIXTURE_VERSION: &str = "erpx-dev-access-v7";
 const PLATFORM_ASSIGNMENT_REVISION: &str = "platform-permissions-v6";
 const CONTROLLER_ASSIGNMENT_REVISION: &str = "restricted-tenant-full-admin-v1";
 const CONTROLLER_CATALOG_ASSIGNMENT_REVISION: &str = "controller-role-catalog-v2";
@@ -178,6 +181,16 @@ fn controller_catalog_assignment_id(target_tenant: &str, role_key: &str) -> Uuid
     )
 }
 
+fn controller_catalog_holding_assignment_id(target_tenant: &str, role_key: &str) -> Uuid {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!(
+            "erpx:dev-access:{CONTROLLER_CATALOG_ASSIGNMENT_REVISION}:{target_tenant}:{role_key}:holding"
+        )
+        .as_bytes(),
+    )
+}
+
 fn controller_catalog_assignments(
     target_tenant: &str,
     holding_ref: &str,
@@ -187,7 +200,7 @@ fn controller_catalog_assignments(
     let holding_id = tenant_holding_scope_id(holding_ref);
     permission_catalog()
         .into_iter()
-        .map(|entry| {
+        .flat_map(|entry| {
             let platform_role = entry.target_scope == DirectoryRoleTargetScope::Platform;
             let scope = match entry.target_scope {
                 DirectoryRoleTargetScope::Platform => Scope::Platform,
@@ -211,7 +224,7 @@ fn controller_catalog_assignments(
                     .map_or("tenant-administration", |(domain, _)| domain)
                     .to_owned()
             };
-            RoleAssignment {
+            let assignment = RoleAssignment {
                 id: controller_catalog_assignment_id(target_tenant, &entry.role_key),
                 principal_ref: DEVELOPMENT_CONTROLLER_PRINCIPAL.into(),
                 role_key: entry.role_key,
@@ -231,7 +244,22 @@ fn controller_catalog_assignments(
                 renewal_reviewer: None,
                 parent_assignment_id: None,
                 assignment_version: 1,
+            };
+            let mut assignments = vec![assignment.clone()];
+            if matches!(
+                assignment.role_key.as_str(),
+                "assets_administrator" | "maintenance_administrator"
+            ) {
+                assignments.push(RoleAssignment {
+                    id: controller_catalog_holding_assignment_id(
+                        target_tenant,
+                        &assignment.role_key,
+                    ),
+                    scope: Scope::Holding { holding_id },
+                    ..assignment
+                });
             }
+            assignments
         })
         .collect()
 }
@@ -619,7 +647,7 @@ fn write_ucs_authorities_file(root: &Path) -> TaskResult {
 pub(crate) fn start_ucs_lab(root: &Path) -> TaskResult {
     let runtime = runtime_dir(root);
     let tls = runtime.join("ucs-lab/tls");
-    let binary = root.join("target/debug/erpx-ucs-lab");
+    let binary = super::runtime_binary(root, "erpx-ucs-lab");
     if !binary.exists() {
         return Err("build erpx-ucs-lab before starting the development stack".into());
     }
@@ -764,18 +792,58 @@ async fn reconcile_persona_catalog(
     let now = Utc::now();
     reconcile_controller_principal(root, &write, now).await?;
 
-    let tenants = [
-        (
-            TENANT_ID,
-            HOLDING_REF,
-            erpx_identity::BUSINESS_UNITS.as_slice(),
-        ),
-        (
-            RESTRICTED_TENANT_ID,
-            RESTRICTED_HOLDING_REF,
-            &RESTRICTED_UNITS,
-        ),
-    ];
+    let fresh_runtime = controller_target_tenant != DEVELOPMENT_CONTROLLER_TARGET_TENANT;
+    let tenants = if fresh_runtime {
+        let row = sqlx::query(
+            "SELECT registry.tenant_id, registry.holding_ref
+             FROM erpx_control.tenant_registry registry
+             JOIN erpx_control.customer_tenant_bindings binding USING (tenant_id)
+             WHERE registry.tenant_id=$1 AND registry.state='active'
+               AND binding.binding_state='configured'",
+        )
+        .bind(controller_target_tenant)
+        .fetch_optional(&write)
+        .await?
+        .ok_or("the development controller target has no authoritative tenant workspace")?;
+        vec![(
+            row.try_get::<String, _>("tenant_id")?,
+            row.try_get::<String, _>("holding_ref")?,
+            erpx_identity::BUSINESS_UNITS.to_vec(),
+        )]
+    } else {
+        vec![
+            (
+                TENANT_ID.to_owned(),
+                HOLDING_REF.to_owned(),
+                erpx_identity::BUSINESS_UNITS.to_vec(),
+            ),
+            (
+                RESTRICTED_TENANT_ID.to_owned(),
+                RESTRICTED_HOLDING_REF.to_owned(),
+                RESTRICTED_UNITS.to_vec(),
+            ),
+        ]
+    };
+    if fresh_runtime {
+        sqlx::query(
+            "DELETE FROM erpx_identity.development_persona_contexts
+             WHERE persona_key IN (
+                 SELECT persona_key
+                 FROM erpx_identity.development_persona_manifests
+                 WHERE tenant_id IS NOT NULL AND tenant_id <> $1
+             )",
+        )
+        .bind(controller_target_tenant)
+        .execute(&write)
+        .await?;
+        sqlx::query(
+            "DELETE FROM erpx_identity.development_persona_manifests
+             WHERE tenant_id IS NOT NULL AND tenant_id <> $1",
+        )
+        .bind(controller_target_tenant)
+        .execute(&write)
+        .await?;
+    }
     let control = std::sync::Arc::new(SqlxControlPlane::new(crate::ControlPlanePools {
         write: write.clone(),
         read: super::pool(&config.database_url(control_read_database)).await?,
@@ -847,14 +915,14 @@ async fn reconcile_persona_catalog(
     .execute(&write)
     .await?;
     for (tenant_id, holding_ref, entitled_units) in tenants {
-        let personas = scoped_demo_personas(tenant_id, holding_ref, entitled_units);
+        let personas = scoped_demo_personas(&tenant_id, &holding_ref, &entitled_units);
         identity
             .reconcile_development_personas(&personas, now)
             .await?;
         for persona in personas {
             ensure_principal(&write, &persona.principal_ref, now).await?;
             for (scope, scope_key) in
-                persona_assignment_scopes(tenant_id, holding_ref, &persona.role_key)
+                persona_assignment_scopes(&tenant_id, &holding_ref, &persona.role_key)
             {
                 let assignment_id = Uuid::new_v5(
                     &Uuid::NAMESPACE_URL,
@@ -900,7 +968,7 @@ async fn reconcile_persona_catalog(
                 }
             }
         }
-        let digest = manifest_digest(tenant_id);
+        let digest = manifest_digest(&tenant_id);
         sqlx::query(
             "INSERT INTO erpx_identity.development_seed_receipts
                 (receipt_key, fixture_version, tenant_id, manifest_digest, applied_at, counts)
@@ -913,7 +981,7 @@ async fn reconcile_persona_catalog(
         )
         .bind(format!("persona-manifest:{tenant_id}"))
         .bind(FIXTURE_VERSION)
-        .bind(tenant_id)
+        .bind(&tenant_id)
         .bind(digest)
         .bind(now)
         .bind(serde_json::json!({
@@ -921,7 +989,7 @@ async fn reconcile_persona_catalog(
             "negative_personas": 4,
             "companies": 2,
             "branches": 4,
-            "holding_name": if tenant_id == TENANT_ID { "Atlas Holdings" } else { "Beacon Services" },
+            "holding_name": if tenant_id == TENANT_ID { "Atlas Holdings" } else if tenant_id == RESTRICTED_TENANT_ID { "Beacon Services" } else { "Development Holding" },
             "entitled_business_units": entitled_units,
         }))
         .execute(&write)
@@ -941,7 +1009,7 @@ pub(crate) async fn reconcile_runtime_catalog(
     control_read_database: &str,
     controller_target_tenant: &str,
 ) -> TaskResult {
-    let (write, control, _) = reconcile_persona_catalog(
+    let (write, control, now) = reconcile_persona_catalog(
         root,
         config,
         control_write_database,
@@ -949,6 +1017,8 @@ pub(crate) async fn reconcile_runtime_catalog(
         controller_target_tenant,
     )
     .await?;
+    reconcile_typed_organization_read_fixtures(config, &control, now).await?;
+    reconcile_asset_maintenance_entitlements(&control, now).await?;
     drop(control);
     write.close().await;
     Ok(())
@@ -1065,8 +1135,571 @@ pub(crate) async fn reconcile(root: &Path, config: &DevConfig) -> TaskResult {
     .execute(&write)
     .await?;
     reconcile_branch_fixtures(root, config, control.clone()).await?;
+    reconcile_typed_organization_read_fixtures(config, &control, now).await?;
+    reconcile_asset_maintenance_entitlements(&control, now).await?;
     reconcile_cluster_identity(&write, now).await?;
     write.close().await;
+    Ok(())
+}
+
+async fn reconcile_typed_organization_read_fixtures(
+    config: &DevConfig,
+    control: &SqlxControlPlane,
+    now: chrono::DateTime<Utc>,
+) -> TaskResult {
+    let tenants = sqlx::query(
+        "SELECT registry.tenant_id, registry.holding_ref, registry.read_database_key,
+                binding.root_holding_id
+         FROM erpx_control.tenant_registry registry
+         JOIN erpx_control.customer_tenant_bindings binding USING (tenant_id)
+         WHERE registry.state='active' AND binding.binding_state='configured'
+           AND registry.credential_key_ref IN
+               ('local_shared','local-development-disabled','database-profile:default')
+         ORDER BY registry.tenant_id",
+    )
+    .fetch_all(&control.pools().write)
+    .await?;
+    for tenant in tenants {
+        let tenant_id: String = tenant.try_get("tenant_id")?;
+        let holding_ref: String = tenant.try_get("holding_ref")?;
+        let read_database_key: String = tenant.try_get("read_database_key")?;
+        let holding_id: Uuid = tenant.try_get("root_holding_id")?;
+        let read = super::pool(&config.database_url(&read_database_key)).await?;
+        let generation = match sqlx::query_scalar(
+            "SELECT generation FROM erpx_cqrs_read.projection_generations
+             WHERE projection_name='organization.nodes' AND status='active'",
+        )
+        .fetch_optional(&read)
+        .await?
+        {
+            Some(generation) => generation,
+            None => {
+                let generation = Uuid::new_v5(
+                    &Uuid::NAMESPACE_URL,
+                    format!("erpx:{FIXTURE_VERSION}:{tenant_id}:organization.nodes").as_bytes(),
+                );
+                sqlx::query(
+                    "INSERT INTO erpx_cqrs_read.projection_generations
+                        (projection_name,generation,status,source_sequence,created_at,activated_at)
+                     VALUES ('organization.nodes',$1,'active',0,$2,$2)",
+                )
+                .bind(generation)
+                .bind(now)
+                .execute(&read)
+                .await?;
+                generation
+            }
+        };
+
+        let holding_name = if holding_ref == HOLDING_REF {
+            "Atlas Holdings"
+        } else if holding_ref == RESTRICTED_HOLDING_REF {
+            "Beacon Services"
+        } else {
+            "Development Holding"
+        };
+        insert_typed_organization_read_fixture(
+            &read,
+            generation,
+            1,
+            holding_id,
+            "holding",
+            holding_id,
+            None,
+            None,
+            holding_ref.clone(),
+            holding_name.to_owned(),
+            now,
+        )
+        .await?;
+
+        let routes = sqlx::query(
+            "SELECT route.company_id, route.branch_id, job.branch_code, job.branch_name
+             FROM erpx_control.branch_database_routes route
+             JOIN LATERAL (
+                 SELECT branch_code, branch_name
+                 FROM erpx_control.branch_provisioning_jobs candidate
+                 WHERE candidate.tenant_id=route.tenant_id
+                   AND candidate.branch_id=route.branch_id
+                   AND candidate.state='active'
+                 ORDER BY candidate.completed_at DESC, candidate.job_id DESC
+                 LIMIT 1
+             ) job ON TRUE
+             WHERE route.tenant_id=$1 AND route.state='active'
+             ORDER BY route.company_id,route.branch_id",
+        )
+        .bind(&tenant_id)
+        .fetch_all(&control.pools().write)
+        .await?;
+        let mut seen_companies = BTreeSet::new();
+        let mut seen_branches = BTreeSet::new();
+        for (index, route) in routes.into_iter().enumerate() {
+            let company_id: Uuid = route.try_get("company_id")?;
+            let branch_id: Uuid = route.try_get("branch_id")?;
+            let branch_code: String = route.try_get("branch_code")?;
+            let branch_name: String = route.try_get("branch_name")?;
+            if seen_companies.insert(company_id) {
+                let fixture = branch_fixtures(&tenant_id)
+                    .iter()
+                    .find(|fixture| branch_ids(&tenant_id, **fixture).0 == company_id);
+                let company_code = fixture.map_or_else(
+                    || format!("COMPANY-{}", &company_id.simple().to_string()[..8]),
+                    |fixture| fixture.company_key.to_owned(),
+                );
+                let company_name = fixture.map_or_else(
+                    || "Development Company".to_owned(),
+                    |fixture| fixture.company_name.to_owned(),
+                );
+                insert_typed_organization_read_fixture(
+                    &read,
+                    generation,
+                    u64::try_from(index)?.saturating_mul(2).saturating_add(2),
+                    company_id,
+                    "company",
+                    holding_id,
+                    Some(company_id),
+                    Some(holding_id),
+                    company_code,
+                    company_name,
+                    now,
+                )
+                .await?;
+            }
+            insert_typed_organization_read_fixture(
+                &read,
+                generation,
+                u64::try_from(index)?.saturating_mul(2).saturating_add(3),
+                branch_id,
+                "branch",
+                holding_id,
+                Some(company_id),
+                Some(company_id),
+                branch_code,
+                branch_name,
+                now,
+            )
+            .await?;
+            seen_branches.insert(branch_id);
+        }
+
+        let assignment_payloads = sqlx::query_scalar::<_, serde_json::Value>(
+            "SELECT assignment.payload
+             FROM erpx_control.role_assignments assignment
+             JOIN erpx_control.role_assignment_tenant_targets target
+               ON target.assignment_id=assignment.id
+             WHERE target.tenant_id=$1
+               AND assignment.valid_from <= $2 AND assignment.valid_until > $2
+             ORDER BY assignment.id",
+        )
+        .bind(&tenant_id)
+        .bind(now)
+        .fetch_all(&control.pools().write)
+        .await?;
+        for (index, assignment) in assignment_payloads
+            .into_iter()
+            .map(serde_json::from_value::<RoleAssignment>)
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .enumerate()
+        {
+            let (company_id, branch_id) = match assignment.scope {
+                Scope::Company {
+                    holding_id: authority_holding,
+                    company_id,
+                } if authority_holding == holding_id => (company_id, None),
+                Scope::Branch {
+                    holding_id: authority_holding,
+                    company_id,
+                    branch_id,
+                } if authority_holding == holding_id => (company_id, Some(branch_id)),
+                _ => continue,
+            };
+            let fixture = DEMO_BRANCHES
+                .iter()
+                .chain(RESTRICTED_BRANCHES.iter())
+                .find(|fixture| {
+                    let ids = branch_ids(&tenant_id, **fixture);
+                    ids.0 == company_id && branch_id.is_none_or(|branch_id| ids.1 == branch_id)
+                });
+            if seen_companies.insert(company_id) {
+                insert_typed_organization_read_fixture(
+                    &read,
+                    generation,
+                    u64::try_from(index)?
+                        .saturating_mul(2)
+                        .saturating_add(10_002),
+                    company_id,
+                    "company",
+                    holding_id,
+                    Some(company_id),
+                    Some(holding_id),
+                    fixture.map_or_else(
+                        || format!("COMPANY-{}", &company_id.simple().to_string()[..8]),
+                        |fixture| fixture.company_key.to_owned(),
+                    ),
+                    fixture.map_or_else(
+                        || "Authorized Company".to_owned(),
+                        |fixture| fixture.company_name.to_owned(),
+                    ),
+                    now,
+                )
+                .await?;
+            }
+            if let Some(branch_id) = branch_id
+                && seen_branches.insert(branch_id)
+            {
+                insert_typed_organization_read_fixture(
+                    &read,
+                    generation,
+                    u64::try_from(index)?
+                        .saturating_mul(2)
+                        .saturating_add(10_003),
+                    branch_id,
+                    "branch",
+                    holding_id,
+                    Some(company_id),
+                    Some(company_id),
+                    fixture.map_or_else(
+                        || format!("BRANCH-{}", &branch_id.simple().to_string()[..8]),
+                        |fixture| fixture.branch_code.to_owned(),
+                    ),
+                    fixture.map_or_else(
+                        || "Authorized Branch".to_owned(),
+                        |fixture| fixture.branch_name.to_owned(),
+                    ),
+                    now,
+                )
+                .await?;
+            }
+        }
+        read.close().await;
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn insert_typed_organization_read_fixture(
+    read: &PgPool,
+    generation: Uuid,
+    source_global_sequence: u64,
+    node_id: Uuid,
+    node_kind: &str,
+    holding_id: Uuid,
+    company_id: Option<Uuid>,
+    parent_node_id: Option<Uuid>,
+    code: String,
+    name: String,
+    now: chrono::DateTime<Utc>,
+) -> TaskResult {
+    let (placement, scope, scope_key) = match node_kind {
+        "holding" => (
+            serde_json::json!({"kind":"holding"}),
+            serde_json::json!({"Holding":{"holding_id":holding_id}}),
+            format!("h:{holding_id}"),
+        ),
+        "company" => (
+            serde_json::json!({"kind":"company","holding_id":holding_id}),
+            serde_json::json!({"Company":{"holding_id":holding_id,"company_id":node_id}}),
+            format!("h:{holding_id}/c:{node_id}"),
+        ),
+        "branch" => {
+            let company_id =
+                company_id.ok_or("typed Organization branch fixture has no company")?;
+            (
+                serde_json::json!({"kind":"branch","holding_id":holding_id,"company_id":company_id}),
+                serde_json::json!({"Branch":{"holding_id":holding_id,"company_id":company_id,"branch_id":node_id}}),
+                format!("h:{holding_id}/c:{company_id}/b:{node_id}"),
+            )
+        }
+        _ => return Err("unsupported typed Organization development fixture kind".into()),
+    };
+    let state = serde_json::json!({
+        "node_id":node_id,
+        "version":1,
+        "code":code.clone(),
+        "name":name.clone(),
+        "kind":node_kind,
+        "placement":placement.clone(),
+        "parent_id":parent_node_id,
+        "scope":scope.clone(),
+        "status":"active",
+        "created_at":now,
+        "updated_at":now,
+    });
+    sqlx::query(
+        "INSERT INTO erpx_organization_read.node_projection
+            (projection_name,generation,partition_key,node_id,source_aggregate_version,
+             source_global_sequence,node_kind,node_status,parent_node_id,tenant_scope,
+             scope_key,placement,node_code,display_name,state,aggregate_created_at,
+             aggregate_updated_at,projected_at)
+         VALUES ('organization.nodes',$1,$2,$3,1,$4,$5,'active',$6,$7,$8,$9,$10,$11,$12,$13,$13,$13)
+         ON CONFLICT (projection_name,generation,partition_key,node_id) DO NOTHING",
+    )
+    .bind(generation)
+    .bind(format!("organization.node:{}", node_id.simple()))
+    .bind(node_id)
+    .bind(i64::try_from(source_global_sequence)?)
+    .bind(node_kind)
+    .bind(parent_node_id)
+    .bind(&scope)
+    .bind(scope_key)
+    .bind(&placement)
+    .bind(code)
+    .bind(name)
+    .bind(state)
+    .bind(now)
+    .execute(read)
+    .await?;
+    Ok(())
+}
+
+async fn reconcile_asset_maintenance_entitlements(
+    control: &SqlxControlPlane,
+    now: chrono::DateTime<Utc>,
+) -> TaskResult {
+    let commercial = SqlxCommercialStore::new(control);
+    let bindings = sqlx::query(
+        "SELECT binding.tenant_id, binding.customer_id, binding.root_holding_id
+         FROM erpx_control.customer_tenant_bindings binding
+         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+         WHERE binding.binding_state='configured'
+           AND registry.credential_key_ref IN
+               ('local_shared','local-development-disabled','database-profile:default')
+         ORDER BY binding.tenant_id",
+    )
+    .fetch_all(&control.pools().write)
+    .await?;
+    for binding in bindings {
+        let tenant_id: String = binding.try_get("tenant_id")?;
+        let customer_id: Uuid = binding.try_get("customer_id")?;
+        let root_holding_id: Uuid = binding.try_get("root_holding_id")?;
+        let subscription_id = Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("erpx:dev-access:{tenant_id}:subscription:v1").as_bytes(),
+        );
+        let subscriptions = commercial.customer_subscription_ids(customer_id).await?;
+        if subscriptions
+            .iter()
+            .any(|candidate| *candidate != subscription_id)
+        {
+            return Err(format!(
+                "development customer {customer_id} has a subscription outside the deterministic fixture"
+            )
+            .into());
+        }
+        match commercial
+            .get_billing_lifecycle(customer_id, subscription_id)
+            .await?
+        {
+            Some((lifecycle, _)) if lifecycle.state == BillingState::Active => {}
+            Some((_, version)) => {
+                commercial
+                    .upsert_billing_lifecycle(
+                        customer_id,
+                        subscription_id,
+                        &BillingLifecycle::new(BillingState::Active, now),
+                        Some(version),
+                    )
+                    .await?;
+            }
+            None => {
+                commercial
+                    .upsert_billing_lifecycle(
+                        customer_id,
+                        subscription_id,
+                        &BillingLifecycle::new(BillingState::Active, now),
+                        None,
+                    )
+                    .await?;
+            }
+        }
+
+        let assignment_payloads = sqlx::query_scalar::<_, serde_json::Value>(
+            "SELECT payload
+             FROM erpx_control.role_assignments
+             WHERE valid_from <= $1 AND valid_until > $1
+             ORDER BY id",
+        )
+        .bind(now)
+        .fetch_all(&control.pools().write)
+        .await?;
+        let assignments = assignment_payloads
+            .into_iter()
+            .map(serde_json::from_value::<RoleAssignment>)
+            .collect::<Result<Vec<_>, _>>()?;
+        reconcile_asset_maintenance_sod(control, &assignments, root_holding_id, now).await?;
+        let mut companies = BTreeMap::<Uuid, BTreeSet<Uuid>>::new();
+        for assignment in &assignments {
+            match &assignment.scope {
+                Scope::Company {
+                    holding_id,
+                    company_id,
+                } if *holding_id == root_holding_id => {
+                    companies.entry(*company_id).or_default();
+                }
+                Scope::Branch {
+                    holding_id,
+                    company_id,
+                    branch_id,
+                } if *holding_id == root_holding_id => {
+                    companies.entry(*company_id).or_default().insert(*branch_id);
+                }
+                Scope::Subtree {
+                    holding_id,
+                    company_ids,
+                    branch_ids,
+                } if *holding_id == root_holding_id => {
+                    for company_id in company_ids {
+                        companies.entry(*company_id).or_default();
+                    }
+                    if let [company_id] = company_ids.as_slice() {
+                        companies
+                            .entry(*company_id)
+                            .or_default()
+                            .extend(branch_ids.iter().copied());
+                    }
+                }
+                _ => {}
+            }
+        }
+        if companies.is_empty() {
+            return Err(format!(
+                "development tenant {tenant_id} has no company or branch assignment for its root holding"
+            )
+            .into());
+        }
+        let company_count = u32::try_from(companies.len())?;
+        let branch_capacity = u32::try_from(
+            companies
+                .values()
+                .map(|branches| branches.len().max(1))
+                .sum::<usize>(),
+        )?;
+        for module_key in ["assets", "maintenance"] {
+            let mut expected = EntitlementAllocationBook::new(
+                module_key,
+                EntitlementCapacity {
+                    seats: company_count.saturating_mul(50),
+                    companies: company_count,
+                    branches: branch_capacity,
+                },
+                None,
+            );
+            expected.set_active(true, None);
+            for (company_id, branch_ids) in &companies {
+                expected.allocate_company(
+                    *company_id,
+                    50,
+                    u32::try_from(branch_ids.len().max(1))?,
+                )?;
+                expected.activate_company(*company_id)?;
+                for branch_id in branch_ids {
+                    expected.activate_branch(*company_id, *branch_id)?;
+                }
+            }
+            match commercial
+                .get_entitlement_book(customer_id, module_key)
+                .await?
+            {
+                Some((book, _)) if book == expected => {}
+                Some((_, version)) => {
+                    commercial
+                        .upsert_entitlement_book(customer_id, &expected, Some(version))
+                        .await?;
+                }
+                None => {
+                    commercial
+                        .upsert_entitlement_book(customer_id, &expected, None)
+                        .await?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn scope_root_holding(scope: &Scope) -> Option<Uuid> {
+    match scope {
+        Scope::Holding { holding_id }
+        | Scope::Company { holding_id, .. }
+        | Scope::Branch { holding_id, .. }
+        | Scope::Subtree { holding_id, .. } => Some(*holding_id),
+        Scope::Platform => None,
+    }
+}
+
+fn writable_asset_maintenance_modules(assignment: &RoleAssignment) -> Vec<&'static str> {
+    ["assets", "maintenance"]
+        .into_iter()
+        .filter(|module| {
+            let permission = format!("{module}.write");
+            assignment
+                .permissions
+                .iter()
+                .any(|candidate| candidate == &permission)
+        })
+        .collect()
+}
+
+async fn reconcile_asset_maintenance_sod(
+    control: &SqlxControlPlane,
+    assignments: &[RoleAssignment],
+    root_holding_id: Uuid,
+    now: chrono::DateTime<Utc>,
+) -> TaskResult {
+    for assignment in assignments
+        .iter()
+        .filter(|assignment| scope_root_holding(&assignment.scope) == Some(root_holding_id))
+    {
+        for module_key in writable_asset_maintenance_modules(assignment) {
+            let scope = serde_json::to_value(&assignment.scope)?;
+            let existing = sqlx::query(
+                "SELECT passed, valid_from, valid_until, decision_version
+                 FROM erpx_control.sod_decisions
+                 WHERE principal_ref=$1 AND module_key=$2 AND scope=$3",
+            )
+            .bind(&assignment.principal_ref)
+            .bind(module_key)
+            .bind(&scope)
+            .fetch_optional(&control.pools().write)
+            .await?;
+            if existing.as_ref().is_some_and(|row| {
+                row.try_get::<bool, _>("passed").unwrap_or(false)
+                    && row
+                        .try_get::<chrono::DateTime<Utc>, _>("valid_from")
+                        .is_ok_and(|valid_from| valid_from <= now)
+                    && row
+                        .try_get::<chrono::DateTime<Utc>, _>("valid_until")
+                        .is_ok_and(|valid_until| now < valid_until)
+            }) {
+                continue;
+            }
+            let decision_version = existing
+                .as_ref()
+                .map(|row| row.try_get::<i64, _>("decision_version"))
+                .transpose()?
+                .map_or(Ok(1_u64), |version| {
+                    u64::try_from(version)?.checked_add(1).ok_or_else(|| {
+                        Box::<dyn std::error::Error + Send + Sync>::from(
+                            "development SoD decision version overflow",
+                        )
+                    })
+                })?;
+            control
+                .record_sod_decision(&SodDecision {
+                    principal_ref: assignment.principal_ref.clone(),
+                    module_key: module_key.into(),
+                    scope: assignment.scope.clone(),
+                    passed: true,
+                    reviewer_ref: DEVELOPMENT_CONTROLLER_PRINCIPAL.into(),
+                    reason: "local development asset and maintenance flow fixture".into(),
+                    valid_from: now,
+                    valid_until: now + chrono::Duration::days(365),
+                    decision_version,
+                })
+                .await?;
+        }
+    }
     Ok(())
 }
 
@@ -1427,6 +2060,11 @@ pub(crate) async fn controller_fixture_current(
             .into_iter()
             .map(|entry| controller_catalog_assignment_id(target_tenant, &entry.role_key)),
     );
+    expected_assignment_ids.extend(
+        ["assets_administrator", "maintenance_administrator"]
+            .into_iter()
+            .map(|role_key| controller_catalog_holding_assignment_id(target_tenant, role_key)),
+    );
     let controller_role_count: i64 = sqlx::query_scalar(
         "SELECT count(*)
          FROM erpx_control.role_assignments assignment
@@ -1513,12 +2151,28 @@ pub(crate) async fn runtime_catalog_current(
         return Ok(false);
     }
 
-    for (tenant_id, holding_ref) in [
-        (TENANT_ID, HOLDING_REF),
-        (RESTRICTED_TENANT_ID, RESTRICTED_HOLDING_REF),
-    ] {
-        let expected_personas =
-            scoped_demo_personas(tenant_id, holding_ref, entitled_units(tenant_id));
+    let runtime_workspace = sqlx::query(
+        "SELECT registry.tenant_id, registry.holding_ref
+         FROM erpx_control.tenant_registry registry
+         JOIN erpx_control.customer_tenant_bindings binding USING (tenant_id)
+         WHERE registry.tenant_id=$1 AND registry.state='active'
+           AND binding.binding_state='configured'",
+    )
+    .bind(target_tenant)
+    .fetch_optional(&write)
+    .await?;
+    let Some(runtime_workspace) = runtime_workspace else {
+        write.close().await;
+        return Ok(false);
+    };
+    let tenant_id: String = runtime_workspace.try_get("tenant_id")?;
+    let holding_ref: String = runtime_workspace.try_get("holding_ref")?;
+    for (tenant_id, holding_ref) in [(tenant_id, holding_ref)] {
+        let expected_personas = scoped_demo_personas(
+            &tenant_id,
+            &holding_ref,
+            erpx_identity::BUSINESS_UNITS.as_slice(),
+        );
         let receipt_current: bool = sqlx::query_scalar(
             "SELECT EXISTS(
                  SELECT 1 FROM erpx_identity.development_seed_receipts
@@ -1528,15 +2182,15 @@ pub(crate) async fn runtime_catalog_current(
         )
         .bind(format!("persona-manifest:{tenant_id}"))
         .bind(FIXTURE_VERSION)
-        .bind(tenant_id)
-        .bind(manifest_digest(tenant_id))
+        .bind(&tenant_id)
+        .bind(manifest_digest(&tenant_id))
         .fetch_one(&write)
         .await?;
         let manifest_count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM erpx_identity.development_persona_manifests
              WHERE tenant_id=$1",
         )
-        .bind(tenant_id)
+        .bind(&tenant_id)
         .fetch_one(&write)
         .await?;
         let mut principal_refs = expected_personas
@@ -1555,7 +2209,7 @@ pub(crate) async fn runtime_catalog_current(
         let mut assignment_ids = expected_personas
             .iter()
             .flat_map(|persona| {
-                persona_assignment_scopes(tenant_id, holding_ref, &persona.role_key)
+                persona_assignment_scopes(&tenant_id, &holding_ref, &persona.role_key)
                     .into_iter()
                     .map(|(_, scope_key)| {
                         Uuid::new_v5(
@@ -1588,8 +2242,119 @@ pub(crate) async fn runtime_catalog_current(
         }
     }
 
+    if !asset_maintenance_entitlements_current(&write).await? {
+        write.close().await;
+        return Ok(false);
+    }
     write.close().await;
     Ok(true)
+}
+
+async fn asset_maintenance_entitlements_current(write: &PgPool) -> TaskResult<bool> {
+    let now = Utc::now();
+    let root_holding_ids = sqlx::query_scalar::<_, Uuid>(
+        "SELECT binding.root_holding_id
+         FROM erpx_control.customer_tenant_bindings binding
+         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+         WHERE binding.binding_state='configured'
+           AND registry.credential_key_ref IN
+               ('local_shared','local-development-disabled','database-profile:default')
+         ORDER BY binding.root_holding_id",
+    )
+    .fetch_all(write)
+    .await?;
+    let customer_count: i64 = sqlx::query_scalar(
+        "SELECT count(*)
+         FROM erpx_control.customer_tenant_bindings binding
+         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+         WHERE binding.binding_state='configured'
+           AND registry.credential_key_ref IN
+               ('local_shared','local-development-disabled','database-profile:default')",
+    )
+    .fetch_one(write)
+    .await?;
+    if customer_count == 0 {
+        return Ok(false);
+    }
+    let billing_count: i64 = sqlx::query_scalar(
+        "SELECT count(*)
+         FROM erpx_control.billing_lifecycles lifecycle
+         JOIN erpx_control.customer_tenant_bindings binding
+           ON binding.customer_id=lifecycle.customer_id
+         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+         WHERE binding.binding_state='configured'
+           AND registry.credential_key_ref IN
+               ('local_shared','local-development-disabled','database-profile:default')",
+    )
+    .fetch_one(write)
+    .await?;
+    let active_billing_count: i64 = sqlx::query_scalar(
+        "SELECT count(*)
+         FROM erpx_control.billing_lifecycles lifecycle
+         JOIN erpx_control.customer_tenant_bindings binding
+           ON binding.customer_id=lifecycle.customer_id
+         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+         WHERE registry.credential_key_ref IN
+               ('local_shared','local-development-disabled','database-profile:default')
+           AND binding.binding_state='configured'
+           AND lifecycle.state='active'",
+    )
+    .fetch_one(write)
+    .await?;
+    let active_entitlement_count: i64 = sqlx::query_scalar(
+        "SELECT count(*)
+         FROM erpx_control.entitlement_allocation_books entitlement
+         JOIN erpx_control.customer_tenant_bindings binding
+           ON binding.customer_id=entitlement.customer_id
+         JOIN erpx_control.tenant_registry registry USING (tenant_id)
+         WHERE registry.credential_key_ref IN
+               ('local_shared','local-development-disabled','database-profile:default')
+           AND binding.binding_state='configured'
+           AND entitlement.module_key IN ('assets','maintenance')
+           AND entitlement.active",
+    )
+    .fetch_one(write)
+    .await?;
+    let assignment_payloads = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT payload FROM erpx_control.role_assignments
+         WHERE valid_from <= $1 AND valid_until > $1 ORDER BY id",
+    )
+    .bind(now)
+    .fetch_all(write)
+    .await?;
+    let assignments = assignment_payloads
+        .into_iter()
+        .map(serde_json::from_value::<RoleAssignment>)
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut required_sod_decisions = 0_usize;
+    for assignment in assignments.iter().filter(|assignment| {
+        scope_root_holding(&assignment.scope)
+            .is_some_and(|holding_id| root_holding_ids.contains(&holding_id))
+    }) {
+        for module_key in writable_asset_maintenance_modules(assignment) {
+            required_sod_decisions = required_sod_decisions.saturating_add(1);
+            let active: bool = sqlx::query_scalar(
+                "SELECT EXISTS(
+                     SELECT 1 FROM erpx_control.sod_decisions
+                     WHERE principal_ref=$1 AND module_key=$2 AND scope=$3
+                       AND passed AND valid_from <= $4 AND $4 < valid_until
+                 )",
+            )
+            .bind(&assignment.principal_ref)
+            .bind(module_key)
+            .bind(serde_json::to_value(&assignment.scope)?)
+            .bind(now)
+            .fetch_one(write)
+            .await?;
+            if !active {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(required_sod_decisions > 0
+        && billing_count == customer_count
+        && active_billing_count == customer_count
+        && active_entitlement_count == customer_count.saturating_mul(2))
 }
 
 pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskResult<bool> {
@@ -1767,10 +2532,12 @@ pub(crate) async fn fixtures_current(root: &Path, config: &DevConfig) -> TaskRes
     .bind(i64::try_from(erpx_identity::BUSINESS_UNITS.len())?)
     .fetch_one(&write)
     .await?;
+    let entitlements_current = asset_maintenance_entitlements_current(&write).await?;
     write.close().await;
     let expected_branch_count = i64::try_from(DEMO_BRANCHES.len() + RESTRICTED_BRANCHES.len())?;
     Ok(active_branch_count == expected_branch_count
-        && configured_branch_count == expected_branch_count)
+        && configured_branch_count == expected_branch_count
+        && entitlements_current)
 }
 
 fn quote_identifier(value: &str) -> String {
@@ -2041,14 +2808,14 @@ mod tests {
     }
 
     #[test]
-    fn controller_catalog_has_every_role_once_with_bounded_representative_scopes() {
+    fn controller_catalog_has_every_role_with_bounded_representative_scopes() {
         let assignments = controller_catalog_assignments(
             RESTRICTED_TENANT_ID,
             RESTRICTED_HOLDING_REF,
             branch_ids(RESTRICTED_TENANT_ID, RESTRICTED_BRANCHES[0]),
             Utc::now(),
         );
-        assert_eq!(assignments.len(), 73);
+        assert_eq!(assignments.len(), 75);
 
         let ids = assignments
             .iter()
@@ -2058,7 +2825,7 @@ mod tests {
             .iter()
             .map(|assignment| assignment.role_key.as_str())
             .collect::<std::collections::BTreeSet<_>>();
-        assert_eq!(ids.len(), 73);
+        assert_eq!(ids.len(), 75);
         assert_eq!(role_keys.len(), 73);
 
         let permission_by_role = permission_catalog()
@@ -2103,8 +2870,26 @@ mod tests {
             }
         }
         assert_eq!(platform_scopes, 8);
-        assert_eq!(holding_scopes, 3);
+        assert_eq!(holding_scopes, 5);
         assert_eq!(company_scopes, 1);
         assert_eq!(branch_scopes, 61);
+        for role_key in ["assets_administrator", "maintenance_administrator"] {
+            let scopes = assignments
+                .iter()
+                .filter(|assignment| assignment.role_key == role_key)
+                .map(|assignment| &assignment.scope)
+                .collect::<Vec<_>>();
+            assert_eq!(scopes.len(), 2);
+            assert!(
+                scopes
+                    .iter()
+                    .any(|scope| matches!(scope, Scope::Holding { .. }))
+            );
+            assert!(
+                scopes
+                    .iter()
+                    .any(|scope| matches!(scope, Scope::Branch { .. }))
+            );
+        }
     }
 }

@@ -6,6 +6,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_legal_sqlx::{
     LegalAccessHistoryProjector, LegalContractProjector, LegalDocumentProjector,
+    LegalMatterProjector,
 };
 use uuid::Uuid;
 
@@ -20,6 +21,7 @@ pub enum LegalProjectionKind {
     Contracts,
     Documents,
     AccessHistory,
+    Matters,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -30,6 +32,7 @@ impl LegalProjectionFactory {
             registration(&LegalContractProjector::new()),
             registration(&LegalDocumentProjector::new()),
             registration(&LegalAccessHistoryProjector::new()),
+            registration(&LegalMatterProjector::new()),
         ]
         .into()
     }
@@ -45,6 +48,7 @@ impl LegalProjectionFactory {
             contracts: LegalContractProjector::new(),
             documents: LegalDocumentProjector::new(),
             access_history: LegalAccessHistoryProjector::new(),
+            matters: LegalMatterProjector::new(),
             runner,
             store,
         })
@@ -56,6 +60,7 @@ pub struct LegalProjectionRuntime {
     contracts: LegalContractProjector,
     documents: LegalDocumentProjector,
     access_history: LegalAccessHistoryProjector,
+    matters: LegalMatterProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
@@ -73,6 +78,7 @@ impl LegalProjectionRuntime {
             LegalProjectionKind::AccessHistory => {
                 self.runner.run_active(&self.access_history).await
             }
+            LegalProjectionKind::Matters => self.runner.run_active(&self.matters).await,
         }
     }
     pub async fn begin_rebuild(
@@ -94,6 +100,11 @@ impl LegalProjectionRuntime {
             LegalProjectionKind::AccessHistory => {
                 self.store
                     .begin_or_resume_rebuild(&self.access_history, rebuild_id)
+                    .await
+            }
+            LegalProjectionKind::Matters => {
+                self.store
+                    .begin_or_resume_rebuild(&self.matters, rebuild_id)
                     .await
             }
         }
@@ -120,6 +131,11 @@ impl LegalProjectionRuntime {
                     .run_rebuild(&self.access_history, handle, after_sequence)
                     .await
             }
+            LegalProjectionKind::Matters => {
+                self.runner
+                    .run_rebuild(&self.matters, handle, after_sequence)
+                    .await
+            }
         }
     }
     pub async fn activate_rebuild(
@@ -131,6 +147,7 @@ impl LegalProjectionRuntime {
             LegalProjectionKind::Contracts => self.contracts.name(),
             LegalProjectionKind::Documents => self.documents.name(),
             LegalProjectionKind::AccessHistory => self.access_history.name(),
+            LegalProjectionKind::Matters => self.matters.name(),
         };
         if handle.projection != expected {
             return Err(CqrsSqlxError::InvalidInput(
@@ -152,10 +169,10 @@ mod tests {
     use super::*;
     use erpx_legal_sqlx::{
         ACCESS_PROJECTION, ACCESS_SNAPSHOT_EVENT, CONTRACT_PROJECTION, CONTRACT_SNAPSHOT_EVENT,
-        DOCUMENT_PROJECTION, DOCUMENT_SNAPSHOT_EVENT,
+        DOCUMENT_PROJECTION, DOCUMENT_SNAPSHOT_EVENT, MATTER_PROJECTION, MATTER_SNAPSHOT_EVENT,
     };
     #[test]
-    fn registrations_cover_three_rebuildable_snapshot_projections() {
+    fn registrations_cover_four_rebuildable_snapshot_projections() {
         assert_eq!(
             LegalProjectionFactory.registrations(),
             vec![
@@ -170,6 +187,10 @@ mod tests {
                 LegalProjectionRegistration {
                     name: ACCESS_PROJECTION.into(),
                     event_types: vec![ACCESS_SNAPSHOT_EVENT.into()]
+                },
+                LegalProjectionRegistration {
+                    name: MATTER_PROJECTION.into(),
+                    event_types: vec![MATTER_SNAPSHOT_EVENT.into()]
                 },
             ]
         );

@@ -18,7 +18,7 @@ use uuid::Uuid;
 use crate::{
     CONTEXT_NAME, EVENT_VERSION, LEAD_AGGREGATE_TYPE, LEAD_SNAPSHOT_EVENT,
     OPPORTUNITY_AGGREGATE_TYPE, OPPORTUNITY_SNAPSHOT_EVENT, lead_partition, opportunity_partition,
-    projection::{CrmOutboxPayload, CrmSnapshot, stage_name},
+    projection::{CrmOutboxPayload, CrmSnapshot, pipeline_category_name, stage_name},
 };
 
 #[derive(Debug, Clone)]
@@ -294,7 +294,7 @@ impl AtomicCommandGuard for CrmAtomicGuard {
                 sqlx::query("INSERT INTO erpx_crm_write.lead_guards (lead_id,scope_key,marketing_candidate_id,customer_id,aggregate_version,accepted_at) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (lead_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,marketing_candidate_id=EXCLUDED.marketing_candidate_id,customer_id=EXCLUDED.customer_id,aggregate_version=EXCLUDED.aggregate_version,accepted_at=EXCLUDED.accepted_at").bind(lead.id().as_uuid()).bind(scope_key(lead.scope())?).bind(lead.marketing_candidate_id()).bind(lead.customer_id()).bind(to_i64(context.aggregate_version)?).bind(lead.accepted_at()).execute(&mut **transaction).await?;
             }
             CrmAggregate::Opportunity(value) => {
-                sqlx::query("INSERT INTO erpx_crm_write.opportunity_guards (opportunity_id,scope_key,accepted_lead_id,customer_id,opportunity_stage,aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (opportunity_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,accepted_lead_id=EXCLUDED.accepted_lead_id,customer_id=EXCLUDED.customer_id,opportunity_stage=EXCLUDED.opportunity_stage,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at").bind(value.id().as_uuid()).bind(scope_key(value.scope())?).bind(value.accepted_lead_id().as_uuid()).bind(value.customer_id()).bind(stage_name(value.stage())).bind(to_i64(context.aggregate_version)?).bind(value.updated_at()).execute(&mut **transaction).await?;
+                sqlx::query("INSERT INTO erpx_crm_write.opportunity_guards (opportunity_id,scope_key,accepted_lead_id,customer_id,opportunity_stage,account_id,owner_ref,pipeline_category,probability_basis_points,expected_close_on,originating_campaign_id,aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (opportunity_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,accepted_lead_id=EXCLUDED.accepted_lead_id,customer_id=EXCLUDED.customer_id,opportunity_stage=EXCLUDED.opportunity_stage,account_id=EXCLUDED.account_id,owner_ref=EXCLUDED.owner_ref,pipeline_category=EXCLUDED.pipeline_category,probability_basis_points=EXCLUDED.probability_basis_points,expected_close_on=EXCLUDED.expected_close_on,originating_campaign_id=EXCLUDED.originating_campaign_id,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at").bind(value.id().as_uuid()).bind(scope_key(value.scope())?).bind(value.accepted_lead_id().as_uuid()).bind(value.customer_id()).bind(stage_name(value.stage())).bind(value.account().map(|v|v.as_uuid())).bind(value.owner()).bind(value.pipeline_category().map(pipeline_category_name)).bind(value.probability_basis_points().map(i32::from)).bind(value.expected_close_on()).bind(value.originating_campaign().map(|v|v.as_uuid())).bind(to_i64(context.aggregate_version)?).bind(value.updated_at()).execute(&mut **transaction).await?;
             }
         }
         Ok(())
@@ -333,7 +333,8 @@ fn fingerprint_target(value: &CommandFingerprint) -> (String, &'static str) {
             (lead_partition(*lead_id), LEAD_AGGREGATE_TYPE)
         }
         CommandFingerprint::CreateOpportunity { opportunity_id, .. }
-        | CommandFingerprint::TransitionOpportunity { opportunity_id, .. } => (
+        | CommandFingerprint::TransitionOpportunity { opportunity_id, .. }
+        | CommandFingerprint::UpdateOpportunityForecast { opportunity_id, .. } => (
             opportunity_partition(*opportunity_id),
             OPPORTUNITY_AGGREGATE_TYPE,
         ),
@@ -356,6 +357,7 @@ fn audit_action(value: &CommandFingerprint) -> &'static str {
         CommandFingerprint::AcceptLead { .. } => "crm.lead.accept",
         CommandFingerprint::CreateOpportunity { .. } => "crm.opportunity.create",
         CommandFingerprint::TransitionOpportunity { .. } => "crm.opportunity.transition",
+        CommandFingerprint::UpdateOpportunityForecast { .. } => "crm.opportunity.forecast.update",
     }
 }
 fn request_hash(value: &CommandFingerprint) -> Result<RequestHash, PortError> {

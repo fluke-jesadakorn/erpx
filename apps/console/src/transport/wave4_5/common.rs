@@ -48,6 +48,10 @@ impl RpcAuthority {
         )
     }
 
+    pub(super) fn active_scope(access_token: impl AsRef<str>) -> Result<Self, UiError> {
+        Self::build(access_token.as_ref(), None)
+    }
+
     fn build(access_token: &str, route: Option<wire::TenantRoute>) -> Result<Self, UiError> {
         if access_token.is_empty() || access_token.len() > MAX_TOKEN_BYTES {
             return Err(invalid_request());

@@ -1,6 +1,7 @@
 use chrono::{Duration, TimeZone, Utc};
 use erpx_integration_contracts::{
-    CurrencyCode, MoneyAmount, ReferenceCode, customer, procurement, sales,
+    BoundedContext, CostCenterRef, CurrencyCode, DimensionSet, MoneyAmount, RecordRef,
+    ReferenceCode, customer, finance, organization, procurement, sales,
 };
 use uuid::Uuid;
 
@@ -202,41 +203,189 @@ fn close_requires_distinct_requester_and_approver_and_reopen_actor() {
     assert_eq!(value.status(), PeriodStatus::Open);
 }
 
-fn sales_fact() -> sales::SalesOrderFact {
-    sales::SalesOrderFact {
+fn billing_fact() -> sales::BillingEligibilityFact {
+    sales::BillingEligibilityFact {
+        billing_event: sales::BillingEventRef::try_from_uuid(id(39)).unwrap(),
+        fulfillment: sales::FulfillmentRef::try_from_uuid(id(38)).unwrap(),
+        arrangement: sales::RevenueArrangementRef::try_from_uuid(id(37)).unwrap(),
         sales_order: sales::SalesOrderRef::try_from_uuid(id(40)).unwrap(),
         order_code: ReferenceCode::try_new("SO-40").unwrap(),
         customer: customer::CustomerRef::try_from_uuid(id(41)).unwrap(),
-        status: sales::SalesOrderStatus::Confirmed,
-        total: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
-        lines: vec![sales::SalesOrderLineFact {
-            line: sales::SalesOrderLineRef::try_from_uuid(id(42)).unwrap(),
-            item_code: ReferenceCode::try_new("ITEM").unwrap(),
-            quantity: erpx_integration_contracts::Quantity::try_new(1, 0).unwrap(),
-            line_value: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
-        }],
+        billable_amount: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
+        tax_amount: MoneyAmount::new(35, CurrencyCode::try_new("THB").unwrap()),
+        eligible_on: date(5),
+        dimensions: dimensions(),
+    }
+}
+
+fn dimensions() -> DimensionSet {
+    let mut value =
+        DimensionSet::for_legal_entity(organization::CompanyRef::try_from_uuid(id(2)).unwrap());
+    value.business_unit = Some(organization::BusinessUnitRef::try_from_uuid(id(30)).unwrap());
+    value.cost_center = Some(CostCenterRef::try_from_uuid(id(31)).unwrap());
+    value
+}
+
+fn invoice_fact() -> finance::CustomerInvoicePostedFact {
+    finance::CustomerInvoicePostedFact {
+        invoice: finance::CustomerInvoiceRef::try_from_uuid(id(49)).unwrap(),
+        customer: customer::CustomerRef::try_from_uuid(id(41)).unwrap(),
+        invoice_code: ReferenceCode::try_new("INV-49").unwrap(),
+        source: RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 2)
+            .unwrap(),
+        net_amount: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
+        tax_amount: MoneyAmount::new(35, CurrencyCode::try_new("THB").unwrap()),
+        receivable_amount: MoneyAmount::new(535, CurrencyCode::try_new("THB").unwrap()),
+        dimensions: dimensions(),
+        posted_at: at(),
+    }
+}
+
+fn arrangement_fact() -> sales::RevenueArrangementFact {
+    sales::RevenueArrangementFact {
+        arrangement: sales::RevenueArrangementRef::try_from_uuid(id(37)).unwrap(),
+        sales_order: sales::SalesOrderRef::try_from_uuid(id(40)).unwrap(),
+        customer: customer::CustomerRef::try_from_uuid(id(41)).unwrap(),
+        legal_contract: None,
+        order_code: ReferenceCode::try_new("SO-40").unwrap(),
+        dimensions: dimensions(),
+        obligations: vec![
+            sales::PerformanceObligationFact {
+                obligation: sales::PerformanceObligationRef::try_from_uuid(id(42)).unwrap(),
+                line: sales::SalesOrderLineRef::try_from_uuid(id(43)).unwrap(),
+                model: sales::RevenueModel::Goods,
+                allocated_amount: MoneyAmount::new(500, CurrencyCode::try_new("THB").unwrap()),
+                service_starts_on: None,
+                service_ends_on: None,
+            },
+            sales::PerformanceObligationFact {
+                obligation: sales::PerformanceObligationRef::try_from_uuid(id(44)).unwrap(),
+                line: sales::SalesOrderLineRef::try_from_uuid(id(45)).unwrap(),
+                model: sales::RevenueModel::Recurring,
+                allocated_amount: MoneyAmount::new(300, CurrencyCode::try_new("THB").unwrap()),
+                service_starts_on: Some(date(1)),
+                service_ends_on: Some(date(31)),
+            },
+        ],
+    }
+}
+
+fn fulfillment(
+    value: u128,
+    obligation: u128,
+    kind: sales::FulfillmentKind,
+    amount: i64,
+) -> sales::FulfillmentAcceptedFact {
+    sales::FulfillmentAcceptedFact {
+        fulfillment: sales::FulfillmentRef::try_from_uuid(id(value)).unwrap(),
+        arrangement: sales::RevenueArrangementRef::try_from_uuid(id(37)).unwrap(),
+        sales_order: sales::SalesOrderRef::try_from_uuid(id(40)).unwrap(),
+        obligation: sales::PerformanceObligationRef::try_from_uuid(id(obligation)).unwrap(),
+        kind,
+        accepted_amount: MoneyAmount::new(amount, CurrencyCode::try_new("THB").unwrap()),
+        accepted_at: at(),
+        dimensions: dimensions(),
     }
 }
 
 #[test]
-fn receivable_uses_sales_fact_and_cannot_over_settle() {
-    let mut item = SubledgerItem::receivable_from_sales(
+fn receivable_uses_posted_invoice_fact_and_cannot_over_settle() {
+    let mut item = SubledgerItem::receivable_from_invoice(
         SubledgerId::try_from_uuid(id(50)).unwrap(),
         scope(),
-        sales_fact(),
+        invoice_fact(),
         at(),
     )
     .unwrap();
     let before = item.clone();
     assert_eq!(
-        item.apply_settlement(501, at() + Duration::minutes(1)),
+        item.apply_settlement(536, at() + Duration::minutes(1)),
         Err(FinanceDomainError::InvalidSettlement)
     );
     assert_eq!(item, before);
     item.apply_settlement(200, at() + Duration::minutes(1))
         .unwrap();
-    assert_eq!(item.outstanding_minor(), 300);
+    assert_eq!(item.outstanding_minor(), 335);
     assert_eq!(item.status(), SubledgerStatus::PartiallySettled);
+}
+
+#[test]
+fn customer_invoice_requires_versioned_sales_source_and_maker_checker_posting() {
+    let mut invoice = CustomerInvoice::create_from_billing(
+        CustomerInvoiceId::try_from_uuid(id(48)).unwrap(),
+        scope(),
+        "INV-48".into(),
+        RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 1).unwrap(),
+        billing_fact(),
+        date(30),
+        "preparer".into(),
+        at(),
+    )
+    .unwrap();
+    assert!(matches!(
+        invoice.take_uncommitted_events().as_slice(),
+        [DomainEvent::CustomerInvoiceChanged]
+    ));
+    let before = invoice.clone();
+    assert_eq!(
+        invoice.post("preparer", at()),
+        Err(FinanceDomainError::InvoiceApprovalSeparation)
+    );
+    assert_eq!(invoice, before);
+    invoice.post("controller", at()).unwrap();
+    assert_eq!(invoice.status(), CustomerInvoiceStatus::Posted);
+    assert!(matches!(
+        invoice.take_uncommitted_events().as_slice(),
+        [DomainEvent::CustomerInvoicePosted(_)]
+    ));
+}
+
+#[test]
+fn revenue_schedule_recognizes_fulfillment_independently_from_invoice() {
+    let mut schedule = RevenueSchedule::create_from_arrangement(
+        RevenueScheduleId::try_from_uuid(id(70)).unwrap(),
+        scope(),
+        RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 1).unwrap(),
+        arrangement_fact(),
+        at(),
+    )
+    .unwrap();
+    schedule.take_uncommitted_events();
+    schedule
+        .recognize_fulfillment(
+            RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 2).unwrap(),
+            fulfillment(71, 42, sales::FulfillmentKind::GoodsDelivery, 500),
+            at() + Duration::minutes(1),
+        )
+        .unwrap();
+    assert_eq!(schedule.recognized_total_minor().unwrap(), 500);
+    assert_eq!(schedule.status(), RevenueScheduleStatus::Active);
+    assert!(matches!(
+        schedule.take_uncommitted_events().as_slice(),
+        [DomainEvent::RevenueRecognized(_)]
+    ));
+
+    let before = schedule.clone();
+    assert_eq!(
+        schedule.recognize_fulfillment(
+            RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 3).unwrap(),
+            fulfillment(71, 42, sales::FulfillmentKind::GoodsDelivery, 1),
+            at() + Duration::minutes(2),
+        ),
+        Err(FinanceDomainError::InvalidRevenueRecognition)
+    );
+    assert_eq!(schedule, before);
+
+    schedule
+        .recognize_fulfillment(
+            RecordRef::try_new(BoundedContext::Sales, "revenue_arrangement", id(37), 3).unwrap(),
+            fulfillment(72, 44, sales::FulfillmentKind::RecurringPeriod, 300),
+            at() + Duration::minutes(2),
+        )
+        .unwrap();
+    assert_eq!(schedule.recognized_total_minor().unwrap(), 800);
+    assert_eq!(schedule.status(), RevenueScheduleStatus::Completed);
+    schedule.validate().unwrap();
 }
 
 #[test]

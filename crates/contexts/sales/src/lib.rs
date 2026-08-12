@@ -7,18 +7,21 @@ pub mod integration;
 pub mod ports;
 
 pub use application::{
-    AcceptQuote, CancelSalesOrder, ConfirmSalesOrder, CreateQuote, CreateSalesOrder, ExpireQuote,
-    GetQuote, GetSalesOrder, ListSalesOrders, MarkSalesOrderFulfilled,
+    AcceptQuote, AcceptRevenueFulfillment, ActivateRevenueArrangement, CancelRevenueArrangement,
+    CancelSalesOrder, ConfirmSalesOrder, CreateQuote, CreateSalesOrder, ExpireQuote, GetQuote,
+    GetRevenueArrangement, GetSalesOrder, ListSalesOrders, MarkSalesOrderFulfilled,
     MarkSalesOrderPartiallyFulfilled, RejectQuote, SalesApplicationError, SalesCommand,
     SalesCommandHandler, SalesMutationResult, SalesQuery, SalesQueryHandler, SalesQueryResponse,
     SendQuote,
 };
 pub use domain::{
-    Quote, QuoteId, QuoteStatus, SalesAggregate, SalesDomainError, SalesOrder, SalesOrderId,
-    SalesOrderLine, SalesOrderLineId, SalesOrderStatus,
+    AcceptedFulfillment, BillingEventId, FulfillmentId, PerformanceObligation,
+    PerformanceObligationDefinition, PerformanceObligationId, Quote, QuoteId, QuoteStatus,
+    RevenueArrangement, RevenueArrangementId, RevenueArrangementStatus, SalesAggregate,
+    SalesDomainError, SalesOrder, SalesOrderId, SalesOrderLine, SalesOrderLineId, SalesOrderStatus,
 };
 pub use ports::{
     AuthorizationPort, CommandUnitOfWork, EntitlementPort, PortError, QuoteView, ReadRepository,
-    SalesAction, SalesCommit, SalesOrderList, SalesOrderListFilter, SalesOrderView, StoredCommit,
-    WriteRepository,
+    RevenueArrangementView, SalesAction, SalesCommit, SalesOrderList, SalesOrderListFilter,
+    SalesOrderView, StoredCommit, WriteRepository,
 };

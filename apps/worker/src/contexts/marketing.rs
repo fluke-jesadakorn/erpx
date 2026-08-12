@@ -1,25 +1,34 @@
-//! Tenant Marketing projection runtime; composition supplies capability-separated pools.
+//! Tenant Marketing lead and campaign-budget projection runtimes.
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
-use erpx_marketing_sqlx::MarketingLeadProjector;
+use erpx_marketing_sqlx::{MarketingBudgetProjector, MarketingLeadProjector};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingProjectionRegistration {
     pub name: String,
     pub event_types: Vec<String>,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MarketingProjectionKind {
+    LeadCandidates,
+    CampaignBudgets,
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MarketingProjectionFactory;
+
 impl MarketingProjectionFactory {
-    pub fn registration(self) -> MarketingProjectionRegistration {
-        let projector = MarketingLeadProjector::new();
-        MarketingProjectionRegistration {
-            name: projector.name().into(),
-            event_types: projector.event_types().to_vec(),
-        }
+    pub fn registrations(self) -> Vec<MarketingProjectionRegistration> {
+        [
+            registration(&MarketingLeadProjector::new()),
+            registration(&MarketingBudgetProjector::new()),
+        ]
+        .into()
     }
+
     pub fn build(
         self,
         write: WritePool,
@@ -29,39 +38,79 @@ impl MarketingProjectionFactory {
         let store = ProjectionStore::new(projection);
         let runner = ProjectionRunner::new(ProjectionSource::new(write), store.clone(), config)?;
         Ok(MarketingProjectionRuntime {
-            projector: MarketingLeadProjector::new(),
+            leads: MarketingLeadProjector::new(),
+            budgets: MarketingBudgetProjector::new(),
             runner,
             store,
         })
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct MarketingProjectionRuntime {
-    projector: MarketingLeadProjector,
+    leads: MarketingLeadProjector,
+    budgets: MarketingBudgetProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
+
 impl MarketingProjectionRuntime {
-    pub fn registration(&self) -> MarketingProjectionRegistration {
-        MarketingProjectionFactory.registration()
+    pub fn registrations(&self) -> Vec<MarketingProjectionRegistration> {
+        MarketingProjectionFactory.registrations()
     }
-    pub async fn run_once(&self) -> Result<ProjectionRun, CqrsSqlxError> {
-        self.runner.run_active(&self.projector).await
+
+    pub async fn run_once(
+        &self,
+        kind: MarketingProjectionKind,
+    ) -> Result<ProjectionRun, CqrsSqlxError> {
+        match kind {
+            MarketingProjectionKind::LeadCandidates => self.runner.run_active(&self.leads).await,
+            MarketingProjectionKind::CampaignBudgets => self.runner.run_active(&self.budgets).await,
+        }
     }
-    pub async fn begin_rebuild(&self) -> Result<RebuildHandle, CqrsSqlxError> {
-        self.store.begin_rebuild(&self.projector).await
+
+    pub async fn begin_rebuild(
+        &self,
+        kind: MarketingProjectionKind,
+    ) -> Result<RebuildHandle, CqrsSqlxError> {
+        match kind {
+            MarketingProjectionKind::LeadCandidates => self.store.begin_rebuild(&self.leads).await,
+            MarketingProjectionKind::CampaignBudgets => {
+                self.store.begin_rebuild(&self.budgets).await
+            }
+        }
     }
+
     pub async fn run_rebuild_page(
         &self,
+        kind: MarketingProjectionKind,
         handle: &RebuildHandle,
         after_sequence: u64,
     ) -> Result<ProjectionRun, CqrsSqlxError> {
-        self.runner
-            .run_rebuild(&self.projector, handle, after_sequence)
-            .await
+        match kind {
+            MarketingProjectionKind::LeadCandidates => {
+                self.runner
+                    .run_rebuild(&self.leads, handle, after_sequence)
+                    .await
+            }
+            MarketingProjectionKind::CampaignBudgets => {
+                self.runner
+                    .run_rebuild(&self.budgets, handle, after_sequence)
+                    .await
+            }
+        }
     }
-    pub async fn activate_rebuild(&self, handle: &RebuildHandle) -> Result<(), CqrsSqlxError> {
-        if handle.projection != self.projector.name() {
+
+    pub async fn activate_rebuild(
+        &self,
+        kind: MarketingProjectionKind,
+        handle: &RebuildHandle,
+    ) -> Result<(), CqrsSqlxError> {
+        let expected = match kind {
+            MarketingProjectionKind::LeadCandidates => self.leads.name(),
+            MarketingProjectionKind::CampaignBudgets => self.budgets.name(),
+        };
+        if handle.projection != expected {
             return Err(CqrsSqlxError::InvalidInput(
                 "rebuild handle belongs to another Marketing projector",
             ));
@@ -70,14 +119,35 @@ impl MarketingProjectionRuntime {
     }
 }
 
+fn registration(projector: &impl Projector) -> MarketingProjectionRegistration {
+    MarketingProjectionRegistration {
+        name: projector.name().into(),
+        event_types: projector.event_types().to_vec(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_marketing_sqlx::{PROJECTION_NAME, SNAPSHOT_EVENT_TYPE};
+    use erpx_marketing_sqlx::{
+        BUDGET_PROJECTION_NAME, BUDGET_SNAPSHOT_EVENT_TYPE, LEAD_PROJECTION_NAME,
+        LEAD_SNAPSHOT_EVENT_TYPE,
+    };
+
     #[test]
-    fn registration_is_snapshot_only() {
-        let value = MarketingProjectionFactory.registration();
-        assert_eq!(value.name, PROJECTION_NAME);
-        assert_eq!(value.event_types, vec![SNAPSHOT_EVENT_TYPE]);
+    fn registrations_are_snapshot_specific() {
+        assert_eq!(
+            MarketingProjectionFactory.registrations(),
+            vec![
+                MarketingProjectionRegistration {
+                    name: LEAD_PROJECTION_NAME.into(),
+                    event_types: vec![LEAD_SNAPSHOT_EVENT_TYPE.into()],
+                },
+                MarketingProjectionRegistration {
+                    name: BUDGET_PROJECTION_NAME.into(),
+                    event_types: vec![BUDGET_SNAPSHOT_EVENT_TYPE.into()],
+                },
+            ]
+        );
     }
 }

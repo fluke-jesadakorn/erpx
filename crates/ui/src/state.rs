@@ -1,5 +1,16 @@
 use std::fmt;
 
+/// Freshness state carried by an authorized projection read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProjectionFreshness {
+    /// The projection is within the agreed freshness budget.
+    Fresh,
+    /// The projection is usable for display but outside its freshness budget.
+    Stale,
+    /// No projection timestamp was supplied.
+    Unknown,
+}
+
 /// Explicit UI state kinds used to keep non-successful read and write states visible to users.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UiStateKind {

@@ -5,9 +5,9 @@ use erpx_cqrs_sqlx::{
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
 use erpx_finance_sqlx::{
-    FinanceBankTransactionProjector, FinanceChartProjector, FinanceJournalProjector,
-    FinancePeriodProjector, FinanceStatutoryTaxProjector, FinanceSubledgerProjector,
-    FinanceTrialBalanceProjector,
+    FinanceBankTransactionProjector, FinanceChartProjector, FinanceCustomerInvoiceProjector,
+    FinanceJournalProjector, FinancePeriodProjector, FinanceRevenueScheduleProjector,
+    FinanceStatutoryTaxProjector, FinanceSubledgerProjector, FinanceTrialBalanceProjector,
 };
 use uuid::Uuid;
 
@@ -23,6 +23,8 @@ pub enum FinanceProjectionKind {
     Periods,
     Journals,
     Subledger,
+    CustomerInvoices,
+    RevenueSchedules,
     TrialBalance,
     BankTransactions,
     StatutoryTax,
@@ -38,6 +40,8 @@ impl FinanceProjectionFactory {
             registration(&FinancePeriodProjector::new()),
             registration(&FinanceJournalProjector::new()),
             registration(&FinanceSubledgerProjector::new()),
+            registration(&FinanceCustomerInvoiceProjector::new()),
+            registration(&FinanceRevenueScheduleProjector::new()),
             registration(&FinanceTrialBalanceProjector::new()),
             registration(&FinanceBankTransactionProjector::new()),
             registration(&FinanceStatutoryTaxProjector::new()),
@@ -56,6 +60,8 @@ impl FinanceProjectionFactory {
             periods: FinancePeriodProjector::new(),
             journals: FinanceJournalProjector::new(),
             subledger: FinanceSubledgerProjector::new(),
+            customer_invoices: FinanceCustomerInvoiceProjector::new(),
+            revenue_schedules: FinanceRevenueScheduleProjector::new(),
             trial_balance: FinanceTrialBalanceProjector::new(),
             bank_transactions: FinanceBankTransactionProjector::new(),
             statutory_tax: FinanceStatutoryTaxProjector::new(),
@@ -71,6 +77,8 @@ pub struct FinanceProjectionRuntime {
     periods: FinancePeriodProjector,
     journals: FinanceJournalProjector,
     subledger: FinanceSubledgerProjector,
+    customer_invoices: FinanceCustomerInvoiceProjector,
+    revenue_schedules: FinanceRevenueScheduleProjector,
     trial_balance: FinanceTrialBalanceProjector,
     bank_transactions: FinanceBankTransactionProjector,
     statutory_tax: FinanceStatutoryTaxProjector,
@@ -91,6 +99,12 @@ impl FinanceProjectionRuntime {
             FinanceProjectionKind::Periods => self.runner.run_active(&self.periods).await,
             FinanceProjectionKind::Journals => self.runner.run_active(&self.journals).await,
             FinanceProjectionKind::Subledger => self.runner.run_active(&self.subledger).await,
+            FinanceProjectionKind::CustomerInvoices => {
+                self.runner.run_active(&self.customer_invoices).await
+            }
+            FinanceProjectionKind::RevenueSchedules => {
+                self.runner.run_active(&self.revenue_schedules).await
+            }
             FinanceProjectionKind::TrialBalance => {
                 self.runner.run_active(&self.trial_balance).await
             }
@@ -126,6 +140,16 @@ impl FinanceProjectionRuntime {
             FinanceProjectionKind::Subledger => {
                 self.store
                     .begin_or_resume_rebuild(&self.subledger, rebuild_id)
+                    .await
+            }
+            FinanceProjectionKind::CustomerInvoices => {
+                self.store
+                    .begin_or_resume_rebuild(&self.customer_invoices, rebuild_id)
+                    .await
+            }
+            FinanceProjectionKind::RevenueSchedules => {
+                self.store
+                    .begin_or_resume_rebuild(&self.revenue_schedules, rebuild_id)
                     .await
             }
             FinanceProjectionKind::TrialBalance => {
@@ -166,6 +190,16 @@ impl FinanceProjectionRuntime {
                     .run_rebuild(&self.subledger, handle, after)
                     .await
             }
+            FinanceProjectionKind::CustomerInvoices => {
+                self.runner
+                    .run_rebuild(&self.customer_invoices, handle, after)
+                    .await
+            }
+            FinanceProjectionKind::RevenueSchedules => {
+                self.runner
+                    .run_rebuild(&self.revenue_schedules, handle, after)
+                    .await
+            }
             FinanceProjectionKind::TrialBalance => {
                 self.runner
                     .run_rebuild(&self.trial_balance, handle, after)
@@ -193,6 +227,8 @@ impl FinanceProjectionRuntime {
             FinanceProjectionKind::Periods => self.periods.name(),
             FinanceProjectionKind::Journals => self.journals.name(),
             FinanceProjectionKind::Subledger => self.subledger.name(),
+            FinanceProjectionKind::CustomerInvoices => self.customer_invoices.name(),
+            FinanceProjectionKind::RevenueSchedules => self.revenue_schedules.name(),
             FinanceProjectionKind::TrialBalance => self.trial_balance.name(),
             FinanceProjectionKind::BankTransactions => self.bank_transactions.name(),
             FinanceProjectionKind::StatutoryTax => self.statutory_tax.name(),
@@ -217,26 +253,29 @@ fn registration(p: &impl Projector) -> FinanceProjectionRegistration {
 mod tests {
     use super::*;
     use erpx_finance_sqlx::{
-        BANK_TRANSACTION_PROJECTION, CHART_PROJECTION, JOURNAL_PROJECTION, PERIOD_PROJECTION,
+        BANK_TRANSACTION_PROJECTION, CHART_PROJECTION, CUSTOMER_INVOICE_PROJECTION,
+        JOURNAL_PROJECTION, PERIOD_PROJECTION, REVENUE_SCHEDULE_PROJECTION,
         STATUTORY_TAX_PROJECTION, SUBLEDGER_PROJECTION, TRIAL_BALANCE_PROJECTION,
     };
     #[test]
     fn registrations_are_collision_free() {
         let values = FinanceProjectionFactory.registrations();
-        assert_eq!(values.len(), 7);
+        assert_eq!(values.len(), 9);
         assert_eq!(
             values
                 .iter()
                 .map(|v| v.name.as_str())
                 .collect::<std::collections::BTreeSet<_>>()
                 .len(),
-            7
+            9
         );
         for expected in [
             CHART_PROJECTION,
             PERIOD_PROJECTION,
             JOURNAL_PROJECTION,
             SUBLEDGER_PROJECTION,
+            CUSTOMER_INVOICE_PROJECTION,
+            REVENUE_SCHEDULE_PROJECTION,
             TRIAL_BALANCE_PROJECTION,
             BANK_TRANSACTION_PROJECTION,
             STATUTORY_TAX_PROJECTION,

@@ -8,7 +8,9 @@ use erpx_cqrs::{
     CommandEnvelope, CommandReceipt, CqrsError, FreshnessState, IdempotencyKey, QueryConsistency,
     QueryEnvelope, QueryMetadata, QueryResult, ReadYourWrites,
 };
-use erpx_integration_contracts::{AggregateKind, IntegrationEventEnvelope, ReferenceCode, assets};
+use erpx_integration_contracts::{
+    AggregateKind, DisplayName, IntegrationEventEnvelope, ReferenceCode, assets,
+};
 use erpx_kernel::{
     ActorAttribution, ActorKind, AggregateId, AuditContext, CommandId, CorrelationId,
     ErrorCategory, EventId, QueryId, SessionId, TenantScope,
@@ -43,7 +45,7 @@ pub struct MaintenanceAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
     presented_scope: TenantScope,
-    presented_route: MaintenanceTenantRoute,
+    presented_route: Option<MaintenanceTenantRoute>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: MaintenanceAccessMode,
@@ -58,8 +60,8 @@ impl MaintenanceAuthenticationRequest {
     pub const fn presented_scope(&self) -> &TenantScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> &MaintenanceTenantRoute {
-        &self.presented_route
+    pub const fn presented_route(&self) -> Option<&MaintenanceTenantRoute> {
+        self.presented_route.as_ref()
     }
     pub fn subscription_id(&self) -> Option<&str> {
         self.subscription_id.as_deref()
@@ -91,8 +93,6 @@ impl AuthenticatedMaintenanceRequest {
             .validate()
             .map_err(|_| MaintenanceAuthenticationError::Internal)?;
         validate_route(&route).map_err(|_| MaintenanceAuthenticationError::Internal)?;
-        validate_route_scope(&route, &tenant_scope)
-            .map_err(|_| MaintenanceAuthenticationError::Internal)?;
         Ok(Self {
             actor,
             tenant_scope,
@@ -462,6 +462,11 @@ fn decode_asset_request(
             .map_err(|_| invalid("asset_id is invalid"))?,
         request_code: ReferenceCode::try_new(v.request_code)
             .map_err(|_| invalid("request_code is invalid"))?,
+        title: v
+            .title
+            .map(DisplayName::try_new)
+            .transpose()
+            .map_err(|_| invalid("maintenance title is invalid"))?,
     };
     let aggregate_id = parse_uuid(&v.aggregate_id, "aggregate_id")?;
     if aggregate_id
@@ -502,13 +507,13 @@ fn decode_downtime(v: platform::DowntimeRecord) -> Result<Downtime, Status> {
 }
 
 struct DecodedCommand<C> {
-    route: MaintenanceTenantRoute,
+    route: Option<MaintenanceTenantRoute>,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 struct DecodedQuery<Q> {
-    route: MaintenanceTenantRoute,
+    route: Option<MaintenanceTenantRoute>,
     envelope: QueryEnvelope<Q>,
 }
 async fn authenticate_command<C, G: MaintenanceRequestAuthenticator>(
@@ -589,7 +594,6 @@ fn decode_command<C>(
     envelope
         .validate()
         .map_err(|_| invalid("command metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.tenant_scope)?;
     Ok(DecodedCommand {
         route,
         envelope,
@@ -622,7 +626,6 @@ fn decode_query<Q>(
     envelope
         .validate()
         .map_err(|_| invalid("query metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.tenant_scope)?;
     Ok(DecodedQuery { route, envelope })
 }
 
@@ -784,14 +787,16 @@ fn encode_consistency(v: &QueryConsistency) -> common::QueryConsistency {
         }),
     }
 }
-fn decode_route(v: Option<common::TenantRoute>) -> Result<MaintenanceTenantRoute, Status> {
-    let v = v.ok_or_else(|| invalid("tenant route is required"))?;
+fn decode_route(v: Option<common::TenantRoute>) -> Result<Option<MaintenanceTenantRoute>, Status> {
+    let Some(v) = v else {
+        return Ok(None);
+    };
     let route = MaintenanceTenantRoute {
         tenant_id: v.tenant_id.trim().into(),
         holding_ref: v.holding_ref.trim().into(),
     };
     validate_route(&route)?;
-    Ok(route)
+    Ok(Some(route))
 }
 fn validate_route(v: &MaintenanceTenantRoute) -> Result<(), Status> {
     if [&v.tenant_id, &v.holding_ref]
@@ -799,20 +804,6 @@ fn validate_route(v: &MaintenanceTenantRoute) -> Result<(), Status> {
         .any(|v| v.is_empty() || v.len() > MAX_ROUTE_LENGTH)
     {
         Err(invalid("tenant route is invalid"))
-    } else {
-        Ok(())
-    }
-}
-fn validate_route_scope(route: &MaintenanceTenantRoute, scope: &TenantScope) -> Result<(), Status> {
-    let holding = match scope {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
-    };
-    if parse_uuid(&route.holding_ref, "holding_ref")? != *holding {
-        Err(invalid("tenant route does not match scope"))
     } else {
         Ok(())
     }

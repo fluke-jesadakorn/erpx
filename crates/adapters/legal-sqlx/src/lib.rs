@@ -8,7 +8,7 @@ mod read;
 pub use command::{LegalCommandAdapter, LegalWriteRepository};
 pub use projection::{
     LegalAccessHistoryProjector, LegalContractProjector, LegalDocumentProjector,
-    LegalOutboxPayload, LegalSnapshot,
+    LegalMatterProjector, LegalOutboxPayload, LegalSnapshot,
 };
 pub use read::{LegalReadRepository, decode_cursor, encode_cursor};
 
@@ -16,12 +16,15 @@ pub const CONTEXT_NAME: &str = "legal";
 pub const CONTRACT_AGGREGATE_TYPE: &str = "legal_contract";
 pub const DOCUMENT_AGGREGATE_TYPE: &str = "legal_document";
 pub const ACCESS_AGGREGATE_TYPE: &str = "legal_access_entry";
+pub const MATTER_AGGREGATE_TYPE: &str = "legal_matter";
 pub const CONTRACT_PROJECTION: &str = "legal.contracts";
 pub const DOCUMENT_PROJECTION: &str = "legal.documents";
 pub const ACCESS_PROJECTION: &str = "legal.access_history";
+pub const MATTER_PROJECTION: &str = "legal.matters";
 pub const CONTRACT_SNAPSHOT_EVENT: &str = "legal.contract_snapshot";
 pub const DOCUMENT_SNAPSHOT_EVENT: &str = "legal.document_snapshot";
 pub const ACCESS_SNAPSHOT_EVENT: &str = "legal.access_history_snapshot";
+pub const MATTER_SNAPSHOT_EVENT: &str = "legal.matter_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 
 #[cfg(test)]
@@ -32,6 +35,13 @@ const WRITE_DDL: &str = include_str!(
 const READ_DDL: &str = include_str!(
     "../../../migration/migrations_tenant_read/0054_wave8_dependent_context_projections.sql"
 );
+#[cfg(test)]
+const MATTER_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_tenant_write/0068_legal_matter_graph_guards.sql");
+#[cfg(test)]
+const MATTER_READ_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_read/0060_legal_matter_graph_projection.sql"
+);
 
 pub fn contract_partition(id: erpx_legal::LegalContractId) -> String {
     format!("legal.contract:{}", id.as_uuid().simple())
@@ -41,6 +51,9 @@ pub fn document_partition(id: erpx_legal::LegalDocumentId) -> String {
 }
 pub fn access_partition(id: erpx_legal::AccessEntryId) -> String {
     format!("legal.access:{}", id.as_uuid().simple())
+}
+pub fn matter_partition(id: erpx_legal::LegalMatterId) -> String {
+    format!("legal.matter:{}", id.as_uuid().simple())
 }
 
 #[cfg(test)]
@@ -58,6 +71,8 @@ mod tests {
         assert!(READ_DDL.contains(CONTRACT_PROJECTION));
         assert!(READ_DDL.contains(DOCUMENT_PROJECTION));
         assert!(READ_DDL.contains(ACCESS_PROJECTION));
+        assert!(MATTER_WRITE_DDL.contains("legal_matter_link_immutable"));
+        assert!(MATTER_READ_DDL.contains(MATTER_PROJECTION));
     }
 
     #[test]

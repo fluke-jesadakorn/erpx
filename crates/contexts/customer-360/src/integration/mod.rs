@@ -14,7 +14,7 @@ pub enum Customer360SourceEvent {
     Customer(customer::Event),
     Commercial(commercial::Event),
     Crm(crm::Event),
-    Sales(sales::Event),
+    Sales(Box<sales::Event>),
     Support(support::Event),
 }
 
@@ -30,15 +30,21 @@ impl Customer360SourceEvent {
             Self::Crm(crm::Event::OpportunityChanged(fact)) => {
                 Some(customer::Customer360SourceFact::Crm(fact))
             }
-            Self::Sales(sales::Event::SalesOrderChanged(fact)) => {
-                Some(customer::Customer360SourceFact::Sales(fact))
-            }
+            Self::Sales(event) => match *event {
+                sales::Event::SalesOrderChanged(fact) => {
+                    Some(customer::Customer360SourceFact::Sales(fact))
+                }
+                sales::Event::RevenueArrangementActivated(_)
+                | sales::Event::FulfillmentAccepted(_)
+                | sales::Event::BillingEligible(_) => None,
+            },
             Self::Support(support::Event::SupportCaseChanged(fact)) => {
                 Some(customer::Customer360SourceFact::Support(fact))
             }
             Self::Customer(customer::Event::CustomerMerged { .. })
             | Self::Commercial(commercial::Event::EntitlementChanged(_))
             | Self::Crm(crm::Event::LeadAccepted(_))
+            | Self::Crm(crm::Event::OpportunityForecastChanged(_))
             | Self::Support(support::Event::IncidentChanged(_)) => None,
         }
     }

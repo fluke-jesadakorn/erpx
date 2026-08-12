@@ -95,6 +95,7 @@ pub enum DomainEvent {
     MaintenanceRequested {
         asset_id: AssetId,
         request_code: String,
+        title: String,
         at: DateTime<Utc>,
     },
 }
@@ -251,11 +252,14 @@ impl Asset {
     pub fn begin_maintenance(
         &mut self,
         request_code: impl Into<String>,
+        title: impl Into<String>,
         at: DateTime<Utc>,
     ) -> Result<(), AssetDomainError> {
         let request_code = request_code.into();
+        let title = title.into();
         ReferenceCode::try_new(request_code.clone())
             .map_err(|_| AssetDomainError::InvalidReference)?;
+        DisplayName::try_new(title.clone()).map_err(|_| AssetDomainError::InvalidReference)?;
         self.transition(
             AssetStatus::UnderMaintenance,
             assets::AssetCondition::OutOfService,
@@ -265,6 +269,7 @@ impl Asset {
             .push(DomainEvent::MaintenanceRequested {
                 asset_id: self.id,
                 request_code,
+                title,
                 at,
             });
         self.validate()

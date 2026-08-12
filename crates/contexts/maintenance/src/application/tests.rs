@@ -74,6 +74,7 @@ fn request_envelope() -> IntegrationEventEnvelope<assets::Event> {
         assets::Event::MaintenanceRequested {
             asset: assets::AssetRef::try_from_uuid(id(10)).unwrap(),
             request_code: ReferenceCode::try_new("REQ-100").unwrap(),
+            title: Some(DisplayName::try_new("Replace drive belt").unwrap()),
         },
     )
     .unwrap()

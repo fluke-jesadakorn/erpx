@@ -22,6 +22,7 @@ mod contexts {
 }
 mod operational_metrics;
 mod persistence;
+mod tenant_workspace;
 mod wave4_composition;
 mod wave5_composition;
 mod wave6_composition;
@@ -60,6 +61,7 @@ use contexts::{
     support_cqrs::{SupportCommandRpc, SupportQueryRpc},
 };
 use persistence::seed_tenant_owner;
+use tenant_workspace::{PresentedTenantRoute, ResolvedTenantWorkspace, resolve_tenant_workspace};
 use wave4_composition::{
     CommercialProviderKey, CommercialServerApplication, CommercialServerAuthenticator,
     IdentityServerApplication, IdentityServerAuthenticator, OrganizationServerApplication,
@@ -2289,6 +2291,46 @@ impl AppState {
         module_key: &str,
         required_permission: &str,
     ) -> Result<(), Status> {
+        self.authorize_entitled_command_with_tenant(
+            claims,
+            context,
+            customer_id,
+            module_key,
+            required_permission,
+            None,
+        )
+        .await
+    }
+
+    async fn authorize_entitled_command_for_tenant(
+        &self,
+        claims: &AccessTokenClaims,
+        context: &erpx_domain::contracts::CommandContext,
+        customer_id: Uuid,
+        module_key: &str,
+        required_permission: &str,
+        authorization_tenant: &str,
+    ) -> Result<(), Status> {
+        self.authorize_entitled_command_with_tenant(
+            claims,
+            context,
+            customer_id,
+            module_key,
+            required_permission,
+            Some(authorization_tenant),
+        )
+        .await
+    }
+
+    async fn authorize_entitled_command_with_tenant(
+        &self,
+        claims: &AccessTokenClaims,
+        context: &erpx_domain::contracts::CommandContext,
+        customer_id: Uuid,
+        module_key: &str,
+        required_permission: &str,
+        authorization_tenant: Option<&str>,
+    ) -> Result<(), Status> {
         require_actor_match(
             &claims.principal_ref,
             &context.actor.principal_ref,
@@ -2304,7 +2346,13 @@ impl AppState {
             return Err(Status::permission_denied("customer_scope_not_granted"));
         }
         self.auth
-            .authorize_role(&self.store, claims, &scope, required_permission)
+            .authorize_role_for_tenant(
+                &self.store,
+                claims,
+                &scope,
+                required_permission,
+                authorization_tenant,
+            )
             .await?;
         let subscription_id = context
             .subscription_id
@@ -3318,6 +3366,71 @@ fn quality_legacy_scope(scope: &KernelTenantScope) -> TenantScope {
             branch_ids: branch_ids.clone(),
         },
     }
+}
+
+fn legacy_kernel_scope(scope: &TenantScope) -> KernelTenantScope {
+    match scope {
+        TenantScope::Platform => KernelTenantScope::Platform,
+        TenantScope::Holding { holding_id } => KernelTenantScope::Holding {
+            holding_id: *holding_id,
+        },
+        TenantScope::Company {
+            holding_id,
+            company_id,
+        } => KernelTenantScope::Company {
+            holding_id: *holding_id,
+            company_id: *company_id,
+        },
+        TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => KernelTenantScope::Branch {
+            holding_id: *holding_id,
+            company_id: *company_id,
+            branch_id: *branch_id,
+        },
+        TenantScope::Subtree {
+            holding_id,
+            company_ids,
+            branch_ids,
+        } => KernelTenantScope::Subtree {
+            holding_id: *holding_id,
+            company_ids: company_ids.clone(),
+            branch_ids: branch_ids.clone(),
+        },
+    }
+}
+
+async fn resolve_legacy_tenant_workspace(
+    state: &AppState,
+    scope: &TenantScope,
+    tenant_id: &str,
+    holding_ref: &str,
+    write: bool,
+) -> Result<ResolvedTenantWorkspace, Status> {
+    let tenant_id = tenant_id.trim();
+    let holding_ref = holding_ref.trim();
+    let presented_route = match (tenant_id.is_empty(), holding_ref.is_empty()) {
+        (true, true) => None,
+        (false, false) => Some(PresentedTenantRoute {
+            tenant_id: validate_transport_reference(tenant_id, "tenant_id")?,
+            holding_ref: validate_transport_reference(holding_ref, "holding_ref")?,
+        }),
+        _ => {
+            return Err(Status::invalid_argument(
+                "presented tenant route is incomplete",
+            ));
+        }
+    };
+    resolve_tenant_workspace(
+        state,
+        &legacy_kernel_scope(scope),
+        presented_route,
+        None,
+        write,
+    )
+    .await
 }
 
 fn quality_access_scope(scope: &KernelTenantScope) -> Scope {
@@ -17436,14 +17549,26 @@ impl CrmService for CrmRpcImpl {
                     "CRM reads require an explicit holding, company, or branch scope",
                 ));
             }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "crm.read")
-                .await?;
             let read_scope = finance_banking_read_tenant_scope(&scope)?;
             let input = request.get_ref();
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &read_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                false,
+            )
+            .await?;
+            self.state
+                .auth
+                .authorize_role_for_tenant(
+                    &self.state.store,
+                    &claims,
+                    &scope,
+                    "marketing-crm.read",
+                    Some(&workspace.tenant_id),
+                )
+                .await?;
             let aggregate_type =
                 validate_transport_reference(&input.aggregate_type, "aggregate_type")?;
             if !matches!(
@@ -17468,11 +17593,10 @@ impl CrmService for CrmRpcImpl {
             } else {
                 Some(parse_uuid(&input.after_id, "after_id")?)
             };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
             if !self
                 .state
                 .store
-                .customer_scope_contains(customer_id, &scope)
+                .customer_scope_contains(workspace.customer_id, &scope)
                 .await
                 .map_err(|_| Status::internal("customer scope lookup failed"))?
             {
@@ -17484,8 +17608,8 @@ impl CrmService for CrmRpcImpl {
             let correlation_id = context.correlation_id;
             let page = with_crm_read_store(
                 router,
-                tenant_id,
-                holding_ref,
+                &workspace.tenant_id,
+                &workspace.holding_ref,
                 correlation_id,
                 |store| async move {
                     store
@@ -17529,17 +17653,22 @@ impl CrmService for CrmRpcImpl {
     ) -> Result<Response<SaveCrmHandoffResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
+            let mut context = command_domain(&request, request.get_ref().context.as_ref())?;
             let scope = access_scope(&context.tenant_scope);
             if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
                 return Err(Status::permission_denied(
                     "CRM mutations require an explicit holding, company, or branch scope",
                 ));
             }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &request.get_ref().tenant_id,
+                &request.get_ref().holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
             let handoff: AcceptedLeadHandoff =
                 decode_finance_banking_json(&request.get_ref().handoff_json, "handoff_json")?;
             handoff
@@ -17550,9 +17679,15 @@ impl CrmService for CrmRpcImpl {
             {
                 return Err(Status::permission_denied("CRM handoff binding is invalid"));
             }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
             self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "crm", "crm.write")
+                .authorize_entitled_command_for_tenant(
+                    &claims,
+                    &context,
+                    workspace.customer_id,
+                    "crm",
+                    "marketing-crm.write",
+                    &workspace.tenant_id,
+                )
                 .await?;
             let router = self.state.tenant_router.as_ref().ok_or_else(|| {
                 Status::failed_precondition("tenant database routing is not configured")
@@ -17561,8 +17696,8 @@ impl CrmService for CrmRpcImpl {
             let command_context = context.clone();
             let receipt = with_crm_write_store(
                 router,
-                tenant_id,
-                holding_ref,
+                &workspace.tenant_id,
+                &workspace.holding_ref,
                 correlation_id,
                 |store| async move {
                     store
@@ -17576,7 +17711,7 @@ impl CrmService for CrmRpcImpl {
                 .store
                 .record(AuditEvent {
                     actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
+                    customer_account_id: Some(workspace.customer_id),
                     action: "crm.handoff.saved".into(),
                     purpose: "crm.write".into(),
                     correlation_id,
@@ -17602,17 +17737,22 @@ impl CrmService for CrmRpcImpl {
     ) -> Result<Response<SaveCrmOpportunityResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
+            let mut context = command_domain(&request, request.get_ref().context.as_ref())?;
             let scope = access_scope(&context.tenant_scope);
             if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
                 return Err(Status::permission_denied(
                     "CRM mutations require an explicit holding, company, or branch scope",
                 ));
             }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &request.get_ref().tenant_id,
+                &request.get_ref().holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
             let opportunity: CrmOpportunity = decode_finance_banking_json(
                 &request.get_ref().opportunity_json,
                 "opportunity_json",
@@ -17627,9 +17767,15 @@ impl CrmService for CrmRpcImpl {
                     "CRM opportunity binding is invalid",
                 ));
             }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
             self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "crm", "crm.write")
+                .authorize_entitled_command_for_tenant(
+                    &claims,
+                    &context,
+                    workspace.customer_id,
+                    "crm",
+                    "marketing-crm.write",
+                    &workspace.tenant_id,
+                )
                 .await?;
             let router = self.state.tenant_router.as_ref().ok_or_else(|| {
                 Status::failed_precondition("tenant database routing is not configured")
@@ -17642,8 +17788,8 @@ impl CrmService for CrmRpcImpl {
                 .then_some(request.get_ref().expected_version);
             let receipt = with_crm_write_store(
                 router,
-                tenant_id,
-                holding_ref,
+                &workspace.tenant_id,
+                &workspace.holding_ref,
                 correlation_id,
                 |store| async move {
                     store
@@ -17657,7 +17803,7 @@ impl CrmService for CrmRpcImpl {
                 .store
                 .record(AuditEvent {
                     actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
+                    customer_account_id: Some(workspace.customer_id),
                     action: "crm.opportunity.saved".into(),
                     purpose: "crm.write".into(),
                     correlation_id,
@@ -17683,17 +17829,22 @@ impl CrmService for CrmRpcImpl {
     ) -> Result<Response<RecordCrmAttributionResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
+            let mut context = command_domain(&request, request.get_ref().context.as_ref())?;
             let scope = access_scope(&context.tenant_scope);
             if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
                 return Err(Status::permission_denied(
                     "CRM mutations require an explicit holding, company, or branch scope",
                 ));
             }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &request.get_ref().tenant_id,
+                &request.get_ref().holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
             let opportunity_id = parse_uuid(&request.get_ref().opportunity_id, "opportunity_id")?;
             let model = match request.get_ref().model.as_str() {
                 "first_touch" => AttributionModel::FirstTouch,
@@ -17708,9 +17859,15 @@ impl CrmService for CrmRpcImpl {
                     "expected_opportunity_version must be positive",
                 ));
             }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
             self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "crm", "crm.write")
+                .authorize_entitled_command_for_tenant(
+                    &claims,
+                    &context,
+                    workspace.customer_id,
+                    "crm",
+                    "marketing-crm.write",
+                    &workspace.tenant_id,
+                )
                 .await?;
             let router = self.state.tenant_router.as_ref().ok_or_else(|| {
                 Status::failed_precondition("tenant database routing is not configured")
@@ -17720,8 +17877,8 @@ impl CrmService for CrmRpcImpl {
             let expected = request.get_ref().expected_opportunity_version;
             let receipt = with_crm_write_store(
                 router,
-                tenant_id,
-                holding_ref,
+                &workspace.tenant_id,
+                &workspace.holding_ref,
                 correlation_id,
                 |store| async move {
                     store
@@ -17735,7 +17892,7 @@ impl CrmService for CrmRpcImpl {
                 .store
                 .record(AuditEvent {
                     actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
+                    customer_account_id: Some(workspace.customer_id),
                     action: "crm.attribution.recorded".into(),
                     purpose: "crm.write".into(),
                     correlation_id,
@@ -18001,7 +18158,7 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .context
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
+            let mut context = command_domain(&request, Some(proto_context))?;
             if matches!(
                 context.tenant_scope,
                 TenantScope::Platform | TenantScope::Subtree { .. }
@@ -18010,21 +18167,31 @@ impl MarketingContentService for MarketingContentRpcImpl {
                     "Marketing form submission requires an explicit tenant scope",
                 ));
             }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
+            let tenant_id = workspace.tenant_id.as_str();
+            let holding_ref = workspace.holding_ref.as_str();
             let form_id = parse_uuid(&input.form_id, "form_id")?;
             let submission_id = parse_uuid(&input.submission_id, "submission_id")?;
             let values = marketing_form_values(&input.values)?;
             let form = ContentFormRef::new(form_id, context.tenant_scope.clone())
                 .map_err(|_| Status::invalid_argument("form scope is invalid"))?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
+            let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command(
+                .authorize_entitled_command_for_tenant(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
-                    "marketing.write",
+                    "marketing-crm.write",
+                    tenant_id,
                 )
                 .await?;
             let correlation_id = context.correlation_id;
@@ -18086,18 +18253,30 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .ok_or_else(|| Status::failed_precondition("query context is required"))?;
             let context = query_context(&request, Some(proto_context))?;
             let caller_scope = query_access_scope(proto_context)?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let read_scope = finance_banking_read_tenant_scope(&caller_scope)?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &read_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                false,
+            )
+            .await?;
             let delivery_id = parse_uuid(&input.delivery_id, "delivery_id")?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
             self.state
                 .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "marketing.read")
+                .authorize_role_for_tenant(
+                    &self.state.store,
+                    &claims,
+                    &caller_scope,
+                    "marketing-crm.read",
+                    Some(&workspace.tenant_id),
+                )
                 .await?;
             if !self
                 .state
                 .store
-                .customer_scope_contains(customer_id, &caller_scope)
+                .customer_scope_contains(workspace.customer_id, &caller_scope)
                 .await
                 .map_err(|_| Status::internal("customer scope lookup failed"))?
             {
@@ -18105,8 +18284,8 @@ impl MarketingContentService for MarketingContentRpcImpl {
             }
             let (write, read) = route_marketing_databases(
                 &self.state,
-                tenant_id,
-                holding_ref,
+                &workspace.tenant_id,
+                &workspace.holding_ref,
                 context.correlation_id,
             )
             .await?;
@@ -18114,7 +18293,7 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 let store = SqlxMarketingDeliveryStore::from_pools(
                     write.database_pool(),
                     read.database_pool(),
-                    holding_ref,
+                    &workspace.holding_ref,
                 )
                 .map_err(|error| {
                     marketing_content_persistence_status(error, context.correlation_id)
@@ -18168,7 +18347,7 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .store
                 .record(AuditEvent {
                     actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
+                    customer_account_id: Some(workspace.customer_id),
                     action: "marketing.delivery.read".into(),
                     purpose: proto_context
                         .audit
@@ -18201,12 +18380,25 @@ impl MarketingContentService for MarketingContentRpcImpl {
                     "Marketing content reads require an explicit holding, company, or branch scope",
                 ));
             }
+            let read_scope = finance_banking_read_tenant_scope(&caller_scope)?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &read_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                false,
+            )
+            .await?;
             self.state
                 .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "marketing.read")
+                .authorize_role_for_tenant(
+                    &self.state.store,
+                    &claims,
+                    &caller_scope,
+                    "marketing-crm.read",
+                    Some(&workspace.tenant_id),
+                )
                 .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
             let aggregate_type = if input.aggregate_type.trim().is_empty() {
                 None
             } else {
@@ -18237,11 +18429,10 @@ impl MarketingContentService for MarketingContentRpcImpl {
                     "Marketing content read cursor",
                 )?)
             };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
             if !self
                 .state
                 .store
-                .customer_scope_contains(customer_id, &caller_scope)
+                .customer_scope_contains(workspace.customer_id, &caller_scope)
                 .await
                 .map_err(|_| Status::internal("customer scope lookup failed"))?
             {
@@ -18252,14 +18443,18 @@ impl MarketingContentService for MarketingContentRpcImpl {
             })?;
             let correlation_id = context.correlation_id;
             let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+                .route(
+                    &workspace.tenant_id,
+                    &workspace.holding_ref,
+                    RoutedDatabaseSide::Read,
+                )
                 .await
                 .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
             let result = async {
                 let store = SqlxMarketingContentStore::new(
                     read.database_pool().clone(),
                     read.database_pool().clone(),
-                    holding_ref,
+                    &workspace.holding_ref,
                 )
                 .map_err(|error| marketing_content_persistence_status(error, correlation_id))?;
                 let (rows, next_cursor) = store
@@ -18326,7 +18521,7 @@ impl MarketingContentService for MarketingContentRpcImpl {
                     .store
                     .record(AuditEvent {
                         actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
+                        customer_account_id: Some(workspace.customer_id),
                         action: "marketing.content.read".into(),
                         purpose: proto_context
                             .audit
@@ -18365,7 +18560,7 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .context
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
+            let mut context = command_domain(&request, Some(proto_context))?;
             if matches!(
                 context.tenant_scope,
                 TenantScope::Platform | TenantScope::Subtree { .. }
@@ -18380,8 +18575,17 @@ impl MarketingContentService for MarketingContentRpcImpl {
             {
                 return Err(Status::invalid_argument("erasure reason is invalid"));
             }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
+            let tenant_id = workspace.tenant_id.as_str();
+            let holding_ref = workspace.holding_ref.as_str();
             let profile_id = parse_uuid(&input.profile_id, "profile_id")?;
             let erased_at = if input.erased_at.trim().is_empty() {
                 Utc::now()
@@ -18395,14 +18599,15 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 input.reason.trim(),
             )
             .map_err(|_| Status::invalid_argument("profile erasure is invalid"))?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
+            let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command(
+                .authorize_entitled_command_for_tenant(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing.profile.erase",
+                    tenant_id,
                 )
                 .await?;
             let correlation = MarketingProfileErasureCorrelation::new(
@@ -18459,23 +18664,33 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .context
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
+            let mut context = command_domain(&request, Some(proto_context))?;
             let scope = marketing_scope(&context)?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
+            let tenant_id = workspace.tenant_id.as_str();
+            let holding_ref = workspace.holding_ref.as_str();
             let template_id = parse_uuid(&input.template_id, "template_id")?;
             let template =
                 ContentTemplateRef::new(template_id, input.template_version, scope.clone())
                     .map_err(|_| Status::invalid_argument("template reference is invalid"))?;
             let expires_at = marketing_expiry(&input.expires_at)?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
+            let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command(
+                .authorize_entitled_command_for_tenant(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
-                    "marketing.write",
+                    "marketing-crm.write",
+                    tenant_id,
                 )
                 .await?;
             let issued_at = Utc::now();
@@ -18530,19 +18745,29 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .context
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
+            let mut context = command_domain(&request, Some(proto_context))?;
             let scope = marketing_scope(&context)?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
+            let tenant_id = workspace.tenant_id.as_str();
+            let holding_ref = workspace.holding_ref.as_str();
             let preview_id = parse_uuid(&input.preview_id, "preview_id")?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
+            let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command(
+                .authorize_entitled_command_for_tenant(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
-                    "marketing.write",
+                    "marketing-crm.write",
+                    tenant_id,
                 )
                 .await?;
             let correlation_id = context.correlation_id;
@@ -18587,19 +18812,29 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .context
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
+            let mut context = command_domain(&request, Some(proto_context))?;
             let scope = marketing_scope(&context)?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
+            let tenant_id = workspace.tenant_id.as_str();
+            let holding_ref = workspace.holding_ref.as_str();
             let domain_id = parse_uuid(&input.domain_id, "domain_id")?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
+            let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command(
+                .authorize_entitled_command_for_tenant(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
-                    "marketing.write",
+                    "marketing-crm.write",
+                    tenant_id,
                 )
                 .await?;
             let challenge = marketing_opaque_secret();
@@ -18653,19 +18888,29 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .context
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
+            let mut context = command_domain(&request, Some(proto_context))?;
             let scope = marketing_scope(&context)?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
+            let tenant_id = workspace.tenant_id.as_str();
+            let holding_ref = workspace.holding_ref.as_str();
             let domain_id = parse_uuid(&input.domain_id, "domain_id")?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
+            let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command(
+                .authorize_entitled_command_for_tenant(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
-                    "marketing.write",
+                    "marketing-crm.write",
+                    tenant_id,
                 )
                 .await?;
             let correlation_id = context.correlation_id;
@@ -18714,10 +18959,19 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .context
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
+            let mut context = command_domain(&request, Some(proto_context))?;
             let scope = marketing_scope(&context)?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
+            let tenant_id = workspace.tenant_id.as_str();
+            let holding_ref = workspace.holding_ref.as_str();
             let domain_id = parse_uuid(&input.domain_id, "domain_id")?;
             let template = ContentTemplateRef::new(
                 parse_uuid(&input.template_id, "template_id")?,
@@ -18731,14 +18985,15 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 template,
                 bound_at: Utc::now(),
             };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
+            let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command(
+                .authorize_entitled_command_for_tenant(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
-                    "marketing.write",
+                    "marketing-crm.write",
+                    tenant_id,
                 )
                 .await?;
             let correlation_id = context.correlation_id;
@@ -18782,19 +19037,29 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .context
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
+            let mut context = command_domain(&request, Some(proto_context))?;
             let holding_id = provider_account_scope(&context)?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
+            let tenant_id = workspace.tenant_id.as_str();
+            let holding_ref = workspace.holding_ref.as_str();
             let account_id = parse_uuid(&input.provider_account_id, "provider_account_id")?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
+            let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command(
+                .authorize_entitled_command_for_tenant(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing.provider.configure",
+                    tenant_id,
                 )
                 .await?;
             let channel_routes = input
@@ -18860,23 +19125,33 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .context
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
+            let mut context = command_domain(&request, Some(proto_context))?;
             provider_account_scope(&context)?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
+            let tenant_id = workspace.tenant_id.as_str();
+            let holding_ref = workspace.holding_ref.as_str();
             let account_id = parse_uuid(&input.provider_account_id, "provider_account_id")?;
             let verification_reference = validate_transport_reference(
                 &input.verification_reference,
                 "verification_reference",
             )?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
+            let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command(
+                .authorize_entitled_command_for_tenant(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing.provider.verify",
+                    tenant_id,
                 )
                 .await?;
             let command = AcknowledgeMarketingProviderVerificationCommand::new(
@@ -18914,19 +19189,29 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .context
                 .as_ref()
                 .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
+            let mut context = command_domain(&request, Some(proto_context))?;
             provider_account_scope(&context)?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
+            let workspace = resolve_legacy_tenant_workspace(
+                &self.state,
+                &context.tenant_scope,
+                &input.tenant_id,
+                &input.holding_ref,
+                true,
+            )
+            .await?;
+            context.subscription_id = workspace.subscription_id;
+            let tenant_id = workspace.tenant_id.as_str();
+            let holding_ref = workspace.holding_ref.as_str();
             let account_id = parse_uuid(&input.provider_account_id, "provider_account_id")?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
+            let customer_id = workspace.customer_id;
             self.state
-                .authorize_entitled_command(
+                .authorize_entitled_command_for_tenant(
                     &claims,
                     &context,
                     customer_id,
                     "marketing",
                     "marketing.provider.configure",
+                    tenant_id,
                 )
                 .await?;
             let command = SetMarketingProviderAccountStateCommand::new(
@@ -25988,13 +26273,13 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 .is_legacy()
                 .then(|| LegalServiceServer::new(LegalRpcImpl { state: state.clone() })),
         )
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| CrmServiceServer::new(CrmRpcImpl {
-                    state: state.clone(),
-                })),
-        )
+        // The Marketing & CRM console still reads the bounded CRM projection through this
+        // compatibility service while its lifecycle commands move to the typed CQRS services.
+        // Keep the read boundary available in typed-authority mode; it has a distinct service
+        // name and resolves tenant routing from the authenticated role scope server-side.
+        .add_service(CrmServiceServer::new(CrmRpcImpl {
+            state: state.clone(),
+        }))
         .add_service(MarketingContentServiceServer::new(
             MarketingContentRpcImpl {
                 state: state.clone(),

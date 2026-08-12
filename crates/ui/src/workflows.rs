@@ -181,6 +181,7 @@ const OPERATIONS_COMMAND_METHODS: &[&str] = &[
     "AcknowledgeException",
     "EscalateException",
     "ResolveException",
+    "DecideApproval",
     "CloseException",
     "PublishWorkQueuePolicy",
 ];

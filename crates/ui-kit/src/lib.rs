@@ -1,0 +1,53 @@
+//! Stable component-kit boundary for ERPX applications.
+
+use dioxus::prelude::*;
+
+mod components;
+pub mod kit;
+mod premium;
+
+pub use components::{
+    AppShell, BannerKind, CollectionLayout, CorporateIdentityEditor, CorporateIdentityEditorAction,
+    CorporateIdentityEditorActionKind, CorporateIdentityEditorSubmission, DashboardLayout,
+    DataTable, Dialog, DialogSize, EnterpriseIcon, Field, FilterBar, LocaleToggle,
+    LockedTooltipButton, NavigationDisclosureState, OperationsLayout, PageHeader, RecordLayout,
+    RouteStateBoundary, ScopeSelector, SessionBanners, SettingsLayout, StateBoundary, StatePanel,
+    TableColumn, TextField, WorkflowLayout, use_account_session_focus_target,
+    use_navigation_disclosure_state,
+};
+pub use erpx_ui_core::{ReadModelAvailability, ReadModelFreshness};
+pub use kit::{
+    Density, Disclosure, KitProvider, Link, SelectControl, Table, button, input, textarea,
+};
+pub use premium::{
+    BarChart, Button, ButtonTone, ChartPoint, ChartSeries, DashboardBreakdown,
+    DashboardBreakdownSegment, DashboardMetric, DashboardRange, DashboardRangeSelector,
+    DashboardReadModel, DashboardWorkItem, DataTableV2, DonutChart, Drawer, EmptyState,
+    HeatmapChart, LineAreaChart, MetricCard, PageHero, ProgressRing, ReadModelMeta, SectionCard,
+    Skeleton, Sparkline, StackedBarChart, StatusBadge, StatusTone, TabItem, Tabs, Timeline,
+    TimelineItem, Toast, ToastTone, Toolbar, chart_polyline_points,
+};
+
+/// Shared CSS variables and component styles. Applications can include this once in their root
+/// component and layer client-specific styles on top.
+pub const SHARED_STYLES: &str = concat!(
+    include_str!("../assets/tokens.css"),
+    include_str!("../assets/foundation.css"),
+    include_str!("../assets/premium-composites.css"),
+    include_str!("../assets/chart-composites.css")
+);
+
+/// Compiled, hashed stylesheet layers for Dioxus web targets.
+#[component]
+pub fn SharedStylesheets() -> Element {
+    static TOKENS: Asset = asset!("/assets/tokens.css");
+    static FOUNDATION: Asset = asset!("/assets/foundation.css");
+    static PREMIUM_COMPOSITES: Asset = asset!("/assets/premium-composites.css");
+    static CHART_COMPOSITES: Asset = asset!("/assets/chart-composites.css");
+    rsx! {
+        document::Stylesheet { href: TOKENS }
+        document::Stylesheet { href: FOUNDATION }
+        document::Stylesheet { href: PREMIUM_COMPOSITES }
+        document::Stylesheet { href: CHART_COMPOSITES }
+    }
+}

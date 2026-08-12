@@ -146,6 +146,75 @@ fn bounded_scalar_deserialization_cannot_bypass_validation() {
     assert!(serde_json::from_str::<Quantity>(r#"{"units":1,"scale":10}"#).is_err());
 }
 
+fn dimensions() -> DimensionSet {
+    let mut value =
+        DimensionSet::for_legal_entity(organization::CompanyRef::try_from_uuid(uuid(40)).unwrap());
+    value.cost_center = Some(CostCenterRef::try_from_uuid(uuid(41)).unwrap());
+    value.campaign = Some(marketing::CampaignRef::try_from_uuid(uuid(42)).unwrap());
+    value
+}
+
+#[test]
+fn billing_eligibility_is_not_a_receivable_and_carries_accounting_dimensions() {
+    let currency = CurrencyCode::try_new("THB").unwrap();
+    let event = sales::Event::BillingEligible(sales::BillingEligibilityFact {
+        billing_event: sales::BillingEventRef::try_from_uuid(uuid(43)).unwrap(),
+        fulfillment: sales::FulfillmentRef::try_from_uuid(uuid(44)).unwrap(),
+        arrangement: sales::RevenueArrangementRef::try_from_uuid(uuid(45)).unwrap(),
+        sales_order: sales::SalesOrderRef::try_from_uuid(uuid(46)).unwrap(),
+        customer: customer::CustomerRef::try_from_uuid(uuid(47)).unwrap(),
+        order_code: ReferenceCode::try_new("SO-43").unwrap(),
+        billable_amount: MoneyAmount::new(10_000, currency),
+        tax_amount: MoneyAmount::new(700, currency),
+        eligible_on: chrono::NaiveDate::from_ymd_opt(2026, 8, 10).unwrap(),
+        dimensions: dimensions(),
+    });
+
+    event.validate().unwrap();
+    assert_eq!(event.event_type(), "sales.billing_eligible");
+    let encoded = serde_json::to_string(&event).unwrap();
+    assert!(!encoded.contains("receivable"));
+    assert!(encoded.contains("cost_center"));
+    assert!(encoded.contains("campaign"));
+}
+
+#[test]
+fn attribution_revision_must_reconcile_exactly_to_its_finance_source() {
+    let currency = CurrencyCode::try_new("THB").unwrap();
+    let source =
+        RecordRef::try_new(BoundedContext::Finance, "recognized_revenue", uuid(50), 2).unwrap();
+    let mut event =
+        marketing::Event::AttributionRevisionPublished(marketing::AttributionRevisionFact {
+            revision: marketing::AttributionRevisionRef::try_from_uuid(uuid(51)).unwrap(),
+            basis: marketing::AttributionBasis::Recognized,
+            revenue_source: source,
+            source_total: MoneyAmount::new(101, currency),
+            allocations: vec![
+                marketing::AttributedCampaignAmount {
+                    campaign: marketing::CampaignRef::try_from_uuid(uuid(52)).unwrap(),
+                    amount: MoneyAmount::new(51, currency),
+                },
+                marketing::AttributedCampaignAmount {
+                    campaign: marketing::CampaignRef::try_from_uuid(uuid(53)).unwrap(),
+                    amount: MoneyAmount::new(50, currency),
+                },
+            ],
+            published_at: Utc.with_ymd_and_hms(2026, 8, 10, 8, 0, 0).unwrap(),
+        });
+    event.validate().unwrap();
+
+    let marketing::Event::AttributionRevisionPublished(fact) = &mut event else {
+        unreachable!();
+    };
+    fact.allocations[1].amount = MoneyAmount::new(49, currency);
+    assert_eq!(
+        event.validate(),
+        Err(ContractValidationError::OutOfRange(
+            "attribution.allocated_total"
+        ))
+    );
+}
+
 #[test]
 fn support_incident_fact_is_secret_free_and_operations_keeps_support_ownership() {
     let source = operations::SourceFact::SupportIncident(support::SupportIncidentFact {

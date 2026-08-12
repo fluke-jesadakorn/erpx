@@ -11,7 +11,7 @@ use crate::{features::crm::CrmProtoTransport, transport::typed_cqrs::GrpcChannel
 
 use super::common::{
     AuthenticatedRoute, Wave67Route, command_result, decode_scope, invalid_response, query_result,
-    status_ui, timestamp, uuid,
+    status_ui, timestamp, unsupported_ui, uuid,
 };
 
 type Commands = wire::crm_command_service_client::CrmCommandServiceClient<GrpcChannel>;
@@ -141,6 +141,9 @@ impl CrmProtoTransport for CrmGrpcTransport {
                     correlation,
                 )
             }
+            CrmCommand::UpdateOpportunityForecast(_) => {
+                Err(unsupported_ui("crm opportunity forecast update"))
+            }
         }
     }
 
@@ -262,6 +265,12 @@ fn decode_opportunity(value: wire::CrmOpportunityRecord) -> Result<OpportunityVi
         expected_value_minor: value.expected_value_minor,
         currency: value.currency,
         stage: decode_stage(value.stage)?,
+        account: None,
+        owner: None,
+        pipeline_category: None,
+        probability_basis_points: None,
+        expected_close_on: None,
+        originating_campaign: None,
         created_at: timestamp(&value.created_at)?,
         updated_at: timestamp(&value.updated_at)?,
     })

@@ -15,7 +15,7 @@ use crate::{features::legal::LegalProtoTransport, transport::typed_cqrs::GrpcCha
 
 use super::common::{
     AuthenticatedRoute, Wave8Route, command_result, decode_scope, invalid_response, query_result,
-    status_ui, timestamp, uuid,
+    status_ui, timestamp, unsupported_ui, uuid,
 };
 
 type CommandClient = wire::legal_command_service_client::LegalCommandServiceClient<GrpcChannel>;
@@ -164,6 +164,11 @@ impl LegalProtoTransport for LegalGrpcTransport {
                 )?);
                 command_result(response.receipt, result, command_id, correlation_id)
             }
+            LegalCommand::CreateMatter(_)
+            | LegalCommand::LinkMatterRecord(_)
+            | LegalCommand::PlaceLegalHold(_)
+            | LegalCommand::ReleaseLegalHold(_)
+            | LegalCommand::CloseMatter(_) => Err(unsupported_ui("legal matter graph command")),
         }
     }
 
@@ -297,6 +302,7 @@ impl LegalProtoTransport for LegalGrpcTransport {
                     consistency,
                 )
             }
+            LegalQuery::GetMatter(_) => Err(unsupported_ui("legal matter graph query")),
         }
     }
 }

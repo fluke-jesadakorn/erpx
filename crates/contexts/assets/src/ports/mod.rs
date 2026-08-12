@@ -74,6 +74,7 @@ pub enum CommandFingerprint {
     BeginMaintenance {
         asset_id: AssetId,
         request_code: String,
+        title: String,
     },
     ReturnToService {
         asset_id: AssetId,

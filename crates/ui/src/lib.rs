@@ -4,29 +4,19 @@
 //! know about authentication tokens, ERPX protobuf messages, tenant data, or server-side
 //! authorization. Applications provide those concerns at their boundary.
 
+use std::{collections::BTreeSet, fmt, sync::Arc};
+
 use dioxus::prelude::*;
+pub use erpx_console_transport_core::{
+    FeatureTransportError, FeatureTransportPrimitive, OpaqueCredentialProvider,
+};
 
 mod auth;
-mod components;
-mod crm;
-mod customer360;
-mod finance;
-mod hr;
 mod i18n;
-pub mod kit;
-mod legal;
 mod navigation;
-mod operations;
-mod platform;
-mod pos;
-mod pos_commands;
-mod premium;
-mod product_contexts;
 mod routes;
 mod session_target;
 mod state;
-mod support;
-mod support_surfaces;
 mod theme;
 mod work;
 mod workflows;
@@ -38,118 +28,13 @@ pub use auth::{
     SessionId, SessionMaterialError, SessionSnapshot, SessionState, SessionTransport,
     StoredAccountSummary, StoredSession, StoredSessionBundle,
 };
-pub use components::{
-    AppShell, BannerKind, CollectionLayout, CorporateIdentityEditor, CorporateIdentityEditorAction,
-    CorporateIdentityEditorActionKind, CorporateIdentityEditorSubmission, DashboardLayout,
-    DataTable, Dialog, DialogSize, EnterpriseIcon, Field, FilterBar, LocaleToggle,
-    LockedTooltipButton, NavigationDisclosureState, OperationsLayout, PageHeader, RecordLayout,
-    RouteStateBoundary, ScopeSelector, SessionBanners, SettingsLayout, StateBoundary, StatePanel,
-    TableColumn, TextField, WorkflowLayout, use_account_session_focus_target,
-    use_navigation_disclosure_state,
-};
-pub use crm::{
-    CRM_SURFACES, CrmAttributionDisplayModel, CrmAttributionModel, CrmDisplayField, CrmFieldInput,
-    CrmHandoffDisplayModel, CrmOpportunityDisplayModel, CrmOpportunityStatus, CrmPageError,
-    CrmPageMetadata, CrmProjectionMetadata, CrmReadPage, CrmState, CrmSurface, CrmViewState,
-    MAX_CRM_DISPLAY_FIELDS, MAX_CRM_DISPLAY_VALUE_BYTES, MAX_CRM_IDENTIFIER_BYTES,
-    MAX_CRM_PAGE_SIZE, sort_attribution_rows, sort_handoff_rows, sort_opportunity_rows,
-};
-pub use customer360::{
-    CUSTOMER_360_SECTIONS, Customer360DisplayField, Customer360DisplayModel, Customer360FieldInput,
-    Customer360Freshness, Customer360ProjectionMetadata, Customer360Section, Customer360State,
-    Customer360ViewState, CustomerNoteDisplayItem, CustomerNoteDtoInput, CustomerNotesDisplayModel,
-    ProjectionFreshness,
-};
-pub use finance::{
-    FINANCE_ROUTE_REGISTRY, FINANCE_ROUTES, FinanceBankingDisplayModel, FinanceBankingState,
-    FinanceChartDisplayModel, FinanceChartState, FinanceCloseDisplayModel, FinanceCloseState,
-    FinanceDisplayField, FinanceDisplayModel, FinanceDisplayValueError, FinanceIdentifierError,
-    FinanceJournalDisplayModel, FinanceJournalState, FinanceLabel, FinanceModelError,
-    FinanceOpaqueId, FinancePageState, FinancePageStateKind, FinanceProjectionMetadata,
-    FinanceReadPage, FinanceRoute, FinanceRouteDefinition, FinanceRouteId, FinanceRouteParseError,
-    FinanceRouteRegistry, FinanceSafeText, FinanceScalar, FinanceScope, FinanceState,
-    FinanceSubledgerDisplayModel, FinanceSubledgerState, FinanceSurface, FinanceViewState,
-    MAX_FINANCE_DISPLAY_FIELDS, MAX_FINANCE_DISPLAY_VALUE_BYTES, MAX_FINANCE_IDENTIFIER_BYTES,
-    MAX_FINANCE_PAGE_ROWS,
-};
-pub use hr::{
-    HR_ROUTE_REGISTRY, HR_ROUTES, HrCurrency, HrCurrencyError, HrDisplayValueError,
-    HrEmployeeDisplayModel, HrEmployeeId, HrEmployeeState, HrEmployeeStatus, HrEmployeeViewModel,
-    HrExpenseDisplayModel, HrExpenseId, HrExpenseState, HrExpenseStatus, HrExpenseViewModel,
-    HrIdentifierError, HrLeaveDisplayModel, HrLeaveId, HrLeaveState, HrLeaveStatus,
-    HrLeaveViewModel, HrOpaqueId, HrPageState, HrPageStateKind, HrPayrollDisplayModel, HrPayrollId,
-    HrPayrollLineDisplayModel, HrPayrollRunId, HrPayrollState, HrPayrollStatus, HrPayrollViewModel,
-    HrPrincipalId, HrProjectionMetadata, HrReassignmentDisplayModel, HrReassignmentId,
-    HrReassignmentState, HrReassignmentStatus, HrReassignmentViewModel, HrRoute, HrRouteDefinition,
-    HrRouteId, HrRouteParseError, HrRouteRegistry, HrScope, HrState, HrViewModelError, HrViewState,
-    HrWorkflowRef, MAX_HR_DISPLAY_VALUE_BYTES, MAX_HR_IDENTIFIER_BYTES, MAX_HR_PAGE_ROWS,
-    MAX_HR_PAYROLL_LINES,
-};
 pub use i18n::{
     Locale, LocaleContext, LocaleFormatter, LocalizedText, TranslationKey, provide_locale,
     use_locale,
 };
-pub use legal::{
-    LEGAL_ROUTE_REGISTRY, LEGAL_ROUTES, LegalAccessAction, LegalAccessHistoryEntryDisplayModel,
-    LegalAccessHistoryEntryId, LegalAccessHistoryEntryState, LegalApprovalDisplayModel,
-    LegalApprovalId, LegalApprovalState, LegalApprovalStatus, LegalContractDisplayModel,
-    LegalContractId, LegalContractState, LegalContractStatus, LegalDisplayTextError,
-    LegalDocumentDisplayModel, LegalDocumentId, LegalDocumentState, LegalDocumentStatus,
-    LegalDocumentVersionDisplayModel, LegalDocumentVersionId, LegalDocumentVersionState,
-    LegalIdentifierError, LegalLabel, LegalPageState, LegalPageStateKind, LegalPartyDisplayModel,
-    LegalPartyId, LegalPartyRole, LegalPartyState, LegalPrincipalId, LegalProjectionMetadata,
-    LegalRetentionDisplayModel, LegalRetentionId, LegalRetentionState, LegalRetentionStatus,
-    LegalRoute, LegalRouteDescriptor, LegalRouteId, LegalRouteParseError, LegalRouteRegistry,
-    LegalScalar, MAX_LEGAL_DISPLAY_TEXT_BYTES, MAX_LEGAL_IDENTIFIER_BYTES,
-};
 pub use navigation::{
     NavAccess, NavGroup, NavItem, NavigationState, localized_navigation_label,
     localized_navigation_requirement, localized_role_label, normalize_path,
-};
-pub use operations::{
-    OPERATIONS_PAGES, OperationsDisplayField, OperationsDisplayModel, OperationsFieldInput,
-    OperationsPage, OperationsProjectionMetadata, OperationsScope, OperationsScopeKind,
-    OperationsSourceDomain, OperationsState, OperationsViewState,
-};
-pub use platform::{
-    MAX_PLATFORM_TENANT_ID_BYTES, PLATFORM_OPERATIONS_ROUTES, PlatformOperationsAudience,
-    PlatformOperationsPageState, PlatformOperationsProjectionMetadata, PlatformOperationsRoute,
-    PlatformOperationsRouteDefinition, PlatformOperationsRouteError, PlatformOperationsRouteId,
-    PlatformOperationsRouteRegistry, PlatformTenantAdministrationTab, PlatformTenantId,
-    TenantWorkspaceBillingMode, TenantWorkspaceContext, TenantWorkspaceModule,
-    TenantWorkspaceOrganizationScope, TenantWorkspaceViewerKind,
-};
-pub use pos::{
-    MAX_POS_DISPLAY_LINES, MAX_POS_DISPLAY_VALUE_BYTES, MAX_POS_LINE_ID_BYTES,
-    MAX_POS_PAYMENT_SUMMARIES, MAX_POS_SALE_ID_BYTES, POS_ROUTE_REGISTRY, POS_ROUTES, PosCurrency,
-    PosCurrencyError, PosDisplayValueError, PosIdentifierError, PosLineId, PosPageState,
-    PosPageStateKind, PosPaymentCategory, PosPaymentMethod, PosPaymentSummary,
-    PosPaymentSummaryViewModel, PosProjectionMetadata, PosRoute, PosRouteDefinition, PosRouteId,
-    PosRouteParseError, PosRouteRegistry, PosSaleId, PosSaleLine, PosSaleLineViewModel,
-    PosSaleState, PosSaleStatus, PosSaleSummary, PosSaleSummaryViewModel, PosSaleViewModel,
-    PosState, PosViewModelError, PosViewState,
-};
-pub use pos_commands::{
-    CurrencyCode as PosCommandCurrencyCode, MAX_OPAQUE_ID_BYTES as MAX_POS_COMMAND_ID_BYTES,
-    MAX_SALE_ENTRY_LINES, MAX_SCALAR_TEXT_BYTES as MAX_POS_COMMAND_SCALAR_BYTES,
-    Money as PosCommandMoney, POS_COMMANDS, PosCommandInputError, PosCommandKind, PosCommandLocale,
-    PosCommandState, PosCommandStateKind, PosOpaqueId, ReceiptDeliveryMode, ReceiptIssueInput,
-    ReceiptIssueStatus, ReceiptIssueSummary, RefundReviewInput, RefundReviewStatus,
-    RefundReviewSummary, SaleEntryInput, SaleEntryLine, SaleEntryStatus, SaleEntrySummary,
-    ScalarText as PosCommandScalarText, ShiftCloseApprovalInput, ShiftCloseStatus,
-    ShiftCloseSummary,
-};
-pub use premium::{
-    BarChart, Button, ButtonTone, ChartPoint, ChartSeries, DashboardBreakdown,
-    DashboardBreakdownSegment, DashboardMetric, DashboardRange, DashboardRangeSelector,
-    DashboardReadModel, DashboardWorkItem, DataTableV2, DonutChart, Drawer, EmptyState,
-    HeatmapChart, LineAreaChart, MetricCard, PageHero, ProgressRing, ReadModelAvailability,
-    ReadModelFreshness, ReadModelMeta, SectionCard, Skeleton, Sparkline, StackedBarChart,
-    StatusBadge, StatusTone, TabItem, Tabs, Timeline, TimelineItem, Toast, ToastTone, Toolbar,
-    chart_polyline_points,
-};
-pub use product_contexts::{
-    PRODUCT_CONTEXT_ROUTES, ProductContextId, ProductContextRoute, product_context_nav_items,
 };
 pub use routes::{
     CustomerId, CustomerView, ImpersonationMetadata, InvalidCustomerId, MAX_CUSTOMER_ID_BYTES,
@@ -161,23 +46,8 @@ pub use session_target::{
     ClientTarget, SecureSessionSupport, TargetSecureSessionAdapter, TargetSessionDescriptor,
 };
 pub use state::{
-    FormState, SafeUiText, UiAccessibilityContract, UiState, UiStateKind, ValidationError,
-    validate_email, validate_required,
-};
-pub use support::{
-    DIAGNOSTIC_READ_MAX_SECONDS, IMPERSONATION_MAX_SECONDS, IncidentDetailState,
-    IncidentDisplayModel, IncidentDtoInput, IncidentListDisplayModel, IncidentListItem,
-    IncidentListState, IncidentProjectionMetadata, IncidentScope, IncidentStatus,
-    IncidentViewState, SUPPORT_ROUTES, SupportApprovalState, SupportContextMetadata,
-    SupportDisplayField, SupportDisplayModel, SupportDurationError, SupportFieldInput,
-    SupportImpersonationState, SupportMode, SupportProjectionMetadata, SupportRoute,
-    SupportRouteAudience, SupportRouteDefinition, SupportState, SupportTicketDtoInput,
-    SupportTicketListDisplayModel, SupportTicketListItem, SupportTicketListState,
-    SupportTicketStatus, SupportViewState, TENANT_MUTATION_MAX_SECONDS,
-};
-pub use support_surfaces::{
-    IncidentDetailSurface, IncidentListSurface, SupportIncidentSurface,
-    SupportIncidentSurfaceState, SupportRouteTabs, SupportSurface, SupportTicketListSurface,
+    FormState, ProjectionFreshness, SafeUiText, UiAccessibilityContract, UiState, UiStateKind,
+    ValidationError, validate_email, validate_required,
 };
 pub use theme::{
     CorporateIdentityContext, ThemeContext, ThemeMode, corporate_identity_style,
@@ -185,9 +55,9 @@ pub use theme::{
 };
 pub use work::{
     MAX_WORK_ACTION_CAPABILITIES, MAX_WORK_ITEMS, MAX_WORK_PAGE_SIZE, MAX_WORK_REFERENCE_BYTES,
-    MAX_WORK_SOURCE_CONTRIBUTIONS, MAX_WORK_TEXT_BYTES, WorkDomain, WorkItemKind,
-    WorkItemReadModel, WorkItemSeverity, WorkItemStage, WorkItemTarget, WorkQueueCounters,
-    WorkQueueMeta, WorkQueueReadModel, WorkQueueView, WorkRoute, WorkSlaState,
+    MAX_WORK_SOURCE_CONTRIBUTIONS, MAX_WORK_TEXT_BYTES, ReadModelAvailability, ReadModelFreshness,
+    WorkDomain, WorkItemKind, WorkItemReadModel, WorkItemSeverity, WorkItemStage, WorkItemTarget,
+    WorkQueueCounters, WorkQueueMeta, WorkQueueReadModel, WorkQueueView, WorkRoute, WorkSlaState,
     WorkSourceContribution, sla_state, valid_work_cursor,
 };
 pub use workflows::{
@@ -195,27 +65,362 @@ pub use workflows::{
     RpcServiceWorkflow, RpcWorkflow, rpc_workflow,
 };
 
-/// Shared CSS variables and component styles. Applications can include this once in their root
-/// component and layer client-specific styles on top.
-pub const SHARED_STYLES: &str = concat!(
-    include_str!("../assets/tokens.css"),
-    include_str!("../assets/foundation.css"),
-    include_str!("../assets/premium-composites.css"),
-    include_str!("../assets/chart-composites.css")
-);
+/// Route metadata exported by one independently compiled Console feature.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FeatureRouteDescriptor {
+    pub id: &'static str,
+    pub canonical_path: &'static str,
+    pub authorization: &'static str,
+    pub navigation_group: &'static str,
+}
 
-/// Compiled, hashed stylesheet layers for Dioxus web targets. Native targets can
-/// continue to use `SHARED_STYLES` from the same source files.
-#[component]
-pub fn SharedStylesheets() -> Element {
-    static TOKENS: Asset = asset!("/assets/tokens.css");
-    static FOUNDATION: Asset = asset!("/assets/foundation.css");
-    static PREMIUM_COMPOSITES: Asset = asset!("/assets/premium-composites.css");
-    static CHART_COMPOSITES: Asset = asset!("/assets/chart-composites.css");
-    rsx! {
-        document::Stylesheet { href: TOKENS }
-        document::Stylesheet { href: FOUNDATION }
-        document::Stylesheet { href: PREMIUM_COMPOSITES }
-        document::Stylesheet { href: CHART_COMPOSITES }
+/// Non-secret session identity supplied by the Console shell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FeatureSession {
+    pub authenticated: bool,
+    pub principal_ref: Option<String>,
+}
+
+/// Exact active authority scope supplied by the Console shell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FeatureScope {
+    pub kind: String,
+    pub reference: String,
+}
+
+pub type FeatureNavigationCallback = Arc<dyn Fn(String) + Send + Sync>;
+
+/// Target-neutral context shared with a registered feature renderer.
+#[derive(Clone)]
+pub struct FeatureContext {
+    /// Stable authorization/session generation used to invalidate feature-local resources.
+    pub generation: u64,
+    pub locale: Locale,
+    pub session: FeatureSession,
+    pub active_scope: Option<FeatureScope>,
+    pub transport: Arc<FeatureTransportPrimitive>,
+    pub navigate: FeatureNavigationCallback,
+    pub canonical_path: String,
+}
+
+impl PartialEq for FeatureContext {
+    fn eq(&self, other: &Self) -> bool {
+        self.generation == other.generation
+            && self.locale == other.locale
+            && self.session == other.session
+            && self.active_scope == other.active_scope
+            && self.canonical_path == other.canonical_path
+            && Arc::ptr_eq(&self.transport, &other.transport)
+            && Arc::ptr_eq(&self.navigate, &other.navigate)
+    }
+}
+
+impl Eq for FeatureContext {}
+
+impl fmt::Debug for FeatureContext {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FeatureContext")
+            .field("generation", &self.generation)
+            .field("locale", &self.locale)
+            .field("session", &self.session)
+            .field("active_scope", &self.active_scope)
+            .field("transport", &"<type-erased>")
+            .field("navigate", &"<callback>")
+            .field("canonical_path", &self.canonical_path)
+            .finish()
+    }
+}
+
+pub type FeaturePathMatcher = fn(&FeatureRegistration, &str) -> bool;
+pub type FeatureRenderer = fn(&FeatureContext) -> Element;
+
+#[derive(Debug, Clone, Copy)]
+pub struct FeatureRegistration {
+    pub id: &'static str,
+    /// Unique string retained in the owning lazy artifact for build-time mapping checks.
+    pub artifact_key: &'static str,
+    pub routes: &'static [FeatureRouteDescriptor],
+    pub path_matcher: FeaturePathMatcher,
+    pub renderer: FeatureRenderer,
+}
+
+impl FeatureRegistration {
+    pub const fn new(id: &'static str, routes: &'static [FeatureRouteDescriptor]) -> Self {
+        Self::with_renderer_and_artifact(id, routes, id, default_feature_renderer)
+    }
+
+    pub const fn with_renderer(
+        id: &'static str,
+        routes: &'static [FeatureRouteDescriptor],
+        renderer: FeatureRenderer,
+    ) -> Self {
+        Self::with_renderer_and_artifact(id, routes, id, renderer)
+    }
+
+    pub const fn with_renderer_and_artifact(
+        id: &'static str,
+        routes: &'static [FeatureRouteDescriptor],
+        artifact_key: &'static str,
+        renderer: FeatureRenderer,
+    ) -> Self {
+        Self {
+            id,
+            artifact_key,
+            routes,
+            path_matcher: default_feature_path_matcher,
+            renderer,
+        }
+    }
+
+    pub fn matches_path(&self, path: &str) -> bool {
+        (self.path_matcher)(self, path)
+    }
+
+    pub fn render(&self, context: &FeatureContext) -> Element {
+        (self.renderer)(context)
+    }
+}
+
+pub fn default_feature_path_matcher(registration: &FeatureRegistration, path: &str) -> bool {
+    let normalized = normalize_path(path);
+    registration.routes.iter().any(|route| {
+        normalized == route.canonical_path
+            || normalized
+                .strip_prefix(route.canonical_path)
+                .is_some_and(|suffix| suffix.starts_with('/'))
+    })
+}
+
+pub fn default_feature_renderer(_context: &FeatureContext) -> Element {
+    VNode::empty()
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FeatureRegistryError {
+    DuplicateFeatureId(&'static str),
+    DuplicateArtifactKey(&'static str),
+    DuplicateRouteId(&'static str),
+    DuplicateCanonicalPath(&'static str),
+}
+
+#[derive(Debug, Clone)]
+pub struct FeatureRegistry {
+    registrations: Vec<&'static FeatureRegistration>,
+}
+
+impl FeatureRegistry {
+    pub fn try_new(
+        registrations: impl IntoIterator<Item = &'static FeatureRegistration>,
+    ) -> Result<Self, FeatureRegistryError> {
+        let mut feature_ids = BTreeSet::new();
+        let mut artifact_keys = BTreeSet::new();
+        let mut route_ids = BTreeSet::new();
+        let mut paths = BTreeSet::new();
+        let registrations = registrations
+            .into_iter()
+            .map(|registration| {
+                if !feature_ids.insert(registration.id) {
+                    return Err(FeatureRegistryError::DuplicateFeatureId(registration.id));
+                }
+                if !artifact_keys.insert(registration.artifact_key) {
+                    return Err(FeatureRegistryError::DuplicateArtifactKey(
+                        registration.artifact_key,
+                    ));
+                }
+                for route in registration.routes {
+                    if !route_ids.insert(route.id) {
+                        return Err(FeatureRegistryError::DuplicateRouteId(route.id));
+                    }
+                    if !paths.insert(route.canonical_path) {
+                        return Err(FeatureRegistryError::DuplicateCanonicalPath(
+                            route.canonical_path,
+                        ));
+                    }
+                }
+                Ok(registration)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Self { registrations })
+    }
+
+    pub fn registrations(&self) -> &[&'static FeatureRegistration] {
+        &self.registrations
+    }
+
+    pub fn resolve(&self, path: &str) -> Option<&'static FeatureRegistration> {
+        self.registrations
+            .iter()
+            .copied()
+            .find(|registration| registration.matches_path(path))
+    }
+}
+
+#[macro_export]
+macro_rules! declare_feature_registration {
+    (
+        $surface:ident,
+        $feature_id:literal,
+        $route_id:literal,
+        $canonical_path:literal,
+        $navigation_group:literal,
+        $artifact_key:literal,
+        $framework:ident
+    ) => {
+        use $framework::prelude::*;
+
+        const FEATURE_ROUTES: &[$crate::FeatureRouteDescriptor] =
+            &[$crate::FeatureRouteDescriptor {
+                id: $route_id,
+                canonical_path: $canonical_path,
+                authorization: "authenticated",
+                navigation_group: $navigation_group,
+            }];
+
+        #[$framework::prelude::component(lazy)]
+        pub fn $surface(context: $crate::FeatureContext) -> $framework::prelude::Element {
+            let canonical_path = context.canonical_path.clone();
+            let generation = context.generation.to_string();
+            // Transport identity is intentionally first observed inside the lazy body. This keeps
+            // authenticated transport setup out of the login bootstrap artifact.
+            let transport_mode = if context.transport.is_web_same_origin() {
+                "same-origin-bff"
+            } else {
+                "native-opaque-credential"
+            };
+            let (heading, status) = match context.locale {
+                $crate::Locale::En => (
+                    concat!($feature_id, " workspace"),
+                    "The feature module is ready for authorized work.",
+                ),
+                $crate::Locale::Th => (
+                    concat!("พื้นที่ทำงาน ", $feature_id),
+                    "โมดูลฟีเจอร์พร้อมสำหรับงานที่ได้รับอนุญาต",
+                ),
+            };
+            $framework::prelude::rsx! {
+                section {
+                    class: "feature-owned-surface",
+                    role: "region",
+                    "aria-labelledby": concat!("feature-title-", $feature_id),
+                    "data-erpx-feature-artifact": $artifact_key,
+                    "data-erpx-feature-id": $feature_id,
+                    "data-feature-path": canonical_path,
+                    "data-feature-generation": generation,
+                    "data-feature-transport": transport_mode,
+                    header { class: "feature-owned-surface__header",
+                        p { class: "work-os-eyebrow", {$navigation_group} }
+                        h2 { id: concat!("feature-title-", $feature_id), {heading} }
+                    }
+                    p { role: "status", aria_live: "polite", {status} }
+                }
+            }
+        }
+
+        pub use $surface as FeatureSurface;
+
+        fn render_feature_surface(
+            context: &$crate::FeatureContext,
+        ) -> $framework::prelude::Element {
+            $framework::prelude::rsx! { $surface { context: context.clone() } }
+        }
+
+        pub static REGISTRATION: $crate::FeatureRegistration =
+            $crate::FeatureRegistration::with_renderer_and_artifact(
+                $feature_id,
+                FEATURE_ROUTES,
+                $artifact_key,
+                render_feature_surface,
+            );
+    };
+}
+
+#[cfg(test)]
+mod feature_registry_tests {
+    use super::*;
+
+    fn feature_context(generation: u64) -> FeatureContext {
+        FeatureContext {
+            generation,
+            locale: Locale::En,
+            session: FeatureSession {
+                authenticated: true,
+                principal_ref: Some("principal-safe-ref".into()),
+            },
+            active_scope: Some(FeatureScope {
+                kind: "holding".into(),
+                reference: "holding-safe-ref".into(),
+            }),
+            transport: Arc::new(FeatureTransportPrimitive::web_same_origin()),
+            navigate: Arc::new(|_| {}),
+            canonical_path: "/a".into(),
+        }
+    }
+
+    static ROUTE_A: &[FeatureRouteDescriptor] = &[FeatureRouteDescriptor {
+        id: "a.route",
+        canonical_path: "/a",
+        authorization: "authenticated",
+        navigation_group: "a",
+    }];
+    static ROUTE_DUPLICATE_ID: &[FeatureRouteDescriptor] = &[FeatureRouteDescriptor {
+        id: "a.route",
+        canonical_path: "/b",
+        authorization: "authenticated",
+        navigation_group: "b",
+    }];
+    static ROUTE_DUPLICATE_PATH: &[FeatureRouteDescriptor] = &[FeatureRouteDescriptor {
+        id: "b.route",
+        canonical_path: "/a",
+        authorization: "authenticated",
+        navigation_group: "b",
+    }];
+    static A: FeatureRegistration = FeatureRegistration::new("a", ROUTE_A);
+    static DUPLICATE_FEATURE: FeatureRegistration =
+        FeatureRegistration::new("a", ROUTE_DUPLICATE_PATH);
+    static DUPLICATE_ROUTE: FeatureRegistration = FeatureRegistration::new("b", ROUTE_DUPLICATE_ID);
+    static DUPLICATE_PATH: FeatureRegistration =
+        FeatureRegistration::new("b", ROUTE_DUPLICATE_PATH);
+    static DUPLICATE_ARTIFACT: FeatureRegistration =
+        FeatureRegistration::with_renderer_and_artifact(
+            "b",
+            ROUTE_DUPLICATE_PATH,
+            "a",
+            default_feature_renderer,
+        );
+
+    #[test]
+    fn feature_registry_rejects_duplicate_identifiers_and_paths() {
+        assert_eq!(
+            FeatureRegistry::try_new([&A, &DUPLICATE_FEATURE]).unwrap_err(),
+            FeatureRegistryError::DuplicateFeatureId("a")
+        );
+        assert_eq!(
+            FeatureRegistry::try_new([&A, &DUPLICATE_ROUTE]).unwrap_err(),
+            FeatureRegistryError::DuplicateRouteId("a.route")
+        );
+        assert_eq!(
+            FeatureRegistry::try_new([&A, &DUPLICATE_PATH]).unwrap_err(),
+            FeatureRegistryError::DuplicateCanonicalPath("/a")
+        );
+        assert_eq!(
+            FeatureRegistry::try_new([&A, &DUPLICATE_ARTIFACT]).unwrap_err(),
+            FeatureRegistryError::DuplicateArtifactKey("a")
+        );
+    }
+
+    #[test]
+    fn feature_context_identity_uses_generation_and_pointer_identity() {
+        let context = feature_context(7);
+        let clone = context.clone();
+        assert_eq!(context, clone);
+
+        let mut next_generation = context.clone();
+        next_generation.generation = 8;
+        assert_ne!(context, next_generation);
+
+        let mut next_transport = context.clone();
+        next_transport.transport = Arc::new(FeatureTransportPrimitive::web_same_origin());
+        assert_ne!(context, next_transport);
     }
 }

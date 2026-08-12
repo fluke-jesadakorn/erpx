@@ -46,6 +46,7 @@ pub struct MarkAssetDegraded {
 pub struct BeginMaintenance {
     pub asset_id: AssetId,
     pub request_code: String,
+    pub title: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -132,7 +133,7 @@ impl<W, U, A, E, C> AssetCommandHandler<W, U, A, E, C> {
 enum ExistingMutation {
     PlaceInService,
     MarkDegraded,
-    BeginMaintenance { request_code: String },
+    BeginMaintenance { request_code: String, title: String },
     ReturnToService,
     Retire,
 }
@@ -237,9 +238,10 @@ where
         match command.mutation {
             ExistingMutation::PlaceInService => aggregate.place_in_service(at),
             ExistingMutation::MarkDegraded => aggregate.mark_degraded(at),
-            ExistingMutation::BeginMaintenance { request_code } => {
-                aggregate.begin_maintenance(request_code, at)
-            }
+            ExistingMutation::BeginMaintenance {
+                request_code,
+                title,
+            } => aggregate.begin_maintenance(request_code, title, at),
             ExistingMutation::ReturnToService => aggregate.return_to_service(at),
             ExistingMutation::Retire => aggregate.retire(at),
         }
@@ -435,10 +437,12 @@ existing_handler!(
     |command: &BeginMaintenance| CommandFingerprint::BeginMaintenance {
         asset_id: command.asset_id,
         request_code: command.request_code.clone(),
+        title: command.title.clone(),
     },
     |command: &BeginMaintenance| command.asset_id,
     |command: BeginMaintenance| ExistingMutation::BeginMaintenance {
         request_code: command.request_code,
+        title: command.title,
     }
 );
 existing_handler!(

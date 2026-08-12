@@ -11,10 +11,12 @@ web = [
     "dioxus/web",
     "dioxus/fullstack",
     "dioxus/router",
+    "dioxus/wasm-split",
     "dioxus/lib",
     "dioxus/launch",
     "dioxus/devtools",
-    "erpx-ui/web",
+    "erpx-ui-core/web",
+    "erpx-ui-kit/web",
 ]
 server = [
     "dioxus/server",
@@ -28,7 +30,9 @@ server = [
     "dep:reqwest",
     "dep:sqlx",
     "dep:tokio",
+    "dep:tower-http",
     "dep:tracing",
+    "dep:erpx-console-bff",
 ]
 desktop = ["dioxus/desktop", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
 mobile = ["dioxus/mobile", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
@@ -41,6 +45,30 @@ dioxus = { workspace = true, features = ["signals"] }
 erpx-assets.workspace = true
 erpx-brand.workspace = true
 erpx-commercial.workspace = true
+erpx-console-feature-assets.workspace = true
+erpx-console-feature-brand.workspace = true
+erpx-console-feature-commercial.workspace = true
+erpx-console-feature-crm.workspace = true
+erpx-console-feature-customer-360.workspace = true
+erpx-console-feature-customer-authority.workspace = true
+erpx-console-feature-finance.workspace = true
+erpx-console-feature-identity-access.workspace = true
+erpx-console-feature-inventory.workspace = true
+erpx-console-feature-legal.workspace = true
+erpx-console-feature-maintenance.workspace = true
+erpx-console-feature-marketing.workspace = true
+erpx-console-feature-operations.workspace = true
+erpx-console-feature-organization.workspace = true
+erpx-console-feature-people-payroll.workspace = true
+erpx-console-feature-platform-administration.workspace = true
+erpx-console-feature-pos.workspace = true
+erpx-console-feature-procurement.workspace = true
+erpx-console-feature-quality.workspace = true
+erpx-console-feature-sales.workspace = true
+erpx-console-feature-support.workspace = true
+erpx-console-transport.workspace = true
+erpx-console-shell.workspace = true
+erpx-console-bff = { workspace = true, optional = true }
 erpx-domain.workspace = true
 erpx-finance.workspace = true
 erpx-cqrs.workspace = true
@@ -64,8 +92,18 @@ erpx-proto.workspace = true
 erpx-quality.workspace = true
 erpx-sales.workspace = true
 erpx-support.workspace = true
-erpx-ui.workspace = true
+erpx-ui-core.workspace = true
+erpx-ui-crm.workspace = true
+erpx-ui-customer-360.workspace = true
+erpx-ui-finance.workspace = true
 erpx-ui-foundation.workspace = true
+erpx-ui-kit.workspace = true
+erpx-ui-legal.workspace = true
+erpx-ui-operations.workspace = true
+erpx-ui-people-payroll.workspace = true
+erpx-ui-platform.workspace = true
+erpx-ui-pos.workspace = true
+erpx-ui-support.workspace = true
 erpx-web-session = { workspace = true, optional = true }
 erpx-web-session-sqlx = { workspace = true, optional = true }
 prost-types.workspace = true
@@ -76,6 +114,7 @@ sha2.workspace = true
 sqlx = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tonic.workspace = true

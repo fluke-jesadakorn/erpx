@@ -58,6 +58,7 @@ fn map_event(event: &DomainEvent) -> Option<Result<assets::Event, IntegrationMap
         DomainEvent::MaintenanceRequested {
             asset_id,
             request_code,
+            title,
             at,
         } => {
             let _ = at;
@@ -67,9 +68,14 @@ fn map_event(event: &DomainEvent) -> Option<Result<assets::Event, IntegrationMap
                     .and_then(|asset| {
                         ReferenceCode::try_new(request_code.clone())
                             .map_err(|_| IntegrationMappingError::Reference)
-                            .map(|request_code| assets::Event::MaintenanceRequested {
-                                asset,
-                                request_code,
+                            .and_then(|request_code| {
+                                DisplayName::try_new(title.clone())
+                                    .map_err(|_| IntegrationMappingError::Name)
+                                    .map(|title| assets::Event::MaintenanceRequested {
+                                        asset,
+                                        request_code,
+                                        title: Some(title),
+                                    })
                             })
                     }),
             )
@@ -102,13 +108,16 @@ mod tests {
         let mapped = published_events(&[DomainEvent::MaintenanceRequested {
             asset_id: AssetId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
             request_code: "REQ-1".into(),
+            title: "Replace drive belt".into(),
             at: Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap(),
         }])
         .unwrap();
         assert!(matches!(
             mapped.as_slice(),
-            [Event::MaintenanceRequested { asset, request_code }]
-                if asset.as_uuid() == Uuid::from_u128(1) && request_code.as_str() == "REQ-1"
+            [Event::MaintenanceRequested { asset, request_code, title }]
+                if asset.as_uuid() == Uuid::from_u128(1)
+                    && request_code.as_str() == "REQ-1"
+                    && title.as_ref().is_some_and(|value| value.as_str() == "Replace drive belt")
         ));
     }
 }

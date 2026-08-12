@@ -7,17 +7,19 @@ pub mod integration;
 pub mod ports;
 
 pub use application::{
-    AddContractParty, AddDocumentVersion, ArchiveDocument, CreateContract, CreateDocument,
-    GetContract, GetDocument, LegalApplicationError, LegalCommand, LegalCommandHandler,
-    LegalMutationResult, LegalQuery, LegalQueryHandler, LegalQueryResponse, ListAccessHistory,
-    ListContracts, ListDocuments, RecordDocumentAccess, TransitionContract,
+    AddContractParty, AddDocumentVersion, ArchiveDocument, CloseMatter, CreateContract,
+    CreateDocument, CreateMatter, GetContract, GetDocument, GetMatter, LegalApplicationError,
+    LegalCommand, LegalCommandHandler, LegalMutationResult, LegalQuery, LegalQueryHandler,
+    LegalQueryResponse, LinkMatterRecord, ListAccessHistory, ListContracts, ListDocuments,
+    PlaceLegalHold, RecordDocumentAccess, ReleaseLegalHold, TransitionContract,
 };
 pub use domain::{
     AccessEntry, AccessEntryId, ContractParty, ContractStatus, ContractTransition, DocumentVersion,
     LegalAggregate, LegalContract, LegalContractId, LegalDocument, LegalDocumentId,
-    LegalDomainError,
+    LegalDomainError, LegalHold, LegalMatter, LegalMatterId, MatterStatus, RecordLink,
+    RecordRelation,
 };
 pub use ports::{
-    AuthorizationPort, CommandUnitOfWork, EntitlementPort, LegalAction, LegalCommit, PortError,
-    ReadRepository, StoredCommit, WriteRepository,
+    AuthorizationPort, CommandUnitOfWork, EntitlementPort, LegalAction, LegalCommit, MatterView,
+    PortError, ReadRepository, StoredCommit, WriteRepository,
 };

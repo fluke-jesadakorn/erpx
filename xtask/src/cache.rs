@@ -11,9 +11,12 @@ use std::{
 
 pub(crate) type CacheResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
-pub(crate) const CACHE_BUDGET_BYTES: u64 = 16 * 1024 * 1024 * 1024;
-const RUNTIME_TARGET_NAMES: [&str; 4] = [
+pub(crate) const CACHE_BUDGET_BYTES: u64 = 128 * 1024 * 1024 * 1024;
+pub(crate) const MINIMUM_FREE_BYTES: u64 = 64 * 1024 * 1024 * 1024;
+const RUNTIME_TARGET_NAMES: [&str; 6] = [
     "fast-lane-target",
+    "heavy-xtask-target",
+    "runtime-dev-target",
     "xtask-target",
     "check-fast-target",
     "test-fast-target",
@@ -26,16 +29,20 @@ pub(crate) struct CacheGroup {
     pub(crate) size: u64,
     pub(crate) last_used: SystemTime,
     pub(crate) pinned: bool,
+    pub(crate) warm_validation: bool,
 }
 
 pub(crate) fn status(root: &Path) -> CacheResult {
     let groups = inventory(root)?;
     let total = groups.iter().map(|group| group.size).sum::<u64>();
+    let available = fs2::available_space(root)?;
     println!(
-        "Cargo build cache: {} across {} group(s); budget {}",
+        "Cargo build cache: {} across {} group(s); budget {}; free space {} (floor {})",
         human_bytes(total),
         groups.len(),
-        human_bytes(CACHE_BUDGET_BYTES)
+        human_bytes(CACHE_BUDGET_BYTES),
+        human_bytes(available),
+        human_bytes(MINIMUM_FREE_BYTES)
     );
     for group in groups {
         println!(
@@ -43,7 +50,13 @@ pub(crate) fn status(root: &Path) -> CacheResult {
             human_bytes(group.size),
             display_time(group.last_used),
             group.id,
-            if group.pinned { " [pinned]" } else { "" }
+            if group.pinned {
+                " [active]"
+            } else if group.warm_validation {
+                " [warm-validation]"
+            } else {
+                ""
+            }
         );
     }
     Ok(())
@@ -63,6 +76,7 @@ pub(crate) fn prune(root: &Path, dry_run: bool, extra_pins: &[PathBuf]) -> Cache
         }
     }
     let before = groups.iter().map(|group| group.size).sum::<u64>();
+    let available_before = fs2::available_space(root)?;
     let mandatory_ids = groups
         .iter()
         .filter(|group| {
@@ -76,7 +90,8 @@ pub(crate) fn prune(root: &Path, dry_run: bool, extra_pins: &[PathBuf]) -> Cache
         .filter(|group| !mandatory_ids.contains(&group.id))
         .cloned()
         .collect::<Vec<_>>();
-    let (budget_evictions, _) = select_evictions(retained, CACHE_BUDGET_BYTES);
+    let effective_budget = cache_target_budget(before, available_before);
+    let (budget_evictions, _) = select_evictions(retained, effective_budget);
     let budget_ids = budget_evictions
         .iter()
         .map(|group| group.id.clone())
@@ -108,7 +123,7 @@ pub(crate) fn prune(root: &Path, dry_run: bool, extra_pins: &[PathBuf]) -> Cache
             remove_marker(root, &group.id)?;
         }
     }
-    let budget_met = after <= CACHE_BUDGET_BYTES;
+    let budget_met = after <= effective_budget;
     println!(
         "Cargo build cache: {} -> {}{}",
         human_bytes(before),
@@ -117,8 +132,8 @@ pub(crate) fn prune(root: &Path, dry_run: bool, extra_pins: &[PathBuf]) -> Cache
     );
     if !budget_met {
         eprintln!(
-            "warning: Cargo build cache remains above {} because active cache groups are pinned",
-            human_bytes(CACHE_BUDGET_BYTES)
+            "warning: Cargo build cache remains above effective budget {} because active cache groups are pinned",
+            human_bytes(effective_budget)
         );
     }
     Ok(())
@@ -165,10 +180,56 @@ pub(crate) fn prune_incremental(root: &Path, dry_run: bool) -> CacheResult {
     Ok(())
 }
 
+pub(crate) fn prune_workspace_debug(root: &Path, dry_run: bool) -> CacheResult {
+    if rustc_writer_active(root) {
+        return Err("refusing target/debug pruning while rustc is writing the workspace".into());
+    }
+    let legacy_prefix = root.join("target/debug/erpx-");
+    if recorded_native_runtime_uses(root, &legacy_prefix.to_string_lossy()) {
+        return Err(
+            "refusing target/debug pruning while a recorded ERPX runtime still uses it".into(),
+        );
+    }
+
+    let target = root.join("target/debug");
+    if !target.exists() {
+        println!(
+            "target/debug cache selected: 0.0 MiB{}",
+            if dry_run { " (dry run)" } else { "" }
+        );
+        return Ok(());
+    }
+    validate_group(root, &target)?;
+    let (size, _) = scan_directory(&target)?;
+    if dry_run {
+        println!("would remove {} ({})", target.display(), human_bytes(size));
+    } else {
+        fs::remove_dir_all(&target)?;
+        remove_marker(root, "workspace--debug")?;
+        println!("removed {} ({})", target.display(), human_bytes(size));
+    }
+    println!(
+        "target/debug cache selected: {}{}",
+        human_bytes(size),
+        if dry_run { " (dry run)" } else { "" }
+    );
+    Ok(())
+}
+
 pub(crate) fn auto_prune(root: &Path, extra_pins: &[PathBuf]) {
     match inventory(root) {
-        Ok(groups) if groups.iter().map(|group| group.size).sum::<u64>() <= CACHE_BUDGET_BYTES => {}
-        Ok(_) => {
+        Ok(groups) => {
+            let total = groups.iter().map(|group| group.size).sum::<u64>();
+            let available = match fs2::available_space(root) {
+                Ok(available) => available,
+                Err(error) => {
+                    eprintln!("warning: automatic Cargo free-space check failed: {error}");
+                    return;
+                }
+            };
+            if total <= CACHE_BUDGET_BYTES && available >= MINIMUM_FREE_BYTES {
+                return;
+            }
             if let Err(error) = prune(root, false, extra_pins) {
                 eprintln!("warning: automatic Cargo cache pruning failed: {error}");
             }
@@ -240,7 +301,12 @@ pub(crate) fn inventory(root: &Path) -> CacheResult<Vec<CacheGroup>> {
     }
 
     let web_active = recorded_web_process_active(root);
-    let native_runtime_active = recorded_native_runtime_active(root);
+    let legacy_prefix = root.join("target/debug/erpx-");
+    let isolated_prefix = runtime.join("runtime-dev-target/debug/erpx-");
+    let legacy_native_runtime_active =
+        recorded_native_runtime_uses(root, &legacy_prefix.to_string_lossy());
+    let isolated_native_runtime_active =
+        recorded_native_runtime_uses(root, &isolated_prefix.to_string_lossy());
     let current_exe = std::env::current_exe().ok();
     let mut groups = Vec::new();
     for path in paths {
@@ -256,18 +322,22 @@ pub(crate) fn inventory(root: &Path) -> CacheResult<Vec<CacheGroup>> {
             .max()
             .unwrap_or(UNIX_EPOCH);
         let web_group = is_live_web_cache_group(&workspace_target, &path);
-        let native_group = path == workspace_target.join("debug");
+        let legacy_native_group = path == workspace_target.join("debug");
+        let isolated_native_group = path == runtime.join("runtime-dev-target");
         let pinned = (web_active && web_group)
-            || (native_runtime_active && native_group)
+            || (legacy_native_runtime_active && legacy_native_group)
+            || (isolated_native_runtime_active && isolated_native_group)
             || current_exe
                 .as_ref()
                 .is_some_and(|executable| executable.starts_with(&path));
+        let warm_validation = is_warm_validation_group(&id);
         groups.push(CacheGroup {
             id,
             path,
             size,
             last_used,
             pinned,
+            warm_validation,
         });
     }
     groups.sort_by(|left, right| right.last_used.cmp(&left.last_used));
@@ -281,15 +351,19 @@ fn compare_lru(left: &CacheGroup, right: &CacheGroup) -> Ordering {
 }
 
 fn is_live_web_cache_group(workspace_target: &Path, path: &Path) -> bool {
-    // `dx serve` writes these shared development groups. Target-triple groups
-    // belong to the completed `dx build` gate; an active rustc still protects
-    // them while that build is in progress, but the detached server does not.
-    path.parent() == Some(workspace_target)
-        && path.file_name().is_some_and(|name| {
-            ["dx", "wasm-dev", "server-dev"]
-                .iter()
-                .any(|candidate| name == *candidate)
-        })
+    if path.parent() != Some(workspace_target) {
+        return false;
+    }
+    let shared = path.file_name().is_some_and(|name| {
+        ["dx", "dx-hotpatch", "wasm-dev", "server-dev"]
+            .iter()
+            .any(|candidate| name == *candidate)
+    });
+    // Dioxus also keeps linkable tip-crate artifacts under target-triple
+    // groups such as `wasm32-unknown-unknown/wasm-dev` and
+    // `<host>/server-dev`. Hot-patch recompiles refer back to those rlibs, so
+    // deleting the parent while `dx serve` is active breaks the next edit.
+    shared || path.join("wasm-dev").is_dir() || path.join("server-dev").is_dir()
 }
 
 fn is_legacy_runtime_group(id: &str) -> bool {
@@ -306,6 +380,15 @@ fn is_deferred_platform_group(id: &str) -> bool {
     )
 }
 
+fn is_warm_validation_group(id: &str) -> bool {
+    matches!(id, "workspace--debug" | "runtime--heavy-xtask-target")
+}
+
+fn cache_target_budget(cache_size: u64, available: u64) -> u64 {
+    let free_space_reclaim = MINIMUM_FREE_BYTES.saturating_sub(available);
+    CACHE_BUDGET_BYTES.min(cache_size.saturating_sub(free_space_reclaim))
+}
+
 fn select_evictions(mut groups: Vec<CacheGroup>, budget: u64) -> (Vec<CacheGroup>, u64) {
     let total = groups.iter().map(|group| group.size).sum::<u64>();
     if total <= budget {
@@ -317,7 +400,12 @@ fn select_evictions(mut groups: Vec<CacheGroup>, budget: u64) -> (Vec<CacheGroup
         .map(|group| group.size)
         .sum::<u64>();
     let mut remaining = budget.saturating_sub(pinned_size);
-    groups.sort_by(|left, right| compare_lru(right, left));
+    groups.sort_by(|left, right| {
+        right
+            .warm_validation
+            .cmp(&left.warm_validation)
+            .then_with(|| compare_lru(right, left))
+    });
     let mut evictions = Vec::new();
     for group in groups {
         if group.pinned {
@@ -496,7 +584,7 @@ fn recorded_web_process_active(root: &Path) -> bool {
         .is_some_and(|output| String::from_utf8_lossy(&output.stdout).contains("dx serve"))
 }
 
-fn recorded_native_runtime_active(root: &Path) -> bool {
+fn recorded_native_runtime_uses(root: &Path, expected_path: &str) -> bool {
     let runtime = runtime_dir(root);
     let Ok(entries) = fs::read_dir(runtime) else {
         return false;
@@ -516,12 +604,7 @@ fn recorded_native_runtime_active(root: &Path) -> bool {
         let Ok(pid) = contents.trim().parse::<u32>() else {
             return false;
         };
-        process_command(pid).is_some_and(|command| {
-            command.contains("target/debug/erpx-")
-                || command.contains("erpx-server")
-                || command.contains("erpx-worker")
-                || command.contains("erpx-ucs-lab")
-        })
+        process_command(pid).is_some_and(|command| command.contains(expected_path))
     })
 }
 
@@ -588,8 +671,9 @@ mod tests {
     };
 
     use super::{
-        CACHE_BUDGET_BYTES, CacheGroup, compare_lru, group_id, is_deferred_platform_group,
-        is_legacy_runtime_group, is_live_web_cache_group, prune, prune_incremental, scan_directory,
+        CACHE_BUDGET_BYTES, CacheGroup, MINIMUM_FREE_BYTES, cache_target_budget, compare_lru,
+        group_id, is_deferred_platform_group, is_legacy_runtime_group, is_live_web_cache_group,
+        is_warm_validation_group, prune, prune_incremental, prune_workspace_debug, scan_directory,
         select_evictions, validate_cache_roots,
     };
 
@@ -613,6 +697,7 @@ mod tests {
             size: 1,
             last_used: SystemTime::UNIX_EPOCH + Duration::from_secs(age),
             pinned,
+            warm_validation: false,
         }
     }
 
@@ -674,6 +759,33 @@ mod tests {
     }
 
     #[test]
+    fn warm_validation_cache_is_retained_before_an_equally_sized_runtime_cache() {
+        let mut validation = group("validation", 1, false);
+        validation.size = 8;
+        validation.warm_validation = true;
+        let mut runtime = group("runtime", 2, false);
+        runtime.size = 8;
+        let (evictions, after) = select_evictions(vec![runtime, validation], 8);
+        assert_eq!(evictions.len(), 1);
+        assert_eq!(evictions[0].id, "runtime");
+        assert_eq!(after, 8);
+    }
+
+    #[test]
+    fn cache_budget_enforces_capacity_and_minimum_free_space_floor() {
+        assert_eq!(CACHE_BUDGET_BYTES, 128 * 1024 * 1024 * 1024);
+        assert_eq!(MINIMUM_FREE_BYTES, 64 * 1024 * 1024 * 1024);
+        assert_eq!(
+            cache_target_budget(CACHE_BUDGET_BYTES, MINIMUM_FREE_BYTES),
+            CACHE_BUDGET_BYTES
+        );
+        assert_eq!(
+            cache_target_budget(CACHE_BUDGET_BYTES, MINIMUM_FREE_BYTES / 2),
+            CACHE_BUDGET_BYTES - MINIMUM_FREE_BYTES / 2
+        );
+    }
+
+    #[test]
     fn dry_run_does_not_remove_selected_cache_group() {
         let root = temp_workspace("dry-run");
         let old = root.join("target/old");
@@ -702,6 +814,21 @@ mod tests {
         fs::write(incremental.join("artifact"), [0_u8; 32]).expect("artifact");
         prune_incremental(&root, true).expect("incremental dry run");
         assert!(incremental.join("artifact").is_file());
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn workspace_debug_dry_run_selects_only_the_debug_group() {
+        let root = temp_workspace("workspace-debug-dry-run");
+        let debug = root.join("target/debug");
+        let other = root.join("target/dx-hotpatch");
+        fs::create_dir_all(&debug).expect("debug cache");
+        fs::create_dir_all(&other).expect("hot-patch cache");
+        fs::write(debug.join("artifact"), [0_u8; 16]).expect("debug artifact");
+        fs::write(other.join("artifact"), [0_u8; 16]).expect("hot-patch artifact");
+        prune_workspace_debug(&root, true).expect("workspace debug dry run");
+        assert!(debug.join("artifact").is_file());
+        assert!(other.join("artifact").is_file());
         fs::remove_dir_all(root).expect("cleanup");
     }
 
@@ -756,6 +883,14 @@ mod tests {
             group_id(root, &root.join(".runtime/erpx/fast-lane-target")).as_deref(),
             Some("runtime--fast-lane-target")
         );
+        assert_eq!(
+            group_id(root, &root.join(".runtime/erpx/heavy-xtask-target")).as_deref(),
+            Some("runtime--heavy-xtask-target")
+        );
+        assert_eq!(
+            group_id(root, &root.join(".runtime/erpx/runtime-dev-target")).as_deref(),
+            Some("runtime--runtime-dev-target")
+        );
         assert!(group_id(root, &root.join(".runtime/n8n")).is_none());
     }
 
@@ -763,21 +898,38 @@ mod tests {
     fn active_web_pins_only_dioxus_writable_target_groups() {
         let target = Path::new("/workspace/target");
         assert!(is_live_web_cache_group(target, &target.join("dx")));
+        assert!(is_live_web_cache_group(target, &target.join("dx-hotpatch")));
         assert!(is_live_web_cache_group(target, &target.join("wasm-dev")));
         assert!(is_live_web_cache_group(target, &target.join("server-dev")));
-        assert!(!is_live_web_cache_group(
-            target,
-            &target.join("wasm32-unknown-unknown")
-        ));
-        assert!(!is_live_web_cache_group(
-            target,
-            &target.join("aarch64-apple-darwin")
-        ));
         assert!(!is_live_web_cache_group(target, &target.join("debug")));
         assert!(!is_live_web_cache_group(
             target,
             &target.join("aarch64-apple-ios")
         ));
+
+        let root = temp_workspace("active-web-target-triples");
+        let target = root.join("target");
+        let wasm = target.join("wasm32-unknown-unknown/wasm-dev");
+        let server = target.join("aarch64-apple-darwin/server-dev");
+        fs::create_dir_all(&wasm).expect("WASM Dioxus target");
+        fs::create_dir_all(&server).expect("server Dioxus target");
+        assert!(is_live_web_cache_group(
+            &target,
+            &target.join("wasm32-unknown-unknown")
+        ));
+        assert!(is_live_web_cache_group(
+            &target,
+            &target.join("aarch64-apple-darwin")
+        ));
+        fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn warm_validation_pins_are_separate_from_active_dioxus_groups() {
+        assert!(is_warm_validation_group("workspace--debug"));
+        assert!(is_warm_validation_group("runtime--heavy-xtask-target"));
+        assert!(!is_warm_validation_group("workspace--dx-hotpatch"));
+        assert!(!is_warm_validation_group("runtime--runtime-dev-target"));
     }
 
     #[test]

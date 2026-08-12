@@ -42,7 +42,7 @@ pub struct AssetsAuthenticationRequest {
     transport_metadata: MetadataMap,
     presented_actor: ActorAttribution,
     presented_scope: TenantScope,
-    presented_route: AssetsTenantRoute,
+    presented_route: Option<AssetsTenantRoute>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
     access_mode: AssetsAccessMode,
@@ -58,8 +58,8 @@ impl AssetsAuthenticationRequest {
     pub const fn presented_scope(&self) -> &TenantScope {
         &self.presented_scope
     }
-    pub const fn presented_route(&self) -> &AssetsTenantRoute {
-        &self.presented_route
+    pub const fn presented_route(&self) -> Option<&AssetsTenantRoute> {
+        self.presented_route.as_ref()
     }
     pub fn subscription_id(&self) -> Option<&str> {
         self.subscription_id.as_deref()
@@ -92,8 +92,6 @@ impl AuthenticatedAssetsRequest {
             .validate()
             .map_err(|_| AssetsAuthenticationError::Internal)?;
         validate_route(&route).map_err(|_| AssetsAuthenticationError::Internal)?;
-        validate_route_scope(&route, &tenant_scope)
-            .map_err(|_| AssetsAuthenticationError::Internal)?;
         Ok(Self {
             actor,
             tenant_scope,
@@ -272,6 +270,7 @@ impl<A: AssetsCommandApplication, G: AssetsRequestAuthenticator> AssetsCommandSe
             BeginMaintenance {
                 asset_id: asset_id(&input.asset_id)?,
                 request_code: input.request_code,
+                title: input.title,
             },
         )?;
         let (route, envelope) =
@@ -404,13 +403,13 @@ impl<A: AssetsQueryApplication, G: AssetsRequestAuthenticator> AssetsQueryServic
 }
 
 struct DecodedCommand<C> {
-    route: AssetsTenantRoute,
+    route: Option<AssetsTenantRoute>,
     envelope: CommandEnvelope<C>,
     subscription_id: Option<String>,
     mfa_code: Option<String>,
 }
 struct DecodedQuery<Q> {
-    route: AssetsTenantRoute,
+    route: Option<AssetsTenantRoute>,
     envelope: QueryEnvelope<Q>,
 }
 async fn authenticate_command<C, G: AssetsRequestAuthenticator>(
@@ -493,7 +492,6 @@ fn decode_command<C>(
     envelope
         .validate()
         .map_err(|_| invalid("command metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.tenant_scope)?;
     Ok(DecodedCommand {
         route,
         envelope,
@@ -526,7 +524,6 @@ fn decode_query<Q>(
     envelope
         .validate()
         .map_err(|_| invalid("query metadata is invalid"))?;
-    validate_route_scope(&route, &envelope.tenant_scope)?;
     Ok(DecodedQuery { route, envelope })
 }
 
@@ -664,14 +661,16 @@ fn encode_consistency(v: &QueryConsistency) -> common::QueryConsistency {
         }),
     }
 }
-fn decode_route(v: Option<common::TenantRoute>) -> Result<AssetsTenantRoute, Status> {
-    let v = v.ok_or_else(|| invalid("tenant route is required"))?;
+fn decode_route(v: Option<common::TenantRoute>) -> Result<Option<AssetsTenantRoute>, Status> {
+    let Some(v) = v else {
+        return Ok(None);
+    };
     let route = AssetsTenantRoute {
         tenant_id: v.tenant_id.trim().into(),
         holding_ref: v.holding_ref.trim().into(),
     };
     validate_route(&route)?;
-    Ok(route)
+    Ok(Some(route))
 }
 fn validate_route(v: &AssetsTenantRoute) -> Result<(), Status> {
     if [&v.tenant_id, &v.holding_ref]
@@ -679,20 +678,6 @@ fn validate_route(v: &AssetsTenantRoute) -> Result<(), Status> {
         .any(|v| v.is_empty() || v.len() > MAX_ROUTE_LENGTH)
     {
         Err(invalid("tenant route is invalid"))
-    } else {
-        Ok(())
-    }
-}
-fn validate_route_scope(route: &AssetsTenantRoute, scope: &TenantScope) -> Result<(), Status> {
-    let holding = match scope {
-        TenantScope::Platform => return Ok(()),
-        TenantScope::Holding { holding_id }
-        | TenantScope::Company { holding_id, .. }
-        | TenantScope::Branch { holding_id, .. }
-        | TenantScope::Subtree { holding_id, .. } => holding_id,
-    };
-    if parse_uuid(&route.holding_ref, "holding_ref")? != *holding {
-        Err(invalid("tenant route does not match scope"))
     } else {
         Ok(())
     }
