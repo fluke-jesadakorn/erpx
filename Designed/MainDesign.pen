@@ -3655,7 +3655,7 @@
       "type": "frame",
       "id": "Q6Ht1s",
       "x": 0,
-      "y": 1040,
+      "y": 1160,
       "name": "Collection · Light Desktop",
       "theme": {
         "mode": "light",
@@ -10960,7 +10960,8 @@
                   "type": "frame",
                   "id": "ShELL",
                   "name": "Insights · Collection KPI",
-                  "width": "fill_container",
+                  "width": 277,
+                  "height": 84,
                   "fill": "$nav-surface",
                   "cornerRadius": 8,
                   "layout": "vertical",
@@ -21993,7 +21994,7 @@
                       "fill": "$primary",
                       "content": "URL /auth/recovery · OWNER Identity · LIFECYCLE ACTIVE",
                       "fontFamily": "$font-sans",
-                      "fontSize": 8,
+                      "fontSize": 6,
                       "fontWeight": "600",
                       "letterSpacing": 0.8
                     },
@@ -31662,7 +31663,7 @@
                           "icon": "receipt-text"
                         },
                         "KagCD": {
-                          "content": "@invoice-0091"
+                          "content": "@finance/invoice-0091"
                         }
                       }
                     },
@@ -60881,20 +60882,6 @@
                   "fontWeight": "500"
                 }
               ]
-            },
-            {
-              "id": "c9PWr",
-              "type": "ref",
-              "ref": "i0ouek",
-              "name": "Organization Authority Banner",
-              "width": 844,
-              "enabled": false,
-              "descendants": {
-                "uOHHV": {
-                  "content": "Authoritative source · Current projection · Server-owned permissions",
-                  "fill": "#EAF1F7"
-                }
-              }
             },
             {
               "type": "frame",
@@ -170201,7 +170188,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@invoice-0091"
+                                  "content": "@finance/invoice-0091"
                                 }
                               }
                             },
@@ -176183,7 +176170,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@po-0188"
+                                  "content": "@procurement/po-0188"
                                 }
                               }
                             },
@@ -176698,7 +176685,7 @@
                           "icon": "building-2"
                         },
                         "mppD5": {
-                          "content": "@po-0188"
+                          "content": "@procurement/po-0188"
                         }
                       }
                     },
@@ -176734,7 +176721,7 @@
                           "icon": "file-text"
                         },
                         "mppD5": {
-                          "content": "@invoice-supplier-778"
+                          "content": "@finance/invoice-supplier-778"
                         }
                       }
                     },
@@ -177364,7 +177351,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@invoice-0091"
+                                  "content": "@finance/invoice-0091"
                                 }
                               }
                             },
@@ -177470,7 +177457,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@invoice-0088"
+                                  "content": "@finance/invoice-0088"
                                 }
                               }
                             },
@@ -178357,7 +178344,7 @@
                           "icon": "file-text"
                         },
                         "mppD5": {
-                          "content": "@contract-2026-001"
+                          "content": "@legal/contract-2026-001"
                         }
                       }
                     },
@@ -179305,7 +179292,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@receipt-1842"
+                                  "content": "@pos/receipt-1842"
                                 }
                               }
                             },
@@ -179980,7 +179967,7 @@
                           "icon": "file-text"
                         },
                         "mppD5": {
-                          "content": "@receipt-1842"
+                          "content": "@pos/receipt-1842"
                         }
                       }
                     },
@@ -187780,7 +187767,7 @@
                           "name": "Asset Register Evidence",
                           "width": 704,
                           "enabled": false,
-                          "height": 0,
+                          "height": 100,
                           "opacity": 0,
                           "descendants": {
                             "RV59S": {
@@ -187800,7 +187787,7 @@
                               "content": "Snapshot 13 Aug 2026 · 14:02 ICT",
                               "enabled": false,
                               "width": 668,
-                              "fontSize": 8
+                              "fontSize": 6
                             }
                           }
                         }
@@ -195381,7 +195368,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-1042"
+                                  "content": "@people/employee-1042"
                                 }
                               }
                             },
@@ -196241,7 +196228,7 @@
                           "icon": "calendar"
                         },
                         "mppD5": {
-                          "content": "@employee-1042 · Anong Srisai"
+                          "content": "@people/employee-1042 · Anong Srisai"
                         }
                       }
                     },
@@ -196892,7 +196879,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-1042"
+                                  "content": "@people/employee-1042"
                                 }
                               }
                             },
@@ -197001,7 +196988,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-1038"
+                                  "content": "@people/employee-1038"
                                 }
                               }
                             },
@@ -197110,7 +197097,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-1019"
+                                  "content": "@people/employee-1019"
                                 }
                               }
                             },
@@ -197219,7 +197206,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-0988"
+                                  "content": "@people/employee-0988"
                                 }
                               }
                             },
@@ -198403,7 +198390,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-1038"
+                                  "content": "@people/employee-1038"
                                 }
                               }
                             },
@@ -198512,7 +198499,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-1019"
+                                  "content": "@people/employee-1019"
                                 }
                               }
                             },
@@ -198621,7 +198608,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-1042"
+                                  "content": "@people/employee-1042"
                                 }
                               }
                             },
@@ -198730,7 +198717,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-0988"
+                                  "content": "@people/employee-0988"
                                 }
                               }
                             },
@@ -199227,7 +199214,7 @@
                           "icon": "user"
                         },
                         "mppD5": {
-                          "content": "@employee-1042 · Anong Srisai"
+                          "content": "@people/employee-1042 · Anong Srisai"
                         }
                       }
                     },
@@ -199281,7 +199268,7 @@
                           "icon": "file-text"
                         },
                         "mppD5": {
-                          "content": "Coverage assigned to @employee-1038"
+                          "content": "Coverage assigned to @people/employee-1038"
                         }
                       }
                     },
@@ -200738,7 +200725,7 @@
                           "icon": "user"
                         },
                         "mppD5": {
-                          "content": "@employee-1042 · Anong Srisai"
+                          "content": "@people/employee-1042 · Anong Srisai"
                         }
                       }
                     },
@@ -202936,7 +202923,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-1038"
+                                  "content": "@people/employee-1038"
                                 }
                               }
                             },
@@ -203045,7 +203032,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-1019"
+                                  "content": "@people/employee-1019"
                                 }
                               }
                             },
@@ -203154,7 +203141,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-1042"
+                                  "content": "@people/employee-1042"
                                 }
                               }
                             },
@@ -203263,7 +203250,7 @@
                                   "icon": "user-round"
                                 },
                                 "KagCD": {
-                                  "content": "@employee-0988"
+                                  "content": "@people/employee-0988"
                                 }
                               }
                             },
@@ -203760,7 +203747,7 @@
                           "icon": "user"
                         },
                         "mppD5": {
-                          "content": "@employee-1038 · Narin Boon"
+                          "content": "@people/employee-1038 · Narin Boon"
                         }
                       }
                     },
@@ -204485,13 +204472,13 @@
                           "id": "Vj8Ka",
                           "type": "ref",
                           "ref": "o2p9xH",
-                          "name": "Reference · @contract-2026-001",
+                          "name": "Reference · @legal/contract-2026-001",
                           "descendants": {
                             "YOxI2": {
                               "icon": "file-signature"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001"
+                              "content": "@legal/contract-2026-001"
                             }
                           }
                         },
@@ -204732,13 +204719,13 @@
                           "id": "ZuzGZ",
                           "type": "ref",
                           "ref": "o2p9xH",
-                          "name": "Reference · @contract-2026-018",
+                          "name": "Reference · @legal/contract-2026-018",
                           "descendants": {
                             "YOxI2": {
                               "icon": "file-signature"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-018"
+                              "content": "@legal/contract-2026-018"
                             }
                           }
                         },
@@ -205810,7 +205797,7 @@
                           "icon": "link-2"
                         },
                         "mppD5": {
-                          "content": "Renewal dispute · @contract-2026-001"
+                          "content": "Renewal dispute · @legal/contract-2026-001"
                         }
                       }
                     },
@@ -209084,7 +209071,7 @@
                                   "icon": "file-signature"
                                 },
                                 "KagCD": {
-                                  "content": "@contract-2026-001"
+                                  "content": "@legal/contract-2026-001"
                                 }
                               }
                             },
@@ -210754,7 +210741,7 @@
                               "icon": "file-text"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001"
+                              "content": "@legal/contract-2026-001"
                             }
                           }
                         }
@@ -211050,7 +211037,7 @@
                               "icon": "file-text"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-018"
+                              "content": "@legal/contract-2026-018"
                             }
                           }
                         }
@@ -211346,7 +211333,7 @@
                               "icon": "file-text"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-024"
+                              "content": "@legal/contract-2026-024"
                             }
                           }
                         }
@@ -211642,7 +211629,7 @@
                               "icon": "file-text"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-031"
+                              "content": "@legal/contract-2026-031"
                             }
                           }
                         }
@@ -211938,7 +211925,7 @@
                               "icon": "file-text"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-009"
+                              "content": "@legal/contract-2026-009"
                             }
                           }
                         }
@@ -213050,7 +213037,7 @@
                           "icon": "file-signature"
                         },
                         "KagCD": {
-                          "content": "@contract-2026-001"
+                          "content": "@legal/contract-2026-001"
                         }
                       }
                     }
@@ -214575,7 +214562,7 @@
                               "icon": "pilcrow"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001#clause-7.2"
+                              "content": "@legal/contract-2026-001#clause-7.2"
                             }
                           }
                         }
@@ -215294,7 +215281,7 @@
                               "icon": "history"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001@v3#clause-7.2"
+                              "content": "@legal/contract-2026-001@v3#clause-7.2"
                             }
                           }
                         },
@@ -215318,7 +215305,7 @@
                               "icon": "pilcrow"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001@v4#clause-7.2"
+                              "content": "@legal/contract-2026-001@v4#clause-7.2"
                             }
                           }
                         }
@@ -216690,7 +216677,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001#clause-7.2",
+                              "content": "@legal/contract-2026-001#clause-7.2",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -216960,7 +216947,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001#clause-14.2",
+                              "content": "@legal/contract-2026-001#clause-14.2",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -217230,7 +217217,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-031#clause-8.1",
+                              "content": "@legal/contract-2026-031#clause-8.1",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -217500,7 +217487,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-024#clause-16.3",
+                              "content": "@legal/contract-2026-024#clause-16.3",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -218282,7 +218269,7 @@
                               "icon": "pilcrow"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001#clause-7.2"
+                              "content": "@legal/contract-2026-001#clause-7.2"
                             }
                           }
                         },
@@ -218546,7 +218533,7 @@
                                   "icon": "pilcrow"
                                 },
                                 "KagCD": {
-                                  "content": "@contract-2026-001#clause-7.2"
+                                  "content": "@legal/contract-2026-001#clause-7.2"
                                 }
                               }
                             }
@@ -219561,7 +219548,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001#clause-14.2",
+                              "content": "@legal/contract-2026-001#clause-14.2",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -219831,7 +219818,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-018#clause-9.4",
+                              "content": "@legal/contract-2026-018#clause-9.4",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -220101,7 +220088,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-031#clause-5.3",
+                              "content": "@legal/contract-2026-031#clause-5.3",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -221097,7 +221084,7 @@
                               "icon": "pilcrow"
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001#clause-14.2"
+                              "content": "@legal/contract-2026-001#clause-14.2"
                             }
                           }
                         },
@@ -221361,7 +221348,7 @@
                                   "icon": "pilcrow"
                                 },
                                 "KagCD": {
-                                  "content": "@contract-2026-001#clause-14.2"
+                                  "content": "@legal/contract-2026-001#clause-14.2"
                                 }
                               }
                             }
@@ -222324,7 +222311,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001",
+                              "content": "@legal/contract-2026-001",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -226087,7 +226074,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001",
+                              "content": "@legal/contract-2026-001",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -227659,7 +227646,7 @@
                                   "icon": "file-text"
                                 },
                                 "KagCD": {
-                                  "content": "@contract-2026-001"
+                                  "content": "@legal/contract-2026-001"
                                 }
                               }
                             }
@@ -228559,7 +228546,7 @@
                               "height": 9
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001",
+                              "content": "@legal/contract-2026-001",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -228849,7 +228836,7 @@
                               "height": 9
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001",
+                              "content": "@legal/contract-2026-001",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -229139,7 +229126,7 @@
                               "height": 9
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001",
+                              "content": "@legal/contract-2026-001",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -230032,7 +230019,7 @@
                           "icon": "link-2"
                         },
                         "mppD5": {
-                          "content": "@matter-2026-003 · @contract-2026-001"
+                          "content": "@matter-2026-003 · @legal/contract-2026-001"
                         }
                       }
                     },
@@ -231210,7 +231197,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001",
+                              "content": "@legal/contract-2026-001",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -232044,7 +232031,7 @@
                               "height": 10
                             },
                             "KagCD": {
-                              "content": "@contract-2026-001#clause-7.2",
+                              "content": "@legal/contract-2026-001#clause-7.2",
                               "fontSize": 7,
                               "textGrowth": "fixed-width",
                               "width": "fill_container"
@@ -233902,13 +233889,13 @@
                                   "id": "j80BKq",
                                   "type": "ref",
                                   "ref": "o2p9xH",
-                                  "name": "AI Prompt Reference · @contract-2026-001#clause-7.2",
+                                  "name": "AI Prompt Reference · @legal/contract-2026-001#clause-7.2",
                                   "descendants": {
                                     "YOxI2": {
                                       "icon": "pilcrow"
                                     },
                                     "KagCD": {
-                                      "content": "@contract-2026-001#clause-7.2"
+                                      "content": "@legal/contract-2026-001#clause-7.2"
                                     }
                                   }
                                 },
@@ -234165,13 +234152,13 @@
                                   "id": "v0QRot",
                                   "type": "ref",
                                   "ref": "o2p9xH",
-                                  "name": "AI Source · @contract-2026-001#clause-7.2",
+                                  "name": "AI Source · @legal/contract-2026-001#clause-7.2",
                                   "descendants": {
                                     "YOxI2": {
                                       "icon": "pilcrow"
                                     },
                                     "KagCD": {
-                                      "content": "@contract-2026-001@v4#clause-7.2"
+                                      "content": "@legal/contract-2026-001@v4#clause-7.2"
                                     }
                                   }
                                 },
@@ -234822,7 +234809,7 @@
                                   "icon": "pilcrow"
                                 },
                                 "KagCD": {
-                                  "content": "@contract-2026-001#clause-7.2"
+                                  "content": "@legal/contract-2026-001#clause-7.2"
                                 }
                               }
                             },
@@ -235826,7 +235813,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@receipt-88421"
+                                  "content": "@pos/receipt-88421"
                                 }
                               }
                             },
@@ -236465,7 +236452,7 @@
                           "icon": "credit-card"
                         },
                         "mppD5": {
-                          "content": "@employee-1038"
+                          "content": "@people/employee-1038"
                         }
                       }
                     },
@@ -239333,6 +239320,8 @@
                       "type": "frame",
                       "id": "zY2do",
                       "name": "Action Destination Context Item 2",
+                      "width": 261,
+                      "height": 14,
                       "gap": 8,
                       "alignItems": "center",
                       "children": [
@@ -239351,9 +239340,9 @@
                           "id": "aPFeL",
                           "name": "Action Destination Context Text 2",
                           "fill": "$text",
-                          "content": "Receipt · @pos/receipt-88421 · Bangkok Store 01",
+                          "content": "Receipt · @pos/receipt-88421 · Store 01",
                           "fontFamily": "$font-sans",
-                          "fontSize": 11,
+                          "fontSize": 8,
                           "fontWeight": "500"
                         }
                       ]
@@ -240727,7 +240716,7 @@
                           "icon": "credit-card"
                         },
                         "mppD5": {
-                          "content": "@employee-1042"
+                          "content": "@people/employee-1042"
                         }
                       }
                     },
@@ -241375,7 +241364,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@receipt-88421"
+                                  "content": "@pos/receipt-88421"
                                 }
                               }
                             },
@@ -241481,7 +241470,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@receipt-88418"
+                                  "content": "@pos/receipt-88418"
                                 }
                               }
                             },
@@ -241587,7 +241576,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@receipt-88404"
+                                  "content": "@pos/receipt-88404"
                                 }
                               }
                             },
@@ -241693,7 +241682,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@receipt-88398"
+                                  "content": "@pos/receipt-88398"
                                 }
                               }
                             },
@@ -247018,7 +247007,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@invoice-0091"
+                                  "content": "@finance/invoice-0091"
                                 }
                               }
                             },
@@ -248466,7 +248455,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@po-0188"
+                                  "content": "@procurement/po-0188"
                                 }
                               }
                             },
@@ -248572,7 +248561,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@receipt-0441"
+                                  "content": "@pos/receipt-0441"
                                 }
                               }
                             },
@@ -252370,7 +252359,7 @@
                           "icon": "calendar"
                         },
                         "mppD5": {
-                          "content": "@employee-1042"
+                          "content": "@people/employee-1042"
                         }
                       }
                     },
@@ -253869,7 +253858,7 @@
                           "icon": "calendar"
                         },
                         "mppD5": {
-                          "content": "@employee-1038"
+                          "content": "@people/employee-1038"
                         }
                       }
                     },
@@ -260849,7 +260838,7 @@
                               "name": "Stable ERPX Reference",
                               "descendants": {
                                 "KagCD": {
-                                  "content": "@employee-1042"
+                                  "content": "@people/employee-1042"
                                 }
                               }
                             },
@@ -261470,7 +261459,7 @@
                           "icon": "shield-check"
                         },
                         "mppD5": {
-                          "content": "@employee-1042"
+                          "content": "@people/employee-1042"
                         }
                       }
                     },
@@ -261945,7 +261934,7 @@
                           "icon": "user-check"
                         },
                         "mppD5": {
-                          "content": "@employee-1019 · Mali Kiet"
+                          "content": "@people/employee-1019 · Mali Kiet"
                         }
                       }
                     },
@@ -268283,10 +268272,14 @@
                           "width": "fill_container",
                           "descendants": {
                             "vn7lh": {
-                              "fontSize": 13
+                              "fontSize": 11,
+                              "textGrowth": "fixed-width",
+                              "width": 76
                             },
                             "B6P4ff": {
-                              "fontSize": 9
+                              "fontSize": 7,
+                              "textGrowth": "fixed-width",
+                              "width": 76
                             }
                           }
                         },
@@ -272077,8 +272070,8 @@
                           "type": "frame",
                           "id": "lmhMI",
                           "name": "Approval Decision Confirmation Commit APPROVE",
-                          "width": "fill_container",
-                          "height": 32,
+                          "width": 120,
+                          "height": 31,
                           "fill": "$success",
                           "cornerRadius": 8,
                           "justifyContent": "center",
@@ -272259,8 +272252,8 @@
                           "type": "frame",
                           "id": "g6TgQp",
                           "name": "Approval Decision Confirmation Commit REQUEST CHANGES",
-                          "width": "fill_container",
-                          "height": 32,
+                          "width": 120,
+                          "height": 31,
                           "fill": "$warning",
                           "cornerRadius": 8,
                           "justifyContent": "center",
@@ -272441,8 +272434,8 @@
                           "type": "frame",
                           "id": "rdNdO",
                           "name": "Approval Decision Confirmation Commit REJECT",
-                          "width": "fill_container",
-                          "height": 32,
+                          "width": 120,
+                          "height": 31,
                           "fill": "$danger",
                           "cornerRadius": 8,
                           "justifyContent": "center",
@@ -273552,9 +273545,6 @@
                     "vUi3T/jB2RA/KagCD": {
                       "content": "@order-SO-10482#v4"
                     },
-                    "vUi3T/a5WaQ": {
-                      "content": "Bangkok · Siam Meridian"
-                    },
                     "p2OR0O/FRdFI": {
                       "icon": "receipt-text"
                     },
@@ -273565,7 +273555,7 @@
                       "content": "FINANCE"
                     },
                     "p2OR0O/jB2RA/KagCD": {
-                      "content": "@invoice-0091#draft"
+                      "content": "@finance/invoice-0091#draft"
                     },
                     "N1H2JU/vXVTv": {
                       "content": "Credit memo evidence"
@@ -275399,10 +275389,10 @@
                   "id": "VMIvB",
                   "type": "ref",
                   "ref": "o2p9xH",
-                  "name": "Approval Completed Backlink @invoice-0091",
+                  "name": "Approval Completed Backlink @finance/invoice-0091",
                   "descendants": {
                     "KagCD": {
-                      "content": "@invoice-0091"
+                      "content": "@finance/invoice-0091"
                     }
                   }
                 },
@@ -275839,7 +275829,7 @@
                             },
                             "B6P4ff": {
                               "content": "Escalates to Sales VP at 17:00 ICT",
-                              "fontSize": 9
+                              "fontSize": 7
                             },
                             "s5d0gp": {
                               "content": "SLA at risk"
@@ -275851,7 +275841,29 @@
                           "type": "ref",
                           "ref": "oLRFa",
                           "name": "Gate Decision Composer",
-                          "width": "fill_container"
+                          "width": "fill_container",
+                          "descendants": {
+                            "l95Fl": {
+                              "width": 74,
+                              "height": 31,
+                              "padding": [
+                                9,
+                                7
+                              ]
+                            },
+                            "jxfrX": {
+                              "padding": [
+                                9,
+                                7
+                              ]
+                            },
+                            "k9O8QN": {
+                              "padding": [
+                                9,
+                                7
+                              ]
+                            }
+                          }
                         },
                         {
                           "id": "bjgWI",
@@ -276315,8 +276327,23 @@
                               "name": "Permission-safe Backlinks",
                               "width": "fill_container",
                               "descendants": {
-                                "HlvaR/d0Y3pp": {
-                                  "fontSize": 7
+                                "byLyg/KagCD": {
+                                  "content": "@finance/invoice-2026-0091"
+                                },
+                                "W4iX70/q6zti/KagCD": {
+                                  "content": "@finance/invoice-2026-0091"
+                                },
+                                "W4iX70/e0xvA/KagCD": {
+                                  "content": "@procurement/po-2026-0188"
+                                },
+                                "lhKP0/q6zti/KagCD": {
+                                  "content": "@finance/invoice-2026-0091"
+                                },
+                                "HlvaR/q6zti/KagCD": {
+                                  "content": "@finance/invoice-2026-0091"
+                                },
+                                "HlvaR/e0xvA/KagCD": {
+                                  "content": "@legal/contract-2026-001#clause-7.2"
                                 }
                               }
                             }
@@ -276409,11 +276436,27 @@
                           "name": "Deep Link Reference Picker",
                           "width": "fill_container",
                           "descendants": {
-                            "vUi3T/a5WaQ": {
-                              "fontSize": 7
+                            "c0ntt": {
+                              "type": "frame",
+                              "id": "Gy65p",
+                              "x": 0,
+                              "y": 0,
+                              "name": "Object type filter omitted",
+                              "enabled": false,
+                              "width": 1,
+                              "height": 1
                             },
-                            "N1H2JU/a5WaQ": {
-                              "fontSize": 7
+                            "vUi3T/jB2RA/KagCD": {
+                              "content": "@finance/invoice-2026-0091"
+                            },
+                            "p2OR0O/jB2RA/KagCD": {
+                              "content": "@procurement/po-2026-0188"
+                            },
+                            "N1H2JU/jB2RA/KagCD": {
+                              "content": "@legal/contract-2026-001"
+                            },
+                            "dRwKR/jB2RA/KagCD": {
+                              "content": "@people/employee-0042"
                             }
                           }
                         }
@@ -290848,7 +290891,7 @@
                                   "icon": "receipt-text"
                                 },
                                 "KagCD": {
-                                  "content": "@invoice-0091#draft"
+                                  "content": "@finance/invoice-0091#draft"
                                 }
                               }
                             },
@@ -291502,6 +291545,8 @@
                               "type": "frame",
                               "id": "unz9f",
                               "name": "Sales Revenue Arrangement References 1",
+                              "width": 176,
+                              "height": 23,
                               "gap": 5,
                               "alignItems": "center",
                               "children": [
@@ -291515,23 +291560,20 @@
                                       "icon": "chart-no-axes-combined"
                                     },
                                     "KagCD": {
-                                      "content": "@rev-arr-203"
+                                      "content": "@revenue/ra-203",
+                                      "fontSize": 6
                                     }
                                   }
                                 },
                                 {
-                                  "id": "f7DTV",
-                                  "type": "ref",
-                                  "ref": "o2p9xH",
-                                  "name": "Sales Revenue Arrangement Order 1",
-                                  "descendants": {
-                                    "YOxI2": {
-                                      "icon": "shopping-cart"
-                                    },
-                                    "KagCD": {
-                                      "content": "@order-SO-10482#v4"
-                                    }
-                                  }
+                                  "type": "text",
+                                  "id": "e5M6lY",
+                                  "name": "Sales Order Ref 1",
+                                  "fill": "$primary",
+                                  "content": "@sales/so-10482@v4",
+                                  "fontFamily": "Geist Mono",
+                                  "fontSize": 6,
+                                  "fontWeight": "600"
                                 }
                               ]
                             },
@@ -291676,6 +291718,8 @@
                               "type": "frame",
                               "id": "SMnCf",
                               "name": "Sales Revenue Arrangement References 2",
+                              "width": 176,
+                              "height": 23,
                               "gap": 5,
                               "alignItems": "center",
                               "children": [
@@ -291694,18 +291738,14 @@
                                   }
                                 },
                                 {
-                                  "id": "F2Eq4Q",
-                                  "type": "ref",
-                                  "ref": "o2p9xH",
-                                  "name": "Sales Revenue Arrangement Order 2",
-                                  "descendants": {
-                                    "YOxI2": {
-                                      "icon": "shopping-cart"
-                                    },
-                                    "KagCD": {
-                                      "content": "@order-SO-10479#v1"
-                                    }
-                                  }
+                                  "type": "text",
+                                  "id": "bgwI9",
+                                  "name": "Sales Order Ref 2",
+                                  "fill": "$primary",
+                                  "content": "@sales/so-10486@v2",
+                                  "fontFamily": "Geist Mono",
+                                  "fontSize": 6,
+                                  "fontWeight": "600"
                                 }
                               ]
                             },
@@ -291850,6 +291890,8 @@
                               "type": "frame",
                               "id": "p6WD5Q",
                               "name": "Sales Revenue Arrangement References 3",
+                              "width": 176,
+                              "height": 23,
                               "gap": 5,
                               "alignItems": "center",
                               "children": [
@@ -291868,18 +291910,14 @@
                                   }
                                 },
                                 {
-                                  "id": "gVsDm",
-                                  "type": "ref",
-                                  "ref": "o2p9xH",
-                                  "name": "Sales Revenue Arrangement Order 3",
-                                  "descendants": {
-                                    "YOxI2": {
-                                      "icon": "shopping-cart"
-                                    },
-                                    "KagCD": {
-                                      "content": "@order-SO-10472#v1"
-                                    }
-                                  }
+                                  "type": "text",
+                                  "id": "V7NZSz",
+                                  "name": "Sales Order Ref 3",
+                                  "fill": "$primary",
+                                  "content": "@sales/so-10491@v1",
+                                  "fontFamily": "Geist Mono",
+                                  "fontSize": 6,
+                                  "fontWeight": "600"
                                 }
                               ]
                             },
@@ -292021,6 +292059,8 @@
                               "type": "frame",
                               "id": "eoGkI",
                               "name": "Sales Revenue Arrangement References 4",
+                              "width": 176,
+                              "height": 23,
                               "gap": 5,
                               "alignItems": "center",
                               "children": [
@@ -292039,18 +292079,14 @@
                                   }
                                 },
                                 {
-                                  "id": "C4SbgC",
-                                  "type": "ref",
-                                  "ref": "o2p9xH",
-                                  "name": "Sales Revenue Arrangement Order 4",
-                                  "descendants": {
-                                    "YOxI2": {
-                                      "icon": "shopping-cart"
-                                    },
-                                    "KagCD": {
-                                      "content": "@order-SO-10451#v3"
-                                    }
-                                  }
+                                  "type": "text",
+                                  "id": "bUSZa",
+                                  "name": "Sales Order Ref 4",
+                                  "fill": "$primary",
+                                  "content": "@sales/so-10504@v3",
+                                  "fontFamily": "Geist Mono",
+                                  "fontSize": 6,
+                                  "fontWeight": "600"
                                 }
                               ]
                             },
@@ -293557,8 +293593,23 @@
                           "name": "Revenue Permission-safe Backlinks",
                           "width": "fill_container",
                           "descendants": {
-                            "HlvaR/d0Y3pp": {
-                              "fontSize": 7
+                            "byLyg/KagCD": {
+                              "content": "@finance/invoice-2026-0091"
+                            },
+                            "W4iX70/q6zti/KagCD": {
+                              "content": "@finance/invoice-2026-0091"
+                            },
+                            "W4iX70/e0xvA/KagCD": {
+                              "content": "@procurement/po-2026-0188"
+                            },
+                            "lhKP0/q6zti/KagCD": {
+                              "content": "@finance/invoice-2026-0091"
+                            },
+                            "HlvaR/q6zti/KagCD": {
+                              "content": "@finance/invoice-2026-0091"
+                            },
+                            "HlvaR/e0xvA/KagCD": {
+                              "content": "@legal/contract-2026-001#clause-7.2"
                             }
                           }
                         }
@@ -293648,7 +293699,7 @@
                             },
                             "zDWZM": {
                               "content": "Sales proposal linked to order v4 and approval session",
-                              "fontSize": 9
+                              "fontSize": 7
                             },
                             "b1ThLj": {
                               "content": "18 Apr 2026 · 15:18 ICT"
@@ -294519,7 +294570,12 @@
                   "id": "o78CZ",
                   "type": "ref",
                   "ref": "RYqqf",
-                  "name": "ERPX Reference Preview Instance"
+                  "name": "ERPX Reference Preview Instance",
+                  "descendants": {
+                    "ysKCP/KagCD": {
+                      "content": "@legal/contract-2026-001#clause-7.2"
+                    }
+                  }
                 }
               ]
             }
@@ -296540,7 +296596,7 @@
                                       "icon": "file-signature"
                                     },
                                     "mW1Hz": {
-                                      "content": "@contract-2026-001"
+                                      "content": "@legal/contract-2026-001"
                                     }
                                   }
                                 },
@@ -296848,7 +296904,7 @@
                                       "icon": "receipt-text"
                                     },
                                     "KagCD": {
-                                      "content": "@invoice-2026-0142"
+                                      "content": "@finance/invoice-2026-0142"
                                     }
                                   }
                                 },
@@ -297477,6 +297533,9 @@
                               "descendants": {
                                 "XgbNa": {
                                   "content": "Master Services Agreement — Acme Cloud"
+                                },
+                                "ysKCP/KagCD": {
+                                  "content": "@legal/contract-2026-001#clause-7.2"
                                 },
                                 "g3LY5q": {
                                   "content": "Legal · Acme Cloud Pte. Ltd. · Active"
@@ -300609,7 +300668,7 @@
                                           "name": "Visible Contract Reference",
                                           "descendants": {
                                             "KagCD": {
-                                              "content": "@contract-2026-001"
+                                              "content": "@legal/contract-2026-001"
                                             }
                                           }
                                         },
@@ -300630,7 +300689,7 @@
                                           "name": "Historical Clause Reference",
                                           "descendants": {
                                             "f07nkQ": {
-                                              "content": "@contract-2026-001@v3#clause-7.2"
+                                              "content": "@legal/contract-2026-001@v3#clause-7.2"
                                             }
                                           }
                                         }
@@ -303882,7 +303941,8 @@
                               "icon": "receipt"
                             },
                             "KagCD": {
-                              "content": "@invoice-2026-0091"
+                              "content": "@finance/invoice-2026-0091",
+                              "fontSize": 6
                             }
                           }
                         }
@@ -304056,7 +304116,8 @@
                               "icon": "receipt"
                             },
                             "KagCD": {
-                              "content": "@invoice-2026-0108"
+                              "content": "@finance/invoice-2026-0108",
+                              "fontSize": 6
                             }
                           }
                         }
@@ -304230,7 +304291,8 @@
                               "icon": "receipt"
                             },
                             "KagCD": {
-                              "content": "@invoice-2026-0114"
+                              "content": "@finance/invoice-2026-0114",
+                              "fontSize": 6
                             }
                           }
                         }
@@ -304401,7 +304463,8 @@
                               "icon": "archive"
                             },
                             "KagCD": {
-                              "content": "@invoice-2025-0820"
+                              "content": "@finance/invoice-2025-0820",
+                              "fontSize": 6
                             }
                           }
                         }
@@ -304765,7 +304828,7 @@
                               "icon": "receipt"
                             },
                             "KagCD": {
-                              "content": "@invoice-2026-0091"
+                              "content": "@finance/invoice-2026-0091"
                             }
                           }
                         },
@@ -305160,7 +305223,7 @@
                         {
                           "type": "frame",
                           "id": "Z7u1t",
-                          "name": "Invoice Line @invoice-2026-0091#line-01",
+                          "name": "Invoice Line @finance/invoice-2026-0091#line-01",
                           "width": "fill_container",
                           "height": 52,
                           "stroke": "$border",
@@ -305178,13 +305241,13 @@
                               "id": "S1FBe",
                               "type": "ref",
                               "ref": "o2p9xH",
-                              "name": "Line Reference @invoice-2026-0091#line-01",
+                              "name": "Line Reference @finance/invoice-2026-0091#line-01",
                               "descendants": {
                                 "YOxI2": {
                                   "icon": "list-tree"
                                 },
                                 "KagCD": {
-                                  "content": "@invoice-2026-0091#line-01",
+                                  "content": "@finance/invoice-2026-0091#line-01",
                                   "fontSize": 8
                                 }
                               }
@@ -305234,7 +305297,7 @@
                         {
                           "type": "frame",
                           "id": "ajAKi",
-                          "name": "Invoice Line @invoice-2026-0091#line-02",
+                          "name": "Invoice Line @finance/invoice-2026-0091#line-02",
                           "width": "fill_container",
                           "height": 52,
                           "stroke": "$border",
@@ -305252,13 +305315,13 @@
                               "id": "w1NpDD",
                               "type": "ref",
                               "ref": "o2p9xH",
-                              "name": "Line Reference @invoice-2026-0091#line-02",
+                              "name": "Line Reference @finance/invoice-2026-0091#line-02",
                               "descendants": {
                                 "YOxI2": {
                                   "icon": "list-tree"
                                 },
                                 "KagCD": {
-                                  "content": "@invoice-2026-0091#line-02",
+                                  "content": "@finance/invoice-2026-0091#line-02",
                                   "fontSize": 8
                                 }
                               }
@@ -305350,7 +305413,7 @@
                                   "icon": "receipt"
                                 },
                                 "KagCD": {
-                                  "content": "@invoice-2026-0091",
+                                  "content": "@finance/invoice-2026-0091",
                                   "fontSize": 8
                                 }
                               }
@@ -305594,13 +305657,13 @@
                               "id": "ErRnm",
                               "type": "ref",
                               "ref": "o2p9xH",
-                              "name": "Trace Reference @po-2026-0188",
+                              "name": "Trace Reference @procurement/po-2026-0188",
                               "descendants": {
                                 "YOxI2": {
                                   "icon": "shopping-cart"
                                 },
                                 "KagCD": {
-                                  "content": "@po-2026-0188",
+                                  "content": "@procurement/po-2026-0188",
                                   "fontSize": 8
                                 }
                               }
@@ -305608,7 +305671,7 @@
                             {
                               "type": "frame",
                               "id": "hYON6",
-                              "name": "Trace Metadata @po-2026-0188",
+                              "name": "Trace Metadata @procurement/po-2026-0188",
                               "width": "fill_container",
                               "layout": "vertical",
                               "gap": 2,
@@ -305616,17 +305679,19 @@
                                 {
                                   "type": "text",
                                   "id": "x1wVt",
-                                  "name": "Trace Title @po-2026-0188",
+                                  "name": "Trace Title @procurement/po-2026-0188",
                                   "fill": "$text",
+                                  "textGrowth": "fixed-width",
+                                  "width": "fill_container",
                                   "content": "Office equipment purchase",
                                   "fontFamily": "$font-sans",
-                                  "fontSize": 9,
+                                  "fontSize": 5,
                                   "fontWeight": "600"
                                 },
                                 {
                                   "type": "text",
                                   "id": "UWEIv",
-                                  "name": "Trace Scope @po-2026-0188",
+                                  "name": "Trace Scope @procurement/po-2026-0188",
                                   "fill": "$text-muted",
                                   "content": "Phuket Branch",
                                   "fontFamily": "$font-sans",
@@ -305689,13 +305754,13 @@
                               "id": "bGZbF",
                               "type": "ref",
                               "ref": "o2p9xH",
-                              "name": "Trace Reference @receipt-2026-0211",
+                              "name": "Trace Reference @pos/receipt-2026-0211",
                               "descendants": {
                                 "YOxI2": {
                                   "icon": "package-check"
                                 },
                                 "KagCD": {
-                                  "content": "@receipt-2026-0211",
+                                  "content": "@pos/receipt-2026-0211",
                                   "fontSize": 8
                                 }
                               }
@@ -305703,7 +305768,7 @@
                             {
                               "type": "frame",
                               "id": "pqLde",
-                              "name": "Trace Metadata @receipt-2026-0211",
+                              "name": "Trace Metadata @pos/receipt-2026-0211",
                               "width": "fill_container",
                               "layout": "vertical",
                               "gap": 2,
@@ -305711,7 +305776,7 @@
                                 {
                                   "type": "text",
                                   "id": "ChVK2",
-                                  "name": "Trace Title @receipt-2026-0211",
+                                  "name": "Trace Title @pos/receipt-2026-0211",
                                   "fill": "$text",
                                   "content": "Goods receipt",
                                   "fontFamily": "$font-sans",
@@ -305721,7 +305786,7 @@
                                 {
                                   "type": "text",
                                   "id": "L2LDb",
-                                  "name": "Trace Scope @receipt-2026-0211",
+                                  "name": "Trace Scope @pos/receipt-2026-0211",
                                   "fill": "$text-muted",
                                   "content": "Phuket Branch",
                                   "fontFamily": "$font-sans",
@@ -305784,13 +305849,13 @@
                               "id": "pIJRR",
                               "type": "ref",
                               "ref": "o2p9xH",
-                              "name": "Trace Reference @invoice-2026-0091",
+                              "name": "Trace Reference @finance/invoice-2026-0091",
                               "descendants": {
                                 "YOxI2": {
                                   "icon": "receipt"
                                 },
                                 "KagCD": {
-                                  "content": "@invoice-2026-0091",
+                                  "content": "@finance/invoice-2026-0091",
                                   "fontSize": 8
                                 }
                               }
@@ -305798,7 +305863,7 @@
                             {
                               "type": "frame",
                               "id": "pNqm8",
-                              "name": "Trace Metadata @invoice-2026-0091",
+                              "name": "Trace Metadata @finance/invoice-2026-0091",
                               "width": "fill_container",
                               "layout": "vertical",
                               "gap": 2,
@@ -305806,7 +305871,7 @@
                                 {
                                   "type": "text",
                                   "id": "n59m0",
-                                  "name": "Trace Title @invoice-2026-0091",
+                                  "name": "Trace Title @finance/invoice-2026-0091",
                                   "fill": "$text",
                                   "content": "ACME Services Invoice",
                                   "fontFamily": "$font-sans",
@@ -305816,7 +305881,7 @@
                                 {
                                   "type": "text",
                                   "id": "uMPqG",
-                                  "name": "Trace Scope @invoice-2026-0091",
+                                  "name": "Trace Scope @finance/invoice-2026-0091",
                                   "fill": "$text-muted",
                                   "content": "Bangkok Central",
                                   "fontFamily": "$font-sans",
@@ -306052,13 +306117,13 @@
                               "id": "lYm4L",
                               "type": "ref",
                               "ref": "o2p9xH",
-                              "name": "Backlink Reference @po-2026-0188",
+                              "name": "Backlink Reference @procurement/po-2026-0188",
                               "descendants": {
                                 "YOxI2": {
                                   "icon": "shopping-cart"
                                 },
                                 "KagCD": {
-                                  "content": "@po-2026-0188",
+                                  "content": "@procurement/po-2026-0188",
                                   "fontSize": 8
                                 }
                               }
@@ -306177,7 +306242,7 @@
                           "icon": "receipt-text"
                         },
                         "KagCD": {
-                          "content": "@invoice-0091"
+                          "content": "@finance/invoice-0091"
                         }
                       }
                     },
@@ -306352,7 +306417,7 @@
       "type": "frame",
       "id": "wwrvT",
       "x": 760,
-      "y": 328546,
+      "y": 329486,
       "name": "Page · System approvals overview (/system/approvals)",
       "context": "Prototype route · /system/approvals",
       "clip": true,
@@ -307345,7 +307410,9 @@
                               "width": "fill_container",
                               "descendants": {
                                 "RyYFa": {
-                                  "fontSize": 15
+                                  "fontSize": 13,
+                                  "textGrowth": "fixed-width",
+                                  "width": 176
                                 }
                               }
                             },
@@ -307622,7 +307689,7 @@
       "type": "frame",
       "id": "bwGTn",
       "x": 920,
-      "y": 329606,
+      "y": 330546,
       "name": "Page · Approval policies (/system/approvals/policies)",
       "context": "Prototype route · /system/approvals/policies",
       "clip": true,
@@ -309502,7 +309569,7 @@
       "type": "frame",
       "id": "D6ge2A",
       "x": 1080,
-      "y": 330706,
+      "y": 331646,
       "name": "Page · Approval policy editor (/system/approvals/policies/:id)",
       "context": "Prototype route · /system/approvals/policies/:id",
       "clip": true,
@@ -310429,7 +310496,23 @@
                               "type": "ref",
                               "ref": "bQIgR",
                               "name": "Condition Net Value",
-                              "width": "fill_container"
+                              "width": "fill_container",
+                              "descendants": {
+                                "o219Nz": {
+                                  "width": 135
+                                },
+                                "PXOVT": {
+                                  "width": 110
+                                },
+                                "MmuEx": {
+                                  "width": 100,
+                                  "height": 27
+                                },
+                                "wO6tY": {
+                                  "width": 1,
+                                  "height": 12
+                                }
+                              }
                             },
                             {
                               "id": "NnEJE",
@@ -310441,14 +310524,28 @@
                                 "UoPEC": {
                                   "content": "02"
                                 },
+                                "o219Nz": {
+                                  "width": 135
+                                },
                                 "qJuBW": {
                                   "content": "Discount percent"
+                                },
+                                "PXOVT": {
+                                  "width": 110
                                 },
                                 "G8aaZ": {
                                   "content": "is greater than"
                                 },
+                                "MmuEx": {
+                                  "width": 100,
+                                  "height": 27
+                                },
                                 "n8U30": {
                                   "content": "3%"
+                                },
+                                "wO6tY": {
+                                  "width": 1,
+                                  "height": 12
                                 }
                               }
                             },
@@ -311186,7 +311283,9 @@
                             },
                             "tjgoq": {
                               "content": "No active sessions are modified by this draft.",
-                              "fontSize": 9
+                              "fontSize": 7,
+                              "textGrowth": "fixed-width",
+                              "width": 116
                             }
                           }
                         },
@@ -311308,7 +311407,7 @@
       "type": "frame",
       "id": "mzxmn",
       "x": 1240,
-      "y": 332686,
+      "y": 333626,
       "name": "Page · Approval policy simulation (/system/approvals/policies/:id/simulate)",
       "context": "Prototype route · /system/approvals/policies/:id/simulate",
       "clip": true,
@@ -312211,12 +312310,12 @@
       "type": "frame",
       "id": "cFymg",
       "x": 920,
-      "y": 333946,
+      "y": 334886,
       "name": "Page · Approval roles (/system/approvals/roles)",
       "context": "Prototype route · /system/approvals/roles",
       "clip": true,
       "width": 1120,
-      "height": 1000,
+      "height": 1600,
       "fill": "#FFFFFF",
       "children": [
         {
@@ -312515,9 +312614,11 @@
                                   "id": "yHsUO",
                                   "name": "ROLE / MODULE Label",
                                   "fill": "#687486",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "ROLE / MODULE",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "750"
                                 }
                               ]
@@ -312580,7 +312681,8 @@
                               "type": "frame",
                               "id": "XrCV5",
                               "name": "Role Header FALLBACK",
-                              "width": 115,
+                              "width": 88,
+                              "height": 10,
                               "children": [
                                 {
                                   "type": "text",
@@ -312625,9 +312727,11 @@
                                   "id": "X5fBuG",
                                   "name": "Sales Director Title",
                                   "fill": "#171B26",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "Sales Director",
                                   "fontFamily": "Geist",
-                                  "fontSize": 8,
+                                  "fontSize": 6,
                                   "fontWeight": "650"
                                 },
                                 {
@@ -312635,9 +312739,11 @@
                                   "id": "sKlx0",
                                   "name": "Sales Director Module",
                                   "fill": "#5C4BE7",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "Sales owned",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "600"
                                 }
                               ]
@@ -312706,7 +312812,8 @@
                               "type": "frame",
                               "id": "Kstv4",
                               "name": "Sales Director APAC Sales VP",
-                              "width": 115,
+                              "width": 88,
+                              "height": 12,
                               "children": [
                                 {
                                   "type": "text",
@@ -312753,9 +312860,11 @@
                                   "id": "z0L8Ae",
                                   "name": "Finance Controller Title",
                                   "fill": "#171B26",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "Finance Controller",
                                   "fontFamily": "Geist",
-                                  "fontSize": 8,
+                                  "fontSize": 6,
                                   "fontWeight": "650"
                                 },
                                 {
@@ -312763,9 +312872,11 @@
                                   "id": "hpp6H",
                                   "name": "Finance Controller Module",
                                   "fill": "#5C4BE7",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "Finance owned",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "600"
                                 }
                               ]
@@ -312834,7 +312945,8 @@
                               "type": "frame",
                               "id": "fClbc",
                               "name": "Finance Controller Regional Controller",
-                              "width": 115,
+                              "width": 88,
+                              "height": 12,
                               "children": [
                                 {
                                   "type": "text",
@@ -312881,9 +312993,11 @@
                                   "id": "F4ZsuO",
                                   "name": "Fulfillment Manager Title",
                                   "fill": "#171B26",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "Fulfillment Manager",
                                   "fontFamily": "Geist",
-                                  "fontSize": 8,
+                                  "fontSize": 6,
                                   "fontWeight": "650"
                                 },
                                 {
@@ -312891,9 +313005,11 @@
                                   "id": "RS4Or",
                                   "name": "Fulfillment Manager Module",
                                   "fill": "#5C4BE7",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "Operations owned",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "600"
                                 }
                               ]
@@ -312962,7 +313078,8 @@
                               "type": "frame",
                               "id": "o7wXrX",
                               "name": "Fulfillment Manager Ops Director",
-                              "width": 115,
+                              "width": 88,
+                              "height": 12,
                               "children": [
                                 {
                                   "type": "text",
@@ -313009,9 +313126,11 @@
                                   "id": "L091H",
                                   "name": "Marketing Controller Title",
                                   "fill": "#171B26",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "Marketing Controller",
                                   "fontFamily": "Geist",
-                                  "fontSize": 8,
+                                  "fontSize": 6,
                                   "fontWeight": "650"
                                 },
                                 {
@@ -313019,9 +313138,11 @@
                                   "id": "r9hvN",
                                   "name": "Marketing Controller Module",
                                   "fill": "#5C4BE7",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "Marketing owned",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "600"
                                 }
                               ]
@@ -313090,7 +313211,8 @@
                               "type": "frame",
                               "id": "S7HSx",
                               "name": "Marketing Controller CMO delegate",
-                              "width": 115,
+                              "width": 88,
+                              "height": 12,
                               "children": [
                                 {
                                   "type": "text",
@@ -313137,9 +313259,11 @@
                                   "id": "r2s5Z",
                                   "name": "Revenue Accountant Title",
                                   "fill": "#171B26",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "Revenue Accountant",
                                   "fontFamily": "Geist",
-                                  "fontSize": 8,
+                                  "fontSize": 6,
                                   "fontWeight": "650"
                                 },
                                 {
@@ -313147,9 +313271,11 @@
                                   "id": "GHiOm",
                                   "name": "Revenue Accountant Module",
                                   "fill": "#5C4BE7",
+                                  "textGrowth": "fixed-width",
+                                  "width": 1,
                                   "content": "Finance owned",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "600"
                                 }
                               ]
@@ -313218,7 +313344,8 @@
                               "type": "frame",
                               "id": "pTfop",
                               "name": "Revenue Accountant Finance Director",
-                              "width": 115,
+                              "width": 88,
+                              "height": 12,
                               "children": [
                                 {
                                   "type": "text",
@@ -313348,11 +313475,27 @@
                           "name": "Role Scope Picker",
                           "width": "fill_container",
                           "descendants": {
-                            "vUi3T/a5WaQ": {
-                              "fontSize": 7
+                            "c0ntt": {
+                              "type": "frame",
+                              "id": "q43Omq",
+                              "x": 0,
+                              "y": 0,
+                              "name": "Object type filter omitted",
+                              "enabled": false,
+                              "width": 1,
+                              "height": 1
                             },
-                            "N1H2JU/a5WaQ": {
-                              "fontSize": 7
+                            "vUi3T/jB2RA/KagCD": {
+                              "content": "@finance/invoice-2026-0091"
+                            },
+                            "p2OR0O/jB2RA/KagCD": {
+                              "content": "@procurement/po-2026-0188"
+                            },
+                            "N1H2JU/jB2RA/KagCD": {
+                              "content": "@legal/contract-2026-001"
+                            },
+                            "dRwKR/jB2RA/KagCD": {
+                              "content": "@people/employee-0042"
                             }
                           }
                         }
@@ -313370,7 +313513,7 @@
       "type": "frame",
       "id": "UV1t1",
       "x": 920,
-      "y": 335106,
+      "y": 336646,
       "name": "Page · Approval delegations (/system/approvals/delegations)",
       "context": "Prototype route · /system/approvals/delegations",
       "clip": true,
@@ -313835,7 +313978,7 @@
                                   "fill": "#687486",
                                   "content": "Authority verified · no source access expansion",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "500"
                                 }
                               ]
@@ -313959,7 +314102,7 @@
                                   "fill": "#687486",
                                   "content": "Authority verified · no source access expansion",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "500"
                                 }
                               ]
@@ -314083,7 +314226,7 @@
                                   "fill": "#687486",
                                   "content": "Authority verified · no source access expansion",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "500"
                                 }
                               ]
@@ -314207,7 +314350,7 @@
                                   "fill": "#687486",
                                   "content": "Authority verified · no source access expansion",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "500"
                                 }
                               ]
@@ -314331,7 +314474,7 @@
                                   "fill": "#687486",
                                   "content": "Authority verified · no source access expansion",
                                   "fontFamily": "Geist",
-                                  "fontSize": 6,
+                                  "fontSize": 5,
                                   "fontWeight": "500"
                                 }
                               ]
@@ -314771,7 +314914,7 @@
       "type": "frame",
       "id": "GORyp",
       "x": 920,
-      "y": 336266,
+      "y": 337806,
       "name": "Page · Approval escalations (/system/approvals/escalations)",
       "context": "Prototype route · /system/approvals/escalations",
       "clip": true,
@@ -315745,11 +315888,15 @@
                           "descendants": {
                             "vn7lh": {
                               "content": "2h until escalation",
-                              "fontSize": 13
+                              "fontSize": 11,
+                              "textGrowth": "fixed-width",
+                              "width": 79
                             },
                             "B6P4ff": {
                               "content": "@approval-2026-0417 · Finance gate",
-                              "fontSize": 9
+                              "fontSize": 7,
+                              "textGrowth": "fixed-width",
+                              "width": 79
                             },
                             "s5d0gp": {
                               "content": "Controller notified"
@@ -315993,7 +316140,7 @@
                             },
                             "zDWZM": {
                               "content": "8h SLA expired · CFO delegate and source owner notified",
-                              "fontSize": 9
+                              "fontSize": 7
                             },
                             "b1ThLj": {
                               "content": "18 Apr 2026 · 17:01 ICT · event esc-0417"
@@ -316014,7 +316161,7 @@
       "type": "frame",
       "id": "VPI3A",
       "x": 920,
-      "y": 337426,
+      "y": 338966,
       "name": "Page · Approval audit (/system/approvals/audit)",
       "context": "Prototype route · /system/approvals/audit",
       "clip": true,
@@ -317086,11 +317233,13 @@
                             },
                             "OzXmT": {
                               "content": "Active · pinned at creation",
-                              "fontSize": 11
+                              "fontSize": 9
                             },
                             "tjgoq": {
                               "content": "12 active sessions remain on v6 after v7 publishes.",
-                              "fontSize": 9
+                              "fontSize": 7,
+                              "textGrowth": "fixed-width",
+                              "width": 129
                             }
                           }
                         },
@@ -317473,7 +317622,7 @@
       "type": "frame",
       "id": "jyRIT",
       "x": 600,
-      "y": 328306,
+      "y": 329246,
       "name": "Desktop · Category · 17 · System Approval Governance",
       "theme": {
         "mode": "light",
@@ -317922,7 +318071,7 @@
               "icon": "pilcrow"
             },
             "KagCD": {
-              "content": "@contract-2026-001#clause-7.2"
+              "content": "@legal/contract-2026-001#clause-7.2"
             }
           }
         },
@@ -318340,19 +318489,9 @@
                       "icon": "receipt-text"
                     },
                     "KagCD": {
-                      "content": "@invoice-2026-0091"
+                      "content": "@finance/invoice-2026-0091"
                     }
                   }
-                },
-                {
-                  "type": "text",
-                  "id": "a5WaQ",
-                  "name": "Search Result Owning Scope",
-                  "fill": "$text-muted",
-                  "content": "Bangkok Central",
-                  "fontFamily": "$font-sans",
-                  "fontSize": 9,
-                  "fontWeight": "550"
                 }
               ]
             }
@@ -318373,7 +318512,7 @@
     {
       "type": "frame",
       "id": "UibzB",
-      "x": 920,
+      "x": 3504,
       "y": -1502,
       "name": "Component/Organizational Scope Picker",
       "reusable": true,
@@ -319220,7 +319359,7 @@
               "id": "vUi3T",
               "type": "ref",
               "ref": "ghbQw",
-              "name": "Reference Picker Result · @invoice-2026-0091",
+              "name": "Reference Picker Result · @finance/invoice-2026-0091",
               "width": "fill_container",
               "descendants": {
                 "FRdFI": {
@@ -319236,10 +319375,7 @@
                   "icon": "receipt-text"
                 },
                 "jB2RA/KagCD": {
-                  "content": "@invoice-2026-0091"
-                },
-                "a5WaQ": {
-                  "content": "Bangkok Central"
+                  "content": "@finance/invoice-2026-0091"
                 }
               }
             },
@@ -319247,7 +319383,7 @@
               "id": "p2OR0O",
               "type": "ref",
               "ref": "ghbQw",
-              "name": "Reference Picker Result · @po-2026-0188",
+              "name": "Reference Picker Result · @procurement/po-2026-0188",
               "width": "fill_container",
               "descendants": {
                 "FRdFI": {
@@ -319263,10 +319399,7 @@
                   "icon": "shopping-cart"
                 },
                 "jB2RA/KagCD": {
-                  "content": "@po-2026-0188"
-                },
-                "a5WaQ": {
-                  "content": "Phuket Branch"
+                  "content": "@procurement/po-2026-0188"
                 }
               }
             },
@@ -319274,7 +319407,7 @@
               "id": "N1H2JU",
               "type": "ref",
               "ref": "ghbQw",
-              "name": "Reference Picker Result · @contract-2026-001",
+              "name": "Reference Picker Result · @legal/contract-2026-001",
               "width": "fill_container",
               "descendants": {
                 "FRdFI": {
@@ -319290,10 +319423,7 @@
                   "icon": "scale"
                 },
                 "jB2RA/KagCD": {
-                  "content": "@contract-2026-001"
-                },
-                "a5WaQ": {
-                  "content": "Northwind Holdings"
+                  "content": "@legal/contract-2026-001"
                 }
               }
             },
@@ -319301,7 +319431,7 @@
               "id": "dRwKR",
               "type": "ref",
               "ref": "ghbQw",
-              "name": "Reference Picker Result · @employee-0042",
+              "name": "Reference Picker Result · @people/employee-0042",
               "width": "fill_container",
               "descendants": {
                 "FRdFI": {
@@ -319317,10 +319447,7 @@
                   "icon": "user-round"
                 },
                 "jB2RA/KagCD": {
-                  "content": "@employee-0042"
-                },
-                "a5WaQ": {
-                  "content": "Phuket Branch"
+                  "content": "@people/employee-0042"
                 }
               }
             }
@@ -319388,7 +319515,7 @@
               "icon": "shopping-cart"
             },
             "KagCD": {
-              "content": "@po-2026-0188"
+              "content": "@procurement/po-2026-0188"
             }
           }
         },
@@ -319439,40 +319566,9 @@
               "icon": "receipt-text"
             },
             "KagCD": {
-              "content": "@invoice-2026-0091"
+              "content": "@finance/invoice-2026-0091"
             }
           }
-        },
-        {
-          "type": "frame",
-          "id": "ra5L1",
-          "name": "Relationship Owning Scope Context",
-          "width": "fill_container",
-          "layout": "vertical",
-          "gap": 2,
-          "alignItems": "end",
-          "children": [
-            {
-              "type": "text",
-              "id": "d0Y3pp",
-              "name": "Relationship Target Scope",
-              "fill": "$text-muted",
-              "content": "Bangkok Central",
-              "fontFamily": "$font-sans",
-              "fontSize": 9,
-              "fontWeight": "600"
-            },
-            {
-              "type": "text",
-              "id": "sZQ1L",
-              "name": "Relationship Open Hint",
-              "fill": "$primary",
-              "content": "Open record ↗",
-              "fontFamily": "$font-sans",
-              "fontSize": 8,
-              "fontWeight": "600"
-            }
-          ]
         }
       ]
     },
@@ -319528,7 +319624,7 @@
                       "icon": "receipt-text"
                     },
                     "KagCD": {
-                      "content": "@invoice-2026-0091"
+                      "content": "@finance/invoice-2026-0091"
                     }
                   }
                 }
@@ -319586,14 +319682,14 @@
               "id": "W4iX70",
               "type": "ref",
               "ref": "HNXpz",
-              "name": "Backlink · @po-2026-0188",
+              "name": "Backlink · @procurement/po-2026-0188",
               "width": "fill_container",
               "descendants": {
                 "q6zti/YOxI2": {
                   "icon": "receipt-text"
                 },
                 "q6zti/KagCD": {
-                  "content": "@invoice-2026-0091"
+                  "content": "@finance/invoice-2026-0091"
                 },
                 "abk8e": {
                   "content": "created from"
@@ -319602,13 +319698,7 @@
                   "icon": "shopping-cart"
                 },
                 "e0xvA/KagCD": {
-                  "content": "@po-2026-0188"
-                },
-                "d0Y3pp": {
-                  "content": "Phuket Branch"
-                },
-                "sZQ1L": {
-                  "content": "Procurement · Open ↗"
+                  "content": "@procurement/po-2026-0188"
                 }
               }
             },
@@ -319623,7 +319713,7 @@
                   "icon": "receipt-text"
                 },
                 "q6zti/KagCD": {
-                  "content": "@invoice-2026-0091"
+                  "content": "@finance/invoice-2026-0091"
                 },
                 "abk8e": {
                   "content": "paid by"
@@ -319633,12 +319723,6 @@
                 },
                 "e0xvA/KagCD": {
                   "content": "@payment-2026-041"
-                },
-                "d0Y3pp": {
-                  "content": "Bangkok Central"
-                },
-                "sZQ1L": {
-                  "content": "Finance · Open ↗"
                 }
               }
             },
@@ -319646,14 +319730,14 @@
               "id": "HlvaR",
               "type": "ref",
               "ref": "HNXpz",
-              "name": "Backlink · @contract-2026-001#clause-7.2",
+              "name": "Backlink · @legal/contract-2026-001#clause-7.2",
               "width": "fill_container",
               "descendants": {
                 "q6zti/YOxI2": {
                   "icon": "receipt-text"
                 },
                 "q6zti/KagCD": {
-                  "content": "@invoice-2026-0091"
+                  "content": "@finance/invoice-2026-0091"
                 },
                 "abk8e": {
                   "content": "governed by"
@@ -319662,13 +319746,7 @@
                   "icon": "scale"
                 },
                 "e0xvA/KagCD": {
-                  "content": "@contract-2026-001#clause-7.2"
-                },
-                "d0Y3pp": {
-                  "content": "Northwind Holdings"
-                },
-                "sZQ1L": {
-                  "content": "Legal · Open ↗"
+                  "content": "@legal/contract-2026-001#clause-7.2"
                 }
               }
             }
@@ -334379,7 +334457,7 @@
         },
         "xzwAY": {
           "content": "Decide · Decision outcomes, delegation and escalation",
-          "fontSize": 24
+          "fontSize": 22
         },
         "f9v7c": {
           "content": "Evaluate actor, policy, scope, dependencies, evidence, and rationale for Decision outcomes, delegation and escalation."
@@ -334404,8 +334482,10 @@
           "fontSize": 8
         },
         "vqkOl": {
-          "content": "Decision outcomes, delegation and escalation outcomes",
-          "fontSize": 24
+          "content": "Approval outcomes",
+          "fontSize": 22,
+          "textGrowth": "fixed-width",
+          "width": 589
         },
         "aW4Cr": {
           "content": "My approval work terminal branches"
@@ -334610,8 +334690,10 @@
           "fontSize": 8
         },
         "xzwAY": {
-          "content": "Decide · Deep link integrity, restricted evidence and stale source",
-          "fontSize": 24
+          "content": "Decide · deep-link integrity",
+          "fontSize": 22,
+          "textGrowth": "fixed-width",
+          "width": 589
         },
         "f9v7c": {
           "content": "Evaluate actor, policy, scope, dependencies, evidence, and rationale for Deep link integrity, restricted evidence and stale source."
@@ -334633,11 +334715,13 @@
       "descendants": {
         "V0jkA": {
           "content": "URL /operations/approvals/:id/gates/:gateId/actions/deep-link-integrity-restricted-evidence-and-stale-source/{success|blocked|failed} · OWNER ERPX",
-          "fontSize": 8
+          "fontSize": 6
         },
         "vqkOl": {
-          "content": "Deep link integrity, restricted evidence and stale source outcomes",
-          "fontSize": 24
+          "content": "Deep-link outcomes",
+          "fontSize": 22,
+          "textGrowth": "fixed-width",
+          "width": 589
         },
         "aW4Cr": {
           "content": "Approval gate detail terminal branches"
@@ -334897,390 +334981,15 @@
           "content": "Unlimited reply depth; two visual levels; deeper replies show Replying to … with a parent link. Comments inherit the record access ceiling."
         },
         "uZDbK": {
-          "content": "Human · Agent · Service"
+          "content": "3 actor kinds",
+          "fontSize": 9
         },
         "E63ugk": {
-          "content": "Edit · withdraw · resolve"
+          "content": "Edit · withdraw",
+          "fontSize": 9
         },
         "h4DMlQ": {
           "content": "Watch · notify"
-        }
-      }
-    },
-    {
-      "id": "xC5De",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Comment Composer",
-      "x": 1220,
-      "y": -7032,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "Write a comment…",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Person, team, record, decision, and comment mentions resolve against current access.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Comment Composer"
-        },
-        "qdHQN": {
-          "content": "Person, team, record, decision, and comment mentions resolve against current access."
-        }
-      }
-    },
-    {
-      "id": "XTdr5",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Reply Composer",
-      "x": 1580,
-      "y": -7032,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "Replying to @finance/invoice-2026-0091#comment-cmt-01",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Unlimited depth · two visual levels · parent deep link",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Reply Composer"
-        },
-        "qdHQN": {
-          "content": "Unlimited depth · two visual levels · parent deep link"
-        }
-      }
-    },
-    {
-      "id": "TZCzb",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Actor Badges",
-      "x": 1940,
-      "y": -7032,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "Human · Agent · Service",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Immutable actor_ref · role and organizational scope snapshot",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Actor Badges"
-        },
-        "qdHQN": {
-          "content": "Immutable actor_ref · role and organizational scope snapshot"
-        }
-      }
-    },
-    {
-      "id": "kwoeo",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Nested Reply Connector",
-      "x": 2300,
-      "y": -7032,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "↳ Replying to …",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Visual indentation stops at two levels; the logical tree remains unlimited.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Nested Reply Connector"
-        },
-        "qdHQN": {
-          "content": "Visual indentation stops at two levels; the logical tree remains unlimited."
-        }
-      }
-    },
-    {
-      "id": "qs26u",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Mention Picker",
-      "x": 1220,
-      "y": -6812,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "@people/niran-k · @teams/finance-ap · @modules/finance",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Suggestions exclude inaccessible targets; pasted restricted references resolve as Restricted.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Mention Picker"
-        },
-        "qdHQN": {
-          "content": "Suggestions exclude inaccessible targets; pasted restricted references resolve as Restricted."
-        }
-      }
-    },
-    {
-      "id": "pXSUh",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Edited Version Indicator",
-      "x": 1580,
-      "y": -6812,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "Edited · View version history",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Original actor retained across edits; prior bodies remain auditable.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Edited Version Indicator"
-        },
-        "qdHQN": {
-          "content": "Original actor retained across edits; prior bodies remain auditable."
-        }
-      }
-    },
-    {
-      "id": "YR5uO",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Withdrawn Tombstone",
-      "x": 1940,
-      "y": -6812,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "Comment withdrawn",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Replies survive; tombstone preserves thread and audit continuity.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Withdrawn Tombstone"
-        },
-        "qdHQN": {
-          "content": "Replies survive; tombstone preserves thread and audit continuity."
-        }
-      }
-    },
-    {
-      "id": "h3o2d",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Resolved Thread Banner",
-      "x": 2300,
-      "y": -6812,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "Resolved · Reopen",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Authorized record owner or moderator controls lifecycle.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Resolved Thread Banner"
-        },
-        "qdHQN": {
-          "content": "Authorized record owner or moderator controls lifecycle."
-        }
-      }
-    },
-    {
-      "id": "ydl44",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Watch Control",
-      "x": 1220,
-      "y": -6592,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "Watching · Unwatch",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Direct replies, mentions, watched activity, resolve, and reopen deduplicate by event.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Watch Control"
-        },
-        "qdHQN": {
-          "content": "Direct replies, mentions, watched activity, resolve, and reopen deduplicate by event."
-        }
-      }
-    },
-    {
-      "id": "KulAo",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Restricted Reference",
-      "x": 1580,
-      "y": -6592,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "Restricted",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "No identity, title, metadata, preview, count, or notification leak.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Restricted Reference"
-        },
-        "qdHQN": {
-          "content": "No identity, title, metadata, preview, count, or notification leak."
-        }
-      }
-    },
-    {
-      "id": "YyamZ",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Unavailable Reference",
-      "x": 1940,
-      "y": -6592,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "Unavailable",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Permission-safe tombstone for hard-unavailable canonical records.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Unavailable Reference"
-        },
-        "qdHQN": {
-          "content": "Permission-safe tombstone for hard-unavailable canonical records."
-        }
-      }
-    },
-    {
-      "id": "z6nGh1",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Thread Summary",
-      "x": 2300,
-      "y": -6592,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "18 comments · 4 unread",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "Unread counter and focused comment deep link re-evaluate permission.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Thread Summary"
-        },
-        "qdHQN": {
-          "content": "Unread counter and focused comment deep link re-evaluate permission."
-        }
-      }
-    },
-    {
-      "id": "hFHRQ",
-      "type": "ref",
-      "ref": "T69zM",
-      "name": "Component/Notification Item",
-      "x": 1220,
-      "y": -6372,
-      "width": 340,
-      "height": 200,
-      "descendants": {
-        "ge017": {
-          "content": "Reply from @people/niran-k",
-          "fontSize": 18
-        },
-        "Z4nPOE": {
-          "content": "In-app inbox required; email optional by user/team policy; revoked access suppresses content.",
-          "fontSize": 10
-        },
-        "U2XjGN": {
-          "content": "REUSABLE"
-        },
-        "K7K53": {
-          "content": "Notification Item"
-        },
-        "qdHQN": {
-          "content": "In-app inbox required; email optional by user/team policy; revoked access suppresses content."
         }
       }
     },
@@ -335345,7 +335054,7 @@
                   "fill": "$text-muted",
                   "textGrowth": "fixed-width",
                   "width": "fill_container",
-                  "content": "One fully open Apache-2.0 platform · free self-hosted community use · pure pay-as-you-go Cloud and managed operations · no seat fee · no annual minimum · one included support level for every paying account · direct delivery, then certified local partners · certification and compliance services · marketplace commission 0%.",
+                  "content": "One fully open Apache-2.0 platform · free self-hosted community use · pure pay-as-you-go Cloud and managed operations · no seat fee · no annual minimum · one included support level for every paying account · direct delivery, then certified local partners · certification and compliance services · publisher fee 0%.",
                   "lineHeight": 1.35,
                   "fontFamily": "$font-sans",
                   "fontSize": 14,
@@ -336038,7 +335747,12 @@
                   "id": "f1L5k",
                   "type": "ref",
                   "ref": "RYqqf",
-                  "name": "ERPX Reference Preview Instance"
+                  "name": "ERPX Reference Preview Instance",
+                  "descendants": {
+                    "ysKCP/KagCD": {
+                      "content": "@legal/contract-2026-001#clause-7.2"
+                    }
+                  }
                 }
               ]
             }
@@ -337902,7 +337616,12 @@
                   "id": "Ei9UY",
                   "type": "ref",
                   "ref": "RYqqf",
-                  "name": "ERPX Reference Preview Instance"
+                  "name": "ERPX Reference Preview Instance",
+                  "descendants": {
+                    "ysKCP/KagCD": {
+                      "content": "@legal/contract-2026-001#clause-7.2"
+                    }
+                  }
                 }
               ]
             }
@@ -339149,7 +338868,7 @@
           "content": "Open-source marketplace"
         },
         "Z4nPOE": {
-          "content": "OSI-approved licenses only · proprietary packages out of scope · marketplace commission 0%."
+          "content": "OSI-approved licenses only · proprietary packages out of scope · publisher fee 0%."
         },
         "U2XjGN": {
           "content": "CANONICAL"
@@ -339158,7 +338877,7 @@
           "content": "Open-source marketplace"
         },
         "qdHQN": {
-          "content": "OSI-approved licenses only · proprietary packages out of scope · marketplace commission 0%."
+          "content": "OSI-approved licenses only · proprietary packages out of scope · publisher fee 0%."
         }
       }
     },
@@ -340620,13 +340339,622 @@
           "content": "Launch policy"
         },
         "qdHQN": {
-          "content": "Marketplace commission starts at 0%. Official ERPX code, modules, SDKs, specifications, and country packs remain Apache-2.0."
+          "content": "publisher fee 0%. Official ERPX code, modules, SDKs, specifications, and country packs remain Apache-2.0."
         },
         "uZDbK": {
           "fontSize": 13
         },
         "E63ugk": {
           "fontSize": 13
+        }
+      }
+    },
+    {
+      "id": "CFFK5",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Comment Composer",
+      "x": 1220,
+      "y": -7032,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "message-square-plus"
+        },
+        "uOHHV": {
+          "content": "Comment composer · @mentions · permission checked",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "znKl0",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Reply Composer",
+      "x": 1580,
+      "y": -7032,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "reply"
+        },
+        "uOHHV": {
+          "content": "Reply composer · Replying to … · parent link",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "vFc4u",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Actor Badges",
+      "x": 1940,
+      "y": -7032,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "badge-check"
+        },
+        "uOHHV": {
+          "content": "Human · Agent · Service actor badges",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "qqGxr",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Nested Reply Connector",
+      "x": 2300,
+      "y": -7032,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "corner-down-right"
+        },
+        "uOHHV": {
+          "content": "Two visual levels · unlimited logical depth",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "N6Rp2",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Mention Picker",
+      "x": 1220,
+      "y": -6952,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "at-sign"
+        },
+        "uOHHV": {
+          "content": "Person · team · record · decision · comment",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "asuYO",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Edited Version Indicator",
+      "x": 1580,
+      "y": -6952,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "history"
+        },
+        "uOHHV": {
+          "content": "Edited · retained version history",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "Tlnl8",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Withdrawn Tombstone",
+      "x": 1940,
+      "y": -6952,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "archive-x"
+        },
+        "uOHHV": {
+          "content": "Withdrawn tombstone · replies survive",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "RTsCP",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Resolved Thread Banner",
+      "x": 2300,
+      "y": -6952,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "check-circle-2"
+        },
+        "uOHHV": {
+          "content": "Resolved · authorized reopen",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "k78GtC",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Watch Control",
+      "x": 1220,
+      "y": -6872,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "bell-ring"
+        },
+        "uOHHV": {
+          "content": "Watch · unwatch · deduplicated events",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "Yh7bs",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Restricted Reference",
+      "x": 1580,
+      "y": -6872,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "shield-alert"
+        },
+        "uOHHV": {
+          "content": "Restricted · no metadata leak",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "VMIyj",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Unavailable Reference",
+      "x": 1940,
+      "y": -6872,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "file-question"
+        },
+        "uOHHV": {
+          "content": "Unavailable · safe tombstone",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "XNF5j",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Thread Summary",
+      "x": 2300,
+      "y": -6872,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "message-circle-more"
+        },
+        "uOHHV": {
+          "content": "18 comments · 4 unread · deep link",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "U8kESv",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Notification Item",
+      "x": 1220,
+      "y": -6792,
+      "width": 340,
+      "descendants": {
+        "TJLaO": {
+          "icon": "inbox"
+        },
+        "uOHHV": {
+          "content": "In-app required · email optional · access checked",
+          "fill": "$text"
+        }
+      }
+    },
+    {
+      "id": "o0dbiI",
+      "type": "ref",
+      "reusable": true,
+      "ref": "M55K2Z",
+      "name": "Component/Open Source License Badge",
+      "x": 0,
+      "y": -9112,
+      "descendants": {
+        "sl4lp": {
+          "fill": "$primary"
+        },
+        "JKMSU": {
+          "content": "OSI-APPROVED · APACHE-2.0",
+          "fill": "$primary"
+        }
+      }
+    },
+    {
+      "id": "aWBhK",
+      "type": "ref",
+      "ref": "T69zM",
+      "name": "Action State · Ecosystem · Validate publisher (/system/publishers/:publisher_id/actions/validate)",
+      "x": 2140,
+      "y": 72880,
+      "width": 1120,
+      "height": 780,
+      "descendants": {
+        "mJNMR": {
+          "content": "URL /system/publishers/:publisher_id/actions/validate · OWNER MODULE PLATFORM · ACTIVE"
+        },
+        "ge017": {
+          "content": "Validate publisher"
+        },
+        "Z4nPOE": {
+          "content": "Validate publisher identity, package signatures, OSI licensing, compatibility evidence, certification, and update history."
+        },
+        "U2XjGN": {
+          "content": "GOVERNED"
+        },
+        "K7K53": {
+          "content": "Ready · Validate publisher"
+        },
+        "qdHQN": {
+          "content": "The operation remains pending until license, signature, compatibility, scope, evidence, and maintainer policy are evaluated."
+        }
+      }
+    },
+    {
+      "id": "esgha",
+      "type": "ref",
+      "ref": "j1CEtZ",
+      "name": "Decision · Ecosystem · Validate publisher (/system/publishers/:publisher_id/actions/validate/decision)",
+      "x": 3360,
+      "y": 72880,
+      "width": 1120,
+      "height": 780,
+      "descendants": {
+        "hvh7M": {
+          "content": "URL /system/publishers/:publisher_id/actions/validate/decision · OWNER MODULE PLATFORM"
+        },
+        "xzwAY": {
+          "content": "Decide · Validate publisher"
+        },
+        "f9v7c": {
+          "content": "Evaluate actor, publisher or maintainer policy, OSI license, signature, compatibility, dependencies, certification evidence, update history, scope, and rationale."
+        },
+        "mPkTy": {
+          "content": "Ecosystem validation evidence"
+        }
+      }
+    },
+    {
+      "id": "sJw0T",
+      "type": "ref",
+      "ref": "qS2NE",
+      "name": "Outcome · Ecosystem · Validate publisher (/system/publishers/:publisher_id/actions/validate/{success|blocked|failed})",
+      "x": 4580,
+      "y": 72880,
+      "width": 1120,
+      "height": 780,
+      "descendants": {
+        "V0jkA": {
+          "content": "URL /system/publishers/:publisher_id/actions/validate/{success|blocked|failed} · OWNER MODULE PLATFORM"
+        },
+        "vqkOl": {
+          "content": "Validate publisher outcomes"
+        },
+        "s38iR": {
+          "content": "Success records the validated or certified state; blocked preserves license, policy, signature, compatibility, or evidence constraints; failed retains a safe trace."
+        }
+      }
+    },
+    {
+      "id": "BLpn1",
+      "type": "ref",
+      "ref": "T69zM",
+      "name": "Action State · Ecosystem · Certify country pack (/system/country-packs/:pack_id/actions/certify)",
+      "x": 2140,
+      "y": 73820,
+      "width": 1120,
+      "height": 780,
+      "descendants": {
+        "mJNMR": {
+          "content": "URL /system/country-packs/:pack_id/actions/certify · OWNER MODULE PLATFORM · ACTIVE"
+        },
+        "ge017": {
+          "content": "Certify country pack"
+        },
+        "Z4nPOE": {
+          "content": "Review regulatory scope, maintainer responsibility, OSI licensing, signatures, compatibility, certification evidence, and update history."
+        },
+        "U2XjGN": {
+          "content": "GOVERNED"
+        },
+        "K7K53": {
+          "content": "Ready · Certify country pack"
+        },
+        "qdHQN": {
+          "content": "The operation remains pending until license, signature, compatibility, scope, evidence, and maintainer policy are evaluated."
+        }
+      }
+    },
+    {
+      "id": "m19IpX",
+      "type": "ref",
+      "ref": "j1CEtZ",
+      "name": "Decision · Ecosystem · Certify country pack (/system/country-packs/:pack_id/actions/certify/decision)",
+      "x": 3360,
+      "y": 73820,
+      "width": 1120,
+      "height": 780,
+      "descendants": {
+        "hvh7M": {
+          "content": "URL /system/country-packs/:pack_id/actions/certify/decision · OWNER MODULE PLATFORM"
+        },
+        "xzwAY": {
+          "content": "Decide · Certify country pack"
+        },
+        "f9v7c": {
+          "content": "Evaluate actor, publisher or maintainer policy, OSI license, signature, compatibility, dependencies, certification evidence, update history, scope, and rationale."
+        },
+        "mPkTy": {
+          "content": "Ecosystem validation evidence"
+        }
+      }
+    },
+    {
+      "id": "aDQi3",
+      "type": "ref",
+      "ref": "qS2NE",
+      "name": "Outcome · Ecosystem · Certify country pack (/system/country-packs/:pack_id/actions/certify/{success|blocked|failed})",
+      "x": 4580,
+      "y": 73820,
+      "width": 1120,
+      "height": 780,
+      "descendants": {
+        "V0jkA": {
+          "content": "URL /system/country-packs/:pack_id/actions/certify/{success|blocked|failed} · OWNER MODULE PLATFORM"
+        },
+        "vqkOl": {
+          "content": "Certify country pack outcomes"
+        },
+        "s38iR": {
+          "content": "Success records the validated or certified state; blocked preserves license, policy, signature, compatibility, or evidence constraints; failed retains a safe trace."
+        }
+      }
+    },
+    {
+      "id": "zcdCa",
+      "type": "ref",
+      "ref": "kM6Mu",
+      "name": "Contract · Actor identity & service activity",
+      "x": 600,
+      "y": 328146,
+      "width": 1120,
+      "height": 780,
+      "descendants": {
+        "mJNMR": {
+          "content": "COLLABORATION DESIGN CONTRACT · CANVAS ONLY"
+        },
+        "ge017": {
+          "content": "Actor identity & service activity"
+        },
+        "Z4nPOE": {
+          "content": "Actor references are immutable even when display name, role, or organizational assignment changes. Human, Agent, and Service identity stays explicit."
+        },
+        "U2XjGN": {
+          "content": "AUTHORITATIVE"
+        },
+        "K7K53": {
+          "content": "Service activity boundary"
+        },
+        "qdHQN": {
+          "content": "Automatic service activity is an immutable Audit Event. Explicit service-authored collaboration is a Service Comment and remains distinct from system activity."
+        },
+        "uZDbK": {
+          "content": "Immutable actor"
+        },
+        "E63ugk": {
+          "content": "Access ceiling"
+        },
+        "h4DMlQ": {
+          "content": "Audit retained"
+        }
+      }
+    },
+    {
+      "id": "pmPTQ",
+      "type": "ref",
+      "ref": "kM6Mu",
+      "name": "Contract · Comment lifecycle & version history",
+      "x": 1820,
+      "y": 328146,
+      "width": 1120,
+      "height": 780,
+      "descendants": {
+        "mJNMR": {
+          "content": "COLLABORATION DESIGN CONTRACT · CANVAS ONLY"
+        },
+        "ge017": {
+          "content": "Comment lifecycle & version history"
+        },
+        "Z4nPOE": {
+          "content": "Authors edit their own comments with retained versions. Withdrawal creates a tombstone, preserves replies, and keeps audit continuity."
+        },
+        "U2XjGN": {
+          "content": "AUTHORITATIVE"
+        },
+        "K7K53": {
+          "content": "Thread lifecycle"
+        },
+        "qdHQN": {
+          "content": "Authorized record owners or moderators resolve and reopen threads. Lifecycle timestamps capture created, edited, withdrawn, resolved, and reopened events."
+        },
+        "uZDbK": {
+          "content": "Immutable actor"
+        },
+        "E63ugk": {
+          "content": "Access ceiling"
+        },
+        "h4DMlQ": {
+          "content": "Audit retained"
+        }
+      }
+    },
+    {
+      "id": "NsD2A",
+      "type": "ref",
+      "ref": "kM6Mu",
+      "name": "Contract · Mention resolution & access ceiling",
+      "x": 3040,
+      "y": 328146,
+      "width": 1120,
+      "height": 780,
+      "descendants": {
+        "mJNMR": {
+          "content": "COLLABORATION DESIGN CONTRACT · CANVAS ONLY"
+        },
+        "ge017": {
+          "content": "Mention resolution & access ceiling"
+        },
+        "Z4nPOE": {
+          "content": "Mention resolution runs inside the comment or reply decision. Suggestions exclude inaccessible targets; pasted inaccessible references resolve as Restricted."
+        },
+        "U2XjGN": {
+          "content": "AUTHORITATIVE"
+        },
+        "K7K53": {
+          "content": "Visibility boundary"
+        },
+        "qdHQN": {
+          "content": "Comments inherit the canonical record access ceiling and cannot broaden visibility. A reference is an address, never an access token."
+        },
+        "uZDbK": {
+          "content": "Immutable actor"
+        },
+        "E63ugk": {
+          "content": "Access ceiling"
+        },
+        "h4DMlQ": {
+          "content": "Audit retained"
+        }
+      }
+    },
+    {
+      "id": "K7cGFm",
+      "type": "ref",
+      "ref": "kM6Mu",
+      "name": "Contract · Notification & deep-link safety",
+      "x": 4260,
+      "y": 328146,
+      "width": 1120,
+      "height": 780,
+      "descendants": {
+        "mJNMR": {
+          "content": "COLLABORATION DESIGN CONTRACT · CANVAS ONLY"
+        },
+        "ge017": {
+          "content": "Notification & deep-link safety"
+        },
+        "Z4nPOE": {
+          "content": "Direct replies, person or team mentions, watched activity, resolve, and reopen events notify only currently authorized recipients."
+        },
+        "U2XjGN": {
+          "content": "AUTHORITATIVE"
+        },
+        "K7K53": {
+          "content": "Delivery guarantee"
+        },
+        "qdHQN": {
+          "content": "One event produces one deduplicated notification. Email is optional. Every focused comment deep link re-evaluates access before rendering."
+        },
+        "uZDbK": {
+          "content": "Immutable actor"
+        },
+        "E63ugk": {
+          "content": "Access ceiling"
+        },
+        "h4DMlQ": {
+          "content": "Audit retained"
+        }
+      }
+    },
+    {
+      "id": "PhJav",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Service Comment Badge",
+      "x": 0,
+      "y": -9242,
+      "width": 360,
+      "descendants": {
+        "TJLaO": {
+          "icon": "bot"
+        },
+        "uOHHV": {
+          "content": "Service Comment · explicit authored collaboration",
+          "fill": "$primary"
+        }
+      }
+    },
+    {
+      "id": "D5WuI0",
+      "type": "ref",
+      "reusable": true,
+      "ref": "i0ouek",
+      "name": "Component/Audit Event Divider",
+      "x": 440,
+      "y": -9242,
+      "width": 360,
+      "descendants": {
+        "TJLaO": {
+          "icon": "history"
+        },
+        "uOHHV": {
+          "content": "Audit Event · immutable system activity",
+          "fill": "$text-muted"
         }
       }
     }
