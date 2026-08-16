@@ -1906,7 +1906,6 @@ async fn reconcile_branch_fixtures(
     if config.port == 55_432 {
         crate::infra::ensure_postgres_hba_for_databases(&branch_databases)?;
     }
-    update_holding_display_names(config).await?;
     Ok(())
 }
 
@@ -1983,42 +1982,6 @@ async fn grant_branch_database_objects(
             .execute(&pool)
             .await?;
         pool.close().await;
-    }
-    Ok(())
-}
-
-async fn update_holding_display_names(config: &DevConfig) -> TaskResult {
-    for (database_write, database_read, holding_ref, display_name) in [
-        (DATABASES[2], DATABASES[3], HOLDING_REF, "Atlas Holdings"),
-        (
-            DATABASES[4],
-            DATABASES[5],
-            RESTRICTED_HOLDING_REF,
-            "Beacon Services",
-        ),
-    ] {
-        let write_pool = super::pool(&config.database_url(database_write)).await?;
-        sqlx::query(
-            "UPDATE erpx_tenant.operations_aggregate_snapshots
-             SET state=jsonb_set(state, '{name}', to_jsonb($1::text), TRUE), updated_at=now()
-             WHERE aggregate_type='organization.holding' AND holding_ref=$2",
-        )
-        .bind(display_name)
-        .bind(holding_ref)
-        .execute(&write_pool)
-        .await?;
-        write_pool.close().await;
-        let read_pool = super::pool(&config.database_url(database_read)).await?;
-        sqlx::query(
-            "UPDATE erpx_tenant.operations_read_rows
-             SET state=jsonb_set(state, '{name}', to_jsonb($1::text), TRUE), updated_at=now()
-             WHERE aggregate_type='organization.holding' AND holding_ref=$2",
-        )
-        .bind(display_name)
-        .bind(holding_ref)
-        .execute(&read_pool)
-        .await?;
-        read_pool.close().await;
     }
     Ok(())
 }

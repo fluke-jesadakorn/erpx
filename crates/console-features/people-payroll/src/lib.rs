@@ -14,12 +14,13 @@ pub use models::{
 };
 pub use presenter::{PeoplePayrollContent, PeoplePayrollPresenter};
 pub use view::{PeoplePayrollRenderedState, render_people_payroll_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     PeoplePayrollFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::PeoplePayroll,
     "people-payroll",
-    "people-payroll.workspace",
-    "/workspaces/people-payroll",
-    "people",
-    "erpx-feature-people-payroll-v1",
-    dioxus
+    [
+        ("people-payroll.workspace", "/people", "people"),
+        ("payroll.workspace", "/payroll", "people")
+    ],
+    "erpx-feature-people-payroll-v2"
 );

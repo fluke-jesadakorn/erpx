@@ -224,6 +224,9 @@ fn section(value: SectionAvailability) -> SectionDisplayAvailability {
         SectionAvailability::Ready => SectionDisplayAvailability::Ready,
         SectionAvailability::AwaitingSource => SectionDisplayAvailability::AwaitingSource,
         SectionAvailability::NotProjected => SectionDisplayAvailability::NotProjected,
+        SectionAvailability::Stale => SectionDisplayAvailability::Stale,
+        SectionAvailability::Unavailable => SectionDisplayAvailability::Unavailable,
+        SectionAvailability::Denied => SectionDisplayAvailability::Denied,
     }
 }
 
@@ -272,5 +275,21 @@ mod tests {
     #[test]
     fn gateway_exposes_only_the_typed_customer360_query() {
         assert_query_gateway::<Customer360Gateway<ContractTransport>>();
+    }
+
+    #[test]
+    fn section_availability_preserves_denial_and_degraded_states() {
+        assert_eq!(
+            section(SectionAvailability::Stale),
+            SectionDisplayAvailability::Stale
+        );
+        assert_eq!(
+            section(SectionAvailability::Unavailable),
+            SectionDisplayAvailability::Unavailable
+        );
+        assert_eq!(
+            section(SectionAvailability::Denied),
+            SectionDisplayAvailability::Denied
+        );
     }
 }

@@ -10,6 +10,7 @@ chrono.workspace = true
 dioxus = { workspace = true, features = ["asset", "document", "html", "hooks", "macro", "signals"] }
 erpx-console-transport-core.workspace = true
 erpx-domain.workspace = true
+erpx-integration-contracts.workspace = true
 serde.workspace = true
 
 [features]

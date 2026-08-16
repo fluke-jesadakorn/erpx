@@ -9,12 +9,10 @@ pub use gateway::{SalesGateway, SalesProtoTransport};
 pub use models::{SalesOrderItem, SalesOrderItems, SalesQuoteItem};
 pub use presenter::{SalesContent, SalesPresenter};
 pub use view::{SalesRenderedState, render_sales_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     SalesFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Sales,
     "sales",
-    "sales.workspace",
-    "/workspaces/sales",
-    "customer",
-    "erpx-feature-sales-v1",
-    dioxus
+    [("sales.workspace", "/sales", "customer")],
+    "erpx-feature-sales-v2"
 );

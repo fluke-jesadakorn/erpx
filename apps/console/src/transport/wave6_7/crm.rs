@@ -4,7 +4,7 @@ use erpx_crm::{
     CrmCommand, CrmLeadId, CrmLeadView, CrmMutationResult, CrmQuery, CrmQueryResponse,
     OpportunityId, OpportunityList, OpportunityStage, OpportunityView,
 };
-use erpx_proto::platform as wire;
+use erpx_proto::erpx::crm::v1 as wire;
 use erpx_ui_foundation::UiError;
 
 use crate::{features::crm::CrmProtoTransport, transport::typed_cqrs::GrpcChannel};
@@ -238,6 +238,9 @@ fn decode_lead(value: wire::CrmLeadRecord) -> Result<CrmLeadView, UiError> {
         version: value.source_version,
         scope: decode_scope(value.scope)?,
         marketing_candidate_id: uuid(&value.marketing_candidate_id, "decode crm lead")?,
+        campaign_id: uuid(&value.campaign_id, "decode crm lead")?,
+        audience_member_id: uuid(&value.audience_member_id, "decode crm lead")?,
+        marketing_source_version: value.marketing_source_version,
         customer_id: value
             .customer_id
             .map(|id| uuid(&id, "decode crm lead"))

@@ -13,12 +13,10 @@ pub use models::{
 };
 pub use presenter::{SupportContent, SupportPresenter};
 pub use view::{SupportRenderedState, render_support_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     SupportFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Support,
     "support",
-    "support.workspace",
-    "/support",
-    "support",
-    "erpx-feature-support-v1",
-    dioxus
+    [("support.workspace", "/support", "support")],
+    "erpx-feature-support-v2"
 );

@@ -26,22 +26,13 @@ pub(crate) const AUTH_HTTP_ORIGIN: &str = match option_env!("ERPX_CONSOLE_AUTH_H
     None => "http://localhost:50052",
 };
 
-/// Compile-time authority fence for the packaged Console. Fresh-state builds
-/// default to the direct-v1 typed family; a retained rollback bundle must set
-/// this to `legacy` explicitly when it is rebuilt.
-pub(crate) const V1_SERVICE_AUTHORITY: &str = match option_env!("ERPX_CONSOLE_V1_SERVICE_AUTHORITY")
-{
-    Some(value) => value,
-    None => "typed",
-};
-
 #[cfg(target_arch = "wasm32")]
 pub(crate) fn grpc_endpoint() -> String {
     web_sys::window()
         .and_then(|window| window.location().origin().ok())
         .filter(|origin| !origin.is_empty() && origin != "null")
-        .map(|origin| format!("{origin}/api/bff/v1/grpc"))
-        .unwrap_or_else(|| "/api/bff/v1/grpc".to_owned())
+        .map(|origin| format!("{origin}/api/v1/internal/grpc"))
+        .unwrap_or_else(|| "/api/v1/internal/grpc".to_owned())
 }
 
 #[cfg(not(target_arch = "wasm32"))]

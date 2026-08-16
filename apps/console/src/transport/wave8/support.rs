@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_integration_contracts::{customer, identity_access};
-use erpx_proto::platform as wire;
+use erpx_proto::erpx::support::v1 as wire;
 use erpx_support::{
     BroadcastAudience, CapabilityId, CapabilityRevocationReason, IncidentId, IncidentStatus,
     MessageAudience, MessageId, SessionId, SessionStatus, SupportCommand, SupportMode,

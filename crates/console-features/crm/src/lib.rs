@@ -7,12 +7,10 @@ pub use gateway::{CrmGateway, CrmProtoTransport};
 pub use models::{CrmLeadItem, CrmOpportunityItem, CrmOpportunityItems};
 pub use presenter::{CrmContent, CrmPresenter};
 pub use view::{CrmRenderedState, render_crm_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     CrmFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Crm,
     "crm",
-    "crm.workspace",
-    "/workspaces/crm",
-    "customer",
-    "erpx-feature-crm-v1",
-    dioxus
+    [("crm.workspace", "/crm", "customer")],
+    "erpx-feature-crm-v2"
 );

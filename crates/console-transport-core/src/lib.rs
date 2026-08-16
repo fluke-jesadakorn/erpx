@@ -8,9 +8,103 @@
 
 use std::{fmt, sync::Arc};
 
+use erpx_integration_contracts::{
+    StableRecordRef,
+    catalog::{WORKSPACES, WorkspaceId, record_type},
+    reference::RecordTypeId,
+};
+use erpx_kernel::{IdentifierError, RecordId};
 use url::Url;
+use uuid::Uuid;
 
-const DEFAULT_WEB_BFF_PATH: &str = "/api/console/v1";
+const DEFAULT_WEB_BFF_PATH: &str = "/api/v1";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CanonicalRoute {
+    Workspace(WorkspaceId),
+    Collection(RecordTypeId),
+    Detail(StableRecordRef),
+    CopiedReference(RecordId),
+}
+
+impl CanonicalRoute {
+    pub fn path(&self) -> String {
+        match self {
+            Self::Workspace(id) => WORKSPACES
+                .iter()
+                .find(|workspace| workspace.id == *id)
+                .expect("WorkspaceId belongs to the static catalog")
+                .route
+                .to_owned(),
+            Self::Collection(record_type) => record_type.descriptor().collection_route(),
+            Self::Detail(record) => record.canonical_detail_route(),
+            Self::CopiedReference(record_id) => format!("/reference/item/{record_id}"),
+        }
+    }
+
+    pub fn parse(path: &str) -> Result<Self, RouteError> {
+        if !path.starts_with('/')
+            || path.ends_with('/')
+            || path.contains(['?', '#'])
+            || path.chars().any(char::is_whitespace)
+        {
+            return Err(RouteError::NotCanonical);
+        }
+        let segments = path[1..].split('/').collect::<Vec<_>>();
+        match segments.as_slice() {
+            ["reference", "item", raw_id] => {
+                let id = record_id(raw_id)?;
+                Ok(Self::CopiedReference(id))
+            }
+            [module] => WORKSPACES
+                .iter()
+                .find(|workspace| workspace.slug == *module)
+                .map(|workspace| Self::Workspace(workspace.id))
+                .ok_or(RouteError::UnknownRoute),
+            [module, record] => {
+                let id = format!("{module}.{record}");
+                let record_type =
+                    RecordTypeId::try_new(id).map_err(|_| RouteError::UnknownRoute)?;
+                Ok(Self::Collection(record_type))
+            }
+            [module, record, raw_id] => {
+                let record_type_key = format!("{module}.{record}");
+                let descriptor = record_type(&record_type_key).ok_or(RouteError::UnknownRoute)?;
+                let record_type =
+                    RecordTypeId::try_new(record_type_key).map_err(|_| RouteError::UnknownRoute)?;
+                let reference =
+                    StableRecordRef::try_new(record_id(raw_id)?, descriptor.owner, record_type)
+                        .map_err(|_| RouteError::InvalidRecordId)?;
+                Ok(Self::Detail(reference))
+            }
+            _ => Err(RouteError::UnknownRoute),
+        }
+    }
+}
+
+fn record_id(value: &str) -> Result<RecordId, RouteError> {
+    let parsed = Uuid::parse_str(value).map_err(|_| RouteError::InvalidRecordId)?;
+    RecordId::try_from_uuid(parsed).map_err(|IdentifierError::Nil| RouteError::InvalidRecordId)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RouteError {
+    NotCanonical,
+    UnknownRoute,
+    InvalidRecordId,
+}
+
+impl fmt::Display for RouteError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::NotCanonical => "route is not canonical",
+            Self::UnknownRoute => "route is not cataloged",
+            Self::InvalidRecordId => "route record ID is invalid",
+        })
+    }
+}
+
+impl std::error::Error for RouteError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FeatureTransportError {
@@ -216,6 +310,36 @@ mod tests {
         let transport = FeatureTransportPrimitive::web_same_origin();
         assert!(transport.ptr_eq(&transport.clone()));
         assert!(!transport.ptr_eq(&FeatureTransportPrimitive::web_same_origin()));
+    }
+
+    #[test]
+    fn canonical_routes_round_trip_without_legacy_aliases() {
+        let id = Uuid::new_v4();
+        for path in [
+            "/finance",
+            "/finance/invoice",
+            &format!("/finance/invoice/{id}"),
+            &format!("/reference/item/{id}"),
+        ] {
+            let route = CanonicalRoute::parse(path).expect("cataloged route");
+            assert_eq!(route.path(), path);
+        }
+        for legacy in [
+            "/workspaces/finance",
+            "/references/item",
+            "/api/bff/v1/work-items",
+        ] {
+            assert!(CanonicalRoute::parse(legacy).is_err());
+        }
+    }
+
+    #[test]
+    fn route_ids_are_strict_uuid_v4_values() {
+        assert!(CanonicalRoute::parse("/finance/invoice/not-a-uuid").is_err());
+        assert!(
+            CanonicalRoute::parse("/finance/invoice/00000000-0000-0000-0000-000000000001").is_err()
+        );
+        assert!(CanonicalRoute::parse("/finance/invoice/").is_err());
     }
 
     #[test]

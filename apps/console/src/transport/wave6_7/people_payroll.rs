@@ -10,7 +10,7 @@ use erpx_people_payroll::{
         LeaveRequestView, PayrollRunList, PayrollRunView,
     },
 };
-use erpx_proto::platform as wire;
+use erpx_proto::erpx::people_payroll::v1 as wire;
 use erpx_ui_foundation::UiError;
 
 use super::common::{

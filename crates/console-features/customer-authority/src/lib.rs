@@ -7,12 +7,10 @@ pub mod view;
 pub use gateway::{CustomerAuthorityGateway, CustomerAuthorityProtoTransport};
 pub use presenter::{CustomerAuthorityContent, CustomerAuthorityPresenter};
 pub use view::{CustomerAuthorityRenderedState, render_customer_authority_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     CustomerAuthorityFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::CustomerAuthority,
     "customer-authority",
-    "customer-authority.workspace",
-    "/platform/customer-authority",
-    "customer",
-    "erpx-feature-customer-authority-v1",
-    dioxus
+    [("customer-authority.workspace", "/customer", "customer")],
+    "erpx-feature-customer-authority-v2"
 );

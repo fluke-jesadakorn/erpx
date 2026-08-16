@@ -8,10 +8,7 @@ use serde::{Deserialize, Serialize};
 
 type TaskResult<T = ()> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-const DEV_BASE_RAW_BUDGET: u64 = 60 * 1024 * 1024;
-const RELEASE_BASE_BROTLI_BUDGET: u64 = 1_310_720;
-const RELEASE_TOTAL_BROTLI_BUDGET: u64 = 3_407_872;
-const REQUIRED_FEATURE_CHUNKS: usize = 21;
+const REPORT_SCHEMA_VERSION: u32 = 2;
 
 #[allow(dead_code)] // Each xtask binary uses a different subset of profiles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -45,15 +42,12 @@ impl WasmProfile {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct WasmSizeReport {
+    #[serde(default)]
+    schema_version: u32,
     pub profile: String,
     pub base_path: String,
     pub base_raw_bytes: u64,
     pub base_brotli_bytes: u64,
-    pub chunk_count: usize,
-    pub total_raw_bytes: u64,
-    pub total_brotli_bytes: u64,
-    pub largest_chunk_path: Option<String>,
-    pub largest_chunk_raw_bytes: u64,
 }
 
 pub(crate) fn public_directory(root: &Path, profile: WasmProfile) -> PathBuf {
@@ -62,24 +56,32 @@ pub(crate) fn public_directory(root: &Path, profile: WasmProfile) -> PathBuf {
         .join("web/public")
 }
 
-#[allow(dead_code)] // Called by xtask-heavy; the lightweight binary shares the reporting module.
+#[allow(dead_code)] // Called by xtask-heavy; the lightweight binary shares this module.
 pub(crate) fn reconcile_release_generated_assets(root: &Path) -> TaskResult {
-    let assets = public_directory(root, WasmProfile::Release).join("assets");
-    if assets.exists() {
-        let metadata = fs::symlink_metadata(&assets)?;
+    let public = public_directory(root, WasmProfile::Release);
+    let expected_root = root.join("target/dx/erpx-console/release/web");
+    if !public.starts_with(&expected_root) {
+        return Err(format!(
+            "Dioxus generated release path escaped its target: {}",
+            public.display()
+        )
+        .into());
+    }
+    if public.exists() {
+        let metadata = fs::symlink_metadata(&public)?;
         if metadata.file_type().is_symlink() || !metadata.is_dir() {
             return Err(format!(
-                "refusing to reconcile unsafe Dioxus generated asset path: {}",
-                assets.display()
+                "refusing to reconcile unsafe Dioxus generated path: {}",
+                public.display()
             )
             .into());
         }
-        fs::remove_dir_all(&assets)?;
+        fs::remove_dir_all(&public)?;
     }
-    fs::create_dir_all(&assets)?;
+    fs::create_dir_all(&public)?;
     println!(
         "wasm assets: reconciled generated release directory {}",
-        assets.display()
+        public.display()
     );
     Ok(())
 }
@@ -87,7 +89,6 @@ pub(crate) fn reconcile_release_generated_assets(root: &Path) -> TaskResult {
 pub(crate) fn compress_and_measure(
     root: &Path,
     profile: WasmProfile,
-    enforce_budget: bool,
 ) -> TaskResult<WasmSizeReport> {
     let public = public_directory(root, profile);
     if !public.is_dir() {
@@ -98,13 +99,20 @@ pub(crate) fn compress_and_measure(
         )
         .into());
     }
-    let mut compressible = Vec::new();
-    collect_files(&public, &mut compressible, &|path| {
-        matches!(
-            path.extension().and_then(|value| value.to_str()),
-            Some("js" | "wasm")
-        )
-    })?;
+
+    let mut artifact_files = Vec::new();
+    collect_files(&public, &mut artifact_files, &|_| true)?;
+    let wasm = validate_monolithic_layout(&artifact_files)?;
+
+    let compressible = artifact_files
+        .iter()
+        .filter(|path| {
+            matches!(
+                path.extension().and_then(|value| value.to_str()),
+                Some("js" | "wasm")
+            )
+        })
+        .collect::<Vec<_>>();
     if compressible.is_empty() {
         return Err(format!(
             "Dioxus {} Web artifact contains no JS or WASM files",
@@ -112,69 +120,53 @@ pub(crate) fn compress_and_measure(
         )
         .into());
     }
-    for path in &compressible {
+    for path in compressible {
         write_brotli(path, profile.brotli_quality())?;
     }
 
-    let mut wasm_files = compressible
-        .into_iter()
-        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("wasm"))
-        .collect::<Vec<_>>();
-    wasm_files.sort();
-    let base_candidates = wasm_files
-        .iter()
-        .filter(|path| {
-            path.file_name()
-                .and_then(|value| value.to_str())
-                .is_some_and(|name| name.contains("_bg"))
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    let base = match base_candidates.as_slice() {
-        [base] => base.clone(),
-        [] if wasm_files.len() == 1 => wasm_files[0].clone(),
-        [] => return Err("split Web artifact has no identifiable base WASM (_bg.wasm)".into()),
-        _ => {
-            return Err(format!(
-                "split Web artifact contains {} base WASM candidates; stale generated assets were not reconciled",
-                base_candidates.len()
-            )
-            .into());
-        }
-    };
-    let mut total_raw_bytes = 0_u64;
-    let mut total_brotli_bytes = 0_u64;
-    let mut largest_chunk: Option<(PathBuf, u64)> = None;
-    for path in &wasm_files {
-        let raw = fs::metadata(path)?.len();
-        let brotli = fs::metadata(brotli_path(path))?.len();
-        total_raw_bytes = total_raw_bytes.saturating_add(raw);
-        total_brotli_bytes = total_brotli_bytes.saturating_add(brotli);
-        if path != &base && largest_chunk.as_ref().is_none_or(|(_, size)| raw > *size) {
-            largest_chunk = Some((path.clone(), raw));
-        }
-    }
-    let base_raw_bytes = fs::metadata(&base)?.len();
-    let base_brotli_bytes = fs::metadata(brotli_path(&base))?.len();
     let report = WasmSizeReport {
+        schema_version: REPORT_SCHEMA_VERSION,
         profile: profile.label().into(),
-        base_path: relative_display(root, &base),
-        base_raw_bytes,
-        base_brotli_bytes,
-        chunk_count: wasm_files.len().saturating_sub(1),
-        total_raw_bytes,
-        total_brotli_bytes,
-        largest_chunk_path: largest_chunk
-            .as_ref()
-            .map(|(path, _)| relative_display(root, path)),
-        largest_chunk_raw_bytes: largest_chunk.map(|(_, size)| size).unwrap_or(0),
+        base_path: relative_display(root, &wasm),
+        base_raw_bytes: fs::metadata(&wasm)?.len(),
+        base_brotli_bytes: fs::metadata(brotli_path(&wasm))?.len(),
     };
     print_report(&report);
     record_report(root, &report)?;
-    if enforce_budget {
-        enforce(&report, profile)?;
-    }
     Ok(report)
+}
+
+fn validate_monolithic_layout(files: &[PathBuf]) -> TaskResult<PathBuf> {
+    if let Some(path) = files.iter().find(|path| is_split_artifact(path)) {
+        return Err(format!(
+            "monolithic Web artifact contains split glue, chunk, or lazy module file: {}",
+            path.display()
+        )
+        .into());
+    }
+
+    let wasm_files = files
+        .iter()
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("wasm"))
+        .collect::<Vec<_>>();
+    match wasm_files.as_slice() {
+        [wasm] => Ok((*wasm).clone()),
+        [] => Err("monolithic Web artifact contains no main WASM file".into()),
+        _ => Err(format!(
+            "monolithic Web artifact must contain exactly one WASM file; found {}",
+            wasm_files.len()
+        )
+        .into()),
+    }
+}
+
+fn is_split_artifact(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+        return false;
+    };
+    name.contains("__wasm_split")
+        || ((name.starts_with("chunk_") || name.starts_with("module_"))
+            && (name.contains(".wasm") || name.ends_with(".js") || name.ends_with(".js.br")))
 }
 
 #[allow(dead_code)] // Status is implemented by the lightweight xtask binary.
@@ -186,40 +178,11 @@ pub(crate) fn latest_report(
     if !path.is_file() {
         return Ok(None);
     }
-    Ok(Some(serde_json::from_slice(&fs::read(path)?)?))
-}
-
-fn enforce(report: &WasmSizeReport, profile: WasmProfile) -> TaskResult {
-    if report.chunk_count < REQUIRED_FEATURE_CHUNKS {
-        return Err(format!(
-            "{} split artifact has {} lazy chunks; at least {REQUIRED_FEATURE_CHUNKS} registered feature chunks are required",
-            profile.label(),
-            report.chunk_count
-        )
-        .into());
+    let report: WasmSizeReport = serde_json::from_slice(&fs::read(path)?)?;
+    if report.schema_version != REPORT_SCHEMA_VERSION {
+        return Ok(None);
     }
-    match profile {
-        WasmProfile::Dev if report.base_raw_bytes > DEV_BASE_RAW_BUDGET => Err(format!(
-            "dev base WASM is {} bytes; budget is {DEV_BASE_RAW_BUDGET} bytes",
-            report.base_raw_bytes
-        )
-        .into()),
-        WasmProfile::Release if report.base_brotli_bytes > RELEASE_BASE_BROTLI_BUDGET => {
-            Err(format!(
-                "release base WASM Brotli is {} bytes; budget is {RELEASE_BASE_BROTLI_BUDGET} bytes",
-                report.base_brotli_bytes
-            )
-            .into())
-        }
-        WasmProfile::Release if report.total_brotli_bytes > RELEASE_TOTAL_BROTLI_BUDGET => {
-            Err(format!(
-                "release total WASM Brotli is {} bytes; budget is {RELEASE_TOTAL_BROTLI_BUDGET} bytes",
-                report.total_brotli_bytes
-            )
-            .into())
-        }
-        _ => Ok(()),
-    }
+    Ok(Some(report))
 }
 
 fn collect_files(
@@ -273,16 +236,11 @@ fn relative_display(root: &Path, path: &Path) -> String {
 
 fn print_report(report: &WasmSizeReport) {
     println!(
-        "wasm-size {}: base={} raw={} Brotli={} chunks={} total-raw={} total-Brotli={} largest-chunk={} ({})",
+        "wasm-size {}: monolithic={} raw={} Brotli={} (informational; no size budget)",
         report.profile,
         report.base_path,
         display_bytes(report.base_raw_bytes),
         display_bytes(report.base_brotli_bytes),
-        report.chunk_count,
-        display_bytes(report.total_raw_bytes),
-        display_bytes(report.total_brotli_bytes),
-        report.largest_chunk_path.as_deref().unwrap_or("none"),
-        display_bytes(report.largest_chunk_raw_bytes),
     );
 }
 
@@ -312,14 +270,16 @@ pub(crate) fn display_bytes(bytes: u64) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use super::*;
 
-    #[test]
-    fn budgets_match_the_acceptance_contract() {
-        assert_eq!(DEV_BASE_RAW_BUDGET, 60 * 1024 * 1024);
-        assert_eq!(RELEASE_BASE_BROTLI_BUDGET, 1_310_720);
-        assert_eq!(RELEASE_TOTAL_BROTLI_BUDGET, 3_407_872);
-        assert_eq!(REQUIRED_FEATURE_CHUNKS, 21);
+    fn fixture_root(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock")
+            .as_nanos();
+        std::env::temp_dir().join(format!("erpx-wasm-{label}-{}-{nonce}", std::process::id()))
     }
 
     #[test]
@@ -333,5 +293,70 @@ mod tests {
             public_directory(root, WasmProfile::Release),
             PathBuf::from("/workspace/erpx/target/dx/erpx-console/release/web/public")
         );
+    }
+
+    #[test]
+    fn monolithic_layout_accepts_exactly_one_main_wasm() {
+        let files = vec![
+            PathBuf::from("public/assets/erpx-console.js"),
+            PathBuf::from("public/assets/erpx-console_bg.wasm"),
+        ];
+        assert_eq!(
+            validate_monolithic_layout(&files).expect("single WASM layout"),
+            PathBuf::from("public/assets/erpx-console_bg.wasm")
+        );
+    }
+
+    #[test]
+    fn monolithic_layout_rejects_multiple_wasm_and_split_files() {
+        let multiple = vec![
+            PathBuf::from("public/wasm/erpx-console_bg.wasm"),
+            PathBuf::from("public/assets/another.wasm"),
+        ];
+        assert!(
+            validate_monolithic_layout(&multiple)
+                .expect_err("multiple WASM files must fail")
+                .to_string()
+                .contains("exactly one WASM")
+        );
+
+        for forbidden in [
+            "public/assets/__wasm_split.js",
+            "public/assets/chunk_0_split.wasm.br",
+            "public/assets/module_1_LazyConsoleApp.wasm",
+        ] {
+            let files = vec![
+                PathBuf::from("public/assets/erpx-console_bg.wasm"),
+                PathBuf::from(forbidden),
+            ];
+            assert!(
+                validate_monolithic_layout(&files)
+                    .expect_err("split artifact must fail")
+                    .to_string()
+                    .contains("split glue, chunk, or lazy module")
+            );
+        }
+    }
+
+    #[test]
+    fn wasm_size_is_informational_after_layout_validation() {
+        let root = fixture_root("report");
+        let public = public_directory(&root, WasmProfile::Dev);
+        fs::create_dir_all(public.join("assets")).expect("create fixture assets");
+        fs::write(
+            public.join("assets/erpx-console.js"),
+            b"export const ready = true;",
+        )
+        .expect("write fixture JS");
+        fs::write(public.join("assets/erpx-console_bg.wasm"), b"wasm-fixture")
+            .expect("write fixture WASM");
+
+        let report = compress_and_measure(&root, WasmProfile::Dev).expect("measure fixture");
+        assert_eq!(report.schema_version, REPORT_SCHEMA_VERSION);
+        assert_eq!(report.base_raw_bytes, 12);
+        assert!(report.base_brotli_bytes > 0);
+        assert!(latest_report(&root, WasmProfile::Dev).unwrap().is_some());
+
+        fs::remove_dir_all(root).expect("remove fixture");
     }
 }

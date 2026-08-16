@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_integration_contracts::{crm, customer};
-use erpx_proto::platform as wire;
+use erpx_proto::erpx::sales::v1 as wire;
 use erpx_sales::{
     QuoteId, QuoteStatus, QuoteView, SalesCommand, SalesMutationResult, SalesOrderId,
     SalesOrderLine, SalesOrderLineId, SalesOrderList, SalesOrderStatus, SalesOrderView, SalesQuery,

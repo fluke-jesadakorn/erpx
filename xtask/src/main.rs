@@ -53,7 +53,8 @@ const RESTRICTED_TENANT_ID: &str = "demo-tenant-restricted";
 const RESTRICTED_HOLDING_REF: &str = "beacon-holding";
 const FIXTURE_VERSION: &str = "erpx-demo-v5";
 const DEV_STATE_VERSION: u32 = 3;
-const WEB_LAUNCH_CONTRACT_VERSION: u32 = 3;
+const WEB_LAUNCH_CONTRACT_VERSION: u32 = 4;
+const WEB_SESSION_CACHE_CONTRACT_VERSION: u32 = 1;
 const DEV_STATE_FILE: &str = "dev-state.json";
 const RUNTIME_DEV_TARGET_DIR: &str = "runtime-dev-target";
 const FRESH_RUNTIME_MANIFEST_FILE: &str = "cutover/fresh-state.json";
@@ -175,34 +176,68 @@ const PLATFORM_PERMISSIONS: &[&str] = &[
 
 type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
-const STANDARD_WORKERS: [&str; 56] = [
+const STANDARD_WORKERS: [&str; 92] = [
     "support-worker",
+    "agent-tenant-operations-worker",
     "commercial-catalog-projector",
     "wave5-control-projector",
     "quality-projector",
+    "quality-lifecycle-records-projector",
     "identity-access-principals-projector",
     "identity-access-roles-projector",
+    "identity-access-governance-projector",
     "organization-projector",
+    "organization-sharing-projector",
     "commercial-subscriptions-projector",
     "commercial-entitlements-projector",
+    "commercial-lifecycle-records-projector",
     "marketing-lead-candidates-projector",
     "marketing-campaign-budgets-projector",
+    "marketing-business-records-projector",
     "crm-leads-projector",
     "crm-opportunities-projector",
+    "crm-business-records-projector",
     "procurement-purchase-orders-projector",
+    "procurement-business-records-projector",
     "inventory-stock-items-projector",
+    "inventory-lifecycle-records-projector",
+    "customer-authority-business-records-projector",
+    "customer360-owned-records-projector",
+    "support-platform-cases-projector",
+    "people-payroll-time-records-projector",
+    "legal-cases-projector",
+    "shared-signatures-projector",
+    "manufacturing-orders-projector",
+    "planning-runs-projector",
+    "ecommerce-listings-projector",
+    "ecommerce-journeys-projector",
+    "talent-candidate-projector",
+    "talent-workforce-projector",
+    "learning-enrollments-projector",
+    "benefits-enrollments-projector",
+    "field-service-orders-projector",
+    "projects-projects-projector",
+    "projects-hierarchy-projector",
+    "collaboration-threads-projector",
+    "collaboration-stream-projector",
+    "collaboration-inbox-projector",
+    "item-directory-projector",
     "assets-projector",
+    "asset-lifecycle-records-projector",
     "maintenance-work-orders-projector",
+    "maintenance-lifecycle-records-projector",
     "maintenance-asset-facts-worker",
     "sales-quotes-projector",
     "sales-orders-projector",
     "sales-revenue-arrangements-projector",
+    "sales-lifecycle-records-projector",
     "people-payroll-employees-projector",
     "people-payroll-leave-requests-projector",
     "people-payroll-expense-claims-projector",
     "people-payroll-payroll-runs-projector",
     "pos-sales-projector",
     "pos-refunds-projector",
+    "pos-lifecycle-records-projector",
     "finance-charts-projector",
     "finance-periods-projector",
     "finance-journals-projector",
@@ -212,6 +247,7 @@ const STANDARD_WORKERS: [&str; 56] = [
     "finance-statutory-tax-projector",
     "finance-customer-invoices-projector",
     "finance-revenue-schedules-projector",
+    "finance-business-records-projector",
     "legal-contracts-projector",
     "legal-documents-projector",
     "legal-access-history-projector",
@@ -221,6 +257,7 @@ const STANDARD_WORKERS: [&str; 56] = [
     "support-sessions-projector",
     "support-capabilities-projector",
     "operations-exceptions-projector",
+    "operations-lifecycle-records-projector",
     "operations-source-signals-projector",
     "operations-work-queue-policies-projector",
     "operations-source-ingestion-worker",
@@ -233,34 +270,68 @@ const STANDARD_WORKERS: [&str; 56] = [
     "marketing-delivery-worker",
     "marketing-journey-integration-worker",
 ];
-const DEDICATED_WORKERS: [&str; 59] = [
+const DEDICATED_WORKERS: [&str; 95] = [
     "support-worker",
+    "agent-tenant-operations-worker",
     "commercial-catalog-projector",
     "wave5-control-projector",
     "quality-projector",
+    "quality-lifecycle-records-projector",
     "identity-access-principals-projector",
     "identity-access-roles-projector",
+    "identity-access-governance-projector",
     "organization-projector",
+    "organization-sharing-projector",
     "commercial-subscriptions-projector",
     "commercial-entitlements-projector",
+    "commercial-lifecycle-records-projector",
     "marketing-lead-candidates-projector",
     "marketing-campaign-budgets-projector",
+    "marketing-business-records-projector",
     "crm-leads-projector",
     "crm-opportunities-projector",
+    "crm-business-records-projector",
     "procurement-purchase-orders-projector",
+    "procurement-business-records-projector",
     "inventory-stock-items-projector",
+    "inventory-lifecycle-records-projector",
+    "customer-authority-business-records-projector",
+    "customer360-owned-records-projector",
+    "support-platform-cases-projector",
+    "people-payroll-time-records-projector",
+    "legal-cases-projector",
+    "shared-signatures-projector",
+    "manufacturing-orders-projector",
+    "planning-runs-projector",
+    "ecommerce-listings-projector",
+    "ecommerce-journeys-projector",
+    "talent-candidate-projector",
+    "talent-workforce-projector",
+    "learning-enrollments-projector",
+    "benefits-enrollments-projector",
+    "field-service-orders-projector",
+    "projects-projects-projector",
+    "projects-hierarchy-projector",
+    "collaboration-threads-projector",
+    "collaboration-stream-projector",
+    "collaboration-inbox-projector",
+    "item-directory-projector",
     "assets-projector",
+    "asset-lifecycle-records-projector",
     "maintenance-work-orders-projector",
+    "maintenance-lifecycle-records-projector",
     "maintenance-asset-facts-worker",
     "sales-quotes-projector",
     "sales-orders-projector",
     "sales-revenue-arrangements-projector",
+    "sales-lifecycle-records-projector",
     "people-payroll-employees-projector",
     "people-payroll-leave-requests-projector",
     "people-payroll-expense-claims-projector",
     "people-payroll-payroll-runs-projector",
     "pos-sales-projector",
     "pos-refunds-projector",
+    "pos-lifecycle-records-projector",
     "finance-charts-projector",
     "finance-periods-projector",
     "finance-journals-projector",
@@ -270,6 +341,7 @@ const DEDICATED_WORKERS: [&str; 59] = [
     "finance-statutory-tax-projector",
     "finance-customer-invoices-projector",
     "finance-revenue-schedules-projector",
+    "finance-business-records-projector",
     "legal-contracts-projector",
     "legal-documents-projector",
     "legal-access-history-projector",
@@ -279,6 +351,7 @@ const DEDICATED_WORKERS: [&str; 59] = [
     "support-sessions-projector",
     "support-capabilities-projector",
     "operations-exceptions-projector",
+    "operations-lifecycle-records-projector",
     "operations-source-signals-projector",
     "operations-work-queue-policies-projector",
     "operations-source-ingestion-worker",
@@ -307,6 +380,7 @@ enum DevMode {
 struct DevOptions {
     mode: DevMode,
     web_debug: bool,
+    hot_patch: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -366,6 +440,9 @@ struct DevConfig {
 #[serde(deny_unknown_fields)]
 struct FreshRuntimeManifest {
     version: u32,
+    schema_generation: u16,
+    service_catalog_generation: u16,
+    service_id_range: String,
     state: String,
     prepared_at: String,
     installation_generation: Uuid,
@@ -377,7 +454,6 @@ struct FreshRuntimeManifest {
     tenant_write_database: String,
     tenant_read_database: String,
     object_namespace: String,
-    v1_service_authority: String,
     n8n_config_sha256: String,
     rollback: serde_json::Value,
 }
@@ -463,9 +539,11 @@ impl FreshRuntimeManifest {
                 .n8n_config_sha256
                 .bytes()
                 .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase());
-        if self.version != 1
+        if self.version != 2
+            || self.schema_generation != 2
+            || self.service_catalog_generation != 2
+            || self.service_id_range != "IFC-SVC-101..165"
             || self.state != "prepared"
-            || self.v1_service_authority != "typed"
             || self.installation_generation.is_nil()
             || !valid_prefix
             || !database_names_valid
@@ -876,7 +954,7 @@ async fn run() -> TaskResult {
         _ => {
             println!(
                 "ERPX development tasks\n\n\
-                 cargo xtask dev --detach [--fresh] [--web-debug]\n\
+                 cargo xtask dev --detach [--fresh] [--no-hot-patch] [--web-debug]\n\
                  cargo xtask status\n\
                  cargo xtask stop\n\
                  cargo xtask infra init|start|status|stop\n\
@@ -911,6 +989,7 @@ fn parse_dev_options(args: &[String]) -> TaskResult<Option<DevOptions>> {
     let mut options = DevOptions {
         mode: DevMode::Warm,
         web_debug: false,
+        hot_patch: true,
     };
     let mut seen = BTreeSet::new();
     let mut detach = false;
@@ -921,12 +1000,15 @@ fn parse_dev_options(args: &[String]) -> TaskResult<Option<DevOptions>> {
         match flag.as_str() {
             "--detach" => detach = true,
             "--fresh" => options.mode = DevMode::Fresh,
+            "--no-hot-patch" => options.hot_patch = false,
             "--web-debug" => options.web_debug = true,
             _ => return Err(format!("unknown dev flag: {flag}").into()),
         }
     }
     if !detach {
-        return Err("usage: cargo xtask dev --detach [--fresh] [--web-debug]".into());
+        return Err(
+            "usage: cargo xtask dev --detach [--fresh] [--no-hot-patch] [--web-debug]".into(),
+        );
     }
     Ok(Some(options))
 }
@@ -2111,7 +2193,6 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
         ("ERPX_CONSOLE_API_BASE", auth_http_origin.clone()),
         ("ERPX_CONSOLE_AUTH_HTTP_ORIGIN", auth_http_origin),
         ("ERPX_CONSOLE_GRPC_ENDPOINT", grpc_endpoint),
-        ("ERPX_CONSOLE_V1_SERVICE_AUTHORITY", "typed".into()),
         ("ERPX_WEB_BFF_ENABLED", "1".into()),
         ("ERPX_WEB_SSR_ENABLED", "1".into()),
         ("ERPX_WEB_TRUSTED_ORIGINS", trusted_web_origins),
@@ -2299,10 +2380,6 @@ fn dev_common_environment(
             }
             .into(),
         ),
-        // Development exercises the same direct-v1 typed authority as a
-        // fresh-state cutover. Retained legacy binaries/resources remain the
-        // rollback path and are never co-authoritative in this runtime.
-        ("ERPX_V1_SERVICE_AUTHORITY", "typed".into()),
     ];
     if development_access_enabled {
         let target_tenant = fresh_runtime.map_or(
@@ -2368,6 +2445,12 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
             projection_kind: None,
         },
         WorkerSpec {
+            name: "agent-tenant-operations-worker",
+            handler: "agent_assignment",
+            worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f5b18a",
+            projection_kind: None,
+        },
+        WorkerSpec {
             name: "commercial-catalog-projector",
             handler: "commercial_catalog_projection",
             worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f5b144",
@@ -2384,6 +2467,11 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
         [
             ("quality-projector", "quality", "b146"),
             (
+                "quality-lifecycle-records-projector",
+                "quality_lifecycle_records",
+                "b16f",
+            ),
+            (
                 "identity-access-principals-projector",
                 "identity_access_principals",
                 "b147",
@@ -2393,7 +2481,17 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "identity_access_roles",
                 "b148",
             ),
+            (
+                "identity-access-governance-projector",
+                "identity_access_governance",
+                "b167",
+            ),
             ("organization-projector", "organization", "b149"),
+            (
+                "organization-sharing-projector",
+                "organization_sharing",
+                "b168",
+            ),
             (
                 "commercial-subscriptions-projector",
                 "commercial_subscriptions",
@@ -2405,6 +2503,11 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "b14b",
             ),
             (
+                "commercial-lifecycle-records-projector",
+                "commercial_lifecycle_records",
+                "b171",
+            ),
+            (
                 "marketing-lead-candidates-projector",
                 "marketing_lead_candidates",
                 "b14c",
@@ -2414,23 +2517,118 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "marketing_campaign_budgets",
                 "b161",
             ),
+            (
+                "marketing-business-records-projector",
+                "marketing_business_records",
+                "b169",
+            ),
             ("crm-leads-projector", "crm_leads", "b14d"),
             ("crm-opportunities-projector", "crm_opportunities", "b14e"),
+            (
+                "crm-business-records-projector",
+                "crm_business_records",
+                "b16a",
+            ),
             (
                 "procurement-purchase-orders-projector",
                 "procurement_purchase_orders",
                 "b14f",
             ),
             (
+                "procurement-business-records-projector",
+                "procurement_business_records",
+                "b16b",
+            ),
+            (
                 "inventory-stock-items-projector",
                 "inventory_stock_items",
                 "b150",
             ),
+            (
+                "inventory-lifecycle-records-projector",
+                "inventory_lifecycle_records",
+                "b174",
+            ),
+            (
+                "customer-authority-business-records-projector",
+                "customer_authority_business_records",
+                "b175",
+            ),
+            (
+                "customer360-owned-records-projector",
+                "customer360_owned_records",
+                "b176",
+            ),
+            (
+                "support-platform-cases-projector",
+                "support_platform_cases",
+                "b177",
+            ),
+            (
+                "people-payroll-time-records-projector",
+                "people_payroll_time_records",
+                "b178",
+            ),
+            ("legal-cases-projector", "legal_cases", "b179"),
+            ("shared-signatures-projector", "shared_signatures", "b17a"),
+            (
+                "manufacturing-orders-projector",
+                "manufacturing_orders",
+                "b17b",
+            ),
+            ("planning-runs-projector", "planning_runs", "b17c"),
+            ("ecommerce-listings-projector", "ecommerce_listings", "b17d"),
+            ("ecommerce-journeys-projector", "ecommerce_journeys", "b17e"),
+            ("talent-candidate-projector", "talent_candidate", "b17f"),
+            ("talent-workforce-projector", "talent_workforce", "b180"),
+            (
+                "learning-enrollments-projector",
+                "learning_enrollments",
+                "b181",
+            ),
+            (
+                "benefits-enrollments-projector",
+                "benefits_enrollments",
+                "b182",
+            ),
+            (
+                "field-service-orders-projector",
+                "field_service_orders",
+                "b183",
+            ),
+            ("projects-projects-projector", "projects_projects", "b184"),
+            ("projects-hierarchy-projector", "projects_hierarchy", "b185"),
+            (
+                "collaboration-threads-projector",
+                "collaboration_threads",
+                "b186",
+            ),
+            (
+                "collaboration-stream-projector",
+                "collaboration_stream",
+                "b187",
+            ),
+            (
+                "collaboration-inbox-projector",
+                "collaboration_inbox",
+                "b188",
+            ),
+            ("item-directory-projector", "item_directory", "b189"),
             ("assets-projector", "assets_cqrs", "b151"),
+            (
+                "asset-lifecycle-records-projector",
+                "asset_lifecycle_records",
+                "b16d",
+            ),
             (
                 "maintenance-work-orders-projector",
                 "maintenance_work_orders",
                 "b152",
+            ),
+            (
+                "maintenance-lifecycle-records-projector",
+                "maintenance_lifecycle_records",
+                "b16e",
             ),
             (
                 "maintenance-asset-facts-worker",
@@ -2443,6 +2641,11 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "sales-revenue-arrangements-projector",
                 "sales_revenue_arrangements",
                 "b162",
+            ),
+            (
+                "sales-lifecycle-records-projector",
+                "sales_lifecycle_records",
+                "b173",
             ),
             (
                 "people-payroll-employees-projector",
@@ -2466,6 +2669,11 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
             ),
             ("pos-sales-projector", "pos_sales", "b15a"),
             ("pos-refunds-projector", "pos_refunds", "b15b"),
+            (
+                "pos-lifecycle-records-projector",
+                "pos_lifecycle_records",
+                "b172",
+            ),
         ]
         .into_iter()
         .map(|(name, projection_kind, suffix)| WorkerSpec {
@@ -2496,7 +2704,40 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "b15b" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b15b",
                 "b161" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b161",
                 "b162" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b162",
-                _ => unreachable!("frozen direct-v1 projection worker suffix"),
+                "b167" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b167",
+                "b168" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b168",
+                "b169" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b169",
+                "b16a" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b16a",
+                "b16b" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b16b",
+                "b16d" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b16d",
+                "b16e" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b16e",
+                "b16f" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b16f",
+                "b171" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b171",
+                "b172" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b172",
+                "b173" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b173",
+                "b174" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b174",
+                "b175" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b175",
+                "b176" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b176",
+                "b177" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b177",
+                "b178" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b178",
+                "b179" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b179",
+                "b17a" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b17a",
+                "b17b" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b17b",
+                "b17c" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b17c",
+                "b17d" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b17d",
+                "b17e" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b17e",
+                "b17f" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b17f",
+                "b180" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b180",
+                "b181" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b181",
+                "b182" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b182",
+                "b183" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b183",
+                "b184" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b184",
+                "b185" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b185",
+                "b186" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b186",
+                "b187" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b187",
+                "b188" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b188",
+                "b189" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b189",
+                _ => unreachable!("frozen generation-two projection worker suffix"),
             },
             projection_kind: Some(projection_kind),
         }),
@@ -2532,6 +2773,11 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "finance_revenue_schedules",
                 "b164",
             ),
+            (
+                "finance-business-records-projector",
+                "finance_business_records",
+                "b16c",
+            ),
             ("legal-contracts-projector", "legal_contracts", "b137"),
             ("legal-documents-projector", "legal_documents", "b138"),
             (
@@ -2552,6 +2798,11 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "operations-exceptions-projector",
                 "operations_exceptions",
                 "b13e",
+            ),
+            (
+                "operations-lifecycle-records-projector",
+                "operations_lifecycle_records",
+                "b170",
             ),
             (
                 "operations-source-signals-projector",
@@ -2589,6 +2840,8 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "b163" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b163",
                 "b164" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b164",
                 "b165" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b165",
+                "b16c" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b16c",
+                "b170" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b170",
                 _ => unreachable!("frozen typed projection worker suffix"),
             },
             projection_kind: Some(projection_kind),
@@ -2727,6 +2980,7 @@ fn web_launch_sha256(root: &Path, options: DevOptions) -> TaskResult<String> {
         "rust-toolchain",
         "rust-toolchain.toml",
         "Dioxus.toml",
+        "apps/console/Dioxus.toml",
         ".cargo/config",
         ".cargo/config.toml",
     ] {
@@ -2745,7 +2999,14 @@ fn web_launch_sha256(root: &Path, options: DevOptions) -> TaskResult<String> {
     files.dedup();
     let mut digest = Sha256::new();
     update_digest(&mut digest, &WEB_LAUNCH_CONTRACT_VERSION.to_string());
-    update_digest(&mut digest, "hot-patch");
+    update_digest(
+        &mut digest,
+        if options.hot_patch {
+            "monolithic-hot-patch"
+        } else {
+            "monolithic-stable-hot-reload"
+        },
+    );
     update_digest(
         &mut digest,
         if options.web_debug {
@@ -3233,9 +3494,18 @@ fn apply_web_plan(
 }
 
 fn web_serve_arguments(root: &Path, bind_addr: &str, options: DevOptions) -> Vec<String> {
-    let mut arguments = vec!["serve".to_owned(), "--hot-patch".to_owned()];
+    let mut arguments = vec!["serve".to_owned()];
+    if options.hot_patch {
+        arguments.push("--hot-patch".to_owned());
+    } else {
+        arguments.extend([
+            "--hot-patch".to_owned(),
+            "false".to_owned(),
+            "--hot-reload".to_owned(),
+            "true".to_owned(),
+        ]);
+    }
     arguments.extend([
-        "--wasm-split".to_owned(),
         "--web".to_owned(),
         "--fullstack".to_owned(),
         "true".to_owned(),
@@ -3259,9 +3529,9 @@ fn web_serve_arguments(root: &Path, bind_addr: &str, options: DevOptions) -> Vec
 
 fn web_session_cache_dir(root: &Path) -> PathBuf {
     root.join("target/dx-hotpatch").join(format!(
-        "{}-{}",
+        "{}-monolithic-v{}",
         web_toolchain::DX_VERSION,
-        &web_toolchain::PATCH_FINGERPRINT[..12]
+        WEB_SESSION_CACHE_CONTRACT_VERSION,
     ))
 }
 
@@ -3906,13 +4176,13 @@ async fn verify_web_production_endpoints() -> TaskResult {
     {
         return Err("production login HTML failed the credential-boundary check".into());
     }
-    let protected = client.get(base.join("workspaces/finance")?).send().await?;
+    let protected = client.get(base.join("finance")?).send().await?;
     if protected.status() != reqwest::StatusCode::TEMPORARY_REDIRECT
         || protected
             .headers()
             .get(reqwest::header::LOCATION)
             .and_then(|value| value.to_str().ok())
-            != Some("/login?return_to=/workspaces/finance")
+            != Some("/login?return_to=/finance")
     {
         return Err("anonymous production module route did not fail closed to login".into());
     }
@@ -4044,7 +4314,8 @@ fn verify_core(root: &Path) -> TaskResult {
     wasm::reconcile_release_generated_assets(root)?;
     run_command(
         root,
-        dx.to_str().ok_or("patched Dioxus CLI path is not UTF-8")?,
+        dx.to_str()
+            .ok_or("standard pinned Dioxus CLI path is not UTF-8")?,
         [
             "build",
             "--web",
@@ -4058,10 +4329,9 @@ fn verify_core(root: &Path) -> TaskResult {
             "erpx-console",
             "--debug-symbols",
             "false",
-            "--wasm-split",
         ],
     )?;
-    wasm::compress_and_measure(root, wasm::WasmProfile::Release, true)?;
+    wasm::compress_and_measure(root, wasm::WasmProfile::Release)?;
     architecture::scan(root)?;
     repository_scan(root)?;
     println!("ERPX offline core verification completed.");
@@ -4296,16 +4566,16 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
                 && opening_tag.contains("type=\"submit\"")
                 && !opening_tag.contains("disabled")
         });
-    if !sign_in_html.contains(
-        "<form class=\"auth-form\" method=\"post\" action=\"/api/bff/v1/auth/password/form\"",
-    ) || !enabled_submit
+    if !sign_in_html
+        .contains("<form class=\"auth-form\" method=\"post\" action=\"/api/v1/auth/password/form\"")
+        || !enabled_submit
     {
         return Err(
             "SSR password form did not render an enabled same-origin submit control".into(),
         );
     }
     let native_form_entry = redirect_client
-        .get("http://127.0.0.1:3004/api/bff/v1/auth/password/form")
+        .get("http://127.0.0.1:3004/api/v1/auth/password/form")
         .send()
         .await?;
     if native_form_entry.status() != reqwest::StatusCode::SEE_OTHER
@@ -4318,7 +4588,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         return Err("native password form entry did not redirect to /login".into());
     }
     let native_form = redirect_client
-        .post("http://127.0.0.1:3004/api/bff/v1/auth/password/form")
+        .post("http://127.0.0.1:3004/api/v1/auth/password/form")
         .header(reqwest::header::ORIGIN, "http://127.0.0.1:3004")
         .form(&[
             ("principal_ref", "local:dev-controller"),
@@ -4354,7 +4624,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     }
 
     let session = client
-        .get("http://127.0.0.1:3004/api/bff/v1/session")
+        .get("http://127.0.0.1:3004/api/v1/session")
         .send()
         .await?;
     if !session.status().is_success() {
@@ -4397,7 +4667,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     }
 
     let spoofed_grpc = client
-        .post("http://127.0.0.1:3004/api/bff/v1/grpc/erpx.platform.v1.FinanceQueryService/ListFinanceCharts")
+        .post("http://127.0.0.1:3004/api/v1/internal/grpc/erpx.finance.v1.FinanceQueryService/GetChart")
         .header(reqwest::header::ORIGIN, "http://127.0.0.1:3004")
         .header(reqwest::header::CONTENT_TYPE, "application/grpc-web+proto")
         .header("x-erpx-access-token", "browser-spoof")
@@ -4415,7 +4685,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     }
 
     let csrf_login = client
-        .post("http://127.0.0.1:3004/api/bff/v1/auth/password")
+        .post("http://127.0.0.1:3004/api/v1/auth/password")
         .json(&serde_json::json!({
             "principal_ref": "local:probe",
             "password": "not-a-real-password",
@@ -4949,7 +5219,10 @@ mod tests {
     fn sample_fresh_runtime_manifest() -> FreshRuntimeManifest {
         let n8n_config_sha256 = "ab".repeat(32);
         FreshRuntimeManifest {
-            version: 1,
+            version: 2,
+            schema_generation: 2,
+            service_catalog_generation: 2,
+            service_id_range: "IFC-SVC-101..165".into(),
             state: "prepared".into(),
             prepared_at: "2026-08-05T01:02:03Z".into(),
             installation_generation: Uuid::parse_str("4fbf88d8-ea38-51b6-93f6-8cdb6c7585ec")
@@ -4962,7 +5235,6 @@ mod tests {
             tenant_write_database: "next_1234567890ab_tenant_write".into(),
             tenant_read_database: "next_1234567890ab_tenant_read".into(),
             object_namespace: "next-tenant-objects".into(),
-            v1_service_authority: "typed".into(),
             rollback: serde_json::json!({
                 "n8n_config_sha256": n8n_config_sha256.clone(),
                 "retained_resource_authority": "offline_non_authoritative",
@@ -4973,13 +5245,21 @@ mod tests {
     }
 
     #[test]
-    fn fresh_runtime_manifest_requires_exact_typed_no_merge_contract() {
+    fn fresh_runtime_manifest_requires_exact_v2_catalog_and_no_merge_contract() {
         let valid = sample_fresh_runtime_manifest();
         assert!(valid.validate().is_ok());
 
         let mut legacy = valid.clone();
-        legacy.v1_service_authority = "legacy".into();
+        legacy.version = 1;
         assert!(legacy.validate().is_err());
+
+        let mut legacy_schema = valid.clone();
+        legacy_schema.schema_generation = 1;
+        assert!(legacy_schema.validate().is_err());
+
+        let mut retired_services = valid.clone();
+        retired_services.service_id_range = "IFC-SVC-001..065".into();
+        assert!(retired_services.validate().is_err());
 
         let mut mismatched_database = valid.clone();
         mismatched_database.tenant_read_database = "retained_tenant_read".into();
@@ -5013,10 +5293,10 @@ mod tests {
     }
 
     #[test]
-    fn development_starts_the_complete_direct_v1_worker_catalog() {
+    fn development_starts_the_complete_generation_two_worker_catalog() {
         let standard = worker_specs(false);
-        assert_eq!(standard.len(), 56);
-        assert_eq!(worker_specs(true).len(), 59);
+        assert_eq!(standard.len(), 92);
+        assert_eq!(worker_specs(true).len(), 95);
         assert_eq!(
             standard.iter().map(|spec| spec.name).collect::<Vec<_>>(),
             STANDARD_WORKERS
@@ -5037,23 +5317,58 @@ mod tests {
             .iter()
             .filter_map(|spec| spec.projection_kind)
             .collect::<BTreeSet<_>>();
-        assert_eq!(projection_kinds.len(), 44);
+        assert_eq!(projection_kinds.len(), 79);
         assert!(projection_kinds.contains("quality"));
+        assert!(projection_kinds.contains("quality_lifecycle_records"));
         assert!(projection_kinds.contains("identity_access_principals"));
+        assert!(projection_kinds.contains("identity_access_governance"));
+        assert!(projection_kinds.contains("organization_sharing"));
         assert!(projection_kinds.contains("commercial_entitlements"));
+        assert!(projection_kinds.contains("commercial_lifecycle_records"));
         assert!(projection_kinds.contains("marketing_lead_candidates"));
         assert!(projection_kinds.contains("marketing_campaign_budgets"));
+        assert!(projection_kinds.contains("marketing_business_records"));
+        assert!(projection_kinds.contains("crm_business_records"));
+        assert!(projection_kinds.contains("procurement_business_records"));
+        assert!(projection_kinds.contains("inventory_lifecycle_records"));
+        assert!(projection_kinds.contains("customer_authority_business_records"));
+        assert!(projection_kinds.contains("customer360_owned_records"));
+        assert!(projection_kinds.contains("support_platform_cases"));
+        assert!(projection_kinds.contains("people_payroll_time_records"));
+        assert!(projection_kinds.contains("legal_cases"));
+        assert!(projection_kinds.contains("shared_signatures"));
+        assert!(projection_kinds.contains("manufacturing_orders"));
+        assert!(projection_kinds.contains("planning_runs"));
+        assert!(projection_kinds.contains("ecommerce_listings"));
+        assert!(projection_kinds.contains("ecommerce_journeys"));
+        assert!(projection_kinds.contains("talent_candidate"));
+        assert!(projection_kinds.contains("talent_workforce"));
+        assert!(projection_kinds.contains("learning_enrollments"));
+        assert!(projection_kinds.contains("benefits_enrollments"));
+        assert!(projection_kinds.contains("field_service_orders"));
+        assert!(projection_kinds.contains("projects_projects"));
+        assert!(projection_kinds.contains("projects_hierarchy"));
+        assert!(projection_kinds.contains("collaboration_threads"));
+        assert!(projection_kinds.contains("collaboration_stream"));
+        assert!(projection_kinds.contains("collaboration_inbox"));
+        assert!(projection_kinds.contains("item_directory"));
         assert!(projection_kinds.contains("maintenance_asset_facts"));
+        assert!(projection_kinds.contains("asset_lifecycle_records"));
+        assert!(projection_kinds.contains("maintenance_lifecycle_records"));
         assert!(projection_kinds.contains("people_payroll_payroll_runs"));
         assert!(projection_kinds.contains("pos_refunds"));
+        assert!(projection_kinds.contains("pos_lifecycle_records"));
         assert!(projection_kinds.contains("finance_charts"));
         assert!(projection_kinds.contains("finance_customer_invoices"));
         assert!(projection_kinds.contains("finance_revenue_schedules"));
+        assert!(projection_kinds.contains("finance_business_records"));
         assert!(projection_kinds.contains("legal_access_history"));
         assert!(projection_kinds.contains("legal_matters"));
         assert!(projection_kinds.contains("sales_revenue_arrangements"));
+        assert!(projection_kinds.contains("sales_lifecycle_records"));
         assert!(projection_kinds.contains("support_capabilities"));
         assert!(projection_kinds.contains("operations_exceptions"));
+        assert!(projection_kinds.contains("operations_lifecycle_records"));
         assert!(projection_kinds.contains("operations_source_signals"));
         assert!(projection_kinds.contains("operations_work_queue_policies"));
         assert!(standard.iter().any(|spec| {
@@ -5123,6 +5438,7 @@ mod tests {
             Some(DevOptions {
                 mode: DevMode::Warm,
                 web_debug: false,
+                hot_patch: true,
             })
         );
         assert_eq!(
@@ -5131,9 +5447,18 @@ mod tests {
             Some(DevOptions {
                 mode: DevMode::Fresh,
                 web_debug: true,
+                hot_patch: true,
             })
         );
-        assert!(parse_dev_options(&args(&["dev", "--detach", "--no-hot-patch"])).is_err());
+        assert_eq!(
+            parse_dev_options(&args(&["dev", "--detach", "--no-hot-patch"]))
+                .expect("stable fallback options"),
+            Some(DevOptions {
+                mode: DevMode::Warm,
+                web_debug: false,
+                hot_patch: false,
+            })
+        );
         assert!(parse_dev_options(&args(&["dev"])).is_err());
         assert!(parse_dev_options(&args(&["dev", "--detach", "--detach"])).is_err());
         assert!(parse_dev_options(&args(&["dev", "--detach", "--reset"])).is_err());
@@ -5152,9 +5477,12 @@ mod tests {
             DevOptions {
                 mode: DevMode::Warm,
                 web_debug: false,
+                hot_patch: true,
             },
         );
         assert!(arguments.iter().any(|value| value == "--hot-patch"));
+        assert!(!arguments.iter().any(|value| value == "--wasm-split"));
+        assert!(!arguments.iter().any(|value| value == "web-split"));
         assert!(
             arguments
                 .windows(2)
@@ -5164,7 +5492,7 @@ mod tests {
             values
                 == [
                     "--session-cache-dir",
-                    "/workspace/erpx/target/dx-hotpatch/0.8.0-alpha.1-b27e5de15fb9",
+                    "/workspace/erpx/target/dx-hotpatch/0.8.0-alpha.1-monolithic-v1",
                 ]
         }));
 
@@ -5174,13 +5502,37 @@ mod tests {
             DevOptions {
                 mode: DevMode::Fresh,
                 web_debug: true,
+                hot_patch: true,
             },
         );
         assert!(debug.iter().any(|value| value == "--hot-patch"));
+        assert!(!debug.iter().any(|value| value == "--wasm-split"));
         assert!(
             debug
                 .windows(2)
                 .any(|values| { values == ["--debug-symbols", "true"] })
+        );
+
+        let stable = web_serve_arguments(
+            root,
+            "127.0.0.1",
+            DevOptions {
+                mode: DevMode::Warm,
+                web_debug: false,
+                hot_patch: false,
+            },
+        );
+        assert!(!stable.iter().any(|value| value == "--wasm-split"));
+        assert!(!stable.iter().any(|value| value == "web-split"));
+        assert!(
+            stable
+                .windows(2)
+                .any(|values| values == ["--hot-patch", "false"])
+        );
+        assert!(
+            stable
+                .windows(2)
+                .any(|values| values == ["--hot-reload", "true"])
         );
     }
 

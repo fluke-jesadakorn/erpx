@@ -335,11 +335,9 @@ pub fn localized_navigation_requirement(role_keys: &[String], locale: Locale) ->
     if role_keys.is_empty() {
         return match locale {
             Locale::En => {
-                "No standard Role/Persona grants this route. Ask an administrator to configure access."
+                "No standard work role grants this route. Ask an administrator to configure access."
             }
-            Locale::Th => {
-                "ไม่มี Role/Persona มาตรฐานสำหรับหน้านี้ โปรดขอให้ผู้ดูแลกำหนดสิทธิ์เข้าถึง"
-            }
+            Locale::Th => "ไม่มีบทบาทการทำงานมาตรฐานสำหรับหน้านี้ โปรดขอให้ผู้ดูแลกำหนดสิทธิ์เข้าถึง",
         }
         .to_owned();
     }
@@ -349,8 +347,8 @@ pub fn localized_navigation_requirement(role_keys: &[String], locale: Locale) ->
         .collect::<Vec<_>>()
         .join(", ");
     match locale {
-        Locale::En => format!("Requires one of these Roles/Personas: {labels}"),
-        Locale::Th => format!("ต้องใช้ Role/Persona อย่างใดอย่างหนึ่ง: {labels}"),
+        Locale::En => format!("Requires one of these work roles: {labels}"),
+        Locale::Th => format!("ต้องใช้บทบาทการทำงานอย่างใดอย่างหนึ่ง: {labels}"),
     }
 }
 
@@ -445,7 +443,7 @@ mod tests {
 
     #[test]
     fn manifest_metadata_is_bounded_and_navigation_copy_localizes() {
-        let item = NavItem::new("Finance", "/workspaces/finance", "module")
+        let item = NavItem::new("Finance", "/finance", "module")
             .with_manifest_metadata("finance", "nav.business_unit.finance");
         assert_eq!(item.route_id, "finance");
         assert_eq!(
@@ -484,14 +482,13 @@ mod tests {
 
     #[test]
     fn action_capabilities_are_bounded_sorted_and_never_authorization_material() {
-        let item = NavItem::new("Quality", "/workspaces/quality", "quality")
-            .with_action_capabilities([
-                "TransitionQualityInspection",
-                "CreateQualityInspection",
-                "CreateQualityInspection",
-                "access_token",
-                "bad capability",
-            ]);
+        let item = NavItem::new("Quality", "/quality", "quality").with_action_capabilities([
+            "TransitionQualityInspection",
+            "CreateQualityInspection",
+            "CreateQualityInspection",
+            "access_token",
+            "bad capability",
+        ]);
         assert_eq!(
             item.action_capabilities,
             ["CreateQualityInspection", "TransitionQualityInspection"]
@@ -502,7 +499,7 @@ mod tests {
 
     #[test]
     fn locked_navigation_is_bounded_sorted_and_defaults_remain_authorized() {
-        let available = NavItem::new("Finance", "/workspaces/finance", "finance");
+        let available = NavItem::new("Finance", "/finance", "finance");
         assert!(available.is_authorized());
         assert!(available.required_role_keys().is_empty());
 
@@ -534,11 +531,11 @@ mod tests {
             &["finance_viewer".to_owned(), "finance_operator".to_owned()],
             crate::Locale::Th,
         );
-        assert!(thai.contains("Role/Persona"));
+        assert!(thai.contains("บทบาทการทำงาน"));
         assert!(thai.contains("การเงิน"));
         assert!(
             localized_navigation_requirement(&[], crate::Locale::En)
-                .contains("No standard Role/Persona")
+                .contains("No standard work role")
         );
     }
 

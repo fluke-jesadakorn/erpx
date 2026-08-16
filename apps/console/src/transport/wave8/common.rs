@@ -436,6 +436,9 @@ fn encode_actor(actor: &ActorAttribution) -> wire::ActorAttribution {
         ActorKind::TenantUser => wire::ActorKind::TenantUser,
         ActorKind::Service => wire::ActorKind::Service,
         ActorKind::SystemWorker => wire::ActorKind::SystemWorker,
+        // The legacy wire contract has no Agent discriminator. Encoding it as
+        // unspecified fails closed instead of granting service authority.
+        ActorKind::Agent => wire::ActorKind::Unspecified,
     };
     wire::ActorAttribution {
         principal_ref: actor.principal_ref.clone(),
@@ -542,5 +545,17 @@ mod tests {
         );
         assert_eq!(error.kind(), UiErrorKind::Failed);
         assert!(!error.message().contains("secret"));
+    }
+
+    #[test]
+    fn legacy_wire_actor_fails_closed_for_agent_identity() {
+        let encoded = encode_actor(&ActorAttribution {
+            principal_ref: "agent.safe-ref".into(),
+            kind: ActorKind::Agent,
+            session_id: None,
+            represented_principal_ref: None,
+            support_capability_id: None,
+        });
+        assert_eq!(encoded.kind, wire::ActorKind::Unspecified as i32);
     }
 }

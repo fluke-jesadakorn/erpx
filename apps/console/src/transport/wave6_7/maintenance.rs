@@ -8,7 +8,8 @@ use erpx_maintenance::{
     OpenWorkOrderResult, RecordDowntime, ResumeWorkOrder, ScheduleWorkOrder, StartWorkOrder,
     WorkOrderId, WorkOrderList, WorkOrderStatus, WorkOrderView,
 };
-use erpx_proto::platform as wire;
+use erpx_proto::erpx::assets::v1::AssetCondition as WireAssetCondition;
+use erpx_proto::erpx::maintenance::v1 as wire;
 use erpx_ui_foundation::UiError;
 
 use super::common::{
@@ -471,11 +472,11 @@ fn decode_status(value: i32) -> Result<WorkOrderStatus, UiError> {
     }
 }
 fn decode_condition(value: i32) -> Result<assets::AssetCondition, UiError> {
-    match wire::AssetCondition::try_from(value).ok() {
-        Some(wire::AssetCondition::Operational) => Ok(assets::AssetCondition::Operational),
-        Some(wire::AssetCondition::Degraded) => Ok(assets::AssetCondition::Degraded),
-        Some(wire::AssetCondition::OutOfService) => Ok(assets::AssetCondition::OutOfService),
-        Some(wire::AssetCondition::Retired) => Ok(assets::AssetCondition::Retired),
+    match WireAssetCondition::try_from(value).ok() {
+        Some(WireAssetCondition::Operational) => Ok(assets::AssetCondition::Operational),
+        Some(WireAssetCondition::Degraded) => Ok(assets::AssetCondition::Degraded),
+        Some(WireAssetCondition::OutOfService) => Ok(assets::AssetCondition::OutOfService),
+        Some(WireAssetCondition::Retired) => Ok(assets::AssetCondition::Retired),
         _ => Err(invalid_response("decode maintenance asset condition")),
     }
 }
@@ -486,6 +487,6 @@ mod tests {
     #[test]
     fn unspecified_values_fail_closed() {
         assert!(decode_status(wire::MaintenanceWorkOrderStatus::Unspecified as i32).is_err());
-        assert!(decode_condition(wire::AssetCondition::Unspecified as i32).is_err());
+        assert!(decode_condition(WireAssetCondition::Unspecified as i32).is_err());
     }
 }

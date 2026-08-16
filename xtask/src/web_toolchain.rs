@@ -5,26 +5,24 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 type ToolchainResult<T = ()> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 pub(crate) const DX_VERSION: &str = "0.8.0-alpha.1";
-pub(crate) const PATCH_FINGERPRINT: &str =
-    "b27e5de15fb965b4525fa5e5c744beb5785552ff16f6a1d8060dfb919d3b50e4";
+pub(crate) const TOOLCHAIN_CONTRACT_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct InstallationReceipt {
     schema_version: u32,
     dx_version: String,
-    patch_fingerprint: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WebToolchainStatus {
     pub dx_path: PathBuf,
     pub dx_version: Option<String>,
-    pub patch_fingerprint: &'static str,
+    pub contract_version: u32,
     pub ready: bool,
 }
 
@@ -33,23 +31,14 @@ pub(crate) fn dx_path(root: &Path) -> PathBuf {
 }
 
 pub(crate) fn ensure(root: &Path) -> ToolchainResult<PathBuf> {
-    verify_patch_source(root)?;
     let current = status(root)?;
     if current.ready {
-        println!(
-            "web toolchain: dioxus {} with ERPX splitter patch {}",
-            DX_VERSION, PATCH_FINGERPRINT
-        );
+        println!("web toolchain: standard pinned dioxus {DX_VERSION}");
         return Ok(current.dx_path);
     }
 
     let install_root = root.join("target/erpx-tools");
     ensure_local_directory(root, &install_root)?;
-    let splitter = root.join("third_party/wasm-split-cli");
-    let patch_config = format!(
-        "patch.crates-io.wasm-split-cli.path={:?}",
-        splitter.to_string_lossy()
-    );
     let install_status = Command::new("cargo")
         .arg("+1.93.1")
         .args([
@@ -64,11 +53,10 @@ pub(crate) fn ensure(root: &Path) -> ToolchainResult<PathBuf> {
         .arg(&install_root)
         .args(["--target-dir"])
         .arg(install_root.join("build"))
-        .args(["--config", &patch_config])
         .current_dir(root)
         .status()?;
     if !install_status.success() {
-        return Err(format!("patched Dioxus CLI installation failed with {install_status}").into());
+        return Err(format!("Dioxus CLI installation failed with {install_status}").into());
     }
 
     let dx = dx_path(root);
@@ -77,25 +65,20 @@ pub(crate) fn ensure(root: &Path) -> ToolchainResult<PathBuf> {
     write_receipt(root)?;
     let installed = status(root)?;
     if !installed.ready {
-        return Err("patched Dioxus CLI did not pass its post-install fingerprint check".into());
+        return Err("Dioxus CLI did not pass its post-install receipt check".into());
     }
-    println!(
-        "web toolchain: installed dioxus {} with ERPX splitter patch {}",
-        DX_VERSION, PATCH_FINGERPRINT
-    );
+    println!("web toolchain: installed standard pinned dioxus {DX_VERSION}");
     Ok(dx)
 }
 
 #[allow(dead_code)] // Used by the heavy launcher; the lightweight status binary shares this module.
 pub(crate) fn require(root: &Path) -> ToolchainResult<PathBuf> {
-    verify_patch_source(root)?;
     let status = status(root)?;
     if status.ready {
         Ok(status.dx_path)
     } else {
         Err(format!(
-            "patched Dioxus CLI is missing or stale; run `cargo xtask web-toolchain` (expected {} / {})",
-            DX_VERSION, PATCH_FINGERPRINT
+            "standard pinned Dioxus CLI is missing or stale; run `cargo xtask web-toolchain` (expected {DX_VERSION}, contract v{TOOLCHAIN_CONTRACT_VERSION})",
         )
         .into())
     }
@@ -113,34 +96,17 @@ pub(crate) fn status(root: &Path) -> ToolchainResult<WebToolchainStatus> {
     let ready = dx_version
         .as_deref()
         .is_some_and(|version| require_expected_dx_version(version).is_ok())
-        && receipt.is_some_and(|receipt| {
-            receipt.schema_version == 1
-                && receipt.dx_version == DX_VERSION
-                && receipt.patch_fingerprint == PATCH_FINGERPRINT
-        })
-        && verify_patch_source(root).is_ok();
+        && receipt.as_ref().is_some_and(receipt_matches_contract);
     Ok(WebToolchainStatus {
         dx_path: dx,
         dx_version,
-        patch_fingerprint: PATCH_FINGERPRINT,
+        contract_version: TOOLCHAIN_CONTRACT_VERSION,
         ready,
     })
 }
 
-fn verify_patch_source(root: &Path) -> ToolchainResult {
-    let source = root.join("third_party/wasm-split-cli/src/lib.rs");
-    let metadata = fs::symlink_metadata(&source)?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(format!("unsafe vendored splitter source: {}", source.display()).into());
-    }
-    let fingerprint = format!("{:x}", Sha256::digest(fs::read(&source)?));
-    if fingerprint != PATCH_FINGERPRINT {
-        return Err(format!(
-            "vendored splitter fingerprint mismatch: expected {PATCH_FINGERPRINT}, found {fingerprint}"
-        )
-        .into());
-    }
-    Ok(())
+fn receipt_matches_contract(receipt: &InstallationReceipt) -> bool {
+    receipt.schema_version == TOOLCHAIN_CONTRACT_VERSION && receipt.dx_version == DX_VERSION
 }
 
 fn require_expected_dx_version(version: &str) -> ToolchainResult {
@@ -180,9 +146,8 @@ fn write_receipt(root: &Path) -> ToolchainResult {
     let path = receipt_path(root);
     let temporary = path.with_extension("json.tmp");
     let receipt = InstallationReceipt {
-        schema_version: 1,
+        schema_version: TOOLCHAIN_CONTRACT_VERSION,
         dx_version: DX_VERSION.into(),
-        patch_fingerprint: PATCH_FINGERPRINT.into(),
     };
     fs::write(&temporary, serde_json::to_vec_pretty(&receipt)?)?;
     fs::rename(temporary, path)?;
@@ -217,5 +182,27 @@ mod tests {
         assert!(require_expected_dx_version("dioxus 0.8.0-alpha.1 (abc123)\n").is_ok());
         assert!(require_expected_dx_version("dioxus 0.8.0-alpha.2").is_err());
         assert!(require_expected_dx_version("dioxus 0.7.9").is_err());
+    }
+
+    #[test]
+    fn standard_toolchain_receipt_rejects_the_splitter_patch_contract() {
+        let receipt = InstallationReceipt {
+            schema_version: TOOLCHAIN_CONTRACT_VERSION,
+            dx_version: DX_VERSION.into(),
+        };
+        assert!(receipt_matches_contract(&receipt));
+        assert!(!receipt_matches_contract(&InstallationReceipt {
+            schema_version: TOOLCHAIN_CONTRACT_VERSION - 1,
+            dx_version: DX_VERSION.into(),
+        }));
+
+        let encoded = serde_json::to_string(&receipt).expect("serialize standard receipt");
+        assert!(!encoded.contains("patch"));
+        assert!(
+            serde_json::from_str::<InstallationReceipt>(
+                r#"{"schema_version":1,"dx_version":"0.8.0-alpha.1","patch_fingerprint":"legacy"}"#,
+            )
+            .is_err()
+        );
     }
 }

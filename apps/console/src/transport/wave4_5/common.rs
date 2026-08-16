@@ -149,6 +149,9 @@ fn encode_actor(value: &erpx_kernel::ActorAttribution) -> wire::ActorAttribution
             ActorKind::TenantUser => wire::ActorKind::TenantUser as i32,
             ActorKind::Service => wire::ActorKind::Service as i32,
             ActorKind::SystemWorker => wire::ActorKind::SystemWorker as i32,
+            // The legacy wire contract has no Agent discriminator. Encoding it
+            // as unspecified fails closed instead of granting service authority.
+            ActorKind::Agent => wire::ActorKind::Unspecified as i32,
         },
         session_id: value
             .session_id
@@ -469,5 +472,17 @@ mod tests {
         );
         assert_eq!(error.code(), "invalid_service_response");
         assert!(!error.message().contains("secret"));
+    }
+
+    #[test]
+    fn legacy_wire_actor_fails_closed_for_agent_identity() {
+        let encoded = encode_actor(&erpx_kernel::ActorAttribution {
+            principal_ref: "agent.safe-ref".into(),
+            kind: ActorKind::Agent,
+            session_id: None,
+            represented_principal_ref: None,
+            support_capability_id: None,
+        });
+        assert_eq!(encoded.kind, wire::ActorKind::Unspecified as i32);
     }
 }

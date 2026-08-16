@@ -7,12 +7,10 @@ pub use gateway::{MarketingGateway, MarketingProtoTransport};
 pub use models::{MarketingLeadItem, MarketingLeadItems};
 pub use presenter::{MarketingContent, MarketingPresenter};
 pub use view::{MarketingRenderedState, render_marketing_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     AuthenticatedMarketingFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Marketing,
     "marketing",
-    "marketing.workspace",
-    "/workspaces/marketing",
-    "customer",
-    "erpx-feature-marketing-v1",
-    dioxus
+    [("marketing.workspace", "/marketing", "customer")],
+    "erpx-feature-marketing-v2"
 );

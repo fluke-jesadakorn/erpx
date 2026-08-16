@@ -1,0 +1,13 @@
+.erpx-activity-rail { display: grid; gap: var(--space-4, 1rem); min-width: 18rem; }
+.erpx-thread-card, .erpx-ai-workspace, .erpx-ai-panel { border: 1px solid var(--border-subtle, #d7dce3); border-radius: .75rem; background: var(--surface-raised, #fff); padding: 1rem; }
+.erpx-thread-meta, .erpx-ai-tabs, .erpx-comment-actions, .erpx-editor-toolbar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.erpx-comment-card { border-inline-start: .2rem solid var(--border-subtle, #d7dce3); padding-inline-start: .75rem; margin-block: .75rem; }
+.erpx-comment-tombstone, .erpx-restricted { color: var(--text-muted, #667085); font-style: italic; }
+.erpx-live-status { min-height: 1.5rem; }
+.erpx-comment-editor textarea { width: 100%; min-height: 9rem; resize: vertical; }
+.erpx-ai-launcher { position: fixed; z-index: 40; inset-inline-end: 1.25rem; inset-block-end: 1.25rem; }
+.erpx-ai-panel[data-presentation="docked"] { width: min(var(--ai-panel-width, 26rem), calc(100vw - 2rem)); max-height: min(42rem, calc(100vh - 5rem)); overflow: auto; resize: horizontal; }
+.erpx-ai-panel[data-presentation="bottom-sheet"] { position: fixed; inset-inline: 0; inset-block-end: 0; max-height: 80vh; overflow: auto; border-radius: 1rem 1rem 0 0; }
+.erpx-ai-badge { min-width: 1.5rem; border-radius: 999px; padding: .1rem .4rem; }
+.erpx-offline-lock { border: 1px solid var(--status-warning, #b54708); padding: .5rem; }
+@media (prefers-reduced-motion: reduce) { .erpx-ai-launcher *, .erpx-activity-rail * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }

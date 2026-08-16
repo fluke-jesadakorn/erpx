@@ -433,6 +433,9 @@ fn encode_actor(value: &ActorAttribution) -> wire::ActorAttribution {
             ActorKind::TenantUser => wire::ActorKind::TenantUser as i32,
             ActorKind::Service => wire::ActorKind::Service as i32,
             ActorKind::SystemWorker => wire::ActorKind::SystemWorker as i32,
+            // The legacy wire contract has no Agent discriminator. Encoding it
+            // as unspecified fails closed instead of granting service authority.
+            ActorKind::Agent => wire::ActorKind::Unspecified as i32,
         },
         session_id: value
             .session_id
@@ -499,6 +502,18 @@ fn event_id(value: &str) -> Result<EventId, UiError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_wire_actor_fails_closed_for_agent_identity() {
+        let encoded = encode_actor(&ActorAttribution {
+            principal_ref: "agent.safe-ref".into(),
+            kind: ActorKind::Agent,
+            session_id: None,
+            represented_principal_ref: None,
+            support_capability_id: None,
+        });
+        assert_eq!(encoded.kind, wire::ActorKind::Unspecified as i32);
+    }
 
     #[test]
     fn route_and_transport_errors_fail_closed() {

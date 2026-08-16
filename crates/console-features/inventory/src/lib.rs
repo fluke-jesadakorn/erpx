@@ -9,12 +9,10 @@ pub use gateway::{
 pub use models::{InventoryReservationItem, InventoryStockItem, InventoryStockItems};
 pub use presenter::{InventoryContent, InventoryPresenter};
 pub use view::{InventoryRenderedState, render_inventory_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     InventoryFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Inventory,
     "inventory",
-    "inventory.workspace",
-    "/workspaces/inventory",
-    "operations",
-    "erpx-feature-inventory-v1",
-    dioxus
+    [("inventory.workspace", "/inventory", "operations")],
+    "erpx-feature-inventory-v2"
 );

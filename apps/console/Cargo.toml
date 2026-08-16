@@ -11,7 +11,6 @@ web = [
     "dioxus/web",
     "dioxus/fullstack",
     "dioxus/router",
-    "dioxus/wasm-split",
     "dioxus/lib",
     "dioxus/launch",
     "dioxus/devtools",
@@ -46,26 +45,35 @@ erpx-assets.workspace = true
 erpx-brand.workspace = true
 erpx-commercial.workspace = true
 erpx-console-feature-assets.workspace = true
+erpx-console-feature-ai-collaboration.workspace = true
+erpx-console-feature-benefits.workspace = true
 erpx-console-feature-brand.workspace = true
 erpx-console-feature-commercial.workspace = true
 erpx-console-feature-crm.workspace = true
 erpx-console-feature-customer-360.workspace = true
 erpx-console-feature-customer-authority.workspace = true
+erpx-console-feature-ecommerce.workspace = true
+erpx-console-feature-field-service.workspace = true
 erpx-console-feature-finance.workspace = true
 erpx-console-feature-identity-access.workspace = true
 erpx-console-feature-inventory.workspace = true
+erpx-console-feature-learning.workspace = true
 erpx-console-feature-legal.workspace = true
+erpx-console-feature-manufacturing.workspace = true
 erpx-console-feature-maintenance.workspace = true
 erpx-console-feature-marketing.workspace = true
 erpx-console-feature-operations.workspace = true
 erpx-console-feature-organization.workspace = true
 erpx-console-feature-people-payroll.workspace = true
+erpx-console-feature-planning.workspace = true
 erpx-console-feature-platform-administration.workspace = true
 erpx-console-feature-pos.workspace = true
 erpx-console-feature-procurement.workspace = true
+erpx-console-feature-projects.workspace = true
 erpx-console-feature-quality.workspace = true
 erpx-console-feature-sales.workspace = true
 erpx-console-feature-support.workspace = true
+erpx-console-feature-talent.workspace = true
 erpx-console-transport.workspace = true
 erpx-console-shell.workspace = true
 erpx-console-bff = { workspace = true, optional = true }
@@ -93,6 +101,7 @@ erpx-quality.workspace = true
 erpx-sales.workspace = true
 erpx-support.workspace = true
 erpx-ui-core.workspace = true
+erpx-ui-enterprise-workspaces.workspace = true
 erpx-ui-crm.workspace = true
 erpx-ui-customer-360.workspace = true
 erpx-ui-finance.workspace = true

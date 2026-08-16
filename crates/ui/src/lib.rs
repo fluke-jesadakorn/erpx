@@ -12,6 +12,7 @@ pub use erpx_console_transport_core::{
 };
 
 mod auth;
+mod enterprise;
 mod i18n;
 mod navigation;
 mod routes;
@@ -27,6 +28,11 @@ pub use auth::{
     SecureSessionFuture, SecureSessionStore, SessionCommandError, SessionController, SessionFuture,
     SessionId, SessionMaterialError, SessionSnapshot, SessionState, SessionTransport,
     StoredAccountSummary, StoredSession, StoredSessionBundle,
+};
+pub use enterprise::{
+    AdaptiveDensity, CanonicalAppRoute, CanonicalRouteError, ClientFormFactor, EnterpriseHubRoute,
+    EnterpriseState, EnterpriseStateKind, MutationMode, REFERENCE_ITEM_TEMPLATE,
+    canonical_workspace_navigation, workspace_label, workspace_supports_channel,
 };
 pub use i18n::{
     Locale, LocaleContext, LocaleFormatter, LocalizedText, TranslationKey, provide_locale,
@@ -138,7 +144,7 @@ pub type FeatureRenderer = fn(&FeatureContext) -> Element;
 #[derive(Debug, Clone, Copy)]
 pub struct FeatureRegistration {
     pub id: &'static str,
-    /// Unique string retained in the owning lazy artifact for build-time mapping checks.
+    /// Stable boundary key retained by the feature registry and rendered surface.
     pub artifact_key: &'static str,
     pub routes: &'static [FeatureRouteDescriptor],
     pub path_matcher: FeaturePathMatcher,
@@ -277,12 +283,12 @@ macro_rules! declare_feature_registration {
                 navigation_group: $navigation_group,
             }];
 
-        #[$framework::prelude::component(lazy)]
+        #[$framework::prelude::component]
         pub fn $surface(context: $crate::FeatureContext) -> $framework::prelude::Element {
             let canonical_path = context.canonical_path.clone();
             let generation = context.generation.to_string();
-            // Transport identity is intentionally first observed inside the lazy body. This keeps
-            // authenticated transport setup out of the login bootstrap artifact.
+            // The component observes only the target transport mode. Credentials remain behind
+            // the target adapter and server authorization stays authoritative.
             let transport_mode = if context.transport.is_web_same_origin() {
                 "same-origin-bff"
             } else {
@@ -291,11 +297,11 @@ macro_rules! declare_feature_registration {
             let (heading, status) = match context.locale {
                 $crate::Locale::En => (
                     concat!($feature_id, " workspace"),
-                    "The feature module is ready for authorized work.",
+                    "The feature workspace is ready for authorized work.",
                 ),
                 $crate::Locale::Th => (
                     concat!("พื้นที่ทำงาน ", $feature_id),
-                    "โมดูลฟีเจอร์พร้อมสำหรับงานที่ได้รับอนุญาต",
+                    "พื้นที่ทำงานฟีเจอร์พร้อมสำหรับงานที่ได้รับอนุญาต",
                 ),
             };
             $framework::prelude::rsx! {

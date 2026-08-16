@@ -68,43 +68,43 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
             erpx_console_bff::WORK_ITEMS_PATH,
             get(work_queue_read_model),
         )
-        .route("/api/bff/v1/auth/password", post(password_login))
+        .route("/api/v1/auth/password", post(password_login))
         .route(
-            "/api/bff/v1/auth/password/form",
+            "/api/v1/auth/password/form",
             get(password_login_form_entry).post(password_login_form),
         )
-        .route("/api/bff/v1/auth/directory", post(directory_login))
+        .route("/api/v1/auth/directory", post(directory_login))
         .route(
-            "/api/bff/v1/auth/passkeys/authentication/begin",
+            "/api/v1/auth/passkeys/authentication/begin",
             post(passkey_authentication_begin),
         )
         .route(
-            "/api/bff/v1/auth/passkeys/authentication/finish",
+            "/api/v1/auth/passkeys/authentication/finish",
             post(passkey_authentication_finish),
         )
-        .route("/api/bff/v1/auth/recovery", post(recovery_login))
-        .route("/api/bff/v1/accounts", get(accounts))
-        .route("/api/bff/v1/accounts/activate", post(activate_account))
-        .route("/api/bff/v1/accounts/{session_id}", delete(delete_account))
-        .route("/api/bff/v1/roles", get(role_options))
-        .route("/api/bff/v1/roles/activate", post(activate_role))
+        .route("/api/v1/auth/recovery", post(recovery_login))
+        .route("/api/v1/accounts", get(accounts))
+        .route("/api/v1/accounts/activate", post(activate_account))
+        .route("/api/v1/accounts/{session_id}", delete(delete_account))
+        .route("/api/v1/roles", get(role_options))
+        .route("/api/v1/roles/activate", post(activate_role))
         .route(erpx_console_bff::SESSION_PATH, delete(delete_session))
         .route(erpx_console_bff::GRPC_PROXY_PATH, post(grpc_proxy))
         .route(
-            "/api/bff/v1/identity/{*identity_path}",
+            "/api/v1/identity/{*identity_path}",
             post(identity_proxy).get(identity_proxy),
         )
         .route(
-            "/api/bff/v1/dev-access/{*development_path}",
+            "/api/v1/dev-access/{*development_path}",
             post(development_proxy).get(development_proxy),
         )
-        .route("/api/bff/v1/public/branding", get(public_branding_proxy))
+        .route("/api/v1/public/branding", get(public_branding_proxy))
         .route(
-            "/api/bff/v1/public/branding/assets/{kind}",
+            "/api/v1/public/branding/assets/{kind}",
             get(public_brand_asset_proxy),
         )
         .route(
-            "/api/bff/v1/public/marketing/{*public_path}",
+            "/api/v1/public/marketing/{*public_path}",
             post(public_marketing_proxy).get(public_marketing_proxy),
         )
         .route("/auth/bff/upgrade", post(upgrade_legacy_session))

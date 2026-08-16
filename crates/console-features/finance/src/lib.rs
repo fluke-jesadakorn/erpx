@@ -7,12 +7,10 @@ pub use gateway::{FinanceGateway, FinanceProtoTransport};
 pub use models::{FinanceItem, FinanceItems};
 pub use presenter::{FinanceContent, FinancePresenter};
 pub use view::{FinanceRenderedState, render_finance_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     FinanceFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Finance,
     "finance",
-    "finance.workspace",
-    "/workspaces/finance",
-    "finance",
-    "erpx-feature-finance-v1",
-    dioxus
+    [("finance.workspace", "/finance", "finance")],
+    "erpx-feature-finance-v2"
 );

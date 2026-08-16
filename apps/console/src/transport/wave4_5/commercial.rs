@@ -9,7 +9,7 @@ use erpx_commercial::{
 };
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_integration_contracts::CurrencyCode;
-use erpx_proto::platform;
+use erpx_proto::erpx::commercial::v1 as platform;
 use erpx_ui_foundation::UiError;
 
 use crate::{

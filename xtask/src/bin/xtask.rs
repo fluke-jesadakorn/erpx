@@ -37,7 +37,7 @@ struct ServiceRecord {
     expected_command: &'static str,
 }
 
-const SERVICES: [ServiceRecord; 63] = [
+const SERVICES: [ServiceRecord; 99] = [
     ServiceRecord {
         name: "server",
         expected_command: "erpx-server",
@@ -48,6 +48,10 @@ const SERVICES: [ServiceRecord; 63] = [
     },
     ServiceRecord {
         name: "support-worker",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "agent-tenant-operations-worker",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -63,6 +67,10 @@ const SERVICES: [ServiceRecord; 63] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
+        name: "quality-lifecycle-records-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
         name: "identity-access-principals-projector",
         expected_command: "erpx-worker",
     },
@@ -71,7 +79,15 @@ const SERVICES: [ServiceRecord; 63] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
+        name: "identity-access-governance-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
         name: "organization-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "organization-sharing-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -83,11 +99,19 @@ const SERVICES: [ServiceRecord; 63] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
+        name: "commercial-lifecycle-records-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
         name: "marketing-lead-candidates-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
         name: "marketing-campaign-budgets-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "marketing-business-records-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -99,7 +123,15 @@ const SERVICES: [ServiceRecord; 63] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
+        name: "crm-business-records-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
         name: "procurement-purchase-orders-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "procurement-business-records-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -107,11 +139,107 @@ const SERVICES: [ServiceRecord; 63] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
+        name: "inventory-lifecycle-records-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "customer-authority-business-records-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "customer360-owned-records-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "support-platform-cases-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "people-payroll-time-records-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "legal-cases-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "shared-signatures-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "manufacturing-orders-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "planning-runs-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "ecommerce-listings-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "ecommerce-journeys-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "talent-candidate-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "talent-workforce-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "learning-enrollments-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "benefits-enrollments-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "field-service-orders-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "projects-projects-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "projects-hierarchy-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "collaboration-threads-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "collaboration-stream-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "collaboration-inbox-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "item-directory-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
         name: "assets-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
+        name: "asset-lifecycle-records-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
         name: "maintenance-work-orders-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "maintenance-lifecycle-records-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -128,6 +256,10 @@ const SERVICES: [ServiceRecord; 63] = [
     },
     ServiceRecord {
         name: "sales-revenue-arrangements-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "sales-lifecycle-records-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -152,6 +284,10 @@ const SERVICES: [ServiceRecord; 63] = [
     },
     ServiceRecord {
         name: "pos-refunds-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "pos-lifecycle-records-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -191,6 +327,10 @@ const SERVICES: [ServiceRecord; 63] = [
         expected_command: "erpx-worker",
     },
     ServiceRecord {
+        name: "finance-business-records-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
         name: "legal-contracts-projector",
         expected_command: "erpx-worker",
     },
@@ -224,6 +364,10 @@ const SERVICES: [ServiceRecord; 63] = [
     },
     ServiceRecord {
         name: "operations-exceptions-projector",
+        expected_command: "erpx-worker",
+    },
+    ServiceRecord {
+        name: "operations-lifecycle-records-projector",
         expected_command: "erpx-worker",
     },
     ServiceRecord {
@@ -522,7 +666,7 @@ fn run() -> TaskResult {
             Err("usage: cargo xtask cache status|prune [--dry-run] [--incremental]|prune-debug [--dry-run]".into())
         }
         Route::WasmSize { profile } => {
-            wasm::compress_and_measure(&root, profile, true).map(|_| ())
+            wasm::compress_and_measure(&root, profile).map(|_| ())
         }
         Route::WebToolchain => web_toolchain::ensure(&root).map(|_| ()),
         Route::Harness { name, filter } => run_harness(&root, name, filter),
@@ -619,7 +763,7 @@ fn workspace_root() -> TaskResult<PathBuf> {
 fn print_help() {
     println!(
         "ERPX development tasks\n\n\
-         cargo xtask dev --detach [--fresh] [--web-debug]\n\
+         cargo xtask dev --detach [--fresh] [--no-hot-patch] [--web-debug]\n\
          cargo xtask status\n\
          cargo xtask stop\n\
          cargo xtask test <harness> [filter]\n\
@@ -906,7 +1050,7 @@ fn status(root: &Path) -> TaskResult {
     let runtime = runtime_dir(root);
     let toolchain = web_toolchain::status(root)?;
     println!(
-        "web-toolchain: {} (version={}, patch={}, path={})",
+        "web-toolchain: {} (version={}, standard-contract=v{}, path={})",
         if toolchain.ready {
             "ready"
         } else {
@@ -917,7 +1061,7 @@ fn status(root: &Path) -> TaskResult {
             .as_deref()
             .map(str::trim)
             .unwrap_or("missing"),
-        toolchain.patch_fingerprint,
+        toolchain.contract_version,
         toolchain.dx_path.display(),
     );
     for service in SERVICES {
@@ -926,8 +1070,8 @@ fn status(root: &Path) -> TaskResult {
             Some(pid) if recorded_process_matches(service, pid) => {
                 if service.name == "web" {
                     let command = process_command(pid).unwrap_or_default();
-                    let (split, mode, debug) = web_process_mode(&command);
-                    println!("web: running (pid {pid}, {split}, {mode}, {debug})");
+                    let (mode, debug) = web_process_mode(&command);
+                    println!("web: running (pid {pid}, monolithic, {mode}, {debug})");
                 } else {
                     println!("{}: running (pid {pid})", service.name);
                 }
@@ -939,12 +1083,11 @@ fn status(root: &Path) -> TaskResult {
     for profile in [wasm::WasmProfile::Dev, wasm::WasmProfile::Release] {
         if let Some(report) = wasm::latest_report(root, profile)? {
             println!(
-                "web-wasm-{}: base raw={}, Brotli={}, chunks={}, total Brotli={}",
+                "web-wasm-{}: monolithic={}, raw={}, Brotli={}",
                 profile.label(),
+                report.base_path,
                 wasm::display_bytes(report.base_raw_bytes),
                 wasm::display_bytes(report.base_brotli_bytes),
-                report.chunk_count,
-                wasm::display_bytes(report.total_brotli_bytes),
             );
         }
     }
@@ -1002,13 +1145,10 @@ fn status(root: &Path) -> TaskResult {
     Ok(())
 }
 
-fn web_process_mode(command: &str) -> (&'static str, &'static str, &'static str) {
-    let split = if command.contains("--wasm-split") {
-        "split"
-    } else {
-        "monolithic"
-    };
-    let mode = if command.contains("--hot-patch") {
+fn web_process_mode(command: &str) -> (&'static str, &'static str) {
+    let mode = if command.contains("--hot-patch false") {
+        "stable"
+    } else if command.contains("--hot-patch") {
         "hot-patch"
     } else {
         "stable"
@@ -1018,7 +1158,7 @@ fn web_process_mode(command: &str) -> (&'static str, &'static str, &'static str)
     } else {
         "debug-off"
     };
-    (split, mode, debug)
+    (mode, debug)
 }
 
 fn flat_private_file_summary(path: &Path) -> TaskResult<(u64, u64)> {
@@ -1269,18 +1409,34 @@ mod tests {
     }
 
     #[test]
-    fn lightweight_service_catalog_covers_the_direct_v1_runtime() {
+    fn lightweight_service_catalog_covers_the_generation_two_runtime() {
         let names = SERVICES
             .iter()
             .map(|service| service.name)
             .collect::<BTreeSet<_>>();
         assert_eq!(names.len(), SERVICES.len());
         for required in [
+            "agent-tenant-operations-worker",
             "commercial-catalog-projector",
             "quality-projector",
             "identity-access-principals-projector",
             "maintenance-asset-facts-worker",
             "people-payroll-payroll-runs-projector",
+            "projects-projects-projector",
+            "projects-hierarchy-projector",
+            "collaboration-threads-projector",
+            "collaboration-stream-projector",
+            "collaboration-inbox-projector",
+            "item-directory-projector",
+            "manufacturing-orders-projector",
+            "planning-runs-projector",
+            "ecommerce-listings-projector",
+            "ecommerce-journeys-projector",
+            "talent-candidate-projector",
+            "talent-workforce-projector",
+            "learning-enrollments-projector",
+            "benefits-enrollments-projector",
+            "field-service-orders-projector",
             "tenant-projection-status-projector",
         ] {
             assert!(names.contains(required));
@@ -1439,12 +1595,12 @@ mod tests {
     #[test]
     fn web_status_reports_launch_mode() {
         assert_eq!(
-            web_process_mode("dx serve --wasm-split --hot-patch --debug-symbols false"),
-            ("split", "hot-patch", "debug-off")
+            web_process_mode("dx serve --hot-patch --debug-symbols false"),
+            ("hot-patch", "debug-off")
         );
         assert_eq!(
-            web_process_mode("dx serve --debug-symbols true"),
-            ("monolithic", "stable", "debug-on")
+            web_process_mode("dx serve --hot-patch false --debug-symbols true"),
+            ("stable", "debug-on")
         );
     }
 }

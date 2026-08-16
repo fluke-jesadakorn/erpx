@@ -3,6 +3,8 @@
 use dioxus::prelude::*;
 
 mod components;
+mod current_workspace;
+mod enterprise;
 pub mod kit;
 mod premium;
 
@@ -11,10 +13,16 @@ pub use components::{
     CorporateIdentityEditorActionKind, CorporateIdentityEditorSubmission, DashboardLayout,
     DataTable, Dialog, DialogSize, EnterpriseIcon, Field, FilterBar, LocaleToggle,
     LockedTooltipButton, NavigationDisclosureState, OperationsLayout, PageHeader, RecordLayout,
-    RouteStateBoundary, ScopeSelector, SessionBanners, SettingsLayout, StateBoundary, StatePanel,
-    TableColumn, TextField, WorkflowLayout, use_account_session_focus_target,
-    use_navigation_disclosure_state,
+    RoleContextSummary, RouteStateBoundary, ScopeSelector, SessionBanners, SettingsLayout,
+    StateBoundary, StatePanel, TableColumn, TextField, WorkflowLayout,
+    use_account_session_focus_target, use_navigation_disclosure_state,
 };
+pub use current_workspace::{
+    CurrentCommandAvailability, CurrentCommandCard, CurrentFeatureKind, CurrentRecordFamilySpec,
+    CurrentRecordRoute, LIVE_CURRENT_RECORD_TYPES, ReadYourWritesEvidence, RecordPublicationState,
+    current_command_cards, current_workspace_state, render_current_workspace_surface,
+};
+pub use enterprise::{AdaptiveCollectionSurface, EnterpriseStatePanel};
 pub use erpx_ui_core::{ReadModelAvailability, ReadModelFreshness};
 pub use kit::{
     Density, Disclosure, KitProvider, Link, SelectControl, Table, button, input, textarea,

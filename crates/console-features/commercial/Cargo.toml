@@ -11,6 +11,7 @@ erpx-commercial.workspace = true
 erpx-cqrs.workspace = true
 erpx-kernel.workspace = true
 erpx-ui-core.workspace = true
+erpx-ui-kit.workspace = true
 erpx-ui-foundation.workspace = true
 uuid.workspace = true
 [lints]

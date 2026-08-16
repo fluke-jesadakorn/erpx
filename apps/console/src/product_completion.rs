@@ -1425,7 +1425,20 @@ impl ProductContext {
 
     /// Canonical product path prefix.
     pub const fn path(self) -> &'static str {
-        self.business_unit().route().canonical_path
+        match self {
+            Self::Operations => "/operations",
+            Self::Finance => "/finance",
+            Self::Sales => "/sales",
+            Self::Procurement => "/procurement",
+            Self::Inventory => "/inventory",
+            Self::Assets => "/asset",
+            Self::Maintenance => "/maintenance",
+            Self::Quality => "/quality",
+            Self::MarketingCrm => "/marketing",
+            Self::HrPayroll => "/people",
+            Self::Pos => "/pos",
+            Self::Legal => "/legal",
+        }
     }
 
     /// Stable display label.
@@ -3866,35 +3879,15 @@ mod tests {
     #[test]
     fn all_g9_through_g11_contexts_have_bounded_read_only_surfaces() {
         let expected = [
-            (ProductContext::Sales, "/workspaces/sales", "sales"),
-            (
-                ProductContext::Procurement,
-                "/workspaces/procurement",
-                "procurement",
-            ),
-            (
-                ProductContext::Inventory,
-                "/workspaces/inventory",
-                "inventory",
-            ),
-            (
-                ProductContext::Maintenance,
-                "/workspaces/maintenance",
-                "maintenance",
-            ),
-            (ProductContext::Quality, "/workspaces/quality", "quality"),
-            (
-                ProductContext::MarketingCrm,
-                "/workspaces/marketing-crm",
-                "marketing-crm",
-            ),
-            (
-                ProductContext::HrPayroll,
-                "/workspaces/hr-payroll",
-                "hr-payroll",
-            ),
-            (ProductContext::Pos, "/workspaces/point-of-sale", "pos"),
-            (ProductContext::Legal, "/workspaces/legal", "legal"),
+            (ProductContext::Sales, "/sales", "sales"),
+            (ProductContext::Procurement, "/procurement", "procurement"),
+            (ProductContext::Inventory, "/inventory", "inventory"),
+            (ProductContext::Maintenance, "/maintenance", "maintenance"),
+            (ProductContext::Quality, "/quality", "quality"),
+            (ProductContext::MarketingCrm, "/marketing", "marketing-crm"),
+            (ProductContext::HrPayroll, "/people", "hr-payroll"),
+            (ProductContext::Pos, "/pos", "pos"),
+            (ProductContext::Legal, "/legal", "legal"),
         ];
 
         for (context, path, key) in expected {

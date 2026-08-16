@@ -7,12 +7,10 @@ pub mod view;
 pub use gateway::{OrganizationGateway, OrganizationProtoTransport};
 pub use presenter::{OrganizationContent, OrganizationPresenter};
 pub use view::{OrganizationRenderedState, render_organization_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     OrganizationFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Organization,
     "organization",
-    "organization.workspace",
-    "/platform/organization",
-    "platform",
-    "erpx-feature-organization-v1",
-    dioxus
+    [("organization.workspace", "/organization", "platform")],
+    "erpx-feature-organization-v2"
 );

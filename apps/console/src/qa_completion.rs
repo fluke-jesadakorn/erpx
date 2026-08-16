@@ -860,7 +860,7 @@ mod tests {
         let adapter = ProductRouteStateAdapter;
 
         let fresh = adapter.adapt_operations_projection_status(2, "fresh", Some(120));
-        assert_eq!(fresh.surface().path(), "/workspaces/operations");
+        assert_eq!(fresh.surface().path(), "/operations");
         assert_eq!(fresh.state_key(), "read-only");
         assert_eq!(fresh.projection_freshness(), ProjectionFreshness::Fresh);
         assert_eq!(
@@ -1017,18 +1017,18 @@ mod tests {
         assert!(!directory_state.mutations_enabled());
 
         let expected_context_paths = [
-            (ProductContext::Operations, "/workspaces/operations"),
-            (ProductContext::Finance, "/workspaces/finance"),
-            (ProductContext::Sales, "/workspaces/sales"),
-            (ProductContext::Procurement, "/workspaces/procurement"),
-            (ProductContext::Inventory, "/workspaces/inventory"),
-            (ProductContext::Maintenance, "/workspaces/maintenance"),
-            (ProductContext::Quality, "/workspaces/quality"),
-            (ProductContext::Assets, "/workspaces/assets"),
-            (ProductContext::MarketingCrm, "/workspaces/marketing-crm"),
-            (ProductContext::HrPayroll, "/workspaces/hr-payroll"),
-            (ProductContext::Pos, "/workspaces/point-of-sale"),
-            (ProductContext::Legal, "/workspaces/legal"),
+            (ProductContext::Operations, "/operations"),
+            (ProductContext::Finance, "/finance"),
+            (ProductContext::Sales, "/sales"),
+            (ProductContext::Procurement, "/procurement"),
+            (ProductContext::Inventory, "/inventory"),
+            (ProductContext::Maintenance, "/maintenance"),
+            (ProductContext::Quality, "/quality"),
+            (ProductContext::Assets, "/asset"),
+            (ProductContext::MarketingCrm, "/marketing"),
+            (ProductContext::HrPayroll, "/people"),
+            (ProductContext::Pos, "/pos"),
+            (ProductContext::Legal, "/legal"),
         ];
 
         assert_eq!(PRODUCT_CONTEXTS.len(), expected_context_paths.len());

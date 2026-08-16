@@ -42,13 +42,30 @@ const fn route(descriptor: &'static BusinessUnitRouteDescriptor) -> ProductConte
     ProductContextRoute {
         id: descriptor.unit,
         route_id: descriptor.route_id,
-        path: descriptor.canonical_path,
+        path: canonical_path(descriptor.unit),
         label: descriptor.label_en,
         label_key: descriptor.label_key,
         permission: descriptor.read_permission,
         entitlement_key: descriptor.entitlement_key,
         auth: RouteAuthRequirement::Authenticated,
         read_only_shell: true,
+    }
+}
+
+const fn canonical_path(id: ProductContextId) -> &'static str {
+    match id {
+        ProductContextId::Operations => "/operations",
+        ProductContextId::Finance => "/finance",
+        ProductContextId::Sales => "/sales",
+        ProductContextId::Procurement => "/procurement",
+        ProductContextId::Inventory => "/inventory",
+        ProductContextId::Assets => "/asset",
+        ProductContextId::Maintenance => "/maintenance",
+        ProductContextId::Quality => "/quality",
+        ProductContextId::MarketingCrm => "/marketing",
+        ProductContextId::HrPayroll => "/people",
+        ProductContextId::PointOfSale => "/pos",
+        ProductContextId::Legal => "/legal",
     }
 }
 
@@ -131,14 +148,12 @@ mod tests {
 
     #[test]
     fn route_resolution_redacts_credentials_and_rejects_old_aliases() {
-        let route = ProductContextRoute::resolve("/workspaces/sales?view=summary#details")
-            .expect("safe sales route");
+        let route =
+            ProductContextRoute::resolve("/sales?view=summary#details").expect("safe sales route");
         assert_eq!(route.id, ProductContextId::Sales);
-        assert!(
-            ProductContextRoute::resolve("/workspaces/sales?access_token=secret#details").is_none()
-        );
-        assert!(ProductContextRoute::resolve("/workspaces/sales/../legal").is_none());
-        assert!(ProductContextRoute::resolve("/sales").is_none());
+        assert!(ProductContextRoute::resolve("/sales?access_token=secret#details").is_none());
+        assert!(ProductContextRoute::resolve("/sales/../legal").is_none());
+        assert!(ProductContextRoute::resolve("/legacy/sales").is_none());
         assert_eq!(
             product_context_nav_items(erpx_ui_core::Locale::En).len(),
             PRODUCT_CONTEXT_ROUTES.len()

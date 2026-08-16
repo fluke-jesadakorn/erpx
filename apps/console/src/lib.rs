@@ -1,51 +1,69 @@
 pub mod features {
+    pub use erpx_console_feature_ai_collaboration as ai_collaboration;
     pub use erpx_console_feature_assets as assets;
+    pub use erpx_console_feature_benefits as benefits;
     pub use erpx_console_feature_brand as brand;
     pub use erpx_console_feature_commercial as commercial;
     pub use erpx_console_feature_crm as crm;
     pub use erpx_console_feature_customer_360 as customer_360;
     pub use erpx_console_feature_customer_authority as customer_authority;
+    pub use erpx_console_feature_ecommerce as ecommerce;
+    pub use erpx_console_feature_field_service as field_service;
     pub use erpx_console_feature_finance as finance;
     pub use erpx_console_feature_identity_access as identity_access;
     pub use erpx_console_feature_inventory as inventory;
+    pub use erpx_console_feature_learning as learning;
     pub use erpx_console_feature_legal as legal;
     pub use erpx_console_feature_maintenance as maintenance;
+    pub use erpx_console_feature_manufacturing as manufacturing;
     pub use erpx_console_feature_marketing as marketing;
     pub use erpx_console_feature_operations as operations;
     pub use erpx_console_feature_organization as organization;
     pub use erpx_console_feature_people_payroll as people_payroll;
+    pub use erpx_console_feature_planning as planning;
     pub use erpx_console_feature_platform_administration as platform_administration;
     pub use erpx_console_feature_pos as pos;
     pub use erpx_console_feature_procurement as procurement;
+    pub use erpx_console_feature_projects as projects;
     pub use erpx_console_feature_quality as quality;
     pub use erpx_console_feature_sales as sales;
     pub use erpx_console_feature_support as support;
+    pub use erpx_console_feature_talent as talent;
 }
 
 use erpx_ui_core::{FeatureRegistration, FeatureRegistry, FeatureRegistryError};
 
-pub static FEATURE_REGISTRATIONS: [&FeatureRegistration; 21] = [
+pub static FEATURE_REGISTRATIONS: [&FeatureRegistration; 30] = [
+    &features::ai_collaboration::REGISTRATION,
     &features::assets::REGISTRATION,
+    &features::benefits::REGISTRATION,
     &features::brand::REGISTRATION,
     &features::commercial::REGISTRATION,
     &features::crm::REGISTRATION,
     &features::customer_360::REGISTRATION,
     &features::customer_authority::REGISTRATION,
+    &features::ecommerce::REGISTRATION,
+    &features::field_service::REGISTRATION,
     &features::finance::REGISTRATION,
     &features::identity_access::REGISTRATION,
     &features::inventory::REGISTRATION,
     &features::legal::REGISTRATION,
+    &features::learning::REGISTRATION,
     &features::maintenance::REGISTRATION,
     &features::marketing::REGISTRATION,
+    &features::manufacturing::REGISTRATION,
     &features::operations::REGISTRATION,
     &features::organization::REGISTRATION,
     &features::people_payroll::REGISTRATION,
+    &features::planning::REGISTRATION,
     &features::platform_administration::REGISTRATION,
     &features::pos::REGISTRATION,
     &features::procurement::REGISTRATION,
+    &features::projects::REGISTRATION,
     &features::quality::REGISTRATION,
     &features::sales::REGISTRATION,
     &features::support::REGISTRATION,
+    &features::talent::REGISTRATION,
 ];
 
 pub fn feature_registry() -> Result<FeatureRegistry, FeatureRegistryError> {
@@ -57,6 +75,7 @@ mod app;
 #[cfg(feature = "server")]
 mod bff;
 mod composition;
+mod future_enterprise_gateway;
 mod localization;
 #[allow(dead_code)]
 mod product_completion;
@@ -104,142 +123,199 @@ mod feature_registry_tests {
             .collect::<Vec<_>>();
         let expected = vec![
             (
+                "ai-collaboration",
+                "ai.workspace",
+                "/ai",
+                "authenticated",
+                "ai-collaboration",
+            ),
+            (
                 "assets",
                 "assets.workspace",
-                "/workspaces/assets",
+                "/asset",
                 "authenticated",
                 "operations",
             ),
             (
+                "benefits",
+                "benefits.workspace",
+                "/benefits",
+                "authenticated",
+                "people",
+            ),
+            (
                 "brand",
                 "brand.workspace",
-                "/platform/brand",
+                "/brand",
                 "authenticated",
                 "platform",
             ),
             (
                 "commercial",
                 "commercial.workspace",
-                "/platform/commercial",
+                "/commercial",
                 "authenticated",
                 "platform",
             ),
-            (
-                "crm",
-                "crm.workspace",
-                "/workspaces/crm",
-                "authenticated",
-                "customer",
-            ),
+            ("crm", "crm.workspace", "/crm", "authenticated", "customer"),
             (
                 "customer-360",
                 "customer-360.workspace",
-                "/platform/customers",
+                "/customer-360",
                 "authenticated",
                 "customer",
             ),
             (
                 "customer-authority",
                 "customer-authority.workspace",
-                "/platform/customer-authority",
+                "/customer",
                 "authenticated",
                 "customer",
             ),
             (
+                "ecommerce",
+                "ecommerce.workspace",
+                "/commerce",
+                "authenticated",
+                "customer",
+            ),
+            (
+                "field-service",
+                "field-service.workspace",
+                "/field-service",
+                "authenticated",
+                "operations",
+            ),
+            (
                 "finance",
                 "finance.workspace",
-                "/workspaces/finance",
+                "/finance",
                 "authenticated",
                 "finance",
             ),
             (
                 "identity-access",
                 "identity-access.workspace",
-                "/platform/identity-access",
+                "/identity",
                 "authenticated",
                 "platform",
             ),
             (
                 "inventory",
                 "inventory.workspace",
-                "/workspaces/inventory",
+                "/inventory",
                 "authenticated",
                 "operations",
             ),
             (
                 "legal",
                 "legal.workspace",
-                "/workspaces/legal",
+                "/legal",
                 "authenticated",
                 "governance",
             ),
             (
+                "learning",
+                "learning.workspace",
+                "/learning",
+                "authenticated",
+                "people",
+            ),
+            (
                 "maintenance",
                 "maintenance.workspace",
-                "/workspaces/maintenance",
+                "/maintenance",
                 "authenticated",
                 "operations",
             ),
             (
                 "marketing",
                 "marketing.workspace",
-                "/workspaces/marketing",
+                "/marketing",
                 "authenticated",
                 "customer",
             ),
             (
+                "manufacturing",
+                "manufacturing.workspace",
+                "/manufacturing",
+                "authenticated",
+                "operations",
+            ),
+            (
                 "operations",
                 "operations.workspace",
-                "/workspaces/operations",
+                "/operations",
                 "authenticated",
                 "operations",
             ),
             (
                 "organization",
                 "organization.workspace",
-                "/platform/organization",
+                "/organization",
                 "authenticated",
                 "platform",
             ),
             (
                 "people-payroll",
                 "people-payroll.workspace",
-                "/workspaces/people-payroll",
+                "/people",
                 "authenticated",
                 "people",
             ),
             (
+                "people-payroll",
+                "payroll.workspace",
+                "/payroll",
+                "authenticated",
+                "people",
+            ),
+            (
+                "planning",
+                "planning.workspace",
+                "/planning",
+                "authenticated",
+                "operations",
+            ),
+            (
                 "platform-administration",
                 "platform-administration.workspace",
-                "/platform/administration",
+                "/platform",
                 "authenticated",
                 "platform",
             ),
             (
                 "pos",
                 "pos.workspace",
-                "/workspaces/pos",
+                "/pos",
                 "authenticated",
                 "operations",
             ),
             (
                 "procurement",
                 "procurement.workspace",
-                "/workspaces/procurement",
+                "/procurement",
+                "authenticated",
+                "operations",
+            ),
+            (
+                "projects",
+                "projects.workspace",
+                "/project",
                 "authenticated",
                 "operations",
             ),
             (
                 "quality",
                 "quality.workspace",
-                "/workspaces/quality",
+                "/quality",
                 "authenticated",
                 "operations",
             ),
             (
                 "sales",
                 "sales.workspace",
-                "/workspaces/sales",
+                "/sales",
                 "authenticated",
                 "customer",
             ),
@@ -249,6 +325,13 @@ mod feature_registry_tests {
                 "/support",
                 "authenticated",
                 "support",
+            ),
+            (
+                "talent",
+                "talent.workspace",
+                "/talent",
+                "authenticated",
+                "people",
             ),
         ];
         assert_eq!(actual, expected);
@@ -261,5 +344,22 @@ mod feature_registry_tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn registry_contains_every_typed_workspace_root() {
+        let registry = feature_registry().expect("static feature registry must be valid");
+        let registered = registry
+            .registrations()
+            .iter()
+            .flat_map(|registration| registration.routes)
+            .map(|route| route.canonical_path)
+            .collect::<std::collections::BTreeSet<_>>();
+        let expected = erpx_integration_contracts::catalog::WORKSPACES
+            .iter()
+            .map(|workspace| workspace.route)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(expected.len(), 21);
+        assert!(expected.is_subset(&registered));
     }
 }

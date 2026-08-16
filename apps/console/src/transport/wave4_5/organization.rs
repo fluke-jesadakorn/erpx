@@ -8,7 +8,7 @@ use erpx_organization::{
     OrganizationPlacement, RenameOrganizationNode, ReparentOrganizationNode,
     SuspendOrganizationNode,
 };
-use erpx_proto::platform;
+use erpx_proto::erpx::organization::v1 as platform;
 use erpx_ui_foundation::UiError;
 
 use crate::{

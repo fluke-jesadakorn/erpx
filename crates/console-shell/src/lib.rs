@@ -3,7 +3,10 @@
 //! This crate intentionally has no protobuf, Tonic, or domain-context dependencies.
 
 use dioxus::prelude::Element;
-use erpx_ui_core::{FeatureContext, FeatureRegistration, FeatureRegistry, FeatureRegistryError};
+use erpx_ui_core::{
+    FeatureContext, FeatureRegistration, FeatureRegistry, FeatureRegistryError, Locale, NavGroup,
+    canonical_workspace_navigation,
+};
 
 #[derive(Debug, Clone)]
 pub struct ConsoleShell {
@@ -23,6 +26,11 @@ impl ConsoleShell {
         &self.registry
     }
 
+    /// Build the shell's workspace navigation from the authoritative typed catalog.
+    pub fn workspace_navigation(locale: Locale) -> NavGroup {
+        canonical_workspace_navigation(locale)
+    }
+
     pub fn render_registered_path(&self, context: &FeatureContext) -> Option<Element> {
         self.registry
             .resolve(&context.canonical_path)
@@ -40,7 +48,7 @@ mod tests {
 
     static ROUTES: &[FeatureRouteDescriptor] = &[FeatureRouteDescriptor {
         id: "finance.workspace",
-        canonical_path: "/workspaces/finance",
+        canonical_path: "/finance",
         authorization: "authenticated",
         navigation_group: "finance",
     }];
@@ -52,7 +60,7 @@ mod tests {
         assert_eq!(
             shell
                 .registry()
-                .resolve("/workspaces/finance/journals")
+                .resolve("/finance/journal")
                 .map(|registration| registration.id),
             Some("finance")
         );
@@ -74,8 +82,20 @@ mod tests {
             }),
             transport: Arc::new(FeatureTransportPrimitive::web_same_origin()),
             navigate: Arc::new(|_| {}),
-            canonical_path: "/workspaces/finance".into(),
+            canonical_path: "/finance".into(),
         };
         assert!(shell.render_registered_path(&context).is_some());
+    }
+
+    #[test]
+    fn shell_navigation_uses_all_canonical_workspace_roots() {
+        let navigation = ConsoleShell::workspace_navigation(Locale::Th);
+        assert_eq!(navigation.items.len(), 21);
+        assert!(
+            navigation
+                .items
+                .iter()
+                .all(|item| !item.path.starts_with("/workspaces"))
+        );
     }
 }

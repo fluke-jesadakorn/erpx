@@ -13,12 +13,10 @@ pub use models::{
 };
 pub use presenter::{MaintenanceContent, MaintenancePresenter};
 pub use view::{MaintenanceRenderedState, render_maintenance_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     MaintenanceFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Maintenance,
     "maintenance",
-    "maintenance.workspace",
-    "/workspaces/maintenance",
-    "operations",
-    "erpx-feature-maintenance-v1",
-    dioxus
+    [("maintenance.workspace", "/maintenance", "operations")],
+    "erpx-feature-maintenance-v2"
 );

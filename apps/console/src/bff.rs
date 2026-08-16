@@ -16,10 +16,12 @@ use dioxus::server::axum::{
 use erpx_domain::corporate_identity::{
     BrandAssetKind, ResolvedCorporateIdentity, validate_brand_asset_bytes,
 };
+#[cfg(test)]
+use erpx_ui_core::WorkItemStage;
 use erpx_ui_core::{
     MAX_WORK_PAGE_SIZE, NavGroup, SafeUiText, WorkDomain, WorkItemKind, WorkItemReadModel,
-    WorkItemSeverity, WorkItemStage, WorkItemTarget, WorkQueueMeta, WorkQueueReadModel,
-    WorkQueueView, WorkRoute, WorkSlaState, WorkSourceContribution, sla_state, valid_work_cursor,
+    WorkItemSeverity, WorkQueueMeta, WorkQueueReadModel, WorkQueueView, WorkSlaState,
+    WorkSourceContribution, valid_work_cursor,
 };
 use erpx_ui_kit::{
     DashboardBreakdown, DashboardBreakdownSegment, DashboardMetric, DashboardRange,
@@ -35,18 +37,6 @@ use sha2::{Digest, Sha256};
 use std::{fmt, io, sync::Arc};
 use tokio::sync::Mutex;
 use uuid::Uuid;
-
-use erpx_proto::{
-    common::v1::{
-        ActorAttribution, ActorKind, AuditContext, EventualConsistency, PlatformScope,
-        QueryConsistency, QueryContext, TenantScope, query_consistency, tenant_scope,
-    },
-    platform::{
-        Incident, ListIncidentsRequest, ListTicketsRequest, Ticket,
-        support_service_client::SupportServiceClient,
-    },
-};
-use tonic::metadata::MetadataValue;
 
 const PRIVATE_NO_STORE: &str = "private, no-store";
 const LEGACY_BUNDLE_COOKIE_NAME: &str = "erpx_session_bundle_v2";
@@ -951,116 +941,14 @@ struct AuthorizedWorkSources {
 }
 
 async fn fetch_platform_work_sources(
-    state: &BffState,
-    credential: &BffCredential,
-    now: DateTime<Utc>,
+    _state: &BffState,
+    _credential: &BffCredential,
+    _now: DateTime<Utc>,
 ) -> AuthorizedWorkSources {
-    let mut items = Vec::new();
     let mut contributions = Vec::new();
-    let channel = tonic::transport::Endpoint::from_shared(state.grpc_origin.to_string())
-        .ok()
-        .map(|endpoint| endpoint.connect_lazy());
-
-    if let Some(channel) = channel {
-        let mut incident_client = SupportServiceClient::new(channel.clone());
-        let mut incident_request = tonic::Request::new(ListIncidentsRequest {
-            page_size: 48,
-            status: String::new(),
-            context: Some(platform_work_query_context(
-                &credential.principal_ref,
-                credential.session_id,
-                "my_work_incident_read",
-            )),
-        });
-        let incidents =
-            add_bff_grpc_metadata(&mut incident_request, credential).map(|_| incident_request);
-        match incidents {
-            Ok(request) => match incident_client.list_incidents(request).await {
-                Ok(response) => {
-                    let incident_items = response
-                        .into_inner()
-                        .incidents
-                        .into_iter()
-                        .filter_map(|incident| work_item_from_incident(incident, now))
-                        .take(48)
-                        .collect::<Vec<_>>();
-                    contributions.push(available_contribution(
-                        WorkDomain::Support,
-                        "Platform incidents",
-                        incident_items.len(),
-                    ));
-                    items.extend(incident_items);
-                }
-                Err(status) => contributions.push(unavailable_contribution(
-                    WorkDomain::Support,
-                    "Platform incidents",
-                    work_source_error(status.code()),
-                )),
-            },
-            Err(_) => contributions.push(unavailable_contribution(
-                WorkDomain::Support,
-                "Platform incidents",
-                "The incident adapter could not create an authenticated request.",
-            )),
-        }
-
-        let mut ticket_client = SupportServiceClient::new(channel);
-        let mut ticket_request = tonic::Request::new(ListTicketsRequest {
-            page_size: 48,
-            status: String::new(),
-            customer_id: String::new(),
-            context: Some(platform_work_query_context(
-                &credential.principal_ref,
-                credential.session_id,
-                "my_work_support_ticket_read",
-            )),
-            after_cursor: String::new(),
-        });
-        let tickets =
-            add_bff_grpc_metadata(&mut ticket_request, credential).map(|_| ticket_request);
-        match tickets {
-            Ok(request) => match ticket_client.list_tickets(request).await {
-                Ok(response) => {
-                    let ticket_items = response
-                        .into_inner()
-                        .tickets
-                        .into_iter()
-                        .filter_map(|ticket| work_item_from_ticket(ticket, now))
-                        .take(48)
-                        .collect::<Vec<_>>();
-                    contributions.push(available_contribution(
-                        WorkDomain::Support,
-                        "Support tickets",
-                        ticket_items.len(),
-                    ));
-                    items.extend(ticket_items);
-                }
-                Err(status) => contributions.push(unavailable_contribution(
-                    WorkDomain::Support,
-                    "Support tickets",
-                    work_source_error(status.code()),
-                )),
-            },
-            Err(_) => contributions.push(unavailable_contribution(
-                WorkDomain::Support,
-                "Support tickets",
-                "The support adapter could not create an authenticated request.",
-            )),
-        }
-    } else {
-        contributions.push(unavailable_contribution(
-            WorkDomain::Support,
-            "Platform incidents",
-            "The authoritative Support service is unavailable.",
-        ));
-        contributions.push(unavailable_contribution(
-            WorkDomain::Support,
-            "Support tickets",
-            "The authoritative Support service is unavailable.",
-        ));
-    }
-
     for (domain, label) in [
+        (WorkDomain::Support, "Platform incidents"),
+        (WorkDomain::Support, "Support tickets"),
         (WorkDomain::Operations, "Operations exceptions"),
         (WorkDomain::Finance, "Finance close reviews"),
         (WorkDomain::People, "People approvals"),
@@ -1074,153 +962,12 @@ async fn fetch_platform_work_sources(
         ));
     }
     AuthorizedWorkSources {
-        items,
+        items: Vec::new(),
         contributions,
     }
 }
 
-fn platform_work_query_context(
-    principal_ref: &str,
-    session_id: Uuid,
-    purpose: &str,
-) -> QueryContext {
-    let correlation_id = Uuid::new_v4().to_string();
-    QueryContext {
-        contract_version: u32::from(erpx_cqrs::CONTRACT_VERSION),
-        request_id: Uuid::new_v4().to_string(),
-        correlation_id: correlation_id.clone(),
-        actor: Some(ActorAttribution {
-            principal_ref: principal_ref.to_owned(),
-            kind: ActorKind::PlatformUser as i32,
-            session_id: session_id.to_string(),
-            represented_principal_ref: String::new(),
-            support_capability_id: String::new(),
-        }),
-        tenant_scope: Some(TenantScope {
-            scope: Some(tenant_scope::Scope::Platform(PlatformScope {})),
-        }),
-        consistency: Some(QueryConsistency {
-            requirement: Some(query_consistency::Requirement::Eventual(
-                EventualConsistency {},
-            )),
-        }),
-        audit: Some(AuditContext {
-            purpose: purpose.to_owned(),
-            customer_visible: false,
-            module: "work_queue".into(),
-            correlation_id,
-        }),
-    }
-}
-
-fn add_bff_grpc_metadata<T>(
-    request: &mut tonic::Request<T>,
-    credential: &BffCredential,
-) -> Result<(), ()> {
-    for (name, value) in [
-        ("x-erpx-access-token", credential.access_token.expose()),
-        ("x-erpx-actor", credential.principal_ref.as_str()),
-    ] {
-        request
-            .metadata_mut()
-            .insert(name, MetadataValue::try_from(value).map_err(|_| ())?);
-    }
-    let session_id = credential.session_id.to_string();
-    request.metadata_mut().insert(
-        "x-erpx-session",
-        MetadataValue::try_from(session_id.as_str()).map_err(|_| ())?,
-    );
-    if let Some(context_token) = credential.development_context_token.as_ref() {
-        request.metadata_mut().insert(
-            "x-erpx-dev-persona-context",
-            MetadataValue::try_from(context_token.expose()).map_err(|_| ())?,
-        );
-    }
-    Ok(())
-}
-
-fn work_item_from_ticket(ticket: Ticket, now: DateTime<Utc>) -> Option<WorkItemReadModel> {
-    let stage = work_stage(&ticket.status);
-    if !stage.active() || ticket.id.trim().is_empty() {
-        return None;
-    }
-    let title = SafeUiText::new(&ticket.description).as_str().to_owned();
-    Some(WorkItemReadModel {
-        key: format!("support-ticket:{}", SafeUiText::new(&ticket.id).as_str()),
-        domain: WorkDomain::Support,
-        kind: WorkItemKind::Task,
-        title: if title.trim().is_empty() {
-            "Support request".into()
-        } else {
-            title
-        },
-        summary: "Customer support request".into(),
-        stage,
-        status_label: SafeUiText::new(&ticket.status).as_str().to_owned(),
-        severity: work_severity(&ticket.severity),
-        assignee: None,
-        due_at: None,
-        updated_at: None,
-        sla: sla_state(None, now),
-        freshness: ReadModelFreshness::Current,
-        target: WorkItemTarget {
-            route: WorkRoute::PlatformSupport,
-            record_ref: Some(SafeUiText::new(ticket.id).as_str().to_owned()),
-        },
-        action_capabilities: Vec::new(),
-    })
-}
-
-fn work_item_from_incident(incident: Incident, now: DateTime<Utc>) -> Option<WorkItemReadModel> {
-    let stage = work_stage(&incident.status);
-    if !stage.active() || incident.id.trim().is_empty() {
-        return None;
-    }
-    let services = incident
-        .affected_services
-        .iter()
-        .take(3)
-        .map(SafeUiText::new)
-        .map(|value| value.as_str().to_owned())
-        .filter(|value| !value.trim().is_empty())
-        .collect::<Vec<_>>();
-    let title = if services.is_empty() {
-        "Platform incident".to_owned()
-    } else {
-        format!("Incident affecting {}", services.join(", "))
-    };
-    Some(WorkItemReadModel {
-        key: format!(
-            "support-incident:{}",
-            SafeUiText::new(&incident.id).as_str()
-        ),
-        domain: WorkDomain::Support,
-        kind: WorkItemKind::Incident,
-        title,
-        summary: format!(
-            "{} affected services · {} customer accounts",
-            incident.affected_services.len(),
-            incident.affected_customer_accounts.len()
-        ),
-        stage,
-        status_label: SafeUiText::new(&incident.status).as_str().to_owned(),
-        // The legacy incident read does not disclose a severity. Keep the item
-        // neutral instead of inventing an operational priority.
-        severity: WorkItemSeverity::Informational,
-        assignee: (!incident.commander_ref.trim().is_empty())
-            .then(|| SafeUiText::new(incident.commander_ref).as_str().to_owned()),
-        due_at: None,
-        updated_at: None,
-        sla: sla_state(None, now),
-        freshness: ReadModelFreshness::Current,
-        target: WorkItemTarget {
-            route: WorkRoute::PlatformIncidents,
-            record_ref: Some(SafeUiText::new(incident.id).as_str().to_owned()),
-        },
-        action_capabilities: Vec::new(),
-    })
-}
-
+#[cfg(test)]
 fn work_stage(value: &str) -> WorkItemStage {
     match value.trim().to_ascii_lowercase().as_str() {
         "resolved" | "customer_confirmed" => WorkItemStage::Resolved,
@@ -1233,6 +980,7 @@ fn work_stage(value: &str) -> WorkItemStage {
     }
 }
 
+#[cfg(test)]
 fn work_severity(value: &str) -> WorkItemSeverity {
     match value.trim().to_ascii_lowercase().as_str() {
         "critical" | "sev0" | "sev1" => WorkItemSeverity::Critical,
@@ -1275,6 +1023,7 @@ fn work_sla_rank(value: WorkSlaState) -> u8 {
     }
 }
 
+#[cfg(test)]
 fn available_contribution(
     domain: WorkDomain,
     label: &str,
@@ -1310,18 +1059,6 @@ fn unavailable_contribution(
         freshness: ReadModelFreshness::Unknown,
         item_count: 0,
         message: message.into(),
-    }
-}
-
-fn work_source_error(code: tonic::Code) -> &'static str {
-    match code {
-        tonic::Code::Unauthenticated | tonic::Code::PermissionDenied => {
-            "The active role is not authorized to read this source."
-        }
-        tonic::Code::Unavailable | tonic::Code::DeadlineExceeded => {
-            "The authoritative source is temporarily unavailable."
-        }
-        _ => "The authoritative source could not complete this bounded read.",
     }
 }
 
@@ -2533,76 +2270,9 @@ fn grpc_route_allowed(path: &str) -> bool {
     {
         return false;
     }
-    let service = service
-        .strip_prefix("erpx.platform.v1.")
-        .unwrap_or_default();
-    matches!(
-        service,
-        "AssetMaintenanceService"
-            | "AssetsCommandService"
-            | "AssetsQueryService"
-            | "BrandCommandService"
-            | "BrandQueryService"
-            | "CommercialCommandService"
-            | "CommercialQueryService"
-            | "CrmCommandService"
-            | "CrmQueryService"
-            | "CrmService"
-            | "Customer360DetailQueryService"
-            | "Customer360QueryService"
-            | "CustomerAccessAuditQueryService"
-            | "CustomerAuthorityCommandService"
-            | "CustomerAuthorityQueryService"
-            | "CustomerNoteCommandService"
-            | "DataPlaneControlService"
-            | "DirectoryService"
-            | "EntitlementService"
-            | "FinanceCommandService"
-            | "FinanceQueryService"
-            | "FinanceService"
-            | "HrService"
-            | "IdentityAccessCommandService"
-            | "IdentityAccessQueryService"
-            | "InventoryCommandService"
-            | "InventoryQueryService"
-            | "LegalCommandService"
-            | "LegalQueryService"
-            | "LegalService"
-            | "MaintenanceCommandService"
-            | "MaintenanceQueryService"
-            | "MarketingCommandService"
-            | "MarketingContentService"
-            | "MarketingQueryService"
-            | "MigrationService"
-            | "OperationsCommandService"
-            | "OperationsQueryService"
-            | "OperationsService"
-            | "OrganizationCommandService"
-            | "OrganizationQueryService"
-            | "OrganizationService"
-            | "PeoplePayrollCommandService"
-            | "PeoplePayrollQueryService"
-            | "PlatformAdministrationCommandService"
-            | "PlatformAdministrationQueryService"
-            | "PlatformCustomerService"
-            | "PlatformOperationsService"
-            | "PosCommandService"
-            | "PosQueryService"
-            | "PosService"
-            | "ProcurementCommandService"
-            | "ProcurementQueryService"
-            | "QualityCommandService"
-            | "QualityQueryService"
-            | "RoleLifecycleService"
-            | "SaasBillingService"
-            | "SalesCommandService"
-            | "SalesQueryService"
-            | "SalesService"
-            | "ScmService"
-            | "SupportCommandService"
-            | "SupportQueryService"
-            | "SupportService"
-    )
+    erpx_integration_contracts::catalog::ACTIVE_SERVICES
+        .iter()
+        .any(|entry| service == format!("{}.{}", entry.package, entry.name))
 }
 
 async fn exchange_and_install(
@@ -3198,6 +2868,7 @@ fn unauthorized_session() -> Response {
 mod tests {
     use super::*;
     use chrono::Duration;
+    use erpx_ui_core::{WorkItemTarget, WorkRoute};
 
     #[test]
     fn selector_cookie_is_strictly_parsed() {
@@ -3305,7 +2976,7 @@ mod tests {
     #[test]
     fn document_route_status_distinguishes_registered_forbidden_and_unknown_paths() {
         let registered = Request::builder()
-            .uri("/workspaces/finance")
+            .uri("/finance")
             .body(Body::empty())
             .unwrap();
         assert_eq!(
@@ -3507,22 +3178,27 @@ mod tests {
     #[test]
     fn proxy_routes_are_closed_compile_time_allowlists() {
         assert!(grpc_route_allowed(
-            "erpx.platform.v1.FinanceQueryService/ListFinanceCharts"
+            "erpx.finance.v1.FinanceQueryService/GetChart"
         ));
         assert!(grpc_route_allowed(
-            "erpx.platform.v1.Customer360DetailQueryService/GetCustomer360Detail"
+            "erpx.customer_360.v1.Customer360QueryService/GetCustomer360"
         ));
         assert!(grpc_route_allowed(
-            "erpx.platform.v1.CustomerAccessAuditQueryService/GetCustomerAccessAudit"
+            "erpx.quality.v1.QualityCommandService/Create"
         ));
         assert!(grpc_route_allowed(
-            "erpx.platform.v1.CustomerNoteCommandService/AddCustomerNote"
+            "erpx.customer_360.v1.Customer360CommandService/AddCustomerNote"
         ));
+        assert!(!grpc_route_allowed(concat!(
+            "erpx.",
+            "platform.v1.FinanceQuery",
+            "Service/ListFinanceCharts"
+        )));
         assert!(!grpc_route_allowed(
             "erpx.identity.v1.InternalTokenService/DumpTokens"
         ));
         assert!(!grpc_route_allowed(
-            "erpx.platform.v1.FinanceQueryService/List-Finance-Charts"
+            "erpx.finance.v1.FinanceQueryService/List-Finance-Charts"
         ));
         assert!(identity_route_allowed(&Method::GET, "devices"));
         assert!(identity_route_allowed(
@@ -3682,7 +3358,7 @@ mod tests {
             "Operations",
             vec![erpx_ui_core::NavItem::new(
                 "Operations",
-                "/workspaces/operations",
+                "/operations",
                 "operations",
             )],
         )];

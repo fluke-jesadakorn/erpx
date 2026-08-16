@@ -6,10 +6,70 @@ use std::{
 
 pub(crate) type ArchitectureResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
+const DOMAIN_FORBIDDEN_DEPENDENCIES: &[&str] = &[
+    "sqlx",
+    "tonic",
+    "prost",
+    "prost-types",
+    "dioxus",
+    "axum",
+    "http",
+    "hyper",
+    "reqwest",
+    "tower",
+    "tower-http",
+    "aws-sdk-s3",
+    "stripe",
+    "ldap3",
+    "erpx-domain",
+    "erpx-infrastructure",
+];
+
+const DOMAIN_FORBIDDEN_IMPORTS: &[&str] = &[
+    "sqlx::",
+    "tonic::",
+    "prost::",
+    "dioxus::",
+    "axum::",
+    "http::",
+    "hyper::",
+    "reqwest::",
+    "tower::",
+    "aws_sdk_",
+    "stripe::",
+    "ldap3::",
+    "ollama_rs::",
+    "async_openai::",
+    "erpx_cqrs::",
+    "erpx_domain::",
+    "erpx_infrastructure::",
+];
+
+const CONTEXT_FORBIDDEN_IMPORTS: &[&str] = &[
+    "sqlx::",
+    "tonic::",
+    "prost::",
+    "dioxus::",
+    "axum::",
+    "http::",
+    "hyper::",
+    "reqwest::",
+    "tower::",
+    "aws_sdk_",
+    "stripe::",
+    "ldap3::",
+    "ollama_rs::",
+    "async_openai::",
+    "erpx_domain::",
+    "erpx_infrastructure::",
+];
+
 pub(crate) fn scan(root: &Path) -> ArchitectureResult {
     crate::affected::validate_workspace(root)?;
+    enforce_foundation_dependencies(root)?;
     let context_root = root.join("crates/contexts");
     if context_root.is_dir() {
+        let mut violations = Vec::new();
         for entry in fs::read_dir(&context_root)? {
             let path = entry?.path();
             if !path.is_dir() {
@@ -17,23 +77,26 @@ pub(crate) fn scan(root: &Path) -> ArchitectureResult {
             }
             let manifest = path.join("Cargo.toml");
             if manifest.is_file() {
-                reject_manifest_dependencies(
-                    &manifest,
-                    &[
-                        "sqlx",
-                        "tonic",
-                        "prost",
-                        "dioxus",
-                        "erpx-domain",
-                        "erpx-infrastructure",
-                    ],
-                )?;
-                reject_context_dependency_edges(&manifest)?;
+                collect_violation(
+                    reject_manifest_dependencies(&manifest, DOMAIN_FORBIDDEN_DEPENDENCIES),
+                    &mut violations,
+                );
+                collect_violation(reject_context_dependency_edges(&manifest), &mut violations);
             }
-            reject_rust_imports(
-                &path,
-                &["sqlx::", "tonic::", "prost::", "dioxus::", "erpx_domain::"],
-            )?;
+            collect_violation(
+                reject_rust_imports(&path, CONTEXT_FORBIDDEN_IMPORTS),
+                &mut violations,
+            );
+            collect_violation(enforce_context_layer_dependencies(&path), &mut violations);
+        }
+        violations.sort();
+        violations.dedup();
+        if !violations.is_empty() {
+            return Err(format!(
+                "context architecture violations:\n- {}",
+                violations.join("\n- ")
+            )
+            .into());
         }
     }
 
@@ -187,8 +250,91 @@ pub(crate) fn scan(root: &Path) -> ArchitectureResult {
 
     enforce_ui_kit_boundary(root)?;
 
-    println!("CQRS/DDD and ERPX UI kit architecture boundaries passed");
+    println!("DDD/Clean/Hexagonal/CQRS and ERPX UI kit architecture boundaries passed");
     Ok(())
+}
+
+fn enforce_foundation_dependencies(root: &Path) -> ArchitectureResult {
+    let kernel_manifest = root.join("crates/kernel/Cargo.toml");
+    if kernel_manifest.is_file() {
+        reject_manifest_dependencies(&kernel_manifest, DOMAIN_FORBIDDEN_DEPENDENCIES)?;
+        reject_manifest_dependency_prefix(&kernel_manifest, "erpx-")?;
+        reject_rust_imports(&root.join("crates/kernel/src"), DOMAIN_FORBIDDEN_IMPORTS)?;
+    }
+
+    let contracts_manifest = root.join("crates/integration-contracts/Cargo.toml");
+    if contracts_manifest.is_file() {
+        reject_manifest_dependencies(&contracts_manifest, DOMAIN_FORBIDDEN_DEPENDENCIES)?;
+        reject_manifest_dependencies_except_prefix(&contracts_manifest, "erpx-", &["erpx-kernel"])?;
+        reject_rust_imports(
+            &root.join("crates/integration-contracts/src"),
+            &[
+                "sqlx::",
+                "tonic::",
+                "prost::",
+                "dioxus::",
+                "axum::",
+                "http::",
+                "hyper::",
+                "reqwest::",
+                "erpx_cqrs::",
+                "erpx_proto::",
+                "erpx_domain::",
+                "erpx_infrastructure::",
+            ],
+        )?;
+    }
+    Ok(())
+}
+
+fn enforce_context_layer_dependencies(context: &Path) -> ArchitectureResult {
+    // Domain is the innermost ring. It may use its own types, the minimal
+    // kernel, and language-level libraries, but never application/runtime or
+    // adapter technology.
+    let mut violations = Vec::new();
+    for domain in [context.join("src/domain"), context.join("src/domain.rs")] {
+        if domain.exists() {
+            collect_violation(
+                reject_rust_imports(&domain, DOMAIN_FORBIDDEN_IMPORTS),
+                &mut violations,
+            );
+        }
+    }
+
+    // Consumer-owned ports describe capabilities. Implementations belong in
+    // adapters and must not leak database, transport, or provider SDK types.
+    for ports in [context.join("src/ports"), context.join("src/ports.rs")] {
+        if ports.exists() {
+            collect_violation(
+                reject_rust_imports(&ports, CONTEXT_FORBIDDEN_IMPORTS),
+                &mut violations,
+            );
+        }
+    }
+
+    // Context integration modules map versioned facts to internal values; the
+    // network/database transport remains an outer adapter.
+    for integration in [
+        context.join("src/integration"),
+        context.join("src/integration.rs"),
+    ] {
+        if integration.exists() {
+            collect_violation(
+                reject_rust_imports(&integration, DOMAIN_FORBIDDEN_IMPORTS),
+                &mut violations,
+            );
+        }
+    }
+    if !violations.is_empty() {
+        return Err(violations.join("\n").into());
+    }
+    Ok(())
+}
+
+fn collect_violation(result: ArchitectureResult, violations: &mut Vec<String>) {
+    if let Err(error) = result {
+        violations.push(error.to_string());
+    }
 }
 
 fn enforce_ui_kit_boundary(root: &Path) -> ArchitectureResult {
@@ -313,7 +459,7 @@ fn reject_manifest_dependencies_except_prefix(
         let dependency = dependency.strip_suffix(".workspace").unwrap_or(dependency);
         if dependency.starts_with(prefix) && !allowed.contains(&dependency) {
             return Err(format!(
-                "forbidden shell dependency {dependency} in {}",
+                "forbidden internal dependency {dependency} in {}",
                 path.display()
             )
             .into());
@@ -349,6 +495,7 @@ fn reject_rust_imports(path: &Path, forbidden: &[&str]) -> ArchitectureResult {
     } else {
         rust_files(path)?
     };
+    let mut violations = Vec::new();
     for file in files {
         let source = fs::read_to_string(&file)?;
         for (index, line) in source.lines().enumerate() {
@@ -357,20 +504,23 @@ fn reject_rust_imports(path: &Path, forbidden: &[&str]) -> ArchitectureResult {
                 continue;
             }
             if forbidden.iter().any(|token| line.contains(token)) {
-                return Err(format!(
+                violations.push(format!(
                     "forbidden architecture import in {}:{}",
                     file.display(),
                     index + 1
-                )
-                .into());
+                ));
             }
         }
     }
-    Ok(())
+    if violations.is_empty() {
+        Ok(())
+    } else {
+        Err(violations.join("\n").into())
+    }
 }
 
 fn reject_server_root_sql(path: &Path) -> ArchitectureResult {
-    const TEST_BOUNDARY: &str = "#[cfg(test)]\nmod v1_service_authority_tests";
+    const TEST_BOUNDARY: &str = "#[cfg(test)]\nmod target_service_registration_tests";
     let source = fs::read_to_string(path)?;
     let production = source.split_once(TEST_BOUNDARY).map_or_else(
         || {
@@ -434,7 +584,7 @@ mod tests {
         ));
         fs::create_dir_all(&root).expect("create architecture fixture");
         let source = root.join("lib.rs");
-        fs::write(&source, "use erpx_proto::platform::Client;\n")
+        fs::write(&source, concat!("use erpx_proto::", "platform::Client;\n"))
             .expect("write architecture fixture");
         let error = reject_rust_imports(&source, &["erpx_proto::"])
             .expect_err("wire import must be rejected");
@@ -457,7 +607,7 @@ mod tests {
         fs::write(
             &source,
             "fn compose() { sqlx::query(\"SELECT 1\"); }\n\
-             #[cfg(test)]\nmod v1_service_authority_tests {\n\
+             #[cfg(test)]\nmod target_service_registration_tests {\n\
              fn acceptance() { sqlx::query(\"SELECT 1\"); }\n}\n",
         )
         .expect("write architecture fixture");
@@ -466,7 +616,7 @@ mod tests {
 
         fs::write(
             &source,
-            "fn compose() {}\n#[cfg(test)]\nmod v1_service_authority_tests {\n\
+            "fn compose() {}\n#[cfg(test)]\nmod target_service_registration_tests {\n\
              fn acceptance() { sqlx::query(\"SELECT 1\"); }\n}\n",
         )
         .expect("write architecture fixture");
@@ -508,6 +658,109 @@ mod tests {
         let error = reject_manifest_dependency_prefix(&manifest, "erpx-console-feature-")
             .expect_err("cross-feature edge must be rejected");
         assert!(error.to_string().contains("forbidden dependency"));
+        fs::remove_dir_all(root).expect("remove architecture fixture");
+    }
+
+    #[test]
+    fn domain_layer_rejects_runtime_and_provider_dependencies() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "erpx-architecture-domain-{}-{nonce}",
+            std::process::id()
+        ));
+        let domain = root.join("src/domain");
+        fs::create_dir_all(&domain).expect("create domain fixture");
+        fs::write(domain.join("mod.rs"), "use reqwest::Client;\n").expect("write domain fixture");
+        let error = enforce_context_layer_dependencies(&root)
+            .expect_err("provider SDK must remain outside the domain");
+        assert!(error.to_string().contains("forbidden architecture import"));
+        fs::remove_dir_all(root).expect("remove architecture fixture");
+    }
+
+    #[test]
+    fn flat_domain_file_is_scanned_and_all_imports_are_reported() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "erpx-architecture-flat-domain-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(root.join("src")).expect("create domain fixture");
+        fs::write(
+            root.join("src/domain.rs"),
+            "use erpx_cqrs::FreshnessState;\nuse sqlx::PgPool;\n",
+        )
+        .expect("write flat domain fixture");
+        let error = enforce_context_layer_dependencies(&root)
+            .expect_err("flat domain runtime imports must be rejected");
+        let message = error.to_string();
+        assert_eq!(message.matches("forbidden architecture import").count(), 2);
+        assert!(message.contains("domain.rs:1"));
+        assert!(message.contains("domain.rs:2"));
+        fs::remove_dir_all(root).expect("remove architecture fixture");
+    }
+
+    #[test]
+    fn context_manifests_reject_other_context_cores() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "erpx-architecture-context-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("create context fixture");
+        let manifest = root.join("Cargo.toml");
+        fs::write(
+            &manifest,
+            "[dependencies]\nerpx-kernel.workspace = true\nerpx-sales.workspace = true\n",
+        )
+        .expect("write context fixture");
+        let error = reject_context_dependency_edges(&manifest)
+            .expect_err("a context core must not depend on another context core");
+        assert!(
+            error
+                .to_string()
+                .contains("forbidden cross-context dependency")
+        );
+        fs::remove_dir_all(root).expect("remove architecture fixture");
+    }
+
+    #[test]
+    fn integration_contracts_only_accept_the_kernel_as_an_internal_dependency() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "erpx-architecture-contract-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(&root).expect("create contract fixture");
+        let manifest = root.join("Cargo.toml");
+        fs::write(
+            &manifest,
+            "[dependencies]\nerpx-kernel.workspace = true\nerpx-finance.workspace = true\n",
+        )
+        .expect("write contract fixture");
+        let error =
+            reject_manifest_dependencies_except_prefix(&manifest, "erpx-", &["erpx-kernel"])
+                .expect_err("integration contract must point inward only to the kernel");
+        assert!(error.to_string().contains("forbidden internal dependency"));
+
+        fs::write(
+            &manifest,
+            "[dependencies]\nerpx-kernel.workspace = true\nserde.workspace = true\n",
+        )
+        .expect("write allowed contract fixture");
+        reject_manifest_dependencies_except_prefix(&manifest, "erpx-", &["erpx-kernel"])
+            .expect("kernel-only internal dependency is valid");
         fs::remove_dir_all(root).expect("remove architecture fixture");
     }
 }

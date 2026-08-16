@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_kernel::TenantScope;
-use erpx_proto::platform as wire;
+use erpx_proto::erpx::quality::v1 as wire;
 use erpx_quality::{
     CancelInspection, CreateInspection, CreateInspectionResult, GetInspection, GetInspectionResult,
     InspectionId, InspectionKind, InspectionList, InspectionMutationResult, InspectionStatus,

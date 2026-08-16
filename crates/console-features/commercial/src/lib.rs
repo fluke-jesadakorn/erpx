@@ -8,12 +8,10 @@ pub mod view;
 pub use gateway::{CommercialGateway, CommercialProtoTransport};
 pub use presenter::{CommercialContent, CommercialPresenter};
 pub use view::{CommercialRenderedState, render_commercial_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     CommercialFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Commercial,
     "commercial",
-    "commercial.workspace",
-    "/platform/commercial",
-    "platform",
-    "erpx-feature-commercial-v1",
-    dioxus
+    [("commercial.workspace", "/commercial", "platform")],
+    "erpx-feature-commercial-v2"
 );

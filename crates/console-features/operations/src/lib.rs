@@ -12,12 +12,10 @@ pub use models::{
 };
 pub use presenter::{OperationsContent, OperationsPresenter};
 pub use view::{OperationsRenderedState, render_operations_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     OperationsFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Operations,
     "operations",
-    "operations.workspace",
-    "/workspaces/operations",
-    "operations",
-    "erpx-feature-operations-v1",
-    dioxus
+    [("operations.workspace", "/operations", "operations")],
+    "erpx-feature-operations-v2"
 );

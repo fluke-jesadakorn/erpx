@@ -11,11 +11,12 @@ use erpx_pos::{
     RefundList, RefundStatus, RefundView, RegisterId, SaleId, SaleLine, SaleLineId, SaleList,
     SaleStatus, SaleView,
 };
-use erpx_proto::platform as wire;
+use erpx_proto::erpx::pos::v1 as wire;
 use erpx_ui_foundation::UiError;
 
-type Commands = wire::pos_command_service_client::PosCommandServiceClient<GrpcChannel>;
-type Queries = wire::pos_query_service_client::PosQueryServiceClient<GrpcChannel>;
+type Commands =
+    wire::point_of_sale_command_service_client::PointOfSaleCommandServiceClient<GrpcChannel>;
+type Queries = wire::point_of_sale_query_service_client::PointOfSaleQueryServiceClient<GrpcChannel>;
 #[derive(Clone)]
 pub(crate) struct PosGrpcTransport {
     auth: AuthenticatedRoute,

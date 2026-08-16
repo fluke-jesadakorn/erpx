@@ -10,12 +10,10 @@ pub mod view;
 pub use gateway::{QualityGateway, QualityProtoTransport};
 pub use presenter::{QualityContent, QualityPresenter};
 pub use view::{QualityRenderedState, render_quality_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     QualityFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Quality,
     "quality",
-    "quality.workspace",
-    "/workspaces/quality",
-    "operations",
-    "erpx-feature-quality-v1",
-    dioxus
+    [("quality.workspace", "/quality", "operations")],
+    "erpx-feature-quality-v2"
 );

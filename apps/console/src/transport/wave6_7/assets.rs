@@ -6,7 +6,7 @@ use erpx_assets::{
 };
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_integration_contracts::assets::AssetCondition;
-use erpx_proto::platform as wire;
+use erpx_proto::erpx::assets::v1 as wire;
 use erpx_ui_foundation::UiError;
 
 use super::common::{

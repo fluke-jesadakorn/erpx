@@ -1,0 +1,15 @@
+[package]
+name = "erpx-ui-enterprise-workspaces"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+dioxus = { workspace = true, features = ["hooks", "html", "macro", "signals"] }
+erpx-ui-core.workspace = true
+erpx-ui-kit.workspace = true
+
+[lints]
+workspace = true

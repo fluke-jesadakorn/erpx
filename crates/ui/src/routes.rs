@@ -300,13 +300,13 @@ pub const MARKETING_CRM_ROUTES: &[RouteDefinition] = &[
     },
     RouteDefinition {
         id: RouteId::CrmLeads,
-        template: "/workspaces/marketing-crm",
+        template: "/marketing/lead",
         label: "Leads",
         auth: RouteAuthRequirement::Authenticated,
     },
     RouteDefinition {
         id: RouteId::CrmOpportunities,
-        template: "/crm/opportunities",
+        template: "/crm/opportunity",
         label: "Opportunities",
         auth: RouteAuthRequirement::Authenticated,
     },
@@ -1154,8 +1154,8 @@ mod tests {
             "/marketing/domains",
             "/crm/accounts",
             "/crm/contacts",
-            "/workspaces/marketing-crm",
-            "/crm/opportunities",
+            "/marketing/lead",
+            "/crm/opportunity",
             "/crm/activities",
         ];
 

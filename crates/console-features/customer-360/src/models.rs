@@ -11,6 +11,9 @@ pub enum SectionDisplayAvailability {
     Ready,
     AwaitingSource,
     NotProjected,
+    Stale,
+    Unavailable,
+    Denied,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

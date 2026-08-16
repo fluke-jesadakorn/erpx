@@ -8,7 +8,7 @@ use erpx_operations::{
     OperationsSummary, SourceReference, WorkQueuePolicyId, WorkQueuePolicyList,
     WorkQueuePolicyStatus, WorkQueuePolicyView,
 };
-use erpx_proto::platform as wire;
+use erpx_proto::erpx::operations::v1 as wire;
 use erpx_ui_foundation::UiError;
 
 use crate::{

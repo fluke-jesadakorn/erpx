@@ -10,12 +10,10 @@ pub use models::{
 };
 pub use presenter::{LegalContent, LegalPresenter};
 pub use view::{LegalRenderedState, render_legal_state};
-erpx_ui_core::declare_feature_registration!(
+erpx_ui_kit::declare_current_workspace_feature!(
     LegalFeatureSurface,
+    erpx_ui_kit::CurrentFeatureKind::Legal,
     "legal",
-    "legal.workspace",
-    "/workspaces/legal",
-    "governance",
-    "erpx-feature-legal-v1",
-    dioxus
+    [("legal.workspace", "/legal", "governance")],
+    "erpx-feature-legal-v2"
 );

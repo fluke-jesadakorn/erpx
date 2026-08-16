@@ -7,13 +7,13 @@ use erpx_finance::{
     JournalStatus, NormalBalance, PeriodId, PeriodStatus, StatutoryTaxFact, StatutoryTaxKind,
     SubledgerId, SubledgerKind, SubledgerStatus,
     ports::{
-        BankTransactionList, BankTransactionView, ChartView, JournalList, JournalView, PeriodView,
-        StatutoryTaxFactView, StatutoryTaxReport, SubledgerList, SubledgerView, TrialBalanceLine,
-        TrialBalanceView,
+        BankTransactionList, BankTransactionView, ChartList, ChartView, JournalList, JournalView,
+        PeriodView, StatutoryTaxFactView, StatutoryTaxReport, SubledgerList, SubledgerView,
+        TrialBalanceLine, TrialBalanceView,
     },
 };
 use erpx_integration_contracts::{customer, procurement};
-use erpx_proto::platform as wire;
+use erpx_proto::erpx::finance::v1 as wire;
 use erpx_ui_foundation::UiError;
 
 use crate::{features::finance::FinanceProtoTransport, transport::typed_cqrs::GrpcChannel};
@@ -277,6 +277,33 @@ impl FinanceProtoTransport for FinanceGrpcTransport {
                     consistency,
                 )
             }
+            FinanceQuery::ListCharts(value) => {
+                let request = wire::ListFinanceChartRecordsRequest {
+                    metadata: Some(metadata),
+                    company_id: value.filter.company_id.map(|id| id.to_string()),
+                    page_size: u32::from(value.filter.page_size),
+                    cursor: value.filter.cursor,
+                };
+                let response = client
+                    .list_charts(self.auth.request(request, &actor)?)
+                    .await
+                    .map_err(|status| status_ui("finance list charts", status))?
+                    .into_inner();
+                let value = ChartList {
+                    charts: response
+                        .charts
+                        .into_iter()
+                        .map(decode_chart)
+                        .collect::<Result<_, _>>()?,
+                    next_cursor: response.next_cursor,
+                };
+                query_result(
+                    response.metadata,
+                    FinanceQueryResponse::Charts(value),
+                    correlation,
+                    consistency,
+                )
+            }
             FinanceQuery::GetPeriod(value) => {
                 let request = wire::GetFinancePeriodRecordRequest {
                     metadata: Some(metadata),
@@ -451,6 +478,7 @@ impl FinanceProtoTransport for FinanceGrpcTransport {
                     metadata: Some(metadata),
                     tax_period: value.tax_period,
                     currency: value.currency,
+                    mfa_code: None,
                 };
                 let response = client
                     .get_statutory_tax_report(self.auth.request(request, &actor)?)

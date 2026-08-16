@@ -21,6 +21,7 @@ web = ["dioxus-primitives/web", "erpx-ui-core/web"]
 
 [dev-dependencies]
 dioxus-ssr.workspace = true
+erpx-integration-contracts.workspace = true
 
 [lints]
 workspace = true

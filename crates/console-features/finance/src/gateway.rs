@@ -31,6 +31,14 @@ pub fn present_query(v: QueryResult<FinanceQueryResponse>) -> QueryResult<Option
     let metadata = v.metadata;
     let value = match v.value {
         FinanceQueryResponse::Chart(x) => x.map(chart).map(FinanceContent::Item),
+        FinanceQueryResponse::Charts(x) => {
+            let items = x.charts.into_iter().map(chart).collect::<Vec<_>>();
+            (!items.is_empty()).then_some(FinanceContent::Items(FinanceItems {
+                heading: "Charts of accounts".into(),
+                items,
+                next_cursor: x.next_cursor,
+            }))
+        }
         FinanceQueryResponse::Period(x) => x.map(period).map(FinanceContent::Item),
         FinanceQueryResponse::Journal(x) => x.map(journal).map(FinanceContent::Item),
         FinanceQueryResponse::Journals(x) => {
