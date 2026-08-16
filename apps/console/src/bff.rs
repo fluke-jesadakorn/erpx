@@ -1183,7 +1183,7 @@ pub(crate) async fn password_login(
     headers: HeaderMap,
     Json(request): Json<PasswordLoginRequest>,
 ) -> Response {
-    exchange_password_login(&state, context, &headers, request).await
+    exchange_password_login(&state, context, &headers, request, false).await
 }
 
 pub(crate) async fn password_login_form_entry() -> Response {
@@ -1196,7 +1196,7 @@ pub(crate) async fn password_login_form(
     headers: HeaderMap,
     Form(request): Form<PasswordLoginRequest>,
 ) -> Response {
-    let response = exchange_password_login(&state, context, &headers, request).await;
+    let response = exchange_password_login(&state, context, &headers, request, true).await;
     password_form_response(response, &headers)
 }
 
@@ -1205,8 +1205,18 @@ async fn exchange_password_login(
     context: BffSessionContext,
     headers: &HeaderMap,
     request: PasswordLoginRequest,
+    password_form_navigation: bool,
 ) -> Response {
-    if !same_origin_mutation(headers, &state.trusted_public_origins)
+    let trusted_origin = if password_form_navigation {
+        trusted_password_form_submission(
+            headers,
+            &state.trusted_public_origins,
+            state.production_profile,
+        )
+    } else {
+        same_origin_mutation(headers, &state.trusted_public_origins)
+    };
+    if !trusted_origin
         || request.principal_ref.trim().is_empty()
         || request.principal_ref.len() > 256
         || request.password.is_empty()
@@ -2596,6 +2606,44 @@ fn same_origin_mutation(headers: &HeaderMap, trusted_public_origins: &[Arc<str>]
             .any(|trusted| trusted.as_ref() == origin.origin().ascii_serialization())
 }
 
+fn trusted_password_form_submission(
+    headers: &HeaderMap,
+    trusted_public_origins: &[Arc<str>],
+    production_profile: bool,
+) -> bool {
+    if same_origin_mutation(headers, trusted_public_origins) {
+        return true;
+    }
+    // Dioxus' local full-stack proxy can turn a native form navigation into an opaque
+    // `Origin: null` request to an ephemeral loopback authority. Keep that development-only
+    // compatibility path closed unless browser-controlled Fetch Metadata still proves that the
+    // request is a same-origin top-level document navigation.
+    if production_profile || !cfg!(debug_assertions) {
+        return false;
+    }
+
+    headers
+        .get(header::ORIGIN)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|origin| origin == "null")
+        && headers
+            .get(header::HOST)
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(loopback_authority)
+        && headers
+            .get("sec-fetch-site")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|site| site.eq_ignore_ascii_case("same-origin"))
+        && headers
+            .get("sec-fetch-mode")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|mode| mode.eq_ignore_ascii_case("navigate"))
+        && headers
+            .get("sec-fetch-dest")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|destination| destination.eq_ignore_ascii_case("document"))
+}
+
 pub(crate) async fn upgrade_legacy_session(
     Extension(state): Extension<BffState>,
     headers: HeaderMap,
@@ -3132,6 +3180,32 @@ mod tests {
             HeaderValue::from_static("http://100.97.9.56:3004"),
         );
         assert!(!same_origin_mutation(&headers, &trusted));
+    }
+
+    #[test]
+    fn development_password_form_accepts_only_browser_same_origin_null_origin_navigation() {
+        let trusted = parse_trusted_public_origins("http://localhost:3004").unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(header::HOST, HeaderValue::from_static("127.0.0.1:60805"));
+        headers.insert(header::ORIGIN, HeaderValue::from_static("null"));
+        headers.insert("sec-fetch-site", HeaderValue::from_static("same-origin"));
+        headers.insert("sec-fetch-mode", HeaderValue::from_static("navigate"));
+        headers.insert("sec-fetch-dest", HeaderValue::from_static("document"));
+
+        assert_eq!(
+            trusted_password_form_submission(&headers, &trusted, false),
+            cfg!(debug_assertions)
+        );
+        assert!(!trusted_password_form_submission(&headers, &trusted, true));
+
+        headers.insert("sec-fetch-site", HeaderValue::from_static("cross-site"));
+        assert!(!trusted_password_form_submission(&headers, &trusted, false));
+        headers.insert("sec-fetch-site", HeaderValue::from_static("same-origin"));
+        headers.insert(
+            header::HOST,
+            HeaderValue::from_static("internal.example:60805"),
+        );
+        assert!(!trusted_password_form_submission(&headers, &trusted, false));
     }
 
     #[test]
