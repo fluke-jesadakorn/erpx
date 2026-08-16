@@ -68,4 +68,26 @@ impl ControlPlanePools {
             .await?;
         Ok(Self { write, read })
     }
+
+    /// Connect the worker's always-used write pool eagerly while keeping its
+    /// control-read pool lazy. ERPX runs one bounded process per worker kind;
+    /// eagerly reserving an otherwise-unused read connection in every process
+    /// can exhaust the database before tenant projection routes are opened.
+    /// Handlers that need the read side still establish and validate that
+    /// connection on their first query.
+    pub async fn connect_worker(
+        config: &ControlPlaneDatabaseConfig,
+        settings: ControlPlanePoolSettings,
+    ) -> Result<Self, sqlx::Error> {
+        let write = PgPoolOptions::new()
+            .max_connections(settings.write_max_connections)
+            .acquire_timeout(settings.acquire_timeout)
+            .connect(&config.write_url)
+            .await?;
+        let read = PgPoolOptions::new()
+            .max_connections(settings.read_max_connections)
+            .acquire_timeout(settings.acquire_timeout)
+            .connect_lazy(&config.read_url)?;
+        Ok(Self { write, read })
+    }
 }

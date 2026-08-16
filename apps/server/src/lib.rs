@@ -15816,17 +15816,31 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     let development_controller = identity_http::development_controller_role_config()
         .map_err(|error| format!("development controller startup gate failed: {error}"))?;
-    let storage = Arc::new(StorageComposition::from_env()?);
+    let storage = Arc::new(
+        StorageComposition::from_env()
+            .map_err(|error| format!("object storage configuration failed: {error}"))?,
+    );
     let database_config = ControlPlaneDatabaseConfig::from_env()?;
-    let pools = ControlPlanePools::connect(&database_config).await?;
-    erpx_migration::migrate_control_plane(&pools.write).await?;
-    erpx_migration::migrate_control_read(&pools.read).await?;
-    apply_identity_migration(&pools.write).await?;
+    let pools = ControlPlanePools::connect(&database_config)
+        .await
+        .map_err(|error| format!("control-plane database connection failed: {error}"))?;
+    erpx_migration::migrate_control_plane(&pools.write)
+        .await
+        .map_err(|error| format!("control-write migration failed: {error}"))?;
+    erpx_migration::migrate_control_read(&pools.read)
+        .await
+        .map_err(|error| format!("control-read migration failed: {error}"))?;
+    apply_identity_migration(&pools.write)
+        .await
+        .map_err(|error| format!("identity migration failed: {error}"))?;
     let access_token_key = std::env::var("ERPX_ACCESS_TOKEN_SIGNING_KEY")
         .map_err(|_| "ERPX_ACCESS_TOKEN_SIGNING_KEY is required")?;
     let access_token_signer = Arc::new(AccessTokenSigner::new(access_token_key.as_bytes())?);
     let store = Arc::new(SqlxControlPlane::new(pools));
-    store.require_erpx_command_owner().await?;
+    store
+        .require_erpx_command_owner()
+        .await
+        .map_err(|error| format!("control-plane command-owner check failed: {error}"))?;
     let commercial = Arc::new(SqlxCommercialStore::new(&store));
     let tenant_router = configure_tenant_router(store.clone())?;
     let marketing_callback_secrets = configure_marketing_callback_secret_resolver()?;
@@ -15860,7 +15874,9 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let data_plane_broker = Arc::new(data_plane_rpc::DataPlaneBroker::new(
         erpx_infrastructure::SqlxDataPlaneControlStore::new(store.clone()),
     )?);
-    data_plane_rpc::spawn_agent_broker(data_plane_broker.clone()).await?;
+    data_plane_rpc::spawn_agent_broker(data_plane_broker.clone())
+        .await
+        .map_err(|error| format!("data-plane broker startup failed: {error}"))?;
     let http_addr: SocketAddr = std::env::var("ERPX_HTTP_ADDR")
         .unwrap_or_else(|_| "127.0.0.1:50052".into())
         .parse()?;

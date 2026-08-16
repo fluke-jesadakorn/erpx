@@ -355,7 +355,7 @@ fn is_live_web_cache_group(workspace_target: &Path, path: &Path) -> bool {
         return false;
     }
     let shared = path.file_name().is_some_and(|name| {
-        ["dx", "dx-hotpatch", "wasm-dev", "server-dev"]
+        ["dx", "dx-hotpatch", "erpx-tools", "wasm-dev", "server-dev"]
             .iter()
             .any(|candidate| name == *candidate)
     });
@@ -899,6 +899,7 @@ mod tests {
         let target = Path::new("/workspace/target");
         assert!(is_live_web_cache_group(target, &target.join("dx")));
         assert!(is_live_web_cache_group(target, &target.join("dx-hotpatch")));
+        assert!(is_live_web_cache_group(target, &target.join("erpx-tools")));
         assert!(is_live_web_cache_group(target, &target.join("wasm-dev")));
         assert!(is_live_web_cache_group(target, &target.join("server-dev")));
         assert!(!is_live_web_cache_group(target, &target.join("debug")));

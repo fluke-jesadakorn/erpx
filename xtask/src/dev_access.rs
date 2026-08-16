@@ -25,7 +25,7 @@ use erpx_infrastructure::{
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -1148,8 +1148,8 @@ async fn reconcile_typed_organization_read_fixtures(
     now: chrono::DateTime<Utc>,
 ) -> TaskResult {
     let tenants = sqlx::query(
-        "SELECT registry.tenant_id, registry.holding_ref, registry.read_database_key,
-                binding.root_holding_id
+        "SELECT registry.tenant_id, registry.holding_ref, registry.write_database_key,
+                registry.read_database_key, binding.root_holding_id
          FROM erpx_control.tenant_registry registry
          JOIN erpx_control.customer_tenant_bindings binding USING (tenant_id)
          WHERE registry.state='active' AND binding.binding_state='configured'
@@ -1162,14 +1162,46 @@ async fn reconcile_typed_organization_read_fixtures(
     for tenant in tenants {
         let tenant_id: String = tenant.try_get("tenant_id")?;
         let holding_ref: String = tenant.try_get("holding_ref")?;
+        let write_database_key: String = tenant.try_get("write_database_key")?;
         let read_database_key: String = tenant.try_get("read_database_key")?;
         let holding_id: Uuid = tenant.try_get("root_holding_id")?;
+        let write = super::pool(&config.database_url(&write_database_key)).await?;
+        let tenant_uuid = Uuid::parse_str(&tenant_id)?;
+        let mut write_transaction = write.begin().await?;
+        let bound_tenant: String = sqlx::query_scalar("SELECT set_config('app.tenant_id',$1,true)")
+            .bind(tenant_uuid.to_string())
+            .fetch_one(&mut *write_transaction)
+            .await?;
+        if bound_tenant != tenant_uuid.to_string() {
+            return Err("typed Organization authority tenant binding was not retained".into());
+        }
+        let authoritative_node_ids = sqlx::query_scalar::<_, Uuid>(
+            "SELECT node_id
+             FROM erpx_organization_write.organization_node_authority
+             WHERE tenant_id=$1",
+        )
+        .bind(tenant_uuid)
+        .fetch_all(&mut *write_transaction)
+        .await?
+        .into_iter()
+        .collect::<BTreeSet<_>>();
+        write_transaction.commit().await?;
+        write.close().await;
         let read = super::pool(&config.database_url(&read_database_key)).await?;
+        let mut read_transaction = read.begin().await?;
+        let bound_tenant: String = sqlx::query_scalar("SELECT set_config('app.tenant_id',$1,true)")
+            .bind(tenant_uuid.to_string())
+            .fetch_one(&mut *read_transaction)
+            .await?;
+        if bound_tenant != tenant_uuid.to_string() {
+            return Err("typed Organization fixture tenant binding was not retained".into());
+        }
         let generation = match sqlx::query_scalar(
             "SELECT generation FROM erpx_cqrs_read.projection_generations
-             WHERE projection_name='organization.nodes' AND status='active'",
+             WHERE tenant_id=$1 AND projection_name='organization.nodes' AND status='active'",
         )
-        .fetch_optional(&read)
+        .bind(tenant_uuid)
+        .fetch_optional(&mut *read_transaction)
         .await?
         {
             Some(generation) => generation,
@@ -1180,12 +1212,13 @@ async fn reconcile_typed_organization_read_fixtures(
                 );
                 sqlx::query(
                     "INSERT INTO erpx_cqrs_read.projection_generations
-                        (projection_name,generation,status,source_sequence,created_at,activated_at)
-                     VALUES ('organization.nodes',$1,'active',0,$2,$2)",
+                        (tenant_id,projection_name,generation,status,source_sequence,created_at,activated_at)
+                     VALUES ($1,'organization.nodes',$2,'active',0,$3,$3)",
                 )
+                .bind(tenant_uuid)
                 .bind(generation)
                 .bind(now)
-                .execute(&read)
+                .execute(&mut *read_transaction)
                 .await?;
                 generation
             }
@@ -1198,20 +1231,23 @@ async fn reconcile_typed_organization_read_fixtures(
         } else {
             "Development Holding"
         };
-        insert_typed_organization_read_fixture(
-            &read,
-            generation,
-            1,
-            holding_id,
-            "holding",
-            holding_id,
-            None,
-            None,
-            holding_ref.clone(),
-            holding_name.to_owned(),
-            now,
-        )
-        .await?;
+        if !authoritative_node_ids.contains(&holding_id) {
+            insert_typed_organization_read_fixture(
+                &mut read_transaction,
+                tenant_uuid,
+                generation,
+                1,
+                holding_id,
+                "holding",
+                holding_id,
+                None,
+                None,
+                holding_ref.clone(),
+                holding_name.to_owned(),
+                now,
+            )
+            .await?;
+        }
 
         let routes = sqlx::query(
             "SELECT route.company_id, route.branch_id, job.branch_code, job.branch_name
@@ -1238,7 +1274,7 @@ async fn reconcile_typed_organization_read_fixtures(
             let branch_id: Uuid = route.try_get("branch_id")?;
             let branch_code: String = route.try_get("branch_code")?;
             let branch_name: String = route.try_get("branch_name")?;
-            if seen_companies.insert(company_id) {
+            if seen_companies.insert(company_id) && !authoritative_node_ids.contains(&company_id) {
                 let fixture = branch_fixtures(&tenant_id)
                     .iter()
                     .find(|fixture| branch_ids(&tenant_id, **fixture).0 == company_id);
@@ -1251,7 +1287,8 @@ async fn reconcile_typed_organization_read_fixtures(
                     |fixture| fixture.company_name.to_owned(),
                 );
                 insert_typed_organization_read_fixture(
-                    &read,
+                    &mut read_transaction,
+                    tenant_uuid,
                     generation,
                     u64::try_from(index)?.saturating_mul(2).saturating_add(2),
                     company_id,
@@ -1265,20 +1302,23 @@ async fn reconcile_typed_organization_read_fixtures(
                 )
                 .await?;
             }
-            insert_typed_organization_read_fixture(
-                &read,
-                generation,
-                u64::try_from(index)?.saturating_mul(2).saturating_add(3),
-                branch_id,
-                "branch",
-                holding_id,
-                Some(company_id),
-                Some(company_id),
-                branch_code,
-                branch_name,
-                now,
-            )
-            .await?;
+            if !authoritative_node_ids.contains(&branch_id) {
+                insert_typed_organization_read_fixture(
+                    &mut read_transaction,
+                    tenant_uuid,
+                    generation,
+                    u64::try_from(index)?.saturating_mul(2).saturating_add(3),
+                    branch_id,
+                    "branch",
+                    holding_id,
+                    Some(company_id),
+                    Some(company_id),
+                    branch_code,
+                    branch_name,
+                    now,
+                )
+                .await?;
+            }
             seen_branches.insert(branch_id);
         }
 
@@ -1321,9 +1361,10 @@ async fn reconcile_typed_organization_read_fixtures(
                     let ids = branch_ids(&tenant_id, **fixture);
                     ids.0 == company_id && branch_id.is_none_or(|branch_id| ids.1 == branch_id)
                 });
-            if seen_companies.insert(company_id) {
+            if seen_companies.insert(company_id) && !authoritative_node_ids.contains(&company_id) {
                 insert_typed_organization_read_fixture(
-                    &read,
+                    &mut read_transaction,
+                    tenant_uuid,
                     generation,
                     u64::try_from(index)?
                         .saturating_mul(2)
@@ -1347,9 +1388,11 @@ async fn reconcile_typed_organization_read_fixtures(
             }
             if let Some(branch_id) = branch_id
                 && seen_branches.insert(branch_id)
+                && !authoritative_node_ids.contains(&branch_id)
             {
                 insert_typed_organization_read_fixture(
-                    &read,
+                    &mut read_transaction,
+                    tenant_uuid,
                     generation,
                     u64::try_from(index)?
                         .saturating_mul(2)
@@ -1372,6 +1415,7 @@ async fn reconcile_typed_organization_read_fixtures(
                 .await?;
             }
         }
+        read_transaction.commit().await?;
         read.close().await;
     }
     Ok(())
@@ -1379,7 +1423,8 @@ async fn reconcile_typed_organization_read_fixtures(
 
 #[allow(clippy::too_many_arguments)]
 async fn insert_typed_organization_read_fixture(
-    read: &PgPool,
+    read: &mut Transaction<'_, Postgres>,
+    tenant_id: Uuid,
     generation: Uuid,
     source_global_sequence: u64,
     node_id: Uuid,
@@ -1428,13 +1473,14 @@ async fn insert_typed_organization_read_fixture(
     });
     sqlx::query(
         "INSERT INTO erpx_organization_read.node_projection
-            (projection_name,generation,partition_key,node_id,source_aggregate_version,
+            (tenant_id,projection_name,generation,partition_key,node_id,source_aggregate_version,
              source_global_sequence,node_kind,node_status,parent_node_id,tenant_scope,
              scope_key,placement,node_code,display_name,state,aggregate_created_at,
              aggregate_updated_at,projected_at)
-         VALUES ('organization.nodes',$1,$2,$3,1,$4,$5,'active',$6,$7,$8,$9,$10,$11,$12,$13,$13,$13)
-         ON CONFLICT (projection_name,generation,partition_key,node_id) DO NOTHING",
+         VALUES ($1,'organization.nodes',$2,$3,$4,1,$5,$6,'active',$7,$8,$9,$10,$11,$12,$13,$14,$14,$14)
+         ON CONFLICT (tenant_id,projection_name,generation,partition_key,node_id) DO NOTHING",
     )
+    .bind(tenant_id)
     .bind(generation)
     .bind(format!("organization.node:{}", node_id.simple()))
     .bind(node_id)
@@ -1448,7 +1494,7 @@ async fn insert_typed_organization_read_fixture(
     .bind(name)
     .bind(state)
     .bind(now)
-    .execute(read)
+    .execute(&mut **read)
     .await?;
     Ok(())
 }

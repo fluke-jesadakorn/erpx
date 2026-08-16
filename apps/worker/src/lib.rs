@@ -1744,7 +1744,7 @@ impl WorkerRuntime {
     pub async fn connect(config: WorkerRuntimeConfig) -> Result<Self, WorkerRuntimeError> {
         let database_config = ControlPlaneDatabaseConfig::from_env()
             .map_err(|error| WorkerRuntimeError::Configuration(error.into()))?;
-        let pools = ControlPlanePools::connect_with_settings(
+        let pools = ControlPlanePools::connect_worker(
             &database_config,
             ControlPlanePoolSettings {
                 write_max_connections: 2,

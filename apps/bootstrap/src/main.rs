@@ -11,12 +11,12 @@ use erpx_domain::{
 };
 use erpx_identity::{SqlxIdentityStore, apply_identity_migration};
 use erpx_infrastructure::{
-    ControlPlanePools, DatabaseProfileRegistration, MinioObjectStoreConfig, ProjectionJobKind,
-    ProjectionPolicy, ProjectionScheduleRequest, ProjectionSchedulerAuthorization,
-    SqlxBranchProvisioningStore, SqlxControlPlane, SqlxTenantAdministrationStore,
-    SqlxTenantStoreRegistry, TenantDatabaseHealth, TenantHoldingBinding,
-    TenantProjectionSchedulerRepository, TenantProvisioner, TenantStorageHealth,
-    initialize_tenant_organization_in_pools,
+    ControlPlanePools, DatabaseProfileRegistration, FRESH_INITIAL_TENANT_PROJECTIONS,
+    MinioObjectStoreConfig, ProjectionJobKind, ProjectionPolicy, ProjectionScheduleRequest,
+    ProjectionSchedulerAuthorization, SqlxBranchProvisioningStore, SqlxControlPlane,
+    SqlxTenantAdministrationStore, SqlxTenantStoreRegistry, TenantDatabaseHealth,
+    TenantHoldingBinding, TenantProjectionSchedulerRepository, TenantProvisioner,
+    TenantStorageHealth, initialize_tenant_organization_in_pools,
 };
 use serde::Serialize;
 use sqlx::{
@@ -101,37 +101,6 @@ const OWNER_PERMISSIONS: &[&str] = &[
     "tenant.infrastructure.approve",
     "tenant.infrastructure.propose",
     "tenant.infrastructure.read",
-];
-
-/// Tenant-scoped generation-v2 projectors that must establish an initial durable
-/// checkpoint before the Server is allowed to accept traffic.
-const INITIAL_TENANT_PROJECTIONS: [&str; 26] = [
-    "quality.inspections",
-    "identity_access.principals",
-    "identity_access.roles",
-    "organization.nodes",
-    "commercial.subscriptions",
-    "commercial.entitlements",
-    "marketing.lead_candidates",
-    "marketing.campaign_budgets",
-    "crm.leads",
-    "crm.opportunities",
-    "procurement.purchase_orders",
-    "inventory.stock_items",
-    "assets.assets",
-    "maintenance.work_orders",
-    "maintenance.asset_facts",
-    "sales.quotes",
-    "sales.orders",
-    "sales.revenue_arrangements",
-    "finance.customer_invoices",
-    "finance.revenue_schedules",
-    "people_payroll.employees",
-    "people_payroll.leave_requests",
-    "people_payroll.expense_claims",
-    "people_payroll.payroll_runs",
-    "pos.sales",
-    "pos.refunds",
 ];
 
 #[derive(Debug)]
@@ -1562,7 +1531,7 @@ async fn schedule_initial_projection_jobs(
     let policy = ProjectionPolicy::new(500, 10, 10, 1, 60)
         .map_err(|_| BootstrapError("initial projection policy is invalid"))?;
     let now = Utc::now();
-    for projection_name in INITIAL_TENANT_PROJECTIONS {
+    for projection_name in FRESH_INITIAL_TENANT_PROJECTIONS {
         repository
             .schedule(
                 ProjectionScheduleRequest {

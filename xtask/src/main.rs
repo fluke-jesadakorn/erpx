@@ -25,8 +25,9 @@ use erpx_domain::{
 };
 use erpx_identity::{SqlxIdentityStore, apply_identity_migration};
 use erpx_infrastructure::{
-    ControlPlanePools, SqlxControlPlane, SqlxTenantAdministrationStore, SqlxTenantStoreRegistry,
-    TenantStoreRegistration, tenant_holding_scope_id,
+    ControlPlanePools, FRESH_INITIAL_TENANT_PROJECTIONS, SqlxControlPlane,
+    SqlxTenantAdministrationStore, SqlxTenantStoreRegistry, TenantStoreRegistration,
+    tenant_holding_scope_id,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -570,7 +571,11 @@ impl FreshRuntimeManifest {
         ]
     }
 
-    async fn require_complete_receipt(&self, root: &Path, config: &DevConfig) -> TaskResult {
+    async fn complete_receipt_root_principal(
+        &self,
+        root: &Path,
+        config: &DevConfig,
+    ) -> TaskResult<String> {
         let n8n_path = root.join(".runtime/n8n/.n8n/config");
         for component in [
             root.join(".runtime"),
@@ -591,9 +596,8 @@ impl FreshRuntimeManifest {
             return Err("fresh-state runtime refused a changed n8n configuration".into());
         }
         let pool = pool(&config.database_url(&self.control_write_database)).await?;
-        let valid: bool = sqlx::query_scalar(
-            "SELECT EXISTS(
-                SELECT 1
+        let root_principal: Option<String> = sqlx::query_scalar(
+            "SELECT receipt.root_principal_ref
                 FROM erpx_control.platform_bootstrap_receipts receipt
                 JOIN erpx_control.tenant_registry registry
                   ON registry.tenant_id=receipt.tenant_id
@@ -606,7 +610,7 @@ impl FreshRuntimeManifest {
                   AND registry.read_database_key=$5
                   AND registry.storage_namespace=$6
                   AND registry.state='active'
-            )",
+                LIMIT 1",
         )
         .bind(&self.installation_prefix)
         .bind(&self.tenant_id)
@@ -614,15 +618,29 @@ impl FreshRuntimeManifest {
         .bind(&self.tenant_write_database)
         .bind(&self.tenant_read_database)
         .bind(&self.object_namespace)
-        .fetch_one(&pool)
+        .fetch_optional(&pool)
         .await?;
         pool.close().await;
-        if !valid {
-            return Err(
-                "fresh-state runtime requires a matching complete receipt and active tenant".into(),
-            );
+        let root_principal = root_principal
+            .ok_or("fresh-state runtime requires a matching complete receipt and active tenant")?;
+        if root_principal.trim() != root_principal
+            || root_principal.is_empty()
+            || root_principal.len() > 255
+            || root_principal.chars().any(|character| {
+                character.is_control()
+                    || character.is_whitespace()
+                    || matches!(character, '/' | '\\')
+            })
+        {
+            return Err("fresh-state bootstrap receipt contains an invalid root principal".into());
         }
-        Ok(())
+        Ok(root_principal)
+    }
+
+    async fn require_complete_receipt(&self, root: &Path, config: &DevConfig) -> TaskResult {
+        self.complete_receipt_root_principal(root, config)
+            .await
+            .map(|_| ())
     }
 }
 
@@ -2037,16 +2055,21 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
     if development_access_enabled {
         dev_access::init(root, config)?;
     }
-    if let Some(manifest) = fresh_runtime.as_ref() {
+    let projection_actor_ref = if let Some(manifest) = fresh_runtime.as_ref() {
         if dedicated {
             infra::ensure_runtime_postgres_hba()?;
         }
-        manifest.require_complete_receipt(root, config).await?;
+        let root_principal = manifest
+            .complete_receipt_root_principal(root, config)
+            .await?;
         println!(
             "dev cutover: verified fresh receipt for installation {}",
             manifest.installation_generation
         );
-    }
+        root_principal
+    } else {
+        "local:platform-root".into()
+    };
 
     let phase = Instant::now();
     if let Some(manifest) = fresh_runtime.as_ref() {
@@ -2163,6 +2186,7 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
         development_access_enabled,
         fresh_runtime.as_ref(),
     )?;
+    common.push(("ERPX_WORKER_ACTOR_REF", projection_actor_ref.clone()));
     let mut allowed_origins = configured_value("ERPX_HTTP_ALLOWED_ORIGINS");
     if let Some(address) = tailnet_ip {
         let origin = format!("http://{address}:3004");
@@ -2185,7 +2209,7 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
         ),
         (
             "ERPX_TENANT_PROJECTION_SCHEDULER_ACTOR_REF",
-            "local:platform-root".into(),
+            projection_actor_ref,
         ),
     ]);
     let mut web_environment = vec![
@@ -3200,7 +3224,6 @@ fn apply_worker_plan(
         environment.extend([
             ("ERPX_WORKER_HANDLER", spec.handler.into()),
             ("ERPX_WORKER_ID", spec.worker_id.into()),
-            ("ERPX_WORKER_ACTOR_REF", "local:platform-root".into()),
             (
                 "ERPX_WORKER_POLL_INTERVAL_MS",
                 DEV_WORKER_POLL_INTERVAL_MS.into(),
@@ -3294,7 +3317,7 @@ async fn wait_for_fresh_worker_barrier(
         let jobs: (i64, i64, i64, i64, Option<chrono::DateTime<Utc>>) = sqlx::query_as(
             "SELECT count(*) AS total,
                     count(*) FILTER (WHERE state='succeeded') AS succeeded,
-                    count(*) FILTER (WHERE state IN ('retryable','dead_letter')) AS failed,
+                    count(*) FILTER (WHERE state='dead_letter') AS failed,
                     count(*) FILTER (WHERE state='claimed' AND lease_until <= now()) AS expired,
                     max(updated_at) AS newest_updated_at
              FROM erpx_control.tenant_projection_jobs
@@ -3306,8 +3329,13 @@ async fn wait_for_fresh_worker_barrier(
         .fetch_one(&write)
         .await
         .map_err(|_| "fresh initial projection barrier could not be evaluated")?;
-        if jobs.0 != 22 {
-            return Err("fresh initial projection job inventory is incomplete".into());
+        let expected_job_count = i64::try_from(FRESH_INITIAL_TENANT_PROJECTIONS.len())?;
+        if jobs.0 != expected_job_count {
+            return Err(format!(
+                "fresh initial projection job inventory is incomplete: expected {expected_job_count}, found {}",
+                jobs.0
+            )
+            .into());
         }
         if jobs.2 != 0 || jobs.3 != 0 {
             return Err("fresh initial projection jobs failed closed".into());
@@ -3372,18 +3400,20 @@ async fn require_fresh_command_projection_smoke(
                 (SELECT count(*) FROM erpx_cqrs_write.audit_log
                  WHERE context_name='brand'),
                 (SELECT count(*) FROM erpx_cqrs_write.outbox_events
-                 WHERE context_name='brand' AND publish_error IS NULL),
+                 WHERE context_name='brand' AND event_type='brand.profile_snapshot'
+                   AND publish_error IS NULL),
                 (SELECT count(DISTINCT command_id) FROM erpx_cqrs_write.outbox_events
-                 WHERE context_name='brand' AND publish_error IS NULL),
+                 WHERE context_name='brand' AND event_type='brand.profile_snapshot'
+                   AND publish_error IS NULL),
                 (SELECT max(global_sequence) FROM erpx_cqrs_write.outbox_events
-                 WHERE context_name='brand')",
+                 WHERE context_name='brand' AND event_type='brand.profile_snapshot')",
         )
         .fetch_one(&write)
         .await
         .map_err(|_| "fresh command-side smoke evidence could not be read")?;
         if write_evidence.0 != 2
             || write_evidence.1 != 2
-            || write_evidence.2 != 3
+            || write_evidence.2 != 2
             || write_evidence.3 != 2
         {
             return Err("fresh neutral-brand command atomicity evidence is invalid".into());

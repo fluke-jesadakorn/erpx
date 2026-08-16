@@ -30,6 +30,36 @@ pub const MAX_PROJECTION_ERROR_BYTES: usize = 1_000;
 pub const MAX_PROJECTION_STATUS_PAGE_SIZE: u32 = 100;
 pub const MAX_PROJECTION_STATUS_FRESHNESS_SECONDS: i64 = 300;
 pub const TENANT_PROJECTION_PERMISSION: &str = "tenant.projection.execute";
+/// Generation-two tenant projections whose initial jobs must reach a terminal
+/// success before a freshly bootstrapped Server can accept traffic.
+pub const FRESH_INITIAL_TENANT_PROJECTIONS: [&str; 26] = [
+    "quality.inspections",
+    "identity_access.principals",
+    "identity_access.roles",
+    "organization.nodes",
+    "commercial.subscriptions",
+    "commercial.entitlements",
+    "marketing.lead_candidates",
+    "marketing.campaign_budgets",
+    "crm.leads",
+    "crm.opportunities",
+    "procurement.purchase_orders",
+    "inventory.stock_items",
+    "assets.assets",
+    "maintenance.work_orders",
+    "maintenance.asset_facts",
+    "sales.quotes",
+    "sales.orders",
+    "sales.revenue_arrangements",
+    "finance.customer_invoices",
+    "finance.revenue_schedules",
+    "people_payroll.employees",
+    "people_payroll.leave_requests",
+    "people_payroll.expense_claims",
+    "people_payroll.payroll_runs",
+    "pos.sales",
+    "pos.refunds",
+];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectionSchedulerAuthorization {
@@ -2956,5 +2986,20 @@ mod tests {
         .expect("rebuild job");
         assert_eq!(job.state, ProjectionJobState::RebuildPending);
         assert_eq!(job.kind, ProjectionJobKind::Rebuild);
+    }
+
+    #[test]
+    fn fresh_bootstrap_projection_inventory_is_unique_and_bounded() {
+        let unique = FRESH_INITIAL_TENANT_PROJECTIONS
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+
+        assert_eq!(unique.len(), FRESH_INITIAL_TENANT_PROJECTIONS.len());
+        assert!(FRESH_INITIAL_TENANT_PROJECTIONS.iter().all(|name| {
+            !name.trim().is_empty()
+                && name.len() <= MAX_PROJECTION_NAME_LENGTH
+                && !name.chars().any(char::is_control)
+        }));
     }
 }
