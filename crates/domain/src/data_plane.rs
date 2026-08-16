@@ -55,8 +55,9 @@ pub enum BusinessUnitId {
 
 /// Stable route and authorization metadata for one ERPX business unit.
 ///
-/// This catalog is the single source of truth shared by server navigation,
-/// client route resolution, entitlements, localization, and contract tests.
+/// Compatibility metadata for the twelve original business-unit authority
+/// scopes. The 21-workspace typed catalog in `erpx-integration-contracts` is
+/// authoritative for navigation and route discovery.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BusinessUnitRouteDescriptor {
     pub unit: BusinessUnitId,
@@ -102,18 +103,18 @@ const fn business_unit_route(
         unit,
         route_id: entitlement_key,
         canonical_path: match unit {
-            BusinessUnitId::Operations => "/workspaces/operations",
-            BusinessUnitId::Finance => "/workspaces/finance",
-            BusinessUnitId::Sales => "/workspaces/sales",
-            BusinessUnitId::Procurement => "/workspaces/procurement",
-            BusinessUnitId::Inventory => "/workspaces/inventory",
-            BusinessUnitId::Assets => "/workspaces/assets",
-            BusinessUnitId::Maintenance => "/workspaces/maintenance",
-            BusinessUnitId::Quality => "/workspaces/quality",
-            BusinessUnitId::MarketingCrm => "/workspaces/marketing-crm",
-            BusinessUnitId::HrPayroll => "/workspaces/hr-payroll",
-            BusinessUnitId::PointOfSale => "/workspaces/point-of-sale",
-            BusinessUnitId::Legal => "/workspaces/legal",
+            BusinessUnitId::Operations => "/operations",
+            BusinessUnitId::Finance => "/finance",
+            BusinessUnitId::Sales => "/sales",
+            BusinessUnitId::Procurement => "/procurement",
+            BusinessUnitId::Inventory => "/inventory",
+            BusinessUnitId::Assets => "/asset",
+            BusinessUnitId::Maintenance => "/maintenance",
+            BusinessUnitId::Quality => "/quality",
+            BusinessUnitId::MarketingCrm => "/marketing",
+            BusinessUnitId::HrPayroll => "/people",
+            BusinessUnitId::PointOfSale => "/pos",
+            BusinessUnitId::Legal => "/legal",
         },
         read_permission: match unit {
             BusinessUnitId::Operations => "operations.read",
@@ -1300,14 +1301,15 @@ mod tests {
             assert_eq!(route.route_id, unit.as_str());
             assert_eq!(route.entitlement_key, unit.as_str());
             assert_eq!(route.read_permission, unit.permission("read").unwrap());
-            assert!(route.canonical_path.starts_with("/workspaces/"));
+            assert!(route.canonical_path.starts_with('/'));
+            assert!(!route.canonical_path.starts_with("/workspaces"));
             assert!(route.label_key.starts_with("nav.business_unit."));
             assert!(!route.label_en.is_empty());
             assert!(!route.label_th.is_empty());
         }
         assert_eq!(
             BusinessUnitId::MarketingCrm.route().canonical_path,
-            "/workspaces/marketing-crm"
+            "/marketing"
         );
     }
 

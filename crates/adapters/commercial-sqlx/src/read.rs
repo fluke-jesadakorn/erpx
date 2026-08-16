@@ -107,7 +107,7 @@ impl CommercialReadRepository {
         checkpoint: Option<ProjectionCheckpoint>,
     ) -> Result<ProjectionMetadata, PortError> {
         let status: Option<String> = sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1")
-            .bind(projection).fetch_optional(plane.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .bind(projection).fetch_optional(&mut *plane.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
             Some("active") => FreshnessState::Current,
             Some("building") => FreshnessState::Rebuilding,
@@ -160,7 +160,7 @@ impl ReadRepository for CommercialReadRepository {
             .await?;
         let value = if scope == &TenantScope::Platform {
             sqlx::query("SELECT projection.state FROM erpx_commercial_read.catalog_plan_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.catalog_plan_id=$2 AND projection.partition_key=$3")
-                .bind(CATALOG_PLAN_PROJECTION).bind(id.as_uuid()).bind(&partition).fetch_optional(self.control.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?.map(decode).transpose()?
+                .bind(CATALOG_PLAN_PROJECTION).bind(id.as_uuid()).bind(&partition).fetch_optional(&mut *self.control.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?.map(decode).transpose()?
         } else {
             None
         };
@@ -201,7 +201,7 @@ impl ReadRepository for CommercialReadRepository {
         let cursor = filter.cursor.as_deref().map(decode_cursor).transpose()?;
         let rows=sqlx::query("SELECT projection.state FROM erpx_commercial_read.catalog_plan_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.catalog_plan_id)<($2,$3)) ORDER BY projection.aggregate_updated_at DESC,projection.catalog_plan_id DESC LIMIT $4")
             .bind(CATALOG_PLAN_PROJECTION).bind(cursor.map(|v|v.0)).bind(cursor.map(|v|v.1)).bind(i64::from(filter.page_size)+1)
-            .fetch_all(self.control.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .fetch_all(&mut *self.control.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let mut records = rows
             .into_iter()
             .map(decode)
@@ -238,7 +238,7 @@ impl ReadRepository for CommercialReadRepository {
             .await?;
         let authority = Authority::from_scope(scope);
         let row=sqlx::query("SELECT projection.state FROM erpx_commercial_read.subscription_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.subscription_id=$2 AND projection.partition_key=$3 AND ($4 OR ($5::text IS NOT NULL AND projection.scope_key=$5))")
-            .bind(SUBSCRIPTION_PROJECTION).bind(id.as_uuid()).bind(&partition).bind(authority.platform).bind(authority.scope_key).fetch_optional(self.tenant.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(SUBSCRIPTION_PROJECTION).bind(id.as_uuid()).bind(&partition).bind(authority.platform).bind(authority.scope_key).fetch_optional(&mut *self.tenant.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode).transpose()?;
         if value
             .as_ref()
@@ -272,7 +272,7 @@ impl ReadRepository for CommercialReadRepository {
         let authority = Authority::from_scope(scope);
         let cursor = filter.cursor.as_deref().map(decode_cursor).transpose()?;
         let rows=sqlx::query("SELECT projection.state FROM erpx_commercial_read.subscription_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2 OR ($3::text IS NOT NULL AND projection.scope_key=$3)) AND ($4::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.subscription_id)<($4,$5)) ORDER BY projection.aggregate_updated_at DESC,projection.subscription_id DESC LIMIT $6")
-            .bind(SUBSCRIPTION_PROJECTION).bind(authority.platform).bind(authority.scope_key).bind(cursor.map(|v|v.0)).bind(cursor.map(|v|v.1)).bind(i64::from(filter.page_size)+1).fetch_all(self.tenant.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(SUBSCRIPTION_PROJECTION).bind(authority.platform).bind(authority.scope_key).bind(cursor.map(|v|v.0)).bind(cursor.map(|v|v.1)).bind(i64::from(filter.page_size)+1).fetch_all(&mut *self.tenant.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut records = rows
             .into_iter()
             .map(decode)
@@ -317,7 +317,7 @@ impl ReadRepository for CommercialReadRepository {
             .await?;
         let authority = Authority::from_scope(scope);
         let row=sqlx::query("SELECT projection.state FROM erpx_commercial_read.entitlement_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.entitlement_id=$2 AND projection.partition_key=$3 AND ($4 OR ($5::text IS NOT NULL AND projection.scope_key=$5))")
-            .bind(ENTITLEMENT_PROJECTION).bind(id.as_uuid()).bind(&partition).bind(authority.platform).bind(authority.scope_key).fetch_optional(self.tenant.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(ENTITLEMENT_PROJECTION).bind(id.as_uuid()).bind(&partition).bind(authority.platform).bind(authority.scope_key).fetch_optional(&mut *self.tenant.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode).transpose()?;
         if value
             .as_ref()
@@ -351,7 +351,7 @@ impl ReadRepository for CommercialReadRepository {
         let authority = Authority::from_scope(scope);
         let cursor = filter.cursor.as_deref().map(decode_cursor).transpose()?;
         let rows=sqlx::query("SELECT projection.state FROM erpx_commercial_read.entitlement_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2 OR ($3::text IS NOT NULL AND projection.scope_key=$3)) AND ($4::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.entitlement_id)<($4,$5)) ORDER BY projection.aggregate_updated_at DESC,projection.entitlement_id DESC LIMIT $6")
-            .bind(ENTITLEMENT_PROJECTION).bind(authority.platform).bind(authority.scope_key).bind(cursor.map(|v|v.0)).bind(cursor.map(|v|v.1)).bind(i64::from(filter.page_size)+1).fetch_all(self.tenant.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(ENTITLEMENT_PROJECTION).bind(authority.platform).bind(authority.scope_key).bind(cursor.map(|v|v.0)).bind(cursor.map(|v|v.1)).bind(i64::from(filter.page_size)+1).fetch_all(&mut *self.tenant.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut records = rows
             .into_iter()
             .map(decode)
@@ -497,8 +497,14 @@ mod tests {
         let source = include_str!("read.rs");
         assert!(source.contains("control: ReadPlane"));
         assert!(source.contains("tenant: ReadPlane"));
-        assert!(source.contains("self.control.pool.as_pg_pool()"));
-        assert!(source.contains("self.tenant.pool.as_pg_pool()"));
+        assert!(source.contains(
+            "&mut *self.control.pool.begin().await.map_err(|_| PortError::Unavailable)?"
+        ));
+        assert!(
+            source.contains(
+                "&mut *self.tenant.pool.begin().await.map_err(|_| PortError::Unavailable)?"
+            )
+        );
         assert!(!source.contains(concat!("aggregate_", "snapshots")));
     }
 }

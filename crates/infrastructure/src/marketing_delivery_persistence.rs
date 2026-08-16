@@ -257,7 +257,7 @@ impl SqlxMarketingDeliveryStore {
                     if dispatch.state.is_terminal() && dispatch.version != version_before_attempt {
                         update_dispatch(&mut tx, &self.holding_ref, &dispatch, None, None, None)
                             .await?;
-                        write_snapshot_and_outbox_event(
+                        write_source_event(
                             &mut tx,
                             &self.holding_ref,
                             dispatch.id,
@@ -348,7 +348,7 @@ impl SqlxMarketingDeliveryStore {
         let event_type = provider_result_event_type(dispatch.state);
         let receipt =
             update_dispatch(&mut tx, &self.holding_ref, &dispatch, None, None, None).await?;
-        write_snapshot_and_outbox_event(
+        write_source_event(
             &mut tx,
             &self.holding_ref,
             dispatch.id,
@@ -567,7 +567,7 @@ impl SqlxMarketingDeliveryStore {
         }
         let receipt =
             update_dispatch(&mut tx, &self.holding_ref, &dispatch, None, None, None).await?;
-        write_snapshot_and_outbox_event(
+        write_source_event(
             &mut tx,
             &self.holding_ref,
             dispatch.id,
@@ -1198,7 +1198,15 @@ pub(crate) async fn enqueue_in_transaction(
     .execute(&mut **tx)
     .await?;
     insert_dispatch(tx, holding_ref, dispatch, &payload).await?;
-    write_snapshot_and_outbox(tx, holding_ref, dispatch.id, dispatch.version, &payload).await?;
+    write_source_event(
+        tx,
+        holding_ref,
+        dispatch.id,
+        dispatch.version,
+        &payload,
+        "marketing.delivery_queued.v1",
+    )
+    .await?;
     Ok(MarketingDeliveryWriteReceipt {
         delivery_id: dispatch.id,
         version: dispatch.version,
@@ -1290,25 +1298,7 @@ async fn update_dispatch(
     })
 }
 
-async fn write_snapshot_and_outbox(
-    tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
-    delivery_id: Uuid,
-    version: u64,
-    payload: &Value,
-) -> Result<(), PersistenceError> {
-    write_snapshot_and_outbox_event(
-        tx,
-        holding_ref,
-        delivery_id,
-        version,
-        payload,
-        "marketing.delivery_queued.v1",
-    )
-    .await
-}
-
-async fn write_snapshot_and_outbox_event(
+async fn write_source_event(
     tx: &mut Transaction<'_, Postgres>,
     holding_ref: &str,
     delivery_id: Uuid,
@@ -1316,19 +1306,6 @@ async fn write_snapshot_and_outbox_event(
     payload: &Value,
     event_type: &str,
 ) -> Result<(), PersistenceError> {
-    sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ('marketing_delivery',$1,$2,$3,$4)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-             holding_ref=$2, version=$3, state=$4, updated_at=now()",
-    )
-    .bind(delivery_id)
-    .bind(holding_ref)
-    .bind(as_i64(version, "Marketing delivery version")?)
-    .bind(payload)
-    .execute(&mut **tx)
-    .await?;
     sqlx::query(
         "INSERT INTO erpx_tenant.outbox_events
             (event_id, aggregate_type, aggregate_id, holding_ref,

@@ -905,5 +905,8 @@ fn to_cqrs(error: MarketingApplicationError, correlation_id: CorrelationId) -> C
     })
 }
 
+mod records;
 #[cfg(test)]
 mod tests;
+
+pub use records::{MarketingRecordApplicationError, MarketingRecordCommandHandler};

@@ -3,6 +3,7 @@
 mod command;
 mod projection;
 mod read;
+mod records;
 
 pub use command::{FinanceCommandAdapter, FinanceWriteRepository};
 pub use projection::{
@@ -12,6 +13,10 @@ pub use projection::{
     FinanceSubledgerProjector, FinanceTrialBalanceProjector,
 };
 pub use read::{FinanceReadRepository, decode_cursor, encode_cursor};
+pub use records::{
+    FinanceRecordProjector, FinanceRecordReadAdapter, FinanceRecordSqlxAdapter,
+    RECORD_PROJECTION_NAME, RECORD_SNAPSHOT_EVENT_TYPE,
+};
 
 pub const CONTEXT_NAME: &str = "finance";
 pub const CHART_AGGREGATE_TYPE: &str = "chart";

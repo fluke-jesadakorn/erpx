@@ -83,6 +83,42 @@ impl std::fmt::Debug for TenantAdminContext {
 
 impl TenantAdminContext {
     #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: AdminContextId,
+        version: u64,
+        tenant_id: PlatformTenantId,
+        scope: TenantScope,
+        principal_ref: String,
+        device_id: Uuid,
+        session_id: Uuid,
+        reason: String,
+        issued_at: DateTime<Utc>,
+        expires_at: DateTime<Utc>,
+        revoked_at: Option<DateTime<Utc>>,
+    ) -> Result<Self, PlatformAdministrationDomainError> {
+        let mut value = Self::issue(
+            id,
+            tenant_id,
+            scope,
+            principal_ref,
+            device_id,
+            session_id,
+            reason,
+            issued_at,
+            expires_at,
+        )?;
+        if !matches!((version, revoked_at), (1, None) | (2, Some(_)))
+            || revoked_at.is_some_and(|at| at < issued_at)
+        {
+            return Err(PlatformAdministrationDomainError::InvalidAdminContextLifetime);
+        }
+        value.version = version;
+        value.revoked_at = revoked_at;
+        value.events.clear();
+        Ok(value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn issue(
         id: AdminContextId,
         tenant_id: PlatformTenantId,
@@ -187,6 +223,12 @@ impl TenantAdminContext {
     }
     pub fn reason(&self) -> &str {
         &self.reason
+    }
+    pub const fn device_id(&self) -> Uuid {
+        self.device_id
+    }
+    pub const fn session_id(&self) -> Uuid {
+        self.session_id
     }
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.events)

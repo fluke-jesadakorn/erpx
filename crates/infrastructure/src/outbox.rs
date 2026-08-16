@@ -142,58 +142,6 @@ impl<'a> ControlPlaneWriteTransaction<'a> {
         Self { tx }
     }
 
-    /// Upsert aggregate state and enforce the caller's expected version. The
-    /// caller can append an outbox event on this same transaction before
-    /// committing, which makes state and event publication atomic.
-    pub async fn upsert_aggregate_snapshot(
-        &mut self,
-        aggregate_type: &str,
-        aggregate_id: Uuid,
-        state: Value,
-        expected_version: Option<u64>,
-    ) -> Result<u64, PersistenceError> {
-        let current = sqlx::query(
-            "SELECT aggregate_version FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = $1 AND aggregate_id = $2 FOR UPDATE",
-        )
-        .bind(aggregate_type)
-        .bind(aggregate_id)
-        .fetch_optional(&mut *self.tx)
-        .await?
-        .map(|row| row.try_get::<i64, _>("aggregate_version"))
-        .transpose()?;
-
-        let current_version = current.map(as_u64).transpose()?;
-        if current_version != expected_version {
-            return Err(PersistenceError::OptimisticConcurrency {
-                aggregate_type: aggregate_type.into(),
-                aggregate_id,
-                expected: expected_version,
-                actual: current_version,
-            });
-        }
-        let next_version = current_version
-            .unwrap_or(0)
-            .checked_add(1)
-            .ok_or_else(|| PersistenceError::InvalidData("aggregate version overflow".into()))?;
-        sqlx::query(
-            "INSERT INTO erpx_control.aggregate_snapshots
-                (aggregate_type, aggregate_id, aggregate_version, state, updated_at)
-             VALUES ($1, $2, $3, $4, now())
-             ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-                aggregate_version = EXCLUDED.aggregate_version,
-                state = EXCLUDED.state,
-                updated_at = now()",
-        )
-        .bind(aggregate_type)
-        .bind(aggregate_id)
-        .bind(as_i64(next_version, "aggregate version")?)
-        .bind(state)
-        .execute(&mut *self.tx)
-        .await?;
-        Ok(next_version)
-    }
-
     pub async fn append_outbox_event(
         &mut self,
         event: &OutboxEvent,
@@ -319,12 +267,125 @@ impl<'a> ControlPlaneWriteTransaction<'a> {
         Ok(())
     }
 
+    /// Append typed audit evidence in the same transaction as a normalized
+    /// aggregate commit and its outbox event.
+    pub async fn append_audit_event(
+        &mut self,
+        event: &erpx_application::AuditEvent,
+    ) -> Result<(), PersistenceError> {
+        let payload = serde_json::to_value(AuditEventPayload::from(event))?;
+        sqlx::query(
+            "INSERT INTO erpx_control.audit_events
+                (id, actor_ref, customer_account_id, action, purpose, correlation_id, payload)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(&event.actor_ref)
+        .bind(event.customer_account_id)
+        .bind(&event.action)
+        .bind(&event.purpose)
+        .bind(event.correlation_id)
+        .bind(payload)
+        .execute(&mut *self.tx)
+        .await?;
+        Ok(())
+    }
+
+    /// Finish idempotency with an immutable receipt bound to the normalized
+    /// aggregate identity and event position.
+    pub async fn complete_command(
+        &mut self,
+        key: &str,
+        receipt: &erpx_application::CommandReceipt,
+    ) -> Result<(), PersistenceError> {
+        let serialized = serde_json::to_value(receipt)?;
+        let result = sqlx::query(
+            "UPDATE erpx_control.idempotency_keys
+             SET status = 'completed', response = $2, completed_at = now(),
+                 aggregate_type = $3, aggregate_id = $4, aggregate_version = $5, event_id = $6
+             WHERE idempotency_key = $1 AND status = 'in_progress'",
+        )
+        .bind(key)
+        .bind(serialized)
+        .bind(&receipt.aggregate_type)
+        .bind(receipt.aggregate_id)
+        .bind(as_i64(receipt.aggregate_version, "aggregate version")?)
+        .bind(receipt.event_id)
+        .execute(&mut *self.tx)
+        .await?;
+        if result.rows_affected() != 1 {
+            return Err(PersistenceError::InvalidData(
+                "command idempotency key is not in progress".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Load a completed normalized command receipt and verify that its indexed
+    /// identity is identical to its serialized representation.
+    pub async fn read_command_receipt(
+        &mut self,
+        key: &str,
+    ) -> Result<Option<erpx_application::CommandReceipt>, PersistenceError> {
+        let row = sqlx::query(
+            "SELECT command_id, response, aggregate_type, aggregate_id,
+                    aggregate_version, event_id
+             FROM erpx_control.idempotency_keys
+             WHERE idempotency_key = $1 AND status = 'completed' FOR UPDATE",
+        )
+        .bind(key)
+        .fetch_optional(&mut *self.tx)
+        .await?;
+        row.map(|row| {
+            let response: Value = row.try_get("response")?;
+            let receipt: erpx_application::CommandReceipt = serde_json::from_value(response)?;
+            let stored_command_id: Option<Uuid> = row.try_get("command_id")?;
+            let stored_aggregate_type: String = row.try_get("aggregate_type")?;
+            let stored_aggregate_id: Uuid = row.try_get("aggregate_id")?;
+            let stored_aggregate_version = as_u64(row.try_get("aggregate_version")?)?;
+            let stored_event_id: Uuid = row.try_get("event_id")?;
+            if stored_command_id != Some(receipt.command_id)
+                || stored_aggregate_type != receipt.aggregate_type
+                || stored_aggregate_id != receipt.aggregate_id
+                || stored_aggregate_version != receipt.aggregate_version
+                || stored_event_id != receipt.event_id
+            {
+                return Err(PersistenceError::InvalidData(
+                    "completed command receipt does not match its idempotency source".into(),
+                ));
+            }
+            Ok(receipt)
+        })
+        .transpose()
+    }
+
     pub async fn commit(self) -> Result<(), PersistenceError> {
         self.tx.commit().await.map_err(PersistenceError::Database)
     }
 
     pub async fn rollback(self) -> Result<(), PersistenceError> {
         self.tx.rollback().await.map_err(PersistenceError::Database)
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct AuditEventPayload<'a> {
+    actor_ref: &'a str,
+    customer_account_id: Option<Uuid>,
+    action: &'a str,
+    purpose: &'a str,
+    correlation_id: Uuid,
+}
+
+impl<'a> From<&'a erpx_application::AuditEvent> for AuditEventPayload<'a> {
+    fn from(event: &'a erpx_application::AuditEvent) -> Self {
+        Self {
+            actor_ref: &event.actor_ref,
+            customer_account_id: event.customer_account_id,
+            action: &event.action,
+            purpose: &event.purpose,
+            correlation_id: event.correlation_id,
+        }
     }
 }
 

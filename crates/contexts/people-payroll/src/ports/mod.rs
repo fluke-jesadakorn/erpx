@@ -14,7 +14,14 @@ use thiserror::Error;
 use crate::domain::{
     Aggregate, Currency, Employee, EmployeeId, EmployeeStatus, EmployeeTransition, ExpenseClaim,
     ExpenseClaimId, ExpenseStatus, ExpenseTransition, LeaveRequest, LeaveRequestId, LeaveStatus,
-    LeaveTransition, PayrollLine, PayrollRun, PayrollRunId, PayrollStatus, PayrollTransition,
+    LeaveTransition, PayrollCalculationEvidence, PayrollLine, PayrollRun, PayrollRunId,
+    PayrollStatus, PayrollTransition,
+};
+
+mod time_record;
+pub use time_record::{
+    TimeRecordAuthorizationPort, TimeRecordCommand, TimeRecordQueryPort, TimeRecordReceipt,
+    TimeRecordUnitOfWork, TimeRecordView,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,6 +35,7 @@ pub enum PeoplePayrollAction {
     TransitionExpenseClaim,
     CreatePayrollRun,
     TransitionPayrollRun,
+    PinPayrollCalculationEvidence,
     ViewEmployee,
     ListEmployees,
     ViewLeaveRequest,
@@ -50,6 +58,7 @@ impl PeoplePayrollAction {
                 | Self::TransitionExpenseClaim
                 | Self::CreatePayrollRun
                 | Self::TransitionPayrollRun
+                | Self::PinPayrollCalculationEvidence
         )
     }
 }
@@ -122,6 +131,10 @@ pub enum CommandFingerprint {
     TransitionPayrollRun {
         payroll_run_id: PayrollRunId,
         transition: PayrollTransition,
+    },
+    PinPayrollCalculationEvidence {
+        payroll_run_id: PayrollRunId,
+        evidence: PayrollCalculationEvidence,
     },
 }
 

@@ -50,7 +50,7 @@ synchronously by the Support authorization adapter, and Commercial entitlement
 must be checked by the entitlement adapter. Neither check may use a stale
 Support snapshot or import a foreign core.
 
-## Protobuf delta (`support.proto`, package remains `erpx.platform.v1`)
+## Protobuf delta (`service.proto`, target package `erpx.support.v1`)
 
 Keep the legacy `SupportService` only as a temporary cutover seam. Append typed
 `SupportCommandService` and `SupportQueryService`; remove the legacy service and

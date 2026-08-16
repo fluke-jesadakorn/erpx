@@ -233,7 +233,7 @@ async fn execute_generic_command<U>(
     aggregate_id: Uuid,
     aggregate_version: u64,
     event_type: &str,
-    aggregate_state: Value,
+    event_payload: Value,
     customer_account_id: Option<Uuid>,
     action: &str,
     purpose: String,
@@ -247,7 +247,7 @@ where
         "aggregate_id": aggregate_id,
         "aggregate_version": aggregate_version,
         "event_type": event_type,
-        "state": aggregate_state,
+        "state": event_payload,
     });
     let mut digest = Sha256::new();
     digest.update(
@@ -267,7 +267,7 @@ where
         aggregate_id,
         aggregate_version,
         event_type: event_type.into(),
-        payload: aggregate_state.clone(),
+        payload: event_payload,
         occurred_at: Utc::now(),
     };
     commands
@@ -278,7 +278,6 @@ where
             aggregate_type: aggregate_type.into(),
             aggregate_id,
             expected_aggregate_version: context.expected_aggregate_version,
-            aggregate_state,
             event,
             event_version: 1,
             tenant_scope: Some(

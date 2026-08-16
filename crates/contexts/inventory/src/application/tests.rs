@@ -65,6 +65,22 @@ fn aggregate() -> StockItem {
     item.take_uncommitted_events();
     item
 }
+
+fn reserved_aggregate() -> (StockItem, ReservationId) {
+    let mut item = aggregate();
+    item.receive(
+        StockMovementId::try_from_uuid(id(20)).unwrap(),
+        10,
+        None,
+        at(),
+    )
+    .unwrap();
+    let reservation_id = ReservationId::try_from_uuid(id(21)).unwrap();
+    item.reserve(reservation_id, 4, "SALE-21".into(), at())
+        .unwrap();
+    item.take_uncommitted_events();
+    (item, reservation_id)
+}
 fn command_envelope<C>(sequence: u128, expected: Option<u64>, command: C) -> CommandEnvelope<C> {
     CommandEnvelope {
         contract_version: CONTRACT_VERSION,
@@ -256,6 +272,44 @@ fn expected_version_is_required_and_checked_before_stock_mutation() {
     assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
 }
 
+#[test]
+fn fulfillment_command_is_atomic_replayable_and_payload_bound() {
+    let (item, reservation_id) = reserved_aggregate();
+    let expected = item.version();
+    let uow = FakeUow::default();
+    let handler = handler(Some(item), uow.clone(), true, true);
+    let envelope = command_envelope(
+        5,
+        Some(expected),
+        FulfillInventoryReservation {
+            stock_item_id: StockItemId::try_from_uuid(id(10)).unwrap(),
+            reservation_id,
+            movement_id: StockMovementId::try_from_uuid(id(22)).unwrap(),
+        },
+    );
+
+    let receipt = block_on(handler.handle(envelope.clone())).unwrap();
+    assert_eq!(
+        (
+            receipt.response.item.on_hand,
+            receipt.response.item.reserved,
+            receipt.response.item.available,
+        ),
+        (6, 0, 6)
+    );
+    assert_eq!(receipt.response.item.version, expected + 1);
+    assert!(!receipt.replayed);
+    assert!(block_on(handler.handle(envelope.clone())).unwrap().replayed);
+
+    let mut changed = envelope;
+    changed.command.movement_id = StockMovementId::try_from_uuid(id(23)).unwrap();
+    assert_eq!(
+        block_on(handler.handle(changed)).unwrap_err().category(),
+        ErrorCategory::Conflict
+    );
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 1);
+}
+
 #[derive(Clone)]
 struct NotReadyRead(Arc<AtomicUsize>);
 #[async_trait]
@@ -285,6 +339,49 @@ impl ReadRepository for NotReadyRead {
     ) -> Result<ReadProjection<StockItemList>, PortError> {
         unreachable!()
     }
+}
+
+#[async_trait]
+impl ReservationReadRepository for NotReadyRead {
+    async fn get_reservation(
+        &self,
+        _authority_scope: &TenantScope,
+        _reservation_id: ReservationId,
+        _consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<ReservationView>>, PortError> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Err(PortError::Unavailable)
+    }
+}
+
+#[test]
+fn reservation_query_authorizes_before_reading_the_projection() {
+    let reads = Arc::new(AtomicUsize::new(0));
+    let handler = InventoryQueryHandler::new(
+        NotReadyRead(reads.clone()),
+        FakeAuthorization(false),
+        FakeEntitlement(true),
+    );
+    let error = block_on(handler.handle(QueryEnvelope {
+        contract_version: CONTRACT_VERSION,
+        query_id: QueryId::try_from_uuid(id(302)).unwrap(),
+        correlation_id: CorrelationId::try_from_uuid(id(303)).unwrap(),
+        actor: actor(),
+        tenant_scope: scope(),
+        audit: AuditContext {
+            purpose: "inventory.test.reservation-query".into(),
+            customer_visible: false,
+            module: Some("inventory".into()),
+        },
+        consistency: QueryConsistency::Eventual,
+        query: GetInventoryReservation {
+            reservation_id: ReservationId::try_from_uuid(id(21)).unwrap(),
+            target_scope: scope(),
+        },
+    }))
+    .unwrap_err();
+    assert_eq!(error.category(), ErrorCategory::Denied);
+    assert_eq!(reads.load(Ordering::SeqCst), 0);
 }
 
 #[test]

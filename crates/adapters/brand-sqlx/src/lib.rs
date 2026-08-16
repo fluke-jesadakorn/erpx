@@ -22,14 +22,19 @@ pub const EVENT_VERSION: u32 = 1;
 pub const CONTROL_WRITE_FOUNDATION_DDL: &str = include_str!(
     "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
 );
-pub const CONTROL_WRITE_CONTEXT_DDL: &str =
-    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql");
+pub const CONTROL_WRITE_CONTEXT_DDL: &str = concat!(
+    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql"),
+    "\n",
+    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
+);
 pub const CONTROL_WRITE_DDL: &str = concat!(
     include_str!(
         "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
     ),
     "\n",
-    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql")
+    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql"),
+    "\n",
+    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
 );
 pub const CONTROL_READ_FOUNDATION_DDL: &str = include_str!(
     "../../../migration/migrations_read/0015_cqrs_control_foundation_and_commercial_catalog.sql"
@@ -67,7 +72,8 @@ mod tests {
 
     #[test]
     fn canonical_ddl_contains_foundation_and_brand_tables() {
-        assert!(CONTROL_WRITE_FOUNDATION_DDL.contains("aggregate_snapshots"));
+        assert!(CONTROL_WRITE_FOUNDATION_DDL.contains("command_receipts"));
+        assert!(!CONTROL_WRITE_FOUNDATION_DDL.contains("aggregate_snapshots"));
         assert!(CONTROL_WRITE_CONTEXT_DDL.contains("erpx_brand_write.profile_guards"));
         assert!(CONTROL_READ_FOUNDATION_DDL.contains("projection_generations"));
         assert!(CONTROL_READ_CONTEXT_DDL.contains("erpx_brand_read.profile_projection"));

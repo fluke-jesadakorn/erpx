@@ -11,6 +11,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+mod records;
+pub use records::{AssetLifecycleRecordApplicationError, AssetLifecycleRecordCommandHandler};
+
 use crate::{
     domain::{Asset, AssetDomainError, AssetId, AssetScope},
     integration,

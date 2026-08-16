@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::organization;
+use erpx_integration_contracts::{ItemDescriptorDraft, organization};
 use erpx_organization::{NodeView, OrganizationNodeKind, OrganizationNodeStatus};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -20,6 +20,7 @@ pub struct OrganizationSnapshot {
 pub enum OrganizationOutboxPayload {
     Integration(organization::Event),
     Snapshot(OrganizationSnapshot),
+    Directory(ItemDescriptorDraft),
 }
 
 #[derive(Debug, Clone)]
@@ -69,7 +70,7 @@ impl Projector for OrganizationNodeProjector {
                  aggregate_updated_at, projected_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                      $13, $14, $15, $16, $17, now())
-             ON CONFLICT (projection_name, generation, partition_key, node_id)
+             ON CONFLICT (tenant_id,projection_name, generation, partition_key, node_id)
              DO UPDATE SET source_aggregate_version = EXCLUDED.source_aggregate_version,
                            source_global_sequence = EXCLUDED.source_global_sequence,
                            node_kind = EXCLUDED.node_kind,

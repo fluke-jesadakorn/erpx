@@ -21,10 +21,14 @@ use crate::{
         AuthorizationPort, AuthorizationRequest, CommandFingerprint, CommandIdentity,
         CommandUnitOfWork, DependencyVersion, EntitlementPort, IncidentList, IncidentListFilter,
         IncidentView, PortError, ReadRepository, StoredCommit, SupportAction,
-        SupportCapabilityView, SupportCommit, SupportSessionView, SupportTicketList,
-        SupportTicketListFilter, SupportTicketView, TicketReadAudience, WriteRepository,
+        SupportAuthorityEffect, SupportCapabilityView, SupportCommit, SupportSessionView,
+        SupportTicketList, SupportTicketListFilter, SupportTicketView, TicketReadAudience,
+        WriteRepository,
     },
 };
+
+mod platform_case;
+pub use platform_case::PlatformCaseCommandHandler;
 
 pub const MAX_SUPPORT_PAGE_SIZE: u16 = 100;
 
@@ -798,6 +802,7 @@ where
         )
         .await
         .map_err(|e| to_cqrs(e, correlation))?;
+        let authority_effects = authority_effects(&envelope.command, at);
         let integration_events =
             integration::published_events(&aggregate.take_uncommitted_events())
                 .map_err(|_| to_cqrs(SupportApplicationError::IntegrationMapping, correlation))?;
@@ -814,11 +819,33 @@ where
                 dependency,
                 aggregate,
                 integration_events,
+                authority_effects,
             })
             .await
             .map_err(|e| port_to_cqrs(e, correlation))?;
         let response = SupportMutationResult::from_aggregate(&stored.aggregate);
         Ok(stored.into_receipt(response))
+    }
+}
+
+fn authority_effects(
+    command: &SupportCommand,
+    at: chrono::DateTime<chrono::Utc>,
+) -> Vec<SupportAuthorityEffect> {
+    match command {
+        SupportCommand::TransitionTicket(value) if value.next == TicketStatus::Closed => {
+            vec![SupportAuthorityEffect::TerminateTicketAccess {
+                ticket_id: value.ticket_id,
+                effective_at: at,
+            }]
+        }
+        SupportCommand::RevokeSession(value) => {
+            vec![SupportAuthorityEffect::TerminateSessionCapabilities {
+                session_id: value.session_id,
+                effective_at: at,
+            }]
+        }
+        _ => Vec::new(),
     }
 }
 

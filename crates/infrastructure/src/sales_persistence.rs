@@ -2,8 +2,8 @@
 //!
 //! The repository intentionally stores one validated aggregate payload while
 //! retaining typed aggregate identity and scope columns for indexing/RLS.
-//! Posted state, its aggregate snapshot, outbox event, and idempotency receipt
-//! commit in one write transaction. The read database is a replaceable
+//! Normalized state, its outbox event, and idempotency receipt commit in one
+//! write transaction. The read database is a replaceable
 //! projection and is never consulted by commands.
 
 use chrono::{DateTime, Utc};
@@ -543,20 +543,6 @@ impl SqlxSalesStore {
             .execute(&mut *tx)
             .await?;
         }
-        sqlx::query(
-            "INSERT INTO erpx_tenant.aggregate_snapshots
-                (aggregate_type, aggregate_id, holding_ref, version, state)
-             VALUES ($1,$2,$3,$4,$5)
-             ON CONFLICT (aggregate_type, aggregate_id)
-             DO UPDATE SET holding_ref=$3, version=$4, state=$5, updated_at=now()",
-        )
-        .bind(aggregate_type)
-        .bind(aggregate_id)
-        .bind(&self.holding_ref)
-        .bind(as_i64(version, "Sales aggregate version")?)
-        .bind(&payload)
-        .execute(&mut *tx)
-        .await?;
         let event_payload = serde_json::json!({
             "aggregate_type": aggregate_type,
             // The source table keeps the domain state payload, but the

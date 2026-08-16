@@ -564,6 +564,14 @@ impl ReadRepository for NotReadyRead {
             observed: None,
         }))
     }
+    async fn list_charts(
+        &self,
+        _: &TenantScope,
+        _: &ChartListFilter,
+        _: &QueryConsistency,
+    ) -> Result<ReadProjection<ChartList>, PortError> {
+        Err(PortError::Internal)
+    }
     async fn get_period(
         &self,
         _: &TenantScope,

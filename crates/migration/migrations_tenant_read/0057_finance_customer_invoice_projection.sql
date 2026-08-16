@@ -1,6 +1,7 @@
 -- Disposable Finance customer-invoice workbench projection.
 
 CREATE TABLE erpx_finance_read.customer_invoice_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'finance.customer_invoices'
         CHECK (projection_name = 'finance.customer_invoices'),
     generation UUID NOT NULL,
@@ -21,15 +22,34 @@ CREATE TABLE erpx_finance_read.customer_invoice_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, invoice_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, invoice_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, billing_event_id),
-    UNIQUE (generation, scope_key, invoice_code)
+    UNIQUE (tenant_id, generation, billing_event_id),
+    UNIQUE (tenant_id, generation, scope_key, invoice_code)
 );
 
 CREATE INDEX finance_read_customer_invoice_scope_customer_status
     ON erpx_finance_read.customer_invoice_projection
-        (generation, scope_key, customer_id, invoice_status,
+        (tenant_id, generation, scope_key, customer_id, invoice_status,
          aggregate_updated_at DESC, invoice_id DESC);
+
+DO $$
+DECLARE schema_name TEXT; table_name TEXT;
+BEGIN
+    FOR schema_name, table_name IN SELECT * FROM (VALUES
+        ('erpx_finance_read','customer_invoice_projection')
+    ) AS protected(schema_name, table_name)
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format('ALTER TABLE %I.%I FORCE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format(
+            'CREATE POLICY tenant_isolation ON %I.%I '
+            'USING (tenant_id = erpx_cqrs_read.current_tenant_id()) '
+            'WITH CHECK (tenant_id = erpx_cqrs_read.current_tenant_id())',
+            schema_name, table_name
+        );
+    END LOOP;
+END;
+$$;

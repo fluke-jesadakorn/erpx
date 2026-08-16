@@ -10,6 +10,9 @@ use erpx_kernel::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+mod sharing;
+pub use sharing::{OrganizationSharingCommandHandler, SharingApplicationError};
+
 use crate::{
     domain::{
         OrganizationDomainError, OrganizationNode, OrganizationNodeId, OrganizationPlacement,

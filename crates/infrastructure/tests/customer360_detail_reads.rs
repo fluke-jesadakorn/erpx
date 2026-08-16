@@ -1,19 +1,19 @@
 use chrono::{Duration, Utc};
 use erpx_application::{
-    AddCustomerNoteCommand, Customer360DetailReadStore, Customer360NoteService,
-    CustomerGlobalReadAuditDetailQuery, CustomerGlobalReadAuditDetailStore, CustomerReadStore,
-    CustomerReadView, CustomerSecurityAdminScope,
+    Customer360DetailReadStore, CustomerGlobalReadAuditDetailQuery,
+    CustomerGlobalReadAuditDetailStore, CustomerReadStore, CustomerReadView,
+    CustomerSecurityAdminScope,
 };
 use erpx_domain::{
     access::Scope,
     commercial::BillingState,
     customer::{
         BillingAddress, Customer360Projection, CustomerAccountProjection,
-        CustomerCommercialProjection, CustomerHealthProjection, CustomerNote,
-        CustomerOnboardingProjection, CustomerOrganizationProjection,
-        CustomerScopeBindingProjection, CustomerStatus, CustomerSuccessOwner, GlobalReadActor,
-        GlobalReadAuditRecord, GlobalReadScope, HealthState, ModuleAllocation, OnboardingState,
-        OrganizationUnit, ResponsibilityContact, TradingLegalIdentity,
+        CustomerCommercialProjection, CustomerHealthProjection, CustomerOnboardingProjection,
+        CustomerOrganizationProjection, CustomerScopeBindingProjection, CustomerStatus,
+        CustomerSuccessOwner, GlobalReadActor, GlobalReadAuditRecord, GlobalReadScope, HealthState,
+        ModuleAllocation, OnboardingState, OrganizationUnit, ResponsibilityContact,
+        TradingLegalIdentity,
     },
 };
 use erpx_infrastructure::{ControlPlaneDatabaseConfig, ControlPlanePools, SqlxControlPlane};
@@ -147,20 +147,6 @@ fn projection(customer_id: Uuid) -> Customer360Projection {
             last_activity_at: Some(Utc::now()),
         },
     }
-}
-
-async fn seed_customer_source(store: &SqlxControlPlane, projection: &Customer360Projection) {
-    let mut transaction = store.begin_write().await.expect("source transaction");
-    transaction
-        .upsert_aggregate_snapshot(
-            "customer",
-            projection.account.id,
-            serde_json::to_value(projection).expect("source projection JSON"),
-            None,
-        )
-        .await
-        .expect("customer source snapshot");
-    transaction.commit().await.expect("source commit");
 }
 
 #[tokio::test]
@@ -634,168 +620,6 @@ async fn subtree_branch_authorization_requires_the_requested_company() {
             .await
             .expect("matching subtree authorization")
     );
-}
-
-#[tokio::test]
-#[ignore = "requires two disposable PostgreSQL databases"]
-async fn customer_notes_require_an_authoritative_customer_source() {
-    let config = test_config();
-    let pools = ControlPlanePools::connect(&config)
-        .await
-        .expect("control pools");
-    migrate_control_plane(&pools.write)
-        .await
-        .expect("control write migration");
-    migrate_control_read(&pools.read)
-        .await
-        .expect("control read migration");
-    let store = std::sync::Arc::new(SqlxControlPlane::new(pools));
-    let unknown_customer_id = Uuid::new_v4();
-    let unknown_note = CustomerNote::new(
-        Uuid::new_v4(),
-        unknown_customer_id,
-        "platform-agent",
-        Scope::Platform,
-        Utc::now(),
-        "note for an unknown customer",
-    )
-    .expect("note shape");
-    let service = Customer360NoteService::new(store.clone());
-    let error = service
-        .append(
-            AddCustomerNoteCommand::new(
-                Uuid::new_v4(),
-                "customer-note-unknown-source",
-                unknown_note.clone(),
-                "customer_360_note",
-                Uuid::new_v4(),
-            )
-            .expect("note command"),
-        )
-        .await
-        .expect_err("unknown customer note must fail closed");
-    assert_eq!(error.to_string(), "not found");
-    assert_eq!(
-        sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = 'customer_note' AND aggregate_id = $1",
-        )
-        .bind(unknown_note.id)
-        .fetch_one(&store.pools().write)
-        .await
-        .expect("unknown note snapshot count"),
-        0
-    );
-
-    let customer = projection(Uuid::new_v4());
-    seed_customer_source(&store, &customer).await;
-    let valid_note = CustomerNote::new(
-        Uuid::new_v4(),
-        customer.account.id,
-        "platform-agent",
-        Scope::Platform,
-        Utc::now(),
-        "note for an authoritative customer",
-    )
-    .expect("valid note");
-    service
-        .append(
-            AddCustomerNoteCommand::new(
-                Uuid::new_v4(),
-                "customer-note-known-source",
-                valid_note,
-                "customer_360_note",
-                Uuid::new_v4(),
-            )
-            .expect("known customer note command"),
-        )
-        .await
-        .expect("known customer note append");
-}
-
-#[tokio::test]
-#[ignore = "requires two disposable PostgreSQL databases"]
-async fn customer_360_reconciliation_detects_orphan_bindings_and_cross_customer_notes() {
-    let config = test_config();
-    let pools = ControlPlanePools::connect(&config)
-        .await
-        .expect("control pools");
-    migrate_control_plane(&pools.write)
-        .await
-        .expect("control write migration");
-    migrate_control_read(&pools.read)
-        .await
-        .expect("control read migration");
-    let store = SqlxControlPlane::new(pools);
-    sqlx::query("TRUNCATE TABLE erpx_control.customer_scope_bindings")
-        .execute(&store.pools().write)
-        .await
-        .expect("reset disposable customer detail bindings");
-    sqlx::query("TRUNCATE TABLE erpx_control.customer_notes")
-        .execute(&store.pools().read)
-        .await
-        .expect("reset disposable customer detail notes");
-    let customer = projection(Uuid::new_v4());
-    seed_customer_source(&store, &customer).await;
-    store
-        .upsert_customer_projection_read_model(&customer)
-        .await
-        .expect("customer read projection");
-
-    let note = CustomerNote::new(
-        Uuid::new_v4(),
-        customer.account.id,
-        "platform-agent",
-        Scope::Platform,
-        Utc::now(),
-        "authoritative note",
-    )
-    .expect("authoritative note");
-    let mut transaction = store.begin_write().await.expect("note source transaction");
-    transaction
-        .upsert_aggregate_snapshot(
-            "customer_note",
-            note.id,
-            serde_json::to_value(&note).expect("note source JSON"),
-            None,
-        )
-        .await
-        .expect("note source snapshot");
-    transaction.commit().await.expect("note source commit");
-    store
-        .upsert_customer_note_read_model(&note, Utc::now())
-        .await
-        .expect("note read projection");
-
-    let foreign_customer_id = Uuid::new_v4();
-    let foreign_projection = projection(foreign_customer_id);
-    store
-        .upsert_customer_projection_read_model(&foreign_projection)
-        .await
-        .expect("foreign read projection");
-    sqlx::query("DELETE FROM erpx_control.customer_scope_bindings WHERE customer_id = $1")
-        .bind(foreign_customer_id)
-        .execute(&store.pools().write)
-        .await
-        .expect("remove foreign test bindings");
-    sqlx::query("UPDATE erpx_control.customer_notes SET customer_id = $1 WHERE id = $2")
-        .bind(foreign_customer_id)
-        .bind(note.id)
-        .execute(&store.pools().read)
-        .await
-        .expect("forge cross-customer note row");
-
-    store
-        .upsert_customer_scope_binding(Uuid::new_v4(), Uuid::new_v4(), None, None)
-        .await
-        .expect("orphan binding");
-    let report = store
-        .reconcile_customer_360_read_models()
-        .await
-        .expect("Customer 360 reconciliation");
-    assert_eq!(report.orphan_binding_count, 1);
-    assert_eq!(report.stale_note_count, 1);
-    assert!(!report.healthy());
 }
 
 #[tokio::test]

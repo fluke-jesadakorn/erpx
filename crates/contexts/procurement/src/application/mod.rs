@@ -613,5 +613,7 @@ fn to_cqrs(error: ProcurementApplicationError, correlation_id: CorrelationId) ->
     })
 }
 
+mod records;
 #[cfg(test)]
 mod tests;
+pub use records::{ProcurementRecordApplicationError, ProcurementRecordCommandHandler};

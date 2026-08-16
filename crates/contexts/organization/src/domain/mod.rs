@@ -4,6 +4,14 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+mod sharing;
+
+pub use sharing::{
+    DirectoryVisibility, OrganizationSharingAgreement, ProposeSharingAgreement, SharingAgreementId,
+    SharingCapability, SharingDirection, SharingMutation, SharingStatus,
+    can_discover_across_hierarchy,
+};
+
 pub const MAX_ORGANIZATION_CODE_BYTES: usize = 128;
 pub const MAX_ORGANIZATION_NAME_BYTES: usize = 256;
 
@@ -301,6 +309,22 @@ pub enum OrganizationDomainError {
     InvalidWindow,
     #[error("organization node version overflowed")]
     VersionOverflow,
+    #[error("organization sharing agreement must connect two branch scopes")]
+    SharingRequiresBranches,
+    #[error("cross-tenant or cross-holding sharing is denied")]
+    CrossTenantSharingDenied,
+    #[error("an organization scope cannot share with itself")]
+    SelfSharingDenied,
+    #[error("sharing agreement must contain unique capabilities")]
+    InvalidSharingCapabilities,
+    #[error("sharing agreement validity window is invalid")]
+    InvalidSharingWindow,
+    #[error("sharing agreement approval is conflicted or invalid")]
+    InvalidSharingApproval,
+    #[error("sharing agreement lifecycle transition is not allowed")]
+    InvalidSharingTransition,
+    #[error("sharing agreement version conflict (expected {expected}, actual {actual})")]
+    SharingVersionConflict { expected: u64, actual: u64 },
 }
 
 /// Authoritative organization node. Scope is stored as a consistency witness
@@ -320,7 +344,40 @@ pub struct OrganizationNode {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+/// Typed persistence state for deterministic rehydration from the
+/// Organization-owned relational write model. Event buffers and serialized
+/// aggregate documents are deliberately excluded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OrganizationNodeState {
+    pub id: OrganizationNodeId,
+    pub version: u64,
+    pub code: String,
+    pub name: String,
+    pub placement: OrganizationPlacement,
+    pub status: OrganizationNodeStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl OrganizationNode {
+    pub fn try_rehydrate(state: OrganizationNodeState) -> Result<Self, OrganizationDomainError> {
+        let scope = state.placement.tenant_scope(state.id)?;
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            code: state.code,
+            name: state.name,
+            placement: state.placement,
+            scope,
+            status: state.status,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn create(
         id: OrganizationNodeId,
         placement: OrganizationPlacement,
@@ -719,5 +776,29 @@ mod tests {
             }
         );
         assert_eq!(node.version(), 2);
+    }
+
+    #[test]
+    fn typed_rehydration_derives_scope_and_rejects_corrupt_state() {
+        let mut source = department();
+        source.take_uncommitted_events();
+        let state = OrganizationNodeState {
+            id: source.id(),
+            version: source.version(),
+            code: source.code().into(),
+            name: source.name().into(),
+            placement: source.placement().clone(),
+            status: source.status(),
+            created_at: source.created_at(),
+            updated_at: source.updated_at(),
+        };
+        assert_eq!(
+            OrganizationNode::try_rehydrate(state.clone()).unwrap(),
+            source
+        );
+
+        let mut corrupt = state;
+        corrupt.version = 0;
+        assert!(OrganizationNode::try_rehydrate(corrupt).is_err());
     }
 }

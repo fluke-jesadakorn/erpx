@@ -1,5 +1,10 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_integration_contracts::{
+    StableRecordRef,
+    catalog::ContextId,
+    reference::{RecordTypeId, ReferenceValidationError},
+};
+use erpx_kernel::{RecordId, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -98,6 +103,8 @@ pub enum QualityDomainError {
     InvalidWindow,
     #[error("only a passed inspection can be released")]
     InspectionNotPassed,
+    #[error("a failed inspection requires bounded disposition evidence")]
+    DispositionRequired,
 }
 
 /// Authoritative Quality aggregate. Persistence fields stay private so every
@@ -125,7 +132,54 @@ pub struct QualityInspection {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+/// Typed persistence state used only to rehydrate the aggregate from the
+/// Quality-owned normalized write model. It deliberately excludes domain
+/// events and any serialized aggregate document.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QualityInspectionState {
+    pub id: InspectionId,
+    pub version: u64,
+    pub reference: String,
+    pub scope: TenantScope,
+    pub kind: InspectionKind,
+    pub product_id: Uuid,
+    pub lot_reference: Option<String>,
+    pub quantity: u64,
+    pub passed_quantity: u64,
+    pub failed_quantity: u64,
+    pub status: InspectionStatus,
+    pub disposition_note: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl QualityInspection {
+    pub fn try_rehydrate(state: QualityInspectionState) -> Result<Self, QualityDomainError> {
+        let (holding_id, company_id, branch_id) = exact_scope_ids(&state.scope)?;
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            reference: state.reference,
+            scope: state.scope,
+            holding_id,
+            company_id,
+            branch_id,
+            kind: state.kind,
+            product_id: state.product_id,
+            lot_reference: state.lot_reference,
+            quantity: state.quantity,
+            passed_quantity: state.passed_quantity,
+            failed_quantity: state.failed_quantity,
+            status: state.status,
+            disposition_note: state.disposition_note,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: InspectionId,
@@ -204,6 +258,14 @@ impl QualityInspection {
         if accounted > self.quantity {
             return Err(QualityDomainError::ResultQuantityMismatch);
         }
+        if self.status == InspectionStatus::Failed
+            && self
+                .disposition_note
+                .as_deref()
+                .is_none_or(|value| value.trim().is_empty())
+        {
+            return Err(QualityDomainError::DispositionRequired);
+        }
         match self.status {
             InspectionStatus::Draft | InspectionStatus::InProgress
                 if self.passed_quantity != 0 || self.failed_quantity != 0 =>
@@ -248,6 +310,9 @@ impl QualityInspection {
             return Err(QualityDomainError::InvalidWindow);
         }
         validate_optional_text(note.as_deref(), "disposition_note")?;
+        if failed_quantity > 0 && note.as_deref().is_none_or(|value| value.trim().is_empty()) {
+            return Err(QualityDomainError::DispositionRequired);
+        }
         let next_status = if failed_quantity == 0 {
             InspectionStatus::Passed
         } else {
@@ -281,6 +346,8 @@ impl QualityInspection {
         self.transition(InspectionStatus::Released, at)?;
         self.uncommitted_events.push(DomainEvent::Released {
             inspection_id: self.id,
+            product_id: self.product_id,
+            reference: self.reference.clone(),
             at,
         });
         Ok(())
@@ -391,6 +458,16 @@ impl QualityInspection {
         self.updated_at
     }
 
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        let record_id =
+            RecordId::try_from_uuid(self.id.as_uuid()).expect("validated inspection identifier");
+        StableRecordRef::try_new(
+            record_id,
+            ContextId::Quality,
+            RecordTypeId::try_new("quality.inspection")?,
+        )
+    }
+
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
@@ -420,6 +497,8 @@ pub(crate) enum DomainEvent {
     },
     Released {
         inspection_id: InspectionId,
+        product_id: Uuid,
+        reference: String,
         at: DateTime<Utc>,
     },
     Cancelled {
@@ -564,7 +643,9 @@ mod tests {
     fn failed_result_can_be_reinspected_and_cancelled() {
         let mut inspection = inspection(5);
         inspection.start(at(1)).unwrap();
-        inspection.record_result(4, 1, None, at(2)).unwrap();
+        inspection
+            .record_result(4, 1, Some("surface defect quarantined".into()), at(2))
+            .unwrap();
         assert_eq!(inspection.status(), InspectionStatus::Failed);
         inspection.start(at(3)).unwrap();
         inspection.cancel(at(4)).unwrap();
@@ -581,5 +662,69 @@ mod tests {
             Err(QualityDomainError::ResultQuantityMismatch)
         );
         assert_eq!(inspection, before);
+    }
+
+    #[test]
+    fn failed_result_requires_disposition_evidence_atomically() {
+        let mut inspection = inspection(5);
+        inspection.start(at(1)).unwrap();
+        let before = inspection.clone();
+        assert_eq!(
+            inspection.record_result(4, 1, None, at(2)),
+            Err(QualityDomainError::DispositionRequired)
+        );
+        assert_eq!(inspection, before);
+    }
+
+    #[test]
+    fn inspection_exposes_stable_first_class_record_identity() {
+        let inspection_id = Uuid::new_v4();
+        let value = QualityInspection::create(
+            InspectionId::try_from_uuid(inspection_id).unwrap(),
+            scope(),
+            InspectionKind::Final,
+            id(4),
+            None,
+            1,
+            at(0),
+        )
+        .unwrap();
+        let reference = value.record_ref().unwrap();
+        assert_eq!(reference.id().as_uuid(), inspection_id);
+        assert_eq!(
+            reference.canonical_detail_route(),
+            format!("/quality/inspection/{inspection_id}")
+        );
+    }
+
+    #[test]
+    fn typed_rehydration_revalidates_every_persisted_invariant() {
+        let mut source = inspection(5);
+        source.start(at(1)).unwrap();
+        let state = QualityInspectionState {
+            id: source.id(),
+            version: source.version(),
+            reference: source.reference().into(),
+            scope: source.scope().clone(),
+            kind: source.kind(),
+            product_id: source.product_id(),
+            lot_reference: source.lot_reference().map(str::to_owned),
+            quantity: source.quantity(),
+            passed_quantity: source.passed_quantity(),
+            failed_quantity: source.failed_quantity(),
+            status: source.status(),
+            disposition_note: source.disposition_note().map(str::to_owned),
+            created_at: source.created_at(),
+            updated_at: source.updated_at(),
+        };
+        source.take_uncommitted_events();
+        assert_eq!(
+            QualityInspection::try_rehydrate(state.clone()).unwrap(),
+            source
+        );
+
+        let mut corrupt = state;
+        corrupt.reference = "forged".into();
+        assert!(QualityInspection::try_rehydrate(corrupt).is_err());
     }
 }

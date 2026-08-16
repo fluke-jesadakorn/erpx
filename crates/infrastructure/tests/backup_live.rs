@@ -231,28 +231,32 @@ async fn execute_round_trip(
     let source_aggregate_id = Uuid::new_v4();
     let source_occurred_at = Utc::now();
     let mut source_transaction = source_pool.begin().await?;
+    sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
+        .bind(tenant_id)
+        .execute(&mut *source_transaction)
+        .await?;
     sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
         .bind(holding_ref)
         .execute(&mut *source_transaction)
         .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.operations_events
-             (event_id, contract_version, event_type, event_version, occurred_at,
-              aggregate_type, aggregate_id, aggregate_version, holding_ref,
-              tenant_scope, actor, correlation_id, causation_id, idempotency_key,
-              payload)
-         VALUES ($1, 1, 'backup_live_fixture', 1, $2, 'backup_live_fixture',
-                 $3, 1, $4, $5, $6, $7, NULL, $8, $9)",
+        "INSERT INTO erpx_cqrs_write.outbox_events
+             (event_id, context_name, partition_key, command_id, event_type,
+              event_version, aggregate_type, aggregate_id, aggregate_version,
+              tenant_scope, actor, correlation_id, causation_id, payload,
+              occurred_at, available_at)
+         VALUES ($1, 'operations', $2, $3, 'operations.backup_live_fixture',
+                 1, 'backup_live_fixture', $4, 1, $5, $6, $7, NULL, $8, $9, $9)",
     )
     .bind(source_event_id)
-    .bind(source_occurred_at)
-    .bind(source_aggregate_id)
     .bind(holding_ref)
+    .bind(Uuid::new_v4())
+    .bind(source_aggregate_id)
     .bind(serde_json::json!({"holding_ref": holding_ref}))
     .bind(serde_json::json!({"actor_ref": "backup-live-test"}))
     .bind(Uuid::new_v4())
-    .bind(format!("backup-live-{source_event_id}"))
     .bind(serde_json::json!({"source_fence_marker": source_event_id}))
+    .bind(source_occurred_at)
     .execute(&mut *source_transaction)
     .await?;
     source_transaction.commit().await?;
@@ -262,7 +266,10 @@ async fn execute_round_trip(
         .execute(&mut *source_version_transaction)
         .await?;
     let source_version: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM erpx_tenant.operations_events WHERE holding_ref = $1",
+        "SELECT COALESCE(MAX(global_sequence), 0)
+         FROM erpx_cqrs_write.outbox_events
+         WHERE context_name = 'operations'
+           AND current_setting('erpx.holding_ref') = $1",
     )
     .bind(holding_ref)
     .fetch_one(&mut *source_version_transaction)
@@ -737,7 +744,7 @@ async fn real_postgres_minio_backup_restore_and_cleanup_are_authoritative() -> T
         .await?;
 
     let suffix = Uuid::new_v4().simple().to_string();
-    let tenant_id = format!("tenant-backup-live-{suffix}");
+    let tenant_id = Uuid::new_v4().to_string();
     let holding_ref = format!("holding-backup-live-{suffix}");
     let backup_chain_ref = format!("chain-backup-live-{suffix}");
     let source_database_key = format!("erpx_bk_src_{suffix}");

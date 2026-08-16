@@ -241,6 +241,52 @@ fn lifecycle_transitions_are_versioned_and_fail_atomically() {
 }
 
 #[test]
+fn expired_assignment_blocks_action_until_governed_reassignment() {
+    let mut value = exception();
+    value.take_uncommitted_events();
+    let before = value.clone();
+    assert_eq!(
+        value.acknowledge(at() + Duration::hours(8)),
+        Err(OperationsDomainError::InvalidAssignment)
+    );
+    assert_eq!(value, before);
+
+    let replacement = PrincipalAssignment {
+        assignee: principal(10),
+        manager: principal(12),
+        valid_from: at() + Duration::hours(8),
+        valid_until: at() + Duration::hours(16),
+        authority_ref: "identity-assignment-chain:replacement".into(),
+    };
+    value
+        .reassign(replacement, at() + Duration::hours(8))
+        .unwrap();
+    value
+        .acknowledge(at() + Duration::hours(8) + Duration::minutes(1))
+        .unwrap();
+    assert_eq!(value.status(), ExceptionStatus::Acknowledged);
+}
+
+#[test]
+fn exception_exposes_stable_first_class_record_identity() {
+    let exception_id = Uuid::new_v4();
+    let value = OperationsException::detect(
+        ExceptionId::try_from_uuid(exception_id).unwrap(),
+        source_message(),
+        policy(),
+        assignment(),
+        at(),
+    )
+    .unwrap();
+    let reference = value.record_ref().unwrap();
+    assert_eq!(reference.id().as_uuid(), exception_id);
+    assert_eq!(
+        reference.canonical_detail_route(),
+        format!("/operations/exception/{exception_id}")
+    );
+}
+
+#[test]
 fn approval_requires_typed_decision_and_enforces_maker_checker() {
     let mut value = approval_exception();
     value.take_uncommitted_events();

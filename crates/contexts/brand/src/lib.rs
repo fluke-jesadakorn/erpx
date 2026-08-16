@@ -8,7 +8,8 @@ pub mod ports;
 
 pub use application::{
     BrandApplicationError, BrandCommandHandler, BrandMutationResult, BrandQueryHandler,
-    CreateBrandDraft, CreateBrandDraftResult, GetBrandDraft, GetBrandDraftResult, GetResolvedBrand,
+    CreateBrandDraft, CreateBrandDraftResult, GetBrandAsset, GetBrandAssetResult, GetBrandDraft,
+    GetBrandDraftResult, GetBrandPublication, GetBrandPublicationResult, GetResolvedBrand,
     GetResolvedBrandResult, ListBrandHistory, PublishBrandDraft, RollbackBrand, SaveBrandDraft,
     SetBrandCategoryLocks,
 };
@@ -20,8 +21,9 @@ pub use domain::{
     ResolvedBrandDefinition, resolve_published_brand,
 };
 pub use ports::{
-    AuthorizationPort, AuthorizationRequest, BrandAction, BrandCommit, BrandHistory,
-    BrandHistoryEntry, BrandProfileView, BrandStoredCommit, CommandFingerprint, CommandIdentity,
-    CommandUnitOfWork, EntitlementPort, ParentAuthorityPort, PortError, ReadProjection,
-    ReadRepository, ResolvedBrandView, WriteRepository,
+    AuthorizationPort, AuthorizationRequest, BrandAction, BrandAssetView, BrandCommit,
+    BrandHistory, BrandHistoryEntry, BrandProfileView, BrandPublicationView, BrandStoredCommit,
+    CommandFingerprint, CommandIdentity, CommandUnitOfWork, DerivedRecordReadRepository,
+    EntitlementPort, ParentAuthorityPort, PortError, ReadProjection, ReadRepository,
+    ResolvedBrandView, WriteRepository,
 };

@@ -122,14 +122,6 @@ async fn durable_invocation_claim_result_projection_and_reconciliation_are_autho
         .await
         .expect("cleanup scope");
     sqlx::query(
-        "DELETE FROM erpx_tenant.aggregate_snapshots
-          WHERE holding_ref=$1 AND aggregate_type='marketing_journey_integration'",
-    )
-    .bind(&holding_ref)
-    .execute(&mut *cleanup)
-    .await
-    .expect("cleanup snapshots");
-    sqlx::query(
         "DELETE FROM erpx_tenant.outbox_events
           WHERE holding_ref=$1 AND aggregate_type='marketing_journey_integration'",
     )

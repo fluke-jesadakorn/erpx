@@ -11,14 +11,21 @@ pub use application::{
     CreateOrganizationNode, CreateOrganizationNodeResult, GetOrganizationNode,
     GetOrganizationNodeResult, ListOrganizationNodes, OrganizationApplicationError,
     OrganizationCommandHandler, OrganizationMutationResult, OrganizationQueryHandler,
-    RenameOrganizationNode, ReparentOrganizationNode, SuspendOrganizationNode,
+    OrganizationSharingCommandHandler, RenameOrganizationNode, ReparentOrganizationNode,
+    SharingApplicationError, SuspendOrganizationNode,
 };
 pub use domain::{
-    OrganizationDomainError, OrganizationNode, OrganizationNodeId, OrganizationNodeKind,
-    OrganizationNodeStatus, OrganizationPlacement,
+    DirectoryVisibility, OrganizationDomainError, OrganizationNode, OrganizationNodeId,
+    OrganizationNodeKind, OrganizationNodeState, OrganizationNodeStatus, OrganizationPlacement,
+    OrganizationSharingAgreement, ProposeSharingAgreement, SharingAgreementId, SharingCapability,
+    SharingDirection, SharingMutation, SharingStatus, can_discover_across_hierarchy,
 };
 pub use ports::{
     AuthorizationPort, CommandFingerprint, CommandIdentity, CommandUnitOfWork, EntitlementPort,
     HierarchyGuard, HierarchyPort, NodeList, NodeListFilter, NodeView, OrganizationAction,
-    OrganizationCommit, PortError, ReadProjection, ReadRepository, StoredCommit, WriteRepository,
+    OrganizationCommit, PortError, ReadProjection, ReadRepository, SharingAction,
+    SharingAgreementList, SharingAuthorizationPort, SharingAuthorizationRequest,
+    SharingCommandIdentity, SharingCommandPayload, SharingCommandRequest, SharingCommandUnitOfWork,
+    SharingCommit, SharingListFilter, SharingReadRepository, SharingWriteRepository, StoredCommit,
+    StoredSharingCommit, WriteRepository,
 };

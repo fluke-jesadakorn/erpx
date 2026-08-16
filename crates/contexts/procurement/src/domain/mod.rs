@@ -1,3 +1,8 @@
+mod records;
+pub use records::{
+    ProcurementRecord, ProcurementRecordError, ProcurementRecordKind, ProcurementRecordStatus,
+};
+
 use chrono::{DateTime, Utc};
 use erpx_kernel::TenantScope;
 use serde::{Deserialize, Serialize};
@@ -145,7 +150,39 @@ pub struct PurchaseOrder {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PurchaseOrderState {
+    pub id: PurchaseOrderId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub order_code: String,
+    pub supplier_id: SupplierId,
+    pub currency: String,
+    pub lines: Vec<PurchaseOrderLine>,
+    pub status: PurchaseOrderStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl PurchaseOrder {
+    pub fn try_rehydrate(state: PurchaseOrderState) -> Result<Self, ProcurementDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            order_code: state.order_code,
+            supplier_id: state.supplier_id,
+            currency: state.currency,
+            lines: state.lines,
+            status: state.status,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: PurchaseOrderId,
@@ -182,6 +219,7 @@ impl PurchaseOrder {
         validate_code(&self.order_code, "order_code")?;
         validate_currency(&self.currency)?;
         validate_lines(&self.lines, &self.currency)?;
+        self.total_minor()?;
         if self.version == 0 {
             return Err(ProcurementDomainError::VersionOverflow);
         }
@@ -254,6 +292,13 @@ impl PurchaseOrder {
     }
     pub fn lines(&self) -> &[PurchaseOrderLine] {
         &self.lines
+    }
+    pub fn total_minor(&self) -> Result<i64, ProcurementDomainError> {
+        self.lines.iter().try_fold(0_i64, |total, line| {
+            total
+                .checked_add(line.line_value_minor()?)
+                .ok_or(ProcurementDomainError::ArithmeticOverflow)
+        })
     }
     pub const fn status(&self) -> PurchaseOrderStatus {
         self.status
@@ -442,5 +487,27 @@ mod tests {
             Err(ProcurementDomainError::InvalidTime)
         );
         assert_eq!(order.version(), 1);
+    }
+
+    #[test]
+    fn aggregate_total_overflow_is_rejected_before_release() {
+        let mut first = line(12);
+        first.ordered_quantity = 1;
+        first.unit_price_minor = i64::MAX;
+        let mut second = line(13);
+        second.ordered_quantity = 1;
+        second.unit_price_minor = 1;
+        assert!(matches!(
+            PurchaseOrder::create(
+                PurchaseOrderId::try_from_uuid(id(10)).unwrap(),
+                scope(),
+                "PO-OVERFLOW".into(),
+                SupplierId::try_from_uuid(id(11)).unwrap(),
+                "THB".into(),
+                vec![first, second],
+                at(9),
+            ),
+            Err(ProcurementDomainError::ArithmeticOverflow)
+        ));
     }
 }

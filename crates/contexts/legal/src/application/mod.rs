@@ -25,6 +25,9 @@ use crate::{
     },
 };
 
+mod legal_case;
+pub use legal_case::LegalCaseCommandHandler;
+
 pub const MAX_LEGAL_PAGE_SIZE: u16 = 100;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

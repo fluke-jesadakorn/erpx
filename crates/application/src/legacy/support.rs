@@ -507,7 +507,6 @@ where
             aggregate_type: aggregate_type.into(),
             aggregate_id,
             expected_aggregate_version: context.expected_aggregate_version,
-            aggregate_state,
             event,
             event_version: 1,
             tenant_scope: Some(

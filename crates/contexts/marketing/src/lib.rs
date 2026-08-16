@@ -11,17 +11,23 @@ pub use application::{
     CreateCampaignBudget, CreateLeadCandidate, GetCampaignBudget, GetLeadCandidate,
     ListLeadCandidates, MarketingApplicationError, MarketingCommand, MarketingCommandHandler,
     MarketingMutationResult, MarketingQuery, MarketingQueryHandler, MarketingQueryResponse,
-    QualifyLeadCandidate, RejectLeadCandidate, ReleaseCampaignSpend, ReserveCampaignSpend,
-    StartCampaignBudget, SubmitCampaignBudget,
+    MarketingRecordApplicationError, MarketingRecordCommandHandler, QualifyLeadCandidate,
+    RejectLeadCandidate, ReleaseCampaignSpend, ReserveCampaignSpend, StartCampaignBudget,
+    SubmitCampaignBudget,
 };
 pub use domain::{
     AudienceMemberId, BudgetAllocation, BudgetAllocationId, CampaignBudget, CampaignBudgetId,
-    CampaignBudgetStatus, CampaignId, LeadCandidate, LeadCandidateId, LeadCandidateStatus,
-    MarketingAggregate, MarketingDomainError, SpendRequestId, SpendReservation,
+    CampaignBudgetState, CampaignBudgetStatus, CampaignId, LeadCandidate, LeadCandidateId,
+    LeadCandidateState, LeadCandidateStatus, MarketingAggregate, MarketingDomainError,
+    MarketingRecord, MarketingRecordKind, MarketingRecordStatus, SpendRequestId, SpendReservation,
     SpendReservationStatus,
 };
 pub use ports::{
     AuthorizationPort, CampaignBudgetView, CommandUnitOfWork, EntitlementPort, LeadCandidateList,
-    LeadCandidateListFilter, LeadCandidateView, MarketingAction, MarketingCommit, PortError,
-    ReadRepository, WriteRepository,
+    LeadCandidateListFilter, LeadCandidateView, MarketingAction, MarketingCommit,
+    MarketingRecordAction, MarketingRecordAuthorizationPort, MarketingRecordAuthorizationRequest,
+    MarketingRecordCommand, MarketingRecordCommandIdentity, MarketingRecordCommandRequest,
+    MarketingRecordCommit, MarketingRecordReadRepository, MarketingRecordUnitOfWork,
+    MarketingRecordWriteRepository, PortError, ReadProjection, ReadRepository,
+    StoredMarketingRecordCommit, WriteRepository,
 };

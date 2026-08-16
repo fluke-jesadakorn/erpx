@@ -31,6 +31,14 @@ fn map_event(
             let _ = (connector_id, state, at);
             None
         }
+        DomainEvent::ConnectorReadinessObserved {
+            connector_id,
+            ready,
+            at,
+        } => {
+            let _ = (connector_id, ready, at);
+            None
+        }
         DomainEvent::AdminContextIssued {
             context_id,
             tenant_id,

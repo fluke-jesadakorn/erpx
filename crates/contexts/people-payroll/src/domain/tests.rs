@@ -22,6 +22,15 @@ fn scope() -> TenantScope {
 fn employee_id(value: u128) -> EmployeeId {
     EmployeeId::try_from_uuid(id(value)).unwrap()
 }
+fn payroll_evidence(captured_at: DateTime<Utc>) -> PayrollCalculationEvidence {
+    PayrollCalculationEvidence {
+        policy_version: "TH-PAYROLL-2026.08".into(),
+        rate_table_version: "TH-RATES-2026.08".into(),
+        calculation_sha256: format!("sha256:{}", "a".repeat(64)),
+        source_inputs: Vec::new(),
+        captured_at,
+    }
+}
 
 #[test]
 fn records_require_exact_company_or_branch_scope() {
@@ -83,6 +92,32 @@ fn employment_lifecycle_is_closed_and_termination_is_date_safe() {
         .unwrap();
     assert_eq!(employee.status(), EmployeeStatus::Terminated);
     assert!(employee.validate().is_ok());
+    let employment = employee.employment_record_ref().unwrap();
+    assert_eq!(employment.record_type().as_str(), "people.employment");
+    assert_ne!(employment.id().as_uuid(), employee.id().as_uuid());
+    assert_eq!(employment, employee.employment_record_ref().unwrap());
+}
+
+#[test]
+fn payslip_identity_is_stable_and_requires_an_owned_payroll_line() {
+    let employee = employee_id(10);
+    let run = PayrollRun::create(
+        PayrollRunId::try_from_uuid(id(70)).unwrap(),
+        scope(),
+        "2026-08".into(),
+        date(1),
+        date(31),
+        Currency::try_new("THB").unwrap(),
+        vec![PayrollLine::try_new(employee, 100_000, 10_000).unwrap()],
+        "preparer".into(),
+        at(),
+    )
+    .unwrap();
+    let payslip = run.payslip_record_ref(employee).unwrap().unwrap();
+    assert_eq!(payslip.record_type().as_str(), "payroll.payslip");
+    assert_ne!(payslip.id().as_uuid(), run.id().as_uuid());
+    assert_eq!(payslip, run.payslip_record_ref(employee).unwrap().unwrap());
+    assert_eq!(run.payslip_record_ref(employee_id(99)).unwrap(), None);
 }
 
 #[test]
@@ -212,12 +247,34 @@ fn payroll_requires_unique_lines_and_three_distinct_lifecycle_actors() {
         at(),
     )
     .unwrap();
+    assert_eq!(
+        run.transition(
+            PayrollTransition::SubmitForReview,
+            "preparer",
+            at() + Duration::seconds(30),
+        ),
+        Err(PeoplePayrollDomainError::InvalidTransition),
+    );
+    run.pin_calculation_evidence(
+        payroll_evidence(at() + Duration::seconds(30)),
+        at() + Duration::seconds(30),
+    )
+    .unwrap();
     run.transition(
         PayrollTransition::SubmitForReview,
         "preparer",
         at() + Duration::minutes(1),
     )
     .unwrap();
+    let pinned = run.calculation_evidence().cloned().unwrap();
+    assert_eq!(
+        run.pin_calculation_evidence(
+            payroll_evidence(at() + Duration::seconds(45)),
+            at() + Duration::seconds(45),
+        ),
+        Err(PeoplePayrollDomainError::InvalidPayrollEvidence),
+    );
+    assert_eq!(run.calculation_evidence(), Some(&pinned));
     assert_eq!(
         run.transition(
             PayrollTransition::Review,
@@ -291,6 +348,11 @@ fn leave_and_expense_events_remain_private_while_payroll_finalization_is_publish
         at(),
     )
     .unwrap();
+    run.pin_calculation_evidence(
+        payroll_evidence(at() + Duration::seconds(30)),
+        at() + Duration::seconds(30),
+    )
+    .unwrap();
     run.take_uncommitted_events();
     run.transition(
         PayrollTransition::SubmitForReview,
@@ -316,4 +378,45 @@ fn leave_and_expense_events_remain_private_while_payroll_finalization_is_publish
             .iter()
             .any(|event| matches!(event, DomainEvent::PayrollFinalized { .. }))
     );
+}
+
+#[test]
+fn typed_employee_rehydration_revalidates_state_without_replaying_events() {
+    let live = Employee::hire(
+        employee_id(91),
+        scope(),
+        "EMP-091".into(),
+        "Relational Worker".into(),
+        date(1),
+        at(),
+    )
+    .unwrap();
+    let mut restored = Employee::try_rehydrate(EmployeeState {
+        id: live.id(),
+        version: live.version(),
+        scope: live.scope().clone(),
+        employee_code: live.employee_code().into(),
+        display_name: live.display_name().into(),
+        hired_on: live.hired_on(),
+        terminated_on: live.terminated_on(),
+        status: live.status(),
+        created_at: live.created_at(),
+        updated_at: live.updated_at(),
+    })
+    .unwrap();
+    assert!(restored.take_uncommitted_events().is_empty());
+
+    let invalid = Employee::try_rehydrate(EmployeeState {
+        id: live.id(),
+        version: 0,
+        scope: live.scope().clone(),
+        employee_code: live.employee_code().into(),
+        display_name: live.display_name().into(),
+        hired_on: live.hired_on(),
+        terminated_on: live.terminated_on(),
+        status: live.status(),
+        created_at: live.created_at(),
+        updated_at: live.updated_at(),
+    });
+    assert_eq!(invalid, Err(PeoplePayrollDomainError::VersionOverflow));
 }

@@ -215,7 +215,7 @@ async fn run_real_provisioning_replacement() -> TestResult {
             .map_err(|_| test_error("migrate disposable control read database"))?;
         let store = std::sync::Arc::new(SqlxControlPlane::new(pools));
         let provisioner = TenantProvisioner::new(store.clone());
-        let tenant_id = format!("tenant-prv007-{}", Uuid::new_v4().simple());
+        let tenant_id = Uuid::new_v4().to_string();
         let holding_ref = format!("holding-prv007-{}", Uuid::new_v4().simple());
         provisioner
             .begin(TenantStoreRegistration {
@@ -319,7 +319,7 @@ async fn run_real_provisioning_replacement() -> TestResult {
             .map_err(|_| test_error("activate physically provisioned tenant"))?;
 
         let owned_candidate_key = format!("erpx_prv020_owned_{}", Uuid::new_v4().simple());
-        let other_tenant_id = format!("tenant-prv020-owner-{}", Uuid::new_v4().simple());
+        let other_tenant_id = Uuid::new_v4().to_string();
         provisioner
             .begin(TenantStoreRegistration {
                 tenant_id: other_tenant_id,
@@ -370,21 +370,22 @@ async fn run_real_provisioning_replacement() -> TestResult {
             return Err(test_error("tenant write transaction lost holding scope"));
         }
         sqlx::query(
-            "INSERT INTO erpx_tenant.operations_events
-                (event_id, contract_version, event_type, event_version, occurred_at,
-                 aggregate_type, aggregate_id, aggregate_version, holding_ref,
-                 tenant_scope, actor, correlation_id, causation_id, idempotency_key,
-                 payload)
-             VALUES ($1, 1, 'restore-test-fixture', 1, $2, 'fixture', $3, 1, $4,
-                     '{}'::jsonb, '{}'::jsonb, $5, $6, $7, '{}'::jsonb)",
+            "INSERT INTO erpx_cqrs_write.outbox_events
+                (event_id, context_name, partition_key, command_id, event_type,
+                 event_version, aggregate_type, aggregate_id, aggregate_version,
+                 tenant_scope, actor, correlation_id, causation_id, payload,
+                 occurred_at, available_at)
+             VALUES ($1, 'operations', $2, $3, 'operations.restore-test-fixture',
+                     1, 'fixture', $4, 1, $5, $6, $7, NULL, '{}'::jsonb, $8, $8)",
         )
-        .bind(Uuid::new_v4())
-        .bind(chrono::Utc::now())
         .bind(Uuid::new_v4())
         .bind(&holding_ref)
         .bind(Uuid::new_v4())
-        .bind(Option::<Uuid>::None)
-        .bind("restore-test-fixture-1")
+        .bind(Uuid::new_v4())
+        .bind(serde_json::json!({"holding_ref": holding_ref}))
+        .bind(serde_json::json!({"actor_ref": "restore-test-fixture"}))
+        .bind(Uuid::new_v4())
+        .bind(chrono::Utc::now())
         .execute(&mut *scoped)
         .await
         .map_err(|_| test_error("insert source watermark fixture"))?;

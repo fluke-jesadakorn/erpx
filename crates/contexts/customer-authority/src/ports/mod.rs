@@ -13,6 +13,22 @@ use thiserror::Error;
 
 use crate::domain::{CustomerAccount, CustomerCode, CustomerId, CustomerIdentity, CustomerStatus};
 
+mod authority_records;
+mod portal_binding;
+
+pub use authority_records::{
+    CustomerAuthorityRecordAuthorizationPort, CustomerAuthorityRecordCommand,
+    CustomerAuthorityRecordQueryPort, CustomerAuthorityRecordReceipt,
+    CustomerAuthorityRecordUnitOfWork, CustomerAuthorityRecordView,
+};
+
+pub use portal_binding::{
+    CustomerRecordAuthorityPort, PortalBindingAction, PortalBindingAuthorizationPort,
+    PortalBindingCommandIdentity, PortalBindingCommandPayload, PortalBindingCommandRequest,
+    PortalBindingCommandUnitOfWork, PortalBindingCommit, PortalBindingProposal,
+    PortalBindingWriteRepository, StoredPortalBindingCommit,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CustomerAuthorityAction {

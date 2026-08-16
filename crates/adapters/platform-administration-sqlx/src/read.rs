@@ -87,7 +87,7 @@ impl PlatformAdministrationReadRepository {
         projection: &str,
         checkpoint: Option<ProjectionCheckpoint>,
     ) -> Result<ProjectionMetadata, PortError> {
-        let status:Option<String>=sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1").bind(projection).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let status:Option<String>=sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1").bind(projection).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let freshness = match status.as_deref() {
             Some("active") => FreshnessState::Current,
             Some("building") => FreshnessState::Rebuilding,
@@ -128,7 +128,7 @@ impl ReadRepository for PlatformAdministrationReadRepository {
             )
             .await?;
         let row=sqlx::query("SELECT projection.state FROM erpx_platform_administration_read.tenant_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.tenant_id=$2 AND projection.partition_key=$3")
-            .bind(TENANT_PROJECTION).bind(id.as_uuid()).bind(&partition).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(TENANT_PROJECTION).bind(id.as_uuid()).bind(&partition).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode).transpose()?;
         if value.as_ref().is_some_and(|view: &TenantView| {
             !scope.contains(&TenantScope::Holding {
@@ -159,7 +159,7 @@ impl ReadRepository for PlatformAdministrationReadRepository {
         let cursor = filter.cursor.as_deref().map(decode_cursor).transpose()?;
         let holding = holding_filter(scope)?;
         let rows=sqlx::query("SELECT projection.state FROM erpx_platform_administration_read.tenant_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2 OR projection.root_holding_id=$3) AND ($4::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.tenant_id)<($4,$5)) ORDER BY projection.aggregate_updated_at DESC,projection.tenant_id DESC LIMIT $6")
-            .bind(TENANT_PROJECTION).bind(matches!(scope,TenantScope::Platform)).bind(holding).bind(cursor.map(|value|value.0)).bind(cursor.map(|value|value.1)).bind(i64::from(filter.page_size)+1).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(TENANT_PROJECTION).bind(matches!(scope,TenantScope::Platform)).bind(holding).bind(cursor.map(|value|value.0)).bind(cursor.map(|value|value.1)).bind(i64::from(filter.page_size)+1).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut records = rows
             .into_iter()
             .map(decode)
@@ -198,7 +198,7 @@ impl ReadRepository for PlatformAdministrationReadRepository {
             )
             .await?;
         let row=sqlx::query("SELECT projection.state FROM erpx_platform_administration_read.connector_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.connector_id=$2 AND projection.partition_key=$3")
-            .bind(CONNECTOR_PROJECTION).bind(id.as_uuid()).bind(&partition).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(CONNECTOR_PROJECTION).bind(id.as_uuid()).bind(&partition).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode).transpose()?;
         if value
             .as_ref()
@@ -228,7 +228,7 @@ impl ReadRepository for PlatformAdministrationReadRepository {
         let cursor = filter.cursor.as_deref().map(decode_cursor).transpose()?;
         let prefix = scope_prefix(scope)?;
         let rows=sqlx::query("SELECT projection.state FROM erpx_platform_administration_read.connector_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2 OR projection.scope_key=$3 OR projection.scope_key LIKE $4) AND ($5::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.connector_id)<($5,$6)) ORDER BY projection.aggregate_updated_at DESC,projection.connector_id DESC LIMIT $7")
-            .bind(CONNECTOR_PROJECTION).bind(matches!(scope,TenantScope::Platform)).bind(&prefix).bind(prefix.as_ref().map(|value|format!("{value}/%"))).bind(cursor.map(|value|value.0)).bind(cursor.map(|value|value.1)).bind(i64::from(filter.page_size)+1).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(CONNECTOR_PROJECTION).bind(matches!(scope,TenantScope::Platform)).bind(&prefix).bind(prefix.as_ref().map(|value|format!("{value}/%"))).bind(cursor.map(|value|value.0)).bind(cursor.map(|value|value.1)).bind(i64::from(filter.page_size)+1).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut records = rows
             .into_iter()
             .map(decode)
@@ -266,7 +266,7 @@ impl ReadRepository for PlatformAdministrationReadRepository {
             )
             .await?;
         let row=sqlx::query("SELECT projection.state FROM erpx_platform_administration_read.admin_context_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.context_id=$2 AND projection.partition_key=$3")
-            .bind(ADMIN_CONTEXT_PROJECTION).bind(id.as_uuid()).bind(&partition).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(ADMIN_CONTEXT_PROJECTION).bind(id.as_uuid()).bind(&partition).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut value: Option<AdminContextView> = row.map(decode).transpose()?;
         if let Some(view) = &mut value {
             if !scope.contains(&view.scope) {

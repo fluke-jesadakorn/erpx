@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::pos;
+use erpx_integration_contracts::{ItemDescriptorDraft, pos};
 use erpx_kernel::TenantScope;
 use erpx_pos::{PaymentMethod, RefundStatus, RefundView, SaleStatus, SaleView};
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,7 @@ pub enum PosOutboxPayload {
     Integration(pos::Event),
     SaleSnapshot(PosSaleSnapshot),
     RefundSnapshot(PosRefundSnapshot),
+    Directory(ItemDescriptorDraft),
 }
 
 #[derive(Debug, Clone)]
@@ -77,7 +78,7 @@ impl Projector for PosSaleProjector {
                  total_minor,paid_minor,sale_status,lines,payments,state,
                  aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,now())
-             ON CONFLICT (projection_name,generation,partition_key,sale_id)
+             ON CONFLICT (tenant_id,projection_name,generation,partition_key,sale_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                 source_global_sequence=EXCLUDED.source_global_sequence,
                 tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
@@ -188,7 +189,7 @@ impl Projector for PosRefundProjector {
                  reviewer_principal_ref,lines,state,aggregate_requested_at,
                  aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now())
-             ON CONFLICT (projection_name,generation,partition_key,refund_id)
+             ON CONFLICT (tenant_id,projection_name,generation,partition_key,refund_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                 source_global_sequence=EXCLUDED.source_global_sequence,
                 tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,

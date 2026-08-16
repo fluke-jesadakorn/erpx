@@ -2,18 +2,21 @@ use async_trait::async_trait;
 use erpx_commercial::{
     CatalogPlan, CatalogPlanId, CatalogPlanView, CommandFingerprint, CommandIdentity,
     CommandUnitOfWork, CommercialAggregate, CommercialCommit, CommercialStoredCommit, Entitlement,
-    EntitlementId, EntitlementView, PortError, Subscription, SubscriptionId, SubscriptionView,
-    WriteRepository,
+    EntitlementCapacity, EntitlementId, EntitlementState, EntitlementView, PortError, Subscription,
+    SubscriptionId, SubscriptionState, SubscriptionStatus, SubscriptionView, WriteRepository,
 };
 use erpx_cqrs_sqlx::{
     AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
-use erpx_integration_contracts::IntegrationEvent;
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_integration_contracts::{
+    CurrencyCode, ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -28,15 +31,15 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct CommercialWriteRepository {
-    control_store: CommandStore,
-    tenant_store: CommandStore,
+    control_write: WritePool,
+    tenant_write: WritePool,
 }
 
 impl CommercialWriteRepository {
     pub fn new(control_write: WritePool, tenant_write: WritePool) -> Self {
         Self {
-            control_store: CommandStore::new(control_write),
-            tenant_store: CommandStore::new(tenant_write),
+            control_write,
+            tenant_write,
         }
     }
 
@@ -52,33 +55,7 @@ impl WriteRepository for CommercialWriteRepository {
         authority_scope: &TenantScope,
         id: CatalogPlanId,
     ) -> Result<Option<CatalogPlan>, PortError> {
-        let snapshot = self
-            .control_store
-            .load_snapshot::<CommercialAggregate>(
-                CONTEXT_NAME,
-                &catalog_plan_partition(id),
-                CATALOG_PLAN_AGGREGATE,
-                aggregate_id(id.as_uuid())?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
-            return Ok(None);
-        };
-        let CommercialAggregate::CatalogPlan(value) = snapshot.state else {
-            return Err(PortError::Internal);
-        };
-        if snapshot.version != value.version()
-            || value.id() != id
-            || value.scope() != &TenantScope::Platform
-            || value.amount_minor() <= 0
-        {
-            return Err(PortError::Internal);
-        }
-        if !authority_scope.contains(value.scope()) {
-            return Err(PortError::Denied);
-        }
-        Ok(Some(value))
+        load_catalog_plan_relational(&self.control_write, authority_scope, id).await
     }
 
     async fn load_subscription(
@@ -86,32 +63,62 @@ impl WriteRepository for CommercialWriteRepository {
         authority_scope: &TenantScope,
         id: SubscriptionId,
     ) -> Result<Option<Subscription>, PortError> {
-        let snapshot = self
-            .tenant_store
-            .load_snapshot::<CommercialAggregate>(
-                CONTEXT_NAME,
-                &subscription_partition(id),
-                SUBSCRIPTION_AGGREGATE,
-                aggregate_id(id.as_uuid())?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
+        let holding_id = authority_holding_id(authority_scope)?;
+        let mut transaction = self.tenant_write.begin().await.map_err(map_store_error)?;
+        let row = sqlx::query(
+            "SELECT aggregate_version,holding_id,customer_id,catalog_plan_id,
+                    subscription_status,amount_minor,currency,last_provider_event_id,
+                    last_provider_event_at,grace_expires_at,created_at,updated_at
+             FROM erpx_commercial_write.subscription_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+               AND subscription_id=$1 AND holding_id=$2",
+        )
+        .bind(id.as_uuid())
+        .bind(holding_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        let Some(row) = row else {
             return Ok(None);
         };
-        let CommercialAggregate::Subscription(value) = snapshot.state else {
-            return Err(PortError::Internal);
-        };
-        if snapshot.version != value.version()
-            || value.id() != id
-            || !is_holding_scope(value.scope())
-            || value.amount_minor() <= 0
-        {
-            return Err(PortError::Internal);
-        }
-        if !authority_scope.contains(value.scope()) {
-            return Err(PortError::Denied);
-        }
+        let currency_text: String = row.try_get("currency").map_err(|_| PortError::Internal)?;
+        let value = Subscription::try_rehydrate(SubscriptionState {
+            id,
+            version: row_u64(&row, "aggregate_version")?,
+            scope: TenantScope::Holding { holding_id },
+            customer_id: row
+                .try_get("customer_id")
+                .map_err(|_| PortError::Internal)?,
+            plan_id: CatalogPlanId::try_from_uuid(
+                row.try_get("catalog_plan_id")
+                    .map_err(|_| PortError::Internal)?,
+            )
+            .map_err(|_| PortError::Internal)?,
+            status: parse_subscription_status(
+                row.try_get("subscription_status")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            amount_minor: row
+                .try_get("amount_minor")
+                .map_err(|_| PortError::Internal)?,
+            currency: CurrencyCode::try_new(&currency_text).map_err(|_| PortError::Internal)?,
+            last_provider_event_id: row
+                .try_get("last_provider_event_id")
+                .map_err(|_| PortError::Internal)?,
+            last_provider_event_at: row
+                .try_get("last_provider_event_at")
+                .map_err(|_| PortError::Internal)?,
+            grace_expires_at: row
+                .try_get("grace_expires_at")
+                .map_err(|_| PortError::Internal)?,
+            created_at: row.try_get("created_at").map_err(|_| PortError::Internal)?,
+            updated_at: row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+        })
+        .map_err(|_| PortError::Internal)?;
+        transaction
+            .commit()
+            .await
+            .map_err(|_| PortError::Unavailable)?;
         Ok(Some(value))
     }
 
@@ -120,32 +127,62 @@ impl WriteRepository for CommercialWriteRepository {
         authority_scope: &TenantScope,
         id: EntitlementId,
     ) -> Result<Option<Entitlement>, PortError> {
-        let snapshot = self
-            .tenant_store
-            .load_snapshot::<CommercialAggregate>(
-                CONTEXT_NAME,
-                &entitlement_partition(id),
-                ENTITLEMENT_AGGREGATE,
-                aggregate_id(id.as_uuid())?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
+        let holding_id = authority_holding_id(authority_scope)?;
+        let mut transaction = self.tenant_write.begin().await.map_err(map_store_error)?;
+        let row = sqlx::query(
+            "SELECT aggregate_version,holding_id,subscription_id,capability,enabled,
+                    seat_capacity,company_capacity,branch_capacity,allocated_seats,
+                    allocated_companies,allocated_branches,last_provider_event_id,
+                    last_provider_event_at,created_at,updated_at
+             FROM erpx_commercial_write.entitlement_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+               AND entitlement_id=$1 AND holding_id=$2",
+        )
+        .bind(id.as_uuid())
+        .bind(holding_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        let Some(row) = row else {
             return Ok(None);
         };
-        let CommercialAggregate::Entitlement(value) = snapshot.state else {
-            return Err(PortError::Internal);
-        };
-        if snapshot.version != value.version()
-            || value.id() != id
-            || !is_holding_scope(value.scope())
-            || !valid_capacity(&value)
-        {
-            return Err(PortError::Internal);
-        }
-        if !authority_scope.contains(value.scope()) {
-            return Err(PortError::Denied);
-        }
+        let value = Entitlement::try_rehydrate(EntitlementState {
+            id,
+            version: row_u64(&row, "aggregate_version")?,
+            scope: TenantScope::Holding { holding_id },
+            subscription_id: SubscriptionId::try_from_uuid(
+                row.try_get("subscription_id")
+                    .map_err(|_| PortError::Internal)?,
+            )
+            .map_err(|_| PortError::Internal)?,
+            capability: row.try_get("capability").map_err(|_| PortError::Internal)?,
+            enabled: row.try_get("enabled").map_err(|_| PortError::Internal)?,
+            capacity: capacity_from_row(
+                &row,
+                "seat_capacity",
+                "company_capacity",
+                "branch_capacity",
+            )?,
+            allocated: capacity_from_row(
+                &row,
+                "allocated_seats",
+                "allocated_companies",
+                "allocated_branches",
+            )?,
+            last_provider_event_id: row
+                .try_get("last_provider_event_id")
+                .map_err(|_| PortError::Internal)?,
+            last_provider_event_at: row
+                .try_get("last_provider_event_at")
+                .map_err(|_| PortError::Internal)?,
+            created_at: row.try_get("created_at").map_err(|_| PortError::Internal)?,
+            updated_at: row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+        })
+        .map_err(|_| PortError::Internal)?;
+        transaction
+            .commit()
+            .await
+            .map_err(|_| PortError::Unavailable)?;
         Ok(Some(value))
     }
 }
@@ -153,13 +190,15 @@ impl WriteRepository for CommercialWriteRepository {
 #[derive(Debug, Clone)]
 pub struct CommercialCommandAdapter {
     control_store: CommandStore,
+    control_write: WritePool,
     tenant_store: CommandStore,
 }
 
 impl CommercialCommandAdapter {
     pub fn new(control_write: WritePool, tenant_write: WritePool) -> Self {
         Self {
-            control_store: CommandStore::new(control_write),
+            control_store: CommandStore::new(control_write.clone()),
+            control_write,
             tenant_store: CommandStore::new(tenant_write),
         }
     }
@@ -169,29 +208,15 @@ impl CommercialCommandAdapter {
     }
 
     async fn ensure_published_control_plan(&self, plan_id: CatalogPlanId) -> Result<(), PortError> {
-        let snapshot = self
-            .control_store
-            .load_snapshot::<CommercialAggregate>(
-                CONTEXT_NAME,
-                &catalog_plan_partition(plan_id),
-                CATALOG_PLAN_AGGREGATE,
-                aggregate_id(plan_id.as_uuid())?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
+        let Some(plan) =
+            load_catalog_plan_relational(&self.control_write, &TenantScope::Platform, plan_id)
+                .await?
+        else {
             return Err(PortError::NotFound);
         };
-        let CommercialAggregate::CatalogPlan(plan) = snapshot.state else {
-            return Err(PortError::Internal);
-        };
-        if snapshot.version != plan.version()
-            || plan.id() != plan_id
-            || plan.scope() != &TenantScope::Platform
-            || plan.status() != erpx_commercial::CatalogPlanStatus::Published
-        {
+        if plan.status() != erpx_commercial::CatalogPlanStatus::Published {
             return Err(PortError::Conflict {
-                expected: snapshot.version,
+                expected: plan.version(),
                 actual: plan.version(),
             });
         }
@@ -258,6 +283,21 @@ impl CommandUnitOfWork for CommercialCommandAdapter {
             occurred_at,
             payload: CommercialOutboxPayload::Snapshot(snapshot(&request.aggregate)),
         });
+        if let Some(directory_draft) = commercial_directory_draft(&request.aggregate)? {
+            events.push(OutboxEventWrite {
+                event_id: deterministic_event_id(
+                    command_id,
+                    ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                    events.len(),
+                ),
+                event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+                event_version: ITEM_DIRECTORY_FACT_VERSION,
+                partition: key.partition.clone(),
+                causation_id: request.causation_id,
+                occurred_at,
+                payload: CommercialOutboxPayload::Directory(directory_draft),
+            });
+        }
         let aggregate_id = aggregate_id(request.aggregate.id_uuid())?;
         let aggregate = request.aggregate;
         let guard = CommercialGuard {
@@ -276,7 +316,6 @@ impl CommandUnitOfWork for CommercialCommandAdapter {
             aggregate_type: key.aggregate_type.into(),
             aggregate_id,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"commercial-audit-v1"),
@@ -291,7 +330,7 @@ impl CommandUnitOfWork for CommercialCommandAdapter {
             StoragePlane::Tenant => &self.tenant_store,
         };
         let outcome = store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -304,6 +343,48 @@ impl CommandUnitOfWork for CommercialCommandAdapter {
     }
 }
 
+fn commercial_directory_draft(
+    aggregate: &CommercialAggregate,
+) -> Result<Option<ItemDescriptorDraft>, PortError> {
+    let (record_type, lifecycle_state, search_text) = match aggregate {
+        CommercialAggregate::CatalogPlan(_) => return Ok(None),
+        CommercialAggregate::Subscription(value) => (
+            "commercial.subscription",
+            subscription_status(value.status()).to_owned(),
+            value.customer_id().to_string(),
+        ),
+        CommercialAggregate::Entitlement(value) => (
+            "commercial.entitlement",
+            if value.enabled() {
+                "enabled"
+            } else {
+                "disabled"
+            }
+            .to_owned(),
+            value.capability().to_owned(),
+        ),
+    };
+    let record_id =
+        RecordId::try_from_uuid(aggregate.id_uuid()).map_err(|_| PortError::Internal)?;
+    let record = StableRecordRef::try_new(
+        record_id,
+        ContextId::Commercial,
+        RecordTypeId::try_new(record_type).map_err(|_| PortError::Internal)?,
+    )
+    .map_err(|_| PortError::Internal)?;
+    let value = ItemDescriptorDraft {
+        authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+        record,
+        scope: aggregate.scope().clone(),
+        lifecycle_state,
+        classification: DataClassification::Confidential,
+        descriptor_version: aggregate.version(),
+        authorized_search_text: search_text,
+    };
+    value.validate().map_err(|_| PortError::Internal)?;
+    Ok(Some(value))
+}
+
 #[derive(Debug)]
 struct CommercialGuard {
     aggregate: CommercialAggregate,
@@ -311,6 +392,39 @@ struct CommercialGuard {
 
 #[async_trait]
 impl AtomicCommandGuard for CommercialGuard {
+    async fn authoritative_version(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        if context.context != CONTEXT_NAME
+            || context.aggregate_id.as_uuid() != self.aggregate.id_uuid()
+            || context.aggregate_type != self.aggregate.aggregate_type()
+        {
+            return Err(CqrsSqlxError::GuardRejected(
+                "commercial guard metadata mismatch",
+            ));
+        }
+        let query = match &self.aggregate {
+            CommercialAggregate::CatalogPlan(_) => {
+                "SELECT aggregate_version FROM erpx_commercial_write.catalog_plan_guards WHERE catalog_plan_id=$1 FOR UPDATE"
+            }
+            CommercialAggregate::Subscription(_) => {
+                "SELECT aggregate_version FROM erpx_commercial_write.subscription_authority
+                 WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND subscription_id=$1 FOR UPDATE"
+            }
+            CommercialAggregate::Entitlement(_) => {
+                "SELECT aggregate_version FROM erpx_commercial_write.entitlement_authority
+                 WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND entitlement_id=$1 FOR UPDATE"
+            }
+        };
+        let value: Option<i64> = sqlx::query_scalar(query)
+            .bind(self.aggregate.id_uuid())
+            .fetch_optional(&mut **transaction)
+            .await?;
+        value.map(from_i64).transpose()
+    }
+
     async fn validate(
         &self,
         transaction: &mut Transaction<'_, Postgres>,
@@ -338,8 +452,8 @@ impl AtomicCommandGuard for CommercialGuard {
             // before the tenant transaction was opened.
             CommercialAggregate::Subscription(_) => {}
             CommercialAggregate::Entitlement(entitlement) => {
-                let status: Option<String> = sqlx::query_scalar("SELECT subscription_status FROM erpx_commercial_write.subscription_guards WHERE subscription_id=$1 AND scope_key=$2 FOR SHARE")
-                    .bind(entitlement.subscription_id().as_uuid()).bind(scope_key(entitlement.scope())?)
+                let status: Option<String> = sqlx::query_scalar("SELECT subscription_status FROM erpx_commercial_write.subscription_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND subscription_id=$1 AND holding_id=$2 FOR SHARE")
+                    .bind(entitlement.subscription_id().as_uuid()).bind(entitlement.holding_id())
                     .fetch_optional(&mut **transaction).await?;
                 if status.as_deref().is_none_or(|value| value == "ended") {
                     return Err(CqrsSqlxError::GuardRejected(
@@ -359,19 +473,27 @@ impl AtomicCommandGuard for CommercialGuard {
         let version = to_i64(context.aggregate_version)?;
         match &self.aggregate {
             CommercialAggregate::CatalogPlan(plan) => {
-                sqlx::query("INSERT INTO erpx_commercial_write.catalog_plan_guards (catalog_plan_id,plan_key,plan_status,aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (catalog_plan_id) DO UPDATE SET plan_key=EXCLUDED.plan_key,plan_status=EXCLUDED.plan_status,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at")
-                    .bind(plan.id().as_uuid()).bind(plan.key()).bind(catalog_status(plan.status())).bind(version).bind(plan.updated_at()).execute(&mut **transaction).await?;
+                sqlx::query("INSERT INTO erpx_commercial_write.catalog_plan_guards (catalog_plan_id,plan_key,display_name,amount_minor,currency,plan_status,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (catalog_plan_id) DO UPDATE SET plan_key=EXCLUDED.plan_key,display_name=EXCLUDED.display_name,amount_minor=EXCLUDED.amount_minor,currency=EXCLUDED.currency,plan_status=EXCLUDED.plan_status,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at")
+                    .bind(plan.id().as_uuid()).bind(plan.key()).bind(plan.display_name()).bind(plan.amount_minor()).bind(plan.currency().as_str()).bind(catalog_status(plan.status())).bind(version).bind(plan.created_at()).bind(plan.updated_at()).execute(&mut **transaction).await?;
             }
             CommercialAggregate::Subscription(value) => {
-                sqlx::query("INSERT INTO erpx_commercial_write.subscription_guards (subscription_id,scope_key,customer_id,catalog_plan_id,subscription_status,last_provider_event_at,aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (subscription_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,catalog_plan_id=EXCLUDED.catalog_plan_id,subscription_status=EXCLUDED.subscription_status,last_provider_event_at=EXCLUDED.last_provider_event_at,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at")
-                    .bind(value.id().as_uuid()).bind(scope_key(value.scope())?).bind(value.customer_id()).bind(value.plan_id().as_uuid()).bind(subscription_status(value.status())).bind(value.last_provider_event_at()).bind(version).bind(value.updated_at()).execute(&mut **transaction).await?;
+                let result = sqlx::query("INSERT INTO erpx_commercial_write.subscription_authority (tenant_id,subscription_id,aggregate_version,holding_id,customer_id,catalog_plan_id,subscription_status,amount_minor,currency,last_provider_event_id,last_provider_event_at,grace_expires_at,created_at,updated_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (tenant_id,subscription_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,holding_id=EXCLUDED.holding_id,customer_id=EXCLUDED.customer_id,catalog_plan_id=EXCLUDED.catalog_plan_id,subscription_status=EXCLUDED.subscription_status,amount_minor=EXCLUDED.amount_minor,currency=EXCLUDED.currency,last_provider_event_id=EXCLUDED.last_provider_event_id,last_provider_event_at=EXCLUDED.last_provider_event_at,grace_expires_at=EXCLUDED.grace_expires_at,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at WHERE erpx_commercial_write.subscription_authority.tenant_id=erpx_cqrs_write.current_tenant_id() AND erpx_commercial_write.subscription_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
+                    .bind(value.id().as_uuid()).bind(version).bind(value.holding_id()).bind(value.customer_id()).bind(value.plan_id().as_uuid()).bind(subscription_status(value.status())).bind(value.amount_minor()).bind(value.currency().as_str()).bind(value.last_provider_event_id()).bind(value.last_provider_event_at()).bind(value.grace_expires_at()).bind(value.created_at()).bind(value.updated_at()).execute(&mut **transaction).await?;
+                require_one_row(
+                    result.rows_affected(),
+                    "commercial subscription version fence",
+                )?;
             }
             CommercialAggregate::Entitlement(value) => {
-                sqlx::query("INSERT INTO erpx_commercial_write.entitlement_guards (entitlement_id,scope_key,subscription_id,capability,enabled,seat_capacity,company_capacity,branch_capacity,allocated_seats,allocated_companies,allocated_branches,aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (entitlement_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,subscription_id=EXCLUDED.subscription_id,capability=EXCLUDED.capability,enabled=EXCLUDED.enabled,seat_capacity=EXCLUDED.seat_capacity,company_capacity=EXCLUDED.company_capacity,branch_capacity=EXCLUDED.branch_capacity,allocated_seats=EXCLUDED.allocated_seats,allocated_companies=EXCLUDED.allocated_companies,allocated_branches=EXCLUDED.allocated_branches,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at")
-                    .bind(value.id().as_uuid()).bind(scope_key(value.scope())?).bind(value.subscription_id().as_uuid()).bind(value.capability()).bind(value.enabled())
+                let result = sqlx::query("INSERT INTO erpx_commercial_write.entitlement_authority (tenant_id,entitlement_id,aggregate_version,holding_id,subscription_id,capability,enabled,seat_capacity,company_capacity,branch_capacity,allocated_seats,allocated_companies,allocated_branches,last_provider_event_id,last_provider_event_at,created_at,updated_at) VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) ON CONFLICT (tenant_id,entitlement_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,holding_id=EXCLUDED.holding_id,subscription_id=EXCLUDED.subscription_id,capability=EXCLUDED.capability,enabled=EXCLUDED.enabled,seat_capacity=EXCLUDED.seat_capacity,company_capacity=EXCLUDED.company_capacity,branch_capacity=EXCLUDED.branch_capacity,allocated_seats=EXCLUDED.allocated_seats,allocated_companies=EXCLUDED.allocated_companies,allocated_branches=EXCLUDED.allocated_branches,last_provider_event_id=EXCLUDED.last_provider_event_id,last_provider_event_at=EXCLUDED.last_provider_event_at,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at WHERE erpx_commercial_write.entitlement_authority.tenant_id=erpx_cqrs_write.current_tenant_id() AND erpx_commercial_write.entitlement_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
+                    .bind(value.id().as_uuid()).bind(version).bind(value.holding_id()).bind(value.subscription_id().as_uuid()).bind(value.capability()).bind(value.enabled())
                     .bind(i64::from(value.capacity().seats)).bind(i64::from(value.capacity().companies)).bind(i64::from(value.capacity().branches))
                     .bind(i64::from(value.allocated().seats)).bind(i64::from(value.allocated().companies)).bind(i64::from(value.allocated().branches))
-                    .bind(version).bind(value.updated_at()).execute(&mut **transaction).await?;
+                    .bind(value.last_provider_event_id()).bind(value.last_provider_event_at()).bind(value.created_at()).bind(value.updated_at()).execute(&mut **transaction).await?;
+                require_one_row(
+                    result.rows_affected(),
+                    "commercial entitlement version fence",
+                )?;
             }
         }
         Ok(())
@@ -529,16 +651,15 @@ fn aggregate_id(value: Uuid) -> Result<AggregateId, PortError> {
 fn is_holding_scope(scope: &TenantScope) -> bool {
     matches!(scope, TenantScope::Holding { holding_id } if !holding_id.is_nil())
 }
-fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
+
+fn authority_holding_id(scope: &TenantScope) -> Result<Uuid, PortError> {
+    scope.validate().map_err(|_| PortError::Denied)?;
     match scope {
-        TenantScope::Holding { holding_id } if !holding_id.is_nil() => {
-            Ok(format!("holding:{holding_id}"))
-        }
-        _ => Err(CqrsSqlxError::GuardRejected(
-            "commercial guard requires holding scope",
-        )),
+        TenantScope::Holding { holding_id } if !holding_id.is_nil() => Ok(*holding_id),
+        _ => Err(PortError::Denied),
     }
 }
+
 fn valid_capacity(value: &Entitlement) -> bool {
     let cap = value.capacity();
     let used = value.allocated();
@@ -585,6 +706,118 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
 }
 fn to_i64(value: u64) -> Result<i64, CqrsSqlxError> {
     i64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
+}
+
+fn row_u64(row: &sqlx::postgres::PgRow, column: &str) -> Result<u64, PortError> {
+    from_i64_port(row.try_get(column).map_err(|_| PortError::Internal)?)
+}
+
+fn parse_subscription_status(value: &str) -> Result<SubscriptionStatus, PortError> {
+    match value {
+        "trial" => Ok(SubscriptionStatus::Trial),
+        "active" => Ok(SubscriptionStatus::Active),
+        "past_due" => Ok(SubscriptionStatus::PastDue),
+        "suspended" => Ok(SubscriptionStatus::Suspended),
+        "ended" => Ok(SubscriptionStatus::Ended),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn capacity_from_row(
+    row: &sqlx::postgres::PgRow,
+    seats: &str,
+    companies: &str,
+    branches: &str,
+) -> Result<EntitlementCapacity, PortError> {
+    Ok(EntitlementCapacity {
+        seats: u32::try_from(
+            row.try_get::<i64, _>(seats)
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        companies: u32::try_from(
+            row.try_get::<i64, _>(companies)
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        branches: u32::try_from(
+            row.try_get::<i64, _>(branches)
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+    })
+}
+
+fn require_one_row(rows: u64, message: &'static str) -> Result<(), CqrsSqlxError> {
+    if rows == 1 {
+        Ok(())
+    } else {
+        Err(CqrsSqlxError::GuardRejected(message))
+    }
+}
+
+async fn load_catalog_plan_relational(
+    write: &WritePool,
+    authority_scope: &TenantScope,
+    id: CatalogPlanId,
+) -> Result<Option<CatalogPlan>, PortError> {
+    if !authority_scope.contains(&TenantScope::Platform) {
+        return Err(PortError::Denied);
+    }
+    let mut transaction = write.begin().await.map_err(map_store_error)?;
+    let row = sqlx::query(
+        "SELECT aggregate_version,plan_key,display_name,amount_minor,currency,
+                plan_status,created_at,updated_at
+         FROM erpx_commercial_write.catalog_plan_guards
+         WHERE catalog_plan_id=$1",
+    )
+    .bind(id.as_uuid())
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let status = match row
+        .try_get::<String, _>("plan_status")
+        .map_err(|_| PortError::Internal)?
+        .as_str()
+    {
+        "draft" => erpx_commercial::CatalogPlanStatus::Draft,
+        "published" => erpx_commercial::CatalogPlanStatus::Published,
+        _ => return Err(PortError::Internal),
+    };
+    let currency = CurrencyCode::try_new(
+        &row.try_get::<String, _>("currency")
+            .map_err(|_| PortError::Internal)?,
+    )
+    .map_err(|_| PortError::Internal)?;
+    CatalogPlan::try_rehydrate(
+        id,
+        from_i64_port(
+            row.try_get("aggregate_version")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        row.try_get("plan_key").map_err(|_| PortError::Internal)?,
+        row.try_get("display_name")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("amount_minor")
+            .map_err(|_| PortError::Internal)?,
+        currency,
+        status,
+        row.try_get("created_at").map_err(|_| PortError::Internal)?,
+        row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+fn from_i64_port(value: i64) -> Result<u64, PortError> {
+    u64::try_from(value).map_err(|_| PortError::Internal)
+}
+
+fn from_i64(value: i64) -> Result<u64, CqrsSqlxError> {
+    u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
 }
 
 fn map_store_error(error: CqrsSqlxError) -> PortError {
@@ -667,17 +900,32 @@ mod tests {
 
     #[test]
     fn guard_source_covers_all_frozen_guard_tables() {
-        let source = include_str!("command.rs");
+        let source = include_str!("command.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap();
         for table in [
             "catalog_plan_guards",
-            "subscription_guards",
-            "entitlement_guards",
+            "subscription_authority",
+            "entitlement_authority",
         ] {
             assert!(source.contains(table));
         }
-        assert!(source.contains("commit_guarded"));
+        assert!(!source.contains("commit_guarded"));
         assert!(source.contains("control_store"));
         assert!(source.contains("tenant_store"));
         assert!(source.contains("ensure_published_control_plan"));
+    }
+
+    #[test]
+    fn every_plane_uses_normalized_authority_without_snapshot_fallback() {
+        let production = include_str!("command.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap();
+        assert!(!production.contains("load_snapshot"));
+        assert!(!production.contains("commit_guarded"));
+        assert!(production.contains("load_catalog_plan_relational"));
+        assert!(production.contains("commit_normalized"));
     }
 }

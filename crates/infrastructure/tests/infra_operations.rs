@@ -2,8 +2,6 @@
 
 #[path = "asset_maintenance_persistence.rs"]
 mod asset_maintenance_persistence;
-#[path = "operations_persistence.rs"]
-mod operations_persistence;
 #[path = "pos_persistence.rs"]
 mod pos_persistence;
 #[path = "pos_projection_read.rs"]

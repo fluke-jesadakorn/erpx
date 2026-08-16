@@ -1,6 +1,6 @@
--- Context-specific uniqueness and hierarchy guards maintained in the same
--- transaction as erpx_cqrs_write snapshots, receipts, audit, and outbox rows.
--- Aggregate state remains authoritative in the shared snapshot table.
+-- Historical uniqueness and hierarchy guards. Migration 0081 promotes these
+-- roots to typed relational command authority; receipts, audit and outbox
+-- facts remain atomic in erpx_cqrs_write.
 
 CREATE SCHEMA IF NOT EXISTS erpx_identity_access_write;
 

@@ -12,13 +12,20 @@ use erpx_kernel::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+mod governance;
+pub use governance::{
+    PlatformGovernanceRecordApplicationError, PlatformGovernanceRecordCommandHandler,
+    PlatformGovernanceRecordQueryHandler,
+};
 use uuid::Uuid;
 
 use crate::{
     domain::{
-        AdminContextId, ConnectorBinding, ConnectorBindingId, ConnectorKind, ConnectorScope,
-        ConnectorTransition, EnvironmentId, PlatformAdministrationDomainError, PlatformAggregate,
-        PlatformTenant, PlatformTenantId, TenantAdminContext, TenantLifecycleAction,
+        AdminContextId, ConnectorBinding, ConnectorBindingId, ConnectorKind,
+        ConnectorReadinessEvidence, ConnectorScope, ConnectorTransition, EnvironmentId,
+        PlatformAdministrationDomainError, PlatformAggregate, PlatformTenant, PlatformTenantId,
+        TenantAdminContext, TenantLifecycleAction,
     },
     integration,
     ports::{
@@ -62,6 +69,12 @@ pub struct RegisterConnector {
 pub struct TransitionConnector {
     pub connector_id: ConnectorBindingId,
     pub action: ConnectorTransition,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ObserveConnectorReadiness {
+    pub connector_id: ConnectorBindingId,
+    pub evidence: ConnectorReadinessEvidence,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -639,6 +652,85 @@ impl<
         aggregate
             .transition(command.action, self.clock.now())
             .map_err(|e| to_cqrs(e.into(), correlation_id))?;
+        let stored = self
+            .commit(
+                command_parts(&envelope),
+                identity,
+                Some(expected),
+                PlatformAggregate::Connector(aggregate),
+            )
+            .await?;
+        let response = mutation_result(&stored, self.clock.now());
+        Ok(stored.into_receipt(response))
+    }
+}
+
+#[async_trait]
+impl<
+    W: WriteRepository,
+    U: CommandUnitOfWork,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+    T: TenantAuthorityPort,
+    C: Clock,
+> CommandHandler<ObserveConnectorReadiness>
+    for PlatformAdministrationCommandHandler<W, U, A, E, T, C>
+{
+    type Response = PlatformAdministrationMutationResult;
+
+    async fn handle(
+        &self,
+        envelope: CommandEnvelope<ObserveConnectorReadiness>,
+    ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        let correlation_id = envelope.correlation_id;
+        let command = envelope.command.clone();
+        let identity = CommandIdentity {
+            command_id: envelope.command_id,
+            idempotency_key: envelope.idempotency_key.clone(),
+            fingerprint: CommandFingerprint::ObserveConnectorReadiness {
+                connector_id: command.connector_id,
+                evidence: command.evidence.clone(),
+            },
+        };
+        if let Some(stored) = self
+            .replay(
+                &identity,
+                &envelope.actor,
+                &envelope.tenant_scope,
+                PlatformAdministrationAction::ObserveConnectorReadiness,
+                correlation_id,
+            )
+            .await?
+        {
+            if !matches!(&stored.aggregate, PlatformAggregate::Connector(_)) {
+                return Err(to_cqrs(
+                    PlatformAdministrationApplicationError::ReceiptTypeMismatch,
+                    correlation_id,
+                ));
+            }
+            let response = mutation_result(&stored, self.clock.now());
+            return Ok(stored.into_receipt(response));
+        }
+        let mut aggregate = self
+            .write_repository
+            .load_connector(&envelope.tenant_scope, command.connector_id)
+            .await
+            .map_err(|error| to_cqrs(error.into(), correlation_id))?
+            .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation_id))?;
+        self.preflight(
+            &envelope.actor,
+            &envelope.tenant_scope,
+            &aggregate.scope().tenant_scope(),
+            PlatformAdministrationAction::ObserveConnectorReadiness,
+        )
+        .await
+        .map_err(|error| to_cqrs(error, correlation_id))?;
+        let expected = Self::expected(envelope.expected_aggregate_version, aggregate.version())
+            .map_err(|error| to_cqrs(error, correlation_id))?;
+        aggregate
+            .observe_readiness(command.evidence)
+            .map_err(|error| to_cqrs(error.into(), correlation_id))?;
         let stored = self
             .commit(
                 command_parts(&envelope),

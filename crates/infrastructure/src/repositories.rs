@@ -7,10 +7,9 @@ use std::{
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_application::{
-    AddCustomerNoteCommand, ApplicationError, AuditEvent, AuditSink, CommandUnitOfWork,
-    Customer360DetailReadStore, Customer360NoteWritePort, CustomerGlobalReadAuditDetailCursor,
-    CustomerGlobalReadAuditDetailPage, CustomerGlobalReadAuditDetailQuery,
-    CustomerGlobalReadAuditDetailStore, CustomerNoteWriteReceipt, CustomerReadStore,
+    ApplicationError, AuditEvent, AuditSink, Customer360DetailReadStore,
+    CustomerGlobalReadAuditDetailCursor, CustomerGlobalReadAuditDetailPage,
+    CustomerGlobalReadAuditDetailQuery, CustomerGlobalReadAuditDetailStore, CustomerReadStore,
     RoleAssignmentStore, SupportStore,
 };
 use erpx_domain::{
@@ -20,10 +19,10 @@ use erpx_domain::{
         Customer360DetailReadModel, Customer360Projection, CustomerAccessAuditSummaryReadDto,
         CustomerCommercialReadDto, CustomerContactsReadDto, CustomerDetailReadError,
         CustomerEntitlementsReadDto, CustomerGlobalReadAuditDetailReadDto, CustomerHealthReadDto,
-        CustomerNote, CustomerNoteCursor, CustomerNoteReadDto, CustomerNotesPageReadDto,
-        CustomerNotesReadDto, CustomerOnboardingReadDto, CustomerOrganizationReadDto,
-        CustomerReadView, CustomerScopeBindingProjection, CustomerStatus,
-        CustomerSupportSummaryReadDto, GlobalReadActor, GlobalReadAuditRecord, GlobalReadScope,
+        CustomerNote, CustomerNoteCursor, CustomerNotesPageReadDto, CustomerNotesReadDto,
+        CustomerOnboardingReadDto, CustomerOrganizationReadDto, CustomerReadView,
+        CustomerScopeBindingProjection, CustomerStatus, CustomerSupportSummaryReadDto,
+        GlobalReadActor, GlobalReadAuditRecord, GlobalReadScope,
     },
     support::{
         Incident, IncidentStatus, SupportCapability, SupportCapabilityBinding,
@@ -97,44 +96,6 @@ pub struct PlatformAuditPage {
     pub entries: Vec<PlatformAuditEntry>,
     pub has_more: bool,
     pub next_before: Option<(DateTime<Utc>, Uuid)>,
-}
-
-/// Read-side reconciliation evidence for the complete Customer 360 surface.
-/// Counts are intentionally explicit so a green result cannot hide a missing
-/// projection, stale payload, scope-binding drift, or note drift.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Customer360ReadReconciliation {
-    pub source_customer_count: u64,
-    pub read_customer_count: u64,
-    pub missing_customer_count: u64,
-    pub stale_customer_count: u64,
-    pub orphan_customer_count: u64,
-    pub binding_mismatch_count: u64,
-    pub orphan_binding_count: u64,
-    pub invalid_customer_source_count: u64,
-    pub source_note_count: u64,
-    pub read_note_count: u64,
-    pub missing_note_count: u64,
-    pub stale_note_count: u64,
-    pub orphan_note_count: u64,
-    pub access_audit_mismatch_count: u64,
-    pub unprojected_audit_count: u64,
-}
-
-impl Customer360ReadReconciliation {
-    pub fn healthy(&self) -> bool {
-        self.missing_customer_count == 0
-            && self.stale_customer_count == 0
-            && self.orphan_customer_count == 0
-            && self.binding_mismatch_count == 0
-            && self.orphan_binding_count == 0
-            && self.invalid_customer_source_count == 0
-            && self.missing_note_count == 0
-            && self.stale_note_count == 0
-            && self.orphan_note_count == 0
-            && self.access_audit_mismatch_count == 0
-            && self.unprojected_audit_count == 0
-    }
 }
 
 impl SqlxControlPlane {
@@ -1083,244 +1044,6 @@ impl SqlxControlPlane {
     /// Compare every rebuildable Customer 360 surface with its authoritative
     /// control-write sources. This is read-only evidence: it never repairs a
     /// mismatch and therefore cannot turn a stale projection into authority.
-    pub async fn reconcile_customer_360_read_models(
-        &self,
-    ) -> Result<Customer360ReadReconciliation, PersistenceError> {
-        let source_rows = sqlx::query(
-            "SELECT aggregate_id, state
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = 'customer'
-             ORDER BY aggregate_id",
-        )
-        .fetch_all(&self.pools.write)
-        .await?;
-        let read_rows = sqlx::query("SELECT id, payload FROM erpx_control.customers")
-            .fetch_all(&self.pools.read)
-            .await?;
-        let read_customers: HashMap<Uuid, Value> = read_rows
-            .into_iter()
-            .map(|row| Ok((row.try_get("id")?, row.try_get("payload")?)))
-            .collect::<Result<_, sqlx::Error>>()?;
-        let mut report = Customer360ReadReconciliation {
-            source_customer_count: source_rows.len() as u64,
-            read_customer_count: read_customers.len() as u64,
-            ..Default::default()
-        };
-        let mut source_customer_ids = HashSet::with_capacity(source_rows.len());
-        for row in source_rows {
-            let customer_id: Uuid = row.try_get("aggregate_id")?;
-            source_customer_ids.insert(customer_id);
-            let source_state: Value = row.try_get("state")?;
-            let Some(read_payload) = read_customers.get(&customer_id) else {
-                report.missing_customer_count += 1;
-                continue;
-            };
-            let source_projection = match customer_projection_from_payload(source_state) {
-                Ok(projection) => projection.canonicalized(),
-                Err(_) => {
-                    report.invalid_customer_source_count += 1;
-                    continue;
-                }
-            };
-            let read_projection = match customer_projection_from_payload(read_payload.clone()) {
-                Ok(projection) => projection.canonicalized(),
-                Err(_) => {
-                    report.stale_customer_count += 1;
-                    continue;
-                }
-            };
-            if source_projection.account.id != customer_id
-                || read_projection.account.id != customer_id
-                || source_projection != read_projection
-            {
-                report.stale_customer_count += 1;
-            }
-            let expected_bindings = source_projection.scope_bindings();
-            let actual_bindings = self
-                .customer_scope_bindings_for_reconciliation(customer_id)
-                .await?;
-            if expected_bindings != actual_bindings {
-                report.binding_mismatch_count += 1;
-            }
-        }
-        report.orphan_customer_count = read_customers
-            .keys()
-            .filter(|id| !source_customer_ids.contains(id))
-            .count() as u64;
-
-        let binding_customer_ids: Vec<Uuid> =
-            sqlx::query_scalar("SELECT customer_id FROM erpx_control.customer_scope_bindings")
-                .fetch_all(&self.pools.write)
-                .await?;
-        report.orphan_binding_count = binding_customer_ids
-            .iter()
-            .filter(|customer_id| !source_customer_ids.contains(customer_id))
-            .count() as u64;
-
-        let source_note_rows = sqlx::query(
-            "SELECT aggregate_id, state
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = 'customer_note'
-             ORDER BY aggregate_id",
-        )
-        .fetch_all(&self.pools.write)
-        .await?;
-        let read_note_rows = sqlx::query(
-            "SELECT id, customer_id, author_ref, created_at, body
-             FROM erpx_control.customer_notes",
-        )
-        .fetch_all(&self.pools.read)
-        .await?;
-        let read_notes: HashMap<Uuid, (Uuid, CustomerNoteReadDto)> = read_note_rows
-            .into_iter()
-            .map(|row| {
-                let customer_id: Uuid = row.try_get("customer_id")?;
-                let note = CustomerNoteReadDto {
-                    id: row.try_get("id")?,
-                    author_ref: row.try_get("author_ref")?,
-                    created_at: row.try_get("created_at")?,
-                    body: row.try_get("body")?,
-                };
-                Ok((note.id, (customer_id, note)))
-            })
-            .collect::<Result<_, sqlx::Error>>()?;
-        report.source_note_count = source_note_rows.len() as u64;
-        report.read_note_count = read_notes.len() as u64;
-        let mut source_note_ids = HashSet::with_capacity(source_note_rows.len());
-        for row in source_note_rows {
-            let note_id: Uuid = row.try_get("aggregate_id")?;
-            source_note_ids.insert(note_id);
-            let source_state: Value = row.try_get("state")?;
-            let source_note = match serde_json::from_value::<CustomerNote>(source_state) {
-                Ok(note) if note.validate().is_ok() => note,
-                Err(_) => {
-                    report.stale_note_count += 1;
-                    continue;
-                }
-                Ok(_) => {
-                    report.stale_note_count += 1;
-                    continue;
-                }
-            };
-            let Some((read_customer_id, read_note)) = read_notes.get(&note_id) else {
-                report.missing_note_count += 1;
-                continue;
-            };
-            if *read_customer_id != source_note.customer_id
-                || source_note.id != note_id
-                || source_note.read_dto().redacted_for_detail_read() != *read_note
-            {
-                report.stale_note_count += 1;
-            }
-        }
-        report.orphan_note_count = read_notes
-            .keys()
-            .filter(|id| !source_note_ids.contains(id))
-            .count() as u64;
-
-        let audit_source_rows = sqlx::query(
-            "SELECT customer_id, COUNT(*)::BIGINT AS read_count,
-                    MAX(occurred_at) AS last_access_at
-             FROM erpx_control.global_read_audits
-             GROUP BY customer_id",
-        )
-        .fetch_all(&self.pools.write)
-        .await?;
-        let audit_source: HashMap<Uuid, (u64, Option<DateTime<Utc>>)> = audit_source_rows
-            .into_iter()
-            .map(|row| {
-                let customer_id: Uuid = row.try_get("customer_id")?;
-                let read_count = positive_u64(row.try_get("read_count")?, "audit read count")?;
-                let last_access_at = row.try_get("last_access_at")?;
-                Ok((customer_id, (read_count, last_access_at)))
-            })
-            .collect::<Result<_, PersistenceError>>()?;
-        let audit_read_rows = sqlx::query(
-            "SELECT customer_id, read_count, last_access_at, customer_visible
-             FROM erpx_control.customer_access_audit_summaries",
-        )
-        .fetch_all(&self.pools.read)
-        .await?;
-        for (customer_id, (read_count, last_access_at)) in &audit_source {
-            if !read_customers.contains_key(customer_id) {
-                report.unprojected_audit_count += 1;
-            } else if !audit_read_rows.iter().any(|row| {
-                row.try_get::<Uuid, _>("customer_id")
-                    .is_ok_and(|id| id == *customer_id)
-            }) {
-                report.access_audit_mismatch_count += 1;
-            } else if let Some(row) = audit_read_rows.iter().find(|row| {
-                row.try_get::<Uuid, _>("customer_id")
-                    .is_ok_and(|id| id == *customer_id)
-            }) {
-                let actual_count: i64 = row.try_get("read_count")?;
-                let actual_last: Option<DateTime<Utc>> = row.try_get("last_access_at")?;
-                let customer_visible: bool = row.try_get("customer_visible")?;
-                if positive_u64(actual_count, "audit summary read count")? != *read_count
-                    || actual_last != *last_access_at
-                    || !customer_visible
-                {
-                    report.access_audit_mismatch_count += 1;
-                }
-            }
-        }
-        for row in &audit_read_rows {
-            let customer_id: Uuid = row.try_get("customer_id")?;
-            let actual_count =
-                positive_u64(row.try_get("read_count")?, "audit summary read count")?;
-            let actual_last: Option<DateTime<Utc>> = row.try_get("last_access_at")?;
-            let customer_visible: bool = row.try_get("customer_visible")?;
-            let is_empty_materialization =
-                actual_count == 0 && actual_last.is_none() && customer_visible;
-            if !audit_source.contains_key(&customer_id)
-                && (!is_empty_materialization || !read_customers.contains_key(&customer_id))
-            {
-                report.access_audit_mismatch_count += 1;
-            }
-        }
-        Ok(report)
-    }
-
-    async fn customer_scope_bindings_for_reconciliation(
-        &self,
-        customer_id: Uuid,
-    ) -> Result<Vec<CustomerScopeBindingProjection>, PersistenceError> {
-        let rows = sqlx::query(
-            "SELECT holding_id, company_id, branch_id
-             FROM erpx_control.customer_scope_bindings
-             WHERE customer_id = $1
-             ORDER BY holding_id, company_id NULLS FIRST, branch_id NULLS FIRST",
-        )
-        .bind(customer_id)
-        .fetch_all(&self.pools.write)
-        .await?;
-        rows.into_iter()
-            .map(|row| {
-                Ok(CustomerScopeBindingProjection {
-                    customer_id,
-                    holding_id: row.try_get("holding_id")?,
-                    company_id: row.try_get("company_id")?,
-                    branch_id: row.try_get("branch_id")?,
-                })
-            })
-            .collect()
-    }
-
-    async fn customer_exists_on_write(&self, customer_id: Uuid) -> Result<bool, PersistenceError> {
-        if customer_id.is_nil() {
-            return Ok(false);
-        }
-        Ok(sqlx::query_scalar(
-            "SELECT EXISTS(
-                SELECT 1 FROM erpx_control.aggregate_snapshots
-                WHERE aggregate_type = 'customer' AND aggregate_id = $1
-            )",
-        )
-        .bind(customer_id)
-        .fetch_one(&self.pools.write)
-        .await?)
-    }
-
     pub async fn record_global_read(
         &self,
         record: &GlobalReadAuditRecord,
@@ -1512,8 +1235,7 @@ impl SqlxControlPlane {
     }
 
     /// Evaluate the write-side role chain for one permission and requested
-    /// scope. The parent chain is loaded from authoritative aggregate rows
-    /// and snapshots, so a missing or inactive parent fails closed.
+    /// scope. A missing or inactive parent fails closed.
     pub async fn principal_has_role(
         &self,
         principal_ref: &str,
@@ -1521,15 +1243,9 @@ impl SqlxControlPlane {
         required_permission: &str,
         at: DateTime<Utc>,
     ) -> Result<bool, PersistenceError> {
-        let rows = sqlx::query(
-            "SELECT payload FROM erpx_control.role_assignments
-             UNION ALL
-             SELECT state AS payload
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = 'role_assignment'",
-        )
-        .fetch_all(&self.pools.write)
-        .await?;
+        let rows = sqlx::query("SELECT payload FROM erpx_control.role_assignments")
+            .fetch_all(&self.pools.write)
+            .await?;
         let assignments = rows
             .iter()
             .filter_map(|row| json::<RoleAssignment>(row).ok())
@@ -1564,15 +1280,9 @@ impl SqlxControlPlane {
         role_keys: &[&str],
         at: DateTime<Utc>,
     ) -> Result<bool, PersistenceError> {
-        let rows = sqlx::query(
-            "SELECT payload FROM erpx_control.role_assignments
-             UNION ALL
-             SELECT state AS payload
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = 'role_assignment'",
-        )
-        .fetch_all(&self.pools.write)
-        .await?;
+        let rows = sqlx::query("SELECT payload FROM erpx_control.role_assignments")
+            .fetch_all(&self.pools.write)
+            .await?;
         let all = rows
             .iter()
             .filter_map(|row| json::<RoleAssignment>(row).ok())
@@ -1608,8 +1318,8 @@ impl SqlxControlPlane {
     }
 
     /// Return the authoritative assignment and every validated parent in
-    /// immediate-to-root order. The chain is built from write-side aggregate
-    /// rows/snapshots after recursive scope, permission, authority, expiry,
+    /// immediate-to-root order. The chain is built from write-side role rows
+    /// after recursive scope, permission, authority, expiry,
     /// and cycle checks, so callers cannot accidentally evaluate only one
     /// parent edge.
     pub async fn effective_role_assignment_chain(
@@ -1619,15 +1329,9 @@ impl SqlxControlPlane {
         required_permission: &str,
         at: DateTime<Utc>,
     ) -> Result<Option<(RoleAssignment, Vec<RoleAssignment>)>, PersistenceError> {
-        let rows = sqlx::query(
-            "SELECT payload FROM erpx_control.role_assignments
-             UNION ALL
-             SELECT state AS payload
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = 'role_assignment'",
-        )
-        .fetch_all(&self.pools.write)
-        .await?;
+        let rows = sqlx::query("SELECT payload FROM erpx_control.role_assignments")
+            .fetch_all(&self.pools.write)
+            .await?;
         let all = rows
             .iter()
             .filter_map(|row| json::<RoleAssignment>(row).ok())
@@ -2392,10 +2096,6 @@ fn customer_from_projection_row(row: &PgRow) -> Result<Customer360, PersistenceE
     Ok(customer)
 }
 
-fn json_field<T: DeserializeOwned>(row: &PgRow, field: &str) -> Result<T, PersistenceError> {
-    Ok(serde_json::from_value(row.try_get::<Value, _>(field)?)?)
-}
-
 fn positive_u64(value: i64, field: &'static str) -> Result<u64, PersistenceError> {
     u64::try_from(value).map_err(|_| PersistenceError::InvalidData(format!("{field} is negative")))
 }
@@ -2685,39 +2385,6 @@ impl Customer360DetailReadStore for SqlxControlPlane {
 }
 
 #[async_trait]
-impl Customer360NoteWritePort for SqlxControlPlane {
-    async fn append_customer_note(
-        &self,
-        command: AddCustomerNoteCommand,
-    ) -> Result<CustomerNoteWriteReceipt, ApplicationError> {
-        if !self
-            .customer_exists_on_write(command.note.customer_id)
-            .await
-            .map_err(app_error)?
-        {
-            return Err(ApplicationError::NotFound);
-        }
-        if !matches!(command.note.scope, Scope::Platform)
-            && !self
-                .customer_scope_contains(command.note.customer_id, &command.note.scope)
-                .await
-                .map_err(app_error)?
-        {
-            return Err(ApplicationError::Authorization(
-                "customer note scope is not bound to the requested customer".into(),
-            ));
-        }
-        let mutation = command.into_mutation()?;
-        let receipt = CommandUnitOfWork::execute_command(self, mutation).await?;
-        let mut note_receipt: CustomerNoteWriteReceipt =
-            serde_json::from_value(receipt.response)
-                .map_err(|error| ApplicationError::Repository(error.to_string()))?;
-        note_receipt.replayed = receipt.replayed;
-        Ok(note_receipt)
-    }
-}
-
-#[async_trait]
 impl CustomerGlobalReadAuditDetailStore for SqlxControlPlane {
     async fn get_customer_global_read_audit_details(
         &self,
@@ -2922,22 +2589,7 @@ impl SupportStore for SqlxControlPlane {
             .fetch_optional(&self.pools.write)
             .await
             .map_err(|error| app_error(PersistenceError::Database(error)))?;
-        if let Some(row) = row {
-            return json(&row).map(Some).map_err(app_error);
-        }
-        let snapshot = sqlx::query(
-            "SELECT state FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = 'support_ticket' AND aggregate_id = $1",
-        )
-        .bind(id)
-        .fetch_optional(&self.pools.write)
-        .await
-        .map_err(|error| app_error(PersistenceError::Database(error)))?;
-        snapshot
-            .as_ref()
-            .map(|row| json_field(row, "state"))
-            .transpose()
-            .map_err(app_error)
+        row.as_ref().map(json).transpose().map_err(app_error)
     }
 
     async fn save_ticket(&self, ticket: SupportTicket) -> Result<(), ApplicationError> {
@@ -2976,22 +2628,7 @@ impl SupportStore for SqlxControlPlane {
             .fetch_optional(&self.pools.write)
             .await
             .map_err(|error| app_error(PersistenceError::Database(error)))?;
-        if let Some(row) = row {
-            return json(&row).map(Some).map_err(app_error);
-        }
-        let snapshot = sqlx::query(
-            "SELECT state FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = 'support_session' AND aggregate_id = $1",
-        )
-        .bind(id)
-        .fetch_optional(&self.pools.write)
-        .await
-        .map_err(|error| app_error(PersistenceError::Database(error)))?;
-        snapshot
-            .as_ref()
-            .map(|row| json_field(row, "state"))
-            .transpose()
-            .map_err(app_error)
+        row.as_ref().map(json).transpose().map_err(app_error)
     }
 
     async fn save_session(&self, session: SupportSession) -> Result<(), ApplicationError> {
@@ -3074,22 +2711,7 @@ impl RoleAssignmentStore for SqlxControlPlane {
             .fetch_optional(&self.pools.write)
             .await
             .map_err(|error| app_error(PersistenceError::Database(error)))?;
-        if let Some(row) = row {
-            return json(&row).map(Some).map_err(app_error);
-        }
-        let snapshot = sqlx::query(
-            "SELECT state FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = 'role_assignment' AND aggregate_id = $1",
-        )
-        .bind(id)
-        .fetch_optional(&self.pools.write)
-        .await
-        .map_err(|error| app_error(PersistenceError::Database(error)))?;
-        snapshot
-            .as_ref()
-            .map(|row| json_field(row, "state"))
-            .transpose()
-            .map_err(app_error)
+        row.as_ref().map(json).transpose().map_err(app_error)
     }
 
     async fn list(&self, limit: u32) -> Result<Vec<RoleAssignment>, ApplicationError> {
@@ -3227,22 +2849,6 @@ mod tests {
         assert!(validate_public_hostname("example.com:443").is_err());
         assert!(validate_public_hostname("example.com/path").is_err());
         assert!(validate_public_hostname("example.com\nattacker").is_err());
-    }
-
-    #[test]
-    fn customer_360_reconciliation_is_unhealthy_when_audit_is_unprojected() {
-        let mut report = Customer360ReadReconciliation::default();
-        assert!(report.healthy());
-        report.unprojected_audit_count = 1;
-        assert!(!report.healthy());
-    }
-
-    #[test]
-    fn customer_360_reconciliation_is_unhealthy_when_scope_binding_is_orphaned() {
-        let mut report = Customer360ReadReconciliation::default();
-        assert!(report.healthy());
-        report.orphan_binding_count = 1;
-        assert!(!report.healthy());
     }
 
     #[test]

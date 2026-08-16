@@ -118,3 +118,35 @@ fn retired_asset_cannot_reenter_service() {
         Err(AssetDomainError::InvalidTransition { .. })
     ));
 }
+
+#[test]
+fn failed_version_advance_is_atomic() {
+    let mut aggregate = asset();
+    aggregate.version = u64::MAX;
+    let before = aggregate.clone();
+    assert_eq!(
+        aggregate.place_in_service(at() + Duration::hours(1)),
+        Err(AssetDomainError::VersionOverflow)
+    );
+    assert_eq!(aggregate, before);
+}
+
+#[test]
+fn asset_exposes_stable_first_class_record_identity() {
+    let asset_id = Uuid::new_v4();
+    let value = Asset::create(
+        AssetId::try_from_uuid(asset_id).unwrap(),
+        "AST-REF",
+        "Reference asset",
+        scope(),
+        id(11),
+        at(),
+    )
+    .unwrap();
+    let reference = value.record_ref().unwrap();
+    assert_eq!(reference.id().as_uuid(), asset_id);
+    assert_eq!(
+        reference.canonical_detail_route(),
+        format!("/asset/asset/{asset_id}")
+    );
+}

@@ -153,7 +153,6 @@ impl SqlxFinanceChartStore {
             replayed: false,
         };
         record_idempotency(&mut tx, &self.holding_ref, &hash, &receipt).await?;
-        save_snapshot(&mut tx, &self.holding_ref, chart).await?;
         tx.commit().await?;
         Ok(receipt)
     }
@@ -294,7 +293,7 @@ pub(crate) async fn mirror_legacy_chart_into_normalized(
         &receipt,
     )
     .await?;
-    save_snapshot(tx, holding_ref, &chart).await
+    Ok(())
 }
 
 fn legacy_compatibility_context(
@@ -657,31 +656,6 @@ async fn append_event(
     .bind(envelope.correlation_id)
     .bind(envelope.causation_id)
     .bind(&envelope.idempotency_key)
-    .execute(&mut **tx)
-    .await?;
-    Ok(())
-}
-
-async fn save_snapshot(
-    tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
-    chart: &FinanceChart,
-) -> Result<(), PersistenceError> {
-    sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-             holding_ref=EXCLUDED.holding_ref,
-             version=EXCLUDED.version,
-             state=EXCLUDED.state,
-             updated_at=now()",
-    )
-    .bind(FINANCE_CHART_AGGREGATE)
-    .bind(chart.id)
-    .bind(holding_ref)
-    .bind(as_i64(chart.version, "Finance chart snapshot version")?)
-    .bind(serde_json::to_value(chart)?)
     .execute(&mut **tx)
     .await?;
     Ok(())

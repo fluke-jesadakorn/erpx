@@ -10,11 +10,11 @@ use erpx_finance::{
     ChartId, CustomerInvoiceId, JournalId, PortError, RevenueScheduleId, StatutoryTaxKind,
     SubledgerId,
     ports::{
-        BankTransactionList, BankTransactionListFilter, BankTransactionView, ChartView,
-        CustomerInvoiceView, JournalList, JournalListFilter, JournalView, PeriodView,
-        ReadProjection, ReadRepository, RevenueScheduleView, StatutoryTaxFactView,
-        StatutoryTaxReport, SubledgerList, SubledgerListFilter, SubledgerView, TrialBalanceLine,
-        TrialBalanceView,
+        BankTransactionList, BankTransactionListFilter, BankTransactionView, ChartList,
+        ChartListFilter, ChartView, CustomerInvoiceView, JournalList, JournalListFilter,
+        JournalView, PeriodView, ReadProjection, ReadRepository, RevenueScheduleView,
+        StatutoryTaxFactView, StatutoryTaxReport, SubledgerList, SubledgerListFilter,
+        SubledgerView, TrialBalanceLine, TrialBalanceView,
     },
 };
 use erpx_kernel::TenantScope;
@@ -93,7 +93,7 @@ impl FinanceReadRepository {
         projection: &str,
         checkpoint: Option<ProjectionCheckpoint>,
     ) -> Result<ProjectionMetadata, PortError> {
-        let status:Option<String>=sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1").bind(projection).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let status:Option<String>=sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1").bind(projection).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let freshness = match status.as_deref() {
             Some("active") => FreshnessState::Current,
             Some("building") => FreshnessState::Rebuilding,
@@ -138,6 +138,67 @@ impl ReadRepository for FinanceReadRepository {
             metadata: self.metadata(CHART_PROJECTION, cp).await?,
         })
     }
+    async fn list_charts(
+        &self,
+        scope: &TenantScope,
+        f: &ChartListFilter,
+        c: &QueryConsistency,
+    ) -> Result<ReadProjection<ChartList>, PortError> {
+        let cp = self
+            .checkpoint(CHART_PROJECTION, "finance.chart:", c, None)
+            .await?;
+        let cursor = f.cursor.as_deref().map(decode_chart_cursor).transpose()?;
+        let rows = sqlx::query(
+            "SELECT projection.state FROM erpx_finance_read.chart_projection projection \
+             JOIN erpx_cqrs_read.projection_generations generation \
+               ON generation.projection_name=projection.projection_name \
+              AND generation.generation=projection.generation \
+              AND generation.status='active' \
+             WHERE projection.projection_name=$1 \
+               AND ($2::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.chart_id)<($2,$3)) \
+             ORDER BY projection.aggregate_updated_at DESC,projection.chart_id DESC LIMIT $4",
+        )
+        .bind(CHART_PROJECTION)
+        .bind(cursor.as_ref().map(|x| x.0))
+        .bind(cursor.as_ref().map(|x| x.1.as_uuid()))
+        .bind(scan(f.page_size))
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        let mut values = rows
+            .into_iter()
+            .map(decode_state)
+            .collect::<Result<Vec<ChartView>, _>>()?;
+        values.retain(|v| {
+            scope.contains(&v.scope)
+                && f.company_id.is_none_or(|company_id| {
+                    matches!(
+                        &v.scope,
+                        TenantScope::Company {
+                            company_id: candidate,
+                            ..
+                        } | TenantScope::Branch {
+                            company_id: candidate,
+                            ..
+                        } if *candidate == company_id
+                    )
+                })
+        });
+        let next = truncate(&mut values, f.page_size, encode_chart_cursor);
+        Ok(ReadProjection {
+            value: ChartList {
+                charts: values,
+                next_cursor: next,
+            },
+            metadata: self.metadata(CHART_PROJECTION, cp).await?,
+        })
+    }
     async fn get_period(
         &self,
         scope: &TenantScope,
@@ -148,7 +209,7 @@ impl ReadRepository for FinanceReadRepository {
         let cp = self
             .checkpoint(PERIOD_PROJECTION, "finance.period:", c, Some(&p))
             .await?;
-        let row=sqlx::query("SELECT projection.state FROM erpx_finance_read.period_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.period_id=$2 AND projection.partition_key=$3").bind(PERIOD_PROJECTION).bind(id.as_uuid()).bind(&p).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let row=sqlx::query("SELECT projection.state FROM erpx_finance_read.period_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.period_id=$2 AND projection.partition_key=$3").bind(PERIOD_PROJECTION).bind(id.as_uuid()).bind(&p).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let v = row.map(decode_state).transpose()?;
         scope_option(scope, &v)?;
         Ok(ReadProjection {
@@ -191,7 +252,7 @@ impl ReadRepository for FinanceReadRepository {
             .checkpoint(JOURNAL_PROJECTION, "finance.journal:", c, None)
             .await?;
         let cursor = f.cursor.as_deref().map(decode_cursor).transpose()?;
-        let rows=sqlx::query("SELECT projection.state FROM erpx_finance_read.journal_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2::text IS NULL OR projection.journal_status=$2) AND ($3::uuid IS NULL OR projection.period_id=$3) AND ($4::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.journal_id)<($4,$5)) ORDER BY projection.aggregate_updated_at DESC,projection.journal_id DESC LIMIT $6").bind(JOURNAL_PROJECTION).bind(f.status.map(journal_status_name)).bind(f.period_id.map(|x|x.as_uuid())).bind(cursor.as_ref().map(|x|x.0)).bind(cursor.as_ref().map(|x|x.1.as_uuid())).bind(scan(f.page_size)).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let rows=sqlx::query("SELECT projection.state FROM erpx_finance_read.journal_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2::text IS NULL OR projection.journal_status=$2) AND ($3::uuid IS NULL OR projection.period_id=$3) AND ($4::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.journal_id)<($4,$5)) ORDER BY projection.aggregate_updated_at DESC,projection.journal_id DESC LIMIT $6").bind(JOURNAL_PROJECTION).bind(f.status.map(journal_status_name)).bind(f.period_id.map(|x|x.as_uuid())).bind(cursor.as_ref().map(|x|x.0)).bind(cursor.as_ref().map(|x|x.1.as_uuid())).bind(scan(f.page_size)).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut values = rows
             .into_iter()
             .map(decode_state)
@@ -216,7 +277,7 @@ impl ReadRepository for FinanceReadRepository {
         let cp = self
             .checkpoint(SUBLEDGER_PROJECTION, "finance.subledger:", c, Some(&p))
             .await?;
-        let row=sqlx::query("SELECT projection.state FROM erpx_finance_read.subledger_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.subledger_id=$2 AND projection.partition_key=$3").bind(SUBLEDGER_PROJECTION).bind(id.as_uuid()).bind(&p).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let row=sqlx::query("SELECT projection.state FROM erpx_finance_read.subledger_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.subledger_id=$2 AND projection.partition_key=$3").bind(SUBLEDGER_PROJECTION).bind(id.as_uuid()).bind(&p).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let v = row.map(decode_state).transpose()?;
         scope_option(scope, &v)?;
         Ok(ReadProjection {
@@ -299,7 +360,7 @@ impl ReadRepository for FinanceReadRepository {
             .map(decode_subledger_cursor)
             .transpose()?;
         let kind = f.receivable_only.and_then(|v| v.then_some("receivable"));
-        let rows=sqlx::query("SELECT projection.state FROM erpx_finance_read.subledger_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2::text IS NULL OR projection.subledger_status=$2) AND ($3::text IS NULL OR projection.subledger_kind=$3) AND ($4::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.subledger_id)<($4,$5)) ORDER BY projection.aggregate_updated_at DESC,projection.subledger_id DESC LIMIT $6").bind(SUBLEDGER_PROJECTION).bind(f.status.map(subledger_status_name)).bind(kind).bind(cursor.as_ref().map(|x|x.0)).bind(cursor.as_ref().map(|x|x.1.as_uuid())).bind(scan(f.page_size)).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let rows=sqlx::query("SELECT projection.state FROM erpx_finance_read.subledger_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2::text IS NULL OR projection.subledger_status=$2) AND ($3::text IS NULL OR projection.subledger_kind=$3) AND ($4::timestamptz IS NULL OR (projection.aggregate_updated_at,projection.subledger_id)<($4,$5)) ORDER BY projection.aggregate_updated_at DESC,projection.subledger_id DESC LIMIT $6").bind(SUBLEDGER_PROJECTION).bind(f.status.map(subledger_status_name)).bind(kind).bind(cursor.as_ref().map(|x|x.0)).bind(cursor.as_ref().map(|x|x.1.as_uuid())).bind(scan(f.page_size)).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut values = rows
             .into_iter()
             .map(decode_state)
@@ -330,7 +391,7 @@ impl ReadRepository for FinanceReadRepository {
         let cp = self
             .checkpoint(TRIAL_BALANCE_PROJECTION, "finance.journal:", c, None)
             .await?;
-        let rows=sqlx::query("SELECT tenant_scope,currency,account_id,account_code,account_name,debit_minor,credit_minor,net_minor FROM erpx_finance_read.trial_balance_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.chart_id=$2 ORDER BY account_code,account_id").bind(TRIAL_BALANCE_PROJECTION).bind(chart.as_uuid()).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let rows=sqlx::query("SELECT tenant_scope,currency,account_id,account_code,account_name,debit_minor,credit_minor,net_minor FROM erpx_finance_read.trial_balance_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND projection.chart_id=$2 ORDER BY account_code,account_id").bind(TRIAL_BALANCE_PROJECTION).bind(chart.as_uuid()).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut line_totals = std::collections::BTreeMap::new();
         let mut projected_scope = None;
         let mut currency = None;
@@ -411,7 +472,7 @@ impl ReadRepository for FinanceReadRepository {
             .checkpoint(BANK_TRANSACTION_PROJECTION, "finance.journal:", c, None)
             .await?;
         let cursor = f.cursor.as_deref().map(decode_bank_cursor).transpose()?;
-        let rows=sqlx::query("SELECT tenant_scope,journal_id,import_id,transaction_id,reference,posted_on,amount_minor,currency FROM erpx_finance_read.bank_transaction_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2::date IS NULL OR posted_on >= $2) AND ($3::date IS NULL OR posted_on <= $3) AND ($4::date IS NULL OR (posted_on,transaction_id)<($4,$5)) ORDER BY posted_on DESC,transaction_id DESC LIMIT $6").bind(BANK_TRANSACTION_PROJECTION).bind(f.posted_from).bind(f.posted_through).bind(cursor.as_ref().map(|x|x.0)).bind(cursor.as_ref().map(|x|x.1)).bind(scan(f.page_size)).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let rows=sqlx::query("SELECT tenant_scope,journal_id,import_id,transaction_id,reference,posted_on,amount_minor,currency FROM erpx_finance_read.bank_transaction_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND ($2::date IS NULL OR posted_on >= $2) AND ($3::date IS NULL OR posted_on <= $3) AND ($4::date IS NULL OR (posted_on,transaction_id)<($4,$5)) ORDER BY posted_on DESC,transaction_id DESC LIMIT $6").bind(BANK_TRANSACTION_PROJECTION).bind(f.posted_from).bind(f.posted_through).bind(cursor.as_ref().map(|x|x.0)).bind(cursor.as_ref().map(|x|x.1)).bind(scan(f.page_size)).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut values = Vec::new();
         for row in rows {
             let s: TenantScope = serde_json::from_value(
@@ -463,7 +524,7 @@ impl ReadRepository for FinanceReadRepository {
         let cp = self
             .checkpoint(STATUTORY_TAX_PROJECTION, "finance.journal:", c, None)
             .await?;
-        let rows=sqlx::query("SELECT tenant_scope,journal_id,tax_fact_id,reference,tax_date,tax_period,tax_kind,currency,base_minor,tax_minor,tax_rate_basis_points,tax_identifier FROM erpx_finance_read.statutory_tax_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND tax_period=$2 AND currency=$3 ORDER BY tax_date,tax_fact_id").bind(STATUTORY_TAX_PROJECTION).bind(period).bind(currency).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let rows=sqlx::query("SELECT tenant_scope,journal_id,tax_fact_id,reference,tax_date,tax_period,tax_kind,currency,base_minor,tax_minor,tax_rate_basis_points,tax_identifier FROM erpx_finance_read.statutory_tax_projection projection JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=projection.projection_name AND generation.generation=projection.generation AND generation.status='active' WHERE projection.projection_name=$1 AND tax_period=$2 AND currency=$3 ORDER BY tax_date,tax_fact_id").bind(STATUTORY_TAX_PROJECTION).bind(period).bind(currency).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut facts = Vec::new();
         let mut output = 0i64;
         let mut input = 0i64;
@@ -558,7 +619,13 @@ impl FinanceReadRepository {
             .bind(projection)
             .bind(id)
             .bind(partition)
-            .fetch_optional(self.pool.as_pg_pool())
+            .fetch_optional(
+                &mut *self
+                    .pool
+                    .begin()
+                    .await
+                    .map_err(|_| PortError::Unavailable)?,
+            )
             .await
             .map_err(|_| PortError::Unavailable)?;
         row.map(decode_state).transpose()
@@ -628,6 +695,24 @@ pub fn decode_cursor(v: &str) -> Result<(DateTime<Utc>, JournalId), PortError> {
             .map_err(|_| PortError::Internal)?,
     ))
 }
+fn encode_chart_cursor(v: &ChartView) -> String {
+    format!(
+        "{}{}{}",
+        v.updated_at.to_rfc3339(),
+        SEP,
+        v.chart_id.as_uuid()
+    )
+}
+fn decode_chart_cursor(v: &str) -> Result<(DateTime<Utc>, ChartId), PortError> {
+    let (a, b) = v.split_once(SEP).ok_or(PortError::Internal)?;
+    Ok((
+        DateTime::parse_from_rfc3339(a)
+            .map_err(|_| PortError::Internal)?
+            .with_timezone(&Utc),
+        ChartId::try_from_uuid(Uuid::parse_str(b).map_err(|_| PortError::Internal)?)
+            .map_err(|_| PortError::Internal)?,
+    ))
+}
 fn decode_subledger_cursor(v: &str) -> Result<(DateTime<Utc>, SubledgerId), PortError> {
     let (a, b) = v.split_once(SEP).ok_or(PortError::Internal)?;
     Ok((
@@ -674,6 +759,7 @@ mod tests {
     #[test]
     fn malformed_cursors_fail_closed() {
         assert_eq!(decode_cursor("bad"), Err(PortError::Internal));
+        assert_eq!(decode_chart_cursor("bad"), Err(PortError::Internal));
         assert_eq!(decode_bank_cursor("bad"), Err(PortError::Internal));
     }
     #[test]

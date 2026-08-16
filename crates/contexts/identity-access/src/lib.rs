@@ -7,19 +7,30 @@ pub mod integration;
 pub mod ports;
 
 pub use application::{
-    ActivatePrincipal, AssignRole, CreatePrincipal, CreatePrincipalResult, DefineRole,
-    DefineRoleResult, DisablePrincipal, GetPrincipal, GetPrincipalResult, GetRole, GetRoleResult,
-    IdentityAccessApplicationError, IdentityAccessCommandHandler, IdentityAccessQueryHandler,
-    ListPrincipals, ListRoles, PrincipalMutationResult, ReactivatePrincipal, RevokeRole,
-    RoleMutationResult, SetRolePermissions, SuspendPrincipal,
+    ActivatePrincipal, AddGroupMember, AssignRole, CreateAuthorityGroup, CreatePrincipal,
+    CreatePrincipalResult, DefineRole, DefineRoleResult, DisablePrincipal, GetPrincipal,
+    GetPrincipalResult, GetRole, GetRoleResult, IdentityAccessApplicationError,
+    IdentityAccessCommandHandler, IdentityAccessQueryHandler, IdentityGovernanceApplicationError,
+    IdentityGovernanceCommandHandler, ListPrincipals, ListRoles, PrincipalMutationResult,
+    ReactivatePrincipal, RecoverRole, RenewRole, RevokeGroupMember, RevokeRole, RoleMutationResult,
+    SetRolePermissions, SuspendPrincipal,
 };
 pub use domain::{
-    AccessPrincipal, AccessRole, IdentityAccessAggregate, IdentityAccessDomainError, PermissionKey,
-    PrincipalId, PrincipalStatus, RiskTier, RoleAssignment, RoleAssignmentId, RoleCode, RoleId,
+    AccessCertification, AccessPrincipal, AccessPrincipalState, AccessRole, AccessRoleState,
+    BreakGlassSession, BreakGlassStatus, CertificationDecision, CertificationItem,
+    FRESH_MFA_WINDOW, GroupMembership, GroupMembershipState, HighRiskAuthority,
+    IdentityAccessAggregate, IdentityAccessDomainError, IdentityGovernanceRecord,
+    MAX_BREAK_GLASS_DURATION, NonHumanPrincipalGovernance, PermissionKey, PrincipalId,
+    PrincipalKind, PrincipalRealm, PrincipalStatus, RiskTier, RoleAssignment, RoleAssignmentId,
+    RoleAssignmentState, RoleCode, RoleId,
 };
 pub use ports::{
     AggregateKey, AuthorizationPort, CommandFingerprint, CommandIdentity, CommandUnitOfWork,
-    EntitlementPort, IdentityAccessAction, IdentityAccessCommit, PortError, PrincipalList,
-    PrincipalListFilter, PrincipalView, ReadProjection, ReadRepository, RoleAssignmentView,
-    RoleList, RoleListFilter, RoleView, StoredCommit, WriteRepository,
+    EntitlementPort, IdentityAccessAction, IdentityAccessCommit, IdentityGovernanceAction,
+    IdentityGovernanceAuthorizationPort, IdentityGovernanceAuthorizationRequest,
+    IdentityGovernanceCommand, IdentityGovernanceCommandIdentity, IdentityGovernanceCommandRequest,
+    IdentityGovernanceCommit, IdentityGovernanceReadRepository, IdentityGovernanceUnitOfWork,
+    IdentityGovernanceWriteRepository, PortError, PrincipalList, PrincipalListFilter,
+    PrincipalView, ReadProjection, ReadRepository, RoleAssignmentView, RoleList, RoleListFilter,
+    RoleView, StoredCommit, StoredIdentityGovernanceCommit, WriteRepository,
 };

@@ -122,7 +122,6 @@ async fn concurrent_projectors_do_not_double_advance_delivery_checkpoint() {
         .expect("write cleanup scope");
     for table in [
         "erpx_tenant.outbox_events",
-        "erpx_tenant.aggregate_snapshots",
         "erpx_tenant.marketing_delivery_idempotency",
         "erpx_tenant.marketing_deliveries",
     ] {

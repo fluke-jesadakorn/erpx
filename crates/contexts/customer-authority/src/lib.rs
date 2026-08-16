@@ -9,16 +9,28 @@ pub mod ports;
 pub use application::{
     ChangeCustomerStatus, CreateCustomer, CreateCustomerResult, CustomerAuthorityApplicationError,
     CustomerAuthorityCommandHandler, CustomerAuthorityMutationResult,
-    CustomerAuthorityQueryHandler, GetCustomer, GetCustomerResult, LinkCustomerAuthority,
-    ListCustomers, MergeCustomer, UnlinkCustomerAuthority, UpdateCustomerIdentity,
+    CustomerAuthorityQueryHandler, CustomerAuthorityRecordCommandHandler, GetCustomer,
+    GetCustomerResult, LinkCustomerAuthority, ListCustomers, MergeCustomer,
+    PortalBindingApplicationError, PortalBindingCommandHandler, UnlinkCustomerAuthority,
+    UpdateCustomerIdentity,
 };
 pub use domain::{
-    CustomerAccount, CustomerAuthorityDomainError, CustomerCode, CustomerId, CustomerIdentity,
-    CustomerStatus,
+    CustomerAccount, CustomerAuthorityDomainError, CustomerAuthorityRecord,
+    CustomerAuthorityRecordKind, CustomerAuthorityRecordStatus, CustomerCode, CustomerId,
+    CustomerIdentity, CustomerPortalBindingId, CustomerPortalBindingStatus,
+    CustomerPortalPrincipalBinding, CustomerStatus, PortalPrincipalKind, PortalUseCase,
+    VerifiedIdentityEvidence,
 };
 pub use ports::{
     AuthorizationPort, AuthorizationRequest, CommandFingerprint, CommandIdentity,
-    CommandUnitOfWork, CustomerAuthorityAction, CustomerAuthorityCommit, CustomerAuthorityView,
-    CustomerList, CustomerListFilter, EntitlementPort, MergeTargetVersion, PortError,
-    ReadProjection, ReadRepository, StoredCommit, WriteRepository,
+    CommandUnitOfWork, CustomerAuthorityAction, CustomerAuthorityCommit,
+    CustomerAuthorityRecordAuthorizationPort, CustomerAuthorityRecordCommand,
+    CustomerAuthorityRecordQueryPort, CustomerAuthorityRecordReceipt,
+    CustomerAuthorityRecordUnitOfWork, CustomerAuthorityRecordView, CustomerAuthorityView,
+    CustomerList, CustomerListFilter, CustomerRecordAuthorityPort, EntitlementPort,
+    MergeTargetVersion, PortError, PortalBindingAction, PortalBindingAuthorizationPort,
+    PortalBindingCommandIdentity, PortalBindingCommandPayload, PortalBindingCommandRequest,
+    PortalBindingCommandUnitOfWork, PortalBindingCommit, PortalBindingProposal,
+    PortalBindingWriteRepository, ReadProjection, ReadRepository, StoredCommit,
+    StoredPortalBindingCommit, WriteRepository,
 };

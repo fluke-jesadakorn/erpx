@@ -106,7 +106,13 @@ impl IdentityAccessReadRepository {
              ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1",
         )
         .bind(projection)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
@@ -155,7 +161,13 @@ impl ReadRepository for IdentityAccessReadRepository {
         .bind(PRINCIPAL_PROJECTION_NAME)
         .bind(principal_id.as_uuid())
         .bind(&partition)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_principal).transpose()?;
@@ -204,7 +216,13 @@ impl ReadRepository for IdentityAccessReadRepository {
         .bind(cursor.map(|value| value.0))
         .bind(cursor.map(|value| value.1))
         .bind(MAX_SCAN_ROWS)
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let mut principals = rows
@@ -251,7 +269,13 @@ impl ReadRepository for IdentityAccessReadRepository {
         .bind(ROLE_PROJECTION_NAME)
         .bind(role_id.as_uuid())
         .bind(&partition)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_role).transpose()?;
@@ -292,7 +316,13 @@ impl ReadRepository for IdentityAccessReadRepository {
         .bind(cursor.map(|value| value.0))
         .bind(cursor.map(|value| value.1))
         .bind(MAX_SCAN_ROWS)
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let mut roles = rows

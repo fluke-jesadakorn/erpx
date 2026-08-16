@@ -101,7 +101,41 @@ pub struct AccessRole {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AccessRoleState {
+    pub id: RoleId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub code: RoleCode,
+    pub display_name: String,
+    pub risk_tier: RiskTier,
+    pub permissions: Vec<PermissionKey>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl AccessRole {
+    pub fn try_rehydrate(state: AccessRoleState) -> Result<Self, IdentityAccessDomainError> {
+        validate_scope(&state.scope)?;
+        validate_text(&state.display_name, "display_name")?;
+        if state.version == 0 || state.updated_at < state.created_at {
+            return Err(IdentityAccessDomainError::InvalidTimestamp);
+        }
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            code: state.code,
+            display_name: state.display_name,
+            risk_tier: state.risk_tier,
+            permissions: canonical_permissions(state.permissions)?,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn define(
         id: RoleId,

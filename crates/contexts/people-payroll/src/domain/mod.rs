@@ -1,15 +1,24 @@
 use std::collections::HashSet;
 
 use chrono::{DateTime, NaiveDate, Utc};
-use erpx_kernel::TenantScope;
+use erpx_integration_contracts::{
+    StableRecordRef,
+    catalog::ContextId,
+    reference::{RecordTypeId, ReferenceValidationError},
+};
+use erpx_kernel::{RecordId, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
+
+mod time_record;
+pub use time_record::{TimeRecord, TimeRecordStatus};
 
 pub const MAX_REFERENCE_BYTES: usize = 128;
 pub const MAX_NAME_BYTES: usize = 255;
 pub const MAX_REASON_BYTES: usize = 1_024;
 pub const MAX_PAYROLL_LINES: usize = 100_000;
+pub const MAX_PAYROLL_INPUTS: usize = 10_000;
 
 macro_rules! context_id {
     ($name:ident, $field:literal) => {
@@ -77,6 +86,10 @@ pub enum PeoplePayrollDomainError {
     InvalidAmount,
     #[error("a payroll run must contain between 1 and 100,000 unique employee lines")]
     InvalidPayrollLines,
+    #[error("the payroll calculation evidence is missing or invalid")]
+    InvalidPayrollEvidence,
+    #[error("time record lifecycle or evidence is invalid")]
+    InvalidTimeRecord,
     #[error("People & Payroll aggregate version overflowed")]
     VersionOverflow,
 }
@@ -205,6 +218,7 @@ pub(crate) enum DomainEvent {
         status: PayrollStatus,
         at: DateTime<Utc>,
     },
+    PayrollEvidencePinned,
     PayrollFinalized {
         payroll_run_id: PayrollRunId,
         period_code: String,
@@ -232,7 +246,42 @@ pub struct Employee {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+/// Complete relational state required to rehydrate an employee aggregate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmployeeState {
+    pub id: EmployeeId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub employee_code: String,
+    pub display_name: String,
+    pub hired_on: NaiveDate,
+    pub terminated_on: Option<NaiveDate>,
+    pub status: EmployeeStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl Employee {
+    /// Rehydrates only from typed owner columns and revalidates every domain
+    /// invariant. Persistence never restores uncommitted domain events.
+    pub fn try_rehydrate(state: EmployeeState) -> Result<Self, PeoplePayrollDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            employee_code: state.employee_code,
+            display_name: state.display_name,
+            hired_on: state.hired_on,
+            terminated_on: state.terminated_on,
+            status: state.status,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn hire(
         id: EmployeeId,
@@ -371,6 +420,19 @@ impl Employee {
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        stable_record_ref(
+            self.id.as_uuid(),
+            ContextId::PeoplePayroll,
+            "people.employee",
+        )
+    }
+    /// Stable first-class employment identity derived by the owning domain.
+    /// It is distinct from the employee identity and follows the employment
+    /// lifecycle atomically with this aggregate.
+    pub fn employment_record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        employment_record_ref_for(self.id)
+    }
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
@@ -394,7 +456,43 @@ pub struct LeaveRequest {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LeaveRequestState {
+    pub id: LeaveRequestId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub employee_id: EmployeeId,
+    pub starts_on: NaiveDate,
+    pub ends_on: NaiveDate,
+    pub reason: String,
+    pub status: LeaveStatus,
+    pub requested_by: String,
+    pub approved_by: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl LeaveRequest {
+    pub fn try_rehydrate(state: LeaveRequestState) -> Result<Self, PeoplePayrollDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            employee_id: state.employee_id,
+            starts_on: state.starts_on,
+            ends_on: state.ends_on,
+            reason: state.reason,
+            status: state.status,
+            requested_by: state.requested_by,
+            approved_by: state.approved_by,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: LeaveRequestId,
@@ -536,6 +634,9 @@ impl LeaveRequest {
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        stable_record_ref(self.id.as_uuid(), ContextId::PeoplePayroll, "people.leave")
+    }
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
@@ -559,7 +660,43 @@ pub struct ExpenseClaim {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExpenseClaimState {
+    pub id: ExpenseClaimId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub employee_id: EmployeeId,
+    pub currency: Currency,
+    pub amount_minor: i64,
+    pub reason: String,
+    pub status: ExpenseStatus,
+    pub claimed_by: String,
+    pub approved_by: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl ExpenseClaim {
+    pub fn try_rehydrate(state: ExpenseClaimState) -> Result<Self, PeoplePayrollDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            employee_id: state.employee_id,
+            currency: state.currency,
+            amount_minor: state.amount_minor,
+            reason: state.reason,
+            status: state.status,
+            claimed_by: state.claimed_by,
+            approved_by: state.approved_by,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: ExpenseClaimId,
@@ -715,6 +852,56 @@ pub struct PayrollLine {
     pub net_minor: i64,
 }
 
+/// Version-pinned fact supplied by a domain that contributes to payroll.
+///
+/// The stable record identity deliberately excludes a route. `source_version`
+/// and `content_sha256` preserve the exact revision that was calculated.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PayrollInputEvidence {
+    pub source: StableRecordRef,
+    pub source_version: u64,
+    pub content_sha256: String,
+}
+
+/// Immutable calculation authority retained with a governed payroll run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PayrollCalculationEvidence {
+    pub policy_version: String,
+    pub rate_table_version: String,
+    pub calculation_sha256: String,
+    pub source_inputs: Vec<PayrollInputEvidence>,
+    pub captured_at: DateTime<Utc>,
+}
+
+impl PayrollCalculationEvidence {
+    pub fn validate(&self, not_after: DateTime<Utc>) -> Result<(), PeoplePayrollDomainError> {
+        validate_text(&self.policy_version, "policy_version", MAX_REFERENCE_BYTES)?;
+        validate_text(
+            &self.rate_table_version,
+            "rate_table_version",
+            MAX_REFERENCE_BYTES,
+        )?;
+        validate_digest(&self.calculation_sha256)?;
+        if self.captured_at > not_after || self.source_inputs.len() > MAX_PAYROLL_INPUTS {
+            return Err(PeoplePayrollDomainError::InvalidPayrollEvidence);
+        }
+        let mut sources = HashSet::with_capacity(self.source_inputs.len());
+        for input in &self.source_inputs {
+            input
+                .source
+                .validate()
+                .map_err(|_| PeoplePayrollDomainError::InvalidPayrollEvidence)?;
+            if input.source_version == 0
+                || !sources.insert((input.source.clone(), input.source_version))
+            {
+                return Err(PeoplePayrollDomainError::InvalidPayrollEvidence);
+            }
+            validate_digest(&input.content_sha256)?;
+        }
+        Ok(())
+    }
+}
+
 impl PayrollLine {
     pub fn try_new(
         employee_id: EmployeeId,
@@ -754,6 +941,8 @@ pub struct PayrollRun {
     ends_on: NaiveDate,
     currency: Currency,
     lines: Vec<PayrollLine>,
+    #[serde(default)]
+    calculation_evidence: Option<PayrollCalculationEvidence>,
     status: PayrollStatus,
     prepared_by: String,
     reviewed_by: Option<String>,
@@ -767,7 +956,55 @@ pub struct PayrollRun {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PayrollRunState {
+    pub id: PayrollRunId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub period_code: String,
+    pub starts_on: NaiveDate,
+    pub ends_on: NaiveDate,
+    pub currency: Currency,
+    pub lines: Vec<PayrollLine>,
+    pub calculation_evidence: Option<PayrollCalculationEvidence>,
+    pub status: PayrollStatus,
+    pub prepared_by: String,
+    pub reviewed_by: Option<String>,
+    pub approved_by: Option<String>,
+    pub total_gross_minor: i64,
+    pub total_deductions_minor: i64,
+    pub total_net_minor: i64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl PayrollRun {
+    pub fn try_rehydrate(state: PayrollRunState) -> Result<Self, PeoplePayrollDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            period_code: state.period_code,
+            starts_on: state.starts_on,
+            ends_on: state.ends_on,
+            currency: state.currency,
+            lines: state.lines,
+            calculation_evidence: state.calculation_evidence,
+            status: state.status,
+            prepared_by: state.prepared_by,
+            reviewed_by: state.reviewed_by,
+            approved_by: state.approved_by,
+            total_gross_minor: state.total_gross_minor,
+            total_deductions_minor: state.total_deductions_minor,
+            total_net_minor: state.total_net_minor,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: PayrollRunId,
@@ -795,6 +1032,7 @@ impl PayrollRun {
             ends_on,
             currency,
             lines,
+            calculation_evidence: None,
             status: PayrollStatus::Draft,
             prepared_by,
             reviewed_by: None,
@@ -814,6 +1052,28 @@ impl PayrollRun {
         Ok(value)
     }
 
+    /// Pins policy, rate-table, calculation, and typed inbound facts before
+    /// review. The evidence cannot be replaced, including by an idempotent
+    /// retry with different content.
+    pub fn pin_calculation_evidence(
+        &mut self,
+        evidence: PayrollCalculationEvidence,
+        at: DateTime<Utc>,
+    ) -> Result<(), PeoplePayrollDomainError> {
+        if self.status != PayrollStatus::Draft || self.calculation_evidence.is_some() {
+            return Err(PeoplePayrollDomainError::InvalidPayrollEvidence);
+        }
+        evidence.validate(at)?;
+        let mut next = self.clone();
+        next.advance(at)?;
+        next.calculation_evidence = Some(evidence);
+        next.uncommitted_events
+            .push(DomainEvent::PayrollEvidencePinned);
+        next.validate()?;
+        *self = next;
+        Ok(())
+    }
+
     pub fn transition(
         &mut self,
         transition: PayrollTransition,
@@ -822,7 +1082,9 @@ impl PayrollRun {
     ) -> Result<(), PeoplePayrollDomainError> {
         validate_text(actor, "actor", MAX_REFERENCE_BYTES)?;
         let (next, reviewer, approver) = match transition {
-            PayrollTransition::SubmitForReview if self.status == PayrollStatus::Draft => {
+            PayrollTransition::SubmitForReview
+                if self.status == PayrollStatus::Draft && self.calculation_evidence.is_some() =>
+            {
                 (PayrollStatus::Review, None, None)
             }
             PayrollTransition::Review
@@ -885,6 +1147,16 @@ impl PayrollRun {
         validate_window(self.starts_on, self.ends_on)?;
         validate_text(&self.prepared_by, "prepared_by", MAX_REFERENCE_BYTES)?;
         validate_payroll_lines(&self.lines)?;
+        if let Some(evidence) = &self.calculation_evidence {
+            evidence.validate(self.updated_at)?;
+        }
+        if matches!(
+            self.status,
+            PayrollStatus::Review | PayrollStatus::Approved | PayrollStatus::Posted
+        ) && self.calculation_evidence.is_none()
+        {
+            return Err(PeoplePayrollDomainError::InvalidPayrollEvidence);
+        }
         validate_common(self.version, self.created_at, self.updated_at)?;
         if self.reviewed_by.as_deref() == Some(self.prepared_by.as_str())
             || self.approved_by.as_deref() == Some(self.prepared_by.as_str())
@@ -939,6 +1211,9 @@ impl PayrollRun {
     pub fn lines(&self) -> &[PayrollLine] {
         &self.lines
     }
+    pub fn calculation_evidence(&self) -> Option<&PayrollCalculationEvidence> {
+        self.calculation_evidence.as_ref()
+    }
     pub const fn status(&self) -> PayrollStatus {
         self.status
     }
@@ -965,6 +1240,24 @@ impl PayrollRun {
     }
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
+    }
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        stable_record_ref(self.id.as_uuid(), ContextId::PeoplePayroll, "payroll.run")
+    }
+    /// Returns the stable payslip identity for an employee actually included
+    /// in this run. A caller cannot manufacture a payslip for another worker.
+    pub fn payslip_record_ref(
+        &self,
+        employee_id: EmployeeId,
+    ) -> Result<Option<StableRecordRef>, ReferenceValidationError> {
+        if !self
+            .lines
+            .iter()
+            .any(|line| line.employee_id == employee_id)
+        {
+            return Ok(None);
+        }
+        Ok(Some(payslip_record_ref_for(self.id, employee_id)?))
     }
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
@@ -1144,6 +1437,64 @@ fn payroll_totals(lines: &[PayrollLine]) -> Result<(i64, i64, i64), PeoplePayrol
         return Err(PeoplePayrollDomainError::InvalidAmount);
     }
     Ok((gross, deductions, net))
+}
+
+fn validate_digest(value: &str) -> Result<(), PeoplePayrollDomainError> {
+    let Some(hex) = value.strip_prefix("sha256:") else {
+        return Err(PeoplePayrollDomainError::InvalidPayrollEvidence);
+    };
+    if hex.len() != 64 || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(PeoplePayrollDomainError::InvalidPayrollEvidence);
+    }
+    Ok(())
+}
+
+fn stable_record_ref(
+    id: Uuid,
+    owner: ContextId,
+    record_type: &str,
+) -> Result<StableRecordRef, ReferenceValidationError> {
+    let record_id = RecordId::try_from_uuid(id).expect("validated People & Payroll identifier");
+    StableRecordRef::try_new(record_id, owner, RecordTypeId::try_new(record_type)?)
+}
+
+pub fn employment_record_ref_for(
+    employee_id: EmployeeId,
+) -> Result<StableRecordRef, ReferenceValidationError> {
+    derived_record_ref(
+        employee_id.as_uuid(),
+        b"people.employment",
+        "people.employment",
+    )
+}
+
+pub fn payslip_record_ref_for(
+    payroll_run_id: PayrollRunId,
+    employee_id: EmployeeId,
+) -> Result<StableRecordRef, ReferenceValidationError> {
+    derived_record_ref(
+        payroll_run_id.as_uuid(),
+        employee_id.as_uuid().as_bytes(),
+        "payroll.payslip",
+    )
+}
+
+fn derived_record_ref(
+    namespace: Uuid,
+    discriminator: &[u8],
+    record_type: &'static str,
+) -> Result<StableRecordRef, ReferenceValidationError> {
+    let mut bytes = *Uuid::new_v5(&namespace, discriminator).as_bytes();
+    // StableRecordRef deliberately accepts only opaque v4-shaped IDs. The
+    // owner derives the bytes deterministically, then applies the v4/variant
+    // bits so callers cannot infer the parent identity from the route.
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    stable_record_ref(
+        Uuid::from_bytes(bytes),
+        ContextId::PeoplePayroll,
+        record_type,
+    )
 }
 
 #[cfg(test)]

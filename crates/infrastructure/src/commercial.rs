@@ -2873,17 +2873,6 @@ impl SqlxCommercialStore {
             revision.revision_number()
         );
         sqlx::query(
-            "INSERT INTO erpx_control.aggregate_snapshots
-                (aggregate_type, aggregate_id, aggregate_version, state, updated_at)
-             VALUES ($1, $2, $3, $4, now())",
-        )
-        .bind(CATALOG_REVISION_AGGREGATE_TYPE)
-        .bind(revision.id())
-        .bind(version)
-        .bind(&payload)
-        .execute(&mut *transaction)
-        .await?;
-        sqlx::query(
             "INSERT INTO erpx_control.outbox_events
                 (id, event_type, event_version, aggregate_type, aggregate_id,
                  aggregate_version, tenant_scope, actor, correlation_id,
@@ -3229,7 +3218,6 @@ impl SqlxCommercialStore {
             &migration.recorded_by,
             event_id,
             &format!("commercial.grandfathered-price-migration:{}", migration.id),
-            payload,
             Some(migration.customer_id),
             "commercial state bootstrap",
             serde_json::json!({ "migration_id": migration.id }),
@@ -3342,11 +3330,6 @@ impl SqlxCommercialStore {
             &format!(
                 "commercial.billing.lifecycle.bootstrap:{customer_id}:{subscription_id}:{next_version}"
             ),
-            serde_json::json!({
-                "customer_id": customer_id,
-                "subscription_id": subscription_id,
-                "lifecycle": lifecycle,
-            }),
             Some(customer_id),
             "commercial state bootstrap",
             serde_json::json!({
@@ -3440,7 +3423,6 @@ impl SqlxCommercialStore {
                 "commercial.entitlement.book.bootstrap:{customer_id}:{}:{next_version}",
                 book.module_key
             ),
-            payload,
             Some(customer_id),
             "commercial state bootstrap",
             serde_json::json!({
@@ -3536,7 +3518,6 @@ impl SqlxCommercialStore {
             persist_billing_provider_evidence(
                 &mut transaction,
                 &command.context,
-                &lifecycle,
                 version,
                 &evidence,
                 event.created_at,
@@ -3861,7 +3842,6 @@ impl SqlxCommercialStore {
             &command.context.actor_ref,
             command.context.correlation_id,
             &command.context.idempotency_key,
-            serde_json::to_value(&book)?,
             Some(command.customer_id),
             &command.context.purpose,
             serde_json::json!({
@@ -3971,7 +3951,6 @@ impl SqlxCommercialStore {
             &command.context.actor_ref,
             command.context.correlation_id,
             &command.context.idempotency_key,
-            serde_json::to_value(&book)?,
             Some(command.customer_id),
             &command.context.purpose,
             serde_json::json!({
@@ -4083,7 +4062,6 @@ impl SqlxCommercialStore {
             &command.context.actor_ref,
             command.context.correlation_id,
             &command.context.idempotency_key,
-            serde_json::to_value(&book)?,
             Some(command.customer_id),
             &command.context.purpose,
             serde_json::json!({
@@ -4799,9 +4777,8 @@ async fn append_commercial_audit(
 }
 
 /// Keep low-level commercial bootstrap writes on the same rebuild boundary as
-/// provider and worker commands.  These writes predate the command adapters,
-/// but a snapshot without a contiguous outbox fact cannot safely rebuild a
-/// projector after a read-store loss.
+/// provider and worker commands. The normalized owner row is the sole version
+/// authority; this helper appends only the rebuild fact and audit evidence.
 #[allow(clippy::too_many_arguments)]
 async fn append_commercial_state_event(
     transaction: &mut Transaction<'_, Postgres>,
@@ -4814,7 +4791,6 @@ async fn append_commercial_state_event(
     actor_ref: &str,
     correlation_id: Uuid,
     idempotency_key: &str,
-    snapshot_state: Value,
     customer_id: Option<Uuid>,
     audit_purpose: &str,
     audit_payload: Value,
@@ -4829,45 +4805,8 @@ async fn append_commercial_state_event(
             "commercial state event metadata is invalid",
         ));
     }
-    let current = sqlx::query_scalar::<_, i64>(
-        "SELECT aggregate_version
-         FROM erpx_control.aggregate_snapshots
-         WHERE aggregate_type = $1 AND aggregate_id = $2
-         FOR UPDATE",
-    )
-    .bind(aggregate_type)
-    .bind(aggregate_id)
-    .fetch_optional(&mut **transaction)
-    .await?;
-    let expected_previous = aggregate_version.saturating_sub(1);
-    if current.map(|value| u64::try_from(value).unwrap_or(0)) != Some(expected_previous)
-        && !(current.is_none() && aggregate_version == 1)
-    {
-        return Err(PersistenceError::OptimisticConcurrency {
-            aggregate_type: aggregate_type.into(),
-            aggregate_id,
-            expected: Some(expected_previous),
-            actual: current.and_then(|value| u64::try_from(value).ok()),
-        });
-    }
     let version = i64::try_from(aggregate_version)
         .map_err(|_| commercial_invalid("commercial aggregate version exceeds database range"))?;
-    sqlx::query(
-        "INSERT INTO erpx_control.aggregate_snapshots
-            (aggregate_type, aggregate_id, aggregate_version, state, updated_at)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            aggregate_version = EXCLUDED.aggregate_version,
-            state = EXCLUDED.state,
-            updated_at = EXCLUDED.updated_at",
-    )
-    .bind(aggregate_type)
-    .bind(aggregate_id)
-    .bind(version)
-    .bind(snapshot_state)
-    .bind(occurred_at)
-    .execute(&mut **transaction)
-    .await?;
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
             (id, event_type, event_version, aggregate_type, aggregate_id,
@@ -5084,15 +5023,13 @@ async fn persist_billing_lifecycle(
     Ok(next_version)
 }
 
-/// Persist the generic control snapshot and immutable outbox fact for a
-/// provider billing command in the same transaction as the lifecycle row.
-/// The snapshot is rebuilt from the authoritative lifecycle and the outbox
-/// event is the durable replay/rebuild boundary; neither is written for an
-/// older/equal provider event that made no state or watermark change.
+/// Persist the immutable outbox fact for a provider billing command in the
+/// same transaction as the authoritative lifecycle row. The lifecycle row's
+/// exact-version update is the sole concurrency fence; no generic snapshot is
+/// maintained as a second authority.
 async fn persist_billing_provider_evidence(
     transaction: &mut Transaction<'_, Postgres>,
     context: &CommercialCommandContext,
-    lifecycle: &BillingLifecycle,
     version: u64,
     evidence: &BillingProviderCommandEvidence,
     occurred_at: DateTime<Utc>,
@@ -5102,57 +5039,6 @@ async fn persist_billing_provider_evidence(
         .map_err(|_| commercial_invalid("invalid billing provider evidence"))?;
     let version_i64 = i64::try_from(version)
         .map_err(|_| commercial_invalid("commercial billing version exceeds database range"))?;
-    let mut snapshot_state = serde_json::to_value(lifecycle)?;
-    if let Value::Object(fields) = &mut snapshot_state {
-        fields.insert(
-            "state".into(),
-            Value::String(billing_state(lifecycle.state).into()),
-        );
-    }
-    let existing_snapshot = sqlx::query(
-        "SELECT aggregate_version
-         FROM erpx_control.aggregate_snapshots
-         WHERE aggregate_type = $1 AND aggregate_id = $2
-         FOR UPDATE",
-    )
-    .bind(BILLING_LIFECYCLE_AGGREGATE_TYPE)
-    .bind(evidence.subscription_id)
-    .fetch_optional(&mut **transaction)
-    .await?;
-    let current_version = existing_snapshot
-        .map(|row| row.try_get::<i64, _>("aggregate_version"))
-        .transpose()?
-        .map(|current| {
-            u64::try_from(current)
-                .map_err(|_| commercial_invalid("negative billing snapshot version"))
-        })
-        .transpose()?;
-    if current_version != Some(version.saturating_sub(1))
-        && !(current_version.is_none() && version == 1)
-    {
-        return Err(PersistenceError::OptimisticConcurrency {
-            aggregate_type: BILLING_LIFECYCLE_AGGREGATE_TYPE.into(),
-            aggregate_id: evidence.subscription_id,
-            expected: Some(version.saturating_sub(1)),
-            actual: current_version,
-        });
-    }
-    sqlx::query(
-        "INSERT INTO erpx_control.aggregate_snapshots
-            (aggregate_type, aggregate_id, aggregate_version, state, updated_at)
-         VALUES ($1, $2, $3, $4, now())
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            aggregate_version = EXCLUDED.aggregate_version,
-            state = EXCLUDED.state,
-            updated_at = EXCLUDED.updated_at",
-    )
-    .bind(BILLING_LIFECYCLE_AGGREGATE_TYPE)
-    .bind(evidence.subscription_id)
-    .bind(version_i64)
-    .bind(snapshot_state)
-    .execute(&mut **transaction)
-    .await?;
-
     let payload = serde_json::to_value(evidence)?;
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
@@ -5203,10 +5089,10 @@ async fn load_entitlement_book(
     .transpose()
 }
 
-/// Persist the authoritative provider entitlement snapshot and its worker
-/// boundary in the same transaction as the normalized allocation book. An
-/// entitlement event that cannot produce a durable outbox fact must roll back
-/// the book, audit, and idempotency reservation together.
+/// Persist the provider entitlement worker boundary in the same transaction
+/// as the authoritative allocation book. The book's exact-version update is
+/// the sole concurrency fence. An event that cannot produce a durable outbox
+/// fact rolls back the book, audit, and idempotency reservation together.
 async fn persist_entitlement_provider_evidence(
     transaction: &mut Transaction<'_, Postgres>,
     customer_id: Uuid,
@@ -5222,52 +5108,6 @@ async fn persist_entitlement_provider_evidence(
     let aggregate_type = entitlement_aggregate_type(&book.module_key);
     let version_i64 = i64::try_from(version)
         .map_err(|_| commercial_invalid("commercial entitlement version exceeds database range"))?;
-    let existing_snapshot = sqlx::query(
-        "SELECT aggregate_version
-         FROM erpx_control.aggregate_snapshots
-         WHERE aggregate_type = $1 AND aggregate_id = $2
-         FOR UPDATE",
-    )
-    .bind(&aggregate_type)
-    .bind(customer_id)
-    .fetch_optional(&mut **transaction)
-    .await?;
-    let current_version = existing_snapshot
-        .map(|row| row.try_get::<i64, _>("aggregate_version"))
-        .transpose()?
-        .map(|current| {
-            u64::try_from(current)
-                .map_err(|_| commercial_invalid("negative entitlement snapshot version"))
-        })
-        .transpose()?;
-    if current_version != Some(version.saturating_sub(1))
-        && !(current_version.is_none() && version == 1)
-    {
-        return Err(PersistenceError::OptimisticConcurrency {
-            aggregate_type: aggregate_type.clone(),
-            aggregate_id: customer_id,
-            expected: Some(version.saturating_sub(1)),
-            actual: current_version,
-        });
-    }
-
-    let snapshot_state = serde_json::to_value(book)?;
-    sqlx::query(
-        "INSERT INTO erpx_control.aggregate_snapshots
-            (aggregate_type, aggregate_id, aggregate_version, state, updated_at)
-         VALUES ($1, $2, $3, $4, now())
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            aggregate_version = EXCLUDED.aggregate_version,
-            state = EXCLUDED.state,
-            updated_at = EXCLUDED.updated_at",
-    )
-    .bind(&aggregate_type)
-    .bind(customer_id)
-    .bind(version_i64)
-    .bind(snapshot_state)
-    .execute(&mut **transaction)
-    .await?;
-
     let payload = serde_json::json!({
         "customer_id": customer_id,
         "provider_event_id": update.provider_event_id,
@@ -5303,10 +5143,10 @@ async fn persist_entitlement_provider_evidence(
     Ok(())
 }
 
-/// Persist a worker-owned billing-policy transition and its rebuild boundary
+/// Persist a worker-owned billing-policy transition's rebuild boundary
 /// atomically. Policy transitions do not come from Stripe, but they still
-/// change the same billing aggregate and therefore must publish a durable
-/// snapshot and outbox fact for projections and downstream enforcement.
+/// publish a durable outbox fact for projections and downstream enforcement.
+/// The authoritative lifecycle row already fenced the exact version.
 async fn persist_billing_policy_evidence(
     transaction: &mut Transaction<'_, Postgres>,
     command: &BillingPolicyCommand,
@@ -5321,57 +5161,6 @@ async fn persist_billing_policy_evidence(
     }
     let version_i64 = i64::try_from(version)
         .map_err(|_| commercial_invalid("commercial billing version exceeds database range"))?;
-    let mut snapshot_state = serde_json::to_value(lifecycle)?;
-    if let Value::Object(fields) = &mut snapshot_state {
-        fields.insert(
-            "state".into(),
-            Value::String(billing_state(lifecycle.state).into()),
-        );
-    }
-    let existing_snapshot = sqlx::query(
-        "SELECT aggregate_version
-         FROM erpx_control.aggregate_snapshots
-         WHERE aggregate_type = $1 AND aggregate_id = $2
-         FOR UPDATE",
-    )
-    .bind(BILLING_LIFECYCLE_AGGREGATE_TYPE)
-    .bind(command.subscription_id)
-    .fetch_optional(&mut **transaction)
-    .await?;
-    let current_version = existing_snapshot
-        .map(|row| row.try_get::<i64, _>("aggregate_version"))
-        .transpose()?
-        .map(|current| {
-            u64::try_from(current)
-                .map_err(|_| commercial_invalid("negative billing snapshot version"))
-        })
-        .transpose()?;
-    if current_version != Some(version.saturating_sub(1))
-        && !(current_version.is_none() && version == 1)
-    {
-        return Err(PersistenceError::OptimisticConcurrency {
-            aggregate_type: BILLING_LIFECYCLE_AGGREGATE_TYPE.into(),
-            aggregate_id: command.subscription_id,
-            expected: Some(version.saturating_sub(1)),
-            actual: current_version,
-        });
-    }
-    sqlx::query(
-        "INSERT INTO erpx_control.aggregate_snapshots
-            (aggregate_type, aggregate_id, aggregate_version, state, updated_at)
-         VALUES ($1, $2, $3, $4, now())
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            aggregate_version = EXCLUDED.aggregate_version,
-            state = EXCLUDED.state,
-            updated_at = EXCLUDED.updated_at",
-    )
-    .bind(BILLING_LIFECYCLE_AGGREGATE_TYPE)
-    .bind(command.subscription_id)
-    .bind(version_i64)
-    .bind(snapshot_state)
-    .execute(&mut **transaction)
-    .await?;
-
     let payload = serde_json::json!({
         "command_id": command.context.command_id,
         "customer_id": command.customer_id,
@@ -7332,18 +7121,17 @@ mod tests {
                 .expect("failed payment apply"),
             StripeSemanticApplyResult::Applied
         );
-        let snapshot = sqlx::query_as::<_, (i64, Value)>(
-            "SELECT aggregate_version, state
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = $1 AND aggregate_id = $2",
+        let lifecycle_row = sqlx::query_as::<_, (i64, String)>(
+            "SELECT version, state
+             FROM erpx_control.billing_lifecycles
+             WHERE subscription_id = $1",
         )
-        .bind(BILLING_LIFECYCLE_AGGREGATE_TYPE)
         .bind(subscription_id)
         .fetch_one(&control.pools().write)
         .await
-        .expect("billing aggregate snapshot");
-        assert_eq!(snapshot.0, 1);
-        assert_eq!(snapshot.1["state"], "past_due");
+        .expect("billing lifecycle authority");
+        assert_eq!(lifecycle_row.0, 1);
+        assert_eq!(lifecycle_row.1, "past_due");
         let evidence = sqlx::query_as::<_, (String, i64, Value)>(
             "SELECT event_type, aggregate_version, payload
              FROM erpx_control.outbox_events
@@ -7419,20 +7207,19 @@ mod tests {
             StripeSemanticApplyResult::Applied
         );
         let entitlement_aggregate = entitlement_aggregate_type("finance");
-        let entitlement_snapshot = sqlx::query_as::<_, (i64, Value)>(
-            "SELECT aggregate_version, state
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = $1 AND aggregate_id = $2",
+        let entitlement_row = sqlx::query_as::<_, (i64, Value)>(
+            "SELECT version, payload
+             FROM erpx_control.entitlement_allocation_books
+             WHERE customer_id = $1 AND module_key = 'finance'",
         )
-        .bind(&entitlement_aggregate)
         .bind(customer_id)
         .fetch_one(&control.pools().write)
         .await
-        .expect("entitlement aggregate snapshot");
-        assert_eq!(entitlement_snapshot.0, 1);
-        assert_eq!(entitlement_snapshot.1["module_key"], "finance");
-        assert_eq!(entitlement_snapshot.1["active"], true);
-        assert_eq!(entitlement_snapshot.1["capacity"]["seats"], 10);
+        .expect("entitlement allocation authority");
+        assert_eq!(entitlement_row.0, 1);
+        assert_eq!(entitlement_row.1["module_key"], "finance");
+        assert_eq!(entitlement_row.1["active"], true);
+        assert_eq!(entitlement_row.1["capacity"]["seats"], 10);
         let entitlement_evidence = sqlx::query_as::<_, (String, i64, Value)>(
             "SELECT event_type, aggregate_version, payload
              FROM erpx_control.outbox_events
@@ -7479,7 +7266,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires one disposable PostgreSQL control write database"]
-    async fn provider_entitlement_evidence_rolls_back_book_snapshot_and_outbox_together() {
+    async fn provider_entitlement_evidence_rolls_back_book_and_outbox_together() {
         let config = crate::ControlPlaneDatabaseConfig {
             write_url: std::env::var("ERPX_TEST_CONTROL_WRITE_DATABASE_URL")
                 .expect("ERPX_TEST_CONTROL_WRITE_DATABASE_URL is required"),
@@ -7544,17 +7331,6 @@ mod tests {
                 .expect("entitlement lookup")
                 .is_none()
         );
-        let snapshot_count: i64 = sqlx::query_scalar(
-            "SELECT count(*)
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = $1 AND aggregate_id = $2",
-        )
-        .bind(&entitlement_aggregate)
-        .bind(customer_id)
-        .fetch_one(&control.pools().write)
-        .await
-        .expect("snapshot count");
-        assert_eq!(snapshot_count, 0);
         let audit_count: i64 = sqlx::query_scalar(
             "SELECT count(*)
              FROM erpx_control.audit_events
@@ -7772,7 +7548,7 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "requires one disposable PostgreSQL control write database"]
-    async fn provider_billing_evidence_rolls_back_lifecycle_snapshot_and_outbox_together() {
+    async fn provider_billing_evidence_rolls_back_lifecycle_and_outbox_together() {
         let config = crate::ControlPlaneDatabaseConfig {
             write_url: std::env::var("ERPX_TEST_CONTROL_WRITE_DATABASE_URL")
                 .expect("ERPX_TEST_CONTROL_WRITE_DATABASE_URL is required"),
@@ -7834,17 +7610,6 @@ mod tests {
                 .expect("lifecycle lookup")
                 .is_none()
         );
-        let snapshot_count: i64 = sqlx::query_scalar(
-            "SELECT count(*)
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = $1 AND aggregate_id = $2",
-        )
-        .bind(BILLING_LIFECYCLE_AGGREGATE_TYPE)
-        .bind(subscription_id)
-        .fetch_one(&control.pools().write)
-        .await
-        .expect("snapshot count");
-        assert_eq!(snapshot_count, 0);
         let audit_count: i64 = sqlx::query_scalar(
             "SELECT count(*)
              FROM erpx_control.audit_events
@@ -7957,18 +7722,17 @@ mod tests {
             .expect("empty policy batch");
         assert_eq!(empty_batch.considered, 0);
         assert_eq!(empty_batch.advanced, 0);
-        let snapshot = sqlx::query_as::<_, (i64, Value)>(
-            "SELECT aggregate_version, state
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = $1 AND aggregate_id = $2",
+        let lifecycle_row = sqlx::query_as::<_, (i64, String)>(
+            "SELECT version, state
+             FROM erpx_control.billing_lifecycles
+             WHERE subscription_id = $1",
         )
-        .bind(BILLING_LIFECYCLE_AGGREGATE_TYPE)
         .bind(subscription_id)
         .fetch_one(&control.pools().write)
         .await
-        .expect("policy snapshot");
-        assert_eq!(snapshot.0, 2);
-        assert_eq!(snapshot.1["state"], "grace");
+        .expect("policy lifecycle authority");
+        assert_eq!(lifecycle_row.0, 2);
+        assert_eq!(lifecycle_row.1, "grace");
         let evidence = sqlx::query_as::<_, (String, i64, Value, Option<String>)>(
             "SELECT event_type, aggregate_version, payload, published_at::text
              FROM erpx_control.outbox_events
@@ -8082,17 +7846,6 @@ mod tests {
             .expect("rollback lifecycle exists");
         assert_eq!(rolled_back.0.state, BillingState::PastDue);
         assert_eq!(rolled_back.1, 1);
-        let snapshot_count: i64 = sqlx::query_scalar(
-            "SELECT count(*)
-             FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = $1 AND aggregate_id = $2",
-        )
-        .bind(BILLING_LIFECYCLE_AGGREGATE_TYPE)
-        .bind(rollback_subscription_id)
-        .fetch_one(&control.pools().write)
-        .await
-        .expect("rollback snapshot count");
-        assert_eq!(snapshot_count, 1);
         let idempotency_count: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM erpx_control.idempotency_keys WHERE idempotency_key = $1",
         )

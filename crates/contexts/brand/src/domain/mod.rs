@@ -540,6 +540,20 @@ impl BrandAssetManifest {
         }
         Ok(())
     }
+
+    /// Returns every immutable object reference currently carried by this
+    /// revision. The order is stable so owner-side facts and rebuilds are
+    /// deterministic.
+    pub fn references(&self) -> impl Iterator<Item = &BrandAssetReference> {
+        [
+            self.logo_mark.as_ref(),
+            self.wordmark.as_ref(),
+            self.favicon.as_ref(),
+            self.login_artwork.as_ref(),
+        ]
+        .into_iter()
+        .flatten()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -684,6 +698,30 @@ pub struct BrandProfile {
 }
 
 impl BrandProfile {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: BrandProfileId,
+        version: u64,
+        scope: BrandScope,
+        draft: Option<BrandRevision>,
+        published: Option<BrandRevision>,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, BrandDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope,
+            draft,
+            published,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn create_draft(
         id: BrandProfileId,
         scope: BrandScope,

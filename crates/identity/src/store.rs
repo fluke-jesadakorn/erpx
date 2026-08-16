@@ -1299,14 +1299,9 @@ impl SqlxIdentityStore {
     async fn local_role_assignments(
         &self,
     ) -> Result<HashMap<Uuid, RoleAssignment>, IdentityStoreError> {
-        let rows = sqlx::query(
-            "SELECT payload FROM erpx_control.role_assignments
-             UNION ALL
-             SELECT state AS payload FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type='role_assignment'",
-        )
-        .fetch_all(&self.pool)
-        .await?;
+        let rows = sqlx::query("SELECT payload FROM erpx_control.role_assignments")
+            .fetch_all(&self.pool)
+            .await?;
         let mut assignments = HashMap::new();
         for row in rows {
             let payload: serde_json::Value = row.try_get("payload")?;

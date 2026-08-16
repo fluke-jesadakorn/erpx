@@ -236,14 +236,14 @@ async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_a
     );
     assert_eq!(
         sqlx::query_scalar::<_, i64>(
-            "SELECT count(*) FROM erpx_tenant.aggregate_snapshots
-             WHERE holding_ref=$1 AND aggregate_id=$2 AND version=4",
+            "SELECT count(*) FROM erpx_tenant.marketing_deliveries
+             WHERE holding_ref=$1 AND delivery_id=$2 AND version=4",
         )
         .bind(&holding_ref)
         .bind(delivery_id)
         .fetch_one(&mut *verify_tx)
         .await
-        .expect("delivered aggregate snapshot count"),
+        .expect("delivered normalized authority count"),
         1
     );
     verify_tx.rollback().await.expect("verification rollback");
@@ -263,7 +263,6 @@ async fn queued_delivery_provider_acceptance_callback_and_projection_state_are_a
     for table in [
         "erpx_tenant.marketing_provider_callback_inbox",
         "erpx_tenant.outbox_events",
-        "erpx_tenant.aggregate_snapshots",
         "erpx_tenant.marketing_delivery_idempotency",
         "erpx_tenant.marketing_deliveries",
         "erpx_tenant.marketing_command_idempotency",

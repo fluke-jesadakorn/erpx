@@ -1,19 +1,25 @@
+use std::collections::BTreeSet;
+
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{
     AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
-use erpx_integration_contracts::IntegrationEvent;
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_integration_contracts::{
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
 use erpx_platform_administration::{
     AdminContextId, AdminContextView, CommandFingerprint, CommandIdentity, CommandUnitOfWork,
-    ConnectorBinding, ConnectorBindingId, ConnectorView, PlatformAdministrationCommit,
-    PlatformAggregate, PlatformTenant, PlatformTenantId, PortError, StoredCommit, TenantView,
-    WriteRepository,
+    ConnectorBinding, ConnectorBindingId, ConnectorKind, ConnectorReadinessEvidence,
+    ConnectorScope, ConnectorState, ConnectorView, EnvironmentId, PlatformAdministrationCommit,
+    PlatformAggregate, PlatformTenant, PlatformTenantId, PortError, StoredCommit,
+    TenantAdminContext, TenantLifecycleState, TenantView, WriteRepository,
 };
-use serde_json::{Value, json};
+use serde_json::json;
 use sha2::{Digest, Sha256};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -29,14 +35,12 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct PlatformAdministrationWriteRepository {
-    store: CommandStore,
+    write: WritePool,
 }
 
 impl PlatformAdministrationWriteRepository {
     pub fn new(pool: WritePool) -> Self {
-        Self {
-            store: CommandStore::new(pool),
-        }
+        Self { write: pool }
     }
 }
 
@@ -47,29 +51,7 @@ impl WriteRepository for PlatformAdministrationWriteRepository {
         authority: &TenantScope,
         id: PlatformTenantId,
     ) -> Result<Option<PlatformTenant>, PortError> {
-        let snapshot = self
-            .store
-            .load_snapshot::<PlatformAggregate>(
-                CONTEXT_NAME,
-                &tenant_partition(id),
-                TENANT_AGGREGATE,
-                aggregate_id(id.as_uuid())?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
-            return Ok(None);
-        };
-        let PlatformAggregate::Tenant(value) = snapshot.state else {
-            return Err(PortError::Internal);
-        };
-        if snapshot.version != value.version()
-            || value.id() != id
-            || !authority.contains(&value.scope())
-        {
-            return Err(PortError::Denied);
-        }
-        Ok(Some(value))
+        load_tenant_relational(&self.write, authority, id).await
     }
 
     async fn load_connector(
@@ -77,29 +59,7 @@ impl WriteRepository for PlatformAdministrationWriteRepository {
         authority: &TenantScope,
         id: ConnectorBindingId,
     ) -> Result<Option<ConnectorBinding>, PortError> {
-        let snapshot = self
-            .store
-            .load_snapshot::<PlatformAggregate>(
-                CONTEXT_NAME,
-                &connector_partition(id),
-                CONNECTOR_AGGREGATE,
-                aggregate_id(id.as_uuid())?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
-            return Ok(None);
-        };
-        let PlatformAggregate::Connector(value) = snapshot.state else {
-            return Err(PortError::Internal);
-        };
-        if snapshot.version != value.version()
-            || value.id() != id
-            || !authority.contains(&value.scope().tenant_scope())
-        {
-            return Err(PortError::Denied);
-        }
-        Ok(Some(value))
+        load_connector_relational(&self.write, authority, id).await
     }
 
     async fn load_admin_context(
@@ -107,29 +67,7 @@ impl WriteRepository for PlatformAdministrationWriteRepository {
         authority: &TenantScope,
         id: AdminContextId,
     ) -> Result<Option<erpx_platform_administration::TenantAdminContext>, PortError> {
-        let snapshot = self
-            .store
-            .load_snapshot::<PlatformAggregate>(
-                CONTEXT_NAME,
-                &admin_context_partition(id),
-                ADMIN_CONTEXT_AGGREGATE,
-                aggregate_id(id.as_uuid())?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
-            return Ok(None);
-        };
-        let PlatformAggregate::AdminContext(value) = snapshot.state else {
-            return Err(PortError::Internal);
-        };
-        if snapshot.version != value.version()
-            || value.id() != id
-            || !authority.contains(value.scope())
-        {
-            return Err(PortError::Denied);
-        }
-        Ok(Some(value))
+        load_admin_context_relational(&self.write, authority, id).await
     }
 }
 
@@ -201,6 +139,21 @@ impl CommandUnitOfWork for PlatformAdministrationCommandAdapter {
                 occurred_at,
             )),
         });
+        if let Some(directory_draft) = platform_directory_draft(&request.aggregate)? {
+            events.push(OutboxEventWrite {
+                event_id: deterministic_event_id(
+                    command_id,
+                    ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                    events.len(),
+                ),
+                event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+                event_version: ITEM_DIRECTORY_FACT_VERSION,
+                partition: key.partition.clone(),
+                causation_id: request.causation_id,
+                occurred_at,
+                payload: PlatformAdministrationOutboxPayload::Directory(directory_draft),
+            });
+        }
         let aggregate = request.aggregate;
         let guard = PlatformAdministrationGuard {
             aggregate: aggregate.clone(),
@@ -218,7 +171,6 @@ impl CommandUnitOfWork for PlatformAdministrationCommandAdapter {
             aggregate_type: key.aggregate_type.into(),
             aggregate_id: aggregate_id(aggregate.id_uuid())?,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(
@@ -233,7 +185,7 @@ impl CommandUnitOfWork for PlatformAdministrationCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -246,6 +198,43 @@ impl CommandUnitOfWork for PlatformAdministrationCommandAdapter {
     }
 }
 
+fn platform_directory_draft(
+    aggregate: &PlatformAggregate,
+) -> Result<Option<ItemDescriptorDraft>, PortError> {
+    let (record_type, lifecycle_state, classification, search_text) = match aggregate {
+        PlatformAggregate::Tenant(value) => (
+            "platform.tenant",
+            tenant_state(value.status()),
+            DataClassification::Confidential,
+            format!("{} {}", value.code(), value.name()),
+        ),
+        PlatformAggregate::Connector(value) => (
+            "platform.provider",
+            connector_state(value.state()),
+            DataClassification::Restricted,
+            value.key().to_owned(),
+        ),
+        PlatformAggregate::AdminContext(_) => return Ok(None),
+    };
+    let record = StableRecordRef::try_new(
+        RecordId::try_from_uuid(aggregate.id_uuid()).map_err(|_| PortError::Internal)?,
+        ContextId::PlatformAdministration,
+        RecordTypeId::try_new(record_type).map_err(|_| PortError::Internal)?,
+    )
+    .map_err(|_| PortError::Internal)?;
+    let draft = ItemDescriptorDraft {
+        authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+        record,
+        scope: aggregate.scope(),
+        lifecycle_state: lifecycle_state.into(),
+        classification,
+        descriptor_version: aggregate.version(),
+        authorized_search_text: search_text,
+    };
+    draft.validate().map_err(|_| PortError::Internal)?;
+    Ok(Some(draft))
+}
+
 #[derive(Debug)]
 struct PlatformAdministrationGuard {
     aggregate: PlatformAggregate,
@@ -253,6 +242,39 @@ struct PlatformAdministrationGuard {
 
 #[async_trait]
 impl AtomicCommandGuard for PlatformAdministrationGuard {
+    async fn authoritative_version(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        let key = aggregate_key(&self.aggregate);
+        if context.context != CONTEXT_NAME
+            || context.aggregate_id.as_uuid() != self.aggregate.id_uuid()
+            || context.aggregate_type != key.aggregate_type
+            || context.partition != key.partition
+        {
+            return Err(CqrsSqlxError::GuardRejected(
+                "platform administration guard metadata mismatch",
+            ));
+        }
+        let query = match &self.aggregate {
+            PlatformAggregate::Tenant(_) => {
+                "SELECT aggregate_version FROM erpx_platform_administration_write.tenant_guards WHERE tenant_id=$1 FOR UPDATE"
+            }
+            PlatformAggregate::Connector(_) => {
+                "SELECT aggregate_version FROM erpx_platform_administration_write.connector_guards WHERE connector_id=$1 FOR UPDATE"
+            }
+            PlatformAggregate::AdminContext(_) => {
+                "SELECT aggregate_version FROM erpx_platform_administration_write.admin_context_guards WHERE context_id=$1 FOR UPDATE"
+            }
+        };
+        let value: Option<i64> = sqlx::query_scalar(query)
+            .bind(self.aggregate.id_uuid())
+            .fetch_optional(&mut **transaction)
+            .await?;
+        value.map(from_i64).transpose()
+    }
+
     async fn validate(
         &self,
         transaction: &mut Transaction<'_, Postgres>,
@@ -321,22 +343,23 @@ impl AtomicCommandGuard for PlatformAdministrationGuard {
         let version = to_i64(context.aggregate_version)?;
         match &self.aggregate {
             PlatformAggregate::Tenant(value) => {
-                sqlx::query("INSERT INTO erpx_platform_administration_write.tenant_guards (tenant_id,tenant_code,tenant_name,environment_id,customer_id,root_holding_id,holding_ref,lifecycle_state,aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (tenant_id) DO UPDATE SET tenant_code=EXCLUDED.tenant_code,tenant_name=EXCLUDED.tenant_name,environment_id=EXCLUDED.environment_id,customer_id=EXCLUDED.customer_id,root_holding_id=EXCLUDED.root_holding_id,holding_ref=EXCLUDED.holding_ref,lifecycle_state=EXCLUDED.lifecycle_state,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at")
-                    .bind(value.id().as_uuid()).bind(value.code()).bind(value.name()).bind(value.environment_id().as_uuid()).bind(value.customer_id()).bind(value.root_holding_id()).bind(value.holding_ref()).bind(tenant_state(value.status())).bind(version).bind(value.updated_at()).execute(&mut **transaction).await?;
+                sqlx::query("INSERT INTO erpx_platform_administration_write.tenant_guards (tenant_id,tenant_code,tenant_name,environment_id,customer_id,root_holding_id,holding_ref,lifecycle_state,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (tenant_id) DO UPDATE SET tenant_code=EXCLUDED.tenant_code,tenant_name=EXCLUDED.tenant_name,environment_id=EXCLUDED.environment_id,customer_id=EXCLUDED.customer_id,root_holding_id=EXCLUDED.root_holding_id,holding_ref=EXCLUDED.holding_ref,lifecycle_state=EXCLUDED.lifecycle_state,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at")
+                    .bind(value.id().as_uuid()).bind(value.code()).bind(value.name()).bind(value.environment_id().as_uuid()).bind(value.customer_id()).bind(value.root_holding_id()).bind(value.holding_ref()).bind(tenant_state(value.status())).bind(version).bind(value.created_at()).bind(value.updated_at()).execute(&mut **transaction).await?;
             }
             PlatformAggregate::Connector(value) => {
-                sqlx::query("INSERT INTO erpx_platform_administration_write.connector_guards (connector_id,scope_key,connector_kind,connector_key,configuration_digest,capabilities,connector_state,aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (connector_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,connector_kind=EXCLUDED.connector_kind,connector_key=EXCLUDED.connector_key,configuration_digest=EXCLUDED.configuration_digest,capabilities=EXCLUDED.capabilities,connector_state=EXCLUDED.connector_state,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at")
-                    .bind(value.id().as_uuid()).bind(scope_key(&value.scope().tenant_scope())?).bind(connector_kind(value.kind())).bind(value.key()).bind(decode_sha256(value.configuration_digest())?).bind(serde_json::to_value(value.capabilities())?).bind(connector_state(value.state())).bind(version).bind(value.updated_at()).execute(&mut **transaction).await?;
+                apply_connector_authority(transaction, value, version).await?;
             }
             PlatformAggregate::AdminContext(value) => {
-                let serialized = serde_json::to_value(&self.aggregate)?;
-                let inner = serialized
-                    .get("aggregate")
-                    .ok_or(CqrsSqlxError::InvalidInput(
-                        "admin context serialization shape changed",
-                    ))?;
-                sqlx::query("INSERT INTO erpx_platform_administration_write.admin_context_guards (context_id,tenant_id,scope_key,principal_ref,device_id,session_id,reason,issued_at,expires_at,revoked_at,aggregate_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT (context_id) DO UPDATE SET tenant_id=EXCLUDED.tenant_id,scope_key=EXCLUDED.scope_key,principal_ref=EXCLUDED.principal_ref,device_id=EXCLUDED.device_id,session_id=EXCLUDED.session_id,reason=EXCLUDED.reason,issued_at=EXCLUDED.issued_at,expires_at=EXCLUDED.expires_at,revoked_at=EXCLUDED.revoked_at,aggregate_version=EXCLUDED.aggregate_version")
-                    .bind(value.id().as_uuid()).bind(value.tenant_id().as_uuid()).bind(scope_key(value.scope())?).bind(value.principal_ref()).bind(json_uuid(inner,"device_id")?).bind(json_uuid(inner,"session_id")?).bind(value.reason()).bind(value.issued_at()).bind(value.expires_at()).bind(value.revoked_at()).bind(version).execute(&mut **transaction).await?;
+                let holding_id = match value.scope() {
+                    TenantScope::Holding { holding_id } => *holding_id,
+                    _ => {
+                        return Err(CqrsSqlxError::GuardRejected(
+                            "admin context requires holding scope",
+                        ));
+                    }
+                };
+                sqlx::query("INSERT INTO erpx_platform_administration_write.admin_context_guards (context_id,tenant_id,scope_key,holding_id,principal_ref,device_id,session_id,reason,issued_at,expires_at,revoked_at,aggregate_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (context_id) DO UPDATE SET tenant_id=EXCLUDED.tenant_id,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,principal_ref=EXCLUDED.principal_ref,device_id=EXCLUDED.device_id,session_id=EXCLUDED.session_id,reason=EXCLUDED.reason,issued_at=EXCLUDED.issued_at,expires_at=EXCLUDED.expires_at,revoked_at=EXCLUDED.revoked_at,aggregate_version=EXCLUDED.aggregate_version")
+                    .bind(value.id().as_uuid()).bind(value.tenant_id().as_uuid()).bind(scope_key(value.scope())?).bind(holding_id).bind(value.principal_ref()).bind(value.device_id()).bind(value.session_id()).bind(value.reason()).bind(value.issued_at()).bind(value.expires_at()).bind(value.revoked_at()).bind(version).execute(&mut **transaction).await?;
             }
         }
         Ok(())
@@ -358,7 +381,8 @@ fn fingerprint_key(value: &CommandFingerprint) -> AggregateKey {
             snapshot_event: TENANT_SNAPSHOT_EVENT,
         },
         CommandFingerprint::RegisterConnector { connector_id, .. }
-        | CommandFingerprint::TransitionConnector { connector_id, .. } => AggregateKey {
+        | CommandFingerprint::TransitionConnector { connector_id, .. }
+        | CommandFingerprint::ObserveConnectorReadiness { connector_id, .. } => AggregateKey {
             partition: connector_partition(*connector_id),
             aggregate_type: CONNECTOR_AGGREGATE,
             snapshot_event: CONNECTOR_SNAPSHOT_EVENT,
@@ -465,6 +489,9 @@ fn audit_action(value: &CommandFingerprint) -> &'static str {
         CommandFingerprint::TransitionConnector { .. } => {
             "platform_administration.connector.transition"
         }
+        CommandFingerprint::ObserveConnectorReadiness { .. } => {
+            "platform_administration.connector.readiness.observe"
+        }
         CommandFingerprint::IssueAdminContext { .. } => {
             "platform_administration.admin_context.issue"
         }
@@ -506,15 +533,369 @@ fn decode_sha256(value: &str) -> Result<Vec<u8>, CqrsSqlxError> {
         })
         .collect()
 }
-fn json_uuid(value: &Value, field: &str) -> Result<Uuid, CqrsSqlxError> {
-    value
-        .get(field)
-        .and_then(Value::as_str)
-        .and_then(|value| Uuid::parse_str(value).ok())
-        .filter(|id| !id.is_nil())
-        .ok_or(CqrsSqlxError::InvalidInput(
-            "admin context identifier serialization is invalid",
-        ))
+fn from_i64(value: i64) -> Result<u64, CqrsSqlxError> {
+    u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
+}
+
+async fn load_tenant_relational(
+    write: &WritePool,
+    authority: &TenantScope,
+    id: PlatformTenantId,
+) -> Result<Option<PlatformTenant>, PortError> {
+    authority.validate().map_err(|_| PortError::Denied)?;
+    let mut transaction = write.begin().await.map_err(map_store_error)?;
+    let holding_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT root_holding_id FROM erpx_platform_administration_write.tenant_guards
+         WHERE tenant_id=$1",
+    )
+    .bind(id.as_uuid())
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let Some(holding_id) = holding_id else {
+        return Ok(None);
+    };
+    if !authority.contains(&TenantScope::Holding { holding_id }) {
+        return Err(PortError::Denied);
+    }
+    let row = sqlx::query(
+        "SELECT aggregate_version,tenant_code,tenant_name,environment_id,customer_id,
+                root_holding_id,holding_ref,lifecycle_state,created_at,updated_at
+         FROM erpx_platform_administration_write.tenant_guards WHERE tenant_id=$1",
+    )
+    .bind(id.as_uuid())
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    PlatformTenant::try_rehydrate(
+        id,
+        port_u64(
+            row.try_get("aggregate_version")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        row.try_get("tenant_code")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("tenant_name")
+            .map_err(|_| PortError::Internal)?,
+        EnvironmentId::try_from_uuid(
+            row.try_get("environment_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        row.try_get("customer_id")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("root_holding_id")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("holding_ref")
+            .map_err(|_| PortError::Internal)?,
+        parse_tenant_state(
+            row.try_get("lifecycle_state")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        row.try_get("created_at").map_err(|_| PortError::Internal)?,
+        row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn load_connector_relational(
+    write: &WritePool,
+    authority: &TenantScope,
+    id: ConnectorBindingId,
+) -> Result<Option<ConnectorBinding>, PortError> {
+    authority.validate().map_err(|_| PortError::Denied)?;
+    let mut transaction = write.begin().await.map_err(map_store_error)?;
+    let scope_row = sqlx::query(
+        "SELECT scope_kind,holding_id,company_id,branch_id
+         FROM erpx_platform_administration_write.connector_guards WHERE connector_id=$1",
+    )
+    .bind(id.as_uuid())
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let Some(scope_row) = scope_row else {
+        return Ok(None);
+    };
+    let scope = connector_scope_from_row(&scope_row)?;
+    if !authority.contains(&scope.tenant_scope()) {
+        return Err(PortError::Denied);
+    }
+    let row = sqlx::query(
+        "SELECT aggregate_version,connector_kind_type,connector_kind_other,connector_key,
+                configuration_digest,connector_state,readiness_evidence_id,
+                readiness_configuration_digest,readiness_ready,readiness_failure_category,
+                readiness_observed_at,created_at,updated_at
+         FROM erpx_platform_administration_write.connector_guards WHERE connector_id=$1",
+    )
+    .bind(id.as_uuid())
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let capabilities = load_connector_capabilities(&mut transaction, id, false).await?;
+    let readiness = match row
+        .try_get::<Option<String>, _>("readiness_evidence_id")
+        .map_err(|_| PortError::Internal)?
+    {
+        None => None,
+        Some(evidence_id) => Some(
+            ConnectorReadinessEvidence::try_new(
+                evidence_id,
+                encode_sha256_port(
+                    row.try_get("readiness_configuration_digest")
+                        .map_err(|_| PortError::Internal)?,
+                )?,
+                load_connector_capabilities(&mut transaction, id, true).await?,
+                row.try_get::<Option<bool>, _>("readiness_ready")
+                    .map_err(|_| PortError::Internal)?
+                    .ok_or(PortError::Internal)?,
+                row.try_get("readiness_failure_category")
+                    .map_err(|_| PortError::Internal)?,
+                row.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("readiness_observed_at")
+                    .map_err(|_| PortError::Internal)?
+                    .ok_or(PortError::Internal)?,
+            )
+            .map_err(|_| PortError::Internal)?,
+        ),
+    };
+    ConnectorBinding::try_rehydrate(
+        id,
+        port_u64(
+            row.try_get("aggregate_version")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        scope,
+        parse_connector_kind(
+            row.try_get("connector_kind_type")
+                .map_err(|_| PortError::Internal)?,
+            row.try_get("connector_kind_other")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        row.try_get("connector_key")
+            .map_err(|_| PortError::Internal)?,
+        encode_sha256_port(
+            row.try_get("configuration_digest")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        capabilities,
+        readiness,
+        parse_connector_state(
+            row.try_get("connector_state")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        row.try_get("created_at").map_err(|_| PortError::Internal)?,
+        row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn load_admin_context_relational(
+    write: &WritePool,
+    authority: &TenantScope,
+    id: AdminContextId,
+) -> Result<Option<TenantAdminContext>, PortError> {
+    authority.validate().map_err(|_| PortError::Denied)?;
+    let mut transaction = write.begin().await.map_err(map_store_error)?;
+    let holding_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT holding_id FROM erpx_platform_administration_write.admin_context_guards
+         WHERE context_id=$1",
+    )
+    .bind(id.as_uuid())
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let Some(holding_id) = holding_id else {
+        return Ok(None);
+    };
+    let scope = TenantScope::Holding { holding_id };
+    if !authority.contains(&scope) {
+        return Err(PortError::Denied);
+    }
+    let row = sqlx::query(
+        "SELECT aggregate_version,tenant_id,principal_ref,device_id,session_id,reason,
+                issued_at,expires_at,revoked_at
+         FROM erpx_platform_administration_write.admin_context_guards WHERE context_id=$1",
+    )
+    .bind(id.as_uuid())
+    .fetch_one(&mut *transaction)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    TenantAdminContext::try_rehydrate(
+        id,
+        port_u64(
+            row.try_get("aggregate_version")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        PlatformTenantId::try_from_uuid(row.try_get("tenant_id").map_err(|_| PortError::Internal)?)
+            .map_err(|_| PortError::Internal)?,
+        scope,
+        row.try_get("principal_ref")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("device_id").map_err(|_| PortError::Internal)?,
+        row.try_get("session_id").map_err(|_| PortError::Internal)?,
+        row.try_get("reason").map_err(|_| PortError::Internal)?,
+        row.try_get("issued_at").map_err(|_| PortError::Internal)?,
+        row.try_get("expires_at").map_err(|_| PortError::Internal)?,
+        row.try_get("revoked_at").map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn load_connector_capabilities(
+    transaction: &mut Transaction<'_, Postgres>,
+    id: ConnectorBindingId,
+    readiness: bool,
+) -> Result<BTreeSet<String>, PortError> {
+    let query = if readiness {
+        "SELECT capability FROM erpx_platform_administration_write.connector_readiness_capabilities WHERE connector_id=$1 ORDER BY capability"
+    } else {
+        "SELECT capability FROM erpx_platform_administration_write.connector_capabilities WHERE connector_id=$1 ORDER BY capability"
+    };
+    sqlx::query_scalar(query)
+        .bind(id.as_uuid())
+        .fetch_all(&mut **transaction)
+        .await
+        .map(|values: Vec<String>| values.into_iter().collect())
+        .map_err(|_| PortError::Unavailable)
+}
+
+async fn apply_connector_authority(
+    transaction: &mut Transaction<'_, Postgres>,
+    value: &ConnectorBinding,
+    version: i64,
+) -> Result<(), CqrsSqlxError> {
+    let (scope_kind, holding_id, company_id, branch_id) = scope_relational_parts(value.scope())?;
+    let (kind_type, kind_other) = connector_kind_parts(value.kind());
+    let readiness = value.readiness();
+    sqlx::query("INSERT INTO erpx_platform_administration_write.connector_guards (connector_id,scope_key,connector_kind,connector_key,configuration_digest,connector_state,aggregate_version,updated_at,scope_kind,holding_id,company_id,branch_id,connector_kind_type,connector_kind_other,readiness_evidence_id,readiness_configuration_digest,readiness_ready,readiness_failure_category,readiness_observed_at,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) ON CONFLICT (connector_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,connector_kind=EXCLUDED.connector_kind,connector_key=EXCLUDED.connector_key,configuration_digest=EXCLUDED.configuration_digest,connector_state=EXCLUDED.connector_state,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at,scope_kind=EXCLUDED.scope_kind,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,connector_kind_type=EXCLUDED.connector_kind_type,connector_kind_other=EXCLUDED.connector_kind_other,readiness_evidence_id=EXCLUDED.readiness_evidence_id,readiness_configuration_digest=EXCLUDED.readiness_configuration_digest,readiness_ready=EXCLUDED.readiness_ready,readiness_failure_category=EXCLUDED.readiness_failure_category,readiness_observed_at=EXCLUDED.readiness_observed_at,created_at=EXCLUDED.created_at")
+        .bind(value.id().as_uuid()).bind(scope_key(&value.scope().tenant_scope())?).bind(connector_kind(value.kind())).bind(value.key()).bind(decode_sha256(value.configuration_digest())?).bind(connector_state(value.state())).bind(version).bind(value.updated_at()).bind(scope_kind).bind(holding_id).bind(company_id).bind(branch_id).bind(kind_type).bind(kind_other).bind(readiness.map(ConnectorReadinessEvidence::evidence_id)).bind(readiness.map(|e| decode_sha256(e.configuration_digest())).transpose()?).bind(readiness.map(ConnectorReadinessEvidence::ready)).bind(readiness.and_then(ConnectorReadinessEvidence::failure_category)).bind(readiness.map(ConnectorReadinessEvidence::observed_at)).bind(value.created_at()).execute(&mut **transaction).await?;
+    sqlx::query("DELETE FROM erpx_platform_administration_write.connector_capabilities WHERE connector_id=$1")
+        .bind(value.id().as_uuid()).execute(&mut **transaction).await?;
+    sqlx::query("DELETE FROM erpx_platform_administration_write.connector_readiness_capabilities WHERE connector_id=$1")
+        .bind(value.id().as_uuid()).execute(&mut **transaction).await?;
+    for capability in value.capabilities() {
+        sqlx::query("INSERT INTO erpx_platform_administration_write.connector_capabilities (connector_id,capability) VALUES ($1,$2)")
+            .bind(value.id().as_uuid()).bind(capability).execute(&mut **transaction).await?;
+    }
+    if let Some(readiness) = readiness {
+        for capability in readiness.observed_capabilities() {
+            sqlx::query("INSERT INTO erpx_platform_administration_write.connector_readiness_capabilities (connector_id,capability) VALUES ($1,$2)")
+                .bind(value.id().as_uuid()).bind(capability).execute(&mut **transaction).await?;
+        }
+    }
+    Ok(())
+}
+
+type RelationalScopeParts = (&'static str, Option<Uuid>, Option<Uuid>, Option<Uuid>);
+
+fn scope_relational_parts(scope: &ConnectorScope) -> Result<RelationalScopeParts, CqrsSqlxError> {
+    Ok(match scope {
+        ConnectorScope::Platform => ("platform", None, None, None),
+        ConnectorScope::Tenant(TenantScope::Holding { holding_id }) => {
+            ("holding", Some(*holding_id), None, None)
+        }
+        ConnectorScope::Tenant(TenantScope::Company {
+            holding_id,
+            company_id,
+        }) => ("company", Some(*holding_id), Some(*company_id), None),
+        ConnectorScope::Tenant(TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        }) => (
+            "branch",
+            Some(*holding_id),
+            Some(*company_id),
+            Some(*branch_id),
+        ),
+        ConnectorScope::Tenant(TenantScope::Platform | TenantScope::Subtree { .. }) => {
+            return Err(CqrsSqlxError::GuardRejected(
+                "connector scope is not relationally representable",
+            ));
+        }
+    })
+}
+
+fn connector_kind_parts(kind: &ConnectorKind) -> (&'static str, Option<&str>) {
+    match kind {
+        ConnectorKind::Stripe => ("stripe", None),
+        ConnectorKind::Minio => ("minio", None),
+        ConnectorKind::N8n => ("n8n", None),
+        ConnectorKind::Ollama => ("ollama", None),
+        ConnectorKind::Other(value) => ("other", Some(value)),
+    }
+}
+
+fn connector_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<ConnectorScope, PortError> {
+    let kind: String = row.try_get("scope_kind").map_err(|_| PortError::Internal)?;
+    let holding: Option<Uuid> = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
+    let company: Option<Uuid> = row.try_get("company_id").map_err(|_| PortError::Internal)?;
+    let branch: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
+    match (kind.as_str(), holding, company, branch) {
+        ("platform", None, None, None) => Ok(ConnectorScope::Platform),
+        ("holding", Some(holding_id), None, None) => {
+            Ok(ConnectorScope::Tenant(TenantScope::Holding { holding_id }))
+        }
+        ("company", Some(holding_id), Some(company_id), None) => {
+            Ok(ConnectorScope::Tenant(TenantScope::Company {
+                holding_id,
+                company_id,
+            }))
+        }
+        ("branch", Some(holding_id), Some(company_id), Some(branch_id)) => {
+            Ok(ConnectorScope::Tenant(TenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            }))
+        }
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_connector_kind(kind: String, other: Option<String>) -> Result<ConnectorKind, PortError> {
+    match (kind.as_str(), other) {
+        ("stripe", None) => Ok(ConnectorKind::Stripe),
+        ("minio", None) => Ok(ConnectorKind::Minio),
+        ("n8n", None) => Ok(ConnectorKind::N8n),
+        ("ollama", None) => Ok(ConnectorKind::Ollama),
+        ("other", Some(value)) => Ok(ConnectorKind::Other(value)),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_connector_state(value: String) -> Result<ConnectorState, PortError> {
+    match value.as_str() {
+        "pending" => Ok(ConnectorState::Pending),
+        "active" => Ok(ConnectorState::Active),
+        "suspended" => Ok(ConnectorState::Suspended),
+        "retired" => Ok(ConnectorState::Retired),
+        _ => Err(PortError::Internal),
+    }
+}
+fn parse_tenant_state(value: String) -> Result<TenantLifecycleState, PortError> {
+    match value.as_str() {
+        "provisioning" => Ok(TenantLifecycleState::Provisioning),
+        "active" => Ok(TenantLifecycleState::Active),
+        "suspended" => Ok(TenantLifecycleState::Suspended),
+        "recovery" => Ok(TenantLifecycleState::Recovery),
+        "retired" => Ok(TenantLifecycleState::Retired),
+        _ => Err(PortError::Internal),
+    }
+}
+fn port_u64(value: i64) -> Result<u64, PortError> {
+    u64::try_from(value).map_err(|_| PortError::Internal)
+}
+fn encode_sha256_port(value: Vec<u8>) -> Result<String, PortError> {
+    if value.len() != 32 {
+        return Err(PortError::Internal);
+    }
+    Ok(value
+        .into_iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect())
 }
 fn map_store_error(error: CqrsSqlxError) -> PortError {
     match error {
@@ -561,6 +942,10 @@ mod tests {
         for table in ["tenant_guards", "connector_guards", "admin_context_guards"] {
             assert!(source.contains(table));
         }
-        assert!(source.contains("commit_guarded"));
+        assert!(source.contains("commit_normalized"));
+        let production = source.split("#[cfg(test)]").next().unwrap();
+        assert!(!production.contains("load_snapshot"));
+        assert!(!production.contains("serde_json::to_value(value.capabilities())"));
+        assert!(production.contains("connector_capabilities"));
     }
 }

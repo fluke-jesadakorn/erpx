@@ -92,6 +92,43 @@ pub struct PlatformTenant {
 
 impl PlatformTenant {
     #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: PlatformTenantId,
+        version: u64,
+        code: String,
+        name: String,
+        environment_id: EnvironmentId,
+        customer_id: Uuid,
+        root_holding_id: Uuid,
+        holding_ref: String,
+        status: TenantLifecycleState,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, PlatformAdministrationDomainError> {
+        if version == 0
+            || customer_id.is_nil()
+            || root_holding_id.is_nil()
+            || updated_at < created_at
+        {
+            return Err(PlatformAdministrationDomainError::InvalidTenantTransition);
+        }
+        Ok(Self {
+            id,
+            version,
+            code: bounded(&code, "code", MAX_CODE_BYTES)?,
+            name: bounded(&name, "name", MAX_NAME_BYTES)?,
+            environment_id,
+            customer_id,
+            root_holding_id,
+            holding_ref: bounded(&holding_ref, "holding_ref", MAX_HOLDING_REFERENCE_BYTES)?,
+            status,
+            created_at,
+            updated_at,
+            events: Vec::new(),
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn register(
         id: PlatformTenantId,
         code: String,

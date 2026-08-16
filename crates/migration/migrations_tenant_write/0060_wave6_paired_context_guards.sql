@@ -1,5 +1,6 @@
--- Wave 6 paired-context command guards. Aggregate snapshots, receipts, audit,
--- and outbox rows are committed atomically through erpx_cqrs_write.
+-- Wave 6 paired-context relational guards. Migration 0081 promotes these
+-- roots to typed authority while receipts, audit and outbox facts remain
+-- atomic through erpx_cqrs_write.
 
 CREATE SCHEMA IF NOT EXISTS erpx_marketing_write;
 CREATE TABLE erpx_marketing_write.lead_candidate_guards (

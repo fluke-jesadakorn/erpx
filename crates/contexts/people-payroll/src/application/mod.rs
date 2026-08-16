@@ -12,7 +12,8 @@ use crate::{
     domain::{
         Aggregate, Currency, Employee, EmployeeId, EmployeeTransition, ExpenseClaim,
         ExpenseClaimId, ExpenseTransition, LeaveRequest, LeaveRequestId, LeaveTransition,
-        PayrollLine, PayrollRun, PayrollRunId, PayrollTransition, PeoplePayrollDomainError,
+        PayrollCalculationEvidence, PayrollLine, PayrollRun, PayrollRunId, PayrollTransition,
+        PeoplePayrollDomainError,
     },
     integration,
     ports::{
@@ -24,6 +25,9 @@ use crate::{
         StoredCommit, WriteRepository,
     },
 };
+
+mod time_record;
+pub use time_record::TimeRecordCommandHandler;
 
 pub const MAX_PEOPLE_PAYROLL_PAGE_SIZE: u16 = 100;
 
@@ -85,6 +89,14 @@ pub struct CreatePayrollRun {
 pub struct TransitionPayrollRun {
     pub payroll_run_id: PayrollRunId,
     pub transition: PayrollTransition,
+}
+
+/// Separate command contract so existing payroll creation transports remain
+/// source compatible while callers migrate to the governed evidence step.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PinPayrollCalculationEvidence {
+    pub payroll_run_id: PayrollRunId,
+    pub evidence: PayrollCalculationEvidence,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -636,6 +648,97 @@ where
                 authority_scope: envelope.tenant_scope,
                 audit: envelope.audit,
                 expected_version,
+                aggregate,
+                integration_events: events,
+            })
+            .await
+            .map_err(|error| to_cqrs(error.into(), correlation))?;
+        let response = PeoplePayrollMutationResult::from(&stored.aggregate);
+        Ok(stored.into_receipt(response))
+    }
+}
+
+#[async_trait]
+impl<W, U, A, E, C> CommandHandler<PinPayrollCalculationEvidence>
+    for PeoplePayrollCommandHandler<W, U, A, E, C>
+where
+    W: WriteRepository,
+    U: CommandUnitOfWork,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+    C: Clock,
+{
+    type Response = PeoplePayrollMutationResult;
+
+    async fn handle(
+        &self,
+        envelope: CommandEnvelope<PinPayrollCalculationEvidence>,
+    ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        let correlation = envelope.correlation_id;
+        let identity = CommandIdentity {
+            command_id: envelope.command_id,
+            idempotency_key: envelope.idempotency_key.clone(),
+            fingerprint: CommandFingerprint::PinPayrollCalculationEvidence {
+                payroll_run_id: envelope.command.payroll_run_id,
+                evidence: envelope.command.evidence.clone(),
+            },
+        };
+        if let Some(stored) = self
+            .replay(
+                &identity,
+                &envelope.actor,
+                &envelope.tenant_scope,
+                PeoplePayrollAction::PinPayrollCalculationEvidence,
+            )
+            .await
+            .map_err(|error| to_cqrs(error, correlation))?
+        {
+            let response = PeoplePayrollMutationResult::from(&stored.aggregate);
+            return Ok(stored.into_receipt(response));
+        }
+
+        let payroll = self
+            .write
+            .load_payroll_run(&envelope.tenant_scope, envelope.command.payroll_run_id)
+            .await
+            .map_err(|error| to_cqrs(error.into(), correlation))?
+            .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+        let mut aggregate = Aggregate::PayrollRun(payroll);
+        let expected = self
+            .validate_existing(
+                &aggregate,
+                &envelope.actor,
+                &envelope.tenant_scope,
+                PeoplePayrollAction::PinPayrollCalculationEvidence,
+                envelope.expected_aggregate_version,
+            )
+            .await
+            .map_err(|error| to_cqrs(error, correlation))?;
+        let Aggregate::PayrollRun(payroll) = &mut aggregate else {
+            unreachable!()
+        };
+        payroll
+            .pin_calculation_evidence(envelope.command.evidence, self.clock.now())
+            .map_err(|error| to_cqrs(error.into(), correlation))?;
+
+        let events =
+            integration::published_events(&aggregate.take_uncommitted_events()).map_err(|_| {
+                to_cqrs(
+                    PeoplePayrollApplicationError::IntegrationMapping,
+                    correlation,
+                )
+            })?;
+        let stored = self
+            .unit_of_work
+            .commit(PeoplePayrollCommit {
+                identity,
+                correlation_id: correlation,
+                causation_id: envelope.causation_id,
+                actor: envelope.actor,
+                authority_scope: envelope.tenant_scope,
+                audit: envelope.audit,
+                expected_version: Some(expected),
                 aggregate,
                 integration_events: events,
             })

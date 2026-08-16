@@ -363,18 +363,16 @@ async fn subledger_counts(
     holding_ref: &str,
     aggregate_id: Uuid,
     request_key: &str,
-) -> (i64, i64, i64, i64) {
+) -> (i64, i64, i64) {
     let mut tx = pool.begin().await.expect("count transaction");
     sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
         .bind(holding_ref)
         .execute(&mut *tx)
         .await
         .expect("count holding scope");
-    let counts = sqlx::query_as::<_, (i64, i64, i64, i64)>(
+    let counts = sqlx::query_as::<_, (i64, i64, i64)>(
         "SELECT
             (SELECT count(*) FROM erpx_tenant.finance_subledger_aggregates
-              WHERE holding_ref=$1 AND aggregate_id=$2),
-            (SELECT count(*) FROM erpx_tenant.aggregate_snapshots
               WHERE holding_ref=$1 AND aggregate_id=$2),
             (SELECT count(*) FROM erpx_tenant.outbox_events
               WHERE holding_ref=$1 AND aggregate_id=$2),
@@ -516,7 +514,7 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
     assert_eq!(replay.version, first.version);
     assert_eq!(
         subledger_counts(&pool, &holding_ref, valid_id, &valid_key).await,
-        (1, 1, 1, 1)
+        (1, 1, 1)
     );
 
     let missing = posted_invoice(
@@ -551,7 +549,7 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
     ));
     assert_eq!(
         subledger_counts(&pool, &holding_ref, missing_id, &missing_key).await,
-        (0, 0, 0, 0)
+        (0, 0, 0)
     );
 
     let other_company_id = Uuid::new_v4();
@@ -602,7 +600,7 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
     ));
     assert_eq!(
         subledger_counts(&pool, &holding_ref, mismatched_id, &mismatched_key).await,
-        (0, 0, 0, 0)
+        (0, 0, 0)
     );
 
     let mut allocation_payment = settled_payment(
@@ -680,14 +678,14 @@ async fn live_subledger_handoff_is_authoritative_atomic_and_idempotent() {
     ));
     assert_eq!(
         subledger_counts(&pool, &holding_ref, payment_id, &allocation_payment_key).await,
-        (1, 0, 0, 0)
+        (1, 0, 0)
     );
     assert_eq!(
         subledger_counts(&pool, &holding_ref, invoice_id, &allocation_invoice_key).await,
-        (1, 0, 0, 0)
+        (1, 0, 0)
     );
     assert_eq!(
         subledger_counts(&pool, &holding_ref, allocation_id, &allocation_key).await,
-        (0, 0, 0, 0)
+        (0, 0, 0)
     );
 }

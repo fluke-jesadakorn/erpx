@@ -1,4 +1,5 @@
 -- Finance-owned customer invoices created from immutable Sales billing facts.
+-- Migration 0081 promotes typed billing and dimension columns to authority.
 -- Posting is maker-checker and customer AR is created only from the resulting
 -- finance.customer_invoice_posted fact.
 

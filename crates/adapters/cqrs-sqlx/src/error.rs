@@ -33,6 +33,16 @@ pub enum CqrsSqlxError {
     ProjectionOutOfOrder,
     #[error("context command guard rejected the atomic mutation: {0}")]
     GuardRejected(&'static str),
+    #[error("CQRS database is missing its schema-generation manifest")]
+    MissingSchemaManifest,
+    #[error("CQRS database schema generation is unsupported")]
+    UnsupportedSchemaGeneration,
+    #[error("CQRS database role is not valid for this capability")]
+    DatabaseRoleMismatch,
+    #[error("CQRS write and read databases do not belong to the same plane")]
+    DatabasePlaneMismatch,
+    #[error("outbox delivery claim is missing, expired, or owned by another worker")]
+    OutboxClaimLost,
     #[error("projection application failed: {0}")]
     Projection(#[from] ProjectionFailure),
 }

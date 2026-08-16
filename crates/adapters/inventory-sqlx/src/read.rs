@@ -7,8 +7,9 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
 use erpx_inventory::{
-    PortError, ReadProjection, ReadRepository, StockItemId, StockItemList, StockItemListFilter,
-    StockItemView,
+    PortError, ReadProjection, ReadRepository, ReservationId, ReservationReadRepository,
+    ReservationStatus, ReservationView, StockItemId, StockItemList, StockItemListFilter,
+    StockItemView, WarehouseId,
 };
 use erpx_kernel::TenantScope;
 use sqlx::Row;
@@ -89,7 +90,13 @@ impl InventoryReadRepository {
              ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1",
         )
         .bind(PROJECTION_NAME)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
@@ -133,7 +140,13 @@ impl ReadRepository for InventoryReadRepository {
         .bind(PROJECTION_NAME)
         .bind(stock_item_id.as_uuid())
         .bind(&partition)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let view = row.map(decode_view).transpose()?;
@@ -180,7 +193,13 @@ impl ReadRepository for InventoryReadRepository {
         .bind(cursor_at)
         .bind(cursor_id)
         .bind(scan_limit)
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let mut items = rows
@@ -200,6 +219,90 @@ impl ReadRepository for InventoryReadRepository {
             metadata: self.metadata(checkpoint).await?,
         })
     }
+}
+
+#[async_trait]
+impl ReservationReadRepository for InventoryReadRepository {
+    async fn get_reservation(
+        &self,
+        authority_scope: &TenantScope,
+        reservation_id: ReservationId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<ReservationView>>, PortError> {
+        authority_scope.validate().map_err(|_| PortError::Denied)?;
+        let checkpoint = self.checkpoint(consistency, None).await?;
+        let required_partition = match consistency {
+            QueryConsistency::Eventual => None,
+            QueryConsistency::ReadYourWrites(requirement) => Some(requirement.partition.as_str()),
+        };
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|_| PortError::Unavailable)?;
+        let row = sqlx::query(
+            "SELECT projection.stock_item_id,projection.source_aggregate_version,
+                    projection.tenant_scope,projection.warehouse_id,projection.item_code,
+                    projection.quantity,projection.demand_reference,
+                    projection.reservation_status,projection.projected_at
+             FROM erpx_inventory_read.reservation_projection projection
+             JOIN erpx_cqrs_read.projection_generations generation
+               ON generation.tenant_id=projection.tenant_id
+              AND generation.projection_name=projection.projection_name
+              AND generation.generation=projection.generation AND generation.status='active'
+             WHERE projection.tenant_id=erpx_cqrs_read.current_tenant_id()
+               AND projection.projection_name=$1 AND projection.reservation_id=$2
+               AND ($3::text IS NULL OR projection.partition_key=$3)",
+        )
+        .bind(PROJECTION_NAME)
+        .bind(reservation_id.as_uuid())
+        .bind(required_partition)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        tx.commit().await.map_err(|_| PortError::Unavailable)?;
+        let value = row
+            .map(|row| decode_reservation(row, reservation_id))
+            .transpose()?;
+        if value
+            .as_ref()
+            .is_some_and(|reservation| !authority_scope.contains(&reservation.scope))
+        {
+            return Err(PortError::Denied);
+        }
+        Ok(ReadProjection {
+            value,
+            metadata: self.metadata(checkpoint).await?,
+        })
+    }
+}
+
+fn decode_reservation(
+    row: sqlx::postgres::PgRow,
+    reservation_id: ReservationId,
+) -> Result<ReservationView, PortError> {
+    let status = match row.get::<String, _>("reservation_status").as_str() {
+        "active" => ReservationStatus::Active,
+        "released" => ReservationStatus::Released,
+        _ => return Err(PortError::Internal),
+    };
+    let scope: TenantScope =
+        serde_json::from_value(row.get("tenant_scope")).map_err(|_| PortError::Internal)?;
+    Ok(ReservationView {
+        reservation_id,
+        stock_item_id: StockItemId::try_from_uuid(row.get("stock_item_id"))
+            .map_err(|_| PortError::Internal)?,
+        source_item_version: u64::try_from(row.get::<i64, _>("source_aggregate_version"))
+            .map_err(|_| PortError::Internal)?,
+        scope,
+        warehouse_id: WarehouseId::try_from_uuid(row.get("warehouse_id"))
+            .map_err(|_| PortError::Internal)?,
+        item_code: row.get("item_code"),
+        quantity: row.get("quantity"),
+        demand_reference: row.get("demand_reference"),
+        status,
+        updated_at: row.get("projected_at"),
+    })
 }
 
 fn decode_view(row: sqlx::postgres::PgRow) -> Result<StockItemView, PortError> {

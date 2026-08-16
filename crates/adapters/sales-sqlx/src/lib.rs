@@ -3,6 +3,7 @@
 mod command;
 mod projection;
 mod read;
+mod records;
 
 pub use command::{SalesCommandAdapter, SalesWriteRepository};
 pub use projection::{
@@ -10,6 +11,12 @@ pub use projection::{
     SalesSnapshot,
 };
 pub use read::{SalesReadRepository, decode_cursor, encode_cursor};
+pub use records::{
+    RECORD_PROJECTION_NAME as LIFECYCLE_RECORD_PROJECTION_NAME,
+    RECORD_SNAPSHOT_EVENT_TYPE as LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE,
+    SalesLifecycleRecordProjector, SalesLifecycleRecordReadAdapter,
+    SalesLifecycleRecordSqlxAdapter,
+};
 
 pub const CONTEXT_NAME: &str = "sales";
 pub const QUOTE_AGGREGATE_TYPE: &str = "quote";
@@ -22,6 +29,11 @@ pub const QUOTE_SNAPSHOT_EVENT: &str = "sales.quote_snapshot";
 pub const ORDER_SNAPSHOT_EVENT: &str = "sales.order_snapshot";
 pub const ARRANGEMENT_SNAPSHOT_EVENT: &str = "sales.revenue_arrangement_snapshot";
 pub const EVENT_VERSION: u32 = 1;
+pub const COMPLETION_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
+pub const COMPLETION_READ_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
+);
 #[cfg(test)]
 pub const WRITE_DDL: &str = include_str!(
     "../../../migration/migrations_tenant_write/0061_wave7_transactional_context_guards.sql"

@@ -289,10 +289,13 @@ impl PlatformControlStore {
         if provisioning_update.rows_affected() != 1 {
             return Err(PlatformPersistenceError::Conflict);
         }
-        let registry_update = sqlx::query(
+        let aggregate_version: i64 = sqlx::query_scalar(
             "UPDATE erpx_control.tenant_registry
-             SET state = $3, registry_version = $4, updated_at = $5
-             WHERE tenant_id = $1 AND state = $2 AND registry_version = $6",
+             SET state = $3, registry_version = $4,
+                 lifecycle_aggregate_version = COALESCE(lifecycle_aggregate_version, 0) + 1,
+                 updated_at = $5
+             WHERE tenant_id = $1 AND state = $2 AND registry_version = $6
+             RETURNING lifecycle_aggregate_version",
         )
         .bind(&command.binding.tenant_id)
         .bind(registry_state.as_str())
@@ -300,11 +303,9 @@ impl PlatformControlStore {
         .bind(new_registry_version)
         .bind(command.at)
         .bind(old_registry_version)
-        .execute(&mut *tx)
-        .await?;
-        if registry_update.rows_affected() != 1 {
-            return Err(PlatformPersistenceError::Conflict);
-        }
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(PlatformPersistenceError::Conflict)?;
 
         let read_model = json!({
             "tenant_id": command.binding.tenant_id,
@@ -313,19 +314,7 @@ impl PlatformControlStore {
             "registry_version": new_registry_version,
             "updated_at": command.at,
         });
-        let aggregate_version = upsert_snapshot(
-            &mut tx,
-            PLATFORM_TENANT_LIFECYCLE_AGGREGATE,
-            aggregate_id,
-            json!({
-                "tenant_id": command.binding.tenant_id,
-                "holding_ref": command.binding.holding_ref,
-                "state": target.as_str(),
-                "registry_version": new_registry_version,
-            }),
-            None,
-        )
-        .await?;
+        let aggregate_version = positive_u64(aggregate_version, "tenant lifecycle version")?;
         let event_id = append_event(
             &mut tx,
             PLATFORM_TENANT_LIFECYCLE_AGGREGATE,
@@ -448,10 +437,10 @@ impl PlatformControlStore {
         .fetch_one(&mut *tx)
         .await?;
         let connector_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = $1 AND state->>'tenant_id' = $2",
+            "SELECT COUNT(*)
+             FROM erpx_platform_completion_write.connector_authority
+             WHERE tenant_id = $1",
         )
-        .bind(PLATFORM_CONNECTOR_AGGREGATE)
         .bind(&command.binding.tenant_id)
         .fetch_one(&mut *tx)
         .await?;
@@ -496,14 +485,8 @@ impl PlatformControlStore {
             drift_codes,
         };
         report.validate()?;
-        let aggregate_version = upsert_snapshot(
-            &mut tx,
-            PLATFORM_RECONCILIATION_AGGREGATE,
-            aggregate_id,
-            serde_json::to_value(&report)?,
-            None,
-        )
-        .await?;
+        let aggregate_version =
+            persist_reconciliation_authority(&mut tx, aggregate_id, &report).await?;
         let event_id = append_event(
             &mut tx,
             PLATFORM_RECONCILIATION_AGGREGATE,
@@ -653,14 +636,7 @@ impl PlatformControlStore {
             "error_present": false,
             "updated_at": command.at,
         });
-        let aggregate_version = upsert_snapshot(
-            &mut tx,
-            PLATFORM_BACKUP_AGGREGATE,
-            job_id,
-            read_model.clone(),
-            None,
-        )
-        .await?;
+        let aggregate_version = 1;
         let event_id = append_event(
             &mut tx,
             PLATFORM_BACKUP_AGGREGATE,
@@ -770,18 +746,19 @@ impl PlatformControlStore {
         if candidate_owned {
             return Err(PlatformPersistenceError::Conflict);
         }
-        let generation: i64 = sqlx::query_scalar(
+        let switch = sqlx::query(
             "INSERT INTO erpx_control.tenant_projection_switches
                 (tenant_id, current_read_database_key, candidate_read_database_key,
-                 state, source_version, version)
-             VALUES ($1, $2, $3, 'rebuilding', $4, 1)
+                 state, source_version, version, aggregate_version)
+             VALUES ($1, $2, $3, 'rebuilding', $4, 1, 1)
              ON CONFLICT (tenant_id) DO UPDATE SET
                 candidate_read_database_key = EXCLUDED.candidate_read_database_key,
                 state = 'rebuilding', source_version = EXCLUDED.source_version,
                 version = erpx_control.tenant_projection_switches.version + 1,
+                aggregate_version = erpx_control.tenant_projection_switches.aggregate_version + 1,
                 last_error = NULL, updated_at = now()
              WHERE erpx_control.tenant_projection_switches.state IN ('ready', 'activated', 'failed')
-             RETURNING version",
+             RETURNING version, aggregate_version",
         )
         .bind(&command.binding.tenant_id)
         .bind(&current_key)
@@ -793,9 +770,11 @@ impl PlatformControlStore {
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(PlatformPersistenceError::Conflict)?;
-        let generation = u64::try_from(generation).map_err(|_| {
-            PlatformPersistenceError::Invalid("replacement generation is invalid".into())
-        })?;
+        let generation = positive_u64(switch.try_get("version")?, "replacement generation")?;
+        let aggregate_version = positive_u64(
+            switch.try_get("aggregate_version")?,
+            "replacement aggregate version",
+        )?;
         let read_model = replacement_read_model(
             &command.binding,
             &command.projection_name,
@@ -804,14 +783,6 @@ impl PlatformControlStore {
             generation,
             command.at,
         );
-        let aggregate_version = upsert_snapshot(
-            &mut tx,
-            PLATFORM_REPLACEMENT_READ_AGGREGATE,
-            aggregate_id,
-            read_model.clone(),
-            None,
-        )
-        .await?;
         let event_id = append_event(
             &mut tx,
             PLATFORM_REPLACEMENT_READ_AGGREGATE,
@@ -955,23 +926,24 @@ impl PlatformControlStore {
         if registry_update.rows_affected() != 1 {
             return Err(PlatformPersistenceError::Conflict);
         }
-        let switch_update = sqlx::query(
+        let aggregate_version: i64 = sqlx::query_scalar(
             "UPDATE erpx_control.tenant_projection_switches
              SET current_read_database_key = candidate_read_database_key,
                  candidate_read_database_key = current_read_database_key,
-                 state = 'activated', version = version + 1, activated_at = $3, updated_at = $3
+                 state = 'activated', version = version + 1,
+                 aggregate_version = aggregate_version + 1,
+                 activated_at = $3, updated_at = $3
              WHERE tenant_id = $1 AND state = 'ready' AND version = $2
-               AND candidate_read_database_key = $4",
+               AND candidate_read_database_key = $4
+             RETURNING aggregate_version",
         )
         .bind(&command.binding.tenant_id)
         .bind(checked_i64(generation, "replacement generation")?)
         .bind(command.at)
         .bind(&candidate)
-        .execute(&mut *tx)
-        .await?;
-        if switch_update.rows_affected() != 1 {
-            return Err(PlatformPersistenceError::Conflict);
-        }
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(PlatformPersistenceError::Conflict)?;
         let read_model = replacement_read_model(
             &command.binding,
             &command.projection_name,
@@ -980,14 +952,7 @@ impl PlatformControlStore {
             generation,
             command.at,
         );
-        let aggregate_version = upsert_snapshot(
-            &mut tx,
-            PLATFORM_REPLACEMENT_READ_AGGREGATE,
-            aggregate_id,
-            read_model.clone(),
-            None,
-        )
-        .await?;
+        let aggregate_version = positive_u64(aggregate_version, "replacement aggregate version")?;
         let event_id = append_event(
             &mut tx,
             PLATFORM_REPLACEMENT_READ_AGGREGATE,
@@ -1065,12 +1030,14 @@ impl PlatformControlStore {
             .generation
             .ok_or_else(|| PlatformPersistenceError::Invalid("generation is required".into()))?;
         let error = reason_code.unwrap_or("");
-        let update = if target == ReplacementReadState::Failed {
-            sqlx::query(
+        let aggregate_version: Option<i64> = if target == ReplacementReadState::Failed {
+            sqlx::query_scalar(
                 "UPDATE erpx_control.tenant_projection_switches
-                 SET state = $3, last_error = NULLIF($4, ''), updated_at = $5
+                 SET state = $3, aggregate_version = aggregate_version + 1,
+                     last_error = NULLIF($4, ''), updated_at = $5
                  WHERE tenant_id = $1 AND state IN ('rebuilding', 'ready') AND version = $2
-                   AND source_version = $6",
+                   AND source_version = $6
+                 RETURNING aggregate_version",
             )
             .bind(&command.binding.tenant_id)
             .bind(checked_i64(generation, "replacement generation")?)
@@ -1081,14 +1048,16 @@ impl PlatformControlStore {
                 command.source_version,
                 "replacement source version",
             )?)
-            .execute(&mut *tx)
+            .fetch_optional(&mut *tx)
             .await?
         } else {
-            sqlx::query(
+            sqlx::query_scalar(
                 "UPDATE erpx_control.tenant_projection_switches
-                 SET state = $4, last_error = NULLIF($5, ''), updated_at = $6
+                 SET state = $4, aggregate_version = aggregate_version + 1,
+                     last_error = NULLIF($5, ''), updated_at = $6
                  WHERE tenant_id = $1 AND state = $3 AND version = $2
-                   AND source_version = $7",
+                   AND source_version = $7
+                 RETURNING aggregate_version",
             )
             .bind(&command.binding.tenant_id)
             .bind(checked_i64(generation, "replacement generation")?)
@@ -1100,12 +1069,13 @@ impl PlatformControlStore {
                 command.source_version,
                 "replacement source version",
             )?)
-            .execute(&mut *tx)
+            .fetch_optional(&mut *tx)
             .await?
         };
-        if update.rows_affected() != 1 {
-            return Err(PlatformPersistenceError::Conflict);
-        }
+        let aggregate_version = positive_u64(
+            aggregate_version.ok_or(PlatformPersistenceError::Conflict)?,
+            "replacement aggregate version",
+        )?;
         let read_model = replacement_read_model(
             &command.binding,
             &command.projection_name,
@@ -1114,14 +1084,6 @@ impl PlatformControlStore {
             generation,
             command.at,
         );
-        let aggregate_version = upsert_snapshot(
-            &mut tx,
-            PLATFORM_REPLACEMENT_READ_AGGREGATE,
-            aggregate_id,
-            read_model.clone(),
-            None,
-        )
-        .await?;
         let event_id = append_event(
             &mut tx,
             PLATFORM_REPLACEMENT_READ_AGGREGATE,
@@ -1157,9 +1119,9 @@ impl PlatformControlStore {
         })
     }
 
-    /// Persist connector binding metadata through the generic aggregate/outbox
-    /// seam. The credential is an opaque reference and is never copied into
-    /// the read model or event payload.
+    /// Persist connector binding metadata through typed relational authority.
+    /// The credential is an opaque reference and is never copied into the read
+    /// model or event payload.
     pub async fn save_connector(
         &self,
         command: &ConnectorControlCommand,
@@ -1190,61 +1152,27 @@ impl PlatformControlStore {
                 return Err(PlatformPersistenceError::NotFound);
             }
         }
-        let snapshot = sqlx::query(
-            "SELECT aggregate_version, state FROM erpx_control.aggregate_snapshots
-             WHERE aggregate_type = $1 AND aggregate_id = $2 FOR UPDATE",
-        )
-        .bind(PLATFORM_CONNECTOR_AGGREGATE)
-        .bind(aggregate_id)
-        .fetch_optional(&mut *tx)
-        .await?;
-        let current_version = snapshot
-            .as_ref()
-            .map(|row| row.try_get::<i64, _>("aggregate_version"))
-            .transpose()?;
+        let current =
+            load_connector_authority(&mut tx, aggregate_id, &command.control.scope).await?;
         let expected = command.control.version.checked_sub(1).ok_or_else(|| {
             PlatformPersistenceError::Invalid("connector version is invalid".into())
         })?;
-        if current_version.unwrap_or(0) != checked_i64(expected, "connector version")? {
+        if current.as_ref().map_or(0, |stored| stored.control.version) != expected
+            || current
+                .as_ref()
+                .map_or(0, |stored| stored.aggregate_version)
+                != expected
+        {
             return Err(PlatformPersistenceError::Conflict);
         }
-        let current_state = snapshot
-            .as_ref()
-            .map(|row| row.try_get::<Value, _>("state"))
-            .transpose()?;
-        let previous_connector_state = if let Some(state) = current_state.as_ref() {
-            let raw_state = state
-                .get("connector")
-                .and_then(|connector| connector.get("state"))
-                .and_then(Value::as_str)
-                .ok_or_else(|| {
-                    PlatformPersistenceError::Invalid(
-                        "stored connector snapshot is malformed".into(),
-                    )
-                })?;
-            Some(parse_connector_state(raw_state)?)
-        } else {
-            None
-        };
+        let previous_connector_state = current.as_ref().map(|stored| stored.control.state);
         erpx_domain::platform_completion::validate_connector_transition(
             previous_connector_state,
             command.control.state,
         )
         .map_err(PlatformPersistenceError::from)?;
-        let write_state = serde_json::to_value(&command.control)?;
-        let write_state = json!({
-            "connector": write_state,
-            "tenant_id": command.control.scope.binding().map(|binding| binding.tenant_id.clone()),
-            "holding_ref": command.control.scope.binding().map(|binding| binding.holding_ref.clone()),
-        });
-        let aggregate_version = upsert_snapshot(
-            &mut tx,
-            PLATFORM_CONNECTOR_AGGREGATE,
-            aggregate_id,
-            write_state,
-            Some(expected),
-        )
-        .await?;
+        let aggregate_version =
+            persist_connector_authority(&mut tx, &command.control, expected).await?;
         let read_model = connector_read_model(&command.control)?;
         let event_id = append_event(
             &mut tx,
@@ -1838,50 +1766,248 @@ async fn existing_event(
     }))
 }
 
-async fn upsert_snapshot(
+#[derive(Debug)]
+struct StoredConnectorAuthority {
+    aggregate_version: u64,
+    control: ConnectorControl,
+}
+
+async fn load_connector_authority(
     tx: &mut Transaction<'_, Postgres>,
-    aggregate_type: &str,
+    connector_id: Uuid,
+    requested_scope: &PlatformConnectorScope,
+) -> Result<Option<StoredConnectorAuthority>, PlatformPersistenceError> {
+    let (scope_kind, tenant_id, holding_ref) = match requested_scope {
+        PlatformConnectorScope::Platform => ("platform", None, None),
+        PlatformConnectorScope::Holding(binding) => (
+            "holding",
+            Some(binding.tenant_id.as_str()),
+            Some(binding.holding_ref.as_str()),
+        ),
+    };
+    let row = sqlx::query(
+        "SELECT aggregate_version, connector_version, connector_kind, scope_kind,
+                tenant_id, holding_ref, provider_key, credential_ref,
+                configuration_digest, connector_state, updated_at
+         FROM erpx_platform_completion_write.connector_authority
+         WHERE connector_id = $1 AND scope_kind = $2
+           AND tenant_id IS NOT DISTINCT FROM $3
+           AND holding_ref IS NOT DISTINCT FROM $4
+         FOR UPDATE",
+    )
+    .bind(connector_id)
+    .bind(scope_kind)
+    .bind(tenant_id)
+    .bind(holding_ref)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let Some(row) = row else { return Ok(None) };
+    let capabilities = sqlx::query_scalar(
+        "SELECT capability
+         FROM erpx_platform_completion_write.connector_capabilities
+         WHERE connector_id = $1 ORDER BY capability",
+    )
+    .bind(connector_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    let scope = match row.try_get::<String, _>("scope_kind")?.as_str() {
+        "platform" => PlatformConnectorScope::Platform,
+        "holding" => PlatformConnectorScope::Holding(TenantBinding::new(
+            row.try_get::<String, _>("tenant_id")?,
+            row.try_get::<String, _>("holding_ref")?,
+        )?),
+        _ => {
+            return Err(PlatformPersistenceError::Invalid(
+                "stored connector scope is invalid".into(),
+            ));
+        }
+    };
+    let control = ConnectorControl {
+        connector_id,
+        kind: parse_connector_kind(&row.try_get::<String, _>("connector_kind")?)?,
+        scope,
+        provider_key: row.try_get("provider_key")?,
+        credential_ref: row.try_get("credential_ref")?,
+        configuration_digest: row.try_get("configuration_digest")?,
+        capabilities: capabilities.into_iter().collect(),
+        state: parse_connector_state(&row.try_get::<String, _>("connector_state")?)?,
+        version: positive_u64(row.try_get("connector_version")?, "connector version")?,
+        updated_at: row.try_get("updated_at")?,
+    };
+    control.validate()?;
+    Ok(Some(StoredConnectorAuthority {
+        aggregate_version: positive_u64(
+            row.try_get("aggregate_version")?,
+            "connector aggregate version",
+        )?,
+        control,
+    }))
+}
+
+async fn persist_connector_authority(
+    tx: &mut Transaction<'_, Postgres>,
+    control: &ConnectorControl,
+    expected_version: u64,
+) -> Result<u64, PlatformPersistenceError> {
+    let next = expected_version.checked_add(1).ok_or_else(|| {
+        PlatformPersistenceError::Invalid("connector aggregate version overflow".into())
+    })?;
+    if control.version != next {
+        return Err(PlatformPersistenceError::Conflict);
+    }
+    let (scope_kind, tenant_id, holding_ref) = match &control.scope {
+        PlatformConnectorScope::Platform => ("platform", None, None),
+        PlatformConnectorScope::Holding(binding) => (
+            "holding",
+            Some(binding.tenant_id.as_str()),
+            Some(binding.holding_ref.as_str()),
+        ),
+    };
+    let persisted: Option<i64> = sqlx::query_scalar(
+        "INSERT INTO erpx_platform_completion_write.connector_authority
+            (connector_id, aggregate_version, connector_version, connector_kind,
+             scope_kind, tenant_id, holding_ref, provider_key, credential_ref,
+             configuration_digest, connector_state, updated_at)
+         VALUES ($1,$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         ON CONFLICT (connector_id) DO UPDATE SET
+            aggregate_version=EXCLUDED.aggregate_version,
+            connector_version=EXCLUDED.connector_version,
+            connector_kind=EXCLUDED.connector_kind,
+            scope_kind=EXCLUDED.scope_kind,
+            tenant_id=EXCLUDED.tenant_id,
+            holding_ref=EXCLUDED.holding_ref,
+            provider_key=EXCLUDED.provider_key,
+            credential_ref=EXCLUDED.credential_ref,
+            configuration_digest=EXCLUDED.configuration_digest,
+            connector_state=EXCLUDED.connector_state,
+            updated_at=EXCLUDED.updated_at
+         WHERE erpx_platform_completion_write.connector_authority.aggregate_version=$12
+           AND erpx_platform_completion_write.connector_authority.connector_version=$12
+           AND erpx_platform_completion_write.connector_authority.scope_kind=EXCLUDED.scope_kind
+           AND erpx_platform_completion_write.connector_authority.tenant_id IS NOT DISTINCT FROM EXCLUDED.tenant_id
+           AND erpx_platform_completion_write.connector_authority.holding_ref IS NOT DISTINCT FROM EXCLUDED.holding_ref
+         RETURNING aggregate_version",
+    )
+    .bind(control.connector_id)
+    .bind(checked_i64(next, "connector version")?)
+    .bind(control.kind.as_str())
+    .bind(scope_kind)
+    .bind(tenant_id)
+    .bind(holding_ref)
+    .bind(&control.provider_key)
+    .bind(&control.credential_ref)
+    .bind(&control.configuration_digest)
+    .bind(control.state.as_str())
+    .bind(control.updated_at)
+    .bind(checked_i64(expected_version, "expected connector version")?)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let persisted = persisted.ok_or(PlatformPersistenceError::Conflict)?;
+    sqlx::query(
+        "DELETE FROM erpx_platform_completion_write.connector_capabilities
+         WHERE connector_id=$1",
+    )
+    .bind(control.connector_id)
+    .execute(&mut **tx)
+    .await?;
+    for capability in &control.capabilities {
+        sqlx::query(
+            "INSERT INTO erpx_platform_completion_write.connector_capabilities
+                (connector_id,capability) VALUES ($1,$2)",
+        )
+        .bind(control.connector_id)
+        .bind(capability)
+        .execute(&mut **tx)
+        .await?;
+    }
+    positive_u64(persisted, "connector aggregate version")
+}
+
+async fn persist_reconciliation_authority(
+    tx: &mut Transaction<'_, Postgres>,
     aggregate_id: Uuid,
-    state: Value,
-    expected_version: Option<u64>,
+    report: &PlatformReconciliationReport,
 ) -> Result<u64, PlatformPersistenceError> {
     let current: Option<i64> = sqlx::query_scalar(
-        "SELECT aggregate_version FROM erpx_control.aggregate_snapshots
-         WHERE aggregate_type = $1 AND aggregate_id = $2 FOR UPDATE",
+        "SELECT aggregate_version
+         FROM erpx_platform_completion_write.reconciliation_authority
+         WHERE aggregate_id=$1 FOR UPDATE",
     )
-    .bind(aggregate_type)
     .bind(aggregate_id)
     .fetch_optional(&mut **tx)
     .await?;
-    let current_u64 = current
-        .map(|value| u64::try_from(value).unwrap_or(0))
-        .unwrap_or(0);
-    if let Some(expected) = expected_version
-        && expected != current_u64
-    {
-        return Err(PlatformPersistenceError::Conflict);
-    }
-    let next = current_u64.checked_add(1).ok_or_else(|| {
-        PlatformPersistenceError::Invalid("platform aggregate version overflow".into())
+    let current = current.map_or(Ok(0), |value| {
+        positive_u64(value, "reconciliation aggregate version")
     })?;
-    sqlx::query(
-        "INSERT INTO erpx_control.aggregate_snapshots
-            (aggregate_type, aggregate_id, aggregate_version, state, updated_at)
-         VALUES ($1, $2, $3, $4, now())
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            aggregate_version = EXCLUDED.aggregate_version,
-            state = EXCLUDED.state,
-            updated_at = EXCLUDED.updated_at",
+    let next = current.checked_add(1).ok_or_else(|| {
+        PlatformPersistenceError::Invalid("reconciliation version overflow".into())
+    })?;
+    let connector_count = i32::try_from(report.connector_count).map_err(|_| {
+        PlatformPersistenceError::Invalid("connector count exceeds SQL range".into())
+    })?;
+    let persisted: Option<i64> = sqlx::query_scalar(
+        "INSERT INTO erpx_platform_completion_write.reconciliation_authority
+            (aggregate_id,aggregate_version,report_id,tenant_id,holding_ref,
+             observed_at,reconciliation_state,registry_state,provisioning_state,
+             write_healthy,read_healthy,storage_healthy,replacement_read_state,
+             latest_backup_verified,connector_count,updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$6)
+         ON CONFLICT (aggregate_id) DO UPDATE SET
+            aggregate_version=EXCLUDED.aggregate_version,
+            report_id=EXCLUDED.report_id,
+            observed_at=EXCLUDED.observed_at,
+            reconciliation_state=EXCLUDED.reconciliation_state,
+            registry_state=EXCLUDED.registry_state,
+            provisioning_state=EXCLUDED.provisioning_state,
+            write_healthy=EXCLUDED.write_healthy,
+            read_healthy=EXCLUDED.read_healthy,
+            storage_healthy=EXCLUDED.storage_healthy,
+            replacement_read_state=EXCLUDED.replacement_read_state,
+            latest_backup_verified=EXCLUDED.latest_backup_verified,
+            connector_count=EXCLUDED.connector_count,
+            updated_at=EXCLUDED.updated_at
+         WHERE erpx_platform_completion_write.reconciliation_authority.tenant_id=EXCLUDED.tenant_id
+           AND erpx_platform_completion_write.reconciliation_authority.holding_ref=EXCLUDED.holding_ref
+           AND erpx_platform_completion_write.reconciliation_authority.aggregate_version=$16
+         RETURNING aggregate_version",
     )
-    .bind(aggregate_type)
     .bind(aggregate_id)
-    .bind(i64::try_from(next).map_err(|_| {
-        PlatformPersistenceError::Invalid("platform aggregate version is invalid".into())
-    })?)
-    .bind(state)
+    .bind(checked_i64(next, "reconciliation version")?)
+    .bind(report.report_id)
+    .bind(&report.binding.tenant_id)
+    .bind(&report.binding.holding_ref)
+    .bind(report.observed_at)
+    .bind(report.state.as_str())
+    .bind(&report.registry_state)
+    .bind(&report.provisioning_state)
+    .bind(report.write_healthy)
+    .bind(report.read_healthy)
+    .bind(report.storage_healthy)
+    .bind(report.replacement_read_state.map(ReplacementReadState::as_str))
+    .bind(report.latest_backup_verified)
+    .bind(connector_count)
+    .bind(checked_i64(current, "expected reconciliation version")?)
+    .fetch_optional(&mut **tx)
+    .await?;
+    let persisted = persisted.ok_or(PlatformPersistenceError::Conflict)?;
+    sqlx::query(
+        "DELETE FROM erpx_platform_completion_write.reconciliation_drift_codes
+         WHERE aggregate_id=$1",
+    )
+    .bind(aggregate_id)
     .execute(&mut **tx)
     .await?;
-    Ok(next)
+    for code in &report.drift_codes {
+        sqlx::query(
+            "INSERT INTO erpx_platform_completion_write.reconciliation_drift_codes
+                (aggregate_id,drift_code) VALUES ($1,$2)",
+        )
+        .bind(aggregate_id)
+        .bind(code)
+        .execute(&mut **tx)
+        .await?;
+    }
+    positive_u64(persisted, "reconciliation aggregate version")
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2015,6 +2141,31 @@ fn parse_connector_state(value: &str) -> Result<PlatformConnectorState, Platform
     }
 }
 
+fn parse_connector_kind(value: &str) -> Result<PlatformConnectorKind, PlatformPersistenceError> {
+    match value {
+        "stripe" => Ok(PlatformConnectorKind::Stripe),
+        "marketing_provider" => Ok(PlatformConnectorKind::MarketingProvider),
+        "finance_bank" => Ok(PlatformConnectorKind::FinanceBank),
+        "generic_ldap" => Ok(PlatformConnectorKind::GenericLdap),
+        "active_directory" => Ok(PlatformConnectorKind::ActiveDirectory),
+        "univention_corporate_server" => Ok(PlatformConnectorKind::UniventionCorporateServer),
+        _ => Err(PlatformPersistenceError::Invalid(
+            "stored connector kind is invalid".into(),
+        )),
+    }
+}
+
+fn positive_u64(value: i64, field: &str) -> Result<u64, PlatformPersistenceError> {
+    let value = u64::try_from(value)
+        .map_err(|_| PlatformPersistenceError::Invalid(format!("{field} is invalid")))?;
+    if value == 0 {
+        return Err(PlatformPersistenceError::Invalid(format!(
+            "{field} is invalid"
+        )));
+    }
+    Ok(value)
+}
+
 fn connector_read_model(
     control: &ConnectorControl,
 ) -> Result<PlatformConnectorReadModel, PlatformPersistenceError> {
@@ -2080,6 +2231,49 @@ async fn read_lifecycle_state(
 mod tests {
     use super::*;
     use chrono::Duration;
+
+    const NORMALIZED_CONTROL_DDL: &str =
+        include_str!("../../migration/migrations/0082_current_normalized_authority.sql");
+
+    #[test]
+    fn active_platform_completion_authority_is_typed_and_snapshot_free() {
+        let source = include_str!("platform_completion.rs");
+        assert!(!source.contains(concat!("aggregate_", "snapshots")));
+        assert!(!source.contains(concat!("upsert_", "snapshot")));
+        for contract in [
+            "lifecycle_aggregate_version",
+            "tenant_backup_jobs",
+            "tenant_projection_switches",
+            "reconciliation_authority",
+            "reconciliation_drift_codes",
+            "connector_authority",
+            "connector_capabilities",
+        ] {
+            assert!(
+                NORMALIZED_CONTROL_DDL.contains(contract),
+                "missing typed authority contract: {contract}"
+            );
+        }
+        assert!(!NORMALIZED_CONTROL_DDL.contains("JSONB"));
+        assert!(source.contains("persist_reconciliation_authority"));
+        assert!(source.contains("load_connector_authority"));
+        assert!(source.contains("persist_connector_authority"));
+    }
+
+    #[test]
+    fn every_connector_kind_round_trips_the_typed_authority_name() {
+        for kind in [
+            PlatformConnectorKind::Stripe,
+            PlatformConnectorKind::MarketingProvider,
+            PlatformConnectorKind::FinanceBank,
+            PlatformConnectorKind::GenericLdap,
+            PlatformConnectorKind::ActiveDirectory,
+            PlatformConnectorKind::UniventionCorporateServer,
+        ] {
+            assert_eq!(parse_connector_kind(kind.as_str()), Ok(kind));
+        }
+        assert!(parse_connector_kind("unknown").is_err());
+    }
 
     #[test]
     fn connector_projection_redacts_credential_reference() {

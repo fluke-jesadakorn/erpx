@@ -153,16 +153,6 @@ async fn profile_erasure_redacts_source_and_rebuildable_read_state() {
     .await
     .expect("scrubbed profile outbox");
     assert_eq!(raw_profile_outbox, 0);
-    let raw_profile_snapshot: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM erpx_tenant.aggregate_snapshots
-          WHERE holding_ref=$1 AND aggregate_type='marketing_profile'
-            AND state::text LIKE '%person@example.com%'",
-    )
-    .bind(&holding_ref)
-    .fetch_one(&mut *source)
-    .await
-    .expect("scrubbed profile snapshot");
-    assert_eq!(raw_profile_snapshot, 0);
     let suppression_count: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM erpx_tenant.marketing_suppressions
           WHERE holding_ref=$1 AND profile_id=$2 AND reason='profile_erasure'",

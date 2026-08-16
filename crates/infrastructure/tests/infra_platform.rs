@@ -1,7 +1,5 @@
 //! Domain-grouped integration test harness. Individual cases remain in their original files.
 
-#[path = "organization.rs"]
-mod organization;
 #[path = "platform_completion.rs"]
 mod platform_completion;
 #[path = "platform_integration_observations.rs"]

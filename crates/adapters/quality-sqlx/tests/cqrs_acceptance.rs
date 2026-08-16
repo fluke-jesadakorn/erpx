@@ -66,9 +66,10 @@ async fn run_acceptance(write_url: &str, read_url: &str) -> Result<(), Box<dyn E
         .await?;
     install_contracts(&write_database, &read_database).await?;
 
-    let write_pool = WritePool::from_pg_pool(write_database.clone());
-    let projection_pool = ProjectionPool::from_pg_pool(read_database.clone());
-    let read_pool = ReadPool::from_pg_pool(read_database.clone());
+    let tenant_id = Uuid::new_v4();
+    let write_pool = WritePool::for_tenant(write_database.clone(), tenant_id)?;
+    let projection_pool = ProjectionPool::for_tenant(read_database.clone(), tenant_id)?;
+    let read_pool = ReadPool::for_tenant(read_database.clone(), tenant_id)?;
     let write_repository = QualityWriteRepository::new(write_pool.clone());
     let command_adapter = QualityCommandAdapter::new(write_pool.clone());
 
@@ -118,35 +119,32 @@ async fn run_acceptance(write_url: &str, read_url: &str) -> Result<(), Box<dyn E
     assert_eq!(first.aggregate.version, 1);
     let projection_target = first
         .projection_target()
-        .expect("the private snapshot event is the projection target");
+        .expect("the private projection event is the projection target");
     let partition = inspection_partition(inspection_id);
 
-    let committed = command_counts(&write_database, &partition).await?;
-    assert_eq!(committed.snapshots, 1);
+    let committed = command_counts(&write_pool, &partition).await?;
+    assert_eq!(committed.authorities, 1);
     assert_eq!(committed.receipts, 1);
     assert_eq!(committed.audits, 1);
     assert!(committed.outbox >= 1);
     assert_eq!(
-        completed_receipts(&write_database, &partition, command_id).await?,
+        completed_receipts(&write_pool, &partition, command_id).await?,
         1
     );
 
     let replay = command_handler.handle(create).await?;
     assert!(replay.replayed);
     assert_eq!(replay.response, first.response);
-    assert_eq!(
-        command_counts(&write_database, &partition).await?,
-        committed
-    );
+    assert_eq!(command_counts(&write_pool, &partition).await?, committed);
 
     // Exercise the store's transactional conflict path, not only the
     // application handler's preflight version check. The receipt reservation
-    // happens first and must roll back with the rejected snapshot update.
+    // happens first and must roll back with the rejected authority update.
     let failed_command_id = CommandId::try_from_uuid(Uuid::new_v4())?;
     let mut conflicting_aggregate = write_repository
         .load(&scope, inspection_id)
         .await?
-        .expect("the command-side snapshot must exist");
+        .expect("the command-side aggregate must exist");
     conflicting_aggregate.start(now + chrono::Duration::seconds(1))?;
     let conflict = command_adapter
         .commit(QualityCommit {
@@ -174,12 +172,9 @@ async fn run_acceptance(write_url: &str, read_url: &str) -> Result<(), Box<dyn E
             actual: 1
         })
     ));
+    assert_eq!(command_counts(&write_pool, &partition).await?, committed);
     assert_eq!(
-        command_counts(&write_database, &partition).await?,
-        committed
-    );
-    assert_eq!(
-        command_rows(&write_database, &partition, failed_command_id).await?,
+        command_rows(&write_pool, &partition, failed_command_id).await?,
         0,
         "the failed transaction must not leave a receipt, audit, or outbox row"
     );
@@ -323,67 +318,75 @@ async fn install_contracts(write: &PgPool, read: &PgPool) -> Result<(), sqlx::Er
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CommandCounts {
-    snapshots: i64,
+    authorities: i64,
     receipts: i64,
     audits: i64,
     outbox: i64,
 }
 
-async fn command_counts(pool: &PgPool, partition: &str) -> Result<CommandCounts, sqlx::Error> {
-    Ok(CommandCounts {
-        snapshots: sqlx::query_scalar(
-            "SELECT COUNT(*) FROM erpx_cqrs_write.aggregate_snapshots
-             WHERE context_name = 'quality' AND partition_key = $1",
+async fn command_counts(
+    pool: &WritePool,
+    partition: &str,
+) -> Result<CommandCounts, Box<dyn Error>> {
+    let mut transaction = pool.begin().await?;
+    let counts = CommandCounts {
+        authorities: sqlx::query_scalar(
+            "SELECT COUNT(*) FROM erpx_quality_write.inspection_authority",
         )
-        .bind(partition)
-        .fetch_one(pool)
+        .fetch_one(&mut *transaction)
         .await?,
         receipts: sqlx::query_scalar(
             "SELECT COUNT(*) FROM erpx_cqrs_write.command_receipts
              WHERE context_name = 'quality' AND partition_key = $1",
         )
         .bind(partition)
-        .fetch_one(pool)
+        .fetch_one(&mut *transaction)
         .await?,
         audits: sqlx::query_scalar(
             "SELECT COUNT(*) FROM erpx_cqrs_write.audit_log
              WHERE context_name = 'quality' AND partition_key = $1",
         )
         .bind(partition)
-        .fetch_one(pool)
+        .fetch_one(&mut *transaction)
         .await?,
         outbox: sqlx::query_scalar(
             "SELECT COUNT(*) FROM erpx_cqrs_write.outbox_events
              WHERE context_name = 'quality' AND partition_key = $1",
         )
         .bind(partition)
-        .fetch_one(pool)
+        .fetch_one(&mut *transaction)
         .await?,
-    })
+    };
+    transaction.commit().await?;
+    Ok(counts)
 }
 
 async fn completed_receipts(
-    pool: &PgPool,
+    pool: &WritePool,
     partition: &str,
     command_id: CommandId,
-) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar(
+) -> Result<i64, Box<dyn Error>> {
+    let mut transaction = pool.begin().await?;
+    let count = sqlx::query_scalar(
         "SELECT COUNT(*) FROM erpx_cqrs_write.command_receipts
          WHERE context_name = 'quality' AND partition_key = $1
            AND command_id = $2 AND status = 'completed' AND receipt IS NOT NULL",
     )
     .bind(partition)
     .bind(command_id.as_uuid())
-    .fetch_one(pool)
-    .await
+    .fetch_one(&mut *transaction)
+    .await?;
+    transaction.commit().await?;
+    Ok(count)
 }
 
 async fn command_rows(
-    pool: &PgPool,
+    pool: &WritePool,
     partition: &str,
     command_id: CommandId,
-) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar(
+) -> Result<i64, Box<dyn Error>> {
+    let mut transaction = pool.begin().await?;
+    let count = sqlx::query_scalar(
         "SELECT
             (SELECT COUNT(*) FROM erpx_cqrs_write.command_receipts
              WHERE context_name = 'quality' AND partition_key = $1 AND command_id = $2)
@@ -394,8 +397,10 @@ async fn command_rows(
     )
     .bind(partition)
     .bind(command_id.as_uuid())
-    .fetch_one(pool)
-    .await
+    .fetch_one(&mut *transaction)
+    .await?;
+    transaction.commit().await?;
+    Ok(count)
 }
 
 async fn run_active_through(

@@ -1,8 +1,25 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::TenantScope;
+use erpx_integration_contracts::{
+    StableRecordRef,
+    catalog::ContextId,
+    reference::{RecordTypeId, ReferenceValidationError},
+};
+use erpx_kernel::{RecordId, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
+
+mod authority_record;
+pub use authority_record::{
+    CustomerAuthorityRecord, CustomerAuthorityRecordKind, CustomerAuthorityRecordStatus,
+};
+
+mod portal_binding;
+
+pub use portal_binding::{
+    CustomerPortalBindingId, CustomerPortalBindingStatus, CustomerPortalPrincipalBinding,
+    PortalPrincipalKind, PortalUseCase, VerifiedIdentityEvidence,
+};
 
 pub const MAX_CUSTOMER_CODE_BYTES: usize = 128;
 pub const MAX_CUSTOMER_NAME_BYTES: usize = 256;
@@ -199,8 +216,16 @@ pub enum CustomerAuthorityDomainError {
     CustomerMerged,
     #[error("a customer cannot be merged into itself")]
     SelfMerge,
+    #[error("customers can be merged only inside the same primary authority")]
+    IncompatibleMergeAuthority,
     #[error("customer timestamp moved backwards")]
     InvalidTimestamp,
+    #[error("customer portal principal binding is invalid")]
+    InvalidPortalBinding,
+    #[error("customer portal principal binding transition is not allowed")]
+    InvalidPortalBindingTransition,
+    #[error("customer authority or support-access record is invalid")]
+    InvalidAuthorityRecord,
     #[error("customer version overflowed")]
     VersionOverflow,
 }
@@ -222,6 +247,36 @@ pub struct CustomerAccount {
 }
 
 impl CustomerAccount {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: CustomerId,
+        version: u64,
+        code: CustomerCode,
+        identity: CustomerIdentity,
+        status: CustomerStatus,
+        primary_authority: TenantScope,
+        authority_links: Vec<TenantScope>,
+        merged_into: Option<CustomerId>,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, CustomerAuthorityDomainError> {
+        let value = Self {
+            id,
+            version,
+            code,
+            identity,
+            status,
+            primary_authority,
+            authority_links,
+            merged_into,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn create(
         id: CustomerId,
         code: CustomerCode,
@@ -362,7 +417,7 @@ impl CustomerAccount {
         Ok(())
     }
 
-    pub fn merge_into(
+    pub(crate) fn merge_into(
         &mut self,
         survivor: CustomerId,
         at: DateTime<Utc>,
@@ -381,6 +436,22 @@ impl CustomerAccount {
             at,
         });
         Ok(())
+    }
+
+    /// Merge while enforcing the authority boundary of the surviving record.
+    /// A holding- or platform-scoped caller may administer both customers, but
+    /// that broader caller authority does not make cross-company identities
+    /// compatible merge targets.
+    pub fn merge_into_compatible(
+        &mut self,
+        survivor: CustomerId,
+        survivor_primary_authority: &TenantScope,
+        at: DateTime<Utc>,
+    ) -> Result<(), CustomerAuthorityDomainError> {
+        if &self.primary_authority != survivor_primary_authority {
+            return Err(CustomerAuthorityDomainError::IncompatibleMergeAuthority);
+        }
+        self.merge_into(survivor, at)
     }
 
     fn ensure_mutable(&self, at: DateTime<Utc>) -> Result<(), CustomerAuthorityDomainError> {
@@ -429,6 +500,19 @@ impl CustomerAccount {
     }
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
+    }
+
+    /// Stable, route-independent identity used by Collaboration and the Item
+    /// Directory. Descriptor publication remains an adapter responsibility
+    /// because the source outbox position is assigned at commit time.
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        let record_id = RecordId::try_from_uuid(self.id.as_uuid())
+            .expect("validated customer identifier is non-nil");
+        StableRecordRef::try_new(
+            record_id,
+            ContextId::CustomerAuthority,
+            RecordTypeId::try_new("customer.account")?,
+        )
     }
 
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {

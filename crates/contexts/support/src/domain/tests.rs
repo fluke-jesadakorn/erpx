@@ -267,6 +267,58 @@ fn high_risk_capability_requires_current_mfa_sod_and_contained_scope() {
 }
 
 #[test]
+fn support_access_never_expands_or_narrows_the_customer_approved_scope() {
+    let ticket = access_requested_ticket();
+    let branch = TenantScope::Branch {
+        holding_id: id(1),
+        company_id: id(2),
+        branch_id: id(3),
+    };
+    assert!(matches!(
+        SupportSession::request(
+            SessionId::try_from_uuid(id(35)).unwrap(),
+            &ticket,
+            principal(32),
+            None,
+            SupportMode::DiagnosticRead,
+            vec!["tenant.read".into()],
+            branch.clone(),
+            "support".into(),
+            "customer approved investigation".into(),
+            Duration::minutes(30),
+            at(),
+        ),
+        Err(SupportDomainError::InvalidSession)
+    ));
+
+    let session = approved_session(SupportMode::DiagnosticRead);
+    let evidence = CapabilityEvidence {
+        device_ref: "device-1".into(),
+        mfa_verified_at: None,
+        segregation_of_duties_passed: true,
+        authority_scope: scope(),
+    };
+    let capability = SupportCapability::issue(
+        CapabilityId::try_from_uuid(id(45)).unwrap(),
+        &session,
+        evidence.clone(),
+        [4; 32],
+        at() + Duration::minutes(2),
+    )
+    .unwrap();
+    assert!(matches!(
+        capability.authorize(
+            &session,
+            "tenant.read",
+            &branch,
+            &evidence,
+            at() + Duration::minutes(3),
+        ),
+        Err(SupportDomainError::InvalidCapabilityBinding)
+    ));
+}
+
+#[test]
 fn revoked_or_expired_capability_never_authorizes() {
     let session = approved_session(SupportMode::DiagnosticRead);
     let evidence = CapabilityEvidence {

@@ -1,5 +1,6 @@
--- Legal owns the typed, versioned relationship graph. Source records remain
--- owned by their originating contexts; these rows retain only immutable refs.
+-- Legal owns the typed, versioned relationship graph. Migration 0081 promotes
+-- exact scope and legal-hold columns to relational command authority; the JSON
+-- columns below remain compatibility evidence only.
 
 CREATE TABLE erpx_legal_write.matter_guards (
     matter_id UUID PRIMARY KEY,

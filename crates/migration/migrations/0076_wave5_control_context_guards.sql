@@ -1,5 +1,6 @@
--- Wave 5 control-plane guards. Aggregate snapshots, receipts, audit, and
--- outbox continue to commit through erpx_cqrs_write in the same transaction.
+-- Wave 5 control-plane guard/root tables. Migration 0082 completes their
+-- typed relational authority; receipts, audit, and outbox remain durable CQRS
+-- facts committed in the same transaction.
 
 CREATE SCHEMA IF NOT EXISTS erpx_platform_administration_write;
 
@@ -144,3 +145,62 @@ CREATE UNIQUE INDEX customer_authority_one_primary
 CREATE INDEX customer_authority_scope
     ON erpx_customer_authority_write.authority_link_guards
         (scope_key, customer_id);
+
+-- D13: normalized Platform governance authority. These records govern
+-- operations and evidence; migrator/deployer executors remain separate ports.
+CREATE TABLE erpx_platform_administration_write.governance_records (
+    record_id UUID PRIMARY KEY,
+    record_version BIGINT NOT NULL CHECK (record_version > 0),
+    record_kind TEXT NOT NULL CHECK (record_kind IN (
+        'data_plane_operation', 'migration', 'release'
+    )),
+    record_scope JSONB NOT NULL,
+    record_title TEXT NOT NULL,
+    subject_ref TEXT NOT NULL,
+    evidence_ref TEXT,
+    record_status TEXT NOT NULL CHECK (record_status IN (
+        'requested', 'provisioning', 'verified', 'active', 'suspended',
+        'proposed', 'approved', 'rejected', 'running', 'draft', 'ready',
+        'deploying', 'verifying', 'completed', 'released', 'failed',
+        'rolled_back', 'retired', 'cancelled'
+    )),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX platform_governance_kind_state
+    ON erpx_platform_administration_write.governance_records
+        (record_kind, record_status, updated_at DESC, record_id DESC);
+
+CREATE TABLE erpx_platform_administration_write.governance_record_receipts (
+    idempotency_key TEXT PRIMARY KEY,
+    command_id UUID NOT NULL UNIQUE,
+    request_hash BYTEA NOT NULL CHECK (octet_length(request_hash) = 32),
+    record_id UUID NOT NULL,
+    record_version BIGINT NOT NULL CHECK (record_version > 0),
+    correlation_id UUID NOT NULL,
+    receipt JSONB NOT NULL,
+    committed_at TIMESTAMPTZ NOT NULL,
+    FOREIGN KEY (record_id)
+        REFERENCES erpx_platform_administration_write.governance_records (record_id)
+);
+
+CREATE TABLE erpx_platform_administration_write.governance_record_audit (
+    audit_id UUID PRIMARY KEY,
+    command_id UUID NOT NULL UNIQUE,
+    correlation_id UUID NOT NULL,
+    record_id UUID NOT NULL,
+    record_version BIGINT NOT NULL CHECK (record_version > 0),
+    record_kind TEXT NOT NULL CHECK (record_kind IN (
+        'data_plane_operation', 'migration', 'release'
+    )),
+    record_status TEXT NOT NULL,
+    subject_ref TEXT NOT NULL,
+    evidence_ref TEXT,
+    actor JSONB NOT NULL,
+    audit_context JSONB NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('create', 'transition')),
+    occurred_at TIMESTAMPTZ NOT NULL,
+    FOREIGN KEY (record_id)
+        REFERENCES erpx_platform_administration_write.governance_records (record_id)
+);

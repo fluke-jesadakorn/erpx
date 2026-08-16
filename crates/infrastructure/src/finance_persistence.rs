@@ -29,8 +29,6 @@ pub const MAX_FINANCE_SOURCE_EVENT_PAGE_SIZE: u32 = 500;
 pub const MAX_FINANCE_READ_JOURNAL_PAGE_SIZE: u32 = 500;
 pub const MAX_FINANCE_CONSOLIDATED_CHARTS: usize = 1_000;
 pub const MAX_FINANCE_PROJECTION_RECONCILIATION_JOURNALS: u32 = MAX_FINANCE_TRIAL_BALANCE_JOURNALS;
-pub const FINANCE_CONSOLIDATION_REPORT_AGGREGATE: &str = "finance_consolidation_report";
-pub const FINANCE_CONSOLIDATION_REPORT_EVENT: &str = "finance.consolidation_report_published.v1";
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FinanceReadJournal {
@@ -200,7 +198,7 @@ impl SqlxFinanceStore {
             next,
         )
         .await?;
-        write_finance_snapshot_and_outbox(
+        write_finance_source_event(
             &mut tx,
             &self.holding_ref,
             "finance_chart",
@@ -288,7 +286,7 @@ impl SqlxFinanceStore {
                 actual: None,
             });
         }
-        write_finance_snapshot_and_outbox(
+        write_finance_source_event(
             &mut tx,
             &self.holding_ref,
             "finance_period",
@@ -427,17 +425,6 @@ impl SqlxFinanceStore {
             authoritative.chart_version,
             &authoritative.line_counts,
         )
-        .await?;
-        sqlx::query(
-            "INSERT INTO erpx_tenant.aggregate_snapshots
-                (aggregate_type, aggregate_id, holding_ref, version, state)
-             VALUES ($1,$2,$3,1,$4)",
-        )
-        .bind("finance_journal")
-        .bind(posted.id())
-        .bind(&self.holding_ref)
-        .bind(&response)
-        .execute(&mut *tx)
         .await?;
         let event_payload = serde_json::json!({
             "posted_journal": response,
@@ -709,187 +696,6 @@ impl SqlxFinanceStore {
             ));
         }
         Ok(report)
-    }
-
-    /// Publish one immutable report snapshot and its authoritative outbox
-    /// event. Replays require the exact snapshot and exactly one matching
-    /// event; a missing or divergent evidence row fails closed.
-    pub async fn publish_consolidated_financial_report(
-        &self,
-        report: &ConsolidatedFinancialReport,
-    ) -> Result<u64, PersistenceError> {
-        report
-            .validate()
-            .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        let payload = serde_json::to_value(report)?;
-        let expected_event_payload = serde_json::json!({
-            "aggregate_type": FINANCE_CONSOLIDATION_REPORT_AGGREGATE,
-            "aggregate": payload.clone(),
-            "version": 1,
-        });
-        let mut tx = self.begin_write().await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
-            .execute(&mut *tx)
-            .await?;
-        let source_fence: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_journal'",
-        )
-        .bind(&self.holding_ref)
-        .fetch_one(&mut *tx)
-        .await?;
-        if as_u64(source_fence, "Finance consolidation source fence")? != report.source_fence {
-            return Err(PersistenceError::InvalidData(
-                "Finance consolidation report source fence is stale".into(),
-            ));
-        }
-        let snapshot = sqlx::query(
-            "SELECT version, state
-               FROM erpx_tenant.aggregate_snapshots
-              WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3",
-        )
-        .bind(FINANCE_CONSOLIDATION_REPORT_AGGREGATE)
-        .bind(report.report_id)
-        .bind(&self.holding_ref)
-        .fetch_optional(&mut *tx)
-        .await?;
-        let event_payloads: Vec<Value> = sqlx::query_scalar(
-            "SELECT payload
-               FROM erpx_tenant.outbox_events
-              WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3
-                AND aggregate_version=1 AND event_type=$4
-              ORDER BY event_id
-              LIMIT 2",
-        )
-        .bind(FINANCE_CONSOLIDATION_REPORT_AGGREGATE)
-        .bind(report.report_id)
-        .bind(&self.holding_ref)
-        .bind(FINANCE_CONSOLIDATION_REPORT_EVENT)
-        .fetch_all(&mut *tx)
-        .await?;
-        let event_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)
-               FROM erpx_tenant.outbox_events
-              WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3
-                AND aggregate_version=1",
-        )
-        .bind(FINANCE_CONSOLIDATION_REPORT_AGGREGATE)
-        .bind(report.report_id)
-        .bind(&self.holding_ref)
-        .fetch_one(&mut *tx)
-        .await?;
-        if let Some(snapshot) = snapshot {
-            let version: i64 = snapshot.try_get("version")?;
-            let state: Value = snapshot.try_get("state")?;
-            validate_consolidation_report_replay_evidence(
-                version == 1,
-                state == payload,
-                event_count,
-                &expected_event_payload,
-                &event_payloads,
-            )?;
-            tx.commit().await?;
-            return Ok(1);
-        }
-        if event_count != 0 {
-            return Err(PersistenceError::InvalidData(
-                "Finance consolidation report has outbox evidence without its snapshot".into(),
-            ));
-        }
-        write_finance_snapshot_and_outbox(
-            &mut tx,
-            &self.holding_ref,
-            FINANCE_CONSOLIDATION_REPORT_AGGREGATE,
-            report.report_id,
-            1,
-            &payload,
-            FINANCE_CONSOLIDATION_REPORT_EVENT,
-        )
-        .await?;
-        tx.commit().await?;
-        Ok(1)
-    }
-
-    /// Reconcile a previously published report against its immutable
-    /// snapshot, exactly one outbox event, the source fence, and the complete
-    /// journal read-model reconciliation.
-    pub async fn reconcile_consolidated_financial_report(
-        &self,
-        report: &ConsolidatedFinancialReport,
-    ) -> Result<bool, PersistenceError> {
-        report
-            .validate()
-            .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        let projection = self.reconcile_projection().await?;
-        if !projection.is_reconciled() {
-            return Ok(false);
-        }
-        let payload = serde_json::to_value(report)?;
-        let expected_event_payload = serde_json::json!({
-            "aggregate_type": FINANCE_CONSOLIDATION_REPORT_AGGREGATE,
-            "aggregate": payload.clone(),
-            "version": 1,
-        });
-        let mut tx = self.begin_write().await?;
-        sqlx::query("LOCK TABLE erpx_tenant.outbox_events IN SHARE MODE")
-            .execute(&mut *tx)
-            .await?;
-        let source_fence: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)
-               FROM erpx_tenant.outbox_events
-              WHERE holding_ref=$1 AND aggregate_type='finance_journal'",
-        )
-        .bind(&self.holding_ref)
-        .fetch_one(&mut *tx)
-        .await?;
-        let snapshot = sqlx::query(
-            "SELECT version, state
-               FROM erpx_tenant.aggregate_snapshots
-              WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3",
-        )
-        .bind(FINANCE_CONSOLIDATION_REPORT_AGGREGATE)
-        .bind(report.report_id)
-        .bind(&self.holding_ref)
-        .fetch_optional(&mut *tx)
-        .await?;
-        let event_payloads: Vec<Value> = sqlx::query_scalar(
-            "SELECT payload
-               FROM erpx_tenant.outbox_events
-              WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3
-                AND aggregate_version=1 AND event_type=$4
-              ORDER BY event_id
-              LIMIT 2",
-        )
-        .bind(FINANCE_CONSOLIDATION_REPORT_AGGREGATE)
-        .bind(report.report_id)
-        .bind(&self.holding_ref)
-        .bind(FINANCE_CONSOLIDATION_REPORT_EVENT)
-        .fetch_all(&mut *tx)
-        .await?;
-        let event_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)
-               FROM erpx_tenant.outbox_events
-              WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3
-                AND aggregate_version=1",
-        )
-        .bind(FINANCE_CONSOLIDATION_REPORT_AGGREGATE)
-        .bind(report.report_id)
-        .bind(&self.holding_ref)
-        .fetch_one(&mut *tx)
-        .await?;
-        tx.commit().await?;
-        let snapshot_matches = snapshot.is_some_and(|snapshot| {
-            snapshot.try_get::<i64, _>("version").ok() == Some(1)
-                && snapshot.try_get::<Value, _>("state").ok().as_ref() == Some(&payload)
-        });
-        Ok(
-            as_u64(source_fence, "Finance consolidation source fence")? == report.source_fence
-                && snapshot_matches
-                && event_count == 1
-                && event_payloads.len() == 1
-                && event_payloads[0] == expected_event_payload,
-        )
     }
 
     async fn read_all_projected_journals(
@@ -2002,7 +1808,7 @@ async fn record_authoritative_account_usage(
     Ok(())
 }
 
-pub(crate) async fn write_finance_snapshot_and_outbox(
+pub(crate) async fn write_finance_source_event(
     tx: &mut Transaction<'_, Postgres>,
     holding_ref: &str,
     aggregate_type: &str,
@@ -2011,20 +1817,6 @@ pub(crate) async fn write_finance_snapshot_and_outbox(
     payload: &Value,
     event_type: &str,
 ) -> Result<(), PersistenceError> {
-    sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            holding_ref=$3, version=$4, state=$5, updated_at=now()",
-    )
-    .bind(aggregate_type)
-    .bind(aggregate_id)
-    .bind(holding_ref)
-    .bind(as_i64(version, "Finance aggregate version")?)
-    .bind(payload)
-    .execute(&mut **tx)
-    .await?;
     sqlx::query(
         "INSERT INTO erpx_tenant.outbox_events
             (event_id, aggregate_type, aggregate_id, holding_ref,
@@ -2178,33 +1970,6 @@ async fn validate_posted_journal_replay_evidence(
     )
 }
 
-fn validate_consolidation_report_replay_evidence(
-    snapshot_version_matches: bool,
-    snapshot_matches: bool,
-    event_count: i64,
-    expected_event_payload: &Value,
-    event_payloads: &[Value],
-) -> Result<(), PersistenceError> {
-    if !snapshot_version_matches || !snapshot_matches {
-        return Err(PersistenceError::InvalidData(
-            "Finance consolidation report replay snapshot does not match the original report"
-                .into(),
-        ));
-    }
-    if event_count != 1 || event_payloads.len() != 1 {
-        return Err(PersistenceError::InvalidData(format!(
-            "Finance consolidation report replay requires exactly one authoritative outbox event, found {}",
-            event_count
-        )));
-    }
-    if event_payloads[0] != *expected_event_payload {
-        return Err(PersistenceError::InvalidData(
-            "Finance consolidation report replay outbox payload does not match its snapshot".into(),
-        ));
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2266,47 +2031,6 @@ mod tests {
         );
         validate_journal_replay_evidence(true, &payload, std::slice::from_ref(&payload))
             .expect("journal replay must have one matching authoritative outbox event");
-    }
-
-    #[test]
-    fn consolidation_report_replay_requires_exact_snapshot_and_one_event() {
-        let payload = serde_json::json!({"report_id": Uuid::from_u128(10)});
-        let event = serde_json::json!({
-            "aggregate_type": FINANCE_CONSOLIDATION_REPORT_AGGREGATE,
-            "aggregate": payload.clone(),
-            "version": 1,
-        });
-        validate_consolidation_report_replay_evidence(
-            true,
-            true,
-            1,
-            &event,
-            std::slice::from_ref(&event),
-        )
-        .expect("exact consolidation report replay evidence");
-        assert!(
-            validate_consolidation_report_replay_evidence(
-                false,
-                true,
-                1,
-                &event,
-                std::slice::from_ref(&event),
-            )
-            .is_err()
-        );
-        assert!(
-            validate_consolidation_report_replay_evidence(true, true, 0, &event, &[],).is_err()
-        );
-        assert!(
-            validate_consolidation_report_replay_evidence(
-                true,
-                true,
-                1,
-                &event,
-                &[serde_json::json!({"tampered": true})],
-            )
-            .is_err()
-        );
     }
 
     #[tokio::test]

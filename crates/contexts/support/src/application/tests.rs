@@ -228,6 +228,39 @@ fn capability_fingerprint_excludes_rotating_authority_evidence_and_secret_hash()
     );
 }
 
+#[test]
+fn closure_and_session_revocation_emit_atomic_termination_work() {
+    let ticket_id = SupportTicketId::try_from_uuid(id(20)).unwrap();
+    assert_eq!(
+        authority_effects(
+            &SupportCommand::TransitionTicket(TransitionSupportTicket {
+                ticket_id,
+                next: TicketStatus::Closed,
+            }),
+            at(),
+        ),
+        vec![SupportAuthorityEffect::TerminateTicketAccess {
+            ticket_id,
+            effective_at: at(),
+        }]
+    );
+
+    let session_id = SessionId::try_from_uuid(id(30)).unwrap();
+    assert_eq!(
+        authority_effects(
+            &SupportCommand::RevokeSession(RevokeSupportSession {
+                session_id,
+                reason: "customer requested".into(),
+            }),
+            at(),
+        ),
+        vec![SupportAuthorityEffect::TerminateSessionCapabilities {
+            session_id,
+            effective_at: at(),
+        }]
+    );
+}
+
 #[derive(Clone)]
 struct NotReadyRead;
 

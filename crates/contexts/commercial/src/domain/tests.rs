@@ -98,6 +98,50 @@ fn subscription_accepts_only_valid_ordered_provider_transitions() {
 }
 
 #[test]
+fn subscription_enforces_seven_day_grace_before_read_only_suspension() {
+    let mut subscription = Subscription::create(
+        SubscriptionId::try_from_uuid(id(22)).unwrap(),
+        scope(),
+        id(23),
+        CatalogPlanId::try_from_uuid(id(10)).unwrap(),
+        50_000,
+        currency(),
+        false,
+        at(),
+    )
+    .unwrap();
+    let failed_at = at() + Duration::minutes(1);
+    subscription
+        .apply_verified_billing_event(
+            "evt-payment-failed".into(),
+            failed_at,
+            BillingSignal::PaymentFailed,
+        )
+        .unwrap();
+    assert_eq!(
+        subscription.grace_expires_at(),
+        Some(failed_at + Duration::days(7))
+    );
+    assert_eq!(
+        subscription.apply_verified_billing_event(
+            "evt-grace-early".into(),
+            failed_at + Duration::days(6),
+            BillingSignal::GraceExpired,
+        ),
+        Err(CommercialDomainError::GracePeriodNotExpired)
+    );
+    subscription
+        .apply_verified_billing_event(
+            "evt-grace-expired".into(),
+            failed_at + Duration::days(7),
+            BillingSignal::GraceExpired,
+        )
+        .unwrap();
+    assert_eq!(subscription.status(), SubscriptionStatus::Suspended);
+    assert_eq!(subscription.grace_expires_at(), None);
+}
+
+#[test]
 fn entitlement_rejects_capacity_reduction_below_allocated_usage() {
     let mut entitlement = Entitlement::create(
         EntitlementId::try_from_uuid(id(30)).unwrap(),

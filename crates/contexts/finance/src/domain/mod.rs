@@ -1,3 +1,6 @@
+mod records;
+pub use records::{FinanceRecord, FinanceRecordError, FinanceRecordKind, FinanceRecordStatus};
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, NaiveDate, Utc};
@@ -249,6 +252,40 @@ pub struct Chart {
 
 impl Chart {
     #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: ChartId,
+        version: u64,
+        scope: TenantScope,
+        code: String,
+        name: String,
+        currency: String,
+        accounts: Vec<Account>,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, FinanceDomainError> {
+        let mut mapped = BTreeMap::new();
+        for account in accounts {
+            if mapped.insert(account.account_id, account).is_some() {
+                return Err(FinanceDomainError::DuplicateAccount);
+            }
+        }
+        let value = Self {
+            id,
+            version,
+            scope,
+            code,
+            name,
+            currency,
+            accounts: mapped,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: ChartId,
         scope: TenantScope,
@@ -437,6 +474,38 @@ pub struct AccountingPeriod {
 }
 
 impl AccountingPeriod {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: PeriodId,
+        version: u64,
+        scope: TenantScope,
+        code: String,
+        starts_on: NaiveDate,
+        ends_on: NaiveDate,
+        status: PeriodStatus,
+        close_requested_by: Option<String>,
+        closed_by: Option<String>,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, FinanceDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope,
+            code,
+            starts_on,
+            ends_on,
+            status,
+            close_requested_by,
+            closed_by,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn create(
         id: PeriodId,
         scope: TenantScope,
@@ -721,6 +790,49 @@ pub struct Journal {
 
 impl Journal {
     #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: JournalId,
+        version: u64,
+        scope: TenantScope,
+        chart_id: ChartId,
+        period_id: PeriodId,
+        journal_code: String,
+        entry_date: NaiveDate,
+        currency: String,
+        source: JournalSource,
+        description: String,
+        lines: Vec<JournalLine>,
+        status: JournalStatus,
+        posted_at: Option<DateTime<Utc>>,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, FinanceDomainError> {
+        let (debit_total_minor, credit_total_minor) = validate_journal_lines(&lines, &currency)?;
+        let value = Self {
+            id,
+            version,
+            scope,
+            chart_id,
+            period_id,
+            journal_code,
+            entry_date,
+            currency,
+            source,
+            description,
+            lines,
+            debit_total_minor,
+            credit_total_minor,
+            status,
+            posted_at,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: JournalId,
         scope: TenantScope,
@@ -911,6 +1023,27 @@ pub struct RevenueObligation {
 }
 
 impl RevenueObligation {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        obligation: sales::PerformanceObligationRef,
+        line: sales::SalesOrderLineRef,
+        model: sales::RevenueModel,
+        allocated_minor: i64,
+        recognized_minor: i64,
+        service_starts_on: Option<NaiveDate>,
+        service_ends_on: Option<NaiveDate>,
+    ) -> Self {
+        Self {
+            obligation,
+            line,
+            model,
+            allocated_minor,
+            recognized_minor,
+            service_starts_on,
+            service_ends_on,
+        }
+    }
+
     pub const fn obligation(&self) -> sales::PerformanceObligationRef {
         self.obligation
     }
@@ -944,6 +1077,22 @@ pub struct RevenueRecognitionEntry {
 }
 
 impl RevenueRecognitionEntry {
+    pub fn try_rehydrate(
+        fulfillment: sales::FulfillmentRef,
+        obligation: sales::PerformanceObligationRef,
+        source: RecordRef,
+        recognized_minor: i64,
+        recognized_at: DateTime<Utc>,
+    ) -> Self {
+        Self {
+            fulfillment,
+            obligation,
+            source,
+            recognized_minor,
+            recognized_at,
+        }
+    }
+
     pub const fn fulfillment(&self) -> sales::FulfillmentRef {
         self.fulfillment
     }
@@ -983,6 +1132,40 @@ pub struct RevenueSchedule {
 }
 
 impl RevenueSchedule {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: RevenueScheduleId,
+        version: u64,
+        scope: TenantScope,
+        arrangement_source: RecordRef,
+        last_source: RecordRef,
+        arrangement: sales::RevenueArrangementFact,
+        currency: String,
+        obligations: Vec<RevenueObligation>,
+        recognitions: Vec<RevenueRecognitionEntry>,
+        status: RevenueScheduleStatus,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, FinanceDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope,
+            arrangement_source,
+            last_source,
+            arrangement,
+            currency,
+            obligations,
+            recognitions,
+            status,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn create_from_arrangement(
         id: RevenueScheduleId,
         scope: TenantScope,
@@ -1311,6 +1494,42 @@ pub struct CustomerInvoice {
 
 impl CustomerInvoice {
     #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: CustomerInvoiceId,
+        version: u64,
+        scope: TenantScope,
+        invoice_code: String,
+        source: RecordRef,
+        billing: sales::BillingEligibilityFact,
+        due_on: NaiveDate,
+        prepared_by: String,
+        posted_by: Option<String>,
+        posted_at: Option<DateTime<Utc>>,
+        status: CustomerInvoiceStatus,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, FinanceDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope,
+            invoice_code,
+            source,
+            billing,
+            due_on,
+            prepared_by,
+            posted_by,
+            posted_at,
+            status,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn create_from_billing(
         id: CustomerInvoiceId,
         scope: TenantScope,
@@ -1516,6 +1735,40 @@ pub struct SubledgerItem {
 }
 
 impl SubledgerItem {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: SubledgerId,
+        version: u64,
+        scope: TenantScope,
+        kind: SubledgerKind,
+        document_code: String,
+        source_reference: String,
+        currency: String,
+        original_minor: i64,
+        outstanding_minor: i64,
+        status: SubledgerStatus,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, FinanceDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope,
+            kind,
+            document_code,
+            source_reference,
+            currency,
+            original_minor,
+            outstanding_minor,
+            status,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn receivable_from_invoice(
         id: SubledgerId,
         scope: TenantScope,

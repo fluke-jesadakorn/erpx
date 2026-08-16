@@ -96,7 +96,13 @@ impl PosSqlxReadRepository {
              ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1",
         )
         .bind(projection)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
@@ -147,7 +153,13 @@ impl PosReadRepository for PosSqlxReadRepository {
         .bind(SALE_PROJECTION_NAME)
         .bind(sale_id.as_uuid())
         .bind(&partition)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_sale_view).transpose()?;
@@ -194,7 +206,13 @@ impl PosReadRepository for PosSqlxReadRepository {
         .bind(cursor.as_ref().map(|value| value.0))
         .bind(cursor.as_ref().map(|value| value.1.as_uuid()))
         .bind(limit.saturating_mul(8))
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let mut sales = rows
@@ -245,7 +263,13 @@ impl PosReadRepository for PosSqlxReadRepository {
         .bind(REFUND_PROJECTION_NAME)
         .bind(refund_id.as_uuid())
         .bind(&partition)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_refund_view).transpose()?;
@@ -292,7 +316,13 @@ impl PosReadRepository for PosSqlxReadRepository {
         .bind(cursor.as_ref().map(|value| value.0))
         .bind(cursor.as_ref().map(|value| value.1.as_uuid()))
         .bind(limit.saturating_mul(8))
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let mut refunds = rows

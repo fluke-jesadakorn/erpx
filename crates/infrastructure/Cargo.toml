@@ -42,8 +42,16 @@ path = "tests/infra_migration.rs"
 async-trait.workspace = true
 chrono.workspace = true
 erpx-application.workspace = true
+erpx-agent-orchestration.workspace = true
+erpx-cqrs.workspace = true
+erpx-cqrs-sqlx.workspace = true
 erpx-domain.workspace = true
+erpx-kernel.workspace = true
+erpx-integration-contracts.workspace = true
+erpx-legal.workspace = true
 erpx-migration.workspace = true
+erpx-organization.workspace = true
+erpx-organization-sqlx.workspace = true
 hex.workspace = true
 hmac.workspace = true
 reqwest = { workspace = true, default-features = false, features = ["rustls-tls"] }

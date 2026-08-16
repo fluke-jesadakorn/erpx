@@ -12,12 +12,23 @@ use std::{
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
-use erpx_domain::{
-    contracts::{ActorAttribution, ActorKind},
-    operations::{AggregateMetadata, Branch, OrganizationStatus, event_for},
-    platform_completion::PitrRecoveryPoint,
+use erpx_cqrs::{CONTRACT_VERSION, CommandEnvelope, CommandHandler, IdempotencyKey};
+use erpx_cqrs_sqlx::WritePool;
+use erpx_domain::platform_completion::PitrRecoveryPoint;
+use erpx_kernel::{
+    ActorAttribution as KernelActorAttribution, ActorKind as KernelActorKind, AuditContext,
+    CommandId, CorrelationId, FixedClock, TenantScope,
 };
 use erpx_migration::{migrate_tenant_read, migrate_tenant_write};
+use erpx_organization::ports::AuthorizationRequest;
+use erpx_organization::{
+    AuthorizationPort as OrganizationAuthorizationPort, CreateOrganizationNode,
+    EntitlementPort as OrganizationEntitlementPort, OrganizationCommandHandler, OrganizationNodeId,
+    OrganizationPlacement, PortError as OrganizationPortError,
+};
+use erpx_organization_sqlx::{
+    OrganizationCommandAdapter, OrganizationHierarchyRepository, OrganizationWriteRepository,
+};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sqlx::{
@@ -29,7 +40,7 @@ use uuid::Uuid;
 
 use crate::{
     BranchDatabaseRoute, BranchProvisioningJob, BranchProvisioningState, PersistenceError,
-    SqlxControlPlane, SqlxOperationsStore, SqlxTenantStoreRegistry, TenantStoreRegistration,
+    SqlxControlPlane, SqlxTenantStoreRegistry, TenantStoreRegistration,
     object_storage::{
         MinioObjectStore, MinioObjectStoreConfig, ObjectInventoryEntry, ObjectStorageError,
     },
@@ -2930,6 +2941,7 @@ pub enum TenantSourceProjection {
     FinanceBanking,
     FinanceSubledger,
     FinanceClose,
+    ItemDirectory,
 }
 
 /// A server-side transaction advisory lock used to fence source commits while
@@ -2941,13 +2953,27 @@ pub struct TenantSourceRebuildLock<'a> {
 }
 
 impl<'a> TenantSourceRebuildLock<'a> {
-    async fn acquire(pool: &'a sqlx::PgPool, holding_ref: &str) -> Result<Self, PersistenceError> {
+    async fn acquire(
+        pool: &'a sqlx::PgPool,
+        tenant_id: &str,
+        holding_ref: &str,
+    ) -> Result<Self, PersistenceError> {
         let lock_name = format!("{TENANT_SOURCE_REBUILD_LOCK_PREFIX}{holding_ref}");
         let mut transaction = pool.begin().await?;
         sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
             .bind(holding_ref)
             .execute(&mut *transaction)
             .await?;
+        let bound_tenant: String =
+            sqlx::query_scalar("SELECT set_config('app.tenant_id', $1, true)")
+                .bind(tenant_id)
+                .fetch_one(&mut *transaction)
+                .await?;
+        if bound_tenant != tenant_id {
+            return Err(PersistenceError::InvalidData(
+                "tenant source lock binding was not retained".into(),
+            ));
+        }
         sqlx::query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))")
             .bind(&lock_name)
             .execute(&mut *transaction)
@@ -2963,9 +2989,10 @@ impl<'a> TenantSourceRebuildLock<'a> {
         let count: i64 = match projection {
             TenantSourceProjection::Operations => {
                 sqlx::query_scalar(
-                    "SELECT COUNT(*)
-                     FROM erpx_tenant.operations_events
-                     WHERE holding_ref = $1",
+                    "SELECT COALESCE(MAX(global_sequence), 0)
+                     FROM erpx_cqrs_write.outbox_events
+                     WHERE context_name = 'operations'
+                       AND current_setting('erpx.holding_ref') = $1",
                 )
                 .bind(holding_ref)
                 .fetch_one(&mut *self.transaction)
@@ -3019,6 +3046,29 @@ impl<'a> TenantSourceRebuildLock<'a> {
                 )
                 .bind(holding_ref)
                 .bind("finance_close_review")
+                .fetch_one(&mut *self.transaction)
+                .await?
+            }
+            TenantSourceProjection::ItemDirectory => {
+                // Directory owner facts are appended by many independent
+                // context UoWs. A short SHARE table lock fences every INSERT
+                // while the final watermark and control-plane route switch
+                // are committed, without requiring those owners to import an
+                // infrastructure advisory-lock contract.
+                sqlx::query("LOCK TABLE erpx_cqrs_write.outbox_events IN SHARE MODE")
+                    .execute(&mut *self.transaction)
+                    .await?;
+                sqlx::query_scalar(
+                    "SELECT COALESCE(MAX(global_sequence), 0)
+                     FROM erpx_cqrs_write.outbox_events
+                     WHERE tenant_id = current_setting('app.tenant_id')::uuid
+                       AND available_at <= now()
+                       AND event_type = ANY($1)",
+                )
+                .bind([
+                    erpx_integration_contracts::ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                    erpx_integration_contracts::ITEM_DIRECTORY_FACT_EVENT_TYPE,
+                ])
                 .fetch_one(&mut *self.transaction)
                 .await?
             }
@@ -3705,13 +3755,33 @@ impl RoutedTenantDatabase {
     pub async fn acquire_source_rebuild_lock(
         &self,
     ) -> Result<TenantSourceRebuildLock<'_>, PersistenceError> {
-        TenantSourceRebuildLock::acquire(&self.pool, &self.holding_ref).await
+        TenantSourceRebuildLock::acquire(&self.pool, &self.tenant_id, &self.holding_ref).await
     }
 
     /// Begin a scoped transaction. The RLS setting is transaction-local and
     /// therefore cannot leak to another request using the same pool.
     pub async fn begin_scoped(&self) -> Result<Transaction<'_, Postgres>, PersistenceError> {
+        let tenant_id = Uuid::parse_str(&self.tenant_id).map_err(|_| {
+            PersistenceError::InvalidData(
+                "generation-v2 routed database requires a UUID tenant_id".into(),
+            )
+        })?;
+        if tenant_id.is_nil() {
+            return Err(PersistenceError::InvalidData(
+                "generation-v2 routed database requires a non-nil tenant_id".into(),
+            ));
+        }
         let mut transaction = self.pool.begin().await?;
+        let bound: String = sqlx::query_scalar("SELECT set_config('app.tenant_id', $1, true)")
+            .bind(tenant_id.to_string())
+            .fetch_one(&mut *transaction)
+            .await?;
+        if bound != tenant_id.to_string() {
+            let _ = transaction.rollback().await;
+            return Err(PersistenceError::InvalidData(
+                "routed database tenant binding could not be verified".into(),
+            ));
+        }
         sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
             .bind(&self.holding_ref)
             .execute(&mut *transaction)
@@ -3725,8 +3795,8 @@ impl RoutedTenantDatabase {
     /// connection.
     pub async fn probe(&self) -> Result<ReadinessComponentObservation, PersistenceError> {
         let relation = match self.side {
-            RoutedDatabaseSide::Write => "erpx_tenant.aggregate_snapshots",
-            RoutedDatabaseSide::Read => "erpx_tenant.customer_summary",
+            RoutedDatabaseSide::Write => "erpx_cqrs_write.command_receipts",
+            RoutedDatabaseSide::Read => "erpx_cqrs_read.projection_generations",
         };
         verify_tenant_database_contract(&self.pool, &self.database_key, relation).await?;
         Ok(ReadinessComponentObservation::ready(Utc::now()))
@@ -3743,12 +3813,12 @@ impl RoutedTenantDatabase {
         }
         let mut transaction = self.begin_scoped().await?;
         let identity: (String, Option<String>) = sqlx::query_as(
-            "SELECT current_database(), to_regclass('erpx_tenant.customer_summary')::text",
+            "SELECT current_database(), to_regclass('erpx_cqrs_read.projection_generations')::text",
         )
         .fetch_one(&mut *transaction)
         .await?;
         if identity.0 != self.database_key
-            || identity.1.as_deref() != Some("erpx_tenant.customer_summary")
+            || identity.1.as_deref() != Some("erpx_cqrs_read.projection_generations")
         {
             let _ = transaction.rollback().await;
             return Err(PersistenceError::InvalidData(
@@ -3757,18 +3827,21 @@ impl RoutedTenantDatabase {
         }
 
         let relations = sqlx::query(
-            "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity,
+            "SELECT n.nspname || '.' || c.relname AS relation_name,
+                    c.relrowsecurity, c.relforcerowsecurity,
                     EXISTS (
                         SELECT 1 FROM pg_policy AS p WHERE p.polrelid = c.oid
                     ) AS has_policy
              FROM pg_class AS c
              JOIN pg_namespace AS n ON n.oid = c.relnamespace
-             WHERE n.nspname = 'erpx_tenant'
-               AND c.relname IN (
-                   'projection_checkpoints', 'operations_projection_checkpoints',
-                   'operations_read_rows', 'finance_banking_read_rows',
-                   'finance_banking_projection_checkpoints', 'customer_summary'
-               )",
+             WHERE (n.nspname, c.relname) IN (
+                   ('erpx_cqrs_read', 'projection_generations'),
+                   ('erpx_cqrs_read', 'projection_checkpoints'),
+                   ('erpx_organization_read', 'node_projection'),
+                   ('erpx_operations_read', 'exception_projection'),
+                   ('erpx_operations_read', 'source_signal_projection'),
+                   ('erpx_operations_read', 'work_queue_policy_projection')
+             )",
         )
         .fetch_all(&mut *transaction)
         .await?;
@@ -3789,11 +3862,10 @@ impl RoutedTenantDatabase {
 
         let visible_foreign_scope: bool = sqlx::query_scalar(
             "SELECT EXISTS (
-                 SELECT 1 FROM erpx_tenant.operations_read_rows
-                 WHERE holding_ref <> $1
+                 SELECT 1 FROM erpx_operations_read.exception_projection
+                 WHERE tenant_id <> erpx_cqrs_read.current_tenant_id()
              )",
         )
-        .bind(&self.holding_ref)
         .fetch_one(&mut *transaction)
         .await?;
         if visible_foreign_scope {
@@ -4140,8 +4212,8 @@ impl TenantDatabaseProvisioner {
             .map_err(PersistenceError::Migration);
             if migration.is_ok() {
                 let relation = match side {
-                    DatabaseSide::Write => "erpx_tenant.aggregate_snapshots",
-                    DatabaseSide::Read => "erpx_tenant.customer_summary",
+                    DatabaseSide::Write => "erpx_cqrs_write.command_receipts",
+                    DatabaseSide::Read => "erpx_cqrs_read.projection_generations",
                 };
                 verify_tenant_database_contract(&pool, database_key, relation).await?;
             }
@@ -4188,109 +4260,29 @@ impl TenantDatabaseProvisioner {
                 "branch organization provisioning binding is invalid".into(),
             ));
         }
+        // Organization hierarchy remains authoritative in the holding data
+        // plane. A branch database pair receives scoped projections only and
+        // must never become a second write authority for the same branch.
+        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
+            .get(&route.tenant_id)
+            .await?
+            .ok_or_else(|| PersistenceError::InvalidData("tenant is not registered".into()))?;
+        if registration.holding_ref != route.holding_ref {
+            return Err(PersistenceError::InvalidData(
+                "branch organization route does not match tenant holding authority".into(),
+            ));
+        }
         let write_url = render_database_url(
             &self.config.database_url_template,
-            &route.write_database_key,
+            &registration.write_database_key,
         )?;
-        let read_url =
-            render_database_url(&self.config.database_url_template, &route.read_database_key)?;
         let write_pool = PgPoolOptions::new()
             .max_connections(3)
             .connect(&write_url)
             .await?;
-        let read_pool = match PgPoolOptions::new()
-            .max_connections(3)
-            .connect(&read_url)
-            .await
-        {
-            Ok(pool) => pool,
-            Err(error) => {
-                write_pool.close().await;
-                return Err(PersistenceError::Database(error));
-            }
-        };
-        let at = Utc::now();
-        let mut metadata = AggregateMetadata::new(
-            route.branch_id,
-            route.holding_ref.clone(),
-            erpx_domain::access::Scope::Branch {
-                holding_id: route.holding_id,
-                company_id: route.company_id,
-                branch_id: route.branch_id,
-            },
-            at,
-        )
-        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        metadata.version = 1;
-        let branch = Branch {
-            meta: metadata,
-            holding_id: route.holding_id,
-            company_id: route.company_id,
-            code: job.branch_code.clone(),
-            name: job.branch_name.clone(),
-            status: OrganizationStatus::Active,
-        };
-        let mut event = event_for(
-            &branch,
-            "organization.branch.provisioned",
-            1,
-            ActorAttribution {
-                principal_ref: format!("erpx-worker:{worker_id}"),
-                kind: ActorKind::SystemWorker,
-                session_id: None,
-                represented_principal_ref: Some(route.requested_by.clone()),
-                support_capability_id: None,
-            },
-            Some(format!(
-                "erpx:branch-organization:v1:{}:{}",
-                route.tenant_id, route.branch_id
-            )),
-            job.correlation_id,
-            None,
-            at,
-        )
-        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        let event_id = Uuid::new_v5(
-            &Uuid::NAMESPACE_URL,
-            format!(
-                "erpx:branch-organization:event:v1:{}:{}",
-                route.tenant_id, route.branch_id
-            )
-            .as_bytes(),
-        );
-        event.envelope.event_id = event_id;
-        event.projection.event_id = event_id;
-        let operations =
-            SqlxOperationsStore::from_pools(&write_pool, &read_pool, route.holding_ref.clone())?;
-        let write_initialized: bool = sqlx::query_scalar(
-            "SELECT EXISTS(
-                 SELECT 1 FROM erpx_tenant.operations_aggregate_snapshots
-                 WHERE aggregate_type='organization.branch' AND aggregate_id=$1
-             ) OR EXISTS(
-                 SELECT 1 FROM erpx_tenant.operations_events WHERE event_id=$2
-             )",
-        )
-        .bind(route.branch_id)
-        .bind(event_id)
-        .fetch_one(&write_pool)
-        .await?;
-        let read_initialized: bool = sqlx::query_scalar(
-            "SELECT EXISTS(
-                 SELECT 1 FROM erpx_tenant.operations_read_rows
-                 WHERE projection_name='operations_read_model'
-                   AND aggregate_type='organization.branch' AND aggregate_id=$1
-             )",
-        )
-        .bind(route.branch_id)
-        .fetch_one(&read_pool)
-        .await?;
         let result = async {
-            if !write_initialized {
-                operations.apply_event(&event, &branch, None, &[]).await?;
-            }
-            if !read_initialized {
-                operations.project_event(&event, &branch).await?;
-            }
+            initialize_branch_organization_rows(&write_pool, route, job, worker_id, Utc::now())
+                .await?;
             for unit in &job.enabled_business_units {
                 sqlx::query(
                     "INSERT INTO erpx_control.branch_business_unit_configurations
@@ -4311,7 +4303,6 @@ impl TenantDatabaseProvisioner {
         }
         .await;
         write_pool.close().await;
-        read_pool.close().await;
         result
     }
 
@@ -4332,103 +4323,22 @@ impl TenantDatabaseProvisioner {
                 "branch organization provisioning profile is invalid".into(),
             ));
         }
+        let registration = SqlxTenantStoreRegistry::new(self.control.clone())
+            .get(&route.tenant_id)
+            .await?
+            .ok_or_else(|| PersistenceError::InvalidData("tenant is not registered".into()))?;
+        if registration.holding_ref != route.holding_ref {
+            return Err(PersistenceError::InvalidData(
+                "branch organization route does not match tenant holding authority".into(),
+            ));
+        }
         let write_pool = PgPoolOptions::new()
             .max_connections(3)
-            .connect_with(profile.database_options(&route.write_database_key))
+            .connect_with(profile.database_options(&registration.write_database_key))
             .await?;
-        let read_pool = match PgPoolOptions::new()
-            .max_connections(3)
-            .connect_with(profile.database_options(&route.read_database_key))
-            .await
-        {
-            Ok(pool) => pool,
-            Err(error) => {
-                write_pool.close().await;
-                return Err(PersistenceError::Database(error));
-            }
-        };
-        let at = Utc::now();
-        let mut metadata = AggregateMetadata::new(
-            route.branch_id,
-            route.holding_ref.clone(),
-            erpx_domain::access::Scope::Branch {
-                holding_id: route.holding_id,
-                company_id: route.company_id,
-                branch_id: route.branch_id,
-            },
-            at,
-        )
-        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        metadata.version = 1;
-        let branch = Branch {
-            meta: metadata,
-            holding_id: route.holding_id,
-            company_id: route.company_id,
-            code: job.branch_code.clone(),
-            name: job.branch_name.clone(),
-            status: OrganizationStatus::Active,
-        };
-        let mut event = event_for(
-            &branch,
-            "organization.branch.provisioned",
-            1,
-            ActorAttribution {
-                principal_ref: format!("erpx-worker:{worker_id}"),
-                kind: ActorKind::SystemWorker,
-                session_id: None,
-                represented_principal_ref: Some(route.requested_by.clone()),
-                support_capability_id: None,
-            },
-            Some(format!(
-                "erpx:branch-organization:v1:{}:{}",
-                route.tenant_id, route.branch_id
-            )),
-            job.correlation_id,
-            None,
-            at,
-        )
-        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
-        let event_id = Uuid::new_v5(
-            &Uuid::NAMESPACE_URL,
-            format!(
-                "erpx:branch-organization:event:v1:{}:{}",
-                route.tenant_id, route.branch_id
-            )
-            .as_bytes(),
-        );
-        event.envelope.event_id = event_id;
-        event.projection.event_id = event_id;
-        let operations =
-            SqlxOperationsStore::from_pools(&write_pool, &read_pool, route.holding_ref.clone())?;
-        let write_initialized: bool = sqlx::query_scalar(
-            "SELECT EXISTS(
-                 SELECT 1 FROM erpx_tenant.operations_aggregate_snapshots
-                 WHERE aggregate_type='organization.branch' AND aggregate_id=$1
-             ) OR EXISTS(
-                 SELECT 1 FROM erpx_tenant.operations_events WHERE event_id=$2
-             )",
-        )
-        .bind(route.branch_id)
-        .bind(event_id)
-        .fetch_one(&write_pool)
-        .await?;
-        let read_initialized: bool = sqlx::query_scalar(
-            "SELECT EXISTS(
-                 SELECT 1 FROM erpx_tenant.operations_read_rows
-                 WHERE projection_name='operations_read_model'
-                   AND aggregate_type='organization.branch' AND aggregate_id=$1
-             )",
-        )
-        .bind(route.branch_id)
-        .fetch_one(&read_pool)
-        .await?;
         let result = async {
-            if !write_initialized {
-                operations.apply_event(&event, &branch, None, &[]).await?;
-            }
-            if !read_initialized {
-                operations.project_event(&event, &branch).await?;
-            }
+            initialize_branch_organization_rows(&write_pool, route, job, worker_id, Utc::now())
+                .await?;
             for unit in &job.enabled_business_units {
                 sqlx::query(
                     "INSERT INTO erpx_control.branch_business_unit_configurations
@@ -4449,15 +4359,13 @@ impl TenantDatabaseProvisioner {
         }
         .await;
         write_pool.close().await;
-        read_pool.close().await;
         result
     }
 
     /// Initialize the tenant-local organization root after both physical
-    /// databases have migrated. The write database receives the authoritative
-    /// holding snapshot and event; the read database receives the same
-    /// deterministic event as a rebuildable projection with a checkpoint.
-    /// This bootstrap is idempotent and is not a long-term dual-write path.
+    /// databases have migrated. The typed Organization command transaction
+    /// writes normalized authority, receipt, audit, and outbox evidence. The
+    /// disposable read model is populated asynchronously by its projector.
     pub async fn initialize_tenant_organization(
         &self,
         tenant_id: &str,
@@ -4778,8 +4686,8 @@ impl TenantDatabaseProvisioner {
         let result = result.map_err(PersistenceError::Migration);
         let result = if result.is_ok() {
             let relation = match side {
-                DatabaseSide::Write => "erpx_tenant.aggregate_snapshots",
-                DatabaseSide::Read => "erpx_tenant.customer_summary",
+                DatabaseSide::Write => "erpx_cqrs_write.command_receipts",
+                DatabaseSide::Read => "erpx_cqrs_read.projection_generations",
             };
             verify_tenant_database_contract(&pool, database_key, relation).await
         } else {
@@ -7775,18 +7683,28 @@ async fn append_tenant_backup_job_event(
     if let Some(idempotency_key) = idempotency_key {
         validate_ref(idempotency_key, "idempotency_key")?;
     }
-    let current_version: Option<i64> = sqlx::query_scalar(
-        "SELECT aggregate_version
-         FROM erpx_control.aggregate_snapshots
-         WHERE aggregate_type = $1 AND aggregate_id = $2
-         FOR UPDATE",
+    let next_version: i64 = sqlx::query_scalar(
+        "UPDATE erpx_control.tenant_backup_jobs
+         SET aggregate_version=aggregate_version+1
+         WHERE id=$1 AND tenant_id=$2 AND holding_ref=$3 AND kind=$4
+           AND state=$5 AND attempts=$6 AND max_attempts=$7
+           AND verified=$8
+         RETURNING aggregate_version",
     )
-    .bind(TENANT_BACKUP_JOB_AGGREGATE)
     .bind(job_id)
+    .bind(tenant_id)
+    .bind(holding_ref)
+    .bind(kind)
+    .bind(state)
+    .bind(i32::from(attempts))
+    .bind(i32::from(max_attempts))
+    .bind(verified)
     .fetch_optional(&mut **transaction)
-    .await?;
-    let next_version = current_version.unwrap_or(0).checked_add(1).ok_or_else(|| {
-        PersistenceError::InvalidData("backup job aggregate version overflow".into())
+    .await?
+    .ok_or_else(|| {
+        PersistenceError::InvalidData(
+            "backup job event does not match typed lifecycle authority".into(),
+        )
     })?;
     let payload = json!({
         "job_id": job_id,
@@ -7802,23 +7720,6 @@ async fn append_tenant_backup_job_event(
         "error_code": error_code,
         "updated_at": occurred_at,
     });
-    sqlx::query(
-        "INSERT INTO erpx_control.aggregate_snapshots
-            (aggregate_type, aggregate_id, aggregate_version, state, updated_at)
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            aggregate_version = EXCLUDED.aggregate_version,
-            state = EXCLUDED.state,
-            updated_at = EXCLUDED.updated_at",
-    )
-    .bind(TENANT_BACKUP_JOB_AGGREGATE)
-    .bind(job_id)
-    .bind(next_version)
-    .bind(&payload)
-    .bind(occurred_at)
-    .execute(&mut **transaction)
-    .await?;
-
     let event_id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO erpx_control.outbox_events
@@ -8336,156 +8237,244 @@ fn contains_sensitive_health_key(value: &Value) -> bool {
 
 async fn initialize_tenant_organization_rows(
     write_pool: &sqlx::PgPool,
-    read_pool: &sqlx::PgPool,
+    _read_pool: &sqlx::PgPool,
     tenant_id: &str,
     holding_ref: &str,
     holding_id: Uuid,
     owner_principal_ref: &str,
     at: DateTime<Utc>,
 ) -> Result<TenantOrganizationBootstrap, PersistenceError> {
-    let aggregate_type = "organization.holding";
-    let event_id = Uuid::new_v5(
-        &Uuid::NAMESPACE_URL,
-        format!("erpx:organization-bootstrap:event:v1:{tenant_id}").as_bytes(),
-    );
-    let correlation_id = Uuid::new_v5(
-        &Uuid::NAMESPACE_URL,
-        format!("erpx:organization-bootstrap:correlation:v1:{tenant_id}").as_bytes(),
-    );
-    let idempotency_key = format!("erpx:organization-bootstrap:v1:{tenant_id}");
-    let scope = serde_json::json!({
-        "Holding": {"holding_id": holding_id}
-    });
-    let state = serde_json::json!({
-        "meta": {
-            "id": holding_id,
-            "holding_ref": holding_ref,
-            "scope": scope.clone(),
-            "version": 1,
-            "created_at": at,
-            "updated_at": at
-        },
-        "code": holding_ref,
-        "name": holding_ref,
-        "status": "active"
-    });
-    let actor = serde_json::json!({
-        "kind": "system",
-        "principal_ref": owner_principal_ref
-    });
-
-    let mut write_transaction = write_pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
-        .execute(&mut *write_transaction)
-        .await?;
-    sqlx::query(
-        "INSERT INTO erpx_tenant.operations_aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, scope, aggregate_version,
-             lifecycle_status, state, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 1, 'active', $5, $6, $6)
-         ON CONFLICT (aggregate_type, aggregate_id) DO NOTHING",
-    )
-    .bind(aggregate_type)
-    .bind(holding_id)
-    .bind(holding_ref)
-    .bind(&scope)
-    .bind(&state)
-    .bind(at)
-    .execute(&mut *write_transaction)
-    .await?;
-    let snapshot = sqlx::query(
-        "SELECT holding_ref, aggregate_version
-         FROM erpx_tenant.operations_aggregate_snapshots
-         WHERE aggregate_type = $1 AND aggregate_id = $2",
-    )
-    .bind(aggregate_type)
-    .bind(holding_id)
-    .fetch_one(&mut *write_transaction)
-    .await?;
-    let stored_holding_ref: String = snapshot.try_get("holding_ref")?;
-    let stored_version: i64 = snapshot.try_get("aggregate_version")?;
-    if stored_holding_ref != holding_ref || stored_version != 1 {
+    let tenant_uuid = Uuid::parse_str(tenant_id).map_err(|_| {
+        PersistenceError::InvalidData(
+            "generation-v2 organization bootstrap requires a UUID tenant_id".into(),
+        )
+    })?;
+    if tenant_uuid.is_nil() {
         return Err(PersistenceError::InvalidData(
-            "organization holding snapshot conflicts with the tenant registry".into(),
+            "generation-v2 organization bootstrap requires a non-nil tenant_id".into(),
         ));
     }
-    sqlx::query(
-        "INSERT INTO erpx_tenant.operations_events
-            (event_id, contract_version, event_type, event_version, occurred_at,
-             aggregate_type, aggregate_id, aggregate_version, holding_ref,
-             tenant_scope, actor, correlation_id, causation_id, idempotency_key,
-             payload, applied_at)
-         VALUES ($1, 1, 'organization.holding.initialized', 1, $2,
-                 $3, $4, 1, $5, $6, $7, $8, NULL, $9, $10, $2)
-         ON CONFLICT (event_id) DO NOTHING",
+    let command_uuid = Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!("erpx:organization-bootstrap:command:v2:{tenant_id}").as_bytes(),
+    );
+    let correlation_uuid = Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!("erpx:organization-bootstrap:correlation:v2:{tenant_id}").as_bytes(),
+    );
+    let node_id = OrganizationNodeId::try_from_uuid(holding_id)
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+    let scope = TenantScope::Holding { holding_id };
+    let access = OrganizationBootstrapAccess {
+        worker_principal_ref: format!("erpx-bootstrap:{tenant_id}"),
+        represented_owner_ref: owner_principal_ref.to_owned(),
+        scope: scope.clone(),
+    };
+    let pool = WritePool::for_tenant(write_pool.clone(), tenant_uuid)
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+    let receipt = OrganizationCommandHandler::new(
+        OrganizationWriteRepository::new(pool.clone()),
+        OrganizationCommandAdapter::new(pool),
+        access.clone(),
+        access,
+        OrganizationHierarchyRepository,
+        FixedClock::new(at),
     )
-    .bind(event_id)
-    .bind(at)
-    .bind(aggregate_type)
-    .bind(holding_id)
-    .bind(holding_ref)
-    .bind(&scope)
-    .bind(&actor)
-    .bind(correlation_id)
-    .bind(&idempotency_key)
-    .bind(&state)
-    .execute(&mut *write_transaction)
-    .await?;
-    write_transaction.commit().await?;
-
-    let mut read_transaction = read_pool.begin().await?;
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
-        .execute(&mut *read_transaction)
-        .await?;
-    sqlx::query(
-        "INSERT INTO erpx_tenant.operations_read_rows
-            (projection_name, aggregate_type, aggregate_id, holding_ref,
-             aggregate_version, lifecycle_status, state, updated_at)
-         VALUES ('operations_read_model', $1, $2, $3, 1, 'active', $4, $5)
-         ON CONFLICT (projection_name, aggregate_type, aggregate_id) DO UPDATE
-         SET holding_ref = EXCLUDED.holding_ref,
-             aggregate_version = EXCLUDED.aggregate_version,
-             lifecycle_status = EXCLUDED.lifecycle_status,
-             state = EXCLUDED.state,
-             updated_at = EXCLUDED.updated_at",
-    )
-    .bind(aggregate_type)
-    .bind(holding_id)
-    .bind(holding_ref)
-    .bind(&state)
-    .bind(at)
-    .execute(&mut *read_transaction)
-    .await?;
-    sqlx::query(
-        "INSERT INTO erpx_tenant.operations_projection_checkpoints
-            (projection_name, aggregate_type, aggregate_id, holding_ref,
-             last_event_id, last_aggregate_version, projected_at)
-         VALUES ('operations_read_model', $1, $2, $3, $4, 1, $5)
-         ON CONFLICT (projection_name, aggregate_type, aggregate_id) DO UPDATE
-         SET holding_ref = EXCLUDED.holding_ref,
-             last_event_id = EXCLUDED.last_event_id,
-             last_aggregate_version = EXCLUDED.last_aggregate_version,
-             projected_at = EXCLUDED.projected_at",
-    )
-    .bind(aggregate_type)
-    .bind(holding_id)
-    .bind(holding_ref)
-    .bind(event_id)
-    .bind(at)
-    .execute(&mut *read_transaction)
-    .await?;
-    read_transaction.commit().await?;
+    .handle(CommandEnvelope {
+        contract_version: CONTRACT_VERSION,
+        command_id: CommandId::try_from_uuid(command_uuid)
+            .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
+        idempotency_key: IdempotencyKey::try_new(format!(
+            "erpx:organization-bootstrap:v2:{tenant_id}"
+        ))
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
+        correlation_id: CorrelationId::try_from_uuid(correlation_uuid)
+            .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
+        causation_id: None,
+        actor: KernelActorAttribution {
+            principal_ref: format!("erpx-bootstrap:{tenant_id}"),
+            kind: KernelActorKind::SystemWorker,
+            session_id: None,
+            represented_principal_ref: Some(owner_principal_ref.to_owned()),
+            support_capability_id: None,
+        },
+        tenant_scope: scope,
+        audit: AuditContext {
+            purpose: "organization.bootstrap".into(),
+            customer_visible: true,
+            module: Some("organization".into()),
+        },
+        expected_aggregate_version: None,
+        command: CreateOrganizationNode {
+            node_id,
+            placement: OrganizationPlacement::Holding,
+            code: holding_ref.to_owned(),
+            name: holding_ref.to_owned(),
+        },
+    })
+    .await
+    .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+    let event_id = receipt
+        .committed_events
+        .last()
+        .map(|position| position.event_id.as_uuid())
+        .ok_or_else(|| {
+            PersistenceError::InvalidData(
+                "organization bootstrap command did not emit durable outbox evidence".into(),
+            )
+        })?;
 
     Ok(TenantOrganizationBootstrap {
         tenant_id: tenant_id.into(),
         holding_ref: holding_ref.into(),
         holding_id,
-        aggregate_version: 1,
+        aggregate_version: receipt.aggregate.version,
         event_id,
-        read_projected: true,
+        // Projection is intentionally asynchronous. The Organization worker
+        // consumes the committed outbox event and activates the generation;
+        // bootstrap never dual-writes the disposable read model.
+        read_projected: false,
     })
+}
+
+async fn initialize_branch_organization_rows(
+    write_pool: &sqlx::PgPool,
+    route: &BranchDatabaseRoute,
+    job: &BranchProvisioningJob,
+    worker_id: Uuid,
+    at: DateTime<Utc>,
+) -> Result<(), PersistenceError> {
+    let tenant_uuid = Uuid::parse_str(&route.tenant_id).map_err(|_| {
+        PersistenceError::InvalidData(
+            "generation-v2 branch bootstrap requires a UUID tenant_id".into(),
+        )
+    })?;
+    if tenant_uuid.is_nil() {
+        return Err(PersistenceError::InvalidData(
+            "generation-v2 branch bootstrap requires a non-nil tenant_id".into(),
+        ));
+    }
+    let node_id = OrganizationNodeId::try_from_uuid(route.branch_id)
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+    let scope = TenantScope::Holding {
+        holding_id: route.holding_id,
+    };
+    let worker_principal_ref = format!("erpx-worker:{worker_id}");
+    let access = OrganizationBootstrapAccess {
+        worker_principal_ref: worker_principal_ref.clone(),
+        represented_owner_ref: route.requested_by.clone(),
+        scope: scope.clone(),
+    };
+    let command_uuid = Uuid::new_v5(
+        &Uuid::NAMESPACE_URL,
+        format!(
+            "erpx:branch-organization:command:v2:{}:{}",
+            route.tenant_id, route.branch_id
+        )
+        .as_bytes(),
+    );
+    let correlation_uuid = if job.correlation_id.is_nil() {
+        Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!(
+                "erpx:branch-organization:correlation:v2:{}:{}",
+                route.tenant_id, route.branch_id
+            )
+            .as_bytes(),
+        )
+    } else {
+        job.correlation_id
+    };
+    let pool = WritePool::for_tenant(write_pool.clone(), tenant_uuid)
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+    OrganizationCommandHandler::new(
+        OrganizationWriteRepository::new(pool.clone()),
+        OrganizationCommandAdapter::new(pool),
+        access.clone(),
+        access,
+        OrganizationHierarchyRepository,
+        FixedClock::new(at),
+    )
+    .handle(CommandEnvelope {
+        contract_version: CONTRACT_VERSION,
+        command_id: CommandId::try_from_uuid(command_uuid)
+            .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
+        idempotency_key: IdempotencyKey::try_new(format!(
+            "erpx:branch-organization:v2:{}:{}",
+            route.tenant_id, route.branch_id
+        ))
+        .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
+        correlation_id: CorrelationId::try_from_uuid(correlation_uuid)
+            .map_err(|error| PersistenceError::InvalidData(error.to_string()))?,
+        causation_id: None,
+        actor: KernelActorAttribution {
+            principal_ref: worker_principal_ref,
+            kind: KernelActorKind::SystemWorker,
+            session_id: None,
+            represented_principal_ref: Some(route.requested_by.clone()),
+            support_capability_id: None,
+        },
+        tenant_scope: scope,
+        audit: AuditContext {
+            purpose: "organization.branch.bootstrap".into(),
+            customer_visible: true,
+            module: Some("organization".into()),
+        },
+        expected_aggregate_version: None,
+        command: CreateOrganizationNode {
+            node_id,
+            placement: OrganizationPlacement::Branch {
+                holding_id: route.holding_id,
+                company_id: route.company_id,
+            },
+            code: job.branch_code.clone(),
+            name: job.branch_name.clone(),
+        },
+    })
+    .await
+    .map_err(|error| PersistenceError::InvalidData(error.to_string()))?;
+    Ok(())
+}
+
+#[derive(Debug, Clone)]
+struct OrganizationBootstrapAccess {
+    worker_principal_ref: String,
+    represented_owner_ref: String,
+    scope: TenantScope,
+}
+
+#[async_trait]
+impl OrganizationAuthorizationPort for OrganizationBootstrapAccess {
+    async fn authorize(
+        &self,
+        request: AuthorizationRequest<'_>,
+    ) -> Result<(), OrganizationPortError> {
+        if request.actor.kind != KernelActorKind::SystemWorker
+            || request.actor.principal_ref != self.worker_principal_ref
+            || request.actor.represented_principal_ref.as_deref()
+                != Some(self.represented_owner_ref.as_str())
+            || request.authority_scope != &self.scope
+            || !self.scope.contains(request.target_scope)
+        {
+            return Err(OrganizationPortError::Denied);
+        }
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl OrganizationEntitlementPort for OrganizationBootstrapAccess {
+    async fn ensure_organization_enabled(
+        &self,
+        scope: &TenantScope,
+        _write: bool,
+    ) -> Result<(), OrganizationPortError> {
+        if self.scope.contains(scope) {
+            Ok(())
+        } else {
+            Err(OrganizationPortError::EntitlementDenied)
+        }
+    }
 }
 
 /// Initialize the first tenant organization using already-authenticated,
@@ -8692,6 +8681,46 @@ fn is_duplicate_database(error: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn item_directory_source_fence_is_exactly_tenant_bound_and_typed() {
+        let source = include_str!("provisioning.rs");
+        let lock = source
+            .split("impl<'a> TenantSourceRebuildLock<'a>")
+            .nth(1)
+            .expect("source lock")
+            .split("pub struct RoutedTenantDatabase")
+            .next()
+            .expect("source lock boundary");
+        assert!(lock.contains("set_config('app.tenant_id', $1, true)"));
+        assert!(lock.contains("bound_tenant != tenant_id"));
+        assert!(lock.contains("tenant_id = current_setting('app.tenant_id')::uuid"));
+        assert!(lock.contains("ITEM_DIRECTORY_OWNER_EVENT_TYPE"));
+        assert!(lock.contains("ITEM_DIRECTORY_FACT_EVENT_TYPE"));
+        let table_lock = lock
+            .find("LOCK TABLE erpx_cqrs_write.outbox_events IN SHARE MODE")
+            .expect("Item Directory source table fence");
+        let watermark = lock[table_lock..]
+            .find("SELECT COALESCE(MAX(global_sequence), 0)")
+            .expect("Item Directory source watermark");
+        assert!(watermark > 0);
+        assert!(!lock.contains("current_setting('app.tenant_id', true)"));
+    }
+
+    #[test]
+    fn operations_restore_fence_uses_the_normalized_outbox_position() {
+        let source = include_str!("provisioning.rs");
+        let lock = source
+            .split("impl<'a> TenantSourceRebuildLock<'a>")
+            .nth(1)
+            .expect("source lock")
+            .split("pub struct RoutedTenantDatabase")
+            .next()
+            .expect("source lock boundary");
+        assert!(lock.contains("COALESCE(MAX(global_sequence), 0)"));
+        assert!(lock.contains("context_name = 'operations'"));
+        assert!(!lock.contains("operations_events"));
+    }
 
     #[test]
     fn tenant_routing_config_requires_one_database_template_token() {

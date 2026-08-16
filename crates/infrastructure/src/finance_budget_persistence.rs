@@ -9,7 +9,7 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::PersistenceError;
-use crate::finance_persistence::{begin_scoped, write_finance_snapshot_and_outbox};
+use crate::finance_persistence::{begin_scoped, write_finance_source_event};
 
 #[derive(Debug, Clone, PartialEq, sqlx::FromRow)]
 struct CommitmentRecord {
@@ -220,7 +220,7 @@ impl SqlxFinanceBudgetStore {
                 actual: Some(budget.version),
             });
         }
-        write_finance_snapshot_and_outbox(
+        write_finance_source_event(
             &mut tx,
             &self.holding_ref,
             "finance_budget",
@@ -518,7 +518,7 @@ impl SqlxFinanceBudgetStore {
                 });
             }
         } else {
-            write_finance_snapshot_and_outbox(
+            write_finance_source_event(
                 &mut tx,
                 &self.holding_ref,
                 "finance_budget_commitment",
@@ -795,29 +795,6 @@ async fn validate_budget_replay_evidence(
     version: u64,
     payload: &Value,
 ) -> Result<(), PersistenceError> {
-    let snapshot = sqlx::query(
-        "SELECT holding_ref, version, state
-           FROM erpx_tenant.aggregate_snapshots
-          WHERE aggregate_type='finance_budget' AND aggregate_id=$1
-          FOR SHARE",
-    )
-    .bind(budget_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or(PersistenceError::InvalidData(
-        "Finance budget replay is missing its aggregate snapshot".into(),
-    ))?;
-    let snapshot_version = u64::try_from(snapshot.try_get::<i64, _>("version")?).map_err(|_| {
-        PersistenceError::InvalidData("Finance budget snapshot version is invalid".into())
-    })?;
-    if snapshot.try_get::<String, _>("holding_ref")? != holding_ref
-        || snapshot_version != version
-        || snapshot.try_get::<Value, _>("state")? != *payload
-    {
-        return Err(PersistenceError::InvalidData(
-            "Finance budget replay has divergent aggregate snapshot evidence".into(),
-        ));
-    }
     let events = sqlx::query(
         "SELECT aggregate_version, event_type, payload
            FROM erpx_tenant.outbox_events

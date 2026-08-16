@@ -68,7 +68,17 @@ impl ProjectionSource {
                 "projection page size is outside the allowed range",
             ));
         }
-        let rows = sqlx::query(
+        let statement = if self.pool.tenant_id().is_some() {
+            "SELECT event_id, global_sequence, context_name, partition_key, command_id,
+                    event_type, event_version, aggregate_type, aggregate_id,
+                    aggregate_version, tenant_scope, actor, correlation_id, causation_id,
+                    payload, occurred_at
+             FROM erpx_cqrs_write.outbox_events
+             WHERE global_sequence > $1 AND available_at <= now()
+               AND (cardinality($2::text[]) = 0 OR event_type = ANY($2::text[]))
+               AND tenant_id = $4
+             ORDER BY global_sequence ASC LIMIT $3"
+        } else {
             "SELECT event_id, global_sequence, context_name, partition_key, command_id,
                     event_type, event_version, aggregate_type, aggregate_id,
                     aggregate_version, tenant_scope, actor, correlation_id, causation_id,
@@ -77,13 +87,18 @@ impl ProjectionSource {
              WHERE global_sequence > $1 AND available_at <= now()
                AND (cardinality($2::text[]) = 0 OR event_type = ANY($2::text[]))
              ORDER BY global_sequence ASC
-             LIMIT $3",
-        )
-        .bind(to_i64(after_sequence)?)
-        .bind(event_types)
-        .bind(i64::from(limit))
-        .fetch_all(self.pool.inner())
-        .await?;
+             LIMIT $3"
+        };
+        let mut transaction = self.pool.begin().await?;
+        let query = sqlx::query(statement)
+            .bind(to_i64(after_sequence)?)
+            .bind(event_types)
+            .bind(i64::from(limit));
+        let rows = match self.pool.tenant_id() {
+            Some(tenant_id) => query.bind(tenant_id).fetch_all(&mut *transaction).await?,
+            None => query.fetch_all(&mut *transaction).await?,
+        };
+        transaction.commit().await?;
         let events = rows
             .into_iter()
             .map(row_to_event)
@@ -99,15 +114,25 @@ impl ProjectionSource {
     /// remain reachable even when unrelated events follow the last matching
     /// event in the same outbox.
     pub async fn high_watermark(&self, event_types: &[String]) -> Result<u64, CqrsSqlxError> {
-        let sequence: i64 = sqlx::query_scalar(
+        let statement = if self.pool.tenant_id().is_some() {
             "SELECT COALESCE(MAX(global_sequence), 0)
              FROM erpx_cqrs_write.outbox_events
              WHERE available_at <= now()
-               AND (cardinality($1::text[]) = 0 OR event_type = ANY($1::text[]))",
-        )
-        .bind(event_types)
-        .fetch_one(self.pool.inner())
-        .await?;
+               AND (cardinality($1::text[]) = 0 OR event_type = ANY($1::text[]))
+               AND tenant_id = $2"
+        } else {
+            "SELECT COALESCE(MAX(global_sequence), 0)
+             FROM erpx_cqrs_write.outbox_events
+             WHERE available_at <= now()
+               AND (cardinality($1::text[]) = 0 OR event_type = ANY($1::text[]))"
+        };
+        let mut transaction = self.pool.begin().await?;
+        let query = sqlx::query_scalar(statement).bind(event_types);
+        let sequence: i64 = match self.pool.tenant_id() {
+            Some(tenant_id) => query.bind(tenant_id).fetch_one(&mut *transaction).await?,
+            None => query.fetch_one(&mut *transaction).await?,
+        };
+        transaction.commit().await?;
         to_u64(sequence)
     }
 
@@ -132,7 +157,19 @@ impl ProjectionSource {
             ));
         }
         let through_sequence = through_sequence.map(to_i64).transpose()?;
-        let rows = sqlx::query(
+        let statement = if self.pool.tenant_id().is_some() {
+            "SELECT event_id, global_sequence, context_name, partition_key, command_id,
+                    event_type, event_version, aggregate_type, aggregate_id,
+                    aggregate_version, tenant_scope, actor, correlation_id, causation_id,
+                    payload, occurred_at
+             FROM erpx_cqrs_write.outbox_events
+             WHERE global_sequence > $1
+               AND ($2::bigint IS NULL OR global_sequence <= $2)
+               AND available_at <= now()
+               AND (cardinality($3::text[]) = 0 OR event_type = ANY($3::text[]))
+               AND tenant_id = $5
+             ORDER BY global_sequence ASC LIMIT $4"
+        } else {
             "SELECT event_id, global_sequence, context_name, partition_key, command_id,
                     event_type, event_version, aggregate_type, aggregate_id,
                     aggregate_version, tenant_scope, actor, correlation_id, causation_id,
@@ -143,14 +180,19 @@ impl ProjectionSource {
                AND available_at <= now()
                AND (cardinality($3::text[]) = 0 OR event_type = ANY($3::text[]))
              ORDER BY global_sequence ASC
-             LIMIT $4",
-        )
-        .bind(to_i64(after_sequence)?)
-        .bind(through_sequence)
-        .bind(event_types)
-        .bind(i64::from(limit))
-        .fetch_all(self.pool.inner())
-        .await?;
+             LIMIT $4"
+        };
+        let mut transaction = self.pool.begin().await?;
+        let query = sqlx::query(statement)
+            .bind(to_i64(after_sequence)?)
+            .bind(through_sequence)
+            .bind(event_types)
+            .bind(i64::from(limit));
+        let rows = match self.pool.tenant_id() {
+            Some(tenant_id) => query.bind(tenant_id).fetch_all(&mut *transaction).await?,
+            None => query.fetch_all(&mut *transaction).await?,
+        };
+        transaction.commit().await?;
         let events = rows
             .into_iter()
             .map(row_to_event)
@@ -427,7 +469,7 @@ impl ProjectionStore {
         projection: &str,
     ) -> Result<ProjectionGeneration, CqrsSqlxError> {
         validate_projection_name(projection)?;
-        let mut transaction = self.pool.inner().begin().await?;
+        let mut transaction = self.pool.begin().await?;
         lock_rebuild_start(&mut transaction, projection).await?;
         let existing = sqlx::query(
             "SELECT generation, source_sequence
@@ -486,14 +528,16 @@ impl ProjectionStore {
         projection: &str,
     ) -> Result<Option<ProjectionGeneration>, CqrsSqlxError> {
         validate_projection_name(projection)?;
+        let mut transaction = self.pool.begin().await?;
         let row = sqlx::query(
             "SELECT generation, source_sequence
              FROM erpx_cqrs_read.projection_generations
              WHERE projection_name = $1 AND status = 'active'",
         )
         .bind(projection)
-        .fetch_optional(self.pool.inner())
+        .fetch_optional(&mut *transaction)
         .await?;
+        transaction.commit().await?;
         row.map(|row| {
             Ok(ProjectionGeneration {
                 projection: projection.into(),
@@ -518,6 +562,7 @@ impl ProjectionStore {
                 "projection generation is required",
             ));
         }
+        let mut transaction = self.pool.begin().await?;
         let row = sqlx::query(
             "SELECT status, source_sequence
              FROM erpx_cqrs_read.projection_generations
@@ -526,8 +571,9 @@ impl ProjectionStore {
         )
         .bind(projection)
         .bind(generation)
-        .fetch_optional(self.pool.inner())
+        .fetch_optional(&mut *transaction)
         .await?;
+        transaction.commit().await?;
         row.map(|row| {
             let status: String = row.try_get("status")?;
             Ok(ProjectionGeneration {
@@ -555,7 +601,19 @@ impl ProjectionStore {
                 "projection generation is required",
             ));
         }
-        sqlx::query(
+        let mut transaction = self.pool.begin().await?;
+        let statement = if self.pool.tenant_id().is_some() {
+            "INSERT INTO erpx_cqrs_read.projection_source_checkpoints
+                (projection_name, generation, source_key, source_sequence,
+                 rebuild_target_sequence, created_at, updated_at, tenant_id)
+             SELECT $1, $2, $3, 0, NULL, now(), now(), $4
+             WHERE EXISTS (
+                 SELECT 1 FROM erpx_cqrs_read.projection_generations
+                 WHERE projection_name = $1 AND generation = $2 AND status = 'active'
+                   AND tenant_id = $4
+             )
+             ON CONFLICT (tenant_id, projection_name, generation, source_key) DO NOTHING"
+        } else {
             "INSERT INTO erpx_cqrs_read.projection_source_checkpoints
                 (projection_name, generation, source_key, source_sequence,
                  rebuild_target_sequence, created_at, updated_at)
@@ -564,14 +622,28 @@ impl ProjectionStore {
                  SELECT 1 FROM erpx_cqrs_read.projection_generations
                  WHERE projection_name = $1 AND generation = $2 AND status = 'active'
              )
-             ON CONFLICT (projection_name, generation, source_key) DO NOTHING",
-        )
-        .bind(projection)
-        .bind(generation)
-        .bind(source_key.as_str())
-        .execute(self.pool.inner())
-        .await?;
-        let row = sqlx::query(
+             ON CONFLICT (projection_name, generation, source_key) DO NOTHING"
+        };
+        let query = sqlx::query(statement)
+            .bind(projection)
+            .bind(generation)
+            .bind(source_key.as_str());
+        match self.pool.tenant_id() {
+            Some(tenant_id) => query.bind(tenant_id).execute(&mut *transaction).await?,
+            None => query.execute(&mut *transaction).await?,
+        };
+        let statement = if self.pool.tenant_id().is_some() {
+            "SELECT checkpoint.source_sequence, checkpoint.rebuild_target_sequence
+             FROM erpx_cqrs_read.projection_source_checkpoints checkpoint
+             JOIN erpx_cqrs_read.projection_generations generation
+               ON generation.tenant_id = checkpoint.tenant_id
+              AND generation.projection_name = checkpoint.projection_name
+              AND generation.generation = checkpoint.generation
+              AND generation.status = 'active'
+             WHERE checkpoint.projection_name = $1
+               AND checkpoint.generation = $2
+               AND checkpoint.source_key = $3 AND checkpoint.tenant_id = $4"
+        } else {
             "SELECT checkpoint.source_sequence, checkpoint.rebuild_target_sequence
              FROM erpx_cqrs_read.projection_source_checkpoints checkpoint
              JOIN erpx_cqrs_read.projection_generations generation
@@ -580,16 +652,27 @@ impl ProjectionStore {
               AND generation.status = 'active'
              WHERE checkpoint.projection_name = $1
                AND checkpoint.generation = $2
-               AND checkpoint.source_key = $3",
-        )
-        .bind(projection)
-        .bind(generation)
-        .bind(source_key.as_str())
-        .fetch_optional(self.pool.inner())
-        .await?;
-        row.map(|row| source_checkpoint_from_row(projection, generation, source_key, &row))
+               AND checkpoint.source_key = $3"
+        };
+        let query = sqlx::query(statement)
+            .bind(projection)
+            .bind(generation)
+            .bind(source_key.as_str());
+        let row = match self.pool.tenant_id() {
+            Some(tenant_id) => {
+                query
+                    .bind(tenant_id)
+                    .fetch_optional(&mut *transaction)
+                    .await?
+            }
+            None => query.fetch_optional(&mut *transaction).await?,
+        };
+        let result = row
+            .map(|row| source_checkpoint_from_row(projection, generation, source_key, &row))
             .transpose()?
-            .ok_or(CqrsSqlxError::MissingGeneration)
+            .ok_or(CqrsSqlxError::MissingGeneration);
+        transaction.commit().await?;
+        result
     }
 
     pub async fn source_checkpoint(
@@ -604,6 +687,7 @@ impl ProjectionStore {
                 "projection generation is required",
             ));
         }
+        let mut transaction = self.pool.begin().await?;
         let row = sqlx::query(
             "SELECT source_sequence, rebuild_target_sequence
              FROM erpx_cqrs_read.projection_source_checkpoints
@@ -612,10 +696,13 @@ impl ProjectionStore {
         .bind(projection)
         .bind(generation)
         .bind(source_key.as_str())
-        .fetch_optional(self.pool.inner())
+        .fetch_optional(&mut *transaction)
         .await?;
-        row.map(|row| source_checkpoint_from_row(projection, generation, source_key, &row))
-            .transpose()
+        let result = row
+            .map(|row| source_checkpoint_from_row(projection, generation, source_key, &row))
+            .transpose();
+        transaction.commit().await?;
+        result
     }
 
     /// Recover the immutable source fences already persisted for a building
@@ -632,6 +719,7 @@ impl ProjectionStore {
                 "projection generation is required",
             ));
         }
+        let mut transaction = self.pool.begin().await?;
         let rows = sqlx::query(
             "SELECT source_key, rebuild_target_sequence
              FROM erpx_cqrs_read.projection_source_checkpoints
@@ -640,9 +728,10 @@ impl ProjectionStore {
         )
         .bind(projection)
         .bind(generation)
-        .fetch_all(self.pool.inner())
+        .fetch_all(&mut *transaction)
         .await?;
-        rows.into_iter()
+        let result = rows
+            .into_iter()
             .map(|row| {
                 let source_key =
                     ProjectionSourceKey::try_new(row.try_get::<String, _>("source_key")?)?;
@@ -655,7 +744,9 @@ impl ProjectionStore {
                     target_sequence,
                 })
             })
-            .collect()
+            .collect();
+        transaction.commit().await?;
+        result
     }
 
     /// Advance exactly one physical source using compare-and-swap semantics.
@@ -675,7 +766,7 @@ impl ProjectionStore {
                 "projection source cursor is invalid",
             ));
         }
-        let mut transaction = self.pool.inner().begin().await?;
+        let mut transaction = self.pool.begin().await?;
         let status: Option<String> = sqlx::query_scalar(
             "SELECT status FROM erpx_cqrs_read.projection_generations
              WHERE projection_name = $1 AND generation = $2 FOR SHARE",
@@ -737,7 +828,7 @@ impl ProjectionStore {
                 "rebuild generation is required",
             ));
         }
-        let mut transaction = self.pool.inner().begin().await?;
+        let mut transaction = self.pool.begin().await?;
         lock_rebuild_start(&mut transaction, projector.name()).await?;
         let active: Option<Uuid> = sqlx::query_scalar(
             "SELECT generation FROM erpx_cqrs_read.projection_generations
@@ -818,7 +909,7 @@ impl ProjectionStore {
             ));
         }
         let fences = normalize_source_fences(fences)?;
-        let mut transaction = self.pool.inner().begin().await?;
+        let mut transaction = self.pool.begin().await?;
         lock_rebuild_start(&mut transaction, projector.name()).await?;
         let active: Option<Uuid> = sqlx::query_scalar(
             "SELECT generation FROM erpx_cqrs_read.projection_generations
@@ -928,7 +1019,7 @@ impl ProjectionStore {
 
     pub async fn activate_rebuild(&self, rebuild: &RebuildHandle) -> Result<(), CqrsSqlxError> {
         validate_rebuild_handle_shape(rebuild)?;
-        let mut transaction = self.pool.inner().begin().await?;
+        let mut transaction = self.pool.begin().await?;
         lock_rebuild_start(&mut transaction, &rebuild.projection).await?;
         let active: Option<Uuid> = sqlx::query_scalar(
             "SELECT generation FROM erpx_cqrs_read.projection_generations
@@ -995,7 +1086,7 @@ impl ProjectionStore {
         rebuild: &RebuildHandle,
     ) -> Result<(), CqrsSqlxError> {
         validate_rebuild_handle_shape(rebuild)?;
-        let mut transaction = self.pool.inner().begin().await?;
+        let mut transaction = self.pool.begin().await?;
         lock_rebuild_start(&mut transaction, &rebuild.projection).await?;
         let active: Option<Uuid> = sqlx::query_scalar(
             "SELECT generation FROM erpx_cqrs_read.projection_generations
@@ -1095,7 +1186,7 @@ impl ProjectionStore {
                 "rebuild handle belongs to another projector",
             ));
         }
-        let mut transaction = self.pool.inner().begin().await?;
+        let mut transaction = self.pool.begin().await?;
         let status: Option<String> = sqlx::query_scalar(
             "SELECT status FROM erpx_cqrs_read.projection_generations
              WHERE projection_name = $1 AND generation = $2 FOR SHARE",
@@ -1134,8 +1225,16 @@ impl ProjectionStore {
         {
             return Ok(disposition);
         }
-        let mut transaction = self.pool.inner().begin().await?;
-        match apply_decision(&mut transaction, projector.name(), generation, event).await? {
+        let mut transaction = self.pool.begin().await?;
+        match apply_decision(
+            &mut transaction,
+            self.pool.tenant_id(),
+            projector.name(),
+            generation,
+            event,
+        )
+        .await?
+        {
             Decision::Duplicate => {
                 transaction.commit().await?;
                 return Ok(ApplyDisposition::Duplicate);
@@ -1156,7 +1255,14 @@ impl ProjectionStore {
                 .record_failure(projector.name(), generation, event, &error, retry)
                 .await;
         }
-        record_applied(&mut transaction, projector.name(), generation, event).await?;
+        record_applied(
+            &mut transaction,
+            self.pool.tenant_id(),
+            projector.name(),
+            generation,
+            event,
+        )
+        .await?;
         transaction.commit().await?;
         Ok(ApplyDisposition::Applied)
     }
@@ -1167,6 +1273,7 @@ impl ProjectionStore {
         generation: Uuid,
         event: &ProjectionEvent,
     ) -> Result<Option<ApplyDisposition>, CqrsSqlxError> {
+        let mut transaction = self.pool.begin().await?;
         let row = sqlx::query(
             "SELECT attempts, next_retry_at, dead_lettered_at
              FROM erpx_cqrs_read.projection_failures
@@ -1177,8 +1284,9 @@ impl ProjectionStore {
         .bind(generation)
         .bind(&event.partition)
         .bind(event.event_id.as_uuid())
-        .fetch_optional(self.pool.inner())
+        .fetch_optional(&mut *transaction)
         .await?;
+        transaction.commit().await?;
         let Some(row) = row else {
             return Ok(None);
         };
@@ -1203,6 +1311,7 @@ impl ProjectionStore {
         failure: &ProjectionFailure,
         retry: RetryPolicy,
     ) -> Result<ApplyDisposition, CqrsSqlxError> {
+        let mut transaction = self.pool.begin().await?;
         let previous: Option<i32> = sqlx::query_scalar(
             "SELECT attempts FROM erpx_cqrs_read.projection_failures
              WHERE projection_name = $1 AND generation = $2
@@ -1212,7 +1321,7 @@ impl ProjectionStore {
         .bind(generation)
         .bind(&event.partition)
         .bind(event.event_id.as_uuid())
-        .fetch_optional(self.pool.inner())
+        .fetch_optional(&mut *transaction)
         .await?;
         let attempt = previous
             .map(|value| u32::try_from(value).map_err(|_| CqrsSqlxError::NumericRange))
@@ -1228,7 +1337,19 @@ impl ProjectionStore {
                 .map(|delay| Utc::now() + delay)
         };
         let message = bounded_failure_message(failure.message());
-        sqlx::query(
+        let statement = if self.pool.tenant_id().is_some() {
+            "INSERT INTO erpx_cqrs_read.projection_failures
+                (projection_name, generation, partition_key, event_id, global_sequence,
+                 attempts, next_retry_at, dead_lettered_at, last_error, updated_at, tenant_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7,
+                     CASE WHEN $8 THEN now() ELSE NULL END, $9, now(), $10)
+             ON CONFLICT (tenant_id, projection_name, generation, partition_key, event_id)
+             DO UPDATE SET attempts = EXCLUDED.attempts,
+                           next_retry_at = EXCLUDED.next_retry_at,
+                           dead_lettered_at = EXCLUDED.dead_lettered_at,
+                           last_error = EXCLUDED.last_error,
+                           updated_at = now()"
+        } else {
             "INSERT INTO erpx_cqrs_read.projection_failures
                 (projection_name, generation, partition_key, event_id, global_sequence,
                  attempts, next_retry_at, dead_lettered_at, last_error, updated_at)
@@ -1239,19 +1360,23 @@ impl ProjectionStore {
                            next_retry_at = EXCLUDED.next_retry_at,
                            dead_lettered_at = EXCLUDED.dead_lettered_at,
                            last_error = EXCLUDED.last_error,
-                           updated_at = now()",
-        )
-        .bind(projection)
-        .bind(generation)
-        .bind(&event.partition)
-        .bind(event.event_id.as_uuid())
-        .bind(to_i64(event.global_sequence)?)
-        .bind(i32::try_from(attempt).map_err(|_| CqrsSqlxError::NumericRange)?)
-        .bind(next_retry_at)
-        .bind(dead_lettered)
-        .bind(message)
-        .execute(self.pool.inner())
-        .await?;
+                           updated_at = now()"
+        };
+        let query = sqlx::query(statement)
+            .bind(projection)
+            .bind(generation)
+            .bind(&event.partition)
+            .bind(event.event_id.as_uuid())
+            .bind(to_i64(event.global_sequence)?)
+            .bind(i32::try_from(attempt).map_err(|_| CqrsSqlxError::NumericRange)?)
+            .bind(next_retry_at)
+            .bind(dead_lettered)
+            .bind(message);
+        match self.pool.tenant_id() {
+            Some(tenant_id) => query.bind(tenant_id).execute(&mut *transaction).await?,
+            None => query.execute(&mut *transaction).await?,
+        };
+        transaction.commit().await?;
         if dead_lettered {
             Ok(ApplyDisposition::DeadLettered { attempts: attempt })
         } else {
@@ -1398,6 +1523,7 @@ impl ProjectionRunner {
         generation: Uuid,
         cursor: u64,
     ) -> Result<(), CqrsSqlxError> {
+        let mut transaction = self.store.pool.begin().await?;
         let updated = sqlx::query(
             "UPDATE erpx_cqrs_read.projection_generations
              SET source_sequence = GREATEST(source_sequence, $3)
@@ -1407,11 +1533,12 @@ impl ProjectionRunner {
         .bind(projection)
         .bind(generation)
         .bind(to_i64(cursor)?)
-        .execute(self.store.pool.inner())
+        .execute(&mut *transaction)
         .await?;
         if updated.rows_affected() != 1 {
             return Err(CqrsSqlxError::MissingGeneration);
         }
+        transaction.commit().await?;
         Ok(())
     }
 }
@@ -1704,22 +1831,36 @@ enum Decision {
 
 async fn apply_decision(
     transaction: &mut Transaction<'_, Postgres>,
+    tenant_id: Option<Uuid>,
     projection: &str,
     generation: Uuid,
     event: &ProjectionEvent,
 ) -> Result<Decision, CqrsSqlxError> {
-    let duplicate = sqlx::query(
+    let statement = if tenant_id.is_some() {
         "SELECT global_sequence, event_type, event_version
          FROM erpx_cqrs_read.projection_applied_events
          WHERE projection_name = $1 AND generation = $2
-           AND partition_key = $3 AND event_id = $4",
-    )
-    .bind(projection)
-    .bind(generation)
-    .bind(&event.partition)
-    .bind(event.event_id.as_uuid())
-    .fetch_optional(&mut **transaction)
-    .await?;
+           AND partition_key = $3 AND event_id = $4 AND tenant_id = $5"
+    } else {
+        "SELECT global_sequence, event_type, event_version
+         FROM erpx_cqrs_read.projection_applied_events
+         WHERE projection_name = $1 AND generation = $2
+           AND partition_key = $3 AND event_id = $4"
+    };
+    let query = sqlx::query(statement)
+        .bind(projection)
+        .bind(generation)
+        .bind(&event.partition)
+        .bind(event.event_id.as_uuid());
+    let duplicate = match tenant_id {
+        Some(tenant_id) => {
+            query
+                .bind(tenant_id)
+                .fetch_optional(&mut **transaction)
+                .await?
+        }
+        None => query.fetch_optional(&mut **transaction).await?,
+    };
     if let Some(row) = duplicate {
         let same = to_u64(row.try_get("global_sequence")?)? == event.global_sequence
             && row.try_get::<String, _>("event_type")? == event.event_type
@@ -1732,30 +1873,54 @@ async fn apply_decision(
             Decision::PositionConflict
         });
     }
-    let occupied: Option<Uuid> = sqlx::query_scalar(
+    let statement = if tenant_id.is_some() {
         "SELECT event_id FROM erpx_cqrs_read.projection_applied_events
          WHERE projection_name = $1 AND generation = $2
-           AND partition_key = $3 AND global_sequence = $4",
-    )
-    .bind(projection)
-    .bind(generation)
-    .bind(&event.partition)
-    .bind(to_i64(event.global_sequence)?)
-    .fetch_optional(&mut **transaction)
-    .await?;
+           AND partition_key = $3 AND global_sequence = $4 AND tenant_id = $5"
+    } else {
+        "SELECT event_id FROM erpx_cqrs_read.projection_applied_events
+         WHERE projection_name = $1 AND generation = $2
+           AND partition_key = $3 AND global_sequence = $4"
+    };
+    let query = sqlx::query_scalar(statement)
+        .bind(projection)
+        .bind(generation)
+        .bind(&event.partition)
+        .bind(to_i64(event.global_sequence)?);
+    let occupied: Option<Uuid> = match tenant_id {
+        Some(tenant_id) => {
+            query
+                .bind(tenant_id)
+                .fetch_optional(&mut **transaction)
+                .await?
+        }
+        None => query.fetch_optional(&mut **transaction).await?,
+    };
     if occupied.is_some() {
         return Ok(Decision::PositionConflict);
     }
-    let checkpoint: Option<i64> = sqlx::query_scalar(
+    let statement = if tenant_id.is_some() {
         "SELECT global_sequence FROM erpx_cqrs_read.projection_checkpoints
          WHERE projection_name = $1 AND generation = $2 AND partition_key = $3
-         FOR UPDATE",
-    )
-    .bind(projection)
-    .bind(generation)
-    .bind(&event.partition)
-    .fetch_optional(&mut **transaction)
-    .await?;
+           AND tenant_id = $4 FOR UPDATE"
+    } else {
+        "SELECT global_sequence FROM erpx_cqrs_read.projection_checkpoints
+         WHERE projection_name = $1 AND generation = $2 AND partition_key = $3
+         FOR UPDATE"
+    };
+    let query = sqlx::query_scalar(statement)
+        .bind(projection)
+        .bind(generation)
+        .bind(&event.partition);
+    let checkpoint: Option<i64> = match tenant_id {
+        Some(tenant_id) => {
+            query
+                .bind(tenant_id)
+                .fetch_optional(&mut **transaction)
+                .await?
+        }
+        None => query.fetch_optional(&mut **transaction).await?,
+    };
     match checkpoint.map(to_u64).transpose()? {
         Some(position) if event.global_sequence == position => Ok(Decision::PositionConflict),
         Some(position) if event.global_sequence < position => Ok(Decision::OutOfOrder),
@@ -1765,42 +1930,76 @@ async fn apply_decision(
 
 async fn record_applied(
     transaction: &mut Transaction<'_, Postgres>,
+    tenant_id: Option<Uuid>,
     projection: &str,
     generation: Uuid,
     event: &ProjectionEvent,
 ) -> Result<(), CqrsSqlxError> {
-    sqlx::query(
+    let statement = if tenant_id.is_some() {
+        "INSERT INTO erpx_cqrs_read.projection_applied_events
+            (projection_name, generation, partition_key, event_id, global_sequence,
+             event_type, event_version, applied_at, tenant_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8)"
+    } else {
         "INSERT INTO erpx_cqrs_read.projection_applied_events
             (projection_name, generation, partition_key, event_id, global_sequence,
              event_type, event_version, applied_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, now())",
-    )
-    .bind(projection)
-    .bind(generation)
-    .bind(&event.partition)
-    .bind(event.event_id.as_uuid())
-    .bind(to_i64(event.global_sequence)?)
-    .bind(&event.event_type)
-    .bind(i32::try_from(event.event_version).map_err(|_| CqrsSqlxError::NumericRange)?)
-    .execute(&mut **transaction)
-    .await?;
-    sqlx::query(
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now())"
+    };
+    let query = sqlx::query(statement)
+        .bind(projection)
+        .bind(generation)
+        .bind(&event.partition)
+        .bind(event.event_id.as_uuid())
+        .bind(to_i64(event.global_sequence)?)
+        .bind(&event.event_type)
+        .bind(i32::try_from(event.event_version).map_err(|_| CqrsSqlxError::NumericRange)?);
+    match tenant_id {
+        Some(tenant_id) => query.bind(tenant_id).execute(&mut **transaction).await?,
+        None => query.execute(&mut **transaction).await?,
+    };
+    let statement = if tenant_id.is_some() {
+        "INSERT INTO erpx_cqrs_read.projection_checkpoints
+            (projection_name, generation, partition_key, event_id, global_sequence, updated_at,
+             tenant_id)
+         VALUES ($1, $2, $3, $4, $5, now(), $6)
+         ON CONFLICT (tenant_id, projection_name, generation, partition_key)
+         DO UPDATE SET event_id = EXCLUDED.event_id,
+                       global_sequence = EXCLUDED.global_sequence,
+                       updated_at = now()"
+    } else {
         "INSERT INTO erpx_cqrs_read.projection_checkpoints
             (projection_name, generation, partition_key, event_id, global_sequence, updated_at)
          VALUES ($1, $2, $3, $4, $5, now())
          ON CONFLICT (projection_name, generation, partition_key)
          DO UPDATE SET event_id = EXCLUDED.event_id,
                        global_sequence = EXCLUDED.global_sequence,
-                       updated_at = now()",
-    )
-    .bind(projection)
-    .bind(generation)
-    .bind(&event.partition)
-    .bind(event.event_id.as_uuid())
-    .bind(to_i64(event.global_sequence)?)
-    .execute(&mut **transaction)
-    .await?;
-    sqlx::query(
+                       updated_at = now()"
+    };
+    let query = sqlx::query(statement)
+        .bind(projection)
+        .bind(generation)
+        .bind(&event.partition)
+        .bind(event.event_id.as_uuid())
+        .bind(to_i64(event.global_sequence)?);
+    match tenant_id {
+        Some(tenant_id) => query.bind(tenant_id).execute(&mut **transaction).await?,
+        None => query.execute(&mut **transaction).await?,
+    };
+    let statement = if tenant_id.is_some() {
+        "INSERT INTO erpx_cqrs_read.projection_receipts
+            (projection_name, generation, partition_key, command_id,
+             correlation_id, event_id, global_sequence, projected_at, tenant_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, now(), $8)
+         ON CONFLICT (tenant_id, projection_name, generation, partition_key, command_id)
+         DO UPDATE SET correlation_id = EXCLUDED.correlation_id,
+                       event_id = EXCLUDED.event_id,
+                       global_sequence = GREATEST(
+                           erpx_cqrs_read.projection_receipts.global_sequence,
+                           EXCLUDED.global_sequence
+                       ),
+                       projected_at = now()"
+    } else {
         "INSERT INTO erpx_cqrs_read.projection_receipts
             (projection_name, generation, partition_key, command_id,
              correlation_id, event_id, global_sequence, projected_at)
@@ -1812,28 +2011,38 @@ async fn record_applied(
                            erpx_cqrs_read.projection_receipts.global_sequence,
                            EXCLUDED.global_sequence
                        ),
-                       projected_at = now()",
-    )
-    .bind(projection)
-    .bind(generation)
-    .bind(&event.partition)
-    .bind(event.command_id.as_uuid())
-    .bind(event.correlation_id.as_uuid())
-    .bind(event.event_id.as_uuid())
-    .bind(to_i64(event.global_sequence)?)
-    .execute(&mut **transaction)
-    .await?;
-    sqlx::query(
+                       projected_at = now()"
+    };
+    let query = sqlx::query(statement)
+        .bind(projection)
+        .bind(generation)
+        .bind(&event.partition)
+        .bind(event.command_id.as_uuid())
+        .bind(event.correlation_id.as_uuid())
+        .bind(event.event_id.as_uuid())
+        .bind(to_i64(event.global_sequence)?);
+    match tenant_id {
+        Some(tenant_id) => query.bind(tenant_id).execute(&mut **transaction).await?,
+        None => query.execute(&mut **transaction).await?,
+    };
+    let statement = if tenant_id.is_some() {
         "DELETE FROM erpx_cqrs_read.projection_failures
          WHERE projection_name = $1 AND generation = $2
-           AND partition_key = $3 AND event_id = $4",
-    )
-    .bind(projection)
-    .bind(generation)
-    .bind(&event.partition)
-    .bind(event.event_id.as_uuid())
-    .execute(&mut **transaction)
-    .await?;
+           AND partition_key = $3 AND event_id = $4 AND tenant_id = $5"
+    } else {
+        "DELETE FROM erpx_cqrs_read.projection_failures
+         WHERE projection_name = $1 AND generation = $2
+           AND partition_key = $3 AND event_id = $4"
+    };
+    let query = sqlx::query(statement)
+        .bind(projection)
+        .bind(generation)
+        .bind(&event.partition)
+        .bind(event.event_id.as_uuid());
+    match tenant_id {
+        Some(tenant_id) => query.bind(tenant_id).execute(&mut **transaction).await?,
+        None => query.execute(&mut **transaction).await?,
+    };
     Ok(())
 }
 

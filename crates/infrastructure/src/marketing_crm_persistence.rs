@@ -3,9 +3,9 @@
 //! The accepted-lead handoff is an immutable source binding.  Opportunities
 //! are the only mutable CRM aggregate and may change only through a validated
 //! domain lifecycle transition.  Attribution is recomputed from the stored
-//! opportunity snapshot, so callers cannot submit fabricated revenue totals or
+//! normalized opportunity record, so callers cannot submit fabricated revenue totals or
 //! touch allocations.  Every mutation is routed through the holding-scoped
-//! transaction helper and commits source rows, shared snapshots, outbox
+//! transaction helper and commits normalized source rows, outbox
 //! events, and idempotency receipts together.
 
 use erpx_domain::contracts::{CONTRACT_VERSION, CommandContext, TenantScope};
@@ -221,7 +221,7 @@ impl SqlxMarketingCrmStore {
             version: 1,
             replayed: false,
         };
-        write_crm_snapshot_and_outbox(
+        write_crm_source_event(
             tx,
             holding_ref,
             HANDOFF_AGGREGATE,
@@ -435,7 +435,7 @@ impl SqlxMarketingCrmStore {
             version,
             replayed: false,
         };
-        write_crm_snapshot_and_outbox(
+        write_crm_source_event(
             &mut tx,
             &self.holding_ref,
             OPPORTUNITY_AGGREGATE,
@@ -643,7 +643,7 @@ impl SqlxMarketingCrmStore {
             version: 1,
             replayed: false,
         };
-        write_crm_snapshot_and_outbox(
+        write_crm_source_event(
             &mut tx,
             &self.holding_ref,
             ATTRIBUTION_AGGREGATE,
@@ -675,8 +675,8 @@ impl SqlxMarketingCrmStore {
     ///
     /// This is deliberately read-only and holding-scoped.  It recomputes the
     /// allocation from the authoritative opportunity payload, then checks the
-    /// normalized entry rows, aggregate snapshot, and exactly one complete
-    /// outbox envelope.  A missing or divergent source artifact fails closed;
+    /// normalized entry rows and exactly one complete outbox envelope. A
+    /// missing or divergent source artifact fails closed;
     /// callers can then queue the existing projection/rebuild workflow without
     /// accepting a fabricated attribution result.
     pub async fn reconcile_attribution(
@@ -832,28 +832,6 @@ impl SqlxMarketingCrmStore {
         if persisted_entries != expected_entries {
             return Err(PersistenceError::InvalidData(
                 "CRM attribution entry rows diverge from authoritative inputs".into(),
-            ));
-        }
-
-        let snapshot = sqlx::query(
-            "SELECT version, state
-             FROM erpx_tenant.aggregate_snapshots
-             WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3
-             FOR SHARE",
-        )
-        .bind(ATTRIBUTION_AGGREGATE)
-        .bind(record_id)
-        .bind(&self.holding_ref)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or_else(|| {
-            PersistenceError::InvalidData("CRM attribution aggregate snapshot is missing".into())
-        })?;
-        if snapshot.get::<i64, _>("version") != 1
-            || snapshot.get::<Value, _>("state") != record_row.get::<Value, _>("payload")
-        {
-            return Err(PersistenceError::InvalidData(
-                "CRM attribution aggregate snapshot diverges from its record".into(),
             ));
         }
 
@@ -1015,28 +993,6 @@ async fn reconcile_attribution_in_transaction(
         ));
     }
 
-    let snapshot = sqlx::query(
-        "SELECT version, state
-         FROM erpx_tenant.aggregate_snapshots
-         WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3
-         FOR SHARE",
-    )
-    .bind(ATTRIBUTION_AGGREGATE)
-    .bind(record_id)
-    .bind(holding_ref)
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or_else(|| {
-        PersistenceError::InvalidData("CRM attribution aggregate snapshot is missing".into())
-    })?;
-    if snapshot.get::<i64, _>("version") != 1
-        || snapshot.get::<Value, _>("state") != record_row.get::<Value, _>("payload")
-    {
-        return Err(PersistenceError::InvalidData(
-            "CRM attribution aggregate snapshot diverges from its record".into(),
-        ));
-    }
-
     let outbox_rows = sqlx::query(
         "SELECT contract_version, event_version, idempotency_key,
                 tenant_scope, actor, correlation_id, payload
@@ -1100,13 +1056,12 @@ async fn reconcile_attribution_in_transaction(
     Ok(())
 }
 
-/// Persist the CRM snapshot and source event as one complete shared event
-/// envelope.  The generic finance helper predates the envelope columns on
-/// `outbox_events` and intentionally leaves those columns null; CRM events
-/// are consumed by the Marketing projection and therefore must carry the
-/// command's authorization and replay provenance at the source boundary.
+/// Persist the CRM source event as one complete shared event envelope. The
+/// caller has already fenced and persisted the normalized owner row; this
+/// helper validates contiguous event history and appends the rebuild fact
+/// without maintaining a second generic aggregate authority.
 #[allow(clippy::too_many_arguments)]
-async fn write_crm_snapshot_and_outbox(
+async fn write_crm_source_event(
     tx: &mut Transaction<'_, Postgres>,
     holding_ref: &str,
     aggregate_type: &str,
@@ -1122,23 +1077,6 @@ async fn write_crm_snapshot_and_outbox(
             "CRM event contract version is unsupported".into(),
         ));
     }
-    let stored_snapshot_version: Option<i64> = sqlx::query_scalar(
-        "SELECT version
-         FROM erpx_tenant.aggregate_snapshots
-         WHERE aggregate_type=$1 AND aggregate_id=$2
-         FOR UPDATE",
-    )
-    .bind(aggregate_type)
-    .bind(aggregate_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    validate_snapshot_precondition(
-        aggregate_type,
-        aggregate_id,
-        version,
-        expected_previous_version,
-        stored_snapshot_version,
-    )?;
     if let Some(previous_version) = expected_previous_version {
         let previous_version = as_i64(previous_version, "CRM aggregate version")?;
         let (
@@ -1183,20 +1121,6 @@ async fn write_crm_snapshot_and_outbox(
         "event_type": event_type,
     });
     sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            holding_ref=$3, version=$4, state=$5, updated_at=now()",
-    )
-    .bind(aggregate_type)
-    .bind(aggregate_id)
-    .bind(holding_ref)
-    .bind(version)
-    .bind(payload)
-    .execute(&mut **tx)
-    .await?;
-    sqlx::query(
         "INSERT INTO erpx_tenant.outbox_events
             (event_id, aggregate_type, aggregate_id, holding_ref,
              aggregate_version, event_type, payload, occurred_at,
@@ -1220,54 +1144,6 @@ async fn write_crm_snapshot_and_outbox(
     .bind(Some(context.idempotency_key.clone()))
     .execute(&mut **tx)
     .await?;
-    Ok(())
-}
-
-fn validate_snapshot_precondition(
-    aggregate_type: &str,
-    aggregate_id: Uuid,
-    version: u64,
-    expected_previous_version: Option<u64>,
-    stored_snapshot_version: Option<i64>,
-) -> Result<(), PersistenceError> {
-    match expected_previous_version {
-        None => {
-            if version != 1 {
-                return Err(PersistenceError::InvalidData(format!(
-                    "CRM {aggregate_type} create must start at version 1"
-                )));
-            }
-            if stored_snapshot_version.is_some() {
-                return Err(PersistenceError::InvalidData(format!(
-                    "CRM {aggregate_type} snapshot already exists before create"
-                )));
-            }
-        }
-        Some(previous_version) => {
-            let expected_version = previous_version.checked_add(1).ok_or_else(|| {
-                PersistenceError::InvalidData(format!(
-                    "CRM {aggregate_type} snapshot version overflow"
-                ))
-            })?;
-            if version != expected_version {
-                return Err(PersistenceError::InvalidData(format!(
-                    "CRM {aggregate_type} version does not follow its snapshot"
-                )));
-            }
-            let actual_version = stored_snapshot_version
-                .ok_or_else(|| {
-                    PersistenceError::InvalidData(format!(
-                        "CRM {aggregate_type} snapshot is missing before update"
-                    ))
-                })
-                .and_then(|version| as_u64(version, "CRM aggregate snapshot version"))?;
-            if actual_version != previous_version {
-                return Err(PersistenceError::InvalidData(format!(
-                    "CRM {aggregate_type} snapshot version drift for {aggregate_id}"
-                )));
-            }
-        }
-    }
     Ok(())
 }
 
@@ -1839,43 +1715,6 @@ mod tests {
         assert_eq!(
             status_text(erpx_domain::marketing_crm::OpportunityStatus::Won),
             "won"
-        );
-    }
-
-    #[test]
-    fn snapshot_versions_must_be_contiguous_and_singleton_on_create() {
-        let aggregate_id = Uuid::new_v4();
-        assert!(
-            validate_snapshot_precondition(OPPORTUNITY_AGGREGATE, aggregate_id, 1, None, None,)
-                .is_ok()
-        );
-        assert!(
-            validate_snapshot_precondition(OPPORTUNITY_AGGREGATE, aggregate_id, 1, None, Some(1),)
-                .is_err()
-        );
-        assert!(
-            validate_snapshot_precondition(OPPORTUNITY_AGGREGATE, aggregate_id, 2, Some(1), None,)
-                .is_err()
-        );
-        assert!(
-            validate_snapshot_precondition(
-                OPPORTUNITY_AGGREGATE,
-                aggregate_id,
-                2,
-                Some(1),
-                Some(3),
-            )
-            .is_err()
-        );
-        assert!(
-            validate_snapshot_precondition(
-                OPPORTUNITY_AGGREGATE,
-                aggregate_id,
-                2,
-                Some(1),
-                Some(1),
-            )
-            .is_ok()
         );
     }
 

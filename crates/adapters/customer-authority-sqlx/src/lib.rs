@@ -1,10 +1,17 @@
 #![doc = "PostgreSQL command, query, and projection adapters for Customer Authority."]
 
+mod authority_records;
 mod command;
+mod portal_binding;
 mod projection;
 mod read;
 
+pub use authority_records::{
+    CustomerAuthorityRecordProjector, CustomerAuthorityRecordReadAdapter,
+    CustomerAuthorityRecordSqlxAdapter,
+};
 pub use command::{CustomerAuthorityCommandAdapter, CustomerAuthorityWriteRepository};
+pub use portal_binding::{CustomerPortalBindingSqlxAdapter, SqlxCustomerRecordAuthority};
 pub use projection::{
     CustomerAuthorityOutboxPayload, CustomerAuthorityProjector, CustomerAuthoritySnapshot,
 };
@@ -19,14 +26,19 @@ pub const EVENT_VERSION: u32 = 1;
 pub const CONTROL_WRITE_FOUNDATION_DDL: &str = include_str!(
     "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
 );
-pub const CONTROL_WRITE_CONTEXT_DDL: &str =
-    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql");
+pub const CONTROL_WRITE_CONTEXT_DDL: &str = concat!(
+    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql"),
+    "\n",
+    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
+);
 pub const CONTROL_WRITE_DDL: &str = concat!(
     include_str!(
         "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
     ),
     "\n",
-    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql")
+    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql"),
+    "\n",
+    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
 );
 pub const CONTROL_READ_FOUNDATION_DDL: &str = include_str!(
     "../../../migration/migrations_read/0015_cqrs_control_foundation_and_commercial_catalog.sql"
@@ -69,7 +81,8 @@ mod tests {
 
     #[test]
     fn canonical_migrations_declare_control_foundation_guards_and_projections() {
-        assert!(CONTROL_WRITE_FOUNDATION_DDL.contains("erpx_cqrs_write.aggregate_snapshots"));
+        assert!(CONTROL_WRITE_FOUNDATION_DDL.contains("erpx_cqrs_write.command_receipts"));
+        assert!(!CONTROL_WRITE_FOUNDATION_DDL.contains("aggregate_snapshots"));
         assert!(CONTROL_WRITE_CONTEXT_DDL.contains("erpx_customer_authority_write.account_guards"));
         assert!(CONTROL_WRITE_CONTEXT_DDL.contains("authority_link_guards"));
         assert!(CONTROL_READ_FOUNDATION_DDL.contains("erpx_cqrs_read.projection_generations"));

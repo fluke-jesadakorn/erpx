@@ -3,14 +3,15 @@ use std::collections::BTreeSet;
 use async_trait::async_trait;
 use chrono::Utc;
 use erpx_brand::{
-    BrandCategory, BrandHistory, BrandHistoryEntry, BrandLifecycle, BrandProfileId,
-    BrandProfileView, BrandScope, PortError, ReadProjection, ReadRepository, ResolvedBrandView,
+    BrandAssetView, BrandCategory, BrandHistory, BrandHistoryEntry, BrandLifecycle, BrandProfileId,
+    BrandProfileView, BrandPublicationView, BrandScope, DerivedRecordReadRepository, PortError,
+    ReadProjection, ReadRepository, ResolvedBrandView,
 };
 use erpx_cqrs::{
     FreshnessState, ProjectionCheckpoint, ProjectionMetadata, ProjectionNotReady, QueryConsistency,
 };
 use erpx_cqrs_sqlx::{CqrsSqlxError, ReadPool, SqlxProjectionWaiter, WaitError, WaiterConfig};
-use erpx_kernel::TenantScope;
+use erpx_kernel::{RecordId, TenantScope};
 use sqlx::Row;
 use uuid::Uuid;
 
@@ -82,7 +83,13 @@ impl BrandReadRepository {
              ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1",
         )
         .bind(projection)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
@@ -126,7 +133,13 @@ impl ReadRepository for BrandReadRepository {
         )
         .bind(PROFILE_PROJECTION)
         .bind(scope.canonical_key())
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_profile).transpose()?.and_then(|view| {
@@ -175,7 +188,13 @@ impl ReadRepository for BrandReadRepository {
         )
         .bind(RESOLVED_PROJECTION)
         .bind(scope.canonical_key())
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let value = row
@@ -215,7 +234,13 @@ impl ReadRepository for BrandReadRepository {
         .bind(cursor.map(|value| to_i64_port(value.0)).transpose()?)
         .bind(cursor.map(|value| value.1.as_uuid()))
         .bind(i64::from(page_size) + 1)
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let mut entries = rows
@@ -238,6 +263,135 @@ impl ReadRepository for BrandReadRepository {
             metadata: self.metadata(HISTORY_PROJECTION, checkpoint).await?,
         })
     }
+}
+
+#[async_trait]
+impl DerivedRecordReadRepository for BrandReadRepository {
+    async fn get_asset(
+        &self,
+        authority_scope: &TenantScope,
+        target_scope: &BrandScope,
+        record_id: RecordId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<BrandAssetView>>, PortError> {
+        ensure_scope(authority_scope, target_scope)?;
+        let checkpoint = self.checkpoint(HISTORY_PROJECTION, consistency).await?;
+        let history = self.history_for_scope(target_scope).await?;
+        let mut value = None;
+        'revisions: for entry in history {
+            for asset in entry.definition.assets.references() {
+                let record = erpx_brand::integration::asset_record_ref(entry.profile_id, asset)
+                    .map_err(|_| PortError::Internal)?;
+                if record.id() == record_id {
+                    ensure_partition(consistency, entry.profile_id, checkpoint.as_ref())?;
+                    value = Some(BrandAssetView {
+                        record,
+                        profile_id: entry.profile_id,
+                        source_revision: entry.revision,
+                        scope: target_scope.clone(),
+                        lifecycle: entry.lifecycle,
+                        asset: asset.clone(),
+                        revision_updated_at: entry.created_at,
+                        archived_at: entry.archived_at,
+                    });
+                    break 'revisions;
+                }
+            }
+        }
+        Ok(ReadProjection {
+            value,
+            metadata: self.metadata(HISTORY_PROJECTION, checkpoint).await?,
+        })
+    }
+
+    async fn get_publication(
+        &self,
+        authority_scope: &TenantScope,
+        target_scope: &BrandScope,
+        record_id: RecordId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<BrandPublicationView>>, PortError> {
+        ensure_scope(authority_scope, target_scope)?;
+        let checkpoint = self.checkpoint(HISTORY_PROJECTION, consistency).await?;
+        let mut value = None;
+        for entry in self.history_for_scope(target_scope).await? {
+            if entry.lifecycle != BrandLifecycle::Published {
+                continue;
+            }
+            let record =
+                erpx_brand::integration::publication_record_ref(entry.profile_id, entry.revision)
+                    .map_err(|_| PortError::Internal)?;
+            if record.id() == record_id {
+                ensure_partition(consistency, entry.profile_id, checkpoint.as_ref())?;
+                let published_at = entry.published_at.ok_or(PortError::Internal)?;
+                value = Some(BrandPublicationView {
+                    record,
+                    profile_id: entry.profile_id,
+                    revision: entry.revision,
+                    scope: target_scope.clone(),
+                    definition: entry.definition,
+                    updated_by: entry.updated_by,
+                    reason: entry.reason,
+                    published_at,
+                    archived_at: entry.archived_at,
+                });
+                break;
+            }
+        }
+        Ok(ReadProjection {
+            value,
+            metadata: self.metadata(HISTORY_PROJECTION, checkpoint).await?,
+        })
+    }
+}
+
+impl BrandReadRepository {
+    async fn history_for_scope(
+        &self,
+        scope: &BrandScope,
+    ) -> Result<Vec<BrandHistoryEntry>, PortError> {
+        let rows = sqlx::query(
+            "SELECT profile_id,revision,lifecycle,definition,parent_published_revision,
+                    updated_by,reason,created_at,published_at,archived_at
+             FROM erpx_brand_read.history_projection projection
+             JOIN erpx_cqrs_read.projection_generations generation
+               ON generation.projection_name=projection.projection_name
+              AND generation.generation=projection.generation
+              AND generation.status='active'
+             WHERE projection.projection_name=$1 AND projection.scope_key=$2
+             ORDER BY projection.revision DESC,projection.profile_id DESC",
+        )
+        .bind(HISTORY_PROJECTION)
+        .bind(scope.canonical_key())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        rows.into_iter().map(decode_history).collect()
+    }
+}
+
+fn ensure_partition(
+    consistency: &QueryConsistency,
+    profile_id: BrandProfileId,
+    observed: Option<&ProjectionCheckpoint>,
+) -> Result<(), PortError> {
+    if let QueryConsistency::ReadYourWrites(requirement) = consistency
+        && requirement.partition != crate::profile_partition(profile_id)
+    {
+        return Err(PortError::NotReady(ProjectionNotReady {
+            projection: requirement.projection.clone(),
+            partition: requirement.partition.clone(),
+            target: requirement.target,
+            observed: observed.cloned().map(Box::new),
+        }));
+    }
+    Ok(())
 }
 
 fn ensure_scope(authority: &TenantScope, target: &BrandScope) -> Result<(), PortError> {
@@ -371,5 +525,16 @@ mod tests {
         ] {
             assert!(!production.contains(forbidden));
         }
+    }
+
+    #[test]
+    fn derived_records_use_only_the_active_history_generation() {
+        let production = include_str!("read.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .expect("read adapter has production source");
+        assert!(production.contains("generation.status='active'"));
+        assert!(production.contains("history_for_scope"));
+        assert!(!production.contains(concat!("ORDER BY projected_at ", "DESC")));
     }
 }

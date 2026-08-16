@@ -1,12 +1,17 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{
-    AtomicCommand, AtomicCommandOutcome, AuditWrite, CommandStore, CqrsSqlxError, OutboxEventWrite,
-    RequestHash, WritePool,
+    AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
+    CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
-use erpx_integration_contracts::IntegrationEvent;
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_integration_contracts::{
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, record_policy_id,
+};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
 use erpx_quality::{
-    domain::{InspectionId, QualityInspection},
+    domain::{
+        InspectionId, InspectionKind, InspectionStatus, QualityInspection, QualityInspectionState,
+    },
     ports::{
         CommandFingerprint, CommandIdentity, CommandUnitOfWork, PortError, QualityCommit,
         StoredCommit, WriteRepository,
@@ -14,6 +19,7 @@ use erpx_quality::{
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
+use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -23,15 +29,195 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct QualityWriteRepository {
-    store: CommandStore,
+    pool: WritePool,
 }
 
 impl QualityWriteRepository {
     pub fn new(pool: WritePool) -> Self {
-        Self {
-            store: CommandStore::new(pool),
-        }
+        Self { pool }
     }
+}
+
+#[derive(Debug)]
+struct AuthoritySqlScope {
+    mode: &'static str,
+    holding_id: Option<Uuid>,
+    company_id: Option<Uuid>,
+    branch_id: Option<Uuid>,
+    company_ids: Vec<Uuid>,
+    branch_ids: Vec<Uuid>,
+}
+
+impl AuthoritySqlScope {
+    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+        scope.validate().map_err(|_| PortError::Denied)?;
+        Ok(match scope {
+            TenantScope::Platform => Self {
+                mode: "platform",
+                holding_id: None,
+                company_id: None,
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Holding { holding_id } => Self {
+                mode: "holding",
+                holding_id: Some(*holding_id),
+                company_id: None,
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Company {
+                holding_id,
+                company_id,
+            } => Self {
+                mode: "company",
+                holding_id: Some(*holding_id),
+                company_id: Some(*company_id),
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            } => Self {
+                mode: "branch",
+                holding_id: Some(*holding_id),
+                company_id: Some(*company_id),
+                branch_id: Some(*branch_id),
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Subtree {
+                holding_id,
+                company_ids,
+                branch_ids,
+            } => Self {
+                mode: "subtree",
+                holding_id: Some(*holding_id),
+                company_id: None,
+                branch_id: None,
+                company_ids: company_ids.clone(),
+                branch_ids: branch_ids.clone(),
+            },
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct QualityInspectionGuard {
+    aggregate: QualityInspection,
+}
+
+#[async_trait]
+impl AtomicCommandGuard for QualityInspectionGuard {
+    async fn authoritative_version(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        validate_guard_context(&self.aggregate, context)?;
+        let current: Option<i64> = sqlx::query_scalar(
+            "SELECT aggregate_version
+             FROM erpx_quality_write.inspection_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND inspection_id=$1
+             FOR UPDATE",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?;
+        current.map(from_i64_store).transpose()
+    }
+
+    async fn validate(
+        &self,
+        _transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<(), CqrsSqlxError> {
+        validate_guard_context(&self.aggregate, context)
+    }
+
+    async fn apply(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &AppliedGuardContext<'_>,
+    ) -> Result<(), CqrsSqlxError> {
+        if context.context != CONTEXT_NAME
+            || context.aggregate_type != AGGREGATE_TYPE
+            || context.aggregate_id.as_uuid() != self.aggregate.id().as_uuid()
+            || context.partition != inspection_partition(self.aggregate.id())
+            || context.aggregate_version != self.aggregate.version()
+        {
+            return Err(CqrsSqlxError::GuardRejected(
+                "Quality normalized apply metadata mismatch",
+            ));
+        }
+        let result = sqlx::query(
+            "INSERT INTO erpx_quality_write.inspection_authority
+                (tenant_id,inspection_id,aggregate_version,reference,holding_id,company_id,
+                 branch_id,inspection_kind,product_id,lot_reference,quantity,passed_quantity,
+                 failed_quantity,inspection_status,disposition_note,created_at,updated_at)
+             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,
+                     $10,$11,$12,$13,$14,$15,$16)
+             ON CONFLICT (tenant_id,inspection_id) DO UPDATE SET
+                aggregate_version=EXCLUDED.aggregate_version,
+                reference=EXCLUDED.reference,holding_id=EXCLUDED.holding_id,
+                company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
+                inspection_kind=EXCLUDED.inspection_kind,product_id=EXCLUDED.product_id,
+                lot_reference=EXCLUDED.lot_reference,quantity=EXCLUDED.quantity,
+                passed_quantity=EXCLUDED.passed_quantity,failed_quantity=EXCLUDED.failed_quantity,
+                inspection_status=EXCLUDED.inspection_status,
+                disposition_note=EXCLUDED.disposition_note,created_at=EXCLUDED.created_at,
+                updated_at=EXCLUDED.updated_at
+             WHERE erpx_quality_write.inspection_authority.tenant_id=
+                       erpx_cqrs_write.current_tenant_id()
+               AND erpx_quality_write.inspection_authority.aggregate_version + 1 =
+                       EXCLUDED.aggregate_version",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .bind(to_i64(self.aggregate.version())?)
+        .bind(self.aggregate.reference())
+        .bind(self.aggregate.holding_id())
+        .bind(self.aggregate.company_id())
+        .bind(self.aggregate.branch_id())
+        .bind(kind_name(self.aggregate.kind()))
+        .bind(self.aggregate.product_id())
+        .bind(self.aggregate.lot_reference())
+        .bind(to_i64(self.aggregate.quantity())?)
+        .bind(to_i64(self.aggregate.passed_quantity())?)
+        .bind(to_i64(self.aggregate.failed_quantity())?)
+        .bind(status_name(self.aggregate.status()))
+        .bind(self.aggregate.disposition_note())
+        .bind(self.aggregate.created_at())
+        .bind(self.aggregate.updated_at())
+        .execute(&mut **transaction)
+        .await?;
+        if result.rows_affected() != 1 {
+            return Err(CqrsSqlxError::GuardRejected(
+                "Quality normalized version did not advance exactly once",
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn validate_guard_context(
+    aggregate: &QualityInspection,
+    context: &GuardCommandContext<'_>,
+) -> Result<(), CqrsSqlxError> {
+    if context.context != CONTEXT_NAME
+        || context.aggregate_type != AGGREGATE_TYPE
+        || context.aggregate_id.as_uuid() != aggregate.id().as_uuid()
+        || context.partition != inspection_partition(aggregate.id())
+    {
+        return Err(CqrsSqlxError::GuardRejected(
+            "Quality normalized command metadata mismatch",
+        ));
+    }
+    Ok(())
 }
 
 #[async_trait]
@@ -41,30 +227,95 @@ impl WriteRepository for QualityWriteRepository {
         authority_scope: &TenantScope,
         inspection_id: InspectionId,
     ) -> Result<Option<QualityInspection>, PortError> {
-        let aggregate_id = aggregate_id(inspection_id)?;
-        let snapshot = self
-            .store
-            .load_snapshot::<QualityInspection>(
-                CONTEXT_NAME,
-                &inspection_partition(inspection_id),
-                AGGREGATE_TYPE,
-                aggregate_id,
-            )
+        let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
+        let mut transaction = self.pool.begin().await.map_err(map_store_error)?;
+        let row = sqlx::query(
+            "SELECT aggregate_version,reference,holding_id,company_id,branch_id,
+                    inspection_kind,product_id,lot_reference,quantity,passed_quantity,
+                    failed_quantity,inspection_status,disposition_note,created_at,updated_at
+             FROM erpx_quality_write.inspection_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND inspection_id=$1
+               AND (
+                 $2='platform'
+                 OR ($2='holding' AND holding_id=$3)
+                 OR ($2='company' AND holding_id=$3 AND company_id=$4)
+                 OR ($2='branch' AND holding_id=$3 AND company_id=$4 AND branch_id=$5)
+                 OR ($2='subtree' AND holding_id=$3 AND company_id=ANY($6)
+                     AND ((branch_id IS NULL AND cardinality($7::uuid[])=0)
+                          OR branch_id=ANY($7)))
+               )",
+        )
+        .bind(inspection_id.as_uuid())
+        .bind(authority.mode)
+        .bind(authority.holding_id)
+        .bind(authority.company_id)
+        .bind(authority.branch_id)
+        .bind(&authority.company_ids)
+        .bind(&authority.branch_ids)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        transaction
+            .commit()
             .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
+            .map_err(|_| PortError::Unavailable)?;
+        let Some(row) = row else {
             return Ok(None);
         };
-        if snapshot.version != snapshot.state.version()
-            || snapshot.state.id() != inspection_id
-            || snapshot.state.validate().is_err()
-        {
-            return Err(PortError::Internal);
-        }
-        if !authority_scope.contains(snapshot.state.scope()) {
+        let holding_id: Uuid = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
+        let company_id: Uuid = row.try_get("company_id").map_err(|_| PortError::Internal)?;
+        let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
+        let scope = match branch_id {
+            Some(branch_id) => TenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            },
+            None => TenantScope::Company {
+                holding_id,
+                company_id,
+            },
+        };
+        let state = QualityInspectionState {
+            id: inspection_id,
+            version: from_i64(
+                row.try_get("aggregate_version")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            reference: row.try_get("reference").map_err(|_| PortError::Internal)?,
+            scope,
+            kind: parse_kind(
+                &row.try_get::<String, _>("inspection_kind")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            product_id: row.try_get("product_id").map_err(|_| PortError::Internal)?,
+            lot_reference: row
+                .try_get("lot_reference")
+                .map_err(|_| PortError::Internal)?,
+            quantity: from_i64(row.try_get("quantity").map_err(|_| PortError::Internal)?)?,
+            passed_quantity: from_i64(
+                row.try_get("passed_quantity")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            failed_quantity: from_i64(
+                row.try_get("failed_quantity")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            status: parse_status(
+                &row.try_get::<String, _>("inspection_status")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            disposition_note: row
+                .try_get("disposition_note")
+                .map_err(|_| PortError::Internal)?,
+            created_at: row.try_get("created_at").map_err(|_| PortError::Internal)?,
+            updated_at: row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+        };
+        let aggregate = QualityInspection::try_rehydrate(state).map_err(|_| PortError::Internal)?;
+        if !authority_scope.contains(aggregate.scope()) {
             return Err(PortError::Denied);
         }
-        Ok(Some(snapshot.state))
+        Ok(Some(aggregate))
     }
 }
 
@@ -140,6 +391,20 @@ impl CommandUnitOfWork for QualityCommandAdapter {
                 inspection: (&request.aggregate).into(),
             }),
         });
+        let directory_draft = quality_directory_draft(&request.aggregate)?;
+        events.push(OutboxEventWrite {
+            event_id: deterministic_event_id(
+                command_id,
+                ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                events.len(),
+            ),
+            event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+            event_version: ITEM_DIRECTORY_FACT_VERSION,
+            partition: partition.clone(),
+            causation_id: request.causation_id,
+            occurred_at,
+            payload: QualityOutboxPayload::Directory(directory_draft),
+        });
 
         let tenant_scope = request.aggregate.scope().clone();
         let aggregate = request.aggregate;
@@ -156,7 +421,6 @@ impl CommandUnitOfWork for QualityCommandAdapter {
             aggregate_type: AGGREGATE_TYPE.into(),
             aggregate_id,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"quality-audit-v1"),
@@ -169,7 +433,14 @@ impl CommandUnitOfWork for QualityCommandAdapter {
             },
             events,
         };
-        let outcome = self.store.commit(command).await.map_err(map_store_error)?;
+        let guard = QualityInspectionGuard {
+            aggregate: command.response.clone(),
+        };
+        let outcome = self
+            .store
+            .commit_normalized(command, &guard)
+            .await
+            .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
         let receipt = match outcome {
             AtomicCommandOutcome::Committed(receipt) | AtomicCommandOutcome::Replayed(receipt) => {
@@ -182,14 +453,89 @@ impl CommandUnitOfWork for QualityCommandAdapter {
     }
 }
 
+fn quality_directory_draft(
+    aggregate: &QualityInspection,
+) -> Result<ItemDescriptorDraft, PortError> {
+    let record = aggregate.record_ref().map_err(|_| PortError::Internal)?;
+    let value = ItemDescriptorDraft {
+        authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+        record,
+        scope: aggregate.scope().clone(),
+        lifecycle_state: crate::projection::status_name(aggregate.status()).into(),
+        classification: DataClassification::Confidential,
+        descriptor_version: aggregate.version(),
+        authorized_search_text: aggregate.reference().to_owned(),
+    };
+    value.validate().map_err(|_| PortError::Internal)?;
+    Ok(value)
+}
+
 fn validate_commit(request: &QualityCommit) -> Result<(), PortError> {
+    let next = request
+        .expected_version
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(PortError::Internal)?;
     if request.aggregate.validate().is_err()
         || fingerprint_inspection_id(&request.identity.fingerprint) != request.aggregate.id()
         || !request.authority_scope.contains(request.aggregate.scope())
+        || request.aggregate.version() != next
     {
         return Err(PortError::Internal);
     }
     Ok(())
+}
+
+const fn kind_name(value: InspectionKind) -> &'static str {
+    match value {
+        InspectionKind::Incoming => "incoming",
+        InspectionKind::InProcess => "in_process",
+        InspectionKind::Final => "final",
+    }
+}
+
+fn parse_kind(value: &str) -> Result<InspectionKind, PortError> {
+    match value {
+        "incoming" => Ok(InspectionKind::Incoming),
+        "in_process" => Ok(InspectionKind::InProcess),
+        "final" => Ok(InspectionKind::Final),
+        _ => Err(PortError::Internal),
+    }
+}
+
+const fn status_name(value: InspectionStatus) -> &'static str {
+    match value {
+        InspectionStatus::Draft => "draft",
+        InspectionStatus::InProgress => "in_progress",
+        InspectionStatus::Passed => "passed",
+        InspectionStatus::Failed => "failed",
+        InspectionStatus::Released => "released",
+        InspectionStatus::Cancelled => "cancelled",
+    }
+}
+
+fn parse_status(value: &str) -> Result<InspectionStatus, PortError> {
+    match value {
+        "draft" => Ok(InspectionStatus::Draft),
+        "in_progress" => Ok(InspectionStatus::InProgress),
+        "passed" => Ok(InspectionStatus::Passed),
+        "failed" => Ok(InspectionStatus::Failed),
+        "released" => Ok(InspectionStatus::Released),
+        "cancelled" => Ok(InspectionStatus::Cancelled),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn to_i64(value: u64) -> Result<i64, CqrsSqlxError> {
+    i64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
+}
+
+fn from_i64(value: i64) -> Result<u64, PortError> {
+    u64::try_from(value).map_err(|_| PortError::Internal)
+}
+
+fn from_i64_store(value: i64) -> Result<u64, CqrsSqlxError> {
+    u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
 }
 
 fn aggregate_id(inspection_id: InspectionId) -> Result<AggregateId, PortError> {

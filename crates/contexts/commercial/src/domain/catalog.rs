@@ -30,6 +30,47 @@ pub struct CatalogPlan {
 
 impl CatalogPlan {
     #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: CatalogPlanId,
+        version: u64,
+        key: String,
+        display_name: String,
+        amount_minor: i64,
+        currency: CurrencyCode,
+        status: CatalogPlanStatus,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, CommercialDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope: TenantScope::Platform,
+            key,
+            display_name,
+            amount_minor,
+            currency,
+            status,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        if value.updated_at < value.created_at
+            || !matches!(
+                (value.version, value.status),
+                (1, CatalogPlanStatus::Draft) | (2, CatalogPlanStatus::Published)
+            )
+        {
+            return Err(CommercialDomainError::InvalidTimestamp);
+        }
+        validate_text(&value.key, "plan_key")?;
+        validate_text(&value.display_name, "display_name")?;
+        if value.amount_minor <= 0 {
+            return Err(CommercialDomainError::NonPositiveAmount);
+        }
+        Ok(value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: CatalogPlanId,
         scope: TenantScope,

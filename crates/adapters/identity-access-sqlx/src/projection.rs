@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_identity_access::{PrincipalStatus, PrincipalView, RoleView};
-use erpx_integration_contracts::identity_access;
+use erpx_integration_contracts::{AuthorityEvidenceFact, ItemDescriptorDraft, identity_access};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 
@@ -25,6 +25,8 @@ pub enum IdentityAccessSnapshot {
 pub enum IdentityAccessOutboxPayload {
     Integration(identity_access::Event),
     Snapshot(IdentityAccessSnapshot),
+    Directory(ItemDescriptorDraft),
+    Authority(AuthorityEvidenceFact),
 }
 
 #[derive(Debug, Clone)]
@@ -71,7 +73,7 @@ impl Projector for IdentityAccessPrincipalProjector {
                  scope_key, display_name, principal_status, state,
                  aggregate_created_at, aggregate_updated_at, projected_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now())
-             ON CONFLICT (projection_name, generation, partition_key, principal_id)
+             ON CONFLICT (tenant_id,projection_name, generation, partition_key, principal_id)
              DO UPDATE SET source_aggregate_version = EXCLUDED.source_aggregate_version,
                            source_global_sequence = EXCLUDED.source_global_sequence,
                            tenant_scope = EXCLUDED.tenant_scope,
@@ -217,7 +219,7 @@ impl Projector for IdentityAccessRoleProjector {
                  scope_key, role_code, display_name, risk_tier, permissions,
                  state, aggregate_created_at, aggregate_updated_at, projected_at)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
-             ON CONFLICT (projection_name, generation, partition_key, role_id)
+             ON CONFLICT (tenant_id,projection_name, generation, partition_key, role_id)
              DO UPDATE SET source_aggregate_version = EXCLUDED.source_aggregate_version,
                            source_global_sequence = EXCLUDED.source_global_sequence,
                            tenant_scope = EXCLUDED.tenant_scope,

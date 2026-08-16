@@ -12,10 +12,21 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+mod governance;
+pub use governance::{
+    GovernanceReadProjection, PlatformGovernanceRecordAction,
+    PlatformGovernanceRecordAuthorizationPort, PlatformGovernanceRecordAuthorizationRequest,
+    PlatformGovernanceRecordCommand, PlatformGovernanceRecordCommandIdentity,
+    PlatformGovernanceRecordCommandRequest, PlatformGovernanceRecordCommit,
+    PlatformGovernanceRecordQuery, PlatformGovernanceRecordReadRepository,
+    PlatformGovernanceRecordUnitOfWork, PlatformGovernanceRecordWriteRepository,
+    StoredPlatformGovernanceRecordCommit,
+};
+
 use crate::domain::{
     AdminContextId, AdminContextStatus, ConnectorBinding, ConnectorBindingId, ConnectorKind,
-    ConnectorScope, ConnectorState, ConnectorTransition, EnvironmentId, PlatformAggregate,
-    PlatformTenant, PlatformTenantId, TenantAdminContext, TenantLifecycleAction,
+    ConnectorReadinessEvidence, ConnectorScope, ConnectorState, ConnectorTransition, EnvironmentId,
+    PlatformAggregate, PlatformTenant, PlatformTenantId, TenantAdminContext, TenantLifecycleAction,
     TenantLifecycleState,
 };
 
@@ -26,6 +37,7 @@ pub enum PlatformAdministrationAction {
     TransitionTenant,
     RegisterConnector,
     TransitionConnector,
+    ObserveConnectorReadiness,
     IssueAdminContext,
     RevokeAdminContext,
     ViewTenant,
@@ -132,6 +144,10 @@ pub enum CommandFingerprint {
     TransitionConnector {
         connector_id: ConnectorBindingId,
         action: ConnectorTransition,
+    },
+    ObserveConnectorReadiness {
+        connector_id: ConnectorBindingId,
+        evidence: ConnectorReadinessEvidence,
     },
     IssueAdminContext {
         context_id: AdminContextId,

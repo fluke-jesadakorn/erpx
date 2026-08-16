@@ -92,7 +92,13 @@ impl ProcurementReadRepository {
              ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1",
         )
         .bind(PROJECTION_NAME)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
@@ -136,7 +142,7 @@ impl ReadRepository for ProcurementReadRepository {
         .bind(PROJECTION_NAME)
         .bind(purchase_order_id.as_uuid())
         .bind(&partition)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?)
         .await
         .map_err(|_| PortError::Unavailable)?;
         let view = row.map(decode_view).transpose()?;
@@ -185,7 +191,7 @@ impl ReadRepository for ProcurementReadRepository {
         .bind(cursor_at)
         .bind(cursor_id)
         .bind(scan_limit)
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?)
         .await
         .map_err(|_| PortError::Unavailable)?;
         let mut orders = rows

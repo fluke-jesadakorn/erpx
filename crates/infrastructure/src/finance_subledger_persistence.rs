@@ -1590,20 +1590,6 @@ async fn persist_aggregate(
     .execute(&mut **tx)
     .await?;
     sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-             holding_ref=$3, version=$4, state=$5, updated_at=now()",
-    )
-    .bind(fields.aggregate_type)
-    .bind(fields.aggregate_id)
-    .bind(holding_ref)
-    .bind(as_i64(version, "Finance subledger aggregate version")?)
-    .bind(&fields.payload)
-    .execute(&mut **tx)
-    .await?;
-    sqlx::query(
         "INSERT INTO erpx_tenant.outbox_events
             (event_id, aggregate_type, aggregate_id, holding_ref,
              aggregate_version, event_type, payload, occurred_at)

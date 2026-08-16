@@ -9,6 +9,12 @@ use thiserror::Error;
 use uuid::Uuid;
 
 pub mod g13;
+mod schema_manifest;
+
+pub use schema_manifest::{
+    DatabaseRole, SCHEMA_GENERATION, SCHEMA_MANIFEST_VERSION, SchemaManifest,
+    SchemaManifestViolation, migrate_database_role, verify_schema_manifest,
+};
 
 /// The control-plane write migration set is applied only to the control write
 /// database by the server/worker composition roots.
@@ -106,15 +112,16 @@ pub mod g13;
 /// Control migration 0073 adds durable, categorical Platform integration
 /// observations. It stores no endpoints, database keys, provider payloads, or
 /// credential material and is refreshed only from server-owned probes.
-/// Tenant-write migration 0057 introduces the shared atomic CQRS snapshot,
-/// receipt, audit, and outbox schema. Tenant-read migration 0048 introduces
+/// Tenant-write migration 0057 introduces the shared atomic CQRS receipt,
+/// audit, and outbox schema. Aggregate authority remains in context-owned
+/// typed relational tables. Tenant-read migration 0048 introduces
 /// disposable projection generations, checkpoints, command receipts, retries,
 /// and dead letters. Context-owned read tables remain separate migrations and
 /// include a generation fence so rebuilds can switch atomically. Tenant-read
 /// migration 0049 is the first such table: the typed Quality inspection view.
 /// Control write migration 0075 and control read migration 0015 install the
-/// same CQRS durability/rebuild primitives for platform-scoped aggregates and
-/// keep the authoritative Commercial catalog outside tenant databases.
+/// same receipt/audit/outbox and rebuild primitives for platform-scoped
+/// aggregates and keep typed authority outside those shared fact tables.
 /// Control write migration 0076 adds atomic Wave 5 guards for Platform
 /// Administration, Brand, and Customer Authority; control read migration 0016
 /// adds their disposable generation-scoped projections.
@@ -136,6 +143,10 @@ pub mod g13;
 /// and scope metadata beside the encrypted, expiring context token. This lets
 /// the BFF resolve the effective navigation scope without replacing the
 /// controller's durable role and restores that role when the context ends.
+/// Control migration 0082 completes typed authority for current control-plane
+/// contexts. Its Platform Completion section uses registry, backup-job and
+/// projection-switch scalar rows plus relational reconciliation and connector
+/// child tables; it stores no serialized aggregate document.
 pub static CONTROL_PLANE_MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 /// The control read database receives only rebuildable projection tables.
@@ -149,19 +160,19 @@ pub static TENANT_READ_MIGRATOR: sqlx::migrate::Migrator =
     sqlx::migrate!("./migrations_tenant_read");
 
 pub async fn migrate_control_plane(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
-    CONTROL_PLANE_MIGRATOR.run(pool).await
+    migrate_database_role(pool, DatabaseRole::ControlWrite).await
 }
 
 pub async fn migrate_control_read(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
-    CONTROL_READ_MIGRATOR.run(pool).await
+    migrate_database_role(pool, DatabaseRole::ControlRead).await
 }
 
 pub async fn migrate_tenant_write(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
-    TENANT_WRITE_MIGRATOR.run(pool).await
+    migrate_database_role(pool, DatabaseRole::TenantWrite).await
 }
 
 pub async fn migrate_tenant_read(pool: &sqlx::PgPool) -> Result<(), sqlx::migrate::MigrateError> {
-    TENANT_READ_MIGRATOR.run(pool).await
+    migrate_database_role(pool, DatabaseRole::TenantRead).await
 }
 
 /// Deterministically map a source identifier into an opaque ERPX identifier.
@@ -1045,6 +1056,49 @@ mod tests {
             .expect("support SLA notification migration");
         assert!(support_sla.sql.contains("support_sla_notifications"));
         assert!(support_sla.sql.contains("claim_expires_at"));
+        let platform_governance_write = CONTROL_PLANE_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 76)
+            .expect("wave 5 control context guard migration");
+        for table in [
+            "governance_records",
+            "governance_record_receipts",
+            "governance_record_audit",
+        ] {
+            assert!(platform_governance_write.sql.contains(table));
+        }
+        assert!(
+            !platform_governance_write
+                .sql
+                .contains("governance_record_snapshots")
+        );
+        let platform_governance_read = CONTROL_READ_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 16)
+            .expect("wave 5 control context projection migration");
+        assert!(
+            platform_governance_read
+                .sql
+                .contains("governance_record_projection")
+        );
+        assert!(platform_governance_read.sql.contains("generation UUID"));
+        let normalized_control = CONTROL_PLANE_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 82)
+            .expect("current control normalized authority migration");
+        for contract in [
+            "PLATFORM_COMPLETION_TYPED_AUTHORITY_BEGIN",
+            "lifecycle_aggregate_version",
+            "tenant_backup_jobs",
+            "tenant_projection_switches",
+            "reconciliation_authority",
+            "reconciliation_drift_codes",
+            "connector_authority",
+            "connector_capabilities",
+        ] {
+            assert!(normalized_control.sql.contains(contract));
+        }
+        assert!(!normalized_control.sql.contains("JSONB"));
         let read = CONTROL_READ_MIGRATOR
             .iter()
             .find(|migration| migration.version == 1)
@@ -1142,6 +1196,29 @@ mod tests {
                 .contains("erpx_tenant.operations_read_rows")
         );
         assert!(operations_read.sql.contains("FORCE ROW LEVEL SECURITY"));
+        let final_write = TENANT_WRITE_MIGRATOR
+            .iter()
+            .max_by_key(|migration| migration.version)
+            .expect("final tenant write migration");
+        assert!(
+            final_write
+                .sql
+                .contains("DROP TABLE IF EXISTS erpx_tenant.operations_aggregate_snapshots")
+        );
+        assert!(
+            final_write
+                .sql
+                .contains("DROP TABLE IF EXISTS erpx_tenant.operations_events")
+        );
+        let final_read = TENANT_READ_MIGRATOR
+            .iter()
+            .max_by_key(|migration| migration.version)
+            .expect("final tenant read migration");
+        assert!(
+            final_read
+                .sql
+                .contains("DROP TABLE IF EXISTS erpx_tenant.operations_read_rows")
+        );
         let finance_write = TENANT_WRITE_MIGRATOR
             .iter()
             .find(|migration| migration.version == 17)
@@ -1665,6 +1742,114 @@ mod tests {
     }
 
     #[test]
+    fn generation_two_tenant_tables_are_fail_closed_and_tenant_composite() {
+        for migration in TENANT_WRITE_MIGRATOR
+            .iter()
+            .filter(|migration| migration.version == 57 || (72..=81).contains(&migration.version))
+        {
+            if !migration.sql.contains("CREATE TABLE") {
+                continue;
+            }
+            assert!(
+                migration.sql.contains("tenant_id"),
+                "write migration {} lacks tenant identity",
+                migration.version
+            );
+            assert!(
+                migration.sql.contains("FORCE ROW LEVEL SECURITY"),
+                "write migration {} does not force RLS",
+                migration.version
+            );
+            assert!(
+                migration.sql.contains("WITH CHECK"),
+                "write migration {} lacks a fail-closed write policy",
+                migration.version
+            );
+        }
+        for migration in TENANT_READ_MIGRATOR.iter().filter(|migration| {
+            matches!(
+                migration.version,
+                48 | 49
+                    | 50
+                    | 52
+                    | 53
+                    | 54
+                    | 55
+                    | 56
+                    | 57
+                    | 58
+                    | 60
+                    | 61
+                    | 63
+                    | 64
+                    | 65
+                    | 66
+                    | 67
+                    | 68
+                    | 69
+                    | 70
+                    | 71
+            )
+        }) {
+            if !migration.sql.contains("CREATE TABLE") {
+                continue;
+            }
+            assert!(
+                migration.sql.contains("tenant_id"),
+                "read migration {} lacks tenant identity",
+                migration.version
+            );
+            assert!(
+                migration.sql.contains("FORCE ROW LEVEL SECURITY"),
+                "read migration {} does not force RLS",
+                migration.version
+            );
+            assert!(
+                migration.sql.contains("WITH CHECK"),
+                "read migration {} lacks a fail-closed write policy",
+                migration.version
+            );
+        }
+
+        let cqrs_write = TENANT_WRITE_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 57)
+            .expect("tenant CQRS write foundation");
+        assert!(cqrs_write.sql.contains("PRIMARY KEY (tenant_id"));
+        assert!(cqrs_write.sql.contains("UNIQUE (tenant_id"));
+
+        let cqrs_read = TENANT_READ_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 48)
+            .expect("tenant CQRS read foundation");
+        assert!(cqrs_read.sql.contains("PRIMARY KEY (tenant_id"));
+        assert!(
+            cqrs_read
+                .sql
+                .contains("FOREIGN KEY (tenant_id, projection_name, generation)")
+        );
+
+        let current_authority = TENANT_WRITE_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 81)
+            .expect("typed current-context authority");
+        for contract in [
+            "erpx_quality_write.inspection_authority",
+            "PRIMARY KEY (tenant_id, inspection_id)",
+            "UNIQUE (tenant_id, inspection_id, aggregate_version)",
+            "FORCE ROW LEVEL SECURITY",
+            "WITH CHECK (tenant_id=erpx_cqrs_write.current_tenant_id())",
+        ] {
+            assert!(
+                current_authority.sql.contains(contract),
+                "missing {contract}"
+            );
+        }
+        assert!(!current_authority.sql.contains("JSONB"));
+        assert!(!current_authority.sql.contains("aggregate_components"));
+    }
+
+    #[test]
     fn wave6_paired_context_migrations_keep_write_and_read_models_separate() {
         let write = TENANT_WRITE_MIGRATOR
             .iter()
@@ -1818,5 +2003,169 @@ mod tests {
         assert!(write.sql.contains("Finance source facts are append-only"));
         assert!(write.sql.contains("Legal evidence is append-only"));
         assert!(read.sql.contains("projection_generations"));
+    }
+
+    #[test]
+    fn current_record_completion_pins_crm_marketing_provenance_and_tenant_keys() {
+        let write = TENANT_WRITE_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 80)
+            .expect("current-record tenant write completion");
+        let read = TENANT_READ_MIGRATOR
+            .iter()
+            .find(|migration| migration.version == 71)
+            .expect("current-record tenant read completion");
+
+        for column in [
+            "campaign_id UUID NOT NULL",
+            "audience_member_id UUID NOT NULL",
+            "marketing_source_version BIGINT NOT NULL",
+            "source_event_id UUID NOT NULL",
+            "source_global_sequence BIGINT NOT NULL",
+        ] {
+            assert!(write.sql.contains(column), "missing write column {column}");
+        }
+        assert!(
+            write
+                .sql
+                .contains("PRIMARY KEY (tenant_id, marketing_candidate_id)")
+        );
+        assert!(write.sql.contains("FORCE ROW LEVEL SECURITY"));
+        assert!(write.sql.contains("crm_write_tenant_isolation"));
+        assert!(read.sql.contains("crm_lead_marketing_provenance"));
+        assert!(read.sql.contains("marketing_source_version"));
+        assert!(!read.sql.contains("marketing_qualified_lead_evidence"));
+
+        for table in [
+            "access_reviews",
+            "access_review_items",
+            "break_glass_sessions",
+            "identity_governance_command_receipts",
+            "identity_governance_audit_log",
+        ] {
+            assert!(
+                write.sql.contains(table),
+                "missing IAM authority table {table}"
+            );
+        }
+        assert!(write.sql.contains("identity_governance_tenant_isolation"));
+        assert!(read.sql.contains("governance_projection"));
+        assert!(
+            read.sql
+                .contains("identity_governance_read_tenant_isolation")
+        );
+        assert!(read.sql.contains("source_global_sequence BIGINT NOT NULL"));
+        for table in [
+            "erpx_marketing_write.business_records",
+            "business_record_receipts",
+            "business_record_audit",
+        ] {
+            assert!(
+                write.sql.contains(table),
+                "missing Marketing completion {table}"
+            );
+        }
+        assert!(write.sql.contains("marketing_record_tenant_isolation"));
+        assert!(read.sql.contains("marketing.business-records"));
+        assert!(
+            read.sql
+                .contains("marketing_business_record_read_tenant_isolation")
+        );
+        assert!(write.sql.contains("erpx_crm_write.business_records"));
+        assert!(write.sql.contains("crm_record_tenant_isolation"));
+        assert!(read.sql.contains("crm.business-records"));
+        assert!(
+            read.sql
+                .contains("crm_business_record_read_tenant_isolation")
+        );
+        assert!(write.sql.contains("erpx_finance_write.business_records"));
+        assert!(write.sql.contains("finance_record_tenant_isolation"));
+        assert!(read.sql.contains("finance.business-records"));
+        assert!(
+            read.sql
+                .contains("finance_business_record_read_tenant_isolation")
+        );
+        assert!(
+            write
+                .sql
+                .contains("erpx_procurement_write.business_records")
+        );
+        assert!(write.sql.contains("procurement_record_tenant_isolation"));
+        assert!(read.sql.contains("procurement.business-records"));
+        assert!(
+            read.sql
+                .contains("procurement_business_record_read_tenant_isolation")
+        );
+        assert!(write.sql.contains("erpx_assets_write.business_records"));
+        assert!(write.sql.contains("assets_record_tenant_isolation"));
+        assert!(read.sql.contains("asset.lifecycle-records"));
+        assert!(
+            read.sql
+                .contains("assets_business_record_read_tenant_isolation")
+        );
+        assert!(
+            write
+                .sql
+                .contains("erpx_maintenance_write.business_records")
+        );
+        assert!(write.sql.contains("maintenance_record_tenant_isolation"));
+        assert!(read.sql.contains("maintenance.lifecycle-records"));
+        assert!(
+            read.sql
+                .contains("maintenance_business_record_read_tenant_isolation")
+        );
+        assert!(write.sql.contains("erpx_quality_write.business_records"));
+        assert!(write.sql.contains("quality_record_tenant_isolation"));
+        assert!(read.sql.contains("quality.lifecycle-records"));
+        assert!(
+            read.sql
+                .contains("quality_business_record_read_tenant_isolation")
+        );
+        assert!(write.sql.contains("erpx_operations_write.business_records"));
+        assert!(write.sql.contains("operations_record_tenant_isolation"));
+        assert!(read.sql.contains("operations.lifecycle-records"));
+        assert!(
+            read.sql
+                .contains("operations_business_record_read_tenant_isolation")
+        );
+        assert!(write.sql.contains("erpx_commercial_write.business_records"));
+        assert!(write.sql.contains("commercial_record_tenant_isolation"));
+        assert!(read.sql.contains("commercial.lifecycle-records"));
+        assert!(
+            read.sql
+                .contains("commercial_business_record_read_tenant_isolation")
+        );
+        assert!(write.sql.contains("erpx_pos_write.business_records"));
+        assert!(write.sql.contains("pos_record_tenant_isolation"));
+        assert!(read.sql.contains("pos.lifecycle-records"));
+        assert!(
+            read.sql
+                .contains("pos_business_record_read_tenant_isolation")
+        );
+        assert!(write.sql.contains("erpx_sales_write.business_records"));
+        assert!(write.sql.contains("sales_record_tenant_isolation"));
+        assert!(read.sql.contains("sales.lifecycle-records"));
+        assert!(
+            read.sql
+                .contains("sales_business_record_read_tenant_isolation")
+        );
+        assert!(write.sql.contains("erpx_inventory_write.business_records"));
+        assert!(write.sql.contains("inventory_record_tenant_isolation"));
+        assert!(read.sql.contains("inventory.lifecycle-records"));
+        assert!(
+            read.sql
+                .contains("inventory_business_record_read_tenant_isolation")
+        );
+        assert!(write.sql.contains("inventory_write.reservation_records"));
+        assert!(
+            write
+                .sql
+                .contains("inventory_reservation_record_tenant_isolation")
+        );
+        assert!(read.sql.contains("inventory_read.reservation_projection"));
+        assert!(
+            read.sql
+                .contains("inventory_reservation_read_tenant_isolation")
+        );
     }
 }

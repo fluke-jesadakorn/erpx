@@ -1,6 +1,6 @@
--- Sales-owned mixed-revenue arrangements. These guards keep performance
--- obligations and fulfillment/billing provenance inside the Sales command
--- boundary; Finance consumes only typed billing-eligibility outbox facts.
+-- Sales-owned mixed-revenue arrangements. Migration 0081 replaces the JSON
+-- compatibility representation as authority with typed dimension, obligation,
+-- and fulfillment child relations.
 
 CREATE TABLE erpx_sales_write.revenue_arrangement_guards (
     arrangement_id UUID PRIMARY KEY,

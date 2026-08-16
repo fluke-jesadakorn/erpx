@@ -2,15 +2,21 @@
 #![forbid(unsafe_code)]
 
 mod command;
+mod legal_case;
 mod projection;
 mod read;
+mod signature_projection;
 
 pub use command::{LegalCommandAdapter, LegalWriteRepository};
+pub use legal_case::{LegalCaseProjector, LegalCaseReadAdapter, LegalCaseSqlxAdapter};
 pub use projection::{
     LegalAccessHistoryProjector, LegalContractProjector, LegalDocumentProjector,
     LegalMatterProjector, LegalOutboxPayload, LegalSnapshot,
 };
 pub use read::{LegalReadRepository, decode_cursor, encode_cursor};
+pub use signature_projection::{
+    SIGNATURE_PROJECTION, SignatureEnvelopeProjector, SignatureEnvelopeReadAdapter,
+};
 
 pub const CONTEXT_NAME: &str = "legal";
 pub const CONTRACT_AGGREGATE_TYPE: &str = "legal_contract";
@@ -26,6 +32,13 @@ pub const DOCUMENT_SNAPSHOT_EVENT: &str = "legal.document_snapshot";
 pub const ACCESS_SNAPSHOT_EVENT: &str = "legal.access_history_snapshot";
 pub const MATTER_SNAPSHOT_EVENT: &str = "legal.matter_snapshot";
 pub const EVENT_VERSION: u32 = 1;
+#[cfg(test)]
+const COMPLETION_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
+#[cfg(test)]
+const COMPLETION_READ_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
+);
 
 #[cfg(test)]
 const WRITE_DDL: &str = include_str!(
@@ -98,5 +111,14 @@ mod tests {
             "DELETE FROM erpx_legal_write.access_",
             "entry_guards"
         )));
+    }
+
+    #[test]
+    fn legal_hold_completion_is_normalized_tenant_bound_and_rebuildable() {
+        assert!(COMPLETION_WRITE_DDL.contains("legal_hold_records"));
+        assert!(COMPLETION_READ_DDL.contains("legal_hold_projection"));
+        assert!(COMPLETION_WRITE_DDL.contains("FORCE ROW LEVEL SECURITY"));
+        assert!(COMPLETION_READ_DDL.contains("(tenant_id,projection_name,generation)"));
+        assert!(!COMPLETION_WRITE_DDL.contains("legal_hold_snapshot"));
     }
 }

@@ -7,7 +7,7 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ReadPool, ReadSideStore, SqlxProjectionWaiter, WaitError, WaiterConfig,
 };
 use erpx_customer_360::{
-    Customer360SectionAvailability, Customer360View, SourceCoverage,
+    Customer360SectionAvailability, Customer360View, SourceCoverage, SourceFreshness,
     ports::{PortError, ReadProjection, ReadRepository, SourceProjectionMetadata},
 };
 use erpx_integration_contracts::{
@@ -163,7 +163,13 @@ impl Customer360ReadRepository {
              ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1",
         )
         .bind(projection)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
@@ -186,7 +192,13 @@ impl Customer360ReadRepository {
             )
             .bind(projection)
             .bind(source_key)
-            .fetch_one(self.pool.as_pg_pool())
+            .fetch_one(
+                &mut *self
+                    .pool
+                    .begin()
+                    .await
+                    .map_err(|_| PortError::Unavailable)?,
+            )
             .await
             .map_err(|_| PortError::Unavailable)?
         } else {
@@ -231,7 +243,13 @@ impl Customer360ReadRepository {
         .bind(scope.platform)
         .bind(&scope.exact)
         .bind(&scope.prefixes)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         row.map(decode_profile).transpose()
@@ -258,7 +276,13 @@ impl Customer360ReadRepository {
         .bind(scope.platform)
         .bind(&scope.exact)
         .bind(&scope.prefixes)
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         rows.into_iter().map(decode_subscription).collect()
@@ -270,7 +294,7 @@ impl Customer360ReadRepository {
         scope: &ScopeFilter,
     ) -> Result<Vec<OpportunityFact>, PortError> {
         let rows = sqlx::query("SELECT item.* FROM erpx_customer360_read.opportunity_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.customer_id=$2 AND ($3::text IS NULL OR item.source_key=$3) AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[])) ORDER BY item.opportunity_id DESC")
-            .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.tenant_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.tenant_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         rows.into_iter().map(decode_opportunity).collect()
     }
 
@@ -280,7 +304,7 @@ impl Customer360ReadRepository {
         scope: &ScopeFilter,
     ) -> Result<Vec<SalesOrderFact>, PortError> {
         let rows = sqlx::query("SELECT item.* FROM erpx_customer360_read.sales_order_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.customer_id=$2 AND ($3::text IS NULL OR item.source_key=$3) AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[])) ORDER BY item.sales_order_id DESC")
-            .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.tenant_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.tenant_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         rows.into_iter().map(decode_sales_order).collect()
     }
 
@@ -290,7 +314,7 @@ impl Customer360ReadRepository {
         scope: &ScopeFilter,
     ) -> Result<Vec<SupportCaseFact>, PortError> {
         let rows = sqlx::query("SELECT item.* FROM erpx_customer360_read.support_case_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.customer_id=$2 AND ($3::text IS NULL OR item.source_key=$3) AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[])) ORDER BY item.aggregate_updated_at DESC,item.support_case_id DESC")
-            .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.tenant_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(TENANT_ACTIVITY_PROJECTION_NAME).bind(customer.as_uuid()).bind(self.tenant_source.as_deref()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         rows.into_iter().map(decode_support_case).collect()
     }
 }
@@ -315,13 +339,29 @@ impl ReadRepository for Customer360ReadRepository {
         let opportunities = self.opportunities(customer, &scope).await?;
         let sales_orders = self.sales_orders(customer, &scope).await?;
         let support_cases = self.support_cases(customer, &scope).await?;
+        // An active projection checkpoint authoritatively covers an empty
+        // collection. Row counts cannot distinguish "no facts" from "source
+        // not consumed", so coverage follows source freshness instead.
+        let control_observed = !matches!(
+            sources.control_customers.freshness,
+            FreshnessState::Unavailable
+        );
+        let tenant_observed = !matches!(
+            sources.tenant_activity.freshness,
+            FreshnessState::Unavailable
+        );
         let coverage = SourceCoverage {
-            customer_profile: profile.is_some(),
-            commercial_subscriptions: !subscriptions.is_empty(),
-            crm_opportunities: !opportunities.is_empty(),
-            sales_orders: !sales_orders.is_empty(),
-            support_cases: !support_cases.is_empty(),
+            customer_profile: control_observed,
+            commercial_subscriptions: tenant_observed,
+            crm_opportunities: tenant_observed,
+            sales_orders: tenant_observed,
+            support_cases: tenant_observed,
         };
+        let availability = Customer360SectionAvailability::from_source_freshness(
+            coverage,
+            domain_freshness(sources.control_customers.freshness),
+            domain_freshness(sources.tenant_activity.freshness),
+        );
         let value = if profile.is_none()
             && subscriptions.is_empty()
             && opportunities.is_empty()
@@ -338,7 +378,7 @@ impl ReadRepository for Customer360ReadRepository {
                 sales_orders,
                 support_cases,
                 coverage,
-                availability: Customer360SectionAvailability::from(coverage),
+                availability,
             })
         };
         if value
@@ -352,6 +392,14 @@ impl ReadRepository for Customer360ReadRepository {
             query_metadata,
             sources,
         })
+    }
+}
+
+const fn domain_freshness(value: FreshnessState) -> SourceFreshness {
+    match value {
+        FreshnessState::Current => SourceFreshness::Current,
+        FreshnessState::Stale | FreshnessState::Rebuilding => SourceFreshness::Stale,
+        FreshnessState::Unavailable => SourceFreshness::Unavailable,
     }
 }
 

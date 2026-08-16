@@ -1,10 +1,10 @@
 #![doc = "ERPX SQLx persistence, outbox, routing, and projection adapters."]
 
+mod agent_notifications;
 mod asset_maintenance_persistence;
 mod backup_retention;
 mod branch_provisioning;
 mod cluster_pitr;
-mod commands;
 mod commercial;
 mod corporate_identity;
 mod data_plane;
@@ -44,8 +44,6 @@ mod marketing_persistence;
 mod marketing_privacy_application;
 mod marketing_provider_onboarding;
 mod object_storage;
-mod operations_persistence;
-mod organization;
 mod outbox;
 mod pitr;
 mod platform_completion;
@@ -59,8 +57,8 @@ mod role_review;
 mod runtime_readiness;
 mod sales_persistence;
 mod scm_persistence;
+mod shared_enterprise_services;
 mod stripe_client;
-mod support_diagnostics;
 mod support_persistence;
 mod support_workflow;
 mod tenant_administration;
@@ -99,7 +97,6 @@ pub use cluster_pitr::{
     ClusterPitrChain, ClusterPitrError, ClusterPitrRepository, ClusterRecoveryPoint,
     ClusterRestoreRehearsal, ClusterRestoreRehearsalResult, MAX_CLUSTER_PITR_PAGE_SIZE,
 };
-pub use commands::CommandUnitOfWorkAdapter;
 pub use commercial::{
     BillingPolicyAdvanceReport, MAX_BILLING_POLICY_BATCH_SIZE,
     MAX_STRIPE_CATALOG_RECONCILIATION_PAGES, MAX_STRIPE_CATALOG_RETRY_ATTEMPTS,
@@ -362,29 +359,6 @@ pub use object_storage::{
     MinioObjectStore, MinioObjectStoreConfig, ObjectInventoryEntry, ObjectStorageError,
     SignedObjectUrl,
 };
-pub use operations_persistence::{
-    ClaimedOperationsSlaNotification, ExceptionLifecycleApplication, LegacyOperationsBaseline,
-    MAX_OPERATIONS_EVENT_PAGE_SIZE, MAX_OPERATIONS_EXCEPTION_PAGE_SIZE,
-    MAX_OPERATIONS_SLA_NOTIFICATION_LEASE_SECONDS, MAX_OPERATIONS_SLA_NOTIFICATION_PAGE_SIZE,
-    MAX_OPERATIONS_SOURCE_EVENT_PAGE_SIZE, MIN_OPERATIONS_SLA_NOTIFICATION_LEASE_SECONDS,
-    OPERATIONS_DETECTION_CURSOR_PROJECTION, OPERATIONS_READ_PROJECTION,
-    OPERATIONS_SLA_NOTIFICATION_RETENTION, OperationsEventApplication, OperationsEventCursor,
-    OperationsEventPage, OperationsEventRecord, OperationsExceptionCursor, OperationsExceptionPage,
-    OperationsIdempotencyRecord, OperationsJsonReadCursor, OperationsJsonReadPage,
-    OperationsJsonReadRow, OperationsLegacyReconciliation, OperationsProjectionApplication,
-    OperationsProjectionCheckpoint, OperationsProjectionRebuildPreparation, OperationsReadRow,
-    OperationsReadSummary, OperationsReconciliationReport, OperationsSlaNotification,
-    OperationsSlaNotificationKind, OperationsSnapshotRecord, OperationsSourceEventApplication,
-    OperationsSourceEventCursor, OperationsSourceEventPage, OperationsSourceOutboxCursor,
-    OperationsSourceOutboxEvent, OperationsSourceOutboxEventPage,
-    OperationsSourceProjectionApplication, OperationsWorkQueuePolicyPublishApplication,
-    SqlxOperationsPersistence, SqlxOperationsStore,
-};
-pub use organization::{
-    MAX_ORGANIZATION_NAME_BYTES, MAX_ORGANIZATION_PAGE_SIZE, MAX_ORGANIZATION_REFERENCE_BYTES,
-    ORGANIZATION_READ_PROJECTION, OrganizationNodeCommand, OrganizationNodeKind,
-    OrganizationReadNode, OrganizationReadPage, OrganizationWriteReceipt, SqlxOrganizationStore,
-};
 pub use outbox::{
     ControlPlaneWriteTransaction, DeadLetterReplayCommand, DeadLetterReplayReceipt, EventMetadata,
     IdempotencyReservation, IdempotencyState, MAX_OUTBOX_CLAIM_BATCH_SIZE, OutboxEnvelope,
@@ -440,15 +414,15 @@ pub use quality_persistence::{
     SqlxQualityStore, quality_request_hash,
 };
 pub use repositories::{
-    Customer360ReadReconciliation, FinanceBankProviderAccountBinding,
-    MARKETING_PUBLIC_ABUSE_WINDOW_SECONDS, MAX_MARKETING_PROVIDER_ACCOUNTS_PER_HOLDING,
-    MAX_MARKETING_PUBLIC_ABUSE_LIMIT, MAX_PLATFORM_AUDIT_PAGE_SIZE,
-    MAX_PLATFORM_INTEGRATION_OBSERVATIONS, MAX_TENANT_REGISTRY_PAGE_SIZE,
-    MarketingProviderAccountBinding, MarketingProviderChannelRouteBinding,
-    MarketingPublicAbuseWindowRequest, ObjectAccessBindingRequest, PlatformAuditEntry,
-    PlatformAuditPage, PlatformIntegrationObservation, ProjectionAuthorizationRequest, SodDecision,
-    SqlxControlPlane, SqlxTenantStoreRegistry, SupportCapabilityAuthorizationRequest,
-    TenantStoreRegistration, TenantStoreRegistrationDetail, TenantStoreRegistrationPage,
+    FinanceBankProviderAccountBinding, MARKETING_PUBLIC_ABUSE_WINDOW_SECONDS,
+    MAX_MARKETING_PROVIDER_ACCOUNTS_PER_HOLDING, MAX_MARKETING_PUBLIC_ABUSE_LIMIT,
+    MAX_PLATFORM_AUDIT_PAGE_SIZE, MAX_PLATFORM_INTEGRATION_OBSERVATIONS,
+    MAX_TENANT_REGISTRY_PAGE_SIZE, MarketingProviderAccountBinding,
+    MarketingProviderChannelRouteBinding, MarketingPublicAbuseWindowRequest,
+    ObjectAccessBindingRequest, PlatformAuditEntry, PlatformAuditPage,
+    PlatformIntegrationObservation, ProjectionAuthorizationRequest, SodDecision, SqlxControlPlane,
+    SqlxTenantStoreRegistry, SupportCapabilityAuthorizationRequest, TenantStoreRegistration,
+    TenantStoreRegistrationDetail, TenantStoreRegistrationPage,
 };
 pub use role_review::{
     ClaimedRoleExpiryNotification, ROLE_EXPIRY_NOTIFICATION_EVENT_TYPE, RoleRecoveryReceipt,
@@ -471,6 +445,7 @@ pub use scm_persistence::{
     ScmProjectionRebuildPreparation, ScmReadCursor, ScmReadListRow, ScmReadPage, ScmReadRow,
     ScmReadScope, ScmSourceEventCursor, ScmWriteReceipt, SqlxScmStore,
 };
+pub use shared_enterprise_services::{SharedProjectionRead, SqlxSharedEnterpriseServiceStore};
 pub use stripe_client::{
     DEFAULT_STRIPE_HTTP_TIMEOUT, DEFAULT_STRIPE_REQUEST_BODY_BYTES,
     DEFAULT_STRIPE_RESPONSE_BODY_BYTES, MAX_STRIPE_HTTP_TIMEOUT, MAX_STRIPE_REQUEST_BODY_BYTES,
@@ -487,13 +462,6 @@ pub use stripe_client::{
     StripePriceRecurringResponse, StripePriceResponse, StripePriceUsageType,
     StripeProductCreateRequest, StripeProductListRequest, StripeProductResponse,
     StripeProductUpdateRequest, StripeRequestEnvelope, StripeResponseEnvelope,
-};
-pub use support_diagnostics::{
-    DEFAULT_MAX_DIAGNOSTICS_BYTES, DIAGNOSTICS_SCHEMA_VERSION, DiagnosticBackupHealth,
-    DiagnosticHealth, DiagnosticVersion, DiagnosticsError, DiagnosticsLimits, DiagnosticsSnapshot,
-    DiagnosticsSnapshotInput, DiagnosticsTruncation, FailedJobSummary, IntegrationErrorSummary,
-    RedactedConfiguration, RedactionClass, SupportDiagnosticsAuditReceipt,
-    SupportDiagnosticsAuditRequest, classify_diagnostic_field,
 };
 pub use support_persistence::{
     CapabilityMetadata, CustomerVisibleSupportAttachmentPage,
@@ -541,5 +509,6 @@ pub use worker::{
     RetryPolicy, WorkerError, WorkerErrorContext, WorkerLoopReport, WorkerRunReport,
 };
 
+pub use agent_notifications::SqlxAgentNotificationPort;
 #[cfg(test)]
 pub use test_support::{InMemoryControlPlane, ProjectionRunner};

@@ -1,3 +1,6 @@
+mod records;
+pub use records::*;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{
@@ -23,13 +26,18 @@ pub enum InventoryAction {
     IssueStock,
     Reserve,
     ReleaseReservation,
+    FulfillReservation,
     ViewItem,
+    ViewReservation,
     ListItems,
 }
 
 impl InventoryAction {
     pub const fn requires_write_entitlement(self) -> bool {
-        !matches!(self, Self::ViewItem | Self::ListItems)
+        !matches!(
+            self,
+            Self::ViewItem | Self::ViewReservation | Self::ListItems
+        )
     }
 }
 
@@ -84,6 +92,11 @@ pub enum CommandFingerprint {
     ReleaseReservation {
         stock_item_id: StockItemId,
         reservation_id: ReservationId,
+    },
+    FulfillReservation {
+        stock_item_id: StockItemId,
+        reservation_id: ReservationId,
+        movement_id: StockMovementId,
     },
 }
 
@@ -169,6 +182,30 @@ pub struct StockItemView {
     pub reservations: Vec<Reservation>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReservationView {
+    pub reservation_id: ReservationId,
+    pub stock_item_id: StockItemId,
+    pub source_item_version: u64,
+    pub scope: TenantScope,
+    pub warehouse_id: WarehouseId,
+    pub item_code: String,
+    pub quantity: i64,
+    pub demand_reference: String,
+    pub status: crate::domain::ReservationStatus,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[async_trait]
+pub trait ReservationReadRepository: Send + Sync {
+    async fn get_reservation(
+        &self,
+        authority_scope: &TenantScope,
+        reservation_id: ReservationId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<ReservationView>>, PortError>;
 }
 
 impl From<&StockItem> for StockItemView {

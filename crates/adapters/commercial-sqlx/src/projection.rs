@@ -3,7 +3,7 @@ use erpx_commercial::{
     CatalogPlanStatus, CatalogPlanView, EntitlementView, SubscriptionStatus, SubscriptionView,
 };
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::commercial;
+use erpx_integration_contracts::{ItemDescriptorDraft, commercial};
 use erpx_kernel::TenantScope;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -28,6 +28,7 @@ pub enum CommercialSnapshot {
 pub enum CommercialOutboxPayload {
     Integration(commercial::Event),
     Snapshot(CommercialSnapshot),
+    Directory(ItemDescriptorDraft),
 }
 
 macro_rules! projector_type {
@@ -191,7 +192,7 @@ impl Projector for SubscriptionProjector {
                  source_global_sequence,tenant_scope,scope_key,customer_id,catalog_plan_id,
                  subscription_status,amount_minor,currency,state,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now())
-             ON CONFLICT (projection_name,generation,partition_key,subscription_id)
+             ON CONFLICT (tenant_id,projection_name,generation,partition_key,subscription_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,
                scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,
@@ -261,7 +262,7 @@ impl Projector for EntitlementProjector {
                  seat_capacity,company_capacity,branch_capacity,allocated_seats,allocated_companies,
                  allocated_branches,state,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now())
-             ON CONFLICT (projection_name,generation,partition_key,entitlement_id)
+             ON CONFLICT (tenant_id,projection_name,generation,partition_key,entitlement_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,
                scope_key=EXCLUDED.scope_key,subscription_id=EXCLUDED.subscription_id,
@@ -319,9 +320,9 @@ fn decode_snapshot(event: &ProjectionEvent) -> Result<CommercialSnapshot, Projec
         serde_json::from_value(event.payload.clone()).map_err(failure)?;
     match payload {
         CommercialOutboxPayload::Snapshot(snapshot) => Ok(snapshot),
-        CommercialOutboxPayload::Integration(_) => Err(ProjectionFailure::new(
-            "commercial snapshot event carried an integration payload",
-        )),
+        CommercialOutboxPayload::Integration(_) | CommercialOutboxPayload::Directory(_) => Err(
+            ProjectionFailure::new("commercial snapshot event carried an integration payload"),
+        ),
     }
 }
 

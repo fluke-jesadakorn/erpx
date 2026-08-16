@@ -21,7 +21,9 @@ use uuid::Uuid;
 
 use super::*;
 use crate::{
-    domain::{IdentityAccessAggregate, PrincipalStatus},
+    domain::{
+        IdentityAccessAggregate, NonHumanPrincipalGovernance, PrincipalKind, PrincipalStatus,
+    },
     ports::{
         AggregateKey, AuthorizationRequest, IdentityAccessCommit, PrincipalList, ReadProjection,
         RoleList,
@@ -98,6 +100,28 @@ fn principal() -> AccessPrincipal {
     principal.activate(at()).unwrap();
     principal.take_uncommitted_events();
     principal
+}
+
+fn human_group() -> AccessPrincipal {
+    let governance = NonHumanPrincipalGovernance::new(
+        "owner:security".into(),
+        "governed finance reviewers".into(),
+        "iam:group:finance-reviewers".into(),
+        "credential:none".into(),
+    )
+    .unwrap();
+    let mut group = AccessPrincipal::create_non_human(
+        PrincipalId::try_from_uuid(id(11)).unwrap(),
+        scope(),
+        "Finance reviewers".into(),
+        PrincipalKind::HumanGroup,
+        governance,
+        at(),
+    )
+    .unwrap();
+    group.activate(at()).unwrap();
+    group.take_uncommitted_events();
+    group
 }
 
 #[derive(Clone)]
@@ -342,6 +366,42 @@ fn changed_payload_with_reused_idempotency_identity_conflicts() {
     changed.command.display_name = "Changed".into();
     let error = block_on(handler.handle(changed)).unwrap_err();
     assert_eq!(error.category(), ErrorCategory::Conflict);
+}
+
+#[test]
+fn governed_group_membership_is_versioned_and_replay_safe() {
+    let uow = FakeUnitOfWork::default();
+    let handler = command_handler(
+        FakeWriteRepository {
+            aggregate: Arc::new(Mutex::new(Some(IdentityAccessAggregate::Principal(
+                human_group(),
+            )))),
+            loads: Arc::new(AtomicUsize::new(0)),
+        },
+        uow.clone(),
+        true,
+    );
+    let envelope = command_envelope(
+        41,
+        Some(2),
+        AddGroupMember {
+            group_id: PrincipalId::try_from_uuid(id(11)).unwrap(),
+            member_principal_id: PrincipalId::try_from_uuid(id(12)).unwrap(),
+            valid_from: at(),
+            valid_until: at() + chrono::Duration::days(30),
+        },
+    );
+    let first = block_on(handler.handle(envelope.clone())).unwrap();
+    let replay = block_on(handler.handle(envelope)).unwrap();
+    assert_eq!(first.aggregate.version, 3);
+    assert!(!first.replayed);
+    assert!(replay.replayed);
+    let stored = uow.receipts.lock().unwrap();
+    let IdentityAccessAggregate::Principal(group) = &stored[0].1.aggregate else {
+        panic!("expected a group principal");
+    };
+    assert_eq!(group.group_memberships().len(), 1);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 1);
 }
 
 #[test]

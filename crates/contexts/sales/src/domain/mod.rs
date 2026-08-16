@@ -1,3 +1,10 @@
+mod records;
+
+pub use records::{
+    SalesLifecycleRecord, SalesLifecycleRecordError, SalesLifecycleRecordKind,
+    SalesLifecycleRecordStatus,
+};
+
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, NaiveDate, Utc};
@@ -76,8 +83,8 @@ pub enum SalesDomainError {
     CurrencyMismatch,
     #[error("Sales amount arithmetic overflowed")]
     ArithmeticOverflow,
-    #[error("a quote can be created only from a won CRM opportunity")]
-    OpportunityNotWon,
+    #[error("a quote can be created only from a proposal, negotiation, or won CRM opportunity")]
+    OpportunityNotEligible,
     #[error("the CRM opportunity currency and quote currency differ")]
     OpportunityCurrencyMismatch,
     #[error("quote validity must end after its creation time")]
@@ -238,7 +245,43 @@ pub struct Quote {
 
 impl Quote {
     #[allow(clippy::too_many_arguments)]
-    pub fn create_from_won_opportunity(
+    pub fn try_rehydrate(
+        id: QuoteId,
+        version: u64,
+        scope: TenantScope,
+        opportunity: crm::OpportunityRef,
+        customer: customer::CustomerRef,
+        quote_code: String,
+        currency: String,
+        lines: Vec<SalesOrderLine>,
+        valid_until: DateTime<Utc>,
+        status: QuoteStatus,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, SalesDomainError> {
+        let total_minor = validate_lines(&lines, &currency)?;
+        let value = Self {
+            id,
+            version,
+            scope,
+            opportunity,
+            customer,
+            quote_code,
+            currency,
+            lines,
+            total_minor,
+            valid_until,
+            status,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_from_opportunity(
         id: QuoteId,
         scope: TenantScope,
         opportunity: crm::OpportunityFact,
@@ -248,8 +291,13 @@ impl Quote {
         valid_until: DateTime<Utc>,
         at: DateTime<Utc>,
     ) -> Result<Self, SalesDomainError> {
-        if opportunity.stage != crm::OpportunityStage::Won {
-            return Err(SalesDomainError::OpportunityNotWon);
+        if !matches!(
+            opportunity.stage,
+            crm::OpportunityStage::Proposal
+                | crm::OpportunityStage::Negotiation
+                | crm::OpportunityStage::Won
+        ) {
+            return Err(SalesDomainError::OpportunityNotEligible);
         }
         if opportunity.expected_value.currency().as_str() != currency {
             return Err(SalesDomainError::OpportunityCurrencyMismatch);
@@ -273,6 +321,30 @@ impl Quote {
         };
         value.validate()?;
         Ok(value)
+    }
+
+    #[deprecated(note = "use create_from_opportunity; Sales quotes precede the won outcome")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_from_won_opportunity(
+        id: QuoteId,
+        scope: TenantScope,
+        opportunity: crm::OpportunityFact,
+        quote_code: String,
+        currency: String,
+        lines: Vec<SalesOrderLine>,
+        valid_until: DateTime<Utc>,
+        at: DateTime<Utc>,
+    ) -> Result<Self, SalesDomainError> {
+        Self::create_from_opportunity(
+            id,
+            scope,
+            opportunity,
+            quote_code,
+            currency,
+            lines,
+            valid_until,
+            at,
+        )
     }
 
     pub fn validate(&self) -> Result<(), SalesDomainError> {
@@ -415,6 +487,42 @@ pub struct SalesOrder {
 }
 
 impl SalesOrder {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: SalesOrderId,
+        version: u64,
+        scope: TenantScope,
+        quote_id: QuoteId,
+        opportunity: crm::OpportunityRef,
+        customer: customer::CustomerRef,
+        order_code: String,
+        currency: String,
+        lines: Vec<SalesOrderLine>,
+        status: SalesOrderStatus,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, SalesDomainError> {
+        let total_minor = validate_lines(&lines, &currency)?;
+        let value = Self {
+            id,
+            version,
+            scope,
+            quote_id,
+            opportunity,
+            customer,
+            order_code,
+            currency,
+            lines,
+            total_minor,
+            status,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn create_from_quote(
         id: SalesOrderId,
         quote: &Quote,
@@ -597,6 +705,31 @@ pub struct PerformanceObligation {
 }
 
 impl PerformanceObligation {
+    #[allow(clippy::too_many_arguments)]
+    pub const fn try_rehydrate(
+        obligation_id: PerformanceObligationId,
+        line_id: SalesOrderLineId,
+        model: sales::RevenueModel,
+        allocated_minor: i64,
+        allocated_tax_minor: i64,
+        accepted_minor: i64,
+        accepted_tax_minor: i64,
+        service_starts_on: Option<NaiveDate>,
+        service_ends_on: Option<NaiveDate>,
+    ) -> Self {
+        Self {
+            obligation_id,
+            line_id,
+            model,
+            allocated_minor,
+            allocated_tax_minor,
+            accepted_minor,
+            accepted_tax_minor,
+            service_starts_on,
+            service_ends_on,
+        }
+    }
+
     pub const fn obligation_id(&self) -> PerformanceObligationId {
         self.obligation_id
     }
@@ -638,6 +771,55 @@ pub struct AcceptedFulfillment {
     eligible_on: NaiveDate,
 }
 
+impl AcceptedFulfillment {
+    #[allow(clippy::too_many_arguments)]
+    pub const fn try_rehydrate(
+        fulfillment_id: FulfillmentId,
+        billing_event_id: BillingEventId,
+        obligation_id: PerformanceObligationId,
+        kind: sales::FulfillmentKind,
+        accepted_minor: i64,
+        accepted_tax_minor: i64,
+        accepted_at: DateTime<Utc>,
+        eligible_on: NaiveDate,
+    ) -> Self {
+        Self {
+            fulfillment_id,
+            billing_event_id,
+            obligation_id,
+            kind,
+            accepted_minor,
+            accepted_tax_minor,
+            accepted_at,
+            eligible_on,
+        }
+    }
+    pub const fn fulfillment_id(&self) -> FulfillmentId {
+        self.fulfillment_id
+    }
+    pub const fn billing_event_id(&self) -> BillingEventId {
+        self.billing_event_id
+    }
+    pub const fn obligation_id(&self) -> PerformanceObligationId {
+        self.obligation_id
+    }
+    pub const fn kind(&self) -> sales::FulfillmentKind {
+        self.kind
+    }
+    pub const fn accepted_minor(&self) -> i64 {
+        self.accepted_minor
+    }
+    pub const fn accepted_tax_minor(&self) -> i64 {
+        self.accepted_tax_minor
+    }
+    pub const fn accepted_at(&self) -> DateTime<Utc> {
+        self.accepted_at
+    }
+    pub const fn eligible_on(&self) -> NaiveDate {
+        self.eligible_on
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RevenueArrangementStatus {
@@ -670,6 +852,44 @@ pub struct RevenueArrangement {
 }
 
 impl RevenueArrangement {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: RevenueArrangementId,
+        version: u64,
+        scope: TenantScope,
+        sales_order_id: SalesOrderId,
+        customer: customer::CustomerRef,
+        legal_contract: Option<legal::LegalContractRef>,
+        order_code: String,
+        currency: String,
+        dimensions: DimensionSet,
+        obligations: Vec<PerformanceObligation>,
+        fulfillments: Vec<AcceptedFulfillment>,
+        status: RevenueArrangementStatus,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, SalesDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope,
+            sales_order_id,
+            customer,
+            legal_contract,
+            order_code,
+            currency,
+            dimensions,
+            obligations,
+            fulfillments,
+            status,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn activate_from_order(
         id: RevenueArrangementId,
@@ -1229,7 +1449,7 @@ mod tests {
     }
 
     fn quote() -> Quote {
-        Quote::create_from_won_opportunity(
+        Quote::create_from_opportunity(
             QuoteId::try_from_uuid(id(10)).unwrap(),
             scope(),
             opportunity(crm::OpportunityStage::Won),
@@ -1271,20 +1491,32 @@ mod tests {
     }
 
     #[test]
-    fn quote_requires_won_crm_fact_and_exact_record_scope() {
-        let result = Quote::create_from_won_opportunity(
+    fn quote_requires_commercially_eligible_crm_fact_and_exact_record_scope() {
+        let result = Quote::create_from_opportunity(
             QuoteId::try_from_uuid(id(10)).unwrap(),
-            TenantScope::Holding { holding_id: id(1) },
-            opportunity(crm::OpportunityStage::Proposal),
+            scope(),
+            opportunity(crm::OpportunityStage::Discovery),
             "QT-10".into(),
             "THB".into(),
             vec![line(11)],
             at(12),
             at(9),
         );
-        assert_eq!(result, Err(SalesDomainError::OpportunityNotWon));
+        assert_eq!(result, Err(SalesDomainError::OpportunityNotEligible));
 
-        let result = Quote::create_from_won_opportunity(
+        Quote::create_from_opportunity(
+            QuoteId::try_from_uuid(id(12)).unwrap(),
+            scope(),
+            opportunity(crm::OpportunityStage::Proposal),
+            "QT-12".into(),
+            "THB".into(),
+            vec![line(12)],
+            at(12),
+            at(9),
+        )
+        .unwrap();
+
+        let result = Quote::create_from_opportunity(
             QuoteId::try_from_uuid(id(10)).unwrap(),
             TenantScope::Holding { holding_id: id(1) },
             opportunity(crm::OpportunityStage::Won),
@@ -1301,7 +1533,7 @@ mod tests {
     fn quote_line_identity_currency_and_amount_invariants_are_enforced() {
         let duplicate = vec![line(11), line(11)];
         assert!(matches!(
-            Quote::create_from_won_opportunity(
+            Quote::create_from_opportunity(
                 QuoteId::try_from_uuid(id(10)).unwrap(),
                 scope(),
                 opportunity(crm::OpportunityStage::Won),
@@ -1316,7 +1548,7 @@ mod tests {
         let mut mismatched = line(12);
         mismatched.currency = "USD".into();
         assert!(matches!(
-            Quote::create_from_won_opportunity(
+            Quote::create_from_opportunity(
                 QuoteId::try_from_uuid(id(10)).unwrap(),
                 scope(),
                 opportunity(crm::OpportunityStage::Won),

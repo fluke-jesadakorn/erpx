@@ -1,7 +1,7 @@
--- Wave 7 transactional-context guards. Aggregate snapshots, idempotency
+-- Wave 7 transactional-context guards. Migration 0081 promotes the Sales and
+-- POS roots plus typed children to current command authority. Idempotency
 -- receipts, audit records, and typed outbox events remain atomic in the shared
--- erpx_cqrs_write unit of work; these tables enforce context invariants and
--- searchable uniqueness on the command side.
+-- erpx_cqrs_write unit of work.
 
 CREATE SCHEMA IF NOT EXISTS erpx_sales_write;
 CREATE TABLE erpx_sales_write.quote_guards (

@@ -176,7 +176,7 @@ mod tests {
             holding_id: Uuid::from_u128(1),
             company_id: Uuid::from_u128(2),
         };
-        let mut quote = Quote::create_from_won_opportunity(
+        let mut quote = Quote::create_from_opportunity(
             QuoteId::try_from_uuid(Uuid::from_u128(3)).unwrap(),
             scope,
             crm::OpportunityFact {

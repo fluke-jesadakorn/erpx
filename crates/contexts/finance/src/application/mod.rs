@@ -18,11 +18,11 @@ use crate::{
     integration,
     ports::{
         AuthorizationPort, AuthorizationRequest, BankTransactionList, BankTransactionListFilter,
-        ChartView, CommandFingerprint, CommandIdentity, CommandUnitOfWork, CustomerInvoiceView,
-        EntitlementPort, FinanceAction, FinanceCommit, JournalList, JournalListFilter, JournalView,
-        PeriodView, PortError, ReadRepository, ReferenceVersion, RevenueScheduleView,
-        StatutoryTaxReport, StoredCommit, SubledgerList, SubledgerListFilter, SubledgerView,
-        TrialBalanceView, WriteRepository,
+        ChartList, ChartListFilter, ChartView, CommandFingerprint, CommandIdentity,
+        CommandUnitOfWork, CustomerInvoiceView, EntitlementPort, FinanceAction, FinanceCommit,
+        JournalList, JournalListFilter, JournalView, PeriodView, PortError, ReadRepository,
+        ReferenceVersion, RevenueScheduleView, StatutoryTaxReport, StoredCommit, SubledgerList,
+        SubledgerListFilter, SubledgerView, TrialBalanceView, WriteRepository,
     },
 };
 
@@ -303,6 +303,10 @@ impl FinanceCommand {
 pub struct GetChart {
     pub chart_id: ChartId,
 }
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListCharts {
+    pub filter: ChartListFilter,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetPeriod {
     pub period_id: PeriodId,
@@ -349,6 +353,7 @@ pub struct GetStatutoryTaxReport {
 #[serde(tag = "query", content = "payload", rename_all = "snake_case")]
 pub enum FinanceQuery {
     GetChart(GetChart),
+    ListCharts(ListCharts),
     GetPeriod(GetPeriod),
     GetJournal(GetJournal),
     ListJournals(ListJournals),
@@ -365,6 +370,7 @@ impl FinanceQuery {
     const fn action(&self) -> FinanceAction {
         match self {
             Self::GetChart(_) => FinanceAction::ViewChart,
+            Self::ListCharts(_) => FinanceAction::ListCharts,
             Self::GetPeriod(_) => FinanceAction::ViewPeriod,
             Self::GetJournal(_) => FinanceAction::ViewJournal,
             Self::ListJournals(_) => FinanceAction::ListJournals,
@@ -407,6 +413,7 @@ impl From<&FinanceAggregate> for FinanceMutationResult {
 #[serde(tag = "result", content = "value", rename_all = "snake_case")]
 pub enum FinanceQueryResponse {
     Chart(Option<ChartView>),
+    Charts(ChartList),
     Period(Option<PeriodView>),
     Journal(Option<JournalView>),
     Journals(JournalList),
@@ -1064,6 +1071,15 @@ where
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (FinanceQueryResponse::Chart(p.value), p.metadata)
             }
+            FinanceQuery::ListCharts(v) => {
+                validate_page(v.filter.page_size).map_err(|e| to_cqrs(e, correlation))?;
+                let p = self
+                    .read
+                    .list_charts(&envelope.tenant_scope, &v.filter, &envelope.consistency)
+                    .await
+                    .map_err(|e| port_to_cqrs(e, correlation))?;
+                (FinanceQueryResponse::Charts(p.value), p.metadata)
+            }
             FinanceQuery::GetPeriod(v) => {
                 let p = self
                     .read
@@ -1194,6 +1210,10 @@ fn response_within_scope(value: &FinanceQueryResponse, authority: &TenantScope) 
         FinanceQueryResponse::Chart(value) => value
             .as_ref()
             .is_none_or(|value| authority.contains(&value.scope)),
+        FinanceQueryResponse::Charts(value) => value
+            .charts
+            .iter()
+            .all(|value| authority.contains(&value.scope)),
         FinanceQueryResponse::Period(value) => value
             .as_ref()
             .is_none_or(|value| authority.contains(&value.scope)),
@@ -1305,5 +1325,7 @@ fn to_cqrs(error: FinanceApplicationError, correlation_id: CorrelationId) -> Cqr
     })
 }
 
+mod records;
 #[cfg(test)]
 mod tests;
+pub use records::{FinanceRecordApplicationError, FinanceRecordCommandHandler};

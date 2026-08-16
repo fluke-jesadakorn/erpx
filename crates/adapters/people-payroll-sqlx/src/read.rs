@@ -90,7 +90,7 @@ impl PeoplePayrollReadRepository {
         checkpoint: Option<ProjectionCheckpoint>,
     ) -> Result<ProjectionMetadata, PortError> {
         let status: Option<String> = sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1")
-            .bind(projection).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .bind(projection).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
             Some("active") => FreshnessState::Current,
             Some("building") => FreshnessState::Rebuilding,
@@ -128,7 +128,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
         let scope = ScopeFilter::from(authority)?;
         let row = sqlx::query("SELECT item.state FROM erpx_people_payroll_read.employee_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.employee_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))")
             .bind(EMPLOYEE_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform)
-            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await
+            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await
             .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_state).transpose()?;
         if value.as_ref().is_some_and(|value: &EmployeeView| {
@@ -157,7 +157,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
         let limit = i64::from(filter.page_size) + 1;
         let rows = sqlx::query("SELECT item.state FROM erpx_people_payroll_read.employee_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::text IS NULL OR item.employee_status=$5) AND ($6::uuid IS NULL OR item.employee_id>$6) ORDER BY item.employee_id LIMIT $7")
             .bind(EMPLOYEE_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes)
-            .bind(status).bind(after).bind(limit).fetch_all(self.pool.as_pg_pool()).await
+            .bind(status).bind(after).bind(limit).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await
             .map_err(|_| PortError::Unavailable)?;
         let mut values = decode_rows::<EmployeeView>(rows)?;
         validate_scopes(authority, values.iter().map(|value| &value.scope))?;
@@ -186,7 +186,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
         let scope = ScopeFilter::from(authority)?;
         let row = sqlx::query("SELECT item.state FROM erpx_people_payroll_read.leave_request_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.leave_request_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))")
             .bind(LEAVE_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform)
-            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await
+            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await
             .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_state).transpose()?;
         if value.as_ref().is_some_and(|value: &LeaveRequestView| {
@@ -214,7 +214,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
         let limit = i64::from(filter.page_size) + 1;
         let rows = sqlx::query("SELECT item.state FROM erpx_people_payroll_read.leave_request_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::uuid IS NULL OR item.employee_id=$5) AND ($6::text IS NULL OR item.leave_status=$6) AND ($7::uuid IS NULL OR item.leave_request_id>$7) ORDER BY item.leave_request_id LIMIT $8")
             .bind(LEAVE_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes)
-            .bind(employee).bind(status).bind(after).bind(limit).fetch_all(self.pool.as_pg_pool()).await
+            .bind(employee).bind(status).bind(after).bind(limit).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await
             .map_err(|_| PortError::Unavailable)?;
         let mut values = decode_rows::<LeaveRequestView>(rows)?;
         validate_scopes(authority, values.iter().map(|value| &value.scope))?;
@@ -243,7 +243,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
         let scope = ScopeFilter::from(authority)?;
         let row = sqlx::query("SELECT item.state FROM erpx_people_payroll_read.expense_claim_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.expense_claim_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))")
             .bind(EXPENSE_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform)
-            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await
+            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await
             .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_state).transpose()?;
         if value.as_ref().is_some_and(|value: &ExpenseClaimView| {
@@ -273,7 +273,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
         let limit = i64::from(filter.page_size) + 1;
         let rows = sqlx::query("SELECT item.state FROM erpx_people_payroll_read.expense_claim_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::uuid IS NULL OR item.employee_id=$5) AND ($6::text IS NULL OR item.expense_status=$6) AND ($7::uuid IS NULL OR item.expense_claim_id>$7) ORDER BY item.expense_claim_id LIMIT $8")
             .bind(EXPENSE_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes)
-            .bind(employee).bind(status).bind(after).bind(limit).fetch_all(self.pool.as_pg_pool()).await
+            .bind(employee).bind(status).bind(after).bind(limit).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await
             .map_err(|_| PortError::Unavailable)?;
         let mut values = decode_rows::<ExpenseClaimView>(rows)?;
         validate_scopes(authority, values.iter().map(|value| &value.scope))?;
@@ -302,7 +302,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
         let scope = ScopeFilter::from(authority)?;
         let row = sqlx::query("SELECT item.state FROM erpx_people_payroll_read.payroll_run_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.payroll_run_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))")
             .bind(PAYROLL_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform)
-            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await
+            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await
             .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_state).transpose()?;
         if value.as_ref().is_some_and(|value: &PayrollRunView| {
@@ -332,7 +332,7 @@ impl ReadRepository for PeoplePayrollReadRepository {
         let rows = sqlx::query("SELECT item.state FROM erpx_people_payroll_read.payroll_run_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::text IS NULL OR item.payroll_status=$5) AND ($6::date IS NULL OR item.starts_on >= $6) AND ($7::date IS NULL OR item.ends_on <= $7) AND ($8::uuid IS NULL OR item.payroll_run_id>$8) ORDER BY item.payroll_run_id LIMIT $9")
             .bind(PAYROLL_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes)
             .bind(status).bind(filter.starts_on_or_after).bind(filter.ends_on_or_before).bind(after).bind(limit)
-            .fetch_all(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let mut values = decode_rows::<PayrollRunView>(rows)?;
         validate_scopes(authority, values.iter().map(|value| &value.scope))?;
         let next_cursor = truncate_cursor(&mut values, filter.page_size, |value| {

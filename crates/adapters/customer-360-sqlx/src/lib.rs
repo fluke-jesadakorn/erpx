@@ -1,9 +1,14 @@
 #![doc = "PostgreSQL projections and composed read adapter for Customer 360."]
 #![forbid(unsafe_code)]
 
+mod owned_records;
 mod projection;
 mod read;
 
+pub use owned_records::{
+    Customer360OwnedRecordProjector, Customer360OwnedRecordReadAdapter,
+    Customer360RecordSqlxAdapter,
+};
 pub use projection::{ControlCustomerProjector, TenantActivityProjector};
 pub use read::Customer360ReadRepository;
 

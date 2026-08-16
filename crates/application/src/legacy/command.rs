@@ -16,7 +16,6 @@ pub struct CommandMutation {
     pub aggregate_type: String,
     pub aggregate_id: Uuid,
     pub expected_aggregate_version: Option<u64>,
-    pub aggregate_state: Value,
     pub event: OutboxEvent,
     pub event_version: u32,
     pub tenant_scope: Option<Value>,
@@ -132,7 +131,6 @@ mod command_tests {
             aggregate_type: "customer".into(),
             aggregate_id,
             expected_aggregate_version: None,
-            aggregate_state: serde_json::json!({"status": "active"}),
             event: OutboxEvent {
                 id: event_id,
                 aggregate_type: "customer".into(),

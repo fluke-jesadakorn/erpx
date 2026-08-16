@@ -1,3 +1,7 @@
+mod records;
+
+pub use records::{PosLifecycleRecordApplicationError, PosLifecycleRecordCommandHandler};
+
 use async_trait::async_trait;
 use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,

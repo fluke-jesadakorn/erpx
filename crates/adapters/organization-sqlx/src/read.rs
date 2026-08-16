@@ -98,7 +98,13 @@ impl OrganizationReadRepository {
              LIMIT 1",
         )
         .bind(PROJECTION_NAME)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
@@ -152,7 +158,13 @@ impl ReadRepository for OrganizationReadRepository {
         .bind(filter.platform)
         .bind(&filter.exact)
         .bind(&filter.prefixes)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let view = row.map(decode_view).transpose()?;
@@ -211,7 +223,13 @@ impl ReadRepository for OrganizationReadRepository {
         .bind(cursor_at)
         .bind(cursor_id)
         .bind(limit)
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let mut nodes = rows

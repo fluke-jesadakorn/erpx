@@ -27,7 +27,7 @@ fn context(holding_id: Uuid, company_id: Uuid, actor: &str) -> CommandContext {
 
 #[tokio::test]
 #[ignore = "requires one disposable tenant PostgreSQL write database"]
-async fn close_review_replay_fails_closed_when_its_outbox_event_is_missing() {
+async fn close_review_replay_fails_closed_when_outbox_cardinality_diverges() {
     let url = std::env::var("ERPX_TEST_TENANT_WRITE_DATABASE_URL")
         .expect("ERPX_TEST_TENANT_WRITE_DATABASE_URL is required");
     let pool = PgPool::connect(&url).await.expect("write pool");
@@ -77,61 +77,6 @@ async fn close_review_replay_fails_closed_when_its_outbox_event_is_missing() {
         .save_review(&review, &period, None)
         .await
         .expect("persist open close review");
-
-    let mut snapshot_tamper_tx = pool.begin().await.expect("snapshot tamper transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
-        .execute(&mut *snapshot_tamper_tx)
-        .await
-        .expect("snapshot tamper scope");
-    sqlx::query(
-        "DELETE FROM erpx_tenant.aggregate_snapshots
-          WHERE holding_ref=$1
-            AND aggregate_type='finance_close_review'
-            AND aggregate_id=$2",
-    )
-    .bind(&holding_ref)
-    .bind(period_id)
-    .execute(&mut *snapshot_tamper_tx)
-    .await
-    .expect("remove close review snapshot");
-    snapshot_tamper_tx
-        .commit()
-        .await
-        .expect("snapshot tamper commit");
-
-    assert!(matches!(
-        store.get_review(period_id).await,
-        Err(PersistenceError::InvalidData(message))
-            if message == "Finance close review version 1 requires an authoritative aggregate snapshot"
-    ));
-    assert!(matches!(
-        store.save_review(&review, &period, None).await,
-        Err(PersistenceError::InvalidData(message))
-            if message == "Finance close review version 1 requires an authoritative aggregate snapshot"
-    ));
-
-    let mut snapshot_restore_tx = pool.begin().await.expect("snapshot restore transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(&holding_ref)
-        .execute(&mut *snapshot_restore_tx)
-        .await
-        .expect("snapshot restore scope");
-    sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ('finance_close_review',$1,$2,1,$3)",
-    )
-    .bind(period_id)
-    .bind(&holding_ref)
-    .bind(serde_json::to_value(&review).expect("review snapshot payload"))
-    .execute(&mut *snapshot_restore_tx)
-    .await
-    .expect("restore close review snapshot");
-    snapshot_restore_tx
-        .commit()
-        .await
-        .expect("snapshot restore commit");
 
     let mut duplicate_event_tx = pool.begin().await.expect("duplicate event transaction");
     sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")

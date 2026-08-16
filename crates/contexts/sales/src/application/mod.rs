@@ -1,3 +1,7 @@
+mod records;
+
+pub use records::{SalesLifecycleRecordApplicationError, SalesLifecycleRecordCommandHandler};
+
 use async_trait::async_trait;
 use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
@@ -558,7 +562,7 @@ where
                 )
                 .await
                 .map_err(|error| to_cqrs(error, correlation_id))?;
-                let quote = Quote::create_from_won_opportunity(
+                let quote = Quote::create_from_opportunity(
                     command.quote_id,
                     command.scope,
                     command.opportunity,

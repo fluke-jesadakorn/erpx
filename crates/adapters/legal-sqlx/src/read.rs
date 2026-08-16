@@ -84,7 +84,7 @@ impl LegalReadRepository {
         checkpoint: Option<ProjectionCheckpoint>,
     ) -> Result<ProjectionMetadata, PortError> {
         let status: Option<String> = sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1")
-            .bind(projection).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .bind(projection).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
             Some("active") => FreshnessState::Current,
             Some("building") => FreshnessState::Rebuilding,
@@ -122,7 +122,7 @@ impl ReadRepository for LegalReadRepository {
         let scope = ScopeFilter::from(authority)?;
         let row = sqlx::query("SELECT item.state FROM erpx_legal_read.contract_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.contract_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))")
             .bind(CONTRACT_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform)
-            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await
+            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await
             .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_state).transpose()?;
         if value.as_ref().is_some_and(|value: &ContractView| {
@@ -151,7 +151,7 @@ impl ReadRepository for LegalReadRepository {
         let rows = sqlx::query("SELECT item.state FROM erpx_legal_read.contract_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::text IS NULL OR item.contract_status=$5) AND ($6::uuid IS NULL OR item.contract_id>$6) ORDER BY item.contract_id LIMIT $7")
             .bind(CONTRACT_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes)
             .bind(status).bind(after).bind(i64::from(filter.page_size) + 1)
-            .fetch_all(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let mut values = decode_rows::<ContractView>(rows)?;
         validate_scopes(authority, values.iter().map(|value| &value.scope))?;
         let next_cursor = truncate_cursor(&mut values, filter.page_size, |value| {
@@ -179,7 +179,7 @@ impl ReadRepository for LegalReadRepository {
         let scope = ScopeFilter::from(authority)?;
         let row = sqlx::query("SELECT item.state FROM erpx_legal_read.document_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.document_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))")
             .bind(DOCUMENT_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform)
-            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await
+            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await
             .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_state).transpose()?;
         // This post-decode scope defense runs before object_ref-bearing versions leave the adapter.
@@ -208,7 +208,7 @@ impl ReadRepository for LegalReadRepository {
         let rows = sqlx::query("SELECT item.state FROM erpx_legal_read.document_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::bool IS NULL OR item.archived=$5) AND ($6::uuid IS NULL OR item.document_id>$6) ORDER BY item.document_id LIMIT $7")
             .bind(DOCUMENT_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes)
             .bind(filter.archived).bind(after).bind(i64::from(filter.page_size) + 1)
-            .fetch_all(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let mut values = decode_rows::<DocumentView>(rows)?;
         validate_scopes(authority, values.iter().map(|value| &value.scope))?;
         let next_cursor = truncate_cursor(&mut values, filter.page_size, |value| {
@@ -238,7 +238,7 @@ impl ReadRepository for LegalReadRepository {
         let rows = sqlx::query("SELECT item.state FROM erpx_legal_read.access_history_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::uuid IS NULL OR item.document_id=$5) AND ($6::uuid IS NULL OR item.access_entry_id>$6) ORDER BY item.access_entry_id LIMIT $7")
             .bind(ACCESS_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes)
             .bind(document).bind(after).bind(i64::from(filter.page_size) + 1)
-            .fetch_all(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let mut values = decode_rows::<AccessEntryView>(rows)?;
         // Purpose and actor evidence are released only after decoded-scope validation.
         validate_scopes(authority, values.iter().map(|value| &value.scope))?;
@@ -272,7 +272,7 @@ impl ReadRepository for LegalReadRepository {
         let scope = ScopeFilter::from(authority)?;
         let row = sqlx::query("SELECT item.state FROM erpx_legal_read.matter_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.matter_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))")
             .bind(MATTER_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform)
-            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await
+            .bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await
             .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_state).transpose()?;
         if value.as_ref().is_some_and(|value: &MatterView| {

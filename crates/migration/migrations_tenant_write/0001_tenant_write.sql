@@ -1,15 +1,5 @@
 CREATE SCHEMA IF NOT EXISTS erpx_tenant;
 
-CREATE TABLE IF NOT EXISTS erpx_tenant.aggregate_snapshots (
-    aggregate_type TEXT NOT NULL,
-    aggregate_id UUID NOT NULL,
-    holding_ref TEXT NOT NULL CHECK (btrim(holding_ref) <> ''),
-    version BIGINT NOT NULL CHECK (version > 0),
-    state JSONB NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (aggregate_type, aggregate_id)
-);
-
 CREATE TABLE IF NOT EXISTS erpx_tenant.outbox_events (
     event_id UUID PRIMARY KEY,
     aggregate_type TEXT NOT NULL,
@@ -30,17 +20,10 @@ CREATE TABLE IF NOT EXISTS erpx_tenant.command_idempotency (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-ALTER TABLE erpx_tenant.aggregate_snapshots ENABLE ROW LEVEL SECURITY;
-ALTER TABLE erpx_tenant.aggregate_snapshots FORCE ROW LEVEL SECURITY;
 ALTER TABLE erpx_tenant.outbox_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE erpx_tenant.outbox_events FORCE ROW LEVEL SECURITY;
 ALTER TABLE erpx_tenant.command_idempotency ENABLE ROW LEVEL SECURITY;
 ALTER TABLE erpx_tenant.command_idempotency FORCE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS tenant_scope_aggregate_snapshots ON erpx_tenant.aggregate_snapshots;
-CREATE POLICY tenant_scope_aggregate_snapshots ON erpx_tenant.aggregate_snapshots
-    USING (holding_ref = current_setting('erpx.holding_ref', true))
-    WITH CHECK (holding_ref = current_setting('erpx.holding_ref', true));
 
 DROP POLICY IF EXISTS tenant_scope_outbox_events ON erpx_tenant.outbox_events;
 CREATE POLICY tenant_scope_outbox_events ON erpx_tenant.outbox_events

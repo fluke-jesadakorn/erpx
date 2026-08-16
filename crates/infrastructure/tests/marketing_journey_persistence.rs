@@ -160,12 +160,10 @@ async fn journey_write_is_atomic_idempotent_versioned_and_scope_bound() {
         .execute(&mut *tx)
         .await
         .expect("holding scope");
-    let counts: (i64, i64, i64, i64) = sqlx::query_as(
+    let counts: (i64, i64, i64) = sqlx::query_as(
         "SELECT
             (SELECT count(*) FROM erpx_tenant.marketing_journeys WHERE holding_ref=$1),
             (SELECT count(*) FROM erpx_tenant.marketing_journey_command_idempotency WHERE holding_ref=$1),
-            (SELECT count(*) FROM erpx_tenant.aggregate_snapshots
-              WHERE holding_ref=$1 AND aggregate_type='marketing_journey'),
             (SELECT count(*) FROM erpx_tenant.outbox_events
               WHERE holding_ref=$1 AND aggregate_type='marketing_journey')",
     )
@@ -173,7 +171,7 @@ async fn journey_write_is_atomic_idempotent_versioned_and_scope_bound() {
     .fetch_one(&mut *tx)
     .await
     .expect("durable counts");
-    assert_eq!(counts, (1, 2, 1, 2));
+    assert_eq!(counts, (1, 2, 2));
     let envelope: (
         i32,
         i32,
@@ -246,11 +244,6 @@ async fn journey_write_is_atomic_idempotent_versioned_and_scope_bound() {
         .execute(&mut *cleanup)
         .await
         .expect("cleanup outbox");
-    sqlx::query("DELETE FROM erpx_tenant.aggregate_snapshots WHERE holding_ref=$1")
-        .bind(&holding_ref)
-        .execute(&mut *cleanup)
-        .await
-        .expect("cleanup snapshots");
     sqlx::query(
         "DELETE FROM erpx_tenant.marketing_journey_command_idempotency WHERE holding_ref=$1",
     )

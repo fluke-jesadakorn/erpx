@@ -4,6 +4,7 @@
 CREATE SCHEMA IF NOT EXISTS erpx_marketing_read;
 
 CREATE TABLE erpx_marketing_read.campaign_budget_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'marketing.campaign_budgets'
         CHECK (projection_name = 'marketing.campaign_budgets'),
     generation UUID NOT NULL,
@@ -32,15 +33,34 @@ CREATE TABLE erpx_marketing_read.campaign_budget_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, budget_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, budget_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, budget_code),
+    UNIQUE (tenant_id, generation, scope_key, budget_code),
     CHECK (available_minor = COALESCE(approved_minor, 0) - reserved_minor)
 );
 
 CREATE INDEX marketing_budget_read_scope_campaign_status
     ON erpx_marketing_read.campaign_budget_projection
-        (generation, scope_key, campaign_id, budget_status,
+        (tenant_id, generation, scope_key, campaign_id, budget_status,
          aggregate_updated_at DESC, budget_id DESC);
+
+DO $$
+DECLARE schema_name TEXT; table_name TEXT;
+BEGIN
+    FOR schema_name, table_name IN SELECT * FROM (VALUES
+        ('erpx_marketing_read','campaign_budget_projection')
+    ) AS protected(schema_name, table_name)
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format('ALTER TABLE %I.%I FORCE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format(
+            'CREATE POLICY tenant_isolation ON %I.%I '
+            'USING (tenant_id = erpx_cqrs_read.current_tenant_id()) '
+            'WITH CHECK (tenant_id = erpx_cqrs_read.current_tenant_id())',
+            schema_name, table_name
+        );
+    END LOOP;
+END;
+$$;

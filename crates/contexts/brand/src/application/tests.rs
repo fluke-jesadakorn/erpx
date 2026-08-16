@@ -301,6 +301,37 @@ impl ReadRepository for FakeReadRepository {
     }
 }
 
+#[async_trait]
+impl DerivedRecordReadRepository for FakeReadRepository {
+    async fn get_asset(
+        &self,
+        _authority_scope: &TenantScope,
+        _target_scope: &BrandScope,
+        _record_id: RecordId,
+        _consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<BrandAssetView>>, PortError> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        Ok(ReadProjection {
+            value: None,
+            metadata: projection_metadata(),
+        })
+    }
+
+    async fn get_publication(
+        &self,
+        _authority_scope: &TenantScope,
+        _target_scope: &BrandScope,
+        _record_id: RecordId,
+        _consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<BrandPublicationView>>, PortError> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        Ok(ReadProjection {
+            value: None,
+            metadata: projection_metadata(),
+        })
+    }
+}
+
 fn projection_metadata() -> ProjectionMetadata {
     ProjectionMetadata {
         checkpoint: None,
@@ -452,6 +483,34 @@ fn publish_emits_owner_contract_event() {
     .unwrap();
     assert_eq!(receipt.aggregate.version, 2);
     assert_eq!(uow.commits.lock().unwrap()[0].integration_events.len(), 1);
+}
+
+#[test]
+fn derived_record_query_authorizes_before_lookup() {
+    let reads = Arc::new(AtomicUsize::new(0));
+    let service = BrandQueryHandler::new(
+        FakeReadRepository {
+            draft: None,
+            not_ready: None,
+            reads: reads.clone(),
+        },
+        FakeAuthorization {
+            allow: false,
+            calls: Arc::new(AtomicUsize::new(0)),
+        },
+        FakeEntitlement { allow: true },
+    );
+    let error = block_on(service.handle(query_envelope(
+        9,
+        QueryConsistency::Eventual,
+        GetBrandAsset {
+            record_id: RecordId::try_from_uuid(Uuid::new_v4()).unwrap(),
+            scope: BrandScope::Platform,
+        },
+    )))
+    .unwrap_err();
+    assert_eq!(error.category(), ErrorCategory::Denied);
+    assert_eq!(reads.load(Ordering::SeqCst), 0);
 }
 
 #[test]

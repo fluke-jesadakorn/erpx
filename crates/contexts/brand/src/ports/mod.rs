@@ -6,16 +6,17 @@ use erpx_cqrs::{
     CommandReceipt, EventPosition, IdempotencyKey, ProjectionMetadata, ProjectionNotReady,
     QueryConsistency,
 };
-use erpx_integration_contracts::brand;
+use erpx_integration_contracts::{StableRecordRef, brand};
 use erpx_kernel::{
-    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
+    ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, RecordId,
+    TenantScope,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::domain::{
-    ArchivedBrandRevision, BrandCategory, BrandDefinition, BrandLifecycle, BrandProfile,
-    BrandProfileId, BrandRevision, BrandScope, ParentBrandWitness,
+    ArchivedBrandRevision, BrandAssetReference, BrandCategory, BrandDefinition, BrandLifecycle,
+    BrandProfile, BrandProfileId, BrandRevision, BrandScope, ParentBrandWitness,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,13 +30,19 @@ pub enum BrandAction {
     ViewDraft,
     ViewResolved,
     ViewHistory,
+    ViewAsset,
+    ViewPublication,
 }
 
 impl BrandAction {
     pub const fn requires_write_entitlement(self) -> bool {
         !matches!(
             self,
-            Self::ViewDraft | Self::ViewResolved | Self::ViewHistory
+            Self::ViewDraft
+                | Self::ViewResolved
+                | Self::ViewHistory
+                | Self::ViewAsset
+                | Self::ViewPublication
         )
     }
 
@@ -250,6 +257,31 @@ pub struct BrandHistory {
     pub next_cursor: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BrandAssetView {
+    pub record: StableRecordRef,
+    pub profile_id: BrandProfileId,
+    pub source_revision: u64,
+    pub scope: BrandScope,
+    pub lifecycle: BrandLifecycle,
+    pub asset: BrandAssetReference,
+    pub revision_updated_at: DateTime<Utc>,
+    pub archived_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BrandPublicationView {
+    pub record: StableRecordRef,
+    pub profile_id: BrandProfileId,
+    pub revision: u64,
+    pub scope: BrandScope,
+    pub definition: BrandDefinition,
+    pub updated_by: String,
+    pub reason: String,
+    pub published_at: DateTime<Utc>,
+    pub archived_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadProjection<T> {
     pub value: T,
@@ -282,6 +314,28 @@ pub trait ReadRepository: Send + Sync {
         cursor: Option<&str>,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<BrandHistory>, PortError>;
+}
+
+/// Authorized lookup of immutable derived records retained in Brand history.
+/// The caller supplies an already-authorized scope so storage never performs
+/// a global ID probe that could disclose another holding.
+#[async_trait]
+pub trait DerivedRecordReadRepository: Send + Sync {
+    async fn get_asset(
+        &self,
+        authority_scope: &TenantScope,
+        target_scope: &BrandScope,
+        record_id: RecordId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<BrandAssetView>>, PortError>;
+
+    async fn get_publication(
+        &self,
+        authority_scope: &TenantScope,
+        target_scope: &BrandScope,
+        record_id: RecordId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<Option<BrandPublicationView>>, PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]

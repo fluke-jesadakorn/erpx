@@ -87,7 +87,7 @@ impl CrmReadRepository {
         projection: &str,
         checkpoint: Option<ProjectionCheckpoint>,
     ) -> Result<ProjectionMetadata, PortError> {
-        let status:Option<String>=sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1").bind(projection).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let status:Option<String>=sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1").bind(projection).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let freshness = match status.as_deref() {
             Some("active") => FreshnessState::Current,
             Some("building") => FreshnessState::Rebuilding,
@@ -118,7 +118,7 @@ impl ReadRepository for CrmReadRepository {
             .checkpoint(LEAD_PROJECTION, consistency, Some(&partition))
             .await?;
         let scope = ScopeFilter::from(authority)?;
-        let row=sqlx::query("SELECT item.state FROM erpx_crm_read.lead_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.lead_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))").bind(LEAD_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let row=sqlx::query("SELECT item.state FROM erpx_crm_read.lead_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.lead_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))").bind(LEAD_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode_lead).transpose()?;
         if value
             .as_ref()
@@ -142,7 +142,7 @@ impl ReadRepository for CrmReadRepository {
             .checkpoint(OPPORTUNITY_PROJECTION, consistency, Some(&partition))
             .await?;
         let scope = ScopeFilter::from(authority)?;
-        let row=sqlx::query("SELECT item.state FROM erpx_crm_read.opportunity_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.opportunity_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))").bind(OPPORTUNITY_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let row=sqlx::query("SELECT item.state FROM erpx_crm_read.opportunity_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.opportunity_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))").bind(OPPORTUNITY_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode_opportunity).transpose()?;
         if value
             .as_ref()
@@ -168,7 +168,7 @@ impl ReadRepository for CrmReadRepository {
         let after = filter.cursor.as_deref().map(decode_cursor).transpose()?;
         let stage = filter.stage.map(stage_name);
         let limit = i64::from(filter.page_size) + 1;
-        let rows=sqlx::query("SELECT item.state FROM erpx_crm_read.opportunity_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::text IS NULL OR item.opportunity_stage=$5) AND ($6::uuid IS NULL OR item.customer_id=$6) AND ($7::uuid IS NULL OR item.opportunity_id>$7) ORDER BY item.opportunity_id LIMIT $8").bind(OPPORTUNITY_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).bind(stage).bind(filter.customer_id).bind(after).bind(limit).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let rows=sqlx::query("SELECT item.state FROM erpx_crm_read.opportunity_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::text IS NULL OR item.opportunity_stage=$5) AND ($6::uuid IS NULL OR item.customer_id=$6) AND ($7::uuid IS NULL OR item.opportunity_id>$7) ORDER BY item.opportunity_id LIMIT $8").bind(OPPORTUNITY_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).bind(stage).bind(filter.customer_id).bind(after).bind(limit).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut values = rows
             .into_iter()
             .map(decode_opportunity)

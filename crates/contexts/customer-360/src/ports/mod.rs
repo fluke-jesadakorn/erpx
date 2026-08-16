@@ -11,6 +11,13 @@ use crate::domain::{
     Customer360View, ProjectionApplyOutcome,
 };
 
+mod owned_records;
+pub use owned_records::{
+    Customer360OwnedRecordQueryPort, Customer360OwnedRecordView,
+    Customer360RecordAuthorizationPort, Customer360RecordCommand, Customer360RecordReceipt,
+    Customer360RecordUnitOfWork,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Customer360Action {

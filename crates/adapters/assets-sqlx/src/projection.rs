@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_assets::{AssetStatus, AssetView};
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::assets;
+use erpx_integration_contracts::{ItemDescriptorDraft, assets};
 use erpx_kernel::TenantScope;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -21,6 +21,7 @@ pub struct AssetSnapshot {
 pub enum AssetOutboxPayload {
     Integration(assets::Event),
     Snapshot(AssetSnapshot),
+    Directory(ItemDescriptorDraft),
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +69,7 @@ impl Projector for AssetProjector {
                  scope_key,asset_code,asset_name,location_id,asset_status,
                  asset_condition,state,aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now())
-             ON CONFLICT (projection_name,generation,partition_key,asset_id)
+             ON CONFLICT (tenant_id,projection_name,generation,partition_key,asset_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                 source_global_sequence=EXCLUDED.source_global_sequence,
                 tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,

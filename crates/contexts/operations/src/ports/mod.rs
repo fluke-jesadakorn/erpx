@@ -1,3 +1,6 @@
+mod records;
+pub use records::*;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{
@@ -287,6 +290,14 @@ pub trait DetectionPolicyPort: Send + Sync {
         source: &SourceFactMessage,
         evaluated_at: DateTime<Utc>,
     ) -> Result<DetectionDecision, PortError>;
+}
+
+/// Tenant-bound source fence for operational rebuild/activation decisions.
+/// The adapter reads only committed Operations outbox evidence; it never
+/// rehydrates write aggregates or crosses into another context repository.
+#[async_trait]
+pub trait SourceHighWatermarkPort: Send + Sync {
+    async fn source_high_watermark(&self) -> Result<u64, PortError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

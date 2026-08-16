@@ -133,7 +133,18 @@ impl ReadSideStore {
         partition: &str,
         command_id: CommandId,
     ) -> Result<Option<ReadSideReceipt>, CqrsSqlxError> {
-        let row = sqlx::query(
+        let statement = if self.pool.tenant_id().is_some() {
+            "SELECT receipt.command_id, receipt.correlation_id, receipt.event_id,
+                    receipt.global_sequence, receipt.projected_at
+             FROM erpx_cqrs_read.projection_receipts receipt
+             JOIN erpx_cqrs_read.projection_generations generation
+               ON generation.tenant_id = receipt.tenant_id
+              AND generation.projection_name = receipt.projection_name
+              AND generation.generation = receipt.generation
+              AND generation.status = 'active'
+             WHERE receipt.projection_name = $1 AND receipt.partition_key = $2
+               AND receipt.command_id = $3 AND receipt.tenant_id = $4"
+        } else {
             "SELECT receipt.command_id, receipt.correlation_id, receipt.event_id,
                     receipt.global_sequence, receipt.projected_at
              FROM erpx_cqrs_read.projection_receipts receipt
@@ -142,13 +153,23 @@ impl ReadSideStore {
               AND generation.generation = receipt.generation
               AND generation.status = 'active'
              WHERE receipt.projection_name = $1 AND receipt.partition_key = $2
-               AND receipt.command_id = $3",
-        )
-        .bind(projection)
-        .bind(partition)
-        .bind(command_id.as_uuid())
-        .fetch_optional(self.pool.inner())
-        .await?;
+               AND receipt.command_id = $3"
+        };
+        let mut transaction = self.pool.begin().await?;
+        let query = sqlx::query(statement)
+            .bind(projection)
+            .bind(partition)
+            .bind(command_id.as_uuid());
+        let row = match self.pool.tenant_id() {
+            Some(tenant_id) => {
+                query
+                    .bind(tenant_id)
+                    .fetch_optional(&mut *transaction)
+                    .await?
+            }
+            None => query.fetch_optional(&mut *transaction).await?,
+        };
+        transaction.commit().await?;
         row.map(|row| {
             let command_id = CommandId::try_from_uuid(row.try_get("command_id")?)
                 .map_err(|_| CqrsSqlxError::InvalidInput("read receipt command id is nil"))?;
@@ -173,19 +194,37 @@ async fn load_active_checkpoint(
     projection: &str,
     partition: &str,
 ) -> Result<Option<ProjectionCheckpoint>, CqrsSqlxError> {
-    let row = sqlx::query(
+    let statement = if pool.tenant_id().is_some() {
+        "SELECT checkpoint.event_id, checkpoint.global_sequence, checkpoint.updated_at
+         FROM erpx_cqrs_read.projection_checkpoints checkpoint
+         JOIN erpx_cqrs_read.projection_generations generation
+           ON generation.tenant_id = checkpoint.tenant_id
+          AND generation.projection_name = checkpoint.projection_name
+          AND generation.generation = checkpoint.generation
+          AND generation.status = 'active'
+         WHERE checkpoint.projection_name = $1 AND checkpoint.partition_key = $2
+           AND checkpoint.tenant_id = $3"
+    } else {
         "SELECT checkpoint.event_id, checkpoint.global_sequence, checkpoint.updated_at
          FROM erpx_cqrs_read.projection_checkpoints checkpoint
          JOIN erpx_cqrs_read.projection_generations generation
            ON generation.projection_name = checkpoint.projection_name
           AND generation.generation = checkpoint.generation
           AND generation.status = 'active'
-         WHERE checkpoint.projection_name = $1 AND checkpoint.partition_key = $2",
-    )
-    .bind(projection)
-    .bind(partition)
-    .fetch_optional(pool.inner())
-    .await?;
+         WHERE checkpoint.projection_name = $1 AND checkpoint.partition_key = $2"
+    };
+    let mut transaction = pool.begin().await?;
+    let query = sqlx::query(statement).bind(projection).bind(partition);
+    let row = match pool.tenant_id() {
+        Some(tenant_id) => {
+            query
+                .bind(tenant_id)
+                .fetch_optional(&mut *transaction)
+                .await?
+        }
+        None => query.fetch_optional(&mut *transaction).await?,
+    };
+    transaction.commit().await?;
     row.map(|row| {
         let event_id = EventId::try_from_uuid(row.try_get("event_id")?)
             .map_err(|_| CqrsSqlxError::InvalidInput("checkpoint event id is nil"))?;
@@ -222,7 +261,7 @@ mod tests {
 
     #[tokio::test]
     async fn polling_must_be_bounded_and_nonzero() {
-        let pool = ReadPool::from_pg_pool(
+        let pool = ReadPool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/test").unwrap(),
         );
         assert!(

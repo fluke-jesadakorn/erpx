@@ -12,6 +12,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+mod records;
+pub use records::*;
+
 use crate::domain::{Asset, AssetId, AssetLifecycle, AssetScope, AssetStatus};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

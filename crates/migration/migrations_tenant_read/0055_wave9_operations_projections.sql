@@ -2,6 +2,7 @@
 -- cursors. A source cursor is never compared with a cursor from another DB.
 
 CREATE TABLE erpx_cqrs_read.projection_source_checkpoints (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL,
     generation UUID NOT NULL,
     source_key TEXT NOT NULL CHECK (octet_length(source_key) BETWEEN 1 AND 255),
@@ -9,16 +10,16 @@ CREATE TABLE erpx_cqrs_read.projection_source_checkpoints (
     rebuild_target_sequence BIGINT CHECK (rebuild_target_sequence >= 0),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, source_key),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, source_key),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
     CHECK (updated_at >= created_at)
 );
 
 CREATE INDEX cqrs_tenant_projection_source_rebuild
     ON erpx_cqrs_read.projection_source_checkpoints
-        (projection_name, generation, rebuild_target_sequence, source_sequence);
+        (tenant_id, projection_name, generation, rebuild_target_sequence, source_sequence);
 
 CREATE SCHEMA IF NOT EXISTS erpx_operations_read;
 
@@ -44,6 +45,7 @@ AS $$
 $$;
 
 CREATE TABLE erpx_operations_read.source_signal_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'operations.source_signals'
         CHECK (projection_name = 'operations.source_signals'),
     generation UUID NOT NULL,
@@ -68,18 +70,19 @@ CREATE TABLE erpx_operations_read.source_signal_projection (
     source_fact JSONB NOT NULL,
     observed_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, process_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, process_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, source_context, source_event_id)
+    UNIQUE (tenant_id, generation, source_context, source_event_id)
 );
 
 CREATE INDEX operations_source_signal_scope_context
     ON erpx_operations_read.source_signal_projection
-        (generation, scope_key, source_context, observed_at DESC, process_id DESC);
+        (tenant_id, generation, scope_key, source_context, observed_at DESC, process_id DESC);
 
 CREATE TABLE erpx_operations_read.exception_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'operations.exceptions'
         CHECK (projection_name = 'operations.exceptions'),
     generation UUID NOT NULL,
@@ -115,30 +118,31 @@ CREATE TABLE erpx_operations_read.exception_projection (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, exception_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, exception_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, source_context, source_event_id)
+    UNIQUE (tenant_id, generation, source_context, source_event_id)
 );
 
 CREATE INDEX operations_exception_read_queue
     ON erpx_operations_read.exception_projection
-        (generation, scope_key, exception_status, updated_at DESC, exception_id DESC);
+        (tenant_id, generation, scope_key, exception_status, updated_at DESC, exception_id DESC);
 CREATE INDEX operations_exception_read_assignee
     ON erpx_operations_read.exception_projection
-        (generation, scope_key, assignee_id, updated_at DESC, exception_id DESC);
+        (tenant_id, generation, scope_key, assignee_id, updated_at DESC, exception_id DESC);
 CREATE INDEX operations_exception_read_due
     ON erpx_operations_read.exception_projection
-        (generation, scope_key, due_at, exception_id);
+        (tenant_id, generation, scope_key, due_at, exception_id);
 CREATE INDEX operations_exception_read_scope_cursor
     ON erpx_operations_read.exception_projection
-        (generation, scope_key, exception_id);
+        (tenant_id, generation, scope_key, exception_id);
 CREATE INDEX operations_exception_read_platform_cursor
     ON erpx_operations_read.exception_projection
-        (generation, exception_id);
+        (tenant_id, generation, exception_id);
 
 CREATE TABLE erpx_operations_read.work_queue_policy_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'operations.work_queue_policies'
         CHECK (projection_name = 'operations.work_queue_policies'),
     generation UUID NOT NULL,
@@ -160,19 +164,41 @@ CREATE TABLE erpx_operations_read.work_queue_policy_projection (
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, policy_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, policy_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, policy_name)
+    UNIQUE (tenant_id, generation, scope_key, policy_name)
 );
 
 CREATE INDEX operations_policy_read_scope_status
     ON erpx_operations_read.work_queue_policy_projection
-        (generation, scope_key, policy_status, updated_at DESC, policy_id DESC);
+        (tenant_id, generation, scope_key, policy_status, updated_at DESC, policy_id DESC);
 CREATE INDEX operations_policy_read_scope_cursor
     ON erpx_operations_read.work_queue_policy_projection
-        (generation, scope_key, policy_id);
+        (tenant_id, generation, scope_key, policy_id);
 CREATE INDEX operations_policy_read_platform_cursor
     ON erpx_operations_read.work_queue_policy_projection
-        (generation, policy_id);
+        (tenant_id, generation, policy_id);
+
+DO $$
+DECLARE schema_name TEXT; table_name TEXT;
+BEGIN
+    FOR schema_name, table_name IN SELECT * FROM (VALUES
+        ('erpx_cqrs_read','projection_source_checkpoints'),
+        ('erpx_operations_read','source_signal_projection'),
+        ('erpx_operations_read','exception_projection'),
+        ('erpx_operations_read','work_queue_policy_projection')
+    ) AS protected(schema_name, table_name)
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format('ALTER TABLE %I.%I FORCE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format(
+            'CREATE POLICY tenant_isolation ON %I.%I '
+            'USING (tenant_id = erpx_cqrs_read.current_tenant_id()) '
+            'WITH CHECK (tenant_id = erpx_cqrs_read.current_tenant_id())',
+            schema_name, table_name
+        );
+    END LOOP;
+END;
+$$;

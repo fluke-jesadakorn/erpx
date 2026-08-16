@@ -3,10 +3,16 @@
 mod command;
 mod projection;
 mod read;
+mod records;
 
 pub use command::{AssetsCommandAdapter, AssetsWriteRepository};
 pub use projection::{AssetOutboxPayload, AssetProjector, AssetSnapshot};
 pub use read::{AssetsReadRepository, decode_cursor, encode_cursor};
+pub use records::{
+    AssetLifecycleRecordProjector, AssetLifecycleRecordReadAdapter,
+    AssetLifecycleRecordSqlxAdapter, RECORD_PROJECTION_NAME as LIFECYCLE_RECORD_PROJECTION_NAME,
+    RECORD_SNAPSHOT_EVENT_TYPE as LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE,
+};
 
 pub const CONTEXT_NAME: &str = "assets";
 pub const AGGREGATE_TYPE: &str = "asset";
@@ -22,6 +28,14 @@ pub const TENANT_READ_FOUNDATION_DDL: &str =
     include_str!("../../../migration/migrations_tenant_read/0048_cqrs_foundation.sql");
 pub const TENANT_READ_CONTEXT_DDL: &str = include_str!(
     "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
+);
+pub const COMPLETION_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
+pub const COMPLETION_READ_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
+);
+pub const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
 );
 pub const WRITE_DDL: &str = concat!(
     include_str!("../../../migration/migrations_tenant_write/0057_cqrs_foundation.sql"),
@@ -67,5 +81,15 @@ mod tests {
         let source = include_str!("read.rs");
         assert!(!source.contains("WritePool"));
         assert!(!source.contains("aggregate_snapshots"));
+    }
+
+    #[test]
+    fn asset_commands_use_typed_tenant_authority() {
+        let source = include_str!("command.rs");
+        assert!(source.contains("erpx_assets_write.asset_authority"));
+        assert!(source.contains("commit_normalized"));
+        assert!(!source.contains("load_snapshot"));
+        assert!(NORMALIZED_AUTHORITY_DDL.contains("asset_name TEXT NOT NULL"));
+        assert!(!NORMALIZED_AUTHORITY_DDL.contains("aggregate_components"));
     }
 }

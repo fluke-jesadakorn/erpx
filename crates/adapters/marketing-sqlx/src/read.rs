@@ -91,7 +91,7 @@ impl MarketingReadRepository {
     ) -> Result<ProjectionMetadata, PortError> {
         let status: Option<String> = sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1")
             .bind(projection)
-            .fetch_optional(self.pool.as_pg_pool())
+            .fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?)
             .await
             .map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
@@ -141,7 +141,7 @@ impl ReadRepository for MarketingReadRepository {
             .bind(scope.platform)
             .bind(&scope.exact)
             .bind(&scope.prefixes)
-            .fetch_optional(self.pool.as_pg_pool())
+            .fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?)
             .await
             .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_lead).transpose()?;
@@ -178,7 +178,7 @@ impl ReadRepository for MarketingReadRepository {
             .bind(status)
             .bind(after)
             .bind(limit)
-            .fetch_all(self.pool.as_pg_pool())
+            .fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?)
             .await
             .map_err(|_| PortError::Unavailable)?;
         let mut values = rows
@@ -226,7 +226,7 @@ impl ReadRepository for MarketingReadRepository {
             .bind(scope.platform)
             .bind(&scope.exact)
             .bind(&scope.prefixes)
-            .fetch_optional(self.pool.as_pg_pool())
+            .fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?)
             .await
             .map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_budget).transpose()?;

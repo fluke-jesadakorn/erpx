@@ -4,7 +4,7 @@ use erpx_cqrs::{
     CommandReceipt, EventPosition, IdempotencyKey, ProjectionMetadata, ProjectionNotReady,
     QueryConsistency,
 };
-use erpx_integration_contracts::crm;
+use erpx_integration_contracts::{crm, marketing};
 use erpx_kernel::{
     ActorAttribution, AggregateId, AuditContext, CommandId, CorrelationId, EventId, TenantScope,
 };
@@ -85,6 +85,29 @@ pub trait AuthorizationPort: Send + Sync {
 pub trait EntitlementPort: Send + Sync {
     async fn ensure_crm_enabled(&self, scope: &TenantScope, write: bool) -> Result<(), PortError>;
 }
+
+/// Owner-published Marketing evidence accepted by CRM. The source version is
+/// the exact committed Marketing aggregate version carried by the outbox
+/// envelope; clients cannot provide or override it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QualifiedLeadEvidence {
+    pub fact: marketing::QualifiedLeadFact,
+    pub source_version: u64,
+}
+
+pub struct QualifiedLeadResolveRequest<'a> {
+    pub actor: &'a ActorAttribution,
+    pub authority_scope: &'a TenantScope,
+    pub candidate: marketing::LeadCandidateRef,
+}
+
+#[async_trait]
+pub trait QualifiedLeadResolverPort: Send + Sync {
+    async fn resolve_qualified_lead(
+        &self,
+        request: QualifiedLeadResolveRequest<'_>,
+    ) -> Result<QualifiedLeadEvidence, PortError>;
+}
 #[async_trait]
 pub trait WriteRepository: Send + Sync {
     async fn load_lead(
@@ -155,6 +178,9 @@ pub struct CrmLeadView {
     pub version: u64,
     pub scope: TenantScope,
     pub marketing_candidate_id: uuid::Uuid,
+    pub campaign_id: uuid::Uuid,
+    pub audience_member_id: uuid::Uuid,
+    pub marketing_source_version: u64,
     pub customer_id: Option<uuid::Uuid>,
     pub source: String,
     pub qualification_score_basis_points: u16,
@@ -167,6 +193,9 @@ impl From<&CrmLead> for CrmLeadView {
             version: v.version(),
             scope: v.scope().clone(),
             marketing_candidate_id: v.marketing_candidate_id(),
+            campaign_id: v.campaign_id(),
+            audience_member_id: v.audience_member_id(),
+            marketing_source_version: v.marketing_source_version(),
             customer_id: v.customer_id(),
             source: v.source().into(),
             qualification_score_basis_points: v.qualification_score_basis_points(),
@@ -276,3 +305,5 @@ pub enum PortError {
     #[error("CRM adapter failed")]
     Internal,
 }
+mod records;
+pub use records::*;

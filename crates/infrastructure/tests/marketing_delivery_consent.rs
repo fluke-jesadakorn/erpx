@@ -300,7 +300,6 @@ async fn late_consent_and_suppression_changes_block_provider_claims() {
         .expect("cleanup scope");
     for table in [
         "erpx_tenant.outbox_events",
-        "erpx_tenant.aggregate_snapshots",
         "erpx_tenant.marketing_delivery_idempotency",
         "erpx_tenant.marketing_deliveries",
         "erpx_tenant.marketing_command_idempotency",

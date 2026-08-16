@@ -1,3 +1,9 @@
+mod records;
+
+pub use records::{
+    PosLifecycleRecord, PosLifecycleRecordError, PosLifecycleRecordKind, PosLifecycleRecordStatus,
+};
+
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
@@ -141,6 +147,26 @@ impl SaleLine {
             .checked_add(self.tax_minor)
             .ok_or(PosDomainError::ArithmeticOverflow)
     }
+
+    /// Maximum minor-unit value attributable to a partial quantity. Ceiling
+    /// division preserves indivisible remainder units; the SQLx cumulative
+    /// guard separately caps all refunds at the original line total.
+    pub fn maximum_refund_minor(&self, quantity: u64) -> Result<i64, PosDomainError> {
+        if quantity == 0 || quantity > self.quantity {
+            return Err(PosDomainError::RefundExceedsSale);
+        }
+        let total = i128::from(self.total_minor()?);
+        let quantity = i128::from(quantity);
+        let original_quantity = i128::from(self.quantity);
+        let numerator = total
+            .checked_mul(quantity)
+            .ok_or(PosDomainError::ArithmeticOverflow)?;
+        let rounded = numerator
+            .checked_add(original_quantity - 1)
+            .ok_or(PosDomainError::ArithmeticOverflow)?
+            / original_quantity;
+        i64::try_from(rounded).map_err(|_| PosDomainError::ArithmeticOverflow)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -182,12 +208,12 @@ pub(crate) struct CompletedSaleState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ApprovedRefundState {
+pub(crate) struct PostedRefundState {
     pub refund_id: RefundId,
     pub sale_id: SaleId,
     pub currency: String,
     pub amount_minor: i64,
-    pub approved_at: DateTime<Utc>,
+    pub posted_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,7 +221,7 @@ pub(crate) enum DomainEvent {
     SaleCreated,
     SaleCompleted(CompletedSaleState),
     RefundRequested,
-    RefundApproved(ApprovedRefundState),
+    RefundPosted(PostedRefundState),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -221,6 +247,50 @@ pub struct Sale {
 }
 
 impl Sale {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: SaleId,
+        version: u64,
+        scope: TenantScope,
+        receipt_code: String,
+        register_id: RegisterId,
+        customer_id: Option<CustomerId>,
+        currency: String,
+        lines: Vec<SaleLine>,
+        payments: Vec<Payment>,
+        status: SaleStatus,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, PosDomainError> {
+        let (subtotal_minor, tax_minor, total_minor) = line_totals(&lines)?;
+        let paid_minor = payments.iter().try_fold(0_i64, |total, payment| {
+            total
+                .checked_add(payment.amount_minor)
+                .ok_or(PosDomainError::ArithmeticOverflow)
+        })?;
+        let value = Self {
+            id,
+            version,
+            scope,
+            receipt_code,
+            register_id,
+            customer_id,
+            currency,
+            lines,
+            payments,
+            subtotal_minor,
+            tax_minor,
+            total_minor,
+            paid_minor,
+            status,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: SaleId,
@@ -514,6 +584,40 @@ pub struct PosRefund {
 }
 
 impl PosRefund {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: RefundId,
+        version: u64,
+        sale: &Sale,
+        lines: Vec<RefundLine>,
+        reason: String,
+        requester_principal_ref: String,
+        reviewer_principal_ref: Option<String>,
+        status: RefundStatus,
+        requested_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, PosDomainError> {
+        let completed_sale = CompletedSaleFact::from_sale(sale)?;
+        let total_amount_minor = refund_total(&lines)?;
+        let value = Self {
+            id,
+            version,
+            scope: sale.scope.clone(),
+            completed_sale,
+            lines,
+            total_amount_minor,
+            reason,
+            requester_principal_ref,
+            reviewer_principal_ref,
+            status,
+            requested_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn request(
         id: RefundId,
         sale: &Sale,
@@ -603,14 +707,6 @@ impl PosRefund {
         self.advance(at)?;
         self.status = RefundStatus::Approved;
         self.reviewer_principal_ref = Some(reviewer_principal_ref);
-        self.uncommitted_events
-            .push(DomainEvent::RefundApproved(ApprovedRefundState {
-                refund_id: self.id,
-                sale_id: self.completed_sale.sale_id,
-                currency: self.completed_sale.currency.clone(),
-                amount_minor: self.total_amount_minor,
-                approved_at: at,
-            }));
         self.validate()
     }
 
@@ -628,6 +724,14 @@ impl PosRefund {
         }
         self.advance(at)?;
         self.status = RefundStatus::Posted;
+        self.uncommitted_events
+            .push(DomainEvent::RefundPosted(PostedRefundState {
+                refund_id: self.id,
+                sale_id: self.completed_sale.sale_id,
+                currency: self.completed_sale.currency.clone(),
+                amount_minor: self.total_amount_minor,
+                posted_at: at,
+            }));
         self.validate()
     }
 
@@ -795,7 +899,9 @@ fn validate_refund_lines(
             .iter()
             .find(|candidate| candidate.line_id == line.sale_line_id)
             .ok_or(PosDomainError::UnknownSaleLine)?;
-        if line.quantity > sale_line.quantity || line.amount_minor > sale_line.total_minor()? {
+        if line.quantity > sale_line.quantity
+            || line.amount_minor > sale_line.maximum_refund_minor(line.quantity)?
+        {
             return Err(PosDomainError::RefundExceedsSale);
         }
     }
@@ -1001,13 +1107,37 @@ mod tests {
         );
         refund.approve("reviewer".into(), at()).unwrap();
         assert_eq!(refund.status(), RefundStatus::Approved);
+        assert!(matches!(
+            refund.take_uncommitted_events().as_slice(),
+            [DomainEvent::RefundRequested]
+        ));
         refund.post(at()).unwrap();
         assert_eq!(refund.status(), RefundStatus::Posted);
+        assert!(matches!(
+            refund.take_uncommitted_events().as_slice(),
+            [DomainEvent::RefundPosted(_)]
+        ));
     }
 
     #[test]
     fn refund_rejects_unknown_or_excessive_lines() {
         let completed = completed_sale();
+        assert_eq!(
+            PosRefund::request(
+                RefundId::try_from_uuid(id(39)).unwrap(),
+                &completed,
+                vec![RefundLine {
+                    sale_line_id: line().line_id,
+                    quantity: 1,
+                    amount_minor: 108,
+                }],
+                "customer return".into(),
+                "requester".into(),
+                at(),
+            )
+            .unwrap_err(),
+            PosDomainError::RefundExceedsSale
+        );
         let unknown = PosRefund::request(
             RefundId::try_from_uuid(id(40)).unwrap(),
             &completed,

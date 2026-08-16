@@ -7,17 +7,21 @@ pub mod integration;
 pub mod ports;
 
 pub use application::{
-    Customer360ProjectionHandler, Customer360QueryHandler, GetCustomer360, GetCustomer360Result,
+    Customer360ProjectionHandler, Customer360QueryHandler, Customer360RecordCommandHandler,
+    GetCustomer360, GetCustomer360Result,
 };
 pub use domain::{
-    CONTROL_CUSTOMERS_PROJECTION_NAME, Customer360DomainError, Customer360Projection,
-    Customer360ProjectionInput, Customer360ProjectionStream, Customer360SectionAvailability,
-    Customer360View, ProjectionApplyOutcome, ProjectionPosition, ProjectionPositions,
-    SectionAvailability, SourceCoverage, TENANT_ACTIVITY_PROJECTION_NAME,
+    CONTROL_CUSTOMERS_PROJECTION_NAME, Customer360DomainError, Customer360OwnedRecord,
+    Customer360ProjectionInput, Customer360ProjectionStream, Customer360RecordKind,
+    Customer360RecordStatus, Customer360SectionAvailability, Customer360View,
+    ProjectionApplyOutcome, ProjectionPosition, ProjectionPositions, SectionAvailability,
+    SourceCoverage, SourceFreshness, TENANT_ACTIVITY_PROJECTION_NAME,
 };
 pub use integration::Customer360SourceEvent;
 pub use ports::{
-    AuthorizationPort, AuthorizationRequest, Customer360Action, PortError, ProjectionRepository,
+    AuthorizationPort, AuthorizationRequest, Customer360Action, Customer360OwnedRecordQueryPort,
+    Customer360OwnedRecordView, Customer360RecordAuthorizationPort, Customer360RecordCommand,
+    Customer360RecordReceipt, Customer360RecordUnitOfWork, PortError, ProjectionRepository,
     ProjectionWriteRequest, ReadProjection, ReadRepository, RebuildProjectionRequest,
     SourceProjectionMetadata,
 };

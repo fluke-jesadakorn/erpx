@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::people_payroll;
+use erpx_integration_contracts::{ItemDescriptorDraft, people_payroll};
 use erpx_people_payroll::{
     Aggregate, EmployeeStatus, ExpenseStatus, LeaveStatus, PayrollStatus,
+    employment_record_ref_for, payslip_record_ref_for,
     ports::{EmployeeView, ExpenseClaimView, LeaveRequestView, PayrollRunView},
 };
 use serde::{Deserialize, Serialize};
@@ -41,6 +42,7 @@ impl From<&Aggregate> for PeoplePayrollSnapshot {
 pub enum PeoplePayrollOutboxPayload {
     Integration(people_payroll::Event),
     Snapshot(PeoplePayrollSnapshot),
+    Directory(ItemDescriptorDraft),
 }
 
 macro_rules! projector_type {
@@ -120,12 +122,32 @@ impl Projector for EmployeeProjector {
             ));
         };
         let state = serde_json::to_value(&view).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_people_payroll_read.employee_projection (projection_name,generation,partition_key,employee_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,employee_code,display_name,hired_on,terminated_on,employee_status,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now()) ON CONFLICT (projection_name,generation,partition_key,employee_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,employee_code=EXCLUDED.employee_code,display_name=EXCLUDED.display_name,hired_on=EXCLUDED.hired_on,terminated_on=EXCLUDED.terminated_on,employee_status=EXCLUDED.employee_status,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_people_payroll_read.employee_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+        sqlx::query("INSERT INTO erpx_people_payroll_read.employee_projection (projection_name,generation,partition_key,employee_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,employee_code,display_name,hired_on,terminated_on,employee_status,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,employee_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,employee_code=EXCLUDED.employee_code,display_name=EXCLUDED.display_name,hired_on=EXCLUDED.hired_on,terminated_on=EXCLUDED.terminated_on,employee_status=EXCLUDED.employee_status,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_people_payroll_read.employee_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
             .bind(EMPLOYEE_PROJECTION).bind(context.generation).bind(&event.partition)
             .bind(view.employee_id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
             .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?)
             .bind(&view.employee_code).bind(&view.display_name).bind(view.hired_on).bind(view.terminated_on)
             .bind(employee_status_name(view.status)).bind(state).bind(view.created_at).bind(view.updated_at)
+            .execute(&mut **transaction).await.map_err(failure)?;
+        let employment = employment_record_ref_for(view.employee_id).map_err(failure)?;
+        sqlx::query("INSERT INTO erpx_people_payroll_read.employment_projection
+            (tenant_id,projection_name,generation,partition_key,employment_id,employee_id,
+             source_aggregate_version,source_global_sequence,tenant_scope,scope_key,
+             employee_code,display_name,hired_on,terminated_on,employment_status,
+             aggregate_updated_at,projected_at)
+            VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now())
+            ON CONFLICT (tenant_id,projection_name,generation,partition_key,employment_id)
+            DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
+             source_global_sequence=EXCLUDED.source_global_sequence,
+             terminated_on=EXCLUDED.terminated_on,employment_status=EXCLUDED.employment_status,
+             aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now()
+            WHERE erpx_people_payroll_read.employment_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+            .bind(EMPLOYEE_PROJECTION).bind(context.generation).bind(&event.partition)
+            .bind(employment.id().as_uuid()).bind(view.employee_id.as_uuid())
+            .bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
+            .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?)
+            .bind(&view.employee_code).bind(&view.display_name).bind(view.hired_on).bind(view.terminated_on)
+            .bind(employee_status_name(view.status)).bind(view.updated_at)
             .execute(&mut **transaction).await.map_err(failure)?;
         Ok(())
     }
@@ -138,6 +160,13 @@ impl Projector for EmployeeProjector {
             transaction,
             context,
             "erpx_people_payroll_read.employee_projection",
+            EMPLOYEE_PROJECTION,
+        )
+        .await?;
+        reset(
+            transaction,
+            context,
+            "erpx_people_payroll_read.employment_projection",
             EMPLOYEE_PROJECTION,
         )
         .await
@@ -171,7 +200,7 @@ impl Projector for LeaveRequestProjector {
             ));
         };
         let state = serde_json::to_value(&view).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_people_payroll_read.leave_request_projection (projection_name,generation,partition_key,leave_request_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,employee_id,starts_on,ends_on,leave_status,requested_by,approved_by,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (projection_name,generation,partition_key,leave_request_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,employee_id=EXCLUDED.employee_id,starts_on=EXCLUDED.starts_on,ends_on=EXCLUDED.ends_on,leave_status=EXCLUDED.leave_status,requested_by=EXCLUDED.requested_by,approved_by=EXCLUDED.approved_by,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_people_payroll_read.leave_request_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+        sqlx::query("INSERT INTO erpx_people_payroll_read.leave_request_projection (projection_name,generation,partition_key,leave_request_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,employee_id,starts_on,ends_on,leave_status,requested_by,approved_by,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,leave_request_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,employee_id=EXCLUDED.employee_id,starts_on=EXCLUDED.starts_on,ends_on=EXCLUDED.ends_on,leave_status=EXCLUDED.leave_status,requested_by=EXCLUDED.requested_by,approved_by=EXCLUDED.approved_by,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_people_payroll_read.leave_request_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
             .bind(LEAVE_PROJECTION).bind(context.generation).bind(&event.partition)
             .bind(view.leave_request_id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
             .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?)
@@ -223,7 +252,7 @@ impl Projector for ExpenseClaimProjector {
             ));
         };
         let state = serde_json::to_value(&view).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_people_payroll_read.expense_claim_projection (projection_name,generation,partition_key,expense_claim_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,employee_id,currency,amount_minor,expense_status,claimed_by,approved_by,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (projection_name,generation,partition_key,expense_claim_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,employee_id=EXCLUDED.employee_id,currency=EXCLUDED.currency,amount_minor=EXCLUDED.amount_minor,expense_status=EXCLUDED.expense_status,claimed_by=EXCLUDED.claimed_by,approved_by=EXCLUDED.approved_by,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_people_payroll_read.expense_claim_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+        sqlx::query("INSERT INTO erpx_people_payroll_read.expense_claim_projection (projection_name,generation,partition_key,expense_claim_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,employee_id,currency,amount_minor,expense_status,claimed_by,approved_by,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,expense_claim_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,employee_id=EXCLUDED.employee_id,currency=EXCLUDED.currency,amount_minor=EXCLUDED.amount_minor,expense_status=EXCLUDED.expense_status,claimed_by=EXCLUDED.claimed_by,approved_by=EXCLUDED.approved_by,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_people_payroll_read.expense_claim_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
             .bind(EXPENSE_PROJECTION).bind(context.generation).bind(&event.partition)
             .bind(view.expense_claim_id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
             .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?)
@@ -276,7 +305,7 @@ impl Projector for PayrollRunProjector {
         };
         let state = serde_json::to_value(&view).map_err(failure)?;
         let lines = serde_json::to_value(&view.lines).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_people_payroll_read.payroll_run_projection (projection_name,generation,partition_key,payroll_run_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,period_code,starts_on,ends_on,currency,payroll_status,prepared_by,reviewed_by,approved_by,total_gross_minor,total_deductions_minor,total_net_minor,lines,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,now()) ON CONFLICT (projection_name,generation,partition_key,payroll_run_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,period_code=EXCLUDED.period_code,starts_on=EXCLUDED.starts_on,ends_on=EXCLUDED.ends_on,currency=EXCLUDED.currency,payroll_status=EXCLUDED.payroll_status,prepared_by=EXCLUDED.prepared_by,reviewed_by=EXCLUDED.reviewed_by,approved_by=EXCLUDED.approved_by,total_gross_minor=EXCLUDED.total_gross_minor,total_deductions_minor=EXCLUDED.total_deductions_minor,total_net_minor=EXCLUDED.total_net_minor,lines=EXCLUDED.lines,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_people_payroll_read.payroll_run_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+        sqlx::query("INSERT INTO erpx_people_payroll_read.payroll_run_projection (projection_name,generation,partition_key,payroll_run_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,period_code,starts_on,ends_on,currency,payroll_status,prepared_by,reviewed_by,approved_by,total_gross_minor,total_deductions_minor,total_net_minor,lines,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,payroll_run_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,period_code=EXCLUDED.period_code,starts_on=EXCLUDED.starts_on,ends_on=EXCLUDED.ends_on,currency=EXCLUDED.currency,payroll_status=EXCLUDED.payroll_status,prepared_by=EXCLUDED.prepared_by,reviewed_by=EXCLUDED.reviewed_by,approved_by=EXCLUDED.approved_by,total_gross_minor=EXCLUDED.total_gross_minor,total_deductions_minor=EXCLUDED.total_deductions_minor,total_net_minor=EXCLUDED.total_net_minor,lines=EXCLUDED.lines,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_people_payroll_read.payroll_run_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
             .bind(PAYROLL_PROJECTION).bind(context.generation).bind(&event.partition)
             .bind(view.payroll_run_id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
             .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?)
@@ -285,6 +314,32 @@ impl Projector for PayrollRunProjector {
             .bind(view.total_gross_minor).bind(view.total_deductions_minor).bind(view.total_net_minor)
             .bind(lines).bind(state).bind(view.created_at).bind(view.updated_at)
             .execute(&mut **transaction).await.map_err(failure)?;
+        for line in &view.lines {
+            let payslip =
+                payslip_record_ref_for(view.payroll_run_id, line.employee_id).map_err(failure)?;
+            sqlx::query("INSERT INTO erpx_people_payroll_read.payslip_projection
+                (tenant_id,projection_name,generation,partition_key,payslip_id,payroll_run_id,
+                 employee_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,
+                 period_code,starts_on,ends_on,currency,gross_minor,deductions_minor,net_minor,
+                 payslip_status,aggregate_updated_at,projected_at)
+                VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now())
+                ON CONFLICT (tenant_id,projection_name,generation,partition_key,payslip_id)
+                DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
+                 source_global_sequence=EXCLUDED.source_global_sequence,
+                 gross_minor=EXCLUDED.gross_minor,deductions_minor=EXCLUDED.deductions_minor,
+                 net_minor=EXCLUDED.net_minor,payslip_status=EXCLUDED.payslip_status,
+                 aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now()
+                WHERE erpx_people_payroll_read.payslip_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+                .bind(PAYROLL_PROJECTION).bind(context.generation).bind(&event.partition)
+                .bind(payslip.id().as_uuid()).bind(view.payroll_run_id.as_uuid())
+                .bind(line.employee_id.as_uuid()).bind(to_i64(view.version)?)
+                .bind(to_i64(event.global_sequence)?)
+                .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?)
+                .bind(&view.period_code).bind(view.starts_on).bind(view.ends_on).bind(view.currency.as_str())
+                .bind(line.gross_minor).bind(line.deductions_minor).bind(line.net_minor)
+                .bind(payroll_status_name(view.status)).bind(view.updated_at)
+                .execute(&mut **transaction).await.map_err(failure)?;
+        }
         Ok(())
     }
     async fn reset(
@@ -296,6 +351,13 @@ impl Projector for PayrollRunProjector {
             transaction,
             context,
             "erpx_people_payroll_read.payroll_run_projection",
+            PAYROLL_PROJECTION,
+        )
+        .await?;
+        reset(
+            transaction,
+            context,
+            "erpx_people_payroll_read.payslip_projection",
             PAYROLL_PROJECTION,
         )
         .await
@@ -455,7 +517,7 @@ mod tests {
                     "EXCLUDED.source_aggregate_version"
                 ))
                 .count(),
-            4
+            6
         );
         assert_eq!(source.matches(concat!("async fn ", "reset(")).count(), 5);
     }

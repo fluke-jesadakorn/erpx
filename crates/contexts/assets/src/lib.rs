@@ -7,15 +7,22 @@ pub mod integration;
 pub mod ports;
 
 pub use application::{
-    AssetApplicationError, AssetCommandHandler, AssetMutationResult, AssetQueryHandler,
-    BeginMaintenance, CreateAsset, CreateAssetResult, GetAsset, GetAssetResult, ListAssets,
-    MarkAssetDegraded, PlaceAssetInService, RetireAsset, ReturnAssetToService,
+    AssetApplicationError, AssetCommandHandler, AssetLifecycleRecordApplicationError,
+    AssetLifecycleRecordCommandHandler, AssetMutationResult, AssetQueryHandler, BeginMaintenance,
+    CreateAsset, CreateAssetResult, GetAsset, GetAssetResult, ListAssets, MarkAssetDegraded,
+    PlaceAssetInService, RetireAsset, ReturnAssetToService,
 };
 pub use domain::{
-    Asset, AssetDomainError, AssetId, AssetLifecycle, AssetScope, AssetStatus, DomainEvent,
+    Asset, AssetDomainError, AssetId, AssetLifecycle, AssetLifecycleRecord,
+    AssetLifecycleRecordError, AssetLifecycleRecordKind, AssetLifecycleRecordStatus, AssetScope,
+    AssetState, AssetStatus, DomainEvent,
 };
 pub use ports::{
-    AssetAction, AssetCommit, AssetList, AssetListFilter, AssetStoredCommit, AssetView,
+    AssetAction, AssetCommit, AssetLifecycleRecordAction, AssetLifecycleRecordAuthorizationPort,
+    AssetLifecycleRecordAuthorizationRequest, AssetLifecycleRecordCommand,
+    AssetLifecycleRecordCommandIdentity, AssetLifecycleRecordCommandRequest,
+    AssetLifecycleRecordCommit, AssetLifecycleRecordReadRepository, AssetLifecycleRecordUnitOfWork,
+    AssetLifecycleRecordWriteRepository, AssetList, AssetListFilter, AssetStoredCommit, AssetView,
     AuthorizationPort, CommandFingerprint, CommandIdentity, CommandUnitOfWork, EntitlementPort,
-    PortError, ReadProjection, ReadRepository, WriteRepository,
+    PortError, ReadProjection, ReadRepository, StoredAssetLifecycleRecordCommit, WriteRepository,
 };

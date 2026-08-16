@@ -1,3 +1,10 @@
+mod records;
+
+pub use records::{
+    InventoryLifecycleRecord, InventoryLifecycleRecordError, InventoryLifecycleRecordKind,
+    InventoryLifecycleRecordStatus,
+};
+
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
@@ -118,7 +125,39 @@ pub struct StockItem {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StockItemState {
+    pub id: StockItemId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub warehouse_id: WarehouseId,
+    pub item_code: String,
+    pub on_hand: i64,
+    pub reserved: i64,
+    pub reservations: BTreeMap<ReservationId, Reservation>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl StockItem {
+    pub fn try_rehydrate(state: StockItemState) -> Result<Self, InventoryDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            warehouse_id: state.warehouse_id,
+            item_code: state.item_code,
+            on_hand: state.on_hand,
+            reserved: state.reserved,
+            reservations: state.reservations,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn register(
         id: StockItemId,
         scope: TenantScope,
@@ -278,6 +317,47 @@ impl StockItem {
         self.uncommitted_events
             .push(DomainEvent::ReservationReleased { reservation_id, at });
         Ok(())
+    }
+
+    /// Consume an active reservation and its stock in one aggregate version.
+    /// This prevents the release-then-issue race that can expose reserved
+    /// quantity to another demand between two commands.
+    pub fn fulfill_reservation(
+        &mut self,
+        reservation_id: ReservationId,
+        movement_id: StockMovementId,
+        at: DateTime<Utc>,
+    ) -> Result<(), InventoryDomainError> {
+        let quantity = self
+            .reservations
+            .get(&reservation_id)
+            .filter(|reservation| reservation.status == ReservationStatus::Active)
+            .map(|reservation| reservation.quantity)
+            .ok_or(InventoryDomainError::ReservationNotActive)?;
+        let next_reserved = self
+            .reserved
+            .checked_sub(quantity)
+            .ok_or(InventoryDomainError::ArithmeticOverflow)?;
+        let next_on_hand = self
+            .on_hand
+            .checked_sub(quantity)
+            .ok_or(InventoryDomainError::ArithmeticOverflow)?;
+        self.advance(at)?;
+        self.reserved = next_reserved;
+        self.on_hand = next_on_hand;
+        self.reservations
+            .get_mut(&reservation_id)
+            .expect("active reservation was checked")
+            .status = ReservationStatus::Released;
+        self.uncommitted_events
+            .push(DomainEvent::ReservationReleased { reservation_id, at });
+        self.uncommitted_events.push(DomainEvent::StockMoved {
+            movement_id,
+            quantity_delta: -quantity,
+            procurement_line: None,
+            at,
+        });
+        self.validate()
     }
 
     fn advance(&mut self, at: DateTime<Utc>) -> Result<(), InventoryDomainError> {
@@ -464,5 +544,55 @@ mod tests {
         )
         .unwrap();
         assert_eq!(item.on_hand(), 2);
+    }
+
+    #[test]
+    fn reservation_fulfillment_consumes_reserved_stock_atomically() {
+        let mut item = item();
+        item.receive(
+            StockMovementId::try_from_uuid(id(30)).unwrap(),
+            10,
+            None,
+            at(10),
+        )
+        .unwrap();
+        let reservation_id = ReservationId::try_from_uuid(id(31)).unwrap();
+        item.reserve(reservation_id, 4, "SO-31".into(), at(11))
+            .unwrap();
+        let version = item.version();
+        item.take_uncommitted_events();
+        item.fulfill_reservation(
+            reservation_id,
+            StockMovementId::try_from_uuid(id(32)).unwrap(),
+            at(12),
+        )
+        .unwrap();
+        assert_eq!(item.version(), version + 1);
+        assert_eq!(
+            (item.on_hand(), item.reserved(), item.available()),
+            (6, 0, 6)
+        );
+        assert_eq!(
+            item.reservations()[&reservation_id].status,
+            ReservationStatus::Released
+        );
+        assert!(matches!(
+            item.take_uncommitted_events().as_slice(),
+            [
+                DomainEvent::ReservationReleased { .. },
+                DomainEvent::StockMoved {
+                    quantity_delta: -4,
+                    ..
+                }
+            ]
+        ));
+        assert_eq!(
+            item.fulfill_reservation(
+                reservation_id,
+                StockMovementId::try_from_uuid(id(33)).unwrap(),
+                at(13),
+            ),
+            Err(InventoryDomainError::ReservationNotActive)
+        );
     }
 }

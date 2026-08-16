@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::legal;
+use erpx_integration_contracts::{ItemDescriptorDraft, legal};
 use erpx_legal::ports::{AccessEntryView, ContractView, DocumentView, MatterView};
-use erpx_legal::{ContractStatus, LegalAggregate, MatterStatus};
+use erpx_legal::{ContractStatus, LegalAggregate, MatterStatus, legal_hold_record_ref_for};
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
 
@@ -38,6 +38,7 @@ impl From<&LegalAggregate> for LegalSnapshot {
 pub enum LegalOutboxPayload {
     Integration(legal::Event),
     Snapshot(LegalSnapshot),
+    Directory(ItemDescriptorDraft),
 }
 
 macro_rules! projector_type {
@@ -117,7 +118,7 @@ impl Projector for LegalContractProjector {
         };
         let state = serde_json::to_value(&view).map_err(failure)?;
         let parties = serde_json::to_value(&view.parties).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_legal_read.contract_projection (projection_name,generation,partition_key,contract_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,reference,title,object_ref,content_sha256,retention_until,contract_status,parties,created_by,approved_by,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,now()) ON CONFLICT (projection_name,generation,partition_key,contract_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,reference=EXCLUDED.reference,title=EXCLUDED.title,object_ref=EXCLUDED.object_ref,content_sha256=EXCLUDED.content_sha256,retention_until=EXCLUDED.retention_until,contract_status=EXCLUDED.contract_status,parties=EXCLUDED.parties,created_by=EXCLUDED.created_by,approved_by=EXCLUDED.approved_by,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_legal_read.contract_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+        sqlx::query("INSERT INTO erpx_legal_read.contract_projection (projection_name,generation,partition_key,contract_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,reference,title,object_ref,content_sha256,retention_until,contract_status,parties,created_by,approved_by,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,contract_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,reference=EXCLUDED.reference,title=EXCLUDED.title,object_ref=EXCLUDED.object_ref,content_sha256=EXCLUDED.content_sha256,retention_until=EXCLUDED.retention_until,contract_status=EXCLUDED.contract_status,parties=EXCLUDED.parties,created_by=EXCLUDED.created_by,approved_by=EXCLUDED.approved_by,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_legal_read.contract_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
             .bind(CONTRACT_PROJECTION).bind(context.generation).bind(&event.partition).bind(view.contract_id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
             .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?).bind(&view.reference).bind(&view.title).bind(&view.object_ref).bind(&view.content_sha256)
             .bind(view.retention_until).bind(contract_status_name(view.status)).bind(parties).bind(&view.created_by).bind(&view.approved_by).bind(state).bind(view.created_at).bind(view.updated_at)
@@ -167,7 +168,7 @@ impl Projector for LegalDocumentProjector {
         };
         let state = serde_json::to_value(&view).map_err(failure)?;
         let versions = serde_json::to_value(&view.versions).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_legal_read.document_projection (projection_name,generation,partition_key,document_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,title,versions,current_document_version,archived,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now()) ON CONFLICT (projection_name,generation,partition_key,document_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,title=EXCLUDED.title,versions=EXCLUDED.versions,current_document_version=EXCLUDED.current_document_version,archived=EXCLUDED.archived,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_legal_read.document_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+        sqlx::query("INSERT INTO erpx_legal_read.document_projection (projection_name,generation,partition_key,document_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,title,versions,current_document_version,archived,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,document_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,title=EXCLUDED.title,versions=EXCLUDED.versions,current_document_version=EXCLUDED.current_document_version,archived=EXCLUDED.archived,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_legal_read.document_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
             .bind(DOCUMENT_PROJECTION).bind(context.generation).bind(&event.partition).bind(view.document_id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
             .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?).bind(&view.title).bind(versions).bind(to_i64(view.current_version)?).bind(view.archived).bind(state).bind(view.created_at).bind(view.updated_at)
             .execute(&mut **tx).await.map_err(failure)?;
@@ -215,7 +216,7 @@ impl Projector for LegalAccessHistoryProjector {
             ));
         };
         let state = serde_json::to_value(&view).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_legal_read.access_history_projection (projection_name,generation,partition_key,access_entry_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,document_id,document_version,actor_ref,action,purpose,observed_at,state,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now()) ON CONFLICT (projection_name,generation,partition_key,access_entry_id) DO NOTHING")
+        sqlx::query("INSERT INTO erpx_legal_read.access_history_projection (projection_name,generation,partition_key,access_entry_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,document_id,document_version,actor_ref,action,purpose,observed_at,state,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,access_entry_id) DO NOTHING")
             .bind(ACCESS_PROJECTION).bind(context.generation).bind(&event.partition).bind(view.access_entry_id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
             .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?).bind(view.document_id.as_uuid()).bind(to_i64(view.document_version)?)
             .bind(&view.actor_ref).bind(&view.action).bind(&view.purpose).bind(view.observed_at).bind(state).execute(&mut **tx).await.map_err(failure)?;
@@ -265,10 +266,33 @@ impl Projector for LegalMatterProjector {
         let state = serde_json::to_value(&view).map_err(failure)?;
         let links = serde_json::to_value(&view.links).map_err(failure)?;
         let legal_hold = serde_json::to_value(&view.legal_hold).map_err(failure)?;
-        sqlx::query("INSERT INTO erpx_legal_read.matter_projection (projection_name,generation,partition_key,matter_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,reference,title,matter_status,links,legal_hold,created_by,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (projection_name,generation,partition_key,matter_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,reference=EXCLUDED.reference,title=EXCLUDED.title,matter_status=EXCLUDED.matter_status,links=EXCLUDED.links,legal_hold=EXCLUDED.legal_hold,created_by=EXCLUDED.created_by,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_legal_read.matter_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+        sqlx::query("INSERT INTO erpx_legal_read.matter_projection (projection_name,generation,partition_key,matter_id,source_aggregate_version,source_global_sequence,tenant_scope,scope_key,reference,title,matter_status,links,legal_hold,created_by,state,aggregate_created_at,aggregate_updated_at,projected_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now()) ON CONFLICT (tenant_id,projection_name,generation,partition_key,matter_id) DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,source_global_sequence=EXCLUDED.source_global_sequence,tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,reference=EXCLUDED.reference,title=EXCLUDED.title,matter_status=EXCLUDED.matter_status,links=EXCLUDED.links,legal_hold=EXCLUDED.legal_hold,created_by=EXCLUDED.created_by,state=EXCLUDED.state,aggregate_created_at=EXCLUDED.aggregate_created_at,aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now() WHERE erpx_legal_read.matter_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
             .bind(MATTER_PROJECTION).bind(context.generation).bind(&event.partition).bind(view.matter_id.as_uuid()).bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
             .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?).bind(&view.reference).bind(&view.title).bind(matter_status_name(view.status)).bind(links).bind(legal_hold).bind(&view.created_by).bind(state).bind(view.created_at).bind(view.updated_at)
             .execute(&mut **tx).await.map_err(failure)?;
+        if let Some(hold) = &view.legal_hold {
+            let hold_ref = legal_hold_record_ref_for(view.matter_id).map_err(failure)?;
+            sqlx::query("INSERT INTO erpx_legal_read.legal_hold_projection
+                (tenant_id,projection_name,generation,partition_key,legal_hold_id,matter_id,
+                 source_aggregate_version,source_global_sequence,tenant_scope,scope_key,
+                 matter_reference,hold_active,reason,placed_by,placed_at,released_by,released_at,
+                 aggregate_updated_at,projected_at)
+                VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())
+                ON CONFLICT (tenant_id,projection_name,generation,partition_key,legal_hold_id)
+                DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
+                 source_global_sequence=EXCLUDED.source_global_sequence,
+                 hold_active=EXCLUDED.hold_active,released_by=EXCLUDED.released_by,
+                 released_at=EXCLUDED.released_at,
+                 aggregate_updated_at=EXCLUDED.aggregate_updated_at,projected_at=now()
+                WHERE erpx_legal_read.legal_hold_projection.source_aggregate_version < EXCLUDED.source_aggregate_version")
+                .bind(MATTER_PROJECTION).bind(context.generation).bind(&event.partition)
+                .bind(hold_ref.id().as_uuid()).bind(view.matter_id.as_uuid())
+                .bind(to_i64(view.version)?).bind(to_i64(event.global_sequence)?)
+                .bind(serde_json::to_value(&view.scope).map_err(failure)?).bind(scope_key(&view.scope).map_err(failure)?)
+                .bind(&view.reference).bind(hold.active).bind(&hold.reason).bind(&hold.placed_by)
+                .bind(hold.placed_at).bind(&hold.released_by).bind(hold.released_at).bind(view.updated_at)
+                .execute(&mut **tx).await.map_err(failure)?;
+        }
         Ok(())
     }
     async fn reset(
@@ -280,6 +304,13 @@ impl Projector for LegalMatterProjector {
             tx,
             context,
             "erpx_legal_read.matter_projection",
+            MATTER_PROJECTION,
+        )
+        .await?;
+        reset(
+            tx,
+            context,
+            "erpx_legal_read.legal_hold_projection",
             MATTER_PROJECTION,
         )
         .await
@@ -416,7 +447,7 @@ mod tests {
                     "EXCLUDED.source_aggregate_version"
                 ))
                 .count(),
-            3
+            4
         );
         assert!(source.contains("DO NOTHING"));
         assert_eq!(source.matches(concat!("async fn ", "reset(")).count(), 5);

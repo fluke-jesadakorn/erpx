@@ -1,3 +1,7 @@
+mod records;
+
+pub use records::{CrmRecord, CrmRecordKind, CrmRecordStatus};
+
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{crm, marketing};
 use erpx_kernel::TenantScope;
@@ -61,6 +65,7 @@ impl OpportunityStage {
                 | (Self::Discovery, Self::Proposal | Self::Lost)
                 | (Self::Proposal, Self::Negotiation | Self::Lost)
                 | (Self::Negotiation, Self::Won | Self::Lost)
+                | (Self::Lost, Self::Discovery)
         )
     }
 }
@@ -83,6 +88,10 @@ pub enum CrmDomainError {
     InvalidCurrency,
     #[error("CRM opportunity transition is not allowed")]
     InvalidTransition,
+    #[error("CRM record transition is not allowed")]
+    InvalidRecordTransition,
+    #[error("CRM record version conflict (expected {expected}, actual {actual})")]
+    RecordVersionConflict { expected: u64, actual: u64 },
     #[error("CRM opportunity forecast is incomplete or inconsistent with its stage")]
     InvalidForecast,
     #[error("CRM timestamp cannot move backwards")]
@@ -97,6 +106,9 @@ pub struct CrmLead {
     version: u64,
     scope: TenantScope,
     marketing_candidate_id: Uuid,
+    campaign_id: Uuid,
+    audience_member_id: Uuid,
+    marketing_source_version: u64,
     customer_id: Option<Uuid>,
     source: String,
     qualification_score_basis_points: u16,
@@ -104,12 +116,47 @@ pub struct CrmLead {
     #[serde(skip)]
     uncommitted_events: Vec<DomainEvent>,
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrmLeadState {
+    pub id: CrmLeadId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub marketing_candidate_id: Uuid,
+    pub campaign_id: Uuid,
+    pub audience_member_id: Uuid,
+    pub marketing_source_version: u64,
+    pub customer_id: Option<Uuid>,
+    pub source: String,
+    pub qualification_score_basis_points: u16,
+    pub accepted_at: DateTime<Utc>,
+}
 impl CrmLead {
+    pub fn try_rehydrate(state: CrmLeadState) -> Result<Self, CrmDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            marketing_candidate_id: state.marketing_candidate_id,
+            campaign_id: state.campaign_id,
+            audience_member_id: state.audience_member_id,
+            marketing_source_version: state.marketing_source_version,
+            customer_id: state.customer_id,
+            source: state.source,
+            qualification_score_basis_points: state.qualification_score_basis_points,
+            accepted_at: state.accepted_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
     #[allow(clippy::too_many_arguments)]
     pub fn accept(
         id: CrmLeadId,
         scope: TenantScope,
         marketing_candidate_id: Uuid,
+        campaign_id: Uuid,
+        audience_member_id: Uuid,
+        marketing_source_version: u64,
         customer_id: Option<Uuid>,
         source: String,
         score: u16,
@@ -117,6 +164,13 @@ impl CrmLead {
     ) -> Result<Self, CrmDomainError> {
         exact_scope(&scope)?;
         require_id(marketing_candidate_id, "marketing_candidate_id")?;
+        require_id(campaign_id, "campaign_id")?;
+        require_id(audience_member_id, "audience_member_id")?;
+        if marketing_source_version == 0 {
+            return Err(CrmDomainError::Required {
+                field: "marketing_source_version",
+            });
+        }
         if customer_id.is_some_and(|id| id.is_nil()) {
             return Err(CrmDomainError::NilIdentifier {
                 field: "customer_id",
@@ -133,6 +187,9 @@ impl CrmLead {
             version: 1,
             scope,
             marketing_candidate_id,
+            campaign_id,
+            audience_member_id,
+            marketing_source_version,
             customer_id,
             source,
             qualification_score_basis_points: score,
@@ -150,6 +207,8 @@ impl CrmLead {
     pub fn validate(&self) -> Result<(), CrmDomainError> {
         exact_scope(&self.scope)?;
         require_id(self.marketing_candidate_id, "marketing_candidate_id")?;
+        require_id(self.campaign_id, "campaign_id")?;
+        require_id(self.audience_member_id, "audience_member_id")?;
         if self.customer_id.is_some_and(|id| id.is_nil()) {
             return Err(CrmDomainError::NilIdentifier {
                 field: "customer_id",
@@ -157,6 +216,7 @@ impl CrmLead {
         }
         validate_text(&self.source, "source")?;
         if self.version == 0
+            || self.marketing_source_version == 0
             || self.qualification_score_basis_points == 0
             || self.qualification_score_basis_points > 10_000
         {
@@ -177,6 +237,15 @@ impl CrmLead {
     }
     pub const fn marketing_candidate_id(&self) -> Uuid {
         self.marketing_candidate_id
+    }
+    pub const fn campaign_id(&self) -> Uuid {
+        self.campaign_id
+    }
+    pub const fn audience_member_id(&self) -> Uuid {
+        self.audience_member_id
+    }
+    pub const fn marketing_source_version(&self) -> u64 {
+        self.marketing_source_version
     }
     pub const fn customer_id(&self) -> Option<Uuid> {
         self.customer_id
@@ -223,7 +292,51 @@ pub struct CrmOpportunity {
     #[serde(skip)]
     uncommitted_events: Vec<DomainEvent>,
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CrmOpportunityState {
+    pub id: OpportunityId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub accepted_lead_id: CrmLeadId,
+    pub customer_id: Uuid,
+    pub name: String,
+    pub expected_value_minor: i64,
+    pub currency: String,
+    pub stage: OpportunityStage,
+    pub account: Option<crm::CrmAccountRef>,
+    pub owner: Option<String>,
+    pub pipeline_category: Option<crm::PipelineCategory>,
+    pub probability_basis_points: Option<u16>,
+    pub expected_close_on: Option<NaiveDate>,
+    pub originating_campaign: Option<marketing::CampaignRef>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
 impl CrmOpportunity {
+    pub fn try_rehydrate(state: CrmOpportunityState) -> Result<Self, CrmDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            accepted_lead_id: state.accepted_lead_id,
+            customer_id: state.customer_id,
+            name: state.name,
+            expected_value_minor: state.expected_value_minor,
+            currency: state.currency,
+            stage: state.stage,
+            account: state.account,
+            owner: state.owner,
+            pipeline_category: state.pipeline_category,
+            probability_basis_points: state.probability_basis_points,
+            expected_close_on: state.expected_close_on,
+            originating_campaign: state.originating_campaign,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: OpportunityId,
@@ -353,6 +466,12 @@ impl CrmOpportunity {
             .checked_add(1)
             .ok_or(CrmDomainError::VersionOverflow)?;
         self.stage = next;
+        if self.stage == OpportunityStage::Discovery
+            && self.pipeline_category == Some(crm::PipelineCategory::Closed)
+        {
+            self.pipeline_category = Some(crm::PipelineCategory::Pipeline);
+            self.probability_basis_points = Some(1_000);
+        }
         if matches!(next, OpportunityStage::Won | OpportunityStage::Lost)
             && self.pipeline_category.is_some()
         {
@@ -630,7 +749,7 @@ mod tests {
         .unwrap()
     }
     #[test]
-    fn opportunity_follows_forward_only_pipeline() {
+    fn opportunity_follows_governed_pipeline_and_reopens_only_lost_work() {
         let mut value = opportunity();
         let at = value.created_at();
         assert_eq!(
@@ -642,6 +761,12 @@ mod tests {
         value.transition(OpportunityStage::Lost, at).unwrap();
         assert_eq!(
             value.transition(OpportunityStage::Won, at),
+            Err(CrmDomainError::InvalidTransition)
+        );
+        value.transition(OpportunityStage::Discovery, at).unwrap();
+        assert_eq!(value.stage(), OpportunityStage::Discovery);
+        assert_eq!(
+            value.transition(OpportunityStage::Qualified, at),
             Err(CrmDomainError::InvalidTransition)
         );
     }
@@ -696,6 +821,28 @@ mod tests {
             Some(crm::PipelineCategory::Closed)
         );
         assert_eq!(value.probability_basis_points(), Some(0));
+        value.take_uncommitted_events();
+        value.transition(OpportunityStage::Discovery, at).unwrap();
+        assert_eq!(
+            value.pipeline_category(),
+            Some(crm::PipelineCategory::Pipeline)
+        );
+        assert_eq!(value.probability_basis_points(), Some(1_000));
+        let facts = crate::integration::published_events(&value.take_uncommitted_events()).unwrap();
+        assert!(matches!(
+            facts.as_slice(),
+            [
+                crm::Event::OpportunityChanged(crm::OpportunityFact {
+                    stage: crm::OpportunityStage::Discovery,
+                    ..
+                }),
+                crm::Event::OpportunityForecastChanged(crm::OpportunityForecastFact {
+                    category: crm::PipelineCategory::Pipeline,
+                    probability_basis_points: 1_000,
+                    ..
+                })
+            ]
+        ));
         value.validate().unwrap();
     }
     #[test]
@@ -704,6 +851,9 @@ mod tests {
             CrmLeadId::try_from_uuid(Uuid::from_u128(3)).unwrap(),
             scope(),
             Uuid::from_u128(8),
+            Uuid::from_u128(9),
+            Uuid::from_u128(10),
+            4,
             None,
             "campaign".into(),
             9000,
@@ -711,6 +861,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(lead.marketing_candidate_id(), Uuid::from_u128(8));
+        assert_eq!(lead.campaign_id(), Uuid::from_u128(9));
+        assert_eq!(lead.audience_member_id(), Uuid::from_u128(10));
+        assert_eq!(lead.marketing_source_version(), 4);
         assert_eq!(lead.version(), 1);
     }
 }

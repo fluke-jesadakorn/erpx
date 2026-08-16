@@ -4,6 +4,7 @@
 CREATE SCHEMA IF NOT EXISTS erpx_identity_access_read;
 
 CREATE TABLE erpx_identity_access_read.principal_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'identity_access.principals'
         CHECK (projection_name = 'identity_access.principals'),
     generation UUID NOT NULL,
@@ -21,17 +22,18 @@ CREATE TABLE erpx_identity_access_read.principal_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, principal_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, principal_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE
 );
 
 CREATE INDEX identity_access_principal_scope_status
     ON erpx_identity_access_read.principal_projection
-        (generation, scope_key, principal_status, aggregate_updated_at DESC, principal_id DESC);
+        (tenant_id, generation, scope_key, principal_status, aggregate_updated_at DESC, principal_id DESC);
 
 CREATE TABLE erpx_identity_access_read.role_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'identity_access.roles'
         CHECK (projection_name = 'identity_access.roles'),
     generation UUID NOT NULL,
@@ -52,18 +54,19 @@ CREATE TABLE erpx_identity_access_read.role_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, role_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, role_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, role_code)
+    UNIQUE (tenant_id, generation, scope_key, role_code)
 );
 
 CREATE INDEX identity_access_role_scope_risk
     ON erpx_identity_access_read.role_projection
-        (generation, scope_key, risk_tier, aggregate_updated_at DESC, role_id DESC);
+        (tenant_id, generation, scope_key, risk_tier, aggregate_updated_at DESC, role_id DESC);
 
 CREATE TABLE erpx_identity_access_read.assignment_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'identity_access.principals'
         CHECK (projection_name = 'identity_access.principals'),
     generation UUID NOT NULL,
@@ -79,21 +82,22 @@ CREATE TABLE erpx_identity_access_read.assignment_projection (
     revoked_at TIMESTAMPTZ,
     state JSONB NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, assignment_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, assignment_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
     CHECK (valid_until > valid_from)
 );
 
 CREATE INDEX identity_access_assignment_principal_validity
     ON erpx_identity_access_read.assignment_projection
-        (generation, principal_id, valid_from, valid_until)
+        (tenant_id, generation, principal_id, valid_from, valid_until)
     WHERE revoked_at IS NULL;
 
 CREATE SCHEMA IF NOT EXISTS erpx_organization_read;
 
 CREATE TABLE erpx_organization_read.node_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'organization.nodes'
         CHECK (projection_name = 'organization.nodes'),
     generation UUID NOT NULL,
@@ -115,23 +119,24 @@ CREATE TABLE erpx_organization_read.node_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, node_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, node_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE
 );
 
 CREATE INDEX organization_node_scope_kind_status
     ON erpx_organization_read.node_projection
-        (generation, scope_key, node_kind, node_status, aggregate_updated_at DESC, node_id DESC);
+        (tenant_id, generation, scope_key, node_kind, node_status, aggregate_updated_at DESC, node_id DESC);
 
 CREATE INDEX organization_node_parent
     ON erpx_organization_read.node_projection
-        (generation, parent_node_id, aggregate_updated_at DESC, node_id DESC);
+        (tenant_id, generation, parent_node_id, aggregate_updated_at DESC, node_id DESC);
 
 CREATE SCHEMA IF NOT EXISTS erpx_commercial_read;
 
 CREATE TABLE erpx_commercial_read.catalog_plan_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'commercial.catalog_plans'
         CHECK (projection_name = 'commercial.catalog_plans'),
     generation UUID NOT NULL,
@@ -147,18 +152,19 @@ CREATE TABLE erpx_commercial_read.catalog_plan_projection (
     state JSONB NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, catalog_plan_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, catalog_plan_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, plan_key)
+    UNIQUE (tenant_id, generation, plan_key)
 );
 
 CREATE INDEX commercial_catalog_status
     ON erpx_commercial_read.catalog_plan_projection
-        (generation, plan_status, aggregate_updated_at DESC, catalog_plan_id DESC);
+        (tenant_id, generation, plan_status, aggregate_updated_at DESC, catalog_plan_id DESC);
 
 CREATE TABLE erpx_commercial_read.subscription_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'commercial.subscriptions'
         CHECK (projection_name = 'commercial.subscriptions'),
     generation UUID NOT NULL,
@@ -178,18 +184,19 @@ CREATE TABLE erpx_commercial_read.subscription_projection (
     state JSONB NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, subscription_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, subscription_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE
 );
 
 CREATE INDEX commercial_subscription_customer_status
     ON erpx_commercial_read.subscription_projection
-        (generation, scope_key, customer_id, subscription_status,
+        (tenant_id, generation, scope_key, customer_id, subscription_status,
          aggregate_updated_at DESC, subscription_id DESC);
 
 CREATE TABLE erpx_commercial_read.entitlement_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'commercial.entitlements'
         CHECK (projection_name = 'commercial.entitlements'),
     generation UUID NOT NULL,
@@ -211,15 +218,39 @@ CREATE TABLE erpx_commercial_read.entitlement_projection (
     state JSONB NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, entitlement_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, entitlement_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, subscription_id, capability)
+    UNIQUE (tenant_id, generation, scope_key, subscription_id, capability)
 );
 
 CREATE INDEX commercial_entitlement_subscription
     ON erpx_commercial_read.entitlement_projection
-        (generation, scope_key, subscription_id, enabled,
+        (tenant_id, generation, scope_key, subscription_id, enabled,
          aggregate_updated_at DESC, entitlement_id DESC);
 
+DO $$
+DECLARE schema_name TEXT; table_name TEXT;
+BEGIN
+    FOR schema_name, table_name IN SELECT * FROM (VALUES
+        ('erpx_identity_access_read','principal_projection'),
+        ('erpx_identity_access_read','role_projection'),
+        ('erpx_identity_access_read','assignment_projection'),
+        ('erpx_organization_read','node_projection'),
+        ('erpx_commercial_read','catalog_plan_projection'),
+        ('erpx_commercial_read','subscription_projection'),
+        ('erpx_commercial_read','entitlement_projection')
+    ) AS protected(schema_name, table_name)
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format('ALTER TABLE %I.%I FORCE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format(
+            'CREATE POLICY tenant_isolation ON %I.%I '
+            'USING (tenant_id = erpx_cqrs_read.current_tenant_id()) '
+            'WITH CHECK (tenant_id = erpx_cqrs_read.current_tenant_id())',
+            schema_name, table_name
+        );
+    END LOOP;
+END;
+$$;

@@ -156,7 +156,6 @@ impl AddCustomerNoteCommand {
             aggregate_type: "customer_note".into(),
             aggregate_id: self.note.id,
             expected_aggregate_version: None,
-            aggregate_state: payload.clone(),
             event: OutboxEvent {
                 id: event_id,
                 aggregate_type: "customer_note".into(),

@@ -3,10 +3,15 @@
 mod command;
 mod projection;
 mod read;
+mod records;
 
 pub use command::{ProcurementCommandAdapter, ProcurementWriteRepository};
 pub use projection::{ProcurementOutboxPayload, ProcurementProjector, ProcurementSnapshot};
 pub use read::ProcurementReadRepository;
+pub use records::{
+    ProcurementRecordProjector, ProcurementRecordReadAdapter, ProcurementRecordSqlxAdapter,
+    RECORD_PROJECTION_NAME, RECORD_SNAPSHOT_EVENT_TYPE,
+};
 
 pub const CONTEXT_NAME: &str = "procurement";
 pub const AGGREGATE_TYPE: &str = "purchase_order";
@@ -35,6 +40,9 @@ pub const READ_DDL: &str = concat!(
         "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
     )
 );
+pub const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
+);
 
 pub fn purchase_order_partition(id: erpx_procurement::PurchaseOrderId) -> String {
     format!("procurement.purchase_order:{}", id.as_uuid().simple())
@@ -61,5 +69,15 @@ mod tests {
         let source = include_str!("read.rs");
         assert!(!source.contains("WritePool"));
         assert!(!source.contains(concat!("aggregate_", "snapshots")));
+    }
+
+    #[test]
+    fn purchase_orders_use_typed_header_and_line_authority() {
+        let source = include_str!("command.rs");
+        assert!(source.contains("purchase_order_authority"));
+        assert!(source.contains("purchase_order_line_authority"));
+        assert!(source.contains("commit_normalized"));
+        assert!(!source.contains("load_snapshot"));
+        assert!(NORMALIZED_AUTHORITY_DDL.contains("FOREIGN KEY (tenant_id,purchase_order_id)"));
     }
 }

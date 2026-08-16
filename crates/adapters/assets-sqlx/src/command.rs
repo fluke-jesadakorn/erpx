@@ -1,17 +1,21 @@
 use async_trait::async_trait;
 use erpx_assets::{
-    Asset, AssetCommit, AssetId, AssetStoredCommit, CommandFingerprint, CommandIdentity,
-    CommandUnitOfWork, PortError, WriteRepository,
+    Asset, AssetCommit, AssetId, AssetLifecycle, AssetScope, AssetState, AssetStatus,
+    AssetStoredCommit, CommandFingerprint, CommandIdentity, CommandUnitOfWork, PortError,
+    WriteRepository,
 };
 use erpx_cqrs_sqlx::{
     AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
-use erpx_integration_contracts::IntegrationEvent;
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_integration_contracts::{
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, assets::AssetCondition, record_policy_id,
+};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -21,14 +25,81 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct AssetsWriteRepository {
-    store: CommandStore,
+    pool: WritePool,
 }
 
 impl AssetsWriteRepository {
     pub fn new(pool: WritePool) -> Self {
-        Self {
-            store: CommandStore::new(pool),
-        }
+        Self { pool }
+    }
+}
+
+#[derive(Debug)]
+struct AuthoritySqlScope {
+    mode: &'static str,
+    holding_id: Option<Uuid>,
+    company_id: Option<Uuid>,
+    branch_id: Option<Uuid>,
+    company_ids: Vec<Uuid>,
+    branch_ids: Vec<Uuid>,
+}
+
+impl AuthoritySqlScope {
+    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+        scope.validate().map_err(|_| PortError::Denied)?;
+        Ok(match scope {
+            TenantScope::Platform => Self {
+                mode: "platform",
+                holding_id: None,
+                company_id: None,
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Holding { holding_id } => Self {
+                mode: "holding",
+                holding_id: Some(*holding_id),
+                company_id: None,
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Company {
+                holding_id,
+                company_id,
+            } => Self {
+                mode: "company",
+                holding_id: Some(*holding_id),
+                company_id: Some(*company_id),
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            } => Self {
+                mode: "branch",
+                holding_id: Some(*holding_id),
+                company_id: Some(*company_id),
+                branch_id: Some(*branch_id),
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Subtree {
+                holding_id,
+                company_ids,
+                branch_ids,
+            } => Self {
+                mode: "subtree",
+                holding_id: Some(*holding_id),
+                company_id: None,
+                branch_id: None,
+                company_ids: company_ids.clone(),
+                branch_ids: branch_ids.clone(),
+            },
+        })
     }
 }
 
@@ -39,29 +110,90 @@ impl WriteRepository for AssetsWriteRepository {
         authority_scope: &TenantScope,
         asset_id: AssetId,
     ) -> Result<Option<Asset>, PortError> {
-        let snapshot = self
-            .store
-            .load_snapshot::<Asset>(
-                CONTEXT_NAME,
-                &asset_partition(asset_id),
-                AGGREGATE_TYPE,
-                aggregate_id(asset_id)?,
-            )
+        let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
+        let mut transaction = self.pool.begin().await.map_err(map_store_error)?;
+        let row = sqlx::query(
+            "SELECT aggregate_version,holding_id,company_id,branch_id,asset_code,asset_name,
+                    location_id,asset_status,asset_condition,placed_in_service_at,retired_at,
+                    created_at,updated_at
+             FROM erpx_assets_write.asset_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND asset_id=$1
+               AND (
+                 $2='platform'
+                 OR ($2='holding' AND holding_id=$3)
+                 OR ($2='company' AND holding_id=$3 AND company_id=$4)
+                 OR ($2='branch' AND holding_id=$3 AND company_id=$4 AND branch_id=$5)
+                 OR ($2='subtree' AND holding_id=$3 AND company_id=ANY($6)
+                     AND ((branch_id IS NULL AND cardinality($7::uuid[])=0)
+                          OR branch_id=ANY($7)))
+               )",
+        )
+        .bind(asset_id.as_uuid())
+        .bind(authority.mode)
+        .bind(authority.holding_id)
+        .bind(authority.company_id)
+        .bind(authority.branch_id)
+        .bind(&authority.company_ids)
+        .bind(&authority.branch_ids)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        transaction
+            .commit()
             .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
+            .map_err(|_| PortError::Unavailable)?;
+        let Some(row) = row else {
             return Ok(None);
         };
-        if snapshot.version != snapshot.state.version()
-            || snapshot.state.id() != asset_id
-            || snapshot.state.validate().is_err()
-        {
-            return Err(PortError::Internal);
-        }
-        if !authority_scope.contains(snapshot.state.scope().tenant_scope()) {
+        let holding_id = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
+        let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
+        let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
+        let scope = AssetScope::try_new(branch_id.map_or(
+            TenantScope::Company {
+                holding_id,
+                company_id,
+            },
+            |branch_id| TenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            },
+        ))
+        .map_err(|_| PortError::Internal)?;
+        let state = AssetState {
+            id: asset_id,
+            version: from_i64(
+                row.try_get("aggregate_version")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            code: row.try_get("asset_code").map_err(|_| PortError::Internal)?,
+            name: row.try_get("asset_name").map_err(|_| PortError::Internal)?,
+            scope,
+            location_id: row
+                .try_get("location_id")
+                .map_err(|_| PortError::Internal)?,
+            status: parse_status(
+                &row.try_get::<String, _>("asset_status")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            condition: parse_condition(
+                &row.try_get::<String, _>("asset_condition")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            lifecycle: AssetLifecycle {
+                placed_in_service_at: row
+                    .try_get("placed_in_service_at")
+                    .map_err(|_| PortError::Internal)?,
+                retired_at: row.try_get("retired_at").map_err(|_| PortError::Internal)?,
+            },
+            created_at: row.try_get("created_at").map_err(|_| PortError::Internal)?,
+            updated_at: row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+        };
+        let aggregate = Asset::try_rehydrate(state).map_err(|_| PortError::Internal)?;
+        if !authority_scope.contains(aggregate.scope().tenant_scope()) {
             return Err(PortError::Denied);
         }
-        Ok(Some(snapshot.state))
+        Ok(Some(aggregate))
     }
 }
 
@@ -130,6 +262,20 @@ impl CommandUnitOfWork for AssetsCommandAdapter {
                 asset: (&request.aggregate).into(),
             }),
         });
+        let directory_draft = asset_directory_draft(&request.aggregate)?;
+        events.push(OutboxEventWrite {
+            event_id: deterministic_event_id(
+                command_id,
+                ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                events.len(),
+            ),
+            event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+            event_version: ITEM_DIRECTORY_FACT_VERSION,
+            partition: partition.clone(),
+            causation_id: request.causation_id,
+            occurred_at,
+            payload: AssetOutboxPayload::Directory(directory_draft),
+        });
         let guard = AssetAtomicGuard {
             aggregate: request.aggregate.clone(),
         };
@@ -147,7 +293,6 @@ impl CommandUnitOfWork for AssetsCommandAdapter {
             aggregate_type: AGGREGATE_TYPE.into(),
             aggregate_id: aggregate_id(asset_id)?,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"assets-audit-v1"),
@@ -162,7 +307,7 @@ impl CommandUnitOfWork for AssetsCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -177,12 +322,43 @@ impl CommandUnitOfWork for AssetsCommandAdapter {
     }
 }
 
+fn asset_directory_draft(aggregate: &Asset) -> Result<ItemDescriptorDraft, PortError> {
+    let record = aggregate.record_ref().map_err(|_| PortError::Internal)?;
+    let value = ItemDescriptorDraft {
+        authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+        record,
+        scope: aggregate.scope().tenant_scope().clone(),
+        lifecycle_state: status_name(aggregate.status()).into(),
+        classification: DataClassification::Confidential,
+        descriptor_version: aggregate.version(),
+        authorized_search_text: format!("{} {}", aggregate.code(), aggregate.name()),
+    };
+    value.validate().map_err(|_| PortError::Internal)?;
+    Ok(value)
+}
+
 struct AssetAtomicGuard {
     aggregate: Asset,
 }
 
 #[async_trait]
 impl AtomicCommandGuard for AssetAtomicGuard {
+    async fn authoritative_version(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        validate_guard_context(&self.aggregate, context)?;
+        let current: Option<i64> = sqlx::query_scalar(
+            "SELECT aggregate_version FROM erpx_assets_write.asset_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND asset_id=$1 FOR UPDATE",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?;
+        current.map(from_i64_store).transpose()
+    }
+
     async fn validate(
         &self,
         transaction: &mut Transaction<'_, Postgres>,
@@ -190,8 +366,8 @@ impl AtomicCommandGuard for AssetAtomicGuard {
     ) -> Result<(), CqrsSqlxError> {
         validate_guard_context(&self.aggregate, context)?;
         let current: Option<i64> = sqlx::query_scalar(
-            "SELECT aggregate_version FROM erpx_assets_write.asset_guards
-             WHERE asset_id=$1 FOR UPDATE",
+            "SELECT aggregate_version FROM erpx_assets_write.asset_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND asset_id=$1 FOR UPDATE",
         )
         .bind(self.aggregate.id().as_uuid())
         .fetch_optional(&mut **transaction)
@@ -206,8 +382,9 @@ impl AtomicCommandGuard for AssetAtomicGuard {
             _ => {}
         }
         let duplicate: Option<Uuid> = sqlx::query_scalar(
-            "SELECT asset_id FROM erpx_assets_write.asset_guards
-             WHERE scope_key=$1 AND asset_code=$2 AND asset_id<>$3
+            "SELECT asset_id FROM erpx_assets_write.asset_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+               AND scope_key=$1 AND asset_code=$2 AND asset_id<>$3
              ORDER BY asset_id LIMIT 1 FOR UPDATE",
         )
         .bind(guard_scope_key(self.aggregate.scope().tenant_scope())?)
@@ -238,27 +415,50 @@ impl AtomicCommandGuard for AssetAtomicGuard {
                 "assets applied guard context mismatch",
             ));
         }
-        sqlx::query(
-            "INSERT INTO erpx_assets_write.asset_guards
-                (asset_id,scope_key,asset_code,location_id,asset_status,
-                 asset_condition,aggregate_version,updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-             ON CONFLICT (asset_id) DO UPDATE SET
+        let result = sqlx::query(
+            "INSERT INTO erpx_assets_write.asset_authority
+                (tenant_id,asset_id,aggregate_version,scope_key,holding_id,company_id,branch_id,
+                 asset_code,asset_name,location_id,asset_status,asset_condition,
+                 placed_in_service_at,retired_at,created_at,updated_at)
+             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
+                     $11,$12,$13,$14,$15)
+             ON CONFLICT (tenant_id,asset_id) DO UPDATE SET
+                aggregate_version=EXCLUDED.aggregate_version,
                 scope_key=EXCLUDED.scope_key,asset_code=EXCLUDED.asset_code,
+                holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,
+                branch_id=EXCLUDED.branch_id,asset_name=EXCLUDED.asset_name,
                 location_id=EXCLUDED.location_id,asset_status=EXCLUDED.asset_status,
                 asset_condition=EXCLUDED.asset_condition,
-                aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at",
+                placed_in_service_at=EXCLUDED.placed_in_service_at,
+                retired_at=EXCLUDED.retired_at,created_at=EXCLUDED.created_at,
+                updated_at=EXCLUDED.updated_at
+             WHERE erpx_assets_write.asset_authority.tenant_id=
+                       erpx_cqrs_write.current_tenant_id()
+               AND erpx_assets_write.asset_authority.aggregate_version + 1=
+                       EXCLUDED.aggregate_version",
         )
         .bind(self.aggregate.id().as_uuid())
+        .bind(to_i64(self.aggregate.version())?)
         .bind(guard_scope_key(self.aggregate.scope().tenant_scope())?)
+        .bind(scope_holding_id(self.aggregate.scope().tenant_scope())?)
+        .bind(scope_company_id(self.aggregate.scope().tenant_scope())?)
+        .bind(scope_branch_id(self.aggregate.scope().tenant_scope())?)
         .bind(self.aggregate.code())
+        .bind(self.aggregate.name())
         .bind(self.aggregate.location_id())
         .bind(status_name(self.aggregate.status()))
         .bind(condition_name(self.aggregate.condition()))
-        .bind(to_i64(self.aggregate.version())?)
+        .bind(self.aggregate.lifecycle().placed_in_service_at)
+        .bind(self.aggregate.lifecycle().retired_at)
+        .bind(self.aggregate.created_at())
         .bind(self.aggregate.updated_at())
         .execute(&mut **transaction)
         .await?;
+        if result.rows_affected() != 1 {
+            return Err(CqrsSqlxError::GuardRejected(
+                "asset normalized version did not advance exactly once",
+            ));
+        }
         Ok(())
     }
 }
@@ -280,11 +480,17 @@ fn validate_guard_context(
 }
 
 fn validate_commit(request: &AssetCommit) -> Result<(), PortError> {
+    let next = request
+        .expected_version
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(PortError::Internal)?;
     if request.aggregate.validate().is_err()
         || fingerprint_asset_id(&request.identity.fingerprint) != request.aggregate.id()
         || !request
             .authority_scope
             .contains(request.aggregate.scope().tenant_scope())
+        || request.aggregate.version() != next
     {
         return Err(PortError::Internal);
     }
@@ -371,6 +577,66 @@ fn deterministic_uuid(seed: Uuid, label: &[u8]) -> Uuid {
 
 fn to_i64(value: u64) -> Result<i64, CqrsSqlxError> {
     i64::try_from(value).map_err(|_| CqrsSqlxError::GuardRejected("asset version is too large"))
+}
+
+fn from_i64(value: i64) -> Result<u64, PortError> {
+    u64::try_from(value).map_err(|_| PortError::Internal)
+}
+
+fn from_i64_store(value: i64) -> Result<u64, CqrsSqlxError> {
+    u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
+}
+
+fn scope_holding_id(scope: &TenantScope) -> Result<Uuid, CqrsSqlxError> {
+    match scope {
+        TenantScope::Holding { holding_id }
+        | TenantScope::Company { holding_id, .. }
+        | TenantScope::Branch { holding_id, .. } => Ok(*holding_id),
+        TenantScope::Platform | TenantScope::Subtree { .. } => Err(CqrsSqlxError::GuardRejected(
+            "asset authority requires company or branch scope",
+        )),
+    }
+}
+
+fn scope_company_id(scope: &TenantScope) -> Result<Uuid, CqrsSqlxError> {
+    match scope {
+        TenantScope::Company { company_id, .. } | TenantScope::Branch { company_id, .. } => {
+            Ok(*company_id)
+        }
+        TenantScope::Platform | TenantScope::Holding { .. } | TenantScope::Subtree { .. } => Err(
+            CqrsSqlxError::GuardRejected("asset authority requires company or branch scope"),
+        ),
+    }
+}
+
+fn scope_branch_id(scope: &TenantScope) -> Result<Option<Uuid>, CqrsSqlxError> {
+    match scope {
+        TenantScope::Branch { branch_id, .. } => Ok(Some(*branch_id)),
+        TenantScope::Company { .. } => Ok(None),
+        TenantScope::Platform | TenantScope::Holding { .. } | TenantScope::Subtree { .. } => Err(
+            CqrsSqlxError::GuardRejected("asset authority requires company or branch scope"),
+        ),
+    }
+}
+
+fn parse_status(value: &str) -> Result<AssetStatus, PortError> {
+    match value {
+        "draft" => Ok(AssetStatus::Draft),
+        "in_service" => Ok(AssetStatus::InService),
+        "under_maintenance" => Ok(AssetStatus::UnderMaintenance),
+        "retired" => Ok(AssetStatus::Retired),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_condition(value: &str) -> Result<AssetCondition, PortError> {
+    match value {
+        "operational" => Ok(AssetCondition::Operational),
+        "degraded" => Ok(AssetCondition::Degraded),
+        "out_of_service" => Ok(AssetCondition::OutOfService),
+        "retired" => Ok(AssetCondition::Retired),
+        _ => Err(PortError::Internal),
+    }
 }
 
 fn map_store_error(error: CqrsSqlxError) -> PortError {

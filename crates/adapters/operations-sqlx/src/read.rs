@@ -84,7 +84,7 @@ impl OperationsReadRepository {
         checkpoint: Option<ProjectionCheckpoint>,
     ) -> Result<ProjectionMetadata, PortError> {
         let status: Option<String> = sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1")
-            .bind(projection).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .bind(projection).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
             Some("active") => FreshnessState::Current,
             Some("building") => FreshnessState::Rebuilding,
@@ -118,7 +118,7 @@ impl ReadRepository for OperationsReadRepository {
             .await?;
         let scope = ScopeFilter::from(authority)?;
         let row = sqlx::query("SELECT item.state FROM erpx_operations_read.exception_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.exception_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))")
-            .bind(EXCEPTION_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .bind(EXCEPTION_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let value = row.map(decode_state).transpose()?;
         if value.as_ref().is_some_and(|value: &ExceptionView| {
             value.exception_id != id || !authority.contains(&value.scope)
@@ -153,7 +153,7 @@ impl ReadRepository for OperationsReadRepository {
         let assignee = filter.assignee.map(|v| v.as_uuid().to_string());
         let rows = sqlx::query("SELECT item.state FROM erpx_operations_read.exception_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND (cardinality($5::text[])=0 OR item.exception_status=ANY($5::text[])) AND ($6::text IS NULL OR item.source_context=$6) AND ($7::text IS NULL OR item.assignee_id=$7) AND ($8::timestamptz IS NULL OR item.due_at<=$8) AND ($9::uuid IS NULL OR item.exception_id>$9) ORDER BY item.exception_id LIMIT $10")
             .bind(EXCEPTION_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).bind(&statuses).bind(source_context).bind(assignee).bind(filter.due_before).bind(after).bind(i64::from(filter.page_size)+1)
-            .fetch_all(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let mut values = decode_rows::<ExceptionView>(rows)?;
         validate_scopes(authority, values.iter().map(|v| &v.scope))?;
         let next_cursor =
@@ -180,7 +180,7 @@ impl ReadRepository for OperationsReadRepository {
         let after = filter.cursor.as_deref().map(decode_cursor).transpose()?;
         let rows = sqlx::query("SELECT item.state FROM erpx_operations_read.work_queue_policy_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::uuid IS NULL OR item.policy_id>$5) ORDER BY item.policy_id LIMIT $6")
             .bind(POLICY_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).bind(after).bind(i64::from(filter.page_size)+1)
-            .fetch_all(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let mut values = decode_rows::<WorkQueuePolicyView>(rows)?;
         validate_scopes(authority, values.iter().map(|v| &v.scope))?;
         let next_cursor = truncate_cursor(&mut values, filter.page_size, |v| v.policy_id.as_uuid());
@@ -219,9 +219,9 @@ impl ReadRepository for OperationsReadRepository {
         let checkpoint = self.checkpoint(projection, consistency, None).await?;
         let scope = ScopeFilter::from(authority)?;
         let row = sqlx::query("WITH active AS (SELECT projection_name,generation FROM erpx_cqrs_read.projection_generations WHERE status='active'), exceptions AS (SELECT e.* FROM erpx_operations_read.exception_projection e JOIN active a USING(projection_name,generation) WHERE ($1 OR e.scope_key=ANY($2::text[]) OR e.scope_key LIKE ANY($3::text[]))), policies AS (SELECT p.* FROM erpx_operations_read.work_queue_policy_projection p JOIN active a USING(projection_name,generation) WHERE ($1 OR p.scope_key=ANY($2::text[]) OR p.scope_key LIKE ANY($3::text[]))), signals AS (SELECT s.* FROM erpx_operations_read.source_signal_projection s JOIN active a USING(projection_name,generation) WHERE ($1 OR s.scope_key=ANY($2::text[]) OR s.scope_key LIKE ANY($3::text[]))) SELECT (SELECT count(*) FROM exceptions)+(SELECT count(*) FROM policies)+(SELECT count(*) FROM signals) AS read_rows,(SELECT count(*) FROM exceptions) AS exceptions,(SELECT count(*) FROM policies) AS policies,(SELECT count(*) FROM (SELECT source_context,source_event_id FROM exceptions UNION SELECT 'operations',policy_id FROM policies) x) AS events,(SELECT count(*) FROM signals) AS source_refs,(SELECT max(observed_at) FROM signals) AS latest")
-            .bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_one(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_one(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let source_rows = sqlx::query("SELECT s.source_context,count(*) AS reference_count FROM erpx_operations_read.source_signal_projection s JOIN erpx_cqrs_read.projection_generations g ON g.projection_name=s.projection_name AND g.generation=s.generation AND g.status='active' WHERE ($1 OR s.scope_key=ANY($2::text[]) OR s.scope_key LIKE ANY($3::text[])) GROUP BY s.source_context ORDER BY s.source_context")
-            .bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(self.pool.as_pg_pool()).await.map_err(|_| PortError::Unavailable)?;
+            .bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_| PortError::Unavailable)?;
         let source_counts = source_rows
             .into_iter()
             .map(|row| {

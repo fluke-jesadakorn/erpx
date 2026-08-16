@@ -251,19 +251,6 @@ impl SqlxMarketingJourneyIntegrationStore {
             payload: serde_json::json!({ "aggregate": payload }),
         };
         append_event(tx, holding_ref, &event).await?;
-        sqlx::query(
-            "INSERT INTO erpx_tenant.aggregate_snapshots
-                (aggregate_type, aggregate_id, holding_ref, version, state)
-             VALUES ($1,$2,$3,$4,$5)
-             ON CONFLICT (aggregate_type, aggregate_id) DO NOTHING",
-        )
-        .bind(MARKETING_JOURNEY_INTEGRATION_AGGREGATE)
-        .bind(invocation.invocation_id)
-        .bind(holding_ref)
-        .bind(1_i64)
-        .bind(&payload)
-        .execute(&mut **tx)
-        .await?;
         Ok(())
     }
 
@@ -521,19 +508,6 @@ impl SqlxMarketingJourneyIntegrationStore {
             payload: serde_json::json!({ "aggregate": payload }),
         };
         append_event(&mut tx, &self.holding_ref, &event).await?;
-        sqlx::query(
-            "UPDATE erpx_tenant.aggregate_snapshots
-                SET version=$4, state=$5, updated_at=$6
-              WHERE aggregate_type=$1 AND aggregate_id=$2 AND holding_ref=$3",
-        )
-        .bind(MARKETING_JOURNEY_INTEGRATION_AGGREGATE)
-        .bind(snapshot.invocation.invocation_id)
-        .bind(&self.holding_ref)
-        .bind(i64::try_from(version).map_err(|_| invalid("version exceeds BIGINT"))?)
-        .bind(&payload)
-        .bind(now)
-        .execute(&mut *tx)
-        .await?;
         tx.commit().await?;
         Ok(MarketingJourneyIntegrationWriteReceipt {
             invocation_id: snapshot.invocation.invocation_id,

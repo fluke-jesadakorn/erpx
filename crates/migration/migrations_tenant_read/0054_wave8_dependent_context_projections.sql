@@ -5,6 +5,7 @@
 CREATE SCHEMA IF NOT EXISTS erpx_finance_read;
 
 CREATE TABLE erpx_finance_read.chart_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'finance.charts'
         CHECK (projection_name = 'finance.charts'),
     generation UUID NOT NULL,
@@ -22,14 +23,15 @@ CREATE TABLE erpx_finance_read.chart_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, chart_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, chart_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, chart_code)
+    UNIQUE (tenant_id, generation, scope_key, chart_code)
 );
 
 CREATE TABLE erpx_finance_read.period_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'finance.periods'
         CHECK (projection_name = 'finance.periods'),
     generation UUID NOT NULL,
@@ -49,14 +51,15 @@ CREATE TABLE erpx_finance_read.period_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, period_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, period_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, period_code)
+    UNIQUE (tenant_id, generation, scope_key, period_code)
 );
 
 CREATE TABLE erpx_finance_read.journal_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'finance.journals'
         CHECK (projection_name = 'finance.journals'),
     generation UUID NOT NULL,
@@ -83,15 +86,16 @@ CREATE TABLE erpx_finance_read.journal_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, journal_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, journal_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, journal_code),
+    UNIQUE (tenant_id, generation, scope_key, journal_code),
     CHECK (debit_total_minor = credit_total_minor)
 );
 
 CREATE TABLE erpx_finance_read.subledger_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'finance.subledger'
         CHECK (projection_name = 'finance.subledger'),
     generation UUID NOT NULL,
@@ -115,14 +119,15 @@ CREATE TABLE erpx_finance_read.subledger_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, subledger_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, subledger_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, subledger_kind, source_reference)
+    UNIQUE (tenant_id, generation, scope_key, subledger_kind, source_reference)
 );
 
 CREATE TABLE erpx_finance_read.trial_balance_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'finance.trial_balance'
         CHECK (projection_name = 'finance.trial_balance'),
     generation UUID NOT NULL,
@@ -140,13 +145,14 @@ CREATE TABLE erpx_finance_read.trial_balance_projection (
     credit_minor BIGINT NOT NULL,
     net_minor BIGINT NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, chart_id, account_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, chart_id, account_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE
 );
 
 CREATE TABLE erpx_finance_read.bank_transaction_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'finance.bank_transactions'
         CHECK (projection_name = 'finance.bank_transactions'),
     generation UUID NOT NULL,
@@ -163,14 +169,15 @@ CREATE TABLE erpx_finance_read.bank_transaction_projection (
     amount_minor BIGINT NOT NULL CHECK (amount_minor <> 0),
     currency TEXT NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, transaction_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, transaction_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, import_id, transaction_id)
+    UNIQUE (tenant_id, generation, import_id, transaction_id)
 );
 
 CREATE TABLE erpx_finance_read.statutory_tax_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'finance.statutory_tax'
         CHECK (projection_name = 'finance.statutory_tax'),
     generation UUID NOT NULL,
@@ -191,38 +198,39 @@ CREATE TABLE erpx_finance_read.statutory_tax_projection (
     tax_rate_basis_points INTEGER NOT NULL,
     tax_identifier TEXT NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, tax_fact_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, tax_fact_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE
 );
 
 CREATE INDEX finance_read_chart_scope_updated
     ON erpx_finance_read.chart_projection
-        (generation, scope_key, aggregate_updated_at DESC, chart_id DESC);
+        (tenant_id, generation, scope_key, aggregate_updated_at DESC, chart_id DESC);
 CREATE INDEX finance_read_period_scope_status
     ON erpx_finance_read.period_projection
-        (generation, scope_key, period_status, ends_on DESC, period_id DESC);
+        (tenant_id, generation, scope_key, period_status, ends_on DESC, period_id DESC);
 CREATE INDEX finance_read_journal_scope_period_status
     ON erpx_finance_read.journal_projection
-        (generation, scope_key, period_id, journal_status, entry_date DESC, journal_id DESC);
+        (tenant_id, generation, scope_key, period_id, journal_status, entry_date DESC, journal_id DESC);
 CREATE INDEX finance_read_subledger_scope_status
     ON erpx_finance_read.subledger_projection
-        (generation, scope_key, subledger_kind, subledger_status,
+        (tenant_id, generation, scope_key, subledger_kind, subledger_status,
          aggregate_updated_at DESC, subledger_id DESC);
 CREATE INDEX finance_read_trial_balance_scope_chart
     ON erpx_finance_read.trial_balance_projection
-        (generation, scope_key, chart_id, account_code, account_id);
+        (tenant_id, generation, scope_key, chart_id, account_code, account_id);
 CREATE INDEX finance_read_bank_scope_date
     ON erpx_finance_read.bank_transaction_projection
-        (generation, scope_key, posted_on DESC, transaction_id DESC);
+        (tenant_id, generation, scope_key, posted_on DESC, transaction_id DESC);
 CREATE INDEX finance_read_tax_scope_period
     ON erpx_finance_read.statutory_tax_projection
-        (generation, scope_key, tax_period, currency, tax_date, tax_fact_id);
+        (tenant_id, generation, scope_key, tax_period, currency, tax_date, tax_fact_id);
 
 CREATE SCHEMA IF NOT EXISTS erpx_legal_read;
 
 CREATE TABLE erpx_legal_read.contract_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'legal.contracts'
         CHECK (projection_name = 'legal.contracts'),
     generation UUID NOT NULL,
@@ -247,14 +255,15 @@ CREATE TABLE erpx_legal_read.contract_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, contract_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, contract_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, reference)
+    UNIQUE (tenant_id, generation, scope_key, reference)
 );
 
 CREATE TABLE erpx_legal_read.document_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'legal.documents'
         CHECK (projection_name = 'legal.documents'),
     generation UUID NOT NULL,
@@ -274,13 +283,14 @@ CREATE TABLE erpx_legal_read.document_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, document_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, document_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE
 );
 
 CREATE TABLE erpx_legal_read.access_history_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'legal.access_history'
         CHECK (projection_name = 'legal.access_history'),
     generation UUID NOT NULL,
@@ -300,25 +310,26 @@ CREATE TABLE erpx_legal_read.access_history_projection (
     observed_at TIMESTAMPTZ NOT NULL,
     state JSONB NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, access_entry_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, access_entry_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE
 );
 
 CREATE INDEX legal_read_contract_scope_status
     ON erpx_legal_read.contract_projection
-        (generation, scope_key, contract_status, aggregate_updated_at DESC, contract_id DESC);
+        (tenant_id, generation, scope_key, contract_status, aggregate_updated_at DESC, contract_id DESC);
 CREATE INDEX legal_read_document_scope_archived
     ON erpx_legal_read.document_projection
-        (generation, scope_key, archived, aggregate_updated_at DESC, document_id DESC);
+        (tenant_id, generation, scope_key, archived, aggregate_updated_at DESC, document_id DESC);
 CREATE INDEX legal_read_access_scope_document_time
     ON erpx_legal_read.access_history_projection
-        (generation, scope_key, document_id, observed_at DESC, access_entry_id DESC);
+        (tenant_id, generation, scope_key, document_id, observed_at DESC, access_entry_id DESC);
 
 CREATE SCHEMA IF NOT EXISTS erpx_support_read;
 
 CREATE TABLE erpx_support_read.ticket_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'support.tickets'
         CHECK (projection_name = 'support.tickets'),
     generation UUID NOT NULL,
@@ -341,14 +352,15 @@ CREATE TABLE erpx_support_read.ticket_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, ticket_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, ticket_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, case_code)
+    UNIQUE (tenant_id, generation, scope_key, case_code)
 );
 
 CREATE TABLE erpx_support_read.ticket_customer_message_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'support.tickets'
         CHECK (projection_name = 'support.tickets'),
     generation UUID NOT NULL,
@@ -358,7 +370,7 @@ CREATE TABLE erpx_support_read.ticket_customer_message_projection (
     author_ref TEXT NOT NULL,
     body TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, ticket_id, message_id),
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, ticket_id, message_id),
     FOREIGN KEY (projection_name, generation, partition_key, ticket_id)
         REFERENCES erpx_support_read.ticket_projection
             (projection_name, generation, partition_key, ticket_id)
@@ -366,6 +378,7 @@ CREATE TABLE erpx_support_read.ticket_customer_message_projection (
 );
 
 CREATE TABLE erpx_support_read.ticket_internal_message_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'support.tickets'
         CHECK (projection_name = 'support.tickets'),
     generation UUID NOT NULL,
@@ -376,7 +389,7 @@ CREATE TABLE erpx_support_read.ticket_internal_message_projection (
     audience TEXT NOT NULL CHECK (audience IN ('customer_visible', 'internal')),
     body TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, ticket_id, message_id),
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, ticket_id, message_id),
     FOREIGN KEY (projection_name, generation, partition_key, ticket_id)
         REFERENCES erpx_support_read.ticket_projection
             (projection_name, generation, partition_key, ticket_id)
@@ -384,6 +397,7 @@ CREATE TABLE erpx_support_read.ticket_internal_message_projection (
 );
 
 CREATE TABLE erpx_support_read.incident_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'support.incidents'
         CHECK (projection_name = 'support.incidents'),
     generation UUID NOT NULL,
@@ -405,14 +419,15 @@ CREATE TABLE erpx_support_read.incident_projection (
     aggregate_created_at TIMESTAMPTZ NOT NULL,
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, incident_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, incident_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
-    UNIQUE (generation, scope_key, incident_code)
+    UNIQUE (tenant_id, generation, scope_key, incident_code)
 );
 
 CREATE TABLE erpx_support_read.session_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'support.sessions'
         CHECK (projection_name = 'support.sessions'),
     generation UUID NOT NULL,
@@ -443,9 +458,9 @@ CREATE TABLE erpx_support_read.session_projection (
     revoked_at TIMESTAMPTZ,
     revoked_reason TEXT,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, session_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, session_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
     CHECK (expires_at > requested_at),
     CHECK ((support_mode = 'impersonation') = (represented_principal_id IS NOT NULL)),
@@ -459,6 +474,7 @@ CREATE TABLE erpx_support_read.session_projection (
 );
 
 CREATE TABLE erpx_support_read.capability_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'support.capabilities'
         CHECK (projection_name = 'support.capabilities'),
     generation UUID NOT NULL,
@@ -489,9 +505,9 @@ CREATE TABLE erpx_support_read.capability_projection (
     )),
     revoked_at TIMESTAMPTZ,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, capability_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, capability_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
     CHECK (expires_at > issued_at),
     CHECK ((revocation_reason IS NULL) = (revoked_at IS NULL))
@@ -499,15 +515,49 @@ CREATE TABLE erpx_support_read.capability_projection (
 
 CREATE INDEX support_read_ticket_scope_customer_status
     ON erpx_support_read.ticket_projection
-        (generation, scope_key, customer_id, ticket_status,
+        (tenant_id, generation, scope_key, customer_id, ticket_status,
          aggregate_updated_at DESC, ticket_id DESC);
 CREATE INDEX support_read_incident_scope_status
     ON erpx_support_read.incident_projection
-        (generation, scope_key, incident_status,
+        (tenant_id, generation, scope_key, incident_status,
          aggregate_updated_at DESC, incident_id DESC);
 CREATE INDEX support_read_session_scope_ticket_status
     ON erpx_support_read.session_projection
-        (generation, scope_key, ticket_id, session_status, expires_at DESC, session_id DESC);
+        (tenant_id, generation, scope_key, ticket_id, session_status, expires_at DESC, session_id DESC);
 CREATE INDEX support_read_capability_scope_session_expiry
     ON erpx_support_read.capability_projection
-        (generation, scope_key, session_id, expires_at DESC, capability_id DESC);
+        (tenant_id, generation, scope_key, session_id, expires_at DESC, capability_id DESC);
+
+DO $$
+DECLARE schema_name TEXT; table_name TEXT;
+BEGIN
+    FOR schema_name, table_name IN SELECT * FROM (VALUES
+        ('erpx_finance_read','chart_projection'),
+        ('erpx_finance_read','period_projection'),
+        ('erpx_finance_read','journal_projection'),
+        ('erpx_finance_read','subledger_projection'),
+        ('erpx_finance_read','trial_balance_projection'),
+        ('erpx_finance_read','bank_transaction_projection'),
+        ('erpx_finance_read','statutory_tax_projection'),
+        ('erpx_legal_read','contract_projection'),
+        ('erpx_legal_read','document_projection'),
+        ('erpx_legal_read','access_history_projection'),
+        ('erpx_support_read','ticket_projection'),
+        ('erpx_support_read','ticket_customer_message_projection'),
+        ('erpx_support_read','ticket_internal_message_projection'),
+        ('erpx_support_read','incident_projection'),
+        ('erpx_support_read','session_projection'),
+        ('erpx_support_read','capability_projection')
+    ) AS protected(schema_name, table_name)
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format('ALTER TABLE %I.%I FORCE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format(
+            'CREATE POLICY tenant_isolation ON %I.%I '
+            'USING (tenant_id = erpx_cqrs_read.current_tenant_id()) '
+            'WITH CHECK (tenant_id = erpx_cqrs_read.current_tenant_id())',
+            schema_name, table_name
+        );
+    END LOOP;
+END;
+$$;

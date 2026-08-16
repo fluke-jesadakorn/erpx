@@ -17,6 +17,12 @@ use crate::domain::{
     SupportCapability, SupportMode, SupportSession, SupportTicket, SupportTicketId, TicketStatus,
 };
 
+mod platform_case;
+pub use platform_case::{
+    PlatformCaseAuthorizationPort, PlatformCaseCommand, PlatformCaseQueryPort, PlatformCaseReceipt,
+    PlatformCaseUnitOfWork, PlatformCaseView,
+};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SupportAction {
@@ -222,6 +228,21 @@ pub struct SupportCommit {
     pub dependency: Option<DependencyVersion>,
     pub aggregate: SupportAggregate,
     pub integration_events: Vec<support::Event>,
+    /// Same-context revocation work emitted atomically with the owning change.
+    pub authority_effects: Vec<SupportAuthorityEffect>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "effect", rename_all = "snake_case")]
+pub enum SupportAuthorityEffect {
+    TerminateTicketAccess {
+        ticket_id: SupportTicketId,
+        effective_at: DateTime<Utc>,
+    },
+    TerminateSessionCapabilities {
+        session_id: SessionId,
+        effective_at: DateTime<Utc>,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,5 +1,6 @@
 mod catalog;
 mod entitlement;
+mod records;
 mod subscription;
 
 use chrono::{DateTime, Utc};
@@ -10,8 +11,12 @@ use thiserror::Error;
 use uuid::Uuid;
 
 pub use catalog::{CatalogPlan, CatalogPlanStatus};
-pub use entitlement::{Entitlement, EntitlementCapacity};
-pub use subscription::{BillingSignal, Subscription, SubscriptionStatus};
+pub use entitlement::{Entitlement, EntitlementCapacity, EntitlementState};
+pub use records::{
+    CommercialLifecycleRecord, CommercialLifecycleRecordError, CommercialLifecycleRecordKind,
+    CommercialLifecycleRecordStatus,
+};
+pub use subscription::{BillingSignal, Subscription, SubscriptionState, SubscriptionStatus};
 
 pub const MAX_COMMERCIAL_TEXT_BYTES: usize = 255;
 
@@ -79,6 +84,8 @@ pub enum CommercialDomainError {
         from: SubscriptionStatus,
         signal: BillingSignal,
     },
+    #[error("subscription grace period has not expired")]
+    GracePeriodNotExpired,
     #[error("provider event is duplicate or older than the accepted event")]
     StaleProviderEvent,
     #[error("commercial timestamp cannot move backwards")]

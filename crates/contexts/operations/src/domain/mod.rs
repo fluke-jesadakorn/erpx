@@ -1,8 +1,18 @@
+mod records;
+
+pub use records::{
+    OperationsLifecycleRecord, OperationsLifecycleRecordError, OperationsLifecycleRecordKind,
+    OperationsLifecycleRecordStatus,
+};
+
 use chrono::{DateTime, Duration, Utc};
 use erpx_integration_contracts::{
-    BoundedContext, IntegrationEvent, IntegrationEventEnvelope, ReferenceCode, operations,
+    BoundedContext, IntegrationEvent, IntegrationEventEnvelope, ReferenceCode, StableRecordRef,
+    catalog::ContextId,
+    operations,
+    reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AggregateId, CorrelationId, EventId, TenantScope};
+use erpx_kernel::{AggregateId, CorrelationId, EventId, RecordId, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -374,7 +384,37 @@ pub struct WorkQueuePolicy {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkQueuePolicyState {
+    pub id: WorkQueuePolicyId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub name: String,
+    pub allowed_sources: Vec<BoundedContext>,
+    pub escalation_after_minutes: u32,
+    pub status: WorkQueuePolicyStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl WorkQueuePolicy {
+    pub fn try_rehydrate(state: WorkQueuePolicyState) -> Result<Self, OperationsDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            name: state.name,
+            allowed_sources: state.allowed_sources,
+            escalation_after_minutes: state.escalation_after_minutes,
+            status: state.status,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn publish(
         id: WorkQueuePolicyId,
         scope: TenantScope,
@@ -519,7 +559,49 @@ pub struct OperationsException {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct OperationsExceptionState {
+    pub id: ExceptionId,
+    pub version: u64,
+    pub reference: String,
+    pub scope: TenantScope,
+    pub source: SourceReference,
+    pub source_fact: operations::SourceFact,
+    pub policy_ref: String,
+    pub category: String,
+    pub severity: String,
+    pub assignment: PrincipalAssignment,
+    pub due_at: DateTime<Utc>,
+    pub escalation_after_minutes: u32,
+    pub status: ExceptionStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl OperationsException {
+    pub fn try_rehydrate(state: OperationsExceptionState) -> Result<Self, OperationsDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            reference: state.reference,
+            scope: state.scope,
+            source: state.source,
+            source_fact: state.source_fact,
+            policy_ref: state.policy_ref,
+            category: state.category,
+            severity: state.severity,
+            assignment: state.assignment,
+            due_at: state.due_at,
+            escalation_after_minutes: state.escalation_after_minutes,
+            status: state.status,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn detect(
         id: ExceptionId,
         source: SourceFactMessage,
@@ -675,6 +757,10 @@ impl OperationsException {
         if at < self.updated_at {
             return Err(OperationsDomainError::InvalidTimestamp);
         }
+        // Assignment directs work but does not confer perpetual authority.
+        // Every state-changing action must retain current assignment evidence;
+        // an expired chain is replaced through the governed reassign command.
+        self.assignment.validate_at(at)?;
         self.version = self
             .version
             .checked_add(1)
@@ -700,6 +786,9 @@ impl OperationsException {
             return Err(OperationsDomainError::VersionOverflow);
         }
         validate_text(&self.reference, "exception_reference", MAX_REFERENCE_BYTES)?;
+        if self.reference != format!("OPS-{}", self.id.as_uuid().simple()) {
+            return Err(OperationsDomainError::InvalidSourceFact);
+        }
         validate_text(&self.policy_ref, "policy_ref", MAX_CLASSIFICATION_BYTES)?;
         validate_text(&self.category, "category", MAX_CLASSIFICATION_BYTES)?;
         validate_text(&self.severity, "severity", MAX_CLASSIFICATION_BYTES)?;
@@ -773,6 +862,16 @@ impl OperationsException {
     }
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
+    }
+
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        let record_id =
+            RecordId::try_from_uuid(self.id.as_uuid()).expect("validated exception identifier");
+        StableRecordRef::try_new(
+            record_id,
+            ContextId::Operations,
+            RecordTypeId::try_new("operations.exception")?,
+        )
     }
 
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {

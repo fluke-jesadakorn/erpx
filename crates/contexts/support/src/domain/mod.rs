@@ -1,11 +1,19 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Duration, Utc};
-use erpx_integration_contracts::{customer, identity_access};
-use erpx_kernel::TenantScope;
+use erpx_integration_contracts::{
+    StableRecordRef,
+    catalog::ContextId,
+    customer, identity_access,
+    reference::{RecordTypeId, ReferenceValidationError},
+};
+use erpx_kernel::{RecordId, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
+
+mod platform_case;
+pub use platform_case::{PlatformCaseStatus, PlatformSupportCase};
 
 pub const MAX_CODE_BYTES: usize = 128;
 pub const MAX_REFERENCE_BYTES: usize = 256;
@@ -101,6 +109,8 @@ pub enum SupportDomainError {
     InvalidTimestamp,
     #[error("support aggregate version overflowed")]
     VersionOverflow,
+    #[error("platform support case is invalid")]
+    InvalidPlatformCase,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -254,6 +264,62 @@ impl SupportTicket {
         Ok(value)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: SupportTicketId,
+        version: u64,
+        scope: TenantScope,
+        customer: customer::CustomerRef,
+        customer_account: customer::CustomerAccountRef,
+        case_code: String,
+        category: String,
+        severity: String,
+        description: String,
+        status: TicketStatus,
+        messages: Vec<TicketMessage>,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, SupportDomainError> {
+        validate_scope(&scope)?;
+        validate_text(&case_code, "case_code", MAX_CODE_BYTES)?;
+        validate_text(&category, "category", MAX_CODE_BYTES)?;
+        validate_text(&severity, "severity", MAX_CODE_BYTES)?;
+        validate_text(&description, "description", MAX_DESCRIPTION_BYTES)?;
+        if version == 0
+            || updated_at < created_at
+            || version
+                < u64::try_from(messages.len())
+                    .unwrap_or(u64::MAX)
+                    .saturating_add(1)
+        {
+            return Err(SupportDomainError::InvalidMessage);
+        }
+        let mut message_ids = BTreeSet::new();
+        for message in &messages {
+            validate_text(message.author_ref(), "message_author", MAX_REFERENCE_BYTES)?;
+            validate_text(message.body(), "message_body", MAX_MESSAGE_BYTES)?;
+            if message.created_at() > updated_at || !message_ids.insert(message.id()) {
+                return Err(SupportDomainError::InvalidMessage);
+            }
+        }
+        Ok(Self {
+            id,
+            version,
+            scope,
+            customer,
+            customer_account,
+            case_code,
+            category,
+            severity,
+            description,
+            status,
+            messages,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        })
+    }
+
     pub fn transition(
         &mut self,
         next: TicketStatus,
@@ -381,6 +447,9 @@ impl SupportTicket {
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        support_record_ref(self.id.as_uuid(), "support.customer-case")
+    }
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
@@ -484,6 +553,82 @@ impl Incident {
         };
         value.record_change(at);
         Ok(value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: IncidentId,
+        version: u64,
+        scope: TenantScope,
+        incident_code: String,
+        severity: String,
+        commander_ref: String,
+        affected_services: Vec<String>,
+        affected_customer_accounts: Vec<customer::CustomerAccountRef>,
+        status: IncidentStatus,
+        timeline: Vec<IncidentTimelineEntry>,
+        broadcasts: Vec<IncidentBroadcast>,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, SupportDomainError> {
+        validate_scope(&scope)?;
+        validate_text(&incident_code, "incident_code", MAX_CODE_BYTES)?;
+        validate_text(&severity, "severity", MAX_CODE_BYTES)?;
+        validate_text(&commander_ref, "commander_ref", MAX_REFERENCE_BYTES)?;
+        validate_unique_texts(&affected_services, "affected_services")?;
+        if affected_services.is_empty()
+            || affected_services.len() > MAX_INCIDENT_ITEMS
+            || affected_customer_accounts.len() > MAX_INCIDENT_ITEMS
+            || timeline.is_empty()
+            || updated_at < created_at
+        {
+            return Err(SupportDomainError::InvalidText {
+                field: "incident_impact",
+            });
+        }
+        for entry in &timeline {
+            validate_text(&entry.actor_ref, "incident_actor", MAX_REFERENCE_BYTES)?;
+            validate_text(&entry.message, "incident_timeline", MAX_REASON_BYTES)?;
+            if entry.at < created_at || entry.at > updated_at {
+                return Err(SupportDomainError::InvalidTimestamp);
+            }
+        }
+        for broadcast in &broadcasts {
+            validate_text(&broadcast.actor_ref, "incident_actor", MAX_REFERENCE_BYTES)?;
+            validate_text(&broadcast.message, "incident_broadcast", MAX_REASON_BYTES)?;
+            if broadcast.at < created_at || broadcast.at > updated_at {
+                return Err(SupportDomainError::InvalidTimestamp);
+            }
+        }
+        let item_count = timeline
+            .len()
+            .checked_add(broadcasts.len())
+            .and_then(|value| u64::try_from(value).ok())
+            .ok_or(SupportDomainError::VersionOverflow)?;
+        if version != item_count
+            || !timeline.iter().any(|entry| entry.at == updated_at)
+                && !broadcasts
+                    .iter()
+                    .any(|broadcast| broadcast.at == updated_at)
+        {
+            return Err(SupportDomainError::InvalidTimestamp);
+        }
+        Ok(Self {
+            id,
+            version,
+            scope,
+            incident_code,
+            severity,
+            commander_ref,
+            affected_services,
+            affected_customer_accounts,
+            status,
+            timeline,
+            broadcasts,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        })
     }
 
     pub fn transition(
@@ -626,6 +771,9 @@ impl Incident {
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        support_record_ref(self.id.as_uuid(), "support.incident")
+    }
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
@@ -699,7 +847,7 @@ impl SupportSession {
         duration: Duration,
         at: DateTime<Utc>,
     ) -> Result<Self, SupportDomainError> {
-        if ticket.status() != TicketStatus::AccessRequested || !ticket.scope().contains(&scope) {
+        if ticket.status() != TicketStatus::AccessRequested || ticket.scope() != &scope {
             return Err(SupportDomainError::InvalidSession);
         }
         if mode == SupportMode::Impersonation && represented_principal.is_none()
@@ -738,6 +886,104 @@ impl SupportSession {
             uncommitted_events: vec![DomainEvent::Session],
         };
         Ok(value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: SessionId,
+        version: u64,
+        scope: TenantScope,
+        ticket_id: SupportTicketId,
+        customer: customer::CustomerRef,
+        customer_account: customer::CustomerAccountRef,
+        agent: identity_access::PrincipalRef,
+        represented_principal: Option<identity_access::PrincipalRef>,
+        mode: SupportMode,
+        permissions: Vec<String>,
+        module: String,
+        reason: String,
+        status: SessionStatus,
+        requested_at: DateTime<Utc>,
+        expires_at: DateTime<Utc>,
+        approved_by: Option<String>,
+        approved_at: Option<DateTime<Utc>>,
+        revoked_at: Option<DateTime<Utc>>,
+        revoked_reason: Option<String>,
+    ) -> Result<Self, SupportDomainError> {
+        validate_scope(&scope)?;
+        validate_permissions(&permissions)?;
+        if !permissions.windows(2).all(|pair| pair[0] < pair[1]) {
+            return Err(SupportDomainError::InvalidSession);
+        }
+        validate_text(&module, "module", MAX_CODE_BYTES)?;
+        validate_text(&reason, "session_reason", MAX_REASON_BYTES)?;
+        if expires_at <= requested_at
+            || expires_at.signed_duration_since(requested_at) > mode.maximum_duration()
+            || (mode == SupportMode::Impersonation) != represented_principal.is_some()
+        {
+            return Err(SupportDomainError::InvalidSession);
+        }
+        if let Some(approver) = approved_by.as_deref() {
+            validate_text(approver, "approver_ref", MAX_REFERENCE_BYTES)?;
+            if approver == agent.as_uuid().to_string()
+                || represented_principal
+                    .is_some_and(|value| approver == value.as_uuid().to_string())
+            {
+                return Err(SupportDomainError::ApprovalSeparation);
+            }
+        }
+        if let Some(reason) = revoked_reason.as_deref() {
+            validate_text(reason, "revocation_reason", MAX_REASON_BYTES)?;
+        }
+        let lifecycle_valid = match status {
+            SessionStatus::Requested => {
+                version == 1
+                    && approved_by.is_none()
+                    && approved_at.is_none()
+                    && revoked_at.is_none()
+                    && revoked_reason.is_none()
+            }
+            SessionStatus::Approved => {
+                version == 2
+                    && approved_by.is_some()
+                    && approved_at.is_some_and(|at| at >= requested_at && at < expires_at)
+                    && revoked_at.is_none()
+                    && revoked_reason.is_none()
+            }
+            SessionStatus::Revoked => {
+                let expected_version = if approved_at.is_some() { 3 } else { 2 };
+                version == expected_version
+                    && approved_by.is_some() == approved_at.is_some()
+                    && approved_at.is_none_or(|at| at >= requested_at && at < expires_at)
+                    && revoked_at.is_some_and(|at| at >= requested_at)
+                    && revoked_reason.is_some()
+            }
+        };
+        if !lifecycle_valid {
+            return Err(SupportDomainError::InvalidSession);
+        }
+        Ok(Self {
+            id,
+            version,
+            scope,
+            ticket_id,
+            customer,
+            customer_account,
+            agent,
+            represented_principal,
+            mode,
+            permissions,
+            module,
+            reason,
+            status,
+            requested_at,
+            expires_at,
+            approved_by,
+            approved_at,
+            revoked_at,
+            revoked_reason,
+            uncommitted_events: Vec::new(),
+        })
     }
 
     pub fn approve(
@@ -849,9 +1095,24 @@ impl SupportSession {
     pub fn revoked_reason(&self) -> Option<&str> {
         self.revoked_reason.as_deref()
     }
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        support_record_ref(self.id.as_uuid(), "support.access-session")
+    }
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
+}
+
+fn support_record_ref(
+    id: Uuid,
+    record_type: &'static str,
+) -> Result<StableRecordRef, ReferenceValidationError> {
+    let record_id = RecordId::try_from_uuid(id).expect("validated Support identifier is non-nil");
+    StableRecordRef::try_new(
+        record_id,
+        ContextId::Support,
+        RecordTypeId::try_new(record_type)?,
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -954,6 +1215,59 @@ impl SupportCapability {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: CapabilityId,
+        version: u64,
+        session_id: SessionId,
+        ticket_id: SupportTicketId,
+        customer: customer::CustomerRef,
+        customer_account: customer::CustomerAccountRef,
+        agent: identity_access::PrincipalRef,
+        device_ref: String,
+        mode: SupportMode,
+        permissions: Vec<String>,
+        scope: TenantScope,
+        module: String,
+        secret_hash_sha256: [u8; 32],
+        issued_at: DateTime<Utc>,
+        expires_at: DateTime<Utc>,
+        revocation: Option<(CapabilityRevocationReason, DateTime<Utc>)>,
+    ) -> Result<Self, SupportDomainError> {
+        validate_scope(&scope)?;
+        validate_text(&device_ref, "device_ref", MAX_REFERENCE_BYTES)?;
+        validate_text(&module, "module", MAX_CODE_BYTES)?;
+        validate_permissions(&permissions)?;
+        if !permissions.windows(2).all(|pair| pair[0] < pair[1])
+            || secret_hash_sha256.iter().all(|byte| *byte == 0)
+            || expires_at <= issued_at
+            || expires_at.signed_duration_since(issued_at) > mode.maximum_duration()
+            || version != if revocation.is_some() { 2 } else { 1 }
+            || revocation.is_some_and(|(_, at)| at < issued_at)
+        {
+            return Err(SupportDomainError::InvalidCapabilityBinding);
+        }
+        Ok(Self {
+            id,
+            version,
+            session_id,
+            ticket_id,
+            customer,
+            customer_account,
+            agent,
+            device_ref,
+            mode,
+            permissions,
+            scope,
+            module,
+            secret_hash_sha256,
+            issued_at,
+            expires_at,
+            revocation,
+            uncommitted_events: Vec::new(),
+        })
+    }
+
     pub fn authorize(
         &self,
         session: &SupportSession,
@@ -972,7 +1286,7 @@ impl SupportCapability {
         if session.id() != self.session_id
             || session.agent() != self.agent
             || evidence.device_ref != self.device_ref
-            || !self.scope.contains(requested_scope)
+            || &self.scope != requested_scope
             || !evidence.authority_scope.contains(requested_scope)
         {
             return Err(SupportDomainError::InvalidCapabilityBinding);

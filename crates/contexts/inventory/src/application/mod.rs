@@ -1,3 +1,9 @@
+mod records;
+
+pub use records::{
+    InventoryLifecycleRecordApplicationError, InventoryLifecycleRecordCommandHandler,
+};
+
 use async_trait::async_trait;
 use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
@@ -20,8 +26,8 @@ use crate::{
     ports::{
         AuthorizationPort, AuthorizationRequest, CommandFingerprint, CommandIdentity,
         CommandUnitOfWork, EntitlementPort, InventoryAction, InventoryCommit, PortError,
-        ReadRepository, StockItemList, StockItemListFilter, StockItemView, StoredCommit,
-        WriteRepository,
+        ReadRepository, ReservationReadRepository, ReservationView, StockItemList,
+        StockItemListFilter, StockItemView, StoredCommit, WriteRepository,
     },
 };
 
@@ -67,8 +73,26 @@ pub struct ReleaseInventoryReservation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FulfillInventoryReservation {
+    pub stock_item_id: StockItemId,
+    pub reservation_id: ReservationId,
+    pub movement_id: StockMovementId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetStockItem {
     pub stock_item_id: StockItemId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetInventoryReservation {
+    pub reservation_id: ReservationId,
+    pub target_scope: TenantScope,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetInventoryReservationResult {
+    pub reservation: Option<ReservationView>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -154,6 +178,10 @@ enum Mutation {
     },
     ReleaseReservation {
         reservation_id: ReservationId,
+    },
+    FulfillReservation {
+        reservation_id: ReservationId,
+        movement_id: StockMovementId,
     },
 }
 
@@ -267,6 +295,10 @@ where
             Mutation::ReleaseReservation { reservation_id } => {
                 aggregate.release_reservation(reservation_id, self.clock.now())
             }
+            Mutation::FulfillReservation {
+                reservation_id,
+                movement_id,
+            } => aggregate.fulfill_reservation(reservation_id, movement_id, self.clock.now()),
         }
         .map_err(|error| to_cqrs(error.into(), command.correlation_id))?;
         let domain_events = aggregate.take_uncommitted_events();
@@ -502,6 +534,19 @@ existing_handler!(
         reservation_id: command.reservation_id,
     })
 );
+existing_handler!(
+    FulfillInventoryReservation,
+    InventoryAction::FulfillReservation,
+    |command: &FulfillInventoryReservation| CommandFingerprint::FulfillReservation {
+        stock_item_id: command.stock_item_id,
+        reservation_id: command.reservation_id,
+        movement_id: command.movement_id,
+    },
+    |command: FulfillInventoryReservation| Ok(Mutation::FulfillReservation {
+        reservation_id: command.reservation_id,
+        movement_id: command.movement_id,
+    })
+);
 
 pub struct InventoryQueryHandler<R, A, E> {
     read_repository: R,
@@ -636,6 +681,71 @@ where
         }
         Ok(QueryResult {
             value: projection.value,
+            metadata: QueryMetadata {
+                correlation_id: envelope.correlation_id,
+                projection: projection.metadata,
+                consistency: envelope.consistency,
+            },
+        })
+    }
+}
+
+#[async_trait]
+impl<R, A, E> QueryHandler<GetInventoryReservation> for InventoryQueryHandler<R, A, E>
+where
+    R: ReadRepository + ReservationReadRepository,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+{
+    type Response = GetInventoryReservationResult;
+
+    async fn handle(
+        &self,
+        envelope: QueryEnvelope<GetInventoryReservation>,
+    ) -> Result<QueryResult<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        if !envelope.tenant_scope.contains(&envelope.query.target_scope) {
+            return Err(to_cqrs(
+                InventoryApplicationError::ScopeOutsideAuthority,
+                envelope.correlation_id,
+            ));
+        }
+        self.entitlement
+            .ensure_inventory_enabled(&envelope.query.target_scope, false)
+            .await
+            .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?;
+        self.authorization
+            .authorize(AuthorizationRequest {
+                actor: &envelope.actor,
+                authority_scope: &envelope.tenant_scope,
+                target_scope: &envelope.query.target_scope,
+                action: InventoryAction::ViewReservation,
+            })
+            .await
+            .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?;
+        let projection = self
+            .read_repository
+            .get_reservation(
+                &envelope.query.target_scope,
+                envelope.query.reservation_id,
+                &envelope.consistency,
+            )
+            .await
+            .map_err(|error| port_to_cqrs(error, envelope.correlation_id))?;
+        if projection
+            .value
+            .as_ref()
+            .is_some_and(|reservation| reservation.scope != envelope.query.target_scope)
+        {
+            return Err(to_cqrs(
+                InventoryApplicationError::ScopeOutsideAuthority,
+                envelope.correlation_id,
+            ));
+        }
+        Ok(QueryResult {
+            value: GetInventoryReservationResult {
+                reservation: projection.value,
+            },
             metadata: QueryMetadata {
                 correlation_id: envelope.correlation_id,
                 projection: projection.metadata,

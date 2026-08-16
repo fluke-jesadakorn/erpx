@@ -14,7 +14,6 @@ use erpx_domain::{
     },
 };
 use erpx_infrastructure::{
-    DiagnosticsLimits, DiagnosticsSnapshotInput, SupportDiagnosticsAuditRequest,
     SupportIdempotencyKey, SupportPersistence, SupportWorkflowPersistenceError,
     SupportWorkflowStore,
 };
@@ -241,36 +240,11 @@ async fn support_workflow_is_atomic_redacted_projected_reconciled_and_rebuildabl
         .await
         .expect("incident source update");
 
-    let mut diagnostics = DiagnosticsSnapshotInput::new(now);
-    diagnostics.add_version("worker", "acceptance");
-    diagnostics.set_projection_lag_seconds(0);
-    let diagnostics = diagnostics
-        .build(DiagnosticsLimits::default())
-        .expect("allow-listed diagnostics");
-    let diagnostics_scope = scope.canonical_key();
-    diagnostics
-        .persist_audit_snapshot(
-            &write,
-            &SupportDiagnosticsAuditRequest::new(
-                &diagnostics_scope,
-                "support-agent-acceptance",
-                "support.diagnostics.acceptance",
-                Uuid::new_v4(),
-                "workflow-diagnostics-acceptance",
-                now,
-            ),
-        )
-        .await
-        .expect("diagnostics audit source event");
-
     let projected = workflow
         .rebuild_read_models()
         .await
         .expect("rebuild support read models");
-    assert!(
-        projected >= 5,
-        "grant, incident, and diagnostics source events"
-    );
+    assert!(projected >= 4, "grant and incident source events");
     let access = workflow
         .access_projection(session_id)
         .await
@@ -292,14 +266,6 @@ async fn support_workflow_is_atomic_redacted_projected_reconciled_and_rebuildabl
         assert!(!incident_text.contains(forbidden), "redacted {forbidden}");
     }
     assert!(incident_text.contains("source_event_id"));
-
-    let diagnostics_row = workflow
-        .diagnostics_projection(&diagnostics_scope)
-        .await
-        .expect("diagnostics read query")
-        .expect("diagnostics projection");
-    assert_eq!(diagnostics_row.scope, diagnostics_scope);
-    assert!(!diagnostics_row.payload.to_string().contains("credential"));
 
     let healthy = workflow.reconcile().await.expect("healthy reconciliation");
     assert!(healthy.healthy, "{healthy:?}");

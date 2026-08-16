@@ -3,15 +3,19 @@ use erpx_cqrs_sqlx::{
     AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
-use erpx_integration_contracts::IntegrationEvent;
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_integration_contracts::{
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
 use erpx_procurement::{
     CommandFingerprint, CommandIdentity, CommandUnitOfWork, PortError, ProcurementCommit,
-    PurchaseOrder, PurchaseOrderId, StoredCommit, WriteRepository,
+    PurchaseOrder, PurchaseOrderId, PurchaseOrderLine, PurchaseOrderLineId, PurchaseOrderState,
+    PurchaseOrderStatus, StoredCommit, SupplierId, WriteRepository,
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -22,14 +26,81 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct ProcurementWriteRepository {
-    store: CommandStore,
+    pool: WritePool,
 }
 
 impl ProcurementWriteRepository {
     pub fn new(pool: WritePool) -> Self {
-        Self {
-            store: CommandStore::new(pool),
-        }
+        Self { pool }
+    }
+}
+
+#[derive(Debug)]
+struct AuthoritySqlScope {
+    mode: &'static str,
+    holding_id: Option<Uuid>,
+    company_id: Option<Uuid>,
+    branch_id: Option<Uuid>,
+    company_ids: Vec<Uuid>,
+    branch_ids: Vec<Uuid>,
+}
+
+impl AuthoritySqlScope {
+    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+        scope.validate().map_err(|_| PortError::Denied)?;
+        Ok(match scope {
+            TenantScope::Platform => Self {
+                mode: "platform",
+                holding_id: None,
+                company_id: None,
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Holding { holding_id } => Self {
+                mode: "holding",
+                holding_id: Some(*holding_id),
+                company_id: None,
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Company {
+                holding_id,
+                company_id,
+            } => Self {
+                mode: "company",
+                holding_id: Some(*holding_id),
+                company_id: Some(*company_id),
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            } => Self {
+                mode: "branch",
+                holding_id: Some(*holding_id),
+                company_id: Some(*company_id),
+                branch_id: Some(*branch_id),
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Subtree {
+                holding_id,
+                company_ids,
+                branch_ids,
+            } => Self {
+                mode: "subtree",
+                holding_id: Some(*holding_id),
+                company_id: None,
+                branch_id: None,
+                company_ids: company_ids.clone(),
+                branch_ids: branch_ids.clone(),
+            },
+        })
     }
 }
 
@@ -40,29 +111,117 @@ impl WriteRepository for ProcurementWriteRepository {
         authority_scope: &TenantScope,
         purchase_order_id: PurchaseOrderId,
     ) -> Result<Option<PurchaseOrder>, PortError> {
-        let snapshot = self
-            .store
-            .load_snapshot::<PurchaseOrder>(
-                CONTEXT_NAME,
-                &purchase_order_partition(purchase_order_id),
-                AGGREGATE_TYPE,
-                aggregate_id(purchase_order_id)?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
+        let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
+        let mut transaction = self.pool.begin().await.map_err(map_store_error)?;
+        let row = sqlx::query(
+            "SELECT aggregate_version,holding_id,company_id,branch_id,order_code,supplier_id,
+                    currency,order_status,created_at,updated_at
+             FROM erpx_procurement_write.purchase_order_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND purchase_order_id=$1
+               AND (
+                 $2='platform'
+                 OR ($2='holding' AND holding_id=$3)
+                 OR ($2='company' AND holding_id=$3 AND company_id=$4)
+                 OR ($2='branch' AND holding_id=$3 AND company_id=$4 AND branch_id=$5)
+                 OR ($2='subtree' AND holding_id=$3 AND company_id=ANY($6)
+                     AND ((branch_id IS NULL AND cardinality($7::uuid[])=0)
+                          OR branch_id=ANY($7)))
+               )",
+        )
+        .bind(purchase_order_id.as_uuid())
+        .bind(authority.mode)
+        .bind(authority.holding_id)
+        .bind(authority.company_id)
+        .bind(authority.branch_id)
+        .bind(&authority.company_ids)
+        .bind(&authority.branch_ids)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        let Some(row) = row else {
+            transaction
+                .commit()
+                .await
+                .map_err(|_| PortError::Unavailable)?;
             return Ok(None);
         };
-        if snapshot.version != snapshot.state.version()
-            || snapshot.state.id() != purchase_order_id
-            || snapshot.state.validate().is_err()
-        {
-            return Err(PortError::Internal);
-        }
-        if !authority_scope.contains(snapshot.state.scope()) {
+        let line_rows = sqlx::query(
+            "SELECT line_id,item_code,ordered_quantity,unit_price_minor,currency,destination_code
+             FROM erpx_procurement_write.purchase_order_line_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND purchase_order_id=$1
+             ORDER BY line_position",
+        )
+        .bind(purchase_order_id.as_uuid())
+        .fetch_all(&mut *transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        transaction
+            .commit()
+            .await
+            .map_err(|_| PortError::Unavailable)?;
+        let holding_id = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
+        let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
+        let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
+        let scope = branch_id.map_or(
+            TenantScope::Company {
+                holding_id,
+                company_id,
+            },
+            |branch_id| TenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            },
+        );
+        let lines = line_rows
+            .into_iter()
+            .map(|line| {
+                Ok(PurchaseOrderLine {
+                    line_id: PurchaseOrderLineId::try_from_uuid(
+                        line.try_get("line_id").map_err(|_| PortError::Internal)?,
+                    )
+                    .map_err(|_| PortError::Internal)?,
+                    item_code: line.try_get("item_code").map_err(|_| PortError::Internal)?,
+                    ordered_quantity: line
+                        .try_get("ordered_quantity")
+                        .map_err(|_| PortError::Internal)?,
+                    unit_price_minor: line
+                        .try_get("unit_price_minor")
+                        .map_err(|_| PortError::Internal)?,
+                    currency: line.try_get("currency").map_err(|_| PortError::Internal)?,
+                    destination_code: line
+                        .try_get("destination_code")
+                        .map_err(|_| PortError::Internal)?,
+                })
+            })
+            .collect::<Result<Vec<_>, PortError>>()?;
+        let aggregate = PurchaseOrder::try_rehydrate(PurchaseOrderState {
+            id: purchase_order_id,
+            version: from_i64(
+                row.try_get("aggregate_version")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            scope,
+            order_code: row.try_get("order_code").map_err(|_| PortError::Internal)?,
+            supplier_id: SupplierId::try_from_uuid(
+                row.try_get("supplier_id")
+                    .map_err(|_| PortError::Internal)?,
+            )
+            .map_err(|_| PortError::Internal)?,
+            currency: row.try_get("currency").map_err(|_| PortError::Internal)?,
+            lines,
+            status: parse_status(
+                &row.try_get::<String, _>("order_status")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            created_at: row.try_get("created_at").map_err(|_| PortError::Internal)?,
+            updated_at: row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+        })
+        .map_err(|_| PortError::Internal)?;
+        if !authority_scope.contains(aggregate.scope()) {
             return Err(PortError::Denied);
         }
-        Ok(Some(snapshot.state))
+        Ok(Some(aggregate))
     }
 }
 
@@ -131,6 +290,20 @@ impl CommandUnitOfWork for ProcurementCommandAdapter {
                 order: (&request.aggregate).into(),
             }),
         });
+        let directory_draft = procurement_directory_draft(&request.aggregate)?;
+        events.push(OutboxEventWrite {
+            event_id: deterministic_event_id(
+                command_id,
+                ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                events.len(),
+            ),
+            event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+            event_version: ITEM_DIRECTORY_FACT_VERSION,
+            partition: partition.clone(),
+            causation_id: request.causation_id,
+            occurred_at,
+            payload: ProcurementOutboxPayload::Directory(directory_draft),
+        });
         let guard = ProcurementGuard(request.aggregate.clone());
         let aggregate = request.aggregate;
         let command = AtomicCommand {
@@ -140,13 +313,12 @@ impl CommandUnitOfWork for ProcurementCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: request.authority_scope,
+            tenant_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: AGGREGATE_TYPE.into(),
             aggregate_id: aggregate_id(id)?,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"procurement-audit-v1"),
@@ -161,7 +333,7 @@ impl CommandUnitOfWork for ProcurementCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -176,10 +348,51 @@ impl CommandUnitOfWork for ProcurementCommandAdapter {
     }
 }
 
+fn procurement_directory_draft(
+    aggregate: &PurchaseOrder,
+) -> Result<ItemDescriptorDraft, PortError> {
+    let record_id =
+        RecordId::try_from_uuid(aggregate.id().as_uuid()).map_err(|_| PortError::Internal)?;
+    let record = StableRecordRef::try_new(
+        record_id,
+        ContextId::Procurement,
+        RecordTypeId::try_new("procurement.purchase-order").map_err(|_| PortError::Internal)?,
+    )
+    .map_err(|_| PortError::Internal)?;
+    let value = ItemDescriptorDraft {
+        authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+        record,
+        scope: aggregate.scope().clone(),
+        lifecycle_state: status_name(aggregate.status()).into(),
+        classification: DataClassification::Confidential,
+        descriptor_version: aggregate.version(),
+        authorized_search_text: aggregate.order_code().to_owned(),
+    };
+    value.validate().map_err(|_| PortError::Internal)?;
+    Ok(value)
+}
+
 struct ProcurementGuard(PurchaseOrder);
 
 #[async_trait]
 impl AtomicCommandGuard for ProcurementGuard {
+    async fn authoritative_version(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        guard_context(&self.0, context)?;
+        let current: Option<i64> = sqlx::query_scalar(
+            "SELECT aggregate_version FROM erpx_procurement_write.purchase_order_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND purchase_order_id=$1
+             FOR UPDATE",
+        )
+        .bind(self.0.id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?;
+        current.map(from_i64_store).transpose()
+    }
+
     async fn validate(
         &self,
         transaction: &mut Transaction<'_, Postgres>,
@@ -187,8 +400,9 @@ impl AtomicCommandGuard for ProcurementGuard {
     ) -> Result<(), CqrsSqlxError> {
         guard_context(&self.0, context)?;
         let current: Option<i64> = sqlx::query_scalar(
-            "SELECT aggregate_version FROM erpx_procurement_write.purchase_order_guards
-             WHERE purchase_order_id=$1 FOR UPDATE",
+            "SELECT aggregate_version FROM erpx_procurement_write.purchase_order_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND purchase_order_id=$1
+             FOR UPDATE",
         )
         .bind(self.0.id().as_uuid())
         .fetch_optional(&mut **transaction)
@@ -202,8 +416,9 @@ impl AtomicCommandGuard for ProcurementGuard {
             ));
         }
         let duplicate: Option<Uuid> = sqlx::query_scalar(
-            "SELECT purchase_order_id FROM erpx_procurement_write.purchase_order_guards
-             WHERE scope_key=$1 AND order_code=$2 AND purchase_order_id<>$3
+            "SELECT purchase_order_id FROM erpx_procurement_write.purchase_order_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+               AND scope_key=$1 AND order_code=$2 AND purchase_order_id<>$3
              ORDER BY purchase_order_id LIMIT 1 FOR UPDATE",
         )
         .bind(scope_key(self.0.scope())?)
@@ -234,27 +449,69 @@ impl AtomicCommandGuard for ProcurementGuard {
                 "procurement applied guard mismatch",
             ));
         }
-        sqlx::query(
-            "INSERT INTO erpx_procurement_write.purchase_order_guards
-                (purchase_order_id,scope_key,order_code,supplier_id,currency,
-                 order_status,aggregate_version,updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-             ON CONFLICT (purchase_order_id) DO UPDATE SET
+        let (holding_id, company_id, branch_id) = exact_scope_columns(self.0.scope())?;
+        let result = sqlx::query(
+            "INSERT INTO erpx_procurement_write.purchase_order_authority
+                (tenant_id,purchase_order_id,aggregate_version,scope_key,holding_id,company_id,
+                 branch_id,order_code,supplier_id,currency,order_status,created_at,updated_at)
+             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+             ON CONFLICT (tenant_id,purchase_order_id) DO UPDATE SET
+                aggregate_version=EXCLUDED.aggregate_version,
                 scope_key=EXCLUDED.scope_key,order_code=EXCLUDED.order_code,
+                holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,
+                branch_id=EXCLUDED.branch_id,
                 supplier_id=EXCLUDED.supplier_id,currency=EXCLUDED.currency,
                 order_status=EXCLUDED.order_status,
-                aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at",
+                created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at
+             WHERE erpx_procurement_write.purchase_order_authority.tenant_id=
+                       erpx_cqrs_write.current_tenant_id()
+               AND erpx_procurement_write.purchase_order_authority.aggregate_version + 1=
+                       EXCLUDED.aggregate_version",
         )
         .bind(self.0.id().as_uuid())
+        .bind(to_i64(self.0.version())?)
         .bind(scope_key(self.0.scope())?)
+        .bind(holding_id)
+        .bind(company_id)
+        .bind(branch_id)
         .bind(self.0.order_code())
         .bind(self.0.supplier_id().as_uuid())
         .bind(self.0.currency())
         .bind(status_name(self.0.status()))
-        .bind(to_i64(self.0.version())?)
+        .bind(self.0.created_at())
         .bind(self.0.updated_at())
         .execute(&mut **transaction)
         .await?;
+        if result.rows_affected() != 1 {
+            return Err(CqrsSqlxError::GuardRejected(
+                "procurement normalized version did not advance exactly once",
+            ));
+        }
+        sqlx::query(
+            "DELETE FROM erpx_procurement_write.purchase_order_line_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND purchase_order_id=$1",
+        )
+        .bind(self.0.id().as_uuid())
+        .execute(&mut **transaction)
+        .await?;
+        for (position, line) in self.0.lines().iter().enumerate() {
+            sqlx::query(
+                "INSERT INTO erpx_procurement_write.purchase_order_line_authority
+                    (tenant_id,purchase_order_id,line_id,line_position,item_code,ordered_quantity,
+                     unit_price_minor,currency,destination_code)
+                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8)",
+            )
+            .bind(self.0.id().as_uuid())
+            .bind(line.line_id.as_uuid())
+            .bind(i32::try_from(position).map_err(|_| CqrsSqlxError::NumericRange)?)
+            .bind(&line.item_code)
+            .bind(line.ordered_quantity)
+            .bind(line.unit_price_minor)
+            .bind(&line.currency)
+            .bind(&line.destination_code)
+            .execute(&mut **transaction)
+            .await?;
+        }
         Ok(())
     }
 }
@@ -276,9 +533,15 @@ fn guard_context(
 }
 
 fn validate_commit(request: &ProcurementCommit) -> Result<(), PortError> {
+    let next = request
+        .expected_version
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(PortError::Internal)?;
     if request.aggregate.validate().is_err()
         || fingerprint_id(&request.identity.fingerprint) != request.aggregate.id()
         || !request.authority_scope.contains(request.aggregate.scope())
+        || request.aggregate.version() != next
     {
         return Err(PortError::Internal);
     }
@@ -372,6 +635,40 @@ fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
 
 fn to_i64(value: u64) -> Result<i64, CqrsSqlxError> {
     i64::try_from(value).map_err(|_| CqrsSqlxError::GuardRejected("numeric value is too large"))
+}
+
+fn from_i64(value: i64) -> Result<u64, PortError> {
+    u64::try_from(value).map_err(|_| PortError::Internal)
+}
+
+fn from_i64_store(value: i64) -> Result<u64, CqrsSqlxError> {
+    u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
+}
+
+fn exact_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+    match scope {
+        TenantScope::Company {
+            holding_id,
+            company_id,
+        } => Ok((*holding_id, *company_id, None)),
+        TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => Ok((*holding_id, *company_id, Some(*branch_id))),
+        TenantScope::Platform | TenantScope::Holding { .. } | TenantScope::Subtree { .. } => Err(
+            CqrsSqlxError::GuardRejected("procurement authority requires company or branch scope"),
+        ),
+    }
+}
+
+fn parse_status(value: &str) -> Result<PurchaseOrderStatus, PortError> {
+    match value {
+        "draft" => Ok(PurchaseOrderStatus::Draft),
+        "released" => Ok(PurchaseOrderStatus::Released),
+        "cancelled" => Ok(PurchaseOrderStatus::Cancelled),
+        _ => Err(PortError::Internal),
+    }
 }
 
 fn map_store_error(error: CqrsSqlxError) -> PortError {

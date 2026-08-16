@@ -12,6 +12,9 @@ use crate::{
     },
 };
 
+mod owned_records;
+pub use owned_records::Customer360RecordCommandHandler;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetCustomer360 {
     pub customer: CustomerRef,

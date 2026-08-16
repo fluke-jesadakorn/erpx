@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use erpx_integration_contracts::CurrencyCode;
 use erpx_kernel::TenantScope;
 use serde::{Deserialize, Serialize};
@@ -42,13 +42,68 @@ pub struct Subscription {
     currency: CurrencyCode,
     last_provider_event_id: Option<String>,
     last_provider_event_at: Option<DateTime<Utc>>,
+    grace_expires_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     #[serde(skip)]
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubscriptionState {
+    pub id: SubscriptionId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub customer_id: Uuid,
+    pub plan_id: CatalogPlanId,
+    pub status: SubscriptionStatus,
+    pub amount_minor: i64,
+    pub currency: CurrencyCode,
+    pub last_provider_event_id: Option<String>,
+    pub last_provider_event_at: Option<DateTime<Utc>>,
+    pub grace_expires_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl Subscription {
+    pub fn try_rehydrate(state: SubscriptionState) -> Result<Self, CommercialDomainError> {
+        let holding_id = holding_id(&state.scope)?;
+        require_id(state.customer_id, "customer_id")?;
+        if state.version == 0
+            || state.amount_minor <= 0
+            || state.updated_at < state.created_at
+            || state
+                .last_provider_event_id
+                .as_ref()
+                .is_some_and(|value| super::validate_text(value, "provider_event_id").is_err())
+            || state.last_provider_event_id.is_some() != state.last_provider_event_at.is_some()
+            || state
+                .last_provider_event_at
+                .is_some_and(|at| at > state.updated_at)
+            || (state.status == SubscriptionStatus::PastDue) != state.grace_expires_at.is_some()
+        {
+            return Err(CommercialDomainError::InvalidTimestamp);
+        }
+        Ok(Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            holding_id,
+            customer_id: state.customer_id,
+            plan_id: state.plan_id,
+            status: state.status,
+            amount_minor: state.amount_minor,
+            currency: state.currency,
+            last_provider_event_id: state.last_provider_event_id,
+            last_provider_event_at: state.last_provider_event_at,
+            grace_expires_at: state.grace_expires_at,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        })
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: SubscriptionId,
@@ -82,6 +137,7 @@ impl Subscription {
             currency,
             last_provider_event_id: None,
             last_provider_event_at: None,
+            grace_expires_at: None,
             created_at: at,
             updated_at: at,
             uncommitted_events: Vec::new(),
@@ -127,8 +183,26 @@ impl Subscription {
                 return Err(CommercialDomainError::InvalidSubscriptionTransition { from, signal });
             }
         };
+        if signal == BillingSignal::GraceExpired
+            && self
+                .grace_expires_at
+                .is_none_or(|deadline| provider_event_at < deadline)
+        {
+            return Err(CommercialDomainError::GracePeriodNotExpired);
+        }
         self.version = next_version(self.version)?;
         self.status = next;
+        self.grace_expires_at = match signal {
+            BillingSignal::PaymentFailed => Some(
+                provider_event_at
+                    .checked_add_signed(Duration::days(7))
+                    .ok_or(CommercialDomainError::InvalidTimestamp)?,
+            ),
+            BillingSignal::PaymentRecovered
+            | BillingSignal::GraceExpired
+            | BillingSignal::SubscriptionCanceled => None,
+            BillingSignal::TrialEnded => self.grace_expires_at,
+        };
         self.last_provider_event_id = Some(provider_event_id);
         self.last_provider_event_at = Some(provider_event_at);
         self.updated_at = provider_event_at;
@@ -181,6 +255,9 @@ impl Subscription {
     }
     pub const fn last_provider_event_at(&self) -> Option<DateTime<Utc>> {
         self.last_provider_event_at
+    }
+    pub const fn grace_expires_at(&self) -> Option<DateTime<Utc>> {
+        self.grace_expires_at
     }
     pub const fn created_at(&self) -> DateTime<Utc> {
         self.created_at

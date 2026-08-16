@@ -64,6 +64,9 @@ fn lead() -> CrmLead {
         CrmLeadId::try_from_uuid(id(20)).unwrap(),
         scope(),
         id(21),
+        id(23),
+        id(24),
+        7,
         Some(id(22)),
         "campaign".into(),
         8_000,
@@ -107,6 +110,27 @@ impl EntitlementPort for Entitlement {
         Ok(())
     }
 }
+#[derive(Clone, Copy)]
+struct QualifiedLeads;
+#[async_trait]
+impl QualifiedLeadResolverPort for QualifiedLeads {
+    async fn resolve_qualified_lead(
+        &self,
+        request: QualifiedLeadResolveRequest<'_>,
+    ) -> Result<QualifiedLeadEvidence, PortError> {
+        Ok(QualifiedLeadEvidence {
+            fact: marketing::QualifiedLeadFact {
+                candidate: request.candidate,
+                campaign: marketing::CampaignRef::try_from_uuid(id(51)).unwrap(),
+                audience_member: marketing::AudienceMemberRef::try_from_uuid(id(52)).unwrap(),
+                existing_customer: Some(customer::CustomerRef::try_from_uuid(id(22)).unwrap()),
+                source: ReferenceCode::try_new("web").unwrap(),
+                qualification_score_basis_points: 9_000,
+            },
+            source_version: 12,
+        })
+    }
+}
 #[derive(Clone)]
 struct Write;
 #[async_trait]
@@ -146,7 +170,7 @@ impl CommandUnitOfWork for Uow {
 fn handler(
     allowed: bool,
     commits: Arc<AtomicUsize>,
-) -> CrmCommandHandler<Write, Uow, Auth, Entitlement, FixedClock> {
+) -> CrmCommandHandler<Write, Uow, Auth, Entitlement, FixedClock, QualifiedLeads> {
     CrmCommandHandler::new(
         Write,
         Uow { commits },
@@ -154,6 +178,7 @@ fn handler(
         Entitlement,
         FixedClock::new(at()),
     )
+    .with_qualified_lead_resolver(QualifiedLeads)
 }
 
 #[tokio::test]
@@ -194,10 +219,45 @@ async fn marketing_handoff_consumes_published_fact_without_marketing_core() {
         ))
         .await
         .unwrap();
-    assert!(
-        matches!(receipt.response, CrmMutationResult::Lead(ref lead) if lead.marketing_candidate_id == id(50))
-    );
+    assert!(matches!(receipt.response, CrmMutationResult::Lead(ref lead)
+            if lead.marketing_candidate_id == id(50)
+                && lead.campaign_id == id(51)
+                && lead.audience_member_id == id(52)
+                && lead.marketing_source_version == 12));
     assert_eq!(commits.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn marketing_handoff_is_unavailable_without_owner_evidence_resolver() {
+    let commits = Arc::new(AtomicUsize::new(0));
+    let fact = marketing::QualifiedLeadFact {
+        candidate: marketing::LeadCandidateRef::try_from_uuid(id(50)).unwrap(),
+        campaign: marketing::CampaignRef::try_from_uuid(id(999)).unwrap(),
+        audience_member: marketing::AudienceMemberRef::try_from_uuid(id(998)).unwrap(),
+        existing_customer: None,
+        source: ReferenceCode::try_new("untrusted-client").unwrap(),
+        qualification_score_basis_points: 10_000,
+    };
+    let result = CrmCommandHandler::new(
+        Write,
+        Uow {
+            commits: commits.clone(),
+        },
+        Auth { allowed: true },
+        Entitlement,
+        FixedClock::new(at()),
+    )
+    .handle(envelope(
+        CrmCommand::AcceptMarketingLead(AcceptMarketingLead {
+            lead_id: CrmLeadId::try_from_uuid(id(53)).unwrap(),
+            qualified: fact,
+        }),
+        None,
+    ))
+    .await
+    .unwrap_err();
+    assert_eq!(result.category(), ErrorCategory::Unavailable);
+    assert_eq!(commits.load(Ordering::SeqCst), 0);
 }
 
 struct NotReadyRead;

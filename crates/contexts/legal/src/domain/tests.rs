@@ -326,6 +326,10 @@ fn legal_hold_requires_separate_release_and_blocks_matter_close() {
             at() + Duration::minutes(1),
         )
         .unwrap();
+    let hold_ref = matter.legal_hold_record_ref().unwrap().unwrap();
+    assert_eq!(hold_ref.record_type().as_str(), "legal.hold");
+    assert_ne!(hold_ref.id().as_uuid(), matter.id().as_uuid());
+    assert_eq!(hold_ref, legal_hold_record_ref_for(matter.id()).unwrap());
     assert_eq!(
         matter.close(at() + Duration::minutes(2)),
         Err(LegalDomainError::InvalidTransition)
@@ -339,4 +343,198 @@ fn legal_hold_requires_separate_release_and_blocks_matter_close() {
         .unwrap();
     matter.close(at() + Duration::minutes(3)).unwrap();
     assert_eq!(matter.status(), MatterStatus::Closed);
+}
+
+fn signature_recipient(value: u128, order: u16) -> SignatureRecipient {
+    SignatureRecipient::try_new(
+        SignatureRecipientId::try_from_uuid(Uuid::from_u128(value)).unwrap(),
+        SignatureSubject::Internal {
+            principal_ref: format!("signer-{value}"),
+        },
+        order,
+    )
+    .unwrap()
+}
+
+fn callback(event: &str, sequence: u64, kind: SignatureCallbackKind) -> VerifiedSignatureCallback {
+    VerifiedSignatureCallback {
+        provider_event_id: event.into(),
+        provider_envelope_ref: "provider-envelope-60".into(),
+        sequence,
+        verified: true,
+        occurred_at: at() + Duration::minutes(i64::try_from(sequence).unwrap() + 1),
+        kind,
+    }
+}
+
+#[test]
+fn signature_envelope_pins_document_orders_signers_and_deduplicates_callbacks() {
+    let first = signature_recipient(61, 1);
+    let second = signature_recipient(62, 2);
+    let mut envelope = SignatureEnvelope::create(
+        SignatureEnvelopeId::try_from_uuid(Uuid::from_u128(60)).unwrap(),
+        scope(),
+        LegalDocumentId::try_from_uuid(Uuid::from_u128(20)).unwrap(),
+        7,
+        format!("sha256:{}", "a".repeat(64)),
+        "docusign".into(),
+        "provider-policy-2026-08".into(),
+        SignatureOrder::Serial,
+        vec![first.clone(), second.clone()],
+        at() + Duration::days(365),
+        "legal-owner".into(),
+        at(),
+    )
+    .unwrap();
+    envelope
+        .submit("provider-envelope-60".into(), at() + Duration::minutes(1))
+        .unwrap();
+
+    let before = envelope.clone();
+    let mut unverified = callback("event-unverified", 1, SignatureCallbackKind::Delivered);
+    unverified.verified = false;
+    assert_eq!(
+        envelope.apply_callback(unverified, at() + Duration::minutes(2)),
+        Err(LegalDomainError::UnverifiedSignatureCallback)
+    );
+    assert_eq!(envelope, before);
+
+    assert_eq!(
+        envelope.apply_callback(
+            callback(
+                "event-out-of-order-signer",
+                1,
+                SignatureCallbackKind::RecipientSigned {
+                    recipient_id: second.id,
+                },
+            ),
+            at() + Duration::minutes(2),
+        ),
+        Err(LegalDomainError::InvalidSignatureOrder)
+    );
+
+    let first_signed = callback(
+        "event-first-signed",
+        1,
+        SignatureCallbackKind::RecipientSigned {
+            recipient_id: first.id,
+        },
+    );
+    assert_eq!(
+        envelope
+            .apply_callback(first_signed.clone(), at() + Duration::minutes(2))
+            .unwrap(),
+        CallbackOutcome::Applied
+    );
+    let version = envelope.version();
+    assert_eq!(
+        envelope
+            .apply_callback(first_signed, at() + Duration::minutes(3))
+            .unwrap(),
+        CallbackOutcome::Duplicate
+    );
+    assert_eq!(envelope.version(), version);
+
+    envelope
+        .apply_callback(
+            callback(
+                "event-second-signed",
+                2,
+                SignatureCallbackKind::RecipientSigned {
+                    recipient_id: second.id,
+                },
+            ),
+            at() + Duration::minutes(3),
+        )
+        .unwrap();
+    envelope
+        .apply_callback(
+            callback(
+                "event-completed",
+                3,
+                SignatureCallbackKind::Completed {
+                    evidence_sha256: format!("sha256:{}", "b".repeat(64)),
+                },
+            ),
+            at() + Duration::minutes(4),
+        )
+        .unwrap();
+    assert_eq!(envelope.status(), SignatureStatus::Completed);
+    assert_eq!(envelope.document_version(), 7);
+    assert!(envelope.evidence_sha256().is_some());
+    assert_eq!(
+        envelope.cancel("legal-owner".into(), at() + Duration::minutes(5)),
+        Err(LegalDomainError::InvalidSignatureTransition)
+    );
+}
+
+#[test]
+fn external_signatory_is_one_time_realm_metadata_without_raw_secret() {
+    let recipient = SignatureRecipient::try_new(
+        SignatureRecipientId::try_from_uuid(Uuid::from_u128(70)).unwrap(),
+        SignatureSubject::ExternalOneTime {
+            subject_ref: "external-party-70".into(),
+            access_grant_sha256: format!("sha256:{}", "c".repeat(64)),
+            expires_at: at() + Duration::hours(1),
+        },
+        1,
+    )
+    .unwrap();
+    assert!(matches!(
+        recipient.subject,
+        SignatureSubject::ExternalOneTime { .. }
+    ));
+
+    assert!(matches!(
+        SignatureRecipient::try_new(
+            SignatureRecipientId::try_from_uuid(Uuid::from_u128(71)).unwrap(),
+            SignatureSubject::ExternalOneTime {
+                subject_ref: "external-party-71".into(),
+                access_grant_sha256: "raw-secret".into(),
+                expires_at: at() + Duration::hours(1),
+            },
+            1,
+        ),
+        Err(LegalDomainError::SensitiveMaterial {
+            field: "content_sha256"
+        })
+    ));
+}
+
+#[test]
+fn retention_is_fail_closed_when_hold_evidence_is_unavailable() {
+    let policy = RetentionPolicySnapshot {
+        policy_version: "legal-retention-2026-08".into(),
+        jurisdiction_version: "th-core-2026-08".into(),
+        retention_until: at() + Duration::days(30),
+    };
+    assert_eq!(
+        RetentionDecision::evaluate(&policy, &HoldEvidence::Unavailable, at()),
+        Err(LegalDomainError::LegalHoldEvidenceUnavailable)
+    );
+    assert_eq!(
+        RetentionDecision::evaluate(
+            &policy,
+            &HoldEvidence::Clear {
+                checked_at: at(),
+                evidence_sha256: format!("sha256:{}", "d".repeat(64)),
+            },
+            at() + Duration::days(31),
+        )
+        .unwrap(),
+        RetentionDecision::EligibleForDisposal
+    );
+    assert_eq!(
+        RetentionDecision::evaluate(
+            &policy,
+            &HoldEvidence::Active {
+                matter_id: LegalMatterId::try_from_uuid(Uuid::from_u128(72)).unwrap(),
+                matter_version: 4,
+                evidence_sha256: format!("sha256:{}", "e".repeat(64)),
+            },
+            at() + Duration::days(31),
+        )
+        .unwrap(),
+        RetentionDecision::RetainForLegalHold
+    );
 }

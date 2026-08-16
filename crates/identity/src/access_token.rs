@@ -36,10 +36,56 @@ impl AccessTokenLifetime {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AccessTokenIssueWindow {
+    issued_at: DateTime<Utc>,
+    lifetime: AccessTokenLifetime,
+}
+
+impl AccessTokenIssueWindow {
+    pub const fn new(issued_at: DateTime<Utc>, lifetime: AccessTokenLifetime) -> Self {
+        Self {
+            issued_at,
+            lifetime,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActiveRoleClaim {
     pub source: String,
     pub selection_id: String,
+}
+
+/// Realm and principal facts asserted by the authenticated session boundary.
+/// Collaboration and other cross-realm services must not infer these values
+/// from request bodies, route text, or display labels.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthenticatedRealm {
+    #[default]
+    InternalWorkforce,
+    PlatformAdministration,
+    CustomerPortal,
+    SupplierPortal,
+    CommercePortal,
+    CandidatePortal,
+    SignatoryPortal,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthenticatedPrincipalKind {
+    #[default]
+    Human,
+    Agent,
+    Service,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AuthenticatedAuthority {
+    pub realm: AuthenticatedRealm,
+    pub principal_kind: AuthenticatedPrincipalKind,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,6 +98,10 @@ pub struct AccessTokenClaims {
     /// an auth API, but the business boundary rejects it fail closed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authorization_context_version: Option<u64>,
+    #[serde(default)]
+    pub realm: AuthenticatedRealm,
+    #[serde(default)]
+    pub principal_kind: AuthenticatedPrincipalKind,
     pub issued_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
 }
@@ -138,11 +188,59 @@ impl AccessTokenSigner {
         {
             return Err(IdentityError::InvalidIdentityReference);
         }
+        self.issue_with_authority(
+            principal_ref,
+            session_id,
+            active_role,
+            authorization_context_version,
+            AuthenticatedAuthority {
+                realm: AuthenticatedRealm::InternalWorkforce,
+                principal_kind: AuthenticatedPrincipalKind::Human,
+            },
+            AccessTokenIssueWindow::new(issued_at, lifetime),
+        )
+    }
+
+    pub fn issue_with_authority(
+        &self,
+        principal_ref: impl Into<String>,
+        session_id: Uuid,
+        active_role: Option<ActiveRoleClaim>,
+        authorization_context_version: Option<u64>,
+        authority: AuthenticatedAuthority,
+        window: AccessTokenIssueWindow,
+    ) -> Result<AccessToken, IdentityError> {
+        let issued_at = window.issued_at;
+        let lifetime = window.lifetime;
+        let principal_ref = principal_ref.into();
+        if principal_ref.trim().is_empty()
+            || session_id.is_nil()
+            || authorization_context_version == Some(0)
+            || (active_role.is_some() && authorization_context_version.is_none())
+            || (matches!(
+                authority.realm,
+                AuthenticatedRealm::CustomerPortal
+                    | AuthenticatedRealm::SupplierPortal
+                    | AuthenticatedRealm::CommercePortal
+                    | AuthenticatedRealm::CandidatePortal
+                    | AuthenticatedRealm::SignatoryPortal
+            ) && authority.principal_kind != AuthenticatedPrincipalKind::Human)
+            || active_role.as_ref().is_some_and(|role| {
+                role.source.trim().is_empty()
+                    || role.selection_id.trim().is_empty()
+                    || role.source.chars().any(char::is_control)
+                    || role.selection_id.chars().any(char::is_control)
+            })
+        {
+            return Err(IdentityError::InvalidIdentityReference);
+        }
         let claims = AccessTokenClaims {
             principal_ref,
             session_id,
             active_role,
             authorization_context_version,
+            realm: authority.realm,
+            principal_kind: authority.principal_kind,
             issued_at,
             expires_at: issued_at + lifetime.duration(),
         };
@@ -223,6 +321,8 @@ mod tests {
             .expect("verified token");
         assert_eq!(claims.active_role, Some(role));
         assert_eq!(claims.authorization_context_version, Some(7));
+        assert_eq!(claims.realm, AuthenticatedRealm::InternalWorkforce);
+        assert_eq!(claims.principal_kind, AuthenticatedPrincipalKind::Human);
     }
 
     #[test]
@@ -260,5 +360,44 @@ mod tests {
             .expect("legacy verification");
         assert!(claims.active_role.is_none());
         assert!(claims.authorization_context_version.is_none());
+    }
+
+    #[test]
+    fn external_portal_realm_is_signed_and_non_human_portal_tokens_are_rejected() {
+        let signer = AccessTokenSigner::new(b"01234567890123456789012345678901").expect("signer");
+        let authority = AuthenticatedAuthority {
+            realm: AuthenticatedRealm::CustomerPortal,
+            principal_kind: AuthenticatedPrincipalKind::Human,
+        };
+        let token = signer
+            .issue_with_authority(
+                "customer:principal",
+                Uuid::new_v4(),
+                None,
+                None,
+                authority,
+                AccessTokenIssueWindow::new(at(), AccessTokenLifetime::five_minutes()),
+            )
+            .expect("external portal token");
+        let claims = signer
+            .verify(token.token(), at() + Duration::seconds(1))
+            .expect("verified external realm");
+        assert_eq!(claims.realm, AuthenticatedRealm::CustomerPortal);
+        assert_eq!(claims.principal_kind, AuthenticatedPrincipalKind::Human);
+        assert!(
+            signer
+                .issue_with_authority(
+                    "customer:service",
+                    Uuid::new_v4(),
+                    None,
+                    None,
+                    AuthenticatedAuthority {
+                        realm: AuthenticatedRealm::CustomerPortal,
+                        principal_kind: AuthenticatedPrincipalKind::Service,
+                    },
+                    AccessTokenIssueWindow::new(at(), AccessTokenLifetime::five_minutes()),
+                )
+                .is_err()
+        );
     }
 }

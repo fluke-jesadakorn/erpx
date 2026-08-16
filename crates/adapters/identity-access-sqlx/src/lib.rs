@@ -1,10 +1,14 @@
 #![doc = "PostgreSQL command, query, and projection adapters for Identity & Access."]
 
 mod command;
+mod governance;
 mod projection;
 mod read;
 
 pub use command::{IdentityAccessCommandAdapter, IdentityAccessWriteRepository};
+pub use governance::{
+    IdentityGovernanceProjector, IdentityGovernanceReadAdapter, IdentityGovernanceSqlxAdapter,
+};
 pub use projection::{
     IdentityAccessOutboxPayload, IdentityAccessPrincipalProjector, IdentityAccessRoleProjector,
     IdentityAccessSnapshot,
@@ -18,10 +22,18 @@ pub const PRINCIPAL_PROJECTION_NAME: &str = "identity_access.principals";
 pub const ROLE_PROJECTION_NAME: &str = "identity_access.roles";
 pub const PRINCIPAL_SNAPSHOT_EVENT_TYPE: &str = "identity_access.principal_snapshot";
 pub const ROLE_SNAPSHOT_EVENT_TYPE: &str = "identity_access.role_snapshot";
+pub const GOVERNANCE_PROJECTION_NAME: &str = "identity_access.governance";
+pub const GOVERNANCE_SNAPSHOT_EVENT_TYPE: &str = "identity_access.governance_snapshot";
 pub const EVENT_VERSION: u32 = 1;
 
 pub const WRITE_DDL: &str = include_str!("../ddl/write.sql");
 pub const READ_DDL: &str = include_str!("../ddl/read.sql");
+/// Typed relational principal/role authority introduced after the shared CQRS
+/// foundation. Child assignments, permissions, and group memberships remain
+/// relational and tenant-composite.
+pub const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
+);
 
 pub fn principal_partition(id: erpx_identity_access::PrincipalId) -> String {
     format!("identity_access.principal:{}", id.as_uuid().simple())
@@ -29,6 +41,10 @@ pub fn principal_partition(id: erpx_identity_access::PrincipalId) -> String {
 
 pub fn role_partition(id: erpx_identity_access::RoleId) -> String {
     format!("identity_access.role:{}", id.as_uuid().simple())
+}
+
+pub fn governance_partition(id: uuid::Uuid) -> String {
+    format!("identity_access.governance:{}", id.simple())
 }
 
 #[cfg(test)]
@@ -69,12 +85,23 @@ mod tests {
     }
 
     #[test]
-    fn context_guards_share_the_atomic_command_transaction() {
+    fn commands_use_typed_relational_authority_in_the_atomic_transaction() {
         let source = include_str!("command.rs");
-        assert!(source.contains("commit_guarded"));
+        assert!(source.contains("commit_normalized"));
         assert!(source.contains("AtomicCommandGuard"));
+        assert!(source.contains("principal_authority"));
+        assert!(source.contains("role_authority"));
+        assert!(source.contains("assignment_authority"));
+        assert!(source.contains("group_membership_authority"));
         assert!(source.contains("role_code_guards"));
         assert!(source.contains("assignment_guards"));
+        assert!(source.contains("pg_advisory_xact_lock"));
+        assert!(source.contains("CommandFingerprint::RecoverRole"));
+        assert!(!source.contains("load_snapshot"));
+        assert!(!source.contains("commit_guarded"));
         assert!(!source.contains("transaction.commit"));
+        assert!(NORMALIZED_AUTHORITY_DDL.contains("principal_authority"));
+        assert!(NORMALIZED_AUTHORITY_DDL.contains("role_permission_authority"));
+        assert!(!NORMALIZED_AUTHORITY_DDL.contains("aggregate_components"));
     }
 }

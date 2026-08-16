@@ -2,10 +2,12 @@
 #![forbid(unsafe_code)]
 
 mod command;
+mod platform_case;
 mod projection;
 mod read;
 
 pub use command::{SupportCommandAdapter, SupportWriteRepository};
+pub use platform_case::{PlatformCaseProjector, PlatformCaseReadAdapter, PlatformCaseSqlxAdapter};
 pub use projection::{
     CapabilityProjector, IncidentProjector, SessionProjector, SupportOutboxPayload,
     SupportSnapshot, TicketProjector,
@@ -25,11 +27,16 @@ pub const TICKET_SNAPSHOT_EVENT: &str = "support.ticket_snapshot";
 pub const INCIDENT_SNAPSHOT_EVENT: &str = "support.incident_snapshot";
 pub const SESSION_SNAPSHOT_EVENT: &str = "support.session_snapshot";
 pub const CAPABILITY_SNAPSHOT_EVENT: &str = "support.capability_snapshot";
+pub const AUTHORITY_EFFECT_EVENT: &str = "support.authority_effect";
 pub const EVENT_VERSION: u32 = 1;
 
 #[cfg(test)]
 const WRITE_DDL: &str = include_str!(
     "../../../migration/migrations_tenant_write/0062_wave8_dependent_context_guards.sql"
+);
+#[cfg(test)]
+const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
 );
 #[cfg(test)]
 const READ_DDL: &str = include_str!(
@@ -77,10 +84,14 @@ mod tests {
     #[test]
     fn context_guards_share_the_atomic_command_transaction() {
         let source = include_str!("command.rs");
-        assert!(source.contains("commit_guarded"));
+        assert!(source.contains("commit_normalized"));
         assert!(source.contains("impl AtomicCommandGuard for SupportAtomicGuard"));
-        assert!(source.contains("aggregate_state"));
+        assert!(!source.contains("aggregate_state"));
         assert!(source.contains("audit: AuditWrite"));
         assert!(source.contains("events,"));
+        assert!(!source.contains(concat!("load_", "snapshot")));
+        assert!(!source.contains(concat!("commit_", "guarded")));
+        assert!(NORMALIZED_AUTHORITY_DDL.contains("BEGIN SUPPORT_NORMALIZED_AUTHORITY"));
+        assert!(NORMALIZED_AUTHORITY_DDL.contains("FORCE ROW LEVEL SECURITY"));
     }
 }

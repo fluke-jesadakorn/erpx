@@ -114,6 +114,10 @@ pub enum MarketingDomainError {
     InvalidTransition,
     #[error("campaign budget lifecycle transition is not allowed")]
     InvalidBudgetTransition,
+    #[error("Marketing record lifecycle transition is not allowed")]
+    InvalidRecordTransition,
+    #[error("Marketing record version conflict (expected {expected}, actual {actual})")]
+    RecordVersionConflict { expected: u64, actual: u64 },
     #[error(
         "campaign budget dimensions must bind the exact legal entity, branch, campaign, business unit, and cost center"
     )]
@@ -152,7 +156,45 @@ pub struct LeadCandidate {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+/// Typed relational persistence state for a lead candidate. This is an
+/// invariant-checked boundary, not a serialized aggregate snapshot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LeadCandidateState {
+    pub id: LeadCandidateId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub campaign_id: CampaignId,
+    pub audience_member_id: AudienceMemberId,
+    pub source: String,
+    pub existing_customer_id: Option<Uuid>,
+    pub qualification_score_basis_points: Option<u16>,
+    pub status: LeadCandidateStatus,
+    pub engagement_count: u64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl LeadCandidate {
+    pub fn try_rehydrate(state: LeadCandidateState) -> Result<Self, MarketingDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            campaign_id: state.campaign_id,
+            audience_member_id: state.audience_member_id,
+            source: state.source,
+            existing_customer_id: state.existing_customer_id,
+            qualification_score_basis_points: state.qualification_score_basis_points,
+            status: state.status,
+            engagement_count: state.engagement_count,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: LeadCandidateId,
@@ -413,7 +455,59 @@ pub struct CampaignBudget {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+/// Typed relational persistence state for a campaign budget and its owned
+/// allocation/reservation rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CampaignBudgetState {
+    pub id: CampaignBudgetId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub campaign_id: CampaignId,
+    pub code: String,
+    pub name: String,
+    pub period: marketing::CampaignBudgetPeriod,
+    pub requested_amount: MoneyAmount,
+    pub approved_amount: Option<MoneyAmount>,
+    pub dimensions: DimensionSet,
+    pub allocations: Vec<BudgetAllocation>,
+    pub reservations: BTreeMap<SpendRequestId, SpendReservation>,
+    pub approval_request: Option<operations::ApprovalRequestRef>,
+    pub approval_subject: Option<RecordRef>,
+    pub approval_requested_by: Option<erpx_integration_contracts::ReferenceCode>,
+    pub approval_requested_at: Option<DateTime<Utc>>,
+    pub status: CampaignBudgetStatus,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl CampaignBudget {
+    pub fn try_rehydrate(state: CampaignBudgetState) -> Result<Self, MarketingDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            campaign_id: state.campaign_id,
+            code: state.code,
+            name: state.name,
+            period: state.period,
+            requested_amount: state.requested_amount,
+            approved_amount: state.approved_amount,
+            dimensions: state.dimensions,
+            allocations: state.allocations,
+            reservations: state.reservations,
+            approval_request: state.approval_request,
+            approval_subject: state.approval_subject,
+            approval_requested_by: state.approval_requested_by,
+            approval_requested_at: state.approval_requested_at,
+            status: state.status,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: CampaignBudgetId,
@@ -541,7 +635,12 @@ impl CampaignBudget {
     }
 
     pub fn complete(&mut self, at: DateTime<Utc>) -> Result<(), MarketingDomainError> {
-        if self.status != CampaignBudgetStatus::Running {
+        if self.status != CampaignBudgetStatus::Running
+            || self
+                .reservations
+                .values()
+                .any(|reservation| reservation.status == SpendReservationStatus::Active)
+        {
             return Err(MarketingDomainError::InvalidBudgetTransition);
         }
         self.bump(at)?;
@@ -726,6 +825,14 @@ impl CampaignBudget {
                 return Err(MarketingDomainError::InvalidSpendReservation);
             }
         }
+        if self.status == CampaignBudgetStatus::Completed
+            && self
+                .reservations
+                .values()
+                .any(|reservation| reservation.status == SpendReservationStatus::Active)
+        {
+            return Err(MarketingDomainError::InvalidBudgetTransition);
+        }
         for allocation in &self.allocations {
             let active = self.reservations.values().try_fold(0_i64, |total, value| {
                 if value.allocation_id == allocation.allocation_id
@@ -793,6 +900,17 @@ impl CampaignBudget {
     }
     pub const fn approval_request(&self) -> Option<operations::ApprovalRequestRef> {
         self.approval_request
+    }
+    pub const fn approval_subject(&self) -> Option<&RecordRef> {
+        self.approval_subject.as_ref()
+    }
+    pub const fn approval_requested_by(
+        &self,
+    ) -> Option<&erpx_integration_contracts::ReferenceCode> {
+        self.approval_requested_by.as_ref()
+    }
+    pub const fn approval_requested_at(&self) -> Option<DateTime<Utc>> {
+        self.approval_requested_at
     }
     pub const fn status(&self) -> CampaignBudgetStatus {
         self.status
@@ -1206,4 +1324,47 @@ mod tests {
         );
         assert_eq!(budget.reserved_minor().unwrap(), 50_000);
     }
+
+    #[test]
+    fn budget_completion_requires_every_spend_reservation_to_reconcile() {
+        let mut budget = budget();
+        let request = approval_request(&budget);
+        let subject = request.subject.clone();
+        let at = request.requested_at;
+        budget.submit_for_review(request.clone(), at).unwrap();
+        budget
+            .apply_approval_decision(
+                operations::ApprovalDecisionFact {
+                    request: request.request,
+                    subject,
+                    decision: operations::ApprovalDecision::Approved,
+                    decided_by: ReferenceCode::try_new("finance-controller").unwrap(),
+                    reason_code: ReferenceCode::try_new("approved").unwrap(),
+                    decided_at: at,
+                },
+                at,
+            )
+            .unwrap();
+        budget.start(at).unwrap();
+        let spend_id = SpendRequestId::try_from_uuid(Uuid::from_u128(62)).unwrap();
+        budget
+            .reserve_spend(
+                spend_id,
+                BudgetAllocationId::try_from_uuid(Uuid::from_u128(44)).unwrap(),
+                money(10_000),
+                "Provider delivery".into(),
+                at,
+            )
+            .unwrap();
+        assert_eq!(
+            budget.complete(at),
+            Err(MarketingDomainError::InvalidBudgetTransition)
+        );
+        budget.release_spend(spend_id, at).unwrap();
+        budget.complete(at).unwrap();
+        assert_eq!(budget.status(), CampaignBudgetStatus::Completed);
+    }
 }
+mod records;
+
+pub use records::{MarketingRecord, MarketingRecordKind, MarketingRecordStatus};

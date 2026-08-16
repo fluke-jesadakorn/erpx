@@ -3,10 +3,16 @@
 mod command;
 mod projection;
 mod read;
+mod records;
 
 pub use command::{QualityCommandAdapter, QualityWriteRepository};
 pub use projection::{QualityInspectionProjector, QualityOutboxPayload, QualitySnapshot};
 pub use read::{QualityReadRepository, decode_cursor, encode_cursor};
+pub use records::{
+    QualityLifecycleRecordProjector, QualityLifecycleRecordReadAdapter,
+    QualityLifecycleRecordSqlxAdapter, RECORD_PROJECTION_NAME as LIFECYCLE_RECORD_PROJECTION_NAME,
+    RECORD_SNAPSHOT_EVENT_TYPE as LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE,
+};
 
 pub const CONTEXT_NAME: &str = "quality";
 pub const AGGREGATE_TYPE: &str = "quality_inspection";
@@ -19,6 +25,17 @@ pub const WRITE_DDL: &str = include_str!("../ddl/write.sql");
 
 /// Version-neutral adapter contract. The migration owner assigns revisions.
 pub const READ_DDL: &str = include_str!("../ddl/read.sql");
+pub const COMPLETION_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
+pub const COMPLETION_READ_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
+);
+/// Typed relational Quality authority introduced after the shared CQRS
+/// foundation. This schema stores scalar domain state, never an aggregate
+/// snapshot or a generic JSON component document.
+pub const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
+);
 
 pub fn inspection_partition(inspection_id: erpx_quality::domain::InspectionId) -> String {
     format!("quality.inspection:{}", inspection_id.as_uuid().simple())
@@ -43,8 +60,10 @@ mod tests {
         assert!(READ_DDL.contains("generation UUID NOT NULL"));
         assert!(READ_DDL.contains("NUMERIC(20, 0)"));
         assert!(READ_DDL.contains("quality.inspections"));
-        assert!(WRITE_DDL.contains("aggregate_snapshots"));
-        assert!(WRITE_DDL.contains("outbox_events"));
+        assert!(WRITE_DDL.contains("inspection_authority"));
+        assert!(WRITE_DDL.contains("FORCE ROW LEVEL SECURITY"));
+        assert!(!WRITE_DDL.contains("aggregate_snapshots"));
+        assert!(erpx_cqrs_sqlx::WRITE_DDL.contains("outbox_events"));
     }
 
     #[test]
@@ -52,5 +71,17 @@ mod tests {
         let source = include_str!("read.rs");
         assert!(!source.contains("WritePool"));
         assert!(!source.contains("aggregate_snapshots"));
+    }
+
+    #[test]
+    fn inspection_commands_use_typed_relational_authority() {
+        let source = include_str!("command.rs");
+        assert!(source.contains("erpx_quality_write.inspection_authority"));
+        assert!(source.contains("commit_normalized"));
+        assert!(source.contains("authoritative_version"));
+        assert!(!source.contains("load_snapshot"));
+        assert!(NORMALIZED_AUTHORITY_DDL.contains("inspection_authority"));
+        assert!(!NORMALIZED_AUTHORITY_DDL.contains("JSONB"));
+        assert!(!NORMALIZED_AUTHORITY_DDL.contains("aggregate_components"));
     }
 }

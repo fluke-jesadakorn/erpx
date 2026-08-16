@@ -1,11 +1,21 @@
 mod admin_context;
 mod connector;
+mod governance;
+mod routing;
 mod tenant;
 
 pub use admin_context::{AdminContextId, AdminContextStatus, TenantAdminContext};
 pub use connector::{
-    ConnectorBinding, ConnectorBindingId, ConnectorKind, ConnectorScope, ConnectorState,
-    ConnectorTransition,
+    ConnectorBinding, ConnectorBindingId, ConnectorKind, ConnectorReadinessEvidence,
+    ConnectorScope, ConnectorState, ConnectorTransition,
+};
+pub use governance::{
+    PlatformGovernanceRecord, PlatformGovernanceRecordError, PlatformGovernanceRecordKind,
+    PlatformGovernanceRecordStatus,
+};
+pub use routing::{
+    DataPlaneDeploymentMode, DataPlaneRoute, DataPlaneRouteCatalog, DataPlaneRouteState,
+    DataPlaneRouteTarget, DataPlaneTopology, ROUTING_SCHEMA_GENERATION,
 };
 pub use tenant::{
     EnvironmentId, PlatformTenant, PlatformTenantId, TenantLifecycleAction, TenantLifecycleState,
@@ -33,6 +43,28 @@ pub enum PlatformAdministrationDomainError {
     InvalidConfigurationDigest,
     #[error("connector capability set is invalid")]
     InvalidCapabilities,
+    #[error("connector readiness evidence is invalid")]
+    InvalidReadinessEvidence,
+    #[error("connector readiness evidence does not match the registered configuration")]
+    ReadinessConfigurationMismatch,
+    #[error("connector readiness evidence is stale or replayed")]
+    StaleReadinessEvidence,
+    #[error("connector cannot activate without current successful readiness evidence")]
+    ConnectorNotReady,
+    #[error("data-plane route target is not valid for the selected topology")]
+    InvalidRouteTarget,
+    #[error("data-plane route target is already reserved with different profile references")]
+    RouteAlreadyReserved,
+    #[error("data-plane routing reference must be opaque and secret-free")]
+    InvalidRoutingReference,
+    #[error("data-plane route lifecycle transition is not allowed")]
+    InvalidRouteTransition,
+    #[error("data-plane route observation is stale")]
+    StaleRouteObservation,
+    #[error("data-plane route is unavailable")]
+    RouteUnavailable,
+    #[error("data-plane route requires schema generation 2")]
+    UnsupportedRouteSchemaGeneration,
     #[error("tenant administration context lifetime is invalid")]
     InvalidAdminContextLifetime,
     #[error("tenant administration context has already been revoked")]
@@ -70,6 +102,11 @@ pub(crate) enum DomainEvent {
     ConnectorChanged {
         connector_id: ConnectorBindingId,
         state: ConnectorState,
+        at: DateTime<Utc>,
+    },
+    ConnectorReadinessObserved {
+        connector_id: ConnectorBindingId,
+        ready: bool,
         at: DateTime<Utc>,
     },
     AdminContextIssued {

@@ -3,11 +3,16 @@ use erpx_cqrs_sqlx::{
     AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
-use erpx_integration_contracts::IntegrationEvent;
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_integration_contracts::{
+    BoundedContext, ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, RecordRef, record_policy_id,
+};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
 use erpx_legal::{
-    CommandUnitOfWork, LegalAggregate, LegalCommit, LegalContract, LegalContractId, LegalDocument,
-    LegalDocumentId, LegalMatter, LegalMatterId, PortError, WriteRepository,
+    AccessEntry, AccessEntryId, CommandUnitOfWork, ContractParty, ContractStatus, DocumentVersion,
+    LegalAggregate, LegalCommit, LegalContract, LegalContractId, LegalDocument, LegalDocumentId,
+    LegalHold, LegalMatter, LegalMatterId, MatterStatus, PortError, RecordLink, RecordRelation,
+    WriteRepository,
     ports::{CommandFingerprint, CommandIdentity, StoredCommit},
 };
 use serde_json::json;
@@ -25,14 +30,12 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct LegalWriteRepository {
-    store: CommandStore,
+    pool: WritePool,
 }
 
 impl LegalWriteRepository {
     pub fn new(pool: WritePool) -> Self {
-        Self {
-            store: CommandStore::new(pool),
-        }
+        Self { pool }
     }
 
     async fn load_aggregate(
@@ -42,27 +45,300 @@ impl LegalWriteRepository {
         aggregate_type: &str,
         id: Uuid,
     ) -> Result<Option<LegalAggregate>, PortError> {
-        let aggregate_id = AggregateId::try_from_uuid(id).map_err(|_| PortError::Internal)?;
-        let snapshot = self
-            .store
-            .load_snapshot::<LegalAggregate>(CONTEXT_NAME, partition, aggregate_type, aggregate_id)
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
-            return Ok(None);
-        };
-        if snapshot.version != snapshot.state.version()
-            || snapshot.state.id_uuid() != id
-            || snapshot.state.aggregate_type() != aggregate_type
-            || snapshot.state.validate().is_err()
-        {
-            return Err(PortError::Internal);
-        }
-        if !authority.contains(snapshot.state.scope()) {
-            return Err(PortError::Denied);
-        }
-        Ok(Some(snapshot.state))
+        let _ = partition;
+        load_legal_relational(&self.pool, authority, aggregate_type, id).await
     }
+}
+
+async fn load_legal_relational(
+    pool: &WritePool,
+    authority: &TenantScope,
+    aggregate_type: &str,
+    id: Uuid,
+) -> Result<Option<LegalAggregate>, PortError> {
+    authority.validate().map_err(|_| PortError::Denied)?;
+    let mut tx = pool.begin().await.map_err(map_store_error)?;
+    let value = match aggregate_type {
+        CONTRACT_AGGREGATE_TYPE => load_contract_relational(&mut tx, authority, id)
+            .await?
+            .map(LegalAggregate::Contract),
+        DOCUMENT_AGGREGATE_TYPE => load_document_relational(&mut tx, authority, id)
+            .await?
+            .map(LegalAggregate::Document),
+        ACCESS_AGGREGATE_TYPE => load_access_relational(&mut tx, authority, id)
+            .await?
+            .map(LegalAggregate::AccessEntry),
+        MATTER_AGGREGATE_TYPE => load_matter_relational(&mut tx, authority, id)
+            .await?
+            .map(LegalAggregate::Matter),
+        _ => return Err(PortError::Internal),
+    };
+    Ok(value)
+}
+
+async fn load_contract_relational(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    id: Uuid,
+) -> Result<Option<LegalContract>, PortError> {
+    let row = authorized_root(
+        tx,
+        authority,
+        "SELECT aggregate_version,holding_id,company_id,branch_id,reference,title,object_ref,
+                content_sha256,retention_until,contract_status,created_by,approved_by,created_at,updated_at
+         FROM erpx_legal_write.contract_guards WHERE contract_id=$1",
+        "erpx_legal_write.contract_guards",
+        "contract_id",
+        id,
+    )
+    .await?;
+    let Some(row) = row else { return Ok(None) };
+    let party_rows = sqlx::query(
+        "SELECT party_id,role FROM erpx_legal_write.contract_party_guards
+         WHERE contract_id=$1 ORDER BY party_id",
+    )
+    .bind(id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let parties = party_rows
+        .into_iter()
+        .map(|party| {
+            ContractParty::try_new(
+                party.try_get("party_id").map_err(|_| PortError::Internal)?,
+                party.try_get("role").map_err(|_| PortError::Internal)?,
+            )
+            .map_err(|_| PortError::Internal)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    LegalContract::try_rehydrate(
+        LegalContractId::try_from_uuid(id).map_err(|_| PortError::Internal)?,
+        row_u64(&row, "aggregate_version")?,
+        exact_scope(&row)?,
+        row.try_get("reference").map_err(|_| PortError::Internal)?,
+        row.try_get("title").map_err(|_| PortError::Internal)?,
+        row.try_get("object_ref").map_err(|_| PortError::Internal)?,
+        row.try_get("content_sha256")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("retention_until")
+            .map_err(|_| PortError::Internal)?,
+        parse_contract_status(
+            row.try_get("contract_status")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        parties,
+        row.try_get("created_by").map_err(|_| PortError::Internal)?,
+        row.try_get("approved_by")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("created_at").map_err(|_| PortError::Internal)?,
+        row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn load_document_relational(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    id: Uuid,
+) -> Result<Option<LegalDocument>, PortError> {
+    let row = authorized_root(
+        tx,
+        authority,
+        "SELECT aggregate_version,holding_id,company_id,branch_id,title,archived,created_at,updated_at
+         FROM erpx_legal_write.document_guards WHERE document_id=$1",
+        "erpx_legal_write.document_guards",
+        "document_id",
+        id,
+    )
+    .await?;
+    let Some(row) = row else { return Ok(None) };
+    let rows = sqlx::query(
+        "SELECT document_version,object_ref,content_sha256,created_at,created_by
+         FROM erpx_legal_write.document_version_guards
+         WHERE document_id=$1 ORDER BY document_version",
+    )
+    .bind(id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let versions = rows
+        .into_iter()
+        .map(|version| {
+            Ok(DocumentVersion {
+                version: row_u64(&version, "document_version")?,
+                object_ref: version
+                    .try_get("object_ref")
+                    .map_err(|_| PortError::Internal)?,
+                content_sha256: version
+                    .try_get("content_sha256")
+                    .map_err(|_| PortError::Internal)?,
+                created_at: version
+                    .try_get("created_at")
+                    .map_err(|_| PortError::Internal)?,
+                created_by: version
+                    .try_get("created_by")
+                    .map_err(|_| PortError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, PortError>>()?;
+    LegalDocument::try_rehydrate(
+        LegalDocumentId::try_from_uuid(id).map_err(|_| PortError::Internal)?,
+        row_u64(&row, "aggregate_version")?,
+        exact_scope(&row)?,
+        row.try_get("title").map_err(|_| PortError::Internal)?,
+        versions,
+        row.try_get("archived").map_err(|_| PortError::Internal)?,
+        row.try_get("created_at").map_err(|_| PortError::Internal)?,
+        row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn load_access_relational(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    id: Uuid,
+) -> Result<Option<AccessEntry>, PortError> {
+    let row = authorized_root(
+        tx,
+        authority,
+        "SELECT aggregate_version,holding_id,company_id,branch_id,document_id,document_version,
+                actor_ref,action,purpose,observed_at
+         FROM erpx_legal_write.access_entry_guards WHERE access_entry_id=$1",
+        "erpx_legal_write.access_entry_guards",
+        "access_entry_id",
+        id,
+    )
+    .await?;
+    let Some(row) = row else { return Ok(None) };
+    AccessEntry::try_rehydrate(
+        AccessEntryId::try_from_uuid(id).map_err(|_| PortError::Internal)?,
+        row_u64(&row, "aggregate_version")?,
+        exact_scope(&row)?,
+        LegalDocumentId::try_from_uuid(
+            row.try_get("document_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        row_u64(&row, "document_version")?,
+        row.try_get("actor_ref").map_err(|_| PortError::Internal)?,
+        row.try_get("action").map_err(|_| PortError::Internal)?,
+        row.try_get("purpose").map_err(|_| PortError::Internal)?,
+        row.try_get("observed_at")
+            .map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn load_matter_relational(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    id: Uuid,
+) -> Result<Option<LegalMatter>, PortError> {
+    let row = authorized_root(
+        tx,
+        authority,
+        "SELECT aggregate_version,holding_id,company_id,branch_id,reference,title,matter_status,
+                hold_active,hold_reason,hold_placed_by,hold_placed_at,hold_released_by,
+                hold_released_at,created_by,created_at,updated_at
+         FROM erpx_legal_write.matter_guards WHERE matter_id=$1",
+        "erpx_legal_write.matter_guards",
+        "matter_id",
+        id,
+    )
+    .await?;
+    let Some(row) = row else { return Ok(None) };
+    let link_rows = sqlx::query(
+        "SELECT relation,target_context,target_aggregate_kind,target_aggregate_id,
+                target_aggregate_version,target_holding_id,target_company_id,target_branch_id,
+                target_digest,linked_by,linked_at
+         FROM erpx_legal_write.matter_link_guards WHERE matter_id=$1 ORDER BY link_ordinal",
+    )
+    .bind(id)
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let links = link_rows
+        .into_iter()
+        .map(|link| {
+            let target_scope = exact_scope_named(
+                link.try_get("target_holding_id")
+                    .map_err(|_| PortError::Internal)?,
+                link.try_get("target_company_id")
+                    .map_err(|_| PortError::Internal)?,
+                link.try_get("target_branch_id")
+                    .map_err(|_| PortError::Internal)?,
+            )?;
+            Ok(RecordLink {
+                relation: parse_record_relation(
+                    link.try_get("relation").map_err(|_| PortError::Internal)?,
+                )?,
+                target: RecordRef::try_new(
+                    parse_bounded_context(
+                        link.try_get("target_context")
+                            .map_err(|_| PortError::Internal)?,
+                    )?,
+                    link.try_get::<String, _>("target_aggregate_kind")
+                        .map_err(|_| PortError::Internal)?,
+                    link.try_get("target_aggregate_id")
+                        .map_err(|_| PortError::Internal)?,
+                    row_u64(&link, "target_aggregate_version")?,
+                )
+                .map_err(|_| PortError::Internal)?,
+                target_scope,
+                target_digest: link
+                    .try_get("target_digest")
+                    .map_err(|_| PortError::Internal)?,
+                linked_by: link.try_get("linked_by").map_err(|_| PortError::Internal)?,
+                linked_at: link.try_get("linked_at").map_err(|_| PortError::Internal)?,
+            })
+        })
+        .collect::<Result<Vec<_>, PortError>>()?;
+    let legal_hold = row
+        .try_get::<Option<bool>, _>("hold_active")
+        .map_err(|_| PortError::Internal)?
+        .map(|active| {
+            Ok(LegalHold {
+                active,
+                reason: row
+                    .try_get("hold_reason")
+                    .map_err(|_| PortError::Internal)?,
+                placed_by: row
+                    .try_get("hold_placed_by")
+                    .map_err(|_| PortError::Internal)?,
+                placed_at: row
+                    .try_get("hold_placed_at")
+                    .map_err(|_| PortError::Internal)?,
+                released_by: row
+                    .try_get("hold_released_by")
+                    .map_err(|_| PortError::Internal)?,
+                released_at: row
+                    .try_get("hold_released_at")
+                    .map_err(|_| PortError::Internal)?,
+            })
+        })
+        .transpose()?;
+    LegalMatter::try_rehydrate(
+        LegalMatterId::try_from_uuid(id).map_err(|_| PortError::Internal)?,
+        row_u64(&row, "aggregate_version")?,
+        exact_scope(&row)?,
+        row.try_get("reference").map_err(|_| PortError::Internal)?,
+        row.try_get("title").map_err(|_| PortError::Internal)?,
+        parse_matter_status(
+            row.try_get("matter_status")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+        links,
+        legal_hold,
+        row.try_get("created_by").map_err(|_| PortError::Internal)?,
+        row.try_get("created_at").map_err(|_| PortError::Internal)?,
+        row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
 }
 
 #[async_trait]
@@ -191,6 +467,21 @@ impl CommandUnitOfWork for LegalCommandAdapter {
             occurred_at,
             payload: LegalOutboxPayload::Snapshot(LegalSnapshot::from(&request.aggregate)),
         });
+        for directory_draft in legal_directory_drafts(&request.aggregate)? {
+            events.push(OutboxEventWrite {
+                event_id: deterministic_event_id(
+                    command_id,
+                    ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                    events.len(),
+                ),
+                event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+                event_version: ITEM_DIRECTORY_FACT_VERSION,
+                partition: partition.clone(),
+                causation_id: request.causation_id,
+                occurred_at,
+                payload: LegalOutboxPayload::Directory(directory_draft),
+            });
+        }
         let guard = LegalAtomicGuard {
             aggregate: request.aggregate.clone(),
         };
@@ -210,7 +501,6 @@ impl CommandUnitOfWork for LegalCommandAdapter {
             aggregate_type: aggregate_type.into(),
             aggregate_id,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"legal-audit-v1"),
@@ -222,7 +512,7 @@ impl CommandUnitOfWork for LegalCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -235,12 +525,75 @@ impl CommandUnitOfWork for LegalCommandAdapter {
     }
 }
 
+fn legal_directory_drafts(
+    aggregate: &LegalAggregate,
+) -> Result<Vec<ItemDescriptorDraft>, PortError> {
+    let (record, lifecycle_state, search_text) = match aggregate {
+        LegalAggregate::Contract(value) => (
+            value.record_ref().map_err(|_| PortError::Internal)?,
+            contract_status_name(value.status()),
+            format!("{} {}", value.reference(), value.title()),
+        ),
+        LegalAggregate::Matter(value) => (
+            value.record_ref().map_err(|_| PortError::Internal)?,
+            matter_status_name(value.status()),
+            format!("{} {}", value.reference(), value.title()),
+        ),
+        // Document versions and access entries are governed children/evidence,
+        // not separate route families in the first-class record catalog.
+        LegalAggregate::Document(_) | LegalAggregate::AccessEntry(_) => return Ok(Vec::new()),
+    };
+    let value = ItemDescriptorDraft {
+        authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+        record,
+        scope: aggregate.scope().clone(),
+        lifecycle_state: lifecycle_state.into(),
+        classification: DataClassification::Restricted,
+        descriptor_version: aggregate.version(),
+        authorized_search_text: search_text,
+    };
+    value.validate().map_err(|_| PortError::Internal)?;
+    let mut values = vec![value];
+    if let LegalAggregate::Matter(matter) = aggregate
+        && let Some(hold) = matter.legal_hold()
+    {
+        let record = matter
+            .legal_hold_record_ref()
+            .map_err(|_| PortError::Internal)?
+            .ok_or(PortError::Internal)?;
+        let value = ItemDescriptorDraft {
+            authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+            record,
+            scope: matter.scope().clone(),
+            lifecycle_state: if hold.active { "active" } else { "released" }.into(),
+            classification: DataClassification::Restricted,
+            descriptor_version: matter.version(),
+            authorized_search_text: format!("{} legal hold", matter.reference()),
+        };
+        value.validate().map_err(|_| PortError::Internal)?;
+        values.push(value);
+    }
+    Ok(values)
+}
+
 struct LegalAtomicGuard {
     aggregate: LegalAggregate,
 }
 
 #[async_trait]
 impl AtomicCommandGuard for LegalAtomicGuard {
+    async fn authoritative_version(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        validate_guard_context(&self.aggregate, context)?;
+        guard_version(tx, &self.aggregate)
+            .await?
+            .map(|value| u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange))
+            .transpose()
+    }
+
     async fn validate(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -322,11 +675,20 @@ impl AtomicCommandGuard for LegalAtomicGuard {
         let version = to_i64(context.aggregate_version)?;
         match &self.aggregate {
             LegalAggregate::Contract(value) => {
-                sqlx::query("INSERT INTO erpx_legal_write.contract_guards (contract_id,scope_key,reference,title,object_ref,content_sha256,retention_until,contract_status,created_by,approved_by,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (contract_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,reference=EXCLUDED.reference,title=EXCLUDED.title,object_ref=EXCLUDED.object_ref,content_sha256=EXCLUDED.content_sha256,retention_until=EXCLUDED.retention_until,contract_status=EXCLUDED.contract_status,created_by=EXCLUDED.created_by,approved_by=EXCLUDED.approved_by,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at")
+                let changed = sqlx::query("INSERT INTO erpx_legal_write.contract_guards (contract_id,scope_key,reference,title,object_ref,content_sha256,retention_until,contract_status,created_by,approved_by,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (contract_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,reference=EXCLUDED.reference,title=EXCLUDED.title,object_ref=EXCLUDED.object_ref,content_sha256=EXCLUDED.content_sha256,retention_until=EXCLUDED.retention_until,contract_status=EXCLUDED.contract_status,created_by=EXCLUDED.created_by,approved_by=EXCLUDED.approved_by,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at WHERE erpx_legal_write.contract_guards.aggregate_version + 1=EXCLUDED.aggregate_version")
                     .bind(value.id().as_uuid()).bind(scope_key(value.scope())?).bind(value.reference()).bind(value.title())
                     .bind(value.object_ref()).bind(value.content_sha256()).bind(value.retention_until())
                     .bind(contract_status_name(value.status())).bind(value.created_by()).bind(value.approved_by())
-                    .bind(version).bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?;
+                    .bind(version).bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?.rows_affected();
+                require_single_write(changed, "Legal contract write conflict")?;
+                write_exact_scope(
+                    tx,
+                    "erpx_legal_write.contract_guards",
+                    "contract_id",
+                    value.id().as_uuid(),
+                    value.scope(),
+                )
+                .await?;
                 sqlx::query(
                     "DELETE FROM erpx_legal_write.contract_party_guards WHERE contract_id=$1",
                 )
@@ -339,10 +701,19 @@ impl AtomicCommandGuard for LegalAtomicGuard {
                 }
             }
             LegalAggregate::Document(value) => {
-                sqlx::query("INSERT INTO erpx_legal_write.document_guards (document_id,scope_key,title,current_document_version,archived,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (document_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,title=EXCLUDED.title,current_document_version=EXCLUDED.current_document_version,archived=EXCLUDED.archived,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at")
+                let changed = sqlx::query("INSERT INTO erpx_legal_write.document_guards (document_id,scope_key,title,current_document_version,archived,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (document_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,title=EXCLUDED.title,current_document_version=EXCLUDED.current_document_version,archived=EXCLUDED.archived,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at WHERE erpx_legal_write.document_guards.aggregate_version + 1=EXCLUDED.aggregate_version")
                     .bind(value.id().as_uuid()).bind(scope_key(value.scope())?).bind(value.title())
                     .bind(to_i64(value.current_version())?).bind(value.archived()).bind(version)
-                    .bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?;
+                    .bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?.rows_affected();
+                require_single_write(changed, "Legal document write conflict")?;
+                write_exact_scope(
+                    tx,
+                    "erpx_legal_write.document_guards",
+                    "document_id",
+                    value.id().as_uuid(),
+                    value.scope(),
+                )
+                .await?;
                 let existing: i64 = sqlx::query_scalar("SELECT count(*) FROM erpx_legal_write.document_version_guards WHERE document_id=$1")
                     .bind(value.id().as_uuid()).fetch_one(&mut **tx).await?;
                 let existing =
@@ -359,12 +730,30 @@ impl AtomicCommandGuard for LegalAtomicGuard {
                     .bind(value.id().as_uuid()).bind(scope_key(value.scope())?).bind(value.document_id().as_uuid())
                     .bind(to_i64(value.document_version())?).bind(value.actor_ref()).bind(value.action())
                     .bind(value.purpose()).bind(value.observed_at()).bind(version).execute(&mut **tx).await?;
+                write_exact_scope(
+                    tx,
+                    "erpx_legal_write.access_entry_guards",
+                    "access_entry_id",
+                    value.id().as_uuid(),
+                    value.scope(),
+                )
+                .await?;
             }
             LegalAggregate::Matter(value) => {
-                sqlx::query("INSERT INTO erpx_legal_write.matter_guards (matter_id,scope_key,reference,title,matter_status,legal_hold,created_by,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (matter_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,reference=EXCLUDED.reference,title=EXCLUDED.title,matter_status=EXCLUDED.matter_status,legal_hold=EXCLUDED.legal_hold,created_by=EXCLUDED.created_by,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at")
+                let changed = sqlx::query("INSERT INTO erpx_legal_write.matter_guards (matter_id,scope_key,reference,title,matter_status,legal_hold,created_by,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (matter_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,reference=EXCLUDED.reference,title=EXCLUDED.title,matter_status=EXCLUDED.matter_status,legal_hold=EXCLUDED.legal_hold,created_by=EXCLUDED.created_by,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at WHERE erpx_legal_write.matter_guards.aggregate_version + 1=EXCLUDED.aggregate_version")
                     .bind(value.id().as_uuid()).bind(scope_key(value.scope())?).bind(value.reference()).bind(value.title())
                     .bind(matter_status_name(value.status())).bind(serde_json::to_value(value.legal_hold()).map_err(|_| CqrsSqlxError::InvalidInput("Legal hold cannot be encoded"))?)
-                    .bind(value.created_by()).bind(version).bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?;
+                    .bind(value.created_by()).bind(version).bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?.rows_affected();
+                require_single_write(changed, "Legal matter write conflict")?;
+                write_exact_scope(
+                    tx,
+                    "erpx_legal_write.matter_guards",
+                    "matter_id",
+                    value.id().as_uuid(),
+                    value.scope(),
+                )
+                .await?;
+                write_legal_hold_columns(tx, value).await?;
                 let existing: i64 = sqlx::query_scalar(
                     "SELECT count(*) FROM erpx_legal_write.matter_link_guards WHERE matter_id=$1",
                 )
@@ -380,6 +769,38 @@ impl AtomicCommandGuard for LegalAtomicGuard {
                         .bind(link.target.aggregate_kind.as_str()).bind(link.target.aggregate_id).bind(to_i64(link.target.aggregate_version)?)
                         .bind(serde_json::to_value(&link.target_scope).map_err(|_| CqrsSqlxError::InvalidInput("target scope cannot be encoded"))?)
                         .bind(scope_key(&link.target_scope)?).bind(&link.target_digest).bind(&link.linked_by).bind(link.linked_at)
+                        .execute(&mut **tx).await?;
+                    write_link_scope_columns(
+                        tx,
+                        value.id().as_uuid(),
+                        ordinal + 1,
+                        &link.target_scope,
+                    )
+                    .await?;
+                }
+                if let Some(hold) = value.legal_hold() {
+                    let hold_ref = value
+                        .legal_hold_record_ref()
+                        .map_err(|_| CqrsSqlxError::InvalidInput("Legal hold record is invalid"))?
+                        .ok_or(CqrsSqlxError::InvalidInput("Legal hold record is missing"))?;
+                    sqlx::query("INSERT INTO erpx_legal_write.legal_hold_records
+                        (tenant_id,legal_hold_id,matter_id,source_matter_version,tenant_scope,
+                         scope_key,hold_active,reason,placed_by,placed_at,released_by,released_at,
+                         changed_at)
+                        VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                        ON CONFLICT (tenant_id,legal_hold_id) DO UPDATE SET
+                         source_matter_version=EXCLUDED.source_matter_version,
+                         hold_active=EXCLUDED.hold_active,released_by=EXCLUDED.released_by,
+                         released_at=EXCLUDED.released_at,changed_at=EXCLUDED.changed_at
+                        WHERE erpx_legal_write.legal_hold_records.tenant_id
+                              = erpx_cqrs_write.current_tenant_id()
+                          AND erpx_legal_write.legal_hold_records.source_matter_version + 1
+                              = EXCLUDED.source_matter_version")
+                        .bind(hold_ref.id().as_uuid()).bind(value.id().as_uuid()).bind(version)
+                        .bind(serde_json::to_value(value.scope()).map_err(|_| CqrsSqlxError::InvalidInput("Legal hold scope cannot be encoded"))?)
+                        .bind(scope_key(value.scope())?).bind(hold.active).bind(&hold.reason)
+                        .bind(&hold.placed_by).bind(hold.placed_at).bind(&hold.released_by)
+                        .bind(hold.released_at).bind(value.updated_at())
                         .execute(&mut **tx).await?;
                 }
             }
@@ -598,6 +1019,296 @@ fn bounded_context_name(
             "bounded context must encode as text",
         ))
 }
+
+async fn authorized_root(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    base_sql: &str,
+    table: &str,
+    id_column: &str,
+    id: Uuid,
+) -> Result<Option<sqlx::postgres::PgRow>, PortError> {
+    let (kind, holding_id, company_id, branch_id, company_ids, branch_ids) =
+        authority_parameters(authority)?;
+    let sql = format!(
+        "{base_sql} AND (
+          $2='platform' OR ($2='holding' AND holding_id=$3)
+          OR ($2='company' AND holding_id=$3 AND company_id=$4)
+          OR ($2='branch' AND holding_id=$3 AND company_id=$4 AND branch_id=$5)
+          OR ($2='subtree' AND holding_id=$3 AND (
+             (branch_id IS NULL AND cardinality($7::uuid[])=0 AND company_id=ANY($6::uuid[]))
+             OR (branch_id IS NOT NULL AND company_id=ANY($6::uuid[]) AND branch_id=ANY($7::uuid[]))
+          )))"
+    );
+    let row = sqlx::query(&sql)
+        .bind(id)
+        .bind(kind)
+        .bind(holding_id)
+        .bind(company_id)
+        .bind(branch_id)
+        .bind(company_ids)
+        .bind(branch_ids)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+    if row.is_some() {
+        return Ok(row);
+    }
+    let exists_sql = format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE {id_column}=$1)");
+    let exists: bool = sqlx::query_scalar(&exists_sql)
+        .bind(id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+    if exists {
+        Err(PortError::Denied)
+    } else {
+        Ok(None)
+    }
+}
+
+type AuthorityParameters = (
+    &'static str,
+    Option<Uuid>,
+    Option<Uuid>,
+    Option<Uuid>,
+    Vec<Uuid>,
+    Vec<Uuid>,
+);
+
+fn authority_parameters(scope: &TenantScope) -> Result<AuthorityParameters, PortError> {
+    scope.validate().map_err(|_| PortError::Denied)?;
+    Ok(match scope {
+        TenantScope::Platform => ("platform", None, None, None, vec![], vec![]),
+        TenantScope::Holding { holding_id } => {
+            ("holding", Some(*holding_id), None, None, vec![], vec![])
+        }
+        TenantScope::Company {
+            holding_id,
+            company_id,
+        } => (
+            "company",
+            Some(*holding_id),
+            Some(*company_id),
+            None,
+            vec![],
+            vec![],
+        ),
+        TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => (
+            "branch",
+            Some(*holding_id),
+            Some(*company_id),
+            Some(*branch_id),
+            vec![],
+            vec![],
+        ),
+        TenantScope::Subtree {
+            holding_id,
+            company_ids,
+            branch_ids,
+        } => (
+            "subtree",
+            Some(*holding_id),
+            None,
+            None,
+            company_ids.clone(),
+            branch_ids.clone(),
+        ),
+    })
+}
+
+fn exact_scope(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+    exact_scope_named(
+        row.try_get("holding_id").map_err(|_| PortError::Internal)?,
+        row.try_get("company_id").map_err(|_| PortError::Internal)?,
+        row.try_get("branch_id").map_err(|_| PortError::Internal)?,
+    )
+}
+
+fn exact_scope_named(
+    holding_id: Uuid,
+    company_id: Uuid,
+    branch_id: Option<Uuid>,
+) -> Result<TenantScope, PortError> {
+    let scope = match branch_id {
+        Some(branch_id) => TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        },
+        None => TenantScope::Company {
+            holding_id,
+            company_id,
+        },
+    };
+    scope.validate().map_err(|_| PortError::Internal)?;
+    Ok(scope)
+}
+
+fn exact_scope_ids(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+    match scope {
+        TenantScope::Company {
+            holding_id,
+            company_id,
+        } => Ok((*holding_id, *company_id, None)),
+        TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => Ok((*holding_id, *company_id, Some(*branch_id))),
+        _ => Err(CqrsSqlxError::InvalidInput("Legal scope must be exact")),
+    }
+}
+
+async fn write_exact_scope(
+    tx: &mut Transaction<'_, Postgres>,
+    table: &str,
+    id_column: &str,
+    id: Uuid,
+    scope: &TenantScope,
+) -> Result<(), CqrsSqlxError> {
+    let (holding_id, company_id, branch_id) = exact_scope_ids(scope)?;
+    let sql =
+        format!("UPDATE {table} SET holding_id=$2,company_id=$3,branch_id=$4 WHERE {id_column}=$1");
+    let changed = sqlx::query(&sql)
+        .bind(id)
+        .bind(holding_id)
+        .bind(company_id)
+        .bind(branch_id)
+        .execute(&mut **tx)
+        .await?
+        .rows_affected();
+    require_single_write(changed, "Legal scope authority write conflict")
+}
+
+async fn write_legal_hold_columns(
+    tx: &mut Transaction<'_, Postgres>,
+    matter: &LegalMatter,
+) -> Result<(), CqrsSqlxError> {
+    let hold = matter.legal_hold();
+    let changed = sqlx::query(
+        "UPDATE erpx_legal_write.matter_guards SET
+           hold_active=$2,hold_reason=$3,hold_placed_by=$4,hold_placed_at=$5,
+           hold_released_by=$6,hold_released_at=$7 WHERE matter_id=$1",
+    )
+    .bind(matter.id().as_uuid())
+    .bind(hold.map(|value| value.active))
+    .bind(hold.map(|value| value.reason.as_str()))
+    .bind(hold.map(|value| value.placed_by.as_str()))
+    .bind(hold.map(|value| value.placed_at))
+    .bind(hold.and_then(|value| value.released_by.as_deref()))
+    .bind(hold.and_then(|value| value.released_at))
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    require_single_write(changed, "Legal hold authority write conflict")
+}
+
+async fn write_link_scope_columns(
+    tx: &mut Transaction<'_, Postgres>,
+    matter_id: Uuid,
+    ordinal: usize,
+    scope: &TenantScope,
+) -> Result<(), CqrsSqlxError> {
+    let (holding_id, company_id, branch_id) = exact_scope_ids(scope)?;
+    let changed = sqlx::query(
+        "UPDATE erpx_legal_write.matter_link_guards SET
+           target_holding_id=$3,target_company_id=$4,target_branch_id=$5
+         WHERE matter_id=$1 AND link_ordinal=$2",
+    )
+    .bind(matter_id)
+    .bind(to_i64(
+        u64::try_from(ordinal).map_err(|_| CqrsSqlxError::NumericRange)?,
+    )?)
+    .bind(holding_id)
+    .bind(company_id)
+    .bind(branch_id)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    require_single_write(changed, "Legal link authority write conflict")
+}
+
+fn require_single_write(changed: u64, message: &'static str) -> Result<(), CqrsSqlxError> {
+    if changed == 1 {
+        Ok(())
+    } else {
+        Err(CqrsSqlxError::GuardRejected(message))
+    }
+}
+
+fn row_u64(row: &sqlx::postgres::PgRow, column: &str) -> Result<u64, PortError> {
+    u64::try_from(
+        row.try_get::<i64, _>(column)
+            .map_err(|_| PortError::Internal)?,
+    )
+    .map_err(|_| PortError::Internal)
+}
+
+fn parse_contract_status(value: &str) -> Result<ContractStatus, PortError> {
+    match value {
+        "draft" => Ok(ContractStatus::Draft),
+        "review" => Ok(ContractStatus::Review),
+        "approved" => Ok(ContractStatus::Approved),
+        "active" => Ok(ContractStatus::Active),
+        "expired" => Ok(ContractStatus::Expired),
+        "terminated" => Ok(ContractStatus::Terminated),
+        "archived" => Ok(ContractStatus::Archived),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_matter_status(value: &str) -> Result<MatterStatus, PortError> {
+    match value {
+        "open" => Ok(MatterStatus::Open),
+        "closed" => Ok(MatterStatus::Closed),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_record_relation(value: &str) -> Result<RecordRelation, PortError> {
+    match value {
+        "governed_by" => Ok(RecordRelation::GovernedBy),
+        "supports" => Ok(RecordRelation::Supports),
+        "billed_under" => Ok(RecordRelation::BilledUnder),
+        "attributed_to" => Ok(RecordRelation::AttributedTo),
+        "disputes" => Ok(RecordRelation::Disputes),
+        "settlement_for" => Ok(RecordRelation::SettlementFor),
+        "supersedes" => Ok(RecordRelation::Supersedes),
+        "accounting_for" => Ok(RecordRelation::AccountingFor),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_bounded_context(value: &str) -> Result<BoundedContext, PortError> {
+    match value {
+        "identity_access" => Ok(BoundedContext::IdentityAccess),
+        "organization" => Ok(BoundedContext::Organization),
+        "commercial" => Ok(BoundedContext::Commercial),
+        "platform_administration" => Ok(BoundedContext::PlatformAdministration),
+        "brand" => Ok(BoundedContext::Brand),
+        "customer" => Ok(BoundedContext::Customer),
+        "marketing" => Ok(BoundedContext::Marketing),
+        "crm" => Ok(BoundedContext::Crm),
+        "procurement" => Ok(BoundedContext::Procurement),
+        "inventory" => Ok(BoundedContext::Inventory),
+        "assets" => Ok(BoundedContext::Assets),
+        "maintenance" => Ok(BoundedContext::Maintenance),
+        "quality" => Ok(BoundedContext::Quality),
+        "sales" => Ok(BoundedContext::Sales),
+        "people_payroll" => Ok(BoundedContext::PeoplePayroll),
+        "pos" => Ok(BoundedContext::Pos),
+        "finance" => Ok(BoundedContext::Finance),
+        "legal" => Ok(BoundedContext::Legal),
+        "support" => Ok(BoundedContext::Support),
+        "operations" => Ok(BoundedContext::Operations),
+        _ => Err(PortError::Internal),
+    }
+}
 fn request_hash(value: &CommandFingerprint) -> Result<RequestHash, PortError> {
     let mut digest = Sha256::new();
     digest.update(b"erpx.legal.command.v1\0");
@@ -712,5 +1423,14 @@ mod tests {
             "DELETE FROM erpx_legal_write.document_",
             "version_guards"
         )));
+    }
+
+    #[test]
+    fn legal_hold_authority_and_descriptor_share_the_matter_uow() {
+        let source = include_str!("command.rs");
+        assert!(source.contains("legal_hold_records"));
+        assert!(source.contains("legal_directory_drafts"));
+        assert!(source.contains("LegalOutboxPayload::Directory"));
+        assert!(source.contains("source_matter_version + 1"));
     }
 }

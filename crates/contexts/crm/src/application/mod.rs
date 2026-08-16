@@ -18,7 +18,8 @@ use crate::{
     ports::{
         AuthorizationPort, AuthorizationRequest, CommandFingerprint, CommandIdentity,
         CommandUnitOfWork, CrmAction, CrmCommit, CrmLeadView, EntitlementPort, OpportunityList,
-        OpportunityListFilter, OpportunityView, PortError, ReadRepository, StoredCommit,
+        OpportunityListFilter, OpportunityView, PortError, QualifiedLeadEvidence,
+        QualifiedLeadResolveRequest, QualifiedLeadResolverPort, ReadRepository, StoredCommit,
         WriteRepository,
     },
 };
@@ -129,14 +130,28 @@ pub enum CrmApplicationError {
     Port(#[from] PortError),
 }
 
-pub struct CrmCommandHandler<W, U, A, E, C> {
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UnavailableQualifiedLeadResolver;
+
+#[async_trait]
+impl QualifiedLeadResolverPort for UnavailableQualifiedLeadResolver {
+    async fn resolve_qualified_lead(
+        &self,
+        _request: QualifiedLeadResolveRequest<'_>,
+    ) -> Result<QualifiedLeadEvidence, PortError> {
+        Err(PortError::Unavailable)
+    }
+}
+
+pub struct CrmCommandHandler<W, U, A, E, C, M = UnavailableQualifiedLeadResolver> {
     write: W,
     uow: U,
     authorization: A,
     entitlement: E,
     clock: C,
+    qualified_leads: M,
 }
-impl<W, U, A, E, C> CrmCommandHandler<W, U, A, E, C> {
+impl<W, U, A, E, C> CrmCommandHandler<W, U, A, E, C, UnavailableQualifiedLeadResolver> {
     pub const fn new(write: W, uow: U, authorization: A, entitlement: E, clock: C) -> Self {
         Self {
             write,
@@ -144,16 +159,35 @@ impl<W, U, A, E, C> CrmCommandHandler<W, U, A, E, C> {
             authorization,
             entitlement,
             clock,
+            qualified_leads: UnavailableQualifiedLeadResolver,
         }
     }
 }
-impl<W, U, A, E, C> CrmCommandHandler<W, U, A, E, C>
+
+impl<W, U, A, E, C, M> CrmCommandHandler<W, U, A, E, C, M> {
+    pub fn with_qualified_lead_resolver<N>(
+        self,
+        qualified_leads: N,
+    ) -> CrmCommandHandler<W, U, A, E, C, N> {
+        CrmCommandHandler {
+            write: self.write,
+            uow: self.uow,
+            authorization: self.authorization,
+            entitlement: self.entitlement,
+            clock: self.clock,
+            qualified_leads,
+        }
+    }
+}
+
+impl<W, U, A, E, C, M> CrmCommandHandler<W, U, A, E, C, M>
 where
     W: WriteRepository,
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
     C: Clock,
+    M: QualifiedLeadResolverPort,
 {
     async fn preflight(
         &self,
@@ -205,13 +239,14 @@ where
 }
 
 #[async_trait]
-impl<W, U, A, E, C> CommandHandler<CrmCommand> for CrmCommandHandler<W, U, A, E, C>
+impl<W, U, A, E, C, M> CommandHandler<CrmCommand> for CrmCommandHandler<W, U, A, E, C, M>
 where
     W: WriteRepository,
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
     C: Clock,
+    M: QualifiedLeadResolverPort,
 {
     type Response = CrmMutationResult;
     async fn handle(
@@ -289,11 +324,27 @@ where
                 )
                 .await
                 .map_err(|e| to_cqrs(e, correlation))?;
-                let q = c.qualified;
+                let requested_candidate = c.qualified.candidate;
+                let evidence = self
+                    .qualified_leads
+                    .resolve_qualified_lead(QualifiedLeadResolveRequest {
+                        actor: &envelope.actor,
+                        authority_scope: &envelope.tenant_scope,
+                        candidate: requested_candidate,
+                    })
+                    .await
+                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+                if evidence.fact.candidate != requested_candidate || evidence.source_version == 0 {
+                    return Err(to_cqrs(PortError::Denied.into(), correlation));
+                }
+                let q = evidence.fact;
                 let lead = CrmLead::accept(
                     c.lead_id,
                     envelope.tenant_scope.clone(),
                     q.candidate.as_uuid(),
+                    q.campaign.as_uuid(),
+                    q.audience_member.as_uuid(),
+                    evidence.source_version,
                     q.existing_customer.map(|v| v.as_uuid()),
                     q.source.into_inner(),
                     q.qualification_score_basis_points,
@@ -571,5 +622,7 @@ fn to_cqrs(error: CrmApplicationError, correlation_id: CorrelationId) -> CqrsErr
     })
 }
 
+mod records;
 #[cfg(test)]
 mod tests;
+pub use records::{CrmRecordApplicationError, CrmRecordCommandHandler};

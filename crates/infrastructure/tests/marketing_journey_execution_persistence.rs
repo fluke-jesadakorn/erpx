@@ -571,7 +571,6 @@ async fn execution_claim_resume_replay_and_scope_are_durable() {
         .expect("cleanup scope");
     for table in [
         "erpx_tenant.outbox_events",
-        "erpx_tenant.aggregate_snapshots",
         "erpx_tenant.marketing_journey_execution_idempotency",
         "erpx_tenant.marketing_journey_execution_cursors",
         "erpx_tenant.marketing_journey_command_idempotency",
@@ -833,7 +832,6 @@ async fn journey_owner_notification_queues_projects_and_replays_exactly() {
         "erpx_tenant.marketing_delivery_idempotency",
         "erpx_tenant.marketing_profiles",
         "erpx_tenant.outbox_events",
-        "erpx_tenant.aggregate_snapshots",
         "erpx_tenant.marketing_journey_execution_idempotency",
         "erpx_tenant.marketing_journey_execution_cursors",
         "erpx_tenant.marketing_journey_command_idempotency",
@@ -1054,7 +1052,6 @@ async fn journey_conversion_persists_projects_and_replays_exactly() {
         "erpx_tenant.marketing_journey_conversions",
         "erpx_tenant.marketing_profiles",
         "erpx_tenant.outbox_events",
-        "erpx_tenant.aggregate_snapshots",
         "erpx_tenant.marketing_journey_execution_idempotency",
         "erpx_tenant.marketing_journey_execution_cursors",
         "erpx_tenant.marketing_journey_command_idempotency",
@@ -1220,7 +1217,6 @@ async fn journey_profile_tag_action_updates_authoritative_profile_and_replays_ex
     for table in [
         "erpx_tenant.marketing_profiles",
         "erpx_tenant.outbox_events",
-        "erpx_tenant.aggregate_snapshots",
         "erpx_tenant.marketing_journey_execution_idempotency",
         "erpx_tenant.marketing_journey_execution_cursors",
         "erpx_tenant.marketing_journey_command_idempotency",
@@ -1391,7 +1387,6 @@ async fn journey_crm_handoff_commits_with_execution_and_replays_exactly() {
         "erpx_tenant.crm_idempotency_bindings",
         "erpx_tenant.crm_accepted_lead_handoffs",
         "erpx_tenant.outbox_events",
-        "erpx_tenant.aggregate_snapshots",
         "erpx_tenant.marketing_journey_execution_idempotency",
         "erpx_tenant.marketing_journey_execution_cursors",
         "erpx_tenant.marketing_journey_command_idempotency",
@@ -1596,7 +1591,6 @@ async fn journey_segment_change_updates_authoritative_audience_and_replays_exact
         "erpx_tenant.marketing_command_idempotency",
         "erpx_tenant.marketing_profiles",
         "erpx_tenant.outbox_events",
-        "erpx_tenant.aggregate_snapshots",
         "erpx_tenant.marketing_journey_execution_idempotency",
         "erpx_tenant.marketing_journey_execution_cursors",
         "erpx_tenant.marketing_journey_command_idempotency",

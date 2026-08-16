@@ -50,7 +50,59 @@ pub struct Entitlement {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EntitlementState {
+    pub id: EntitlementId,
+    pub version: u64,
+    pub scope: TenantScope,
+    pub subscription_id: SubscriptionId,
+    pub capability: String,
+    pub enabled: bool,
+    pub capacity: EntitlementCapacity,
+    pub allocated: EntitlementCapacity,
+    pub last_provider_event_id: Option<String>,
+    pub last_provider_event_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl Entitlement {
+    pub fn try_rehydrate(state: EntitlementState) -> Result<Self, CommercialDomainError> {
+        let holding_id = holding_id(&state.scope)?;
+        validate_text(&state.capability, "capability")?;
+        state.capacity.validate()?;
+        if state.version == 0
+            || !state.capacity.contains(state.allocated)
+            || state.updated_at < state.created_at
+            || state
+                .last_provider_event_id
+                .as_ref()
+                .is_some_and(|value| validate_text(value, "provider_event_id").is_err())
+            || state.last_provider_event_id.is_some() != state.last_provider_event_at.is_some()
+            || state
+                .last_provider_event_at
+                .is_some_and(|at| at > state.updated_at)
+        {
+            return Err(CommercialDomainError::InvalidTimestamp);
+        }
+        Ok(Self {
+            id: state.id,
+            version: state.version,
+            scope: state.scope,
+            holding_id,
+            subscription_id: state.subscription_id,
+            capability: state.capability,
+            enabled: state.enabled,
+            capacity: state.capacity,
+            allocated: state.allocated,
+            last_provider_event_id: state.last_provider_event_id,
+            last_provider_event_at: state.last_provider_event_at,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        })
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: EntitlementId,

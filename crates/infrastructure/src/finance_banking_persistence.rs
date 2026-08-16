@@ -279,7 +279,7 @@ impl SqlxFinanceBankingStore {
         .bind(&payload)
         .execute(&mut *tx)
         .await?;
-        persist_snapshot_and_outbox(
+        persist_source_event(
             &mut tx,
             &self.holding_ref,
             "finance_bank_account",
@@ -398,7 +398,7 @@ impl SqlxFinanceBankingStore {
         for transaction in import.transactions() {
             insert_transaction(&mut tx, &self.holding_ref, import.id(), transaction).await?;
         }
-        persist_snapshot_and_outbox(
+        persist_source_event(
             &mut tx,
             &self.holding_ref,
             "finance_bank_statement_import",
@@ -573,7 +573,7 @@ impl SqlxFinanceBankingStore {
         .bind(&payload)
         .execute(&mut *tx)
         .await?;
-        persist_snapshot_and_outbox(
+        persist_source_event(
             &mut tx,
             &self.holding_ref,
             "finance_bank_reconciliation",
@@ -756,7 +756,7 @@ impl SqlxFinanceBankingStore {
         .bind(&payload)
         .execute(&mut *tx)
         .await?;
-        crate::finance_persistence::write_finance_snapshot_and_outbox(
+        persist_source_event(
             &mut tx,
             &self.holding_ref,
             "finance_bank_match_proposal",
@@ -885,7 +885,7 @@ impl SqlxFinanceBankingStore {
         .bind(&payload)
         .execute(&mut *tx)
         .await?;
-        crate::finance_persistence::write_finance_snapshot_and_outbox(
+        persist_source_event(
             &mut tx,
             &self.holding_ref,
             "finance_bank_match_decision",
@@ -1539,7 +1539,7 @@ impl SqlxFinanceBankingStore {
     }
 
     /// Rebuild the replaceable banking read model from one locked source
-    /// snapshot. The source transaction holds the same advisory/table fence as
+    /// watermark. The source transaction holds the same advisory/table fence as
     /// Finance writes, while the read transaction contains the clear and all
     /// replay writes. A decode, gap, or database failure therefore rolls back
     /// the read transaction and leaves the previous read model intact.
@@ -2453,7 +2453,7 @@ async fn insert_transaction(
     Ok(())
 }
 
-async fn persist_snapshot_and_outbox(
+async fn persist_source_event(
     tx: &mut Transaction<'_, Postgres>,
     holding_ref: &str,
     aggregate_type: &str,
@@ -2462,20 +2462,6 @@ async fn persist_snapshot_and_outbox(
     payload: &Value,
     event_type: &str,
 ) -> Result<(), PersistenceError> {
-    sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-             holding_ref=$3, version=$4, state=$5, updated_at=now()",
-    )
-    .bind(aggregate_type)
-    .bind(aggregate_id)
-    .bind(holding_ref)
-    .bind(as_i64(version, "Finance banking aggregate version")?)
-    .bind(payload)
-    .execute(&mut **tx)
-    .await?;
     sqlx::query(
         "INSERT INTO erpx_tenant.outbox_events
             (event_id, aggregate_type, aggregate_id, holding_ref,
@@ -2652,30 +2638,6 @@ async fn validate_banking_receipt_evidence(
                 ));
             }
         };
-    let snapshot = sqlx::query(
-        "SELECT holding_ref, version, state
-           FROM erpx_tenant.aggregate_snapshots
-          WHERE aggregate_type=$1 AND aggregate_id=$2
-          FOR SHARE",
-    )
-    .bind(expected_aggregate_type)
-    .bind(aggregate_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or(PersistenceError::InvalidData(
-        "banking idempotency replay is missing its aggregate snapshot".into(),
-    ))?;
-    if snapshot.try_get::<String, _>("holding_ref")? != holding_ref
-        || as_u64(
-            snapshot.try_get("version")?,
-            "Finance banking snapshot version",
-        )? != source_version
-        || snapshot.try_get::<Value, _>("state")? != source_payload
-    {
-        return Err(PersistenceError::InvalidData(
-            "banking idempotency replay has divergent aggregate snapshot evidence".into(),
-        ));
-    }
     let events = sqlx::query(
         "SELECT aggregate_version, event_type, payload
            FROM erpx_tenant.outbox_events

@@ -1,3 +1,7 @@
+mod governance;
+
+pub use governance::*;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{
@@ -14,7 +18,8 @@ use thiserror::Error;
 use crate::{
     domain::{
         AccessPrincipal, AccessRole, IdentityAccessAggregate, IdentityAccessDomainError,
-        PermissionKey, PrincipalId, RiskTier, RoleAssignment, RoleAssignmentId, RoleCode, RoleId,
+        NonHumanPrincipalGovernance, PermissionKey, PrincipalId, PrincipalKind, RiskTier,
+        RoleAssignment, RoleAssignmentId, RoleCode, RoleId,
     },
     integration,
     ports::{
@@ -35,6 +40,15 @@ pub struct CreatePrincipal {
     pub principal_id: PrincipalId,
     pub scope: TenantScope,
     pub display_name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateAuthorityGroup {
+    pub group_id: PrincipalId,
+    pub scope: TenantScope,
+    pub display_name: String,
+    pub group_kind: PrincipalKind,
+    pub governance: NonHumanPrincipalGovernance,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -72,10 +86,49 @@ pub struct AssignRole {
     pub approver_ref: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenewRole {
+    pub principal_id: PrincipalId,
+    pub assignment_id: RoleAssignmentId,
+    pub replacement_assignment_id: RoleAssignmentId,
+    pub valid_until: DateTime<Utc>,
+    pub grantor_ref: String,
+    pub approver_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecoverRole {
+    pub principal_id: PrincipalId,
+    pub assignment_id: RoleAssignmentId,
+    pub role_id: RoleId,
+    pub scope: TenantScope,
+    pub risk_tier: RiskTier,
+    pub valid_from: DateTime<Utc>,
+    pub valid_until: DateTime<Utc>,
+    pub grant_reason: String,
+    pub ticket_reference: Option<String>,
+    pub grantor_ref: String,
+    pub approver_ref: Option<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RevokeRole {
     pub principal_id: PrincipalId,
     pub assignment_id: RoleAssignmentId,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AddGroupMember {
+    pub group_id: PrincipalId,
+    pub member_principal_id: PrincipalId,
+    pub valid_from: DateTime<Utc>,
+    pub valid_until: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevokeGroupMember {
+    pub group_id: PrincipalId,
+    pub member_principal_id: PrincipalId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -162,6 +215,8 @@ pub enum IdentityAccessApplicationError {
     InvalidPageSize,
     #[error("identity access integration event mapping failed")]
     IntegrationMapping,
+    #[error("an authority group must be a governed human group or agent pool")]
+    InvalidAuthorityGroupKind,
     #[error(transparent)]
     Port(#[from] PortError),
 }
@@ -431,6 +486,67 @@ where
 }
 
 #[async_trait]
+impl<W, U, A, E, C> CommandHandler<CreateAuthorityGroup>
+    for IdentityAccessCommandHandler<W, U, A, E, C>
+where
+    W: WriteRepository,
+    U: CommandUnitOfWork,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+    C: Clock,
+{
+    type Response = CreatePrincipalResult;
+
+    async fn handle(
+        &self,
+        envelope: CommandEnvelope<CreateAuthorityGroup>,
+    ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        let command = envelope.command.clone();
+        if !matches!(
+            command.group_kind,
+            PrincipalKind::HumanGroup | PrincipalKind::AgentPool
+        ) {
+            return Err(to_cqrs(
+                IdentityAccessApplicationError::InvalidAuthorityGroupKind,
+                envelope.correlation_id,
+            ));
+        }
+        let identity = CommandIdentity {
+            command_id: envelope.command_id,
+            idempotency_key: envelope.idempotency_key.clone(),
+            fingerprint: CommandFingerprint::CreateAuthorityGroup {
+                group_id: command.group_id,
+                scope: command.scope.clone(),
+                display_name: command.display_name.clone(),
+                group_kind: command.group_kind,
+                governance: command.governance.clone(),
+            },
+        };
+        let aggregate = AccessPrincipal::create_non_human(
+            command.group_id,
+            command.scope,
+            command.display_name,
+            command.group_kind,
+            command.governance,
+            self.clock.now(),
+        )
+        .map(IdentityAccessAggregate::Principal)
+        .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?;
+        let stored = self
+            .commit_new(
+                envelope,
+                identity,
+                aggregate,
+                IdentityAccessAction::CreateAuthorityGroup,
+            )
+            .await?;
+        let principal = principal_view(&stored.aggregate, stored.correlation_id)?;
+        Ok(stored.into_receipt(CreatePrincipalResult { principal }))
+    }
+}
+
+#[async_trait]
 impl<W, U, A, E, C> CommandHandler<DefineRole> for IdentityAccessCommandHandler<W, U, A, E, C>
 where
     W: WriteRepository,
@@ -681,6 +797,260 @@ where
                 move |aggregate, at| match aggregate {
                     IdentityAccessAggregate::Principal(value) => value
                         .revoke_role(command.assignment_id, at)
+                        .map_err(Into::into),
+                    IdentityAccessAggregate::Role(_) => {
+                        Err(IdentityAccessApplicationError::AggregateTypeMismatch)
+                    }
+                },
+            )
+            .await?;
+        let principal = principal_view(&stored.aggregate, correlation_id)?;
+        Ok(stored.into_receipt(PrincipalMutationResult { principal }))
+    }
+}
+
+#[async_trait]
+impl<W, U, A, E, C> CommandHandler<RenewRole> for IdentityAccessCommandHandler<W, U, A, E, C>
+where
+    W: WriteRepository,
+    U: CommandUnitOfWork,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+    C: Clock,
+{
+    type Response = PrincipalMutationResult;
+
+    async fn handle(
+        &self,
+        envelope: CommandEnvelope<RenewRole>,
+    ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        let command = envelope.command;
+        let correlation_id = envelope.correlation_id;
+        let stored = self
+            .execute_existing(
+                ExistingCommand {
+                    correlation_id,
+                    causation_id: envelope.causation_id,
+                    actor: envelope.actor,
+                    authority_scope: envelope.tenant_scope,
+                    audit: envelope.audit,
+                    expected_version: envelope.expected_aggregate_version,
+                    identity: CommandIdentity {
+                        command_id: envelope.command_id,
+                        idempotency_key: envelope.idempotency_key,
+                        fingerprint: CommandFingerprint::RenewRole {
+                            principal_id: command.principal_id,
+                            assignment_id: command.assignment_id,
+                            replacement_assignment_id: command.replacement_assignment_id,
+                            valid_until: command.valid_until,
+                            grantor_ref: command.grantor_ref.clone(),
+                            approver_ref: command.approver_ref.clone(),
+                        },
+                    },
+                    key: AggregateKey::Principal(command.principal_id),
+                    action: IdentityAccessAction::RenewRole,
+                },
+                move |aggregate, at| match aggregate {
+                    IdentityAccessAggregate::Principal(value) => value
+                        .renew_role(
+                            command.assignment_id,
+                            command.replacement_assignment_id,
+                            command.valid_until,
+                            command.grantor_ref,
+                            command.approver_ref,
+                            at,
+                        )
+                        .map_err(Into::into),
+                    IdentityAccessAggregate::Role(_) => {
+                        Err(IdentityAccessApplicationError::AggregateTypeMismatch)
+                    }
+                },
+            )
+            .await?;
+        let principal = principal_view(&stored.aggregate, correlation_id)?;
+        Ok(stored.into_receipt(PrincipalMutationResult { principal }))
+    }
+}
+
+#[async_trait]
+impl<W, U, A, E, C> CommandHandler<RecoverRole> for IdentityAccessCommandHandler<W, U, A, E, C>
+where
+    W: WriteRepository,
+    U: CommandUnitOfWork,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+    C: Clock,
+{
+    type Response = PrincipalMutationResult;
+
+    async fn handle(
+        &self,
+        envelope: CommandEnvelope<RecoverRole>,
+    ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        let command = envelope.command;
+        let correlation_id = envelope.correlation_id;
+        let fingerprint = CommandFingerprint::RecoverRole {
+            principal_id: command.principal_id,
+            assignment_id: command.assignment_id,
+            role_id: command.role_id,
+            scope: command.scope.clone(),
+            risk_tier: command.risk_tier,
+            valid_from: command.valid_from,
+            valid_until: command.valid_until,
+            grant_reason: command.grant_reason.clone(),
+            ticket_reference: command.ticket_reference.clone(),
+            grantor_ref: command.grantor_ref.clone(),
+            approver_ref: command.approver_ref.clone(),
+        };
+        let stored = self
+            .execute_existing(
+                ExistingCommand {
+                    correlation_id,
+                    causation_id: envelope.causation_id,
+                    actor: envelope.actor,
+                    authority_scope: envelope.tenant_scope,
+                    audit: envelope.audit,
+                    expected_version: envelope.expected_aggregate_version,
+                    identity: CommandIdentity {
+                        command_id: envelope.command_id,
+                        idempotency_key: envelope.idempotency_key,
+                        fingerprint,
+                    },
+                    key: AggregateKey::Principal(command.principal_id),
+                    action: IdentityAccessAction::RecoverRole,
+                },
+                move |aggregate, at| match aggregate {
+                    IdentityAccessAggregate::Principal(value) => {
+                        let assignment = RoleAssignment::new(
+                            command.assignment_id,
+                            command.role_id,
+                            value.scope(),
+                            command.scope,
+                            command.risk_tier,
+                            command.valid_from,
+                            command.valid_until,
+                            command.grant_reason,
+                            command.ticket_reference,
+                            command.grantor_ref,
+                            command.approver_ref,
+                        )?;
+                        value.assign_role(assignment, at).map_err(Into::into)
+                    }
+                    IdentityAccessAggregate::Role(_) => {
+                        Err(IdentityAccessApplicationError::AggregateTypeMismatch)
+                    }
+                },
+            )
+            .await?;
+        let principal = principal_view(&stored.aggregate, correlation_id)?;
+        Ok(stored.into_receipt(PrincipalMutationResult { principal }))
+    }
+}
+
+#[async_trait]
+impl<W, U, A, E, C> CommandHandler<AddGroupMember> for IdentityAccessCommandHandler<W, U, A, E, C>
+where
+    W: WriteRepository,
+    U: CommandUnitOfWork,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+    C: Clock,
+{
+    type Response = PrincipalMutationResult;
+
+    async fn handle(
+        &self,
+        envelope: CommandEnvelope<AddGroupMember>,
+    ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        let command = envelope.command;
+        let correlation_id = envelope.correlation_id;
+        let stored = self
+            .execute_existing(
+                ExistingCommand {
+                    correlation_id,
+                    causation_id: envelope.causation_id,
+                    actor: envelope.actor,
+                    authority_scope: envelope.tenant_scope,
+                    audit: envelope.audit,
+                    expected_version: envelope.expected_aggregate_version,
+                    identity: CommandIdentity {
+                        command_id: envelope.command_id,
+                        idempotency_key: envelope.idempotency_key,
+                        fingerprint: CommandFingerprint::AddGroupMember {
+                            group_id: command.group_id,
+                            member_principal_id: command.member_principal_id,
+                            valid_from: command.valid_from,
+                            valid_until: command.valid_until,
+                        },
+                    },
+                    key: AggregateKey::Principal(command.group_id),
+                    action: IdentityAccessAction::AddGroupMember,
+                },
+                move |aggregate, at| match aggregate {
+                    IdentityAccessAggregate::Principal(value) => value
+                        .add_group_member(
+                            command.member_principal_id,
+                            command.valid_from,
+                            command.valid_until,
+                            at,
+                        )
+                        .map_err(Into::into),
+                    IdentityAccessAggregate::Role(_) => {
+                        Err(IdentityAccessApplicationError::AggregateTypeMismatch)
+                    }
+                },
+            )
+            .await?;
+        let principal = principal_view(&stored.aggregate, correlation_id)?;
+        Ok(stored.into_receipt(PrincipalMutationResult { principal }))
+    }
+}
+
+#[async_trait]
+impl<W, U, A, E, C> CommandHandler<RevokeGroupMember>
+    for IdentityAccessCommandHandler<W, U, A, E, C>
+where
+    W: WriteRepository,
+    U: CommandUnitOfWork,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+    C: Clock,
+{
+    type Response = PrincipalMutationResult;
+
+    async fn handle(
+        &self,
+        envelope: CommandEnvelope<RevokeGroupMember>,
+    ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        let command = envelope.command;
+        let correlation_id = envelope.correlation_id;
+        let stored = self
+            .execute_existing(
+                ExistingCommand {
+                    correlation_id,
+                    causation_id: envelope.causation_id,
+                    actor: envelope.actor,
+                    authority_scope: envelope.tenant_scope,
+                    audit: envelope.audit,
+                    expected_version: envelope.expected_aggregate_version,
+                    identity: CommandIdentity {
+                        command_id: envelope.command_id,
+                        idempotency_key: envelope.idempotency_key,
+                        fingerprint: CommandFingerprint::RevokeGroupMember {
+                            group_id: command.group_id,
+                            member_principal_id: command.member_principal_id,
+                        },
+                    },
+                    key: AggregateKey::Principal(command.group_id),
+                    action: IdentityAccessAction::RevokeGroupMember,
+                },
+                move |aggregate, at| match aggregate {
+                    IdentityAccessAggregate::Principal(value) => value
+                        .revoke_group_member(command.member_principal_id, at)
                         .map_err(Into::into),
                     IdentityAccessAggregate::Role(_) => {
                         Err(IdentityAccessApplicationError::AggregateTypeMismatch)
@@ -977,6 +1347,7 @@ fn to_cqrs(error: IdentityAccessApplicationError, correlation_id: CorrelationId)
         | IdentityAccessApplicationError::MissingExpectedVersion
         | IdentityAccessApplicationError::InvalidPageSize
         | IdentityAccessApplicationError::IntegrationMapping
+        | IdentityAccessApplicationError::InvalidAuthorityGroupKind
         | IdentityAccessApplicationError::AggregateTypeMismatch
         | IdentityAccessApplicationError::Port(PortError::AggregateTypeMismatch) => (
             "identity_access.invalid",

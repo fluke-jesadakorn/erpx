@@ -4,6 +4,7 @@
 mod command;
 mod projection;
 mod read;
+mod time_record;
 
 pub use command::{PeoplePayrollCommandAdapter, PeoplePayrollWriteRepository};
 pub use projection::{
@@ -11,6 +12,7 @@ pub use projection::{
     PeoplePayrollOutboxPayload, PeoplePayrollSnapshot,
 };
 pub use read::{PeoplePayrollReadRepository, decode_cursor, encode_cursor};
+pub use time_record::{TimeRecordProjector, TimeRecordReadAdapter, TimeRecordSqlxAdapter};
 
 pub const CONTEXT_NAME: &str = "people_payroll";
 pub const EMPLOYEE_AGGREGATE_TYPE: &str = "employee";
@@ -33,6 +35,17 @@ const WRITE_DDL: &str = include_str!(
 #[cfg(test)]
 const READ_DDL: &str = include_str!(
     "../../../migration/migrations_tenant_read/0053_wave7_transactional_context_projections.sql"
+);
+#[cfg(test)]
+const COMPLETION_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
+#[cfg(test)]
+const COMPLETION_READ_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
+);
+#[cfg(test)]
+const NORMALIZED_AUTHORITY_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
 );
 
 pub fn employee_partition(id: erpx_people_payroll::EmployeeId) -> String {
@@ -68,5 +81,42 @@ mod tests {
         let source = include_str!("read.rs");
         assert!(!source.contains(concat!("Write", "Pool")));
         assert!(!source.contains(concat!("aggregate_", "snapshots")));
+    }
+
+    #[test]
+    fn completion_records_are_normalized_tenant_bound_and_rebuildable() {
+        for table in ["employment_records", "payslip_records"] {
+            assert!(COMPLETION_WRITE_DDL.contains(table));
+        }
+        for table in ["employment_projection", "payslip_projection"] {
+            assert!(COMPLETION_READ_DDL.contains(table));
+        }
+        assert!(COMPLETION_WRITE_DDL.contains("FORCE ROW LEVEL SECURITY"));
+        assert!(COMPLETION_READ_DDL.contains("FORCE ROW LEVEL SECURITY"));
+        assert!(COMPLETION_READ_DDL.contains("(tenant_id,projection_name,generation)"));
+        assert!(!COMPLETION_WRITE_DDL.contains("employment_snapshot"));
+        assert!(!COMPLETION_WRITE_DDL.contains("payslip_snapshot"));
+    }
+
+    #[test]
+    fn command_authority_is_typed_relational_and_snapshot_free() {
+        let source = include_str!("command.rs");
+        for table in [
+            "employee_authority",
+            "leave_request_authority",
+            "expense_claim_authority",
+            "payroll_run_authority",
+            "payroll_line_authority",
+            "payroll_calculation_evidence_authority",
+            "payroll_input_evidence_authority",
+        ] {
+            assert!(source.contains(table));
+            assert!(NORMALIZED_AUTHORITY_DDL.contains(table));
+        }
+        assert!(source.contains("commit_normalized"));
+        assert!(source.contains("authoritative_version"));
+        assert!(!source.contains("load_snapshot"));
+        assert!(!source.contains("commit_guarded"));
+        assert!(!NORMALIZED_AUTHORITY_DDL.contains("aggregate_components"));
     }
 }

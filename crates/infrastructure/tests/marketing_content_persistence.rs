@@ -666,17 +666,6 @@ async fn content_lifecycle_is_atomic_idempotent_versioned_and_rebuildable() {
         .await
         .expect("cleanup outbox");
     sqlx::query(
-        "DELETE FROM erpx_tenant.aggregate_snapshots
-          WHERE holding_ref=$1 AND aggregate_type IN ($2, $3, $4)",
-    )
-    .bind(&holding_ref)
-    .bind("marketing_content_template")
-    .bind("marketing_content_form")
-    .bind("marketing_content_domain")
-    .execute(&mut *cleanup)
-    .await
-    .expect("cleanup snapshots");
-    sqlx::query(
         "DELETE FROM erpx_tenant.marketing_content_command_idempotency WHERE holding_ref=$1",
     )
     .bind(&holding_ref)

@@ -39,6 +39,7 @@ pub enum FinanceAction {
     CreateSubledger,
     SettleSubledger,
     ViewChart,
+    ListCharts,
     ViewPeriod,
     ViewJournal,
     ViewCustomerInvoice,
@@ -56,6 +57,7 @@ impl FinanceAction {
         !matches!(
             self,
             Self::ViewChart
+                | Self::ListCharts
                 | Self::ViewPeriod
                 | Self::ViewJournal
                 | Self::ViewCustomerInvoice
@@ -312,6 +314,19 @@ pub struct ChartView {
     pub accounts: Vec<Account>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct ChartListFilter {
+    pub company_id: Option<uuid::Uuid>,
+    pub page_size: u16,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChartList {
+    pub charts: Vec<ChartView>,
+    pub next_cursor: Option<String>,
 }
 
 impl From<&Chart> for ChartView {
@@ -622,6 +637,12 @@ pub trait ReadRepository: Send + Sync {
         id: ChartId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<Option<ChartView>>, PortError>;
+    async fn list_charts(
+        &self,
+        scope: &TenantScope,
+        filter: &ChartListFilter,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<ChartList>, PortError>;
     async fn get_period(
         &self,
         scope: &TenantScope,
@@ -704,3 +725,5 @@ pub enum PortError {
     #[error("Finance adapter failed")]
     Internal,
 }
+mod records;
+pub use records::*;

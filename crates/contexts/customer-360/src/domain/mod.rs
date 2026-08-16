@@ -13,6 +13,9 @@ use erpx_kernel::EventId;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+mod owned_record;
+pub use owned_record::{Customer360OwnedRecord, Customer360RecordKind, Customer360RecordStatus};
+
 /// Customer Authority facts are sourced from control-write and therefore own
 /// a checkpoint that cannot be compared with a tenant-write sequence.
 pub const CONTROL_CUSTOMERS_PROJECTION_NAME: &str = "customer360.control_customers";
@@ -143,8 +146,22 @@ pub enum ProjectionApplyOutcome {
 pub enum SectionAvailability {
     Ready,
     AwaitingSource,
+    Stale,
+    Unavailable,
+    Denied,
     /// No current typed integration fact can authoritatively build this section.
     NotProjected,
+}
+
+/// Domain-owned classification of an owner projection's ability to answer a
+/// Customer 360 section. CQRS checkpoint states are translated into this type
+/// at the read-adapter boundary so the domain remains framework-free.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceFreshness {
+    Current,
+    Stale,
+    Unavailable,
 }
 
 /// Tracks source observation independently from collection emptiness. An empty
@@ -206,6 +223,38 @@ impl From<SourceCoverage> for Customer360SectionAvailability {
             relationship_activity: observed(coverage.crm_opportunities),
             sales_activity: observed(coverage.sales_orders),
             support: observed(coverage.support_cases),
+            organization: SectionAvailability::NotProjected,
+            contacts: SectionAvailability::NotProjected,
+            entitlements: SectionAvailability::NotProjected,
+            onboarding: SectionAvailability::NotProjected,
+            health: SectionAvailability::NotProjected,
+            access_audit: SectionAvailability::NotProjected,
+            notes: SectionAvailability::NotProjected,
+        }
+    }
+}
+
+impl Customer360SectionAvailability {
+    /// Derive section state from projection authority rather than collection
+    /// row count. A current, fully consumed source can authoritatively report
+    /// an empty collection.
+    pub fn from_source_freshness(
+        coverage: SourceCoverage,
+        control: SourceFreshness,
+        tenant: SourceFreshness,
+    ) -> Self {
+        let section = |observed: bool, freshness: SourceFreshness| match freshness {
+            SourceFreshness::Current if observed => SectionAvailability::Ready,
+            SourceFreshness::Current => SectionAvailability::AwaitingSource,
+            SourceFreshness::Stale => SectionAvailability::Stale,
+            SourceFreshness::Unavailable => SectionAvailability::Unavailable,
+        };
+        Self {
+            overview: section(coverage.customer_profile, control),
+            commercial: section(coverage.commercial_subscriptions, tenant),
+            relationship_activity: section(coverage.crm_opportunities, tenant),
+            sales_activity: section(coverage.sales_orders, tenant),
+            support: section(coverage.support_cases, tenant),
             organization: SectionAvailability::NotProjected,
             contacts: SectionAvailability::NotProjected,
             entitlements: SectionAvailability::NotProjected,
@@ -493,6 +542,8 @@ pub struct Customer360View {
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum Customer360DomainError {
+    #[error("Customer 360 owned record is invalid")]
+    InvalidOwnedRecord,
     #[error("source aggregate version must be nonzero")]
     ZeroAggregateVersion,
     #[error("source global sequence must be nonzero")]

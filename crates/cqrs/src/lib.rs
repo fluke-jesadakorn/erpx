@@ -246,6 +246,34 @@ pub struct QueryResult<T> {
     pub metadata: QueryMetadata,
 }
 
+/// Persistence-neutral port for one atomic application-layer unit of work.
+/// The work and outcome stay generic so domain/application crates never need
+/// to name SQL transactions, SQLx, or a particular database topology.
+#[async_trait]
+pub trait UnitOfWork<W>: Send + Sync {
+    type Outcome: Send;
+    type Error: Send;
+
+    async fn commit(&self, work: W) -> Result<Self::Outcome, Self::Error>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "state")]
+pub enum OutboxDeliveryDisposition {
+    Published {
+        attempt: u32,
+        published_at: DateTime<Utc>,
+    },
+    RetryScheduled {
+        attempt: u32,
+        available_at: DateTime<Utc>,
+    },
+    DeadLettered {
+        attempts: u32,
+        dead_lettered_at: DateTime<Utc>,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectionNotReady {
     pub projection: String,

@@ -290,16 +290,16 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
         ]
     );
     let first_job_id = claims[0].id;
-    let snapshot_version: i64 = sqlx::query_scalar(
-        "SELECT aggregate_version FROM erpx_control.aggregate_snapshots
-         WHERE aggregate_type = $1 AND aggregate_id = $2",
+    let authority_version: i64 = sqlx::query_scalar(
+        "SELECT aggregate_version FROM erpx_control.tenant_backup_jobs
+         WHERE id = $1 AND tenant_id = $2",
     )
-    .bind(TENANT_BACKUP_JOB_AGGREGATE)
     .bind(first_job_id)
+    .bind(tenant_id)
     .fetch_one(&store.pools().write)
     .await
-    .expect("read backup job aggregate snapshot");
-    assert_eq!(snapshot_version, 3);
+    .expect("read typed backup job authority version");
+    assert_eq!(authority_version, 3);
     let leaked_reference: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM erpx_control.outbox_events
          WHERE aggregate_type = $1 AND tenant_scope->>'tenant_id' = $2

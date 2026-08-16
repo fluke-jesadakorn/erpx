@@ -3,16 +3,20 @@ use erpx_cqrs_sqlx::{
     AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
-use erpx_integration_contracts::IntegrationEvent;
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_integration_contracts::{
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
 use erpx_pos::{
-    CommandFingerprint, CommandIdentity, PortError, PosRefund, RefundCommit, RefundId,
-    RefundStatus, RefundStoredCommit, RefundUnitOfWork, Sale, SaleCommit, SaleId, SaleStoredCommit,
-    SaleUnitOfWork, WriteRepository,
+    CommandFingerprint, CommandIdentity, CustomerId, Payment, PaymentId, PaymentMethod, PortError,
+    PosRefund, RefundCommit, RefundId, RefundLine, RefundStatus, RefundStoredCommit,
+    RefundUnitOfWork, RegisterId, Sale, SaleCommit, SaleId, SaleLine, SaleLineId, SaleStatus,
+    SaleStoredCommit, SaleUnitOfWork, WriteRepository,
 };
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Decode, Postgres, Row, Transaction, Type, postgres::PgRow};
 use uuid::Uuid;
 
 use crate::{
@@ -27,14 +31,12 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct PosWriteRepository {
-    store: CommandStore,
+    pool: WritePool,
 }
 
 impl PosWriteRepository {
     pub fn new(pool: WritePool) -> Self {
-        Self {
-            store: CommandStore::new(pool),
-        }
+        Self { pool }
     }
 }
 
@@ -45,29 +47,7 @@ impl WriteRepository for PosWriteRepository {
         authority_scope: &TenantScope,
         sale_id: SaleId,
     ) -> Result<Option<Sale>, PortError> {
-        let snapshot = self
-            .store
-            .load_snapshot::<Sale>(
-                CONTEXT_NAME,
-                &sale_partition(sale_id),
-                SALE_AGGREGATE_TYPE,
-                sale_aggregate_id(sale_id)?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
-            return Ok(None);
-        };
-        if snapshot.version != snapshot.state.version()
-            || snapshot.state.id() != sale_id
-            || snapshot.state.validate().is_err()
-        {
-            return Err(PortError::Internal);
-        }
-        if !authority_scope.contains(snapshot.state.scope()) {
-            return Err(PortError::Denied);
-        }
-        Ok(Some(snapshot.state))
+        load_sale_relational(&self.pool, authority_scope, sale_id).await
     }
 
     async fn load_refund(
@@ -75,30 +55,208 @@ impl WriteRepository for PosWriteRepository {
         authority_scope: &TenantScope,
         refund_id: RefundId,
     ) -> Result<Option<PosRefund>, PortError> {
-        let snapshot = self
-            .store
-            .load_snapshot::<PosRefund>(
-                CONTEXT_NAME,
-                &refund_partition(refund_id),
-                REFUND_AGGREGATE_TYPE,
-                refund_aggregate_id(refund_id)?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
-            return Ok(None);
-        };
-        if snapshot.version != snapshot.state.version()
-            || snapshot.state.id() != refund_id
-            || snapshot.state.validate().is_err()
-        {
-            return Err(PortError::Internal);
-        }
-        if !authority_scope.contains(snapshot.state.scope()) {
-            return Err(PortError::Denied);
-        }
-        Ok(Some(snapshot.state))
+        load_refund_relational(&self.pool, authority_scope, refund_id).await
     }
+}
+
+async fn load_sale_relational(
+    pool: &WritePool,
+    authority: &TenantScope,
+    sale_id: SaleId,
+) -> Result<Option<Sale>, PortError> {
+    authority.validate().map_err(|_| PortError::Denied)?;
+    let mut tx = pool.begin().await.map_err(map_store_error)?;
+    load_sale_in_tx(&mut tx, authority, sale_id).await
+}
+
+async fn load_sale_in_tx(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    sale_id: SaleId,
+) -> Result<Option<Sale>, PortError> {
+    let (kind, holding_id, company_id, branch_id, company_ids, branch_ids) =
+        authority_predicate(authority)?;
+    let row = sqlx::query(
+        "SELECT aggregate_version,holding_id,company_id,branch_id,receipt_code,register_id,
+                customer_id,currency,sale_status,created_at,updated_at
+         FROM erpx_pos_write.sale_guards
+         WHERE sale_id=$1 AND (
+           $2='platform'
+           OR ($2='holding' AND holding_id=$3)
+           OR ($2='company' AND holding_id=$3 AND company_id=$4)
+           OR ($2='branch' AND holding_id=$3 AND company_id=$4 AND branch_id=$5)
+           OR ($2='subtree' AND holding_id=$3 AND (
+                (branch_id IS NULL AND cardinality($7::uuid[])=0 AND company_id=ANY($6::uuid[]))
+                OR (branch_id IS NOT NULL AND company_id=ANY($6::uuid[]) AND branch_id=ANY($7::uuid[]))
+           ))
+         )",
+    )
+    .bind(sale_id.as_uuid())
+    .bind(kind)
+    .bind(holding_id)
+    .bind(company_id)
+    .bind(branch_id)
+    .bind(company_ids)
+    .bind(branch_ids)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let Some(row) = row else {
+        return missing_or_denied(
+            tx,
+            "erpx_pos_write.sale_guards",
+            "sale_id",
+            sale_id.as_uuid(),
+        )
+        .await;
+    };
+    let line_rows = sqlx::query(
+        "SELECT line_id,item_reference,description,quantity,unit_price_minor,tax_minor
+         FROM erpx_pos_write.sale_line_guards WHERE sale_id=$1 ORDER BY line_id",
+    )
+    .bind(sale_id.as_uuid())
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let payment_rows = sqlx::query(
+        "SELECT payment_id,amount_minor,payment_method,received_at
+         FROM erpx_pos_write.payment_guards WHERE sale_id=$1 ORDER BY received_at,payment_id",
+    )
+    .bind(sale_id.as_uuid())
+    .fetch_all(&mut **tx)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let lines = line_rows
+        .into_iter()
+        .map(|line| {
+            Ok(SaleLine {
+                line_id: SaleLineId::try_from_uuid(port_uuid(&line, "line_id")?)
+                    .map_err(|_| PortError::Internal)?,
+                item_reference: port_value(&line, "item_reference")?,
+                description: port_value(&line, "description")?,
+                quantity: port_u64(port_value(&line, "quantity")?)?,
+                unit_price_minor: port_value(&line, "unit_price_minor")?,
+                tax_minor: port_value(&line, "tax_minor")?,
+            })
+        })
+        .collect::<Result<Vec<_>, PortError>>()?;
+    let payments = payment_rows
+        .into_iter()
+        .map(|payment| {
+            Ok(Payment {
+                payment_id: PaymentId::try_from_uuid(port_uuid(&payment, "payment_id")?)
+                    .map_err(|_| PortError::Internal)?,
+                amount_minor: port_value(&payment, "amount_minor")?,
+                method: parse_payment_method(&port_value::<String>(&payment, "payment_method")?)?,
+                received_at: port_value(&payment, "received_at")?,
+            })
+        })
+        .collect::<Result<Vec<_>, PortError>>()?;
+    let scope = exact_scope_from_row(&row)?;
+    Sale::try_rehydrate(
+        sale_id,
+        port_u64(port_value(&row, "aggregate_version")?)?,
+        scope,
+        port_value(&row, "receipt_code")?,
+        RegisterId::try_from_uuid(port_uuid(&row, "register_id")?)
+            .map_err(|_| PortError::Internal)?,
+        port_value::<Option<Uuid>>(&row, "customer_id")?
+            .map(CustomerId::try_from_uuid)
+            .transpose()
+            .map_err(|_| PortError::Internal)?,
+        port_value(&row, "currency")?,
+        lines,
+        payments,
+        parse_sale_status(&port_value::<String>(&row, "sale_status")?)?,
+        port_value(&row, "created_at")?,
+        port_value(&row, "updated_at")?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn load_refund_relational(
+    pool: &WritePool,
+    authority: &TenantScope,
+    refund_id: RefundId,
+) -> Result<Option<PosRefund>, PortError> {
+    authority.validate().map_err(|_| PortError::Denied)?;
+    let mut tx = pool.begin().await.map_err(map_store_error)?;
+    let (kind, holding_id, company_id, branch_id, company_ids, branch_ids) =
+        authority_predicate(authority)?;
+    let row = sqlx::query(
+        "SELECT aggregate_version,holding_id,company_id,branch_id,sale_id,reason,
+                requester_principal_ref,reviewer_principal_ref,refund_status,requested_at,updated_at
+         FROM erpx_pos_write.refund_guards
+         WHERE refund_id=$1 AND (
+           $2='platform' OR ($2='holding' AND holding_id=$3)
+           OR ($2='company' AND holding_id=$3 AND company_id=$4)
+           OR ($2='branch' AND holding_id=$3 AND company_id=$4 AND branch_id=$5)
+           OR ($2='subtree' AND holding_id=$3 AND (
+                (branch_id IS NULL AND cardinality($7::uuid[])=0 AND company_id=ANY($6::uuid[]))
+                OR (branch_id IS NOT NULL AND company_id=ANY($6::uuid[]) AND branch_id=ANY($7::uuid[]))
+           )))",
+    )
+    .bind(refund_id.as_uuid())
+    .bind(kind)
+    .bind(holding_id)
+    .bind(company_id)
+    .bind(branch_id)
+    .bind(company_ids)
+    .bind(branch_ids)
+    .fetch_optional(&mut *tx)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let Some(row) = row else {
+        return missing_or_denied(
+            &mut tx,
+            "erpx_pos_write.refund_guards",
+            "refund_id",
+            refund_id.as_uuid(),
+        )
+        .await;
+    };
+    let sale_id =
+        SaleId::try_from_uuid(port_uuid(&row, "sale_id")?).map_err(|_| PortError::Internal)?;
+    let sale = load_sale_in_tx(&mut tx, authority, sale_id)
+        .await?
+        .ok_or(PortError::Internal)?;
+    if sale.status() != SaleStatus::Completed || sale.scope() != &exact_scope_from_row(&row)? {
+        return Err(PortError::Internal);
+    }
+    let line_rows = sqlx::query(
+        "SELECT sale_line_id,quantity,amount_minor FROM erpx_pos_write.refund_line_guards
+         WHERE refund_id=$1 ORDER BY sale_line_id",
+    )
+    .bind(refund_id.as_uuid())
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    let lines = line_rows
+        .into_iter()
+        .map(|line| {
+            Ok(RefundLine {
+                sale_line_id: SaleLineId::try_from_uuid(port_uuid(&line, "sale_line_id")?)
+                    .map_err(|_| PortError::Internal)?,
+                quantity: port_u64(port_value(&line, "quantity")?)?,
+                amount_minor: port_value(&line, "amount_minor")?,
+            })
+        })
+        .collect::<Result<Vec<_>, PortError>>()?;
+    PosRefund::try_rehydrate(
+        refund_id,
+        port_u64(port_value(&row, "aggregate_version")?)?,
+        &sale,
+        lines,
+        port_value(&row, "reason")?,
+        port_value(&row, "requester_principal_ref")?,
+        port_value(&row, "reviewer_principal_ref")?,
+        parse_refund_status(&port_value::<String>(&row, "refund_status")?)?,
+        port_value(&row, "requested_at")?,
+        port_value(&row, "updated_at")?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
 }
 
 #[derive(Debug, Clone)]
@@ -159,6 +317,14 @@ impl SaleUnitOfWork for PosCommandAdapter {
                 sale: (&request.aggregate).into(),
             }),
         });
+        events.push(directory_event(
+            command_id,
+            &partition,
+            request.causation_id,
+            occurred_at,
+            sale_directory_draft(&request.aggregate)?,
+            events.len(),
+        ));
         let guard = SaleAtomicGuard {
             aggregate: request.aggregate.clone(),
         };
@@ -176,7 +342,6 @@ impl SaleUnitOfWork for PosCommandAdapter {
             aggregate_type: SALE_AGGREGATE_TYPE.into(),
             aggregate_id: sale_aggregate_id(sale_id)?,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"pos-sale-audit-v1"),
@@ -191,7 +356,7 @@ impl SaleUnitOfWork for PosCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -251,6 +416,14 @@ impl RefundUnitOfWork for PosCommandAdapter {
                 refund: (&request.aggregate).into(),
             }),
         });
+        events.push(directory_event(
+            command_id,
+            &partition,
+            request.causation_id,
+            occurred_at,
+            refund_directory_draft(&request.aggregate)?,
+            events.len(),
+        ));
         let guard = RefundAtomicGuard {
             aggregate: request.aggregate.clone(),
         };
@@ -269,7 +442,6 @@ impl RefundUnitOfWork for PosCommandAdapter {
             aggregate_type: REFUND_AGGREGATE_TYPE.into(),
             aggregate_id: refund_aggregate_id(refund_id)?,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"pos-refund-audit-v1"),
@@ -285,7 +457,7 @@ impl RefundUnitOfWork for PosCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -298,6 +470,75 @@ impl RefundUnitOfWork for PosCommandAdapter {
         stored.replayed = replayed;
         Ok(stored)
     }
+}
+
+fn directory_event(
+    command_id: CommandId,
+    partition: &str,
+    causation_id: Option<EventId>,
+    occurred_at: chrono::DateTime<chrono::Utc>,
+    payload: ItemDescriptorDraft,
+    index: usize,
+) -> OutboxEventWrite<PosOutboxPayload> {
+    OutboxEventWrite {
+        event_id: deterministic_event_id(command_id, ITEM_DIRECTORY_OWNER_EVENT_TYPE, index),
+        event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+        event_version: ITEM_DIRECTORY_FACT_VERSION,
+        partition: partition.into(),
+        causation_id,
+        occurred_at,
+        payload: PosOutboxPayload::Directory(payload),
+    }
+}
+
+fn sale_directory_draft(aggregate: &Sale) -> Result<ItemDescriptorDraft, PortError> {
+    item_directory_draft(
+        aggregate.id().as_uuid(),
+        "pos.sale",
+        aggregate.scope(),
+        sale_status_name(aggregate.status()),
+        aggregate.version(),
+        aggregate.receipt_code(),
+    )
+}
+
+fn refund_directory_draft(aggregate: &PosRefund) -> Result<ItemDescriptorDraft, PortError> {
+    item_directory_draft(
+        aggregate.id().as_uuid(),
+        "pos.refund",
+        aggregate.scope(),
+        refund_status_name(aggregate.status()),
+        aggregate.version(),
+        &aggregate.sale_id().as_uuid().to_string(),
+    )
+}
+
+fn item_directory_draft(
+    id: Uuid,
+    record_type: &str,
+    scope: &TenantScope,
+    lifecycle_state: &str,
+    descriptor_version: u64,
+    search_text: &str,
+) -> Result<ItemDescriptorDraft, PortError> {
+    let record_id = RecordId::try_from_uuid(id).map_err(|_| PortError::Internal)?;
+    let record = StableRecordRef::try_new(
+        record_id,
+        ContextId::PointOfSale,
+        RecordTypeId::try_new(record_type).map_err(|_| PortError::Internal)?,
+    )
+    .map_err(|_| PortError::Internal)?;
+    let value = ItemDescriptorDraft {
+        authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+        record,
+        scope: scope.clone(),
+        lifecycle_state: lifecycle_state.into(),
+        classification: DataClassification::Confidential,
+        descriptor_version,
+        authorized_search_text: search_text.into(),
+    };
+    value.validate().map_err(|_| PortError::Internal)?;
+    Ok(value)
 }
 
 fn integration_events(
@@ -328,6 +569,28 @@ struct SaleAtomicGuard {
 
 #[async_trait]
 impl AtomicCommandGuard for SaleAtomicGuard {
+    async fn authoritative_version(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        validate_guard_context(
+            SALE_AGGREGATE_TYPE,
+            self.aggregate.id().as_uuid(),
+            &sale_partition(self.aggregate.id()),
+            context,
+        )?;
+        sqlx::query_scalar::<_, i64>(
+            "SELECT aggregate_version FROM erpx_pos_write.sale_guards
+             WHERE sale_id=$1 FOR UPDATE",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?
+        .map(from_i64)
+        .transpose()
+    }
+
     async fn validate(
         &self,
         transaction: &mut Transaction<'_, Postgres>,
@@ -377,22 +640,30 @@ impl AtomicCommandGuard for SaleAtomicGuard {
             &sale_partition(self.aggregate.id()),
             context,
         )?;
-        sqlx::query(
+        let (holding_id, company_id, branch_id) = exact_scope_parts(self.aggregate.scope())
+            .map_err(|_| CqrsSqlxError::InvalidInput("POS scope must be exact"))?;
+        let changed = sqlx::query(
             "INSERT INTO erpx_pos_write.sale_guards
-                (sale_id,scope_key,receipt_code,register_id,customer_id,currency,
+                (sale_id,scope_key,holding_id,company_id,branch_id,receipt_code,register_id,customer_id,currency,
                  subtotal_minor,tax_minor,total_minor,paid_minor,sale_status,
                  aggregate_version,created_at,updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
              ON CONFLICT (sale_id) DO UPDATE SET
-                scope_key=EXCLUDED.scope_key,receipt_code=EXCLUDED.receipt_code,
+                scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,
+                company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
+                receipt_code=EXCLUDED.receipt_code,
                 register_id=EXCLUDED.register_id,customer_id=EXCLUDED.customer_id,
                 currency=EXCLUDED.currency,subtotal_minor=EXCLUDED.subtotal_minor,
                 tax_minor=EXCLUDED.tax_minor,total_minor=EXCLUDED.total_minor,
                 paid_minor=EXCLUDED.paid_minor,sale_status=EXCLUDED.sale_status,
-                aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at",
+                aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at
+             WHERE erpx_pos_write.sale_guards.aggregate_version + 1=EXCLUDED.aggregate_version",
         )
         .bind(self.aggregate.id().as_uuid())
         .bind(guard_scope_key(self.aggregate.scope())?)
+        .bind(holding_id)
+        .bind(company_id)
+        .bind(branch_id)
         .bind(self.aggregate.receipt_code())
         .bind(self.aggregate.register_id().as_uuid())
         .bind(self.aggregate.customer_id().map(|value| value.as_uuid()))
@@ -406,7 +677,11 @@ impl AtomicCommandGuard for SaleAtomicGuard {
         .bind(self.aggregate.created_at())
         .bind(self.aggregate.updated_at())
         .execute(&mut **transaction)
-        .await?;
+        .await?
+        .rows_affected();
+        if changed != 1 {
+            return Err(CqrsSqlxError::GuardRejected("POS sale write conflict"));
+        }
         sqlx::query("DELETE FROM erpx_pos_write.sale_line_guards WHERE sale_id=$1")
             .bind(self.aggregate.id().as_uuid())
             .execute(&mut **transaction)
@@ -455,6 +730,28 @@ struct RefundAtomicGuard {
 
 #[async_trait]
 impl AtomicCommandGuard for RefundAtomicGuard {
+    async fn authoritative_version(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        validate_guard_context(
+            REFUND_AGGREGATE_TYPE,
+            self.aggregate.id().as_uuid(),
+            &refund_partition(self.aggregate.id()),
+            context,
+        )?;
+        sqlx::query_scalar::<_, i64>(
+            "SELECT aggregate_version FROM erpx_pos_write.refund_guards
+             WHERE refund_id=$1 FOR UPDATE",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?
+        .map(from_i64)
+        .transpose()
+    }
+
     async fn validate(
         &self,
         transaction: &mut Transaction<'_, Postgres>,
@@ -562,22 +859,30 @@ impl AtomicCommandGuard for RefundAtomicGuard {
             &refund_partition(self.aggregate.id()),
             context,
         )?;
-        sqlx::query(
+        let (holding_id, company_id, branch_id) = exact_scope_parts(self.aggregate.scope())
+            .map_err(|_| CqrsSqlxError::InvalidInput("POS scope must be exact"))?;
+        let changed = sqlx::query(
             "INSERT INTO erpx_pos_write.refund_guards
-                (refund_id,scope_key,sale_id,currency,total_amount_minor,reason,
+                (refund_id,scope_key,holding_id,company_id,branch_id,sale_id,currency,total_amount_minor,reason,
                  requester_principal_ref,reviewer_principal_ref,refund_status,
                  aggregate_version,requested_at,updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
              ON CONFLICT (refund_id) DO UPDATE SET
-                scope_key=EXCLUDED.scope_key,sale_id=EXCLUDED.sale_id,
+                scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,
+                company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,
+                sale_id=EXCLUDED.sale_id,
                 currency=EXCLUDED.currency,total_amount_minor=EXCLUDED.total_amount_minor,
                 reason=EXCLUDED.reason,requester_principal_ref=EXCLUDED.requester_principal_ref,
                 reviewer_principal_ref=EXCLUDED.reviewer_principal_ref,
                 refund_status=EXCLUDED.refund_status,
-                aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at",
+                aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at
+             WHERE erpx_pos_write.refund_guards.aggregate_version + 1=EXCLUDED.aggregate_version",
         )
         .bind(self.aggregate.id().as_uuid())
         .bind(guard_scope_key(self.aggregate.scope())?)
+        .bind(holding_id)
+        .bind(company_id)
+        .bind(branch_id)
         .bind(self.aggregate.sale_id().as_uuid())
         .bind(self.aggregate.currency())
         .bind(self.aggregate.total_amount_minor())
@@ -589,7 +894,11 @@ impl AtomicCommandGuard for RefundAtomicGuard {
         .bind(self.aggregate.requested_at())
         .bind(self.aggregate.updated_at())
         .execute(&mut **transaction)
-        .await?;
+        .await?
+        .rows_affected();
+        if changed != 1 {
+            return Err(CqrsSqlxError::GuardRejected("POS refund write conflict"));
+        }
         sqlx::query("DELETE FROM erpx_pos_write.refund_line_guards WHERE refund_id=$1")
             .bind(self.aggregate.id().as_uuid())
             .execute(&mut **transaction)
@@ -664,6 +973,168 @@ fn validate_existence(
             _ => "POS refund guard is missing",
         })),
         _ => Ok(()),
+    }
+}
+
+type AuthorityPredicate = (
+    &'static str,
+    Option<Uuid>,
+    Option<Uuid>,
+    Option<Uuid>,
+    Vec<Uuid>,
+    Vec<Uuid>,
+);
+
+fn authority_predicate(scope: &TenantScope) -> Result<AuthorityPredicate, PortError> {
+    scope.validate().map_err(|_| PortError::Denied)?;
+    Ok(match scope {
+        TenantScope::Platform => ("platform", None, None, None, Vec::new(), Vec::new()),
+        TenantScope::Holding { holding_id } => (
+            "holding",
+            Some(*holding_id),
+            None,
+            None,
+            Vec::new(),
+            Vec::new(),
+        ),
+        TenantScope::Company {
+            holding_id,
+            company_id,
+        } => (
+            "company",
+            Some(*holding_id),
+            Some(*company_id),
+            None,
+            Vec::new(),
+            Vec::new(),
+        ),
+        TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => (
+            "branch",
+            Some(*holding_id),
+            Some(*company_id),
+            Some(*branch_id),
+            Vec::new(),
+            Vec::new(),
+        ),
+        TenantScope::Subtree {
+            holding_id,
+            company_ids,
+            branch_ids,
+        } => (
+            "subtree",
+            Some(*holding_id),
+            None,
+            None,
+            company_ids.clone(),
+            branch_ids.clone(),
+        ),
+    })
+}
+
+fn exact_scope_parts(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), PortError> {
+    match scope {
+        TenantScope::Company {
+            holding_id,
+            company_id,
+        } => Ok((*holding_id, *company_id, None)),
+        TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => Ok((*holding_id, *company_id, Some(*branch_id))),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn exact_scope_from_row(row: &PgRow) -> Result<TenantScope, PortError> {
+    let holding_id = port_uuid(row, "holding_id")?;
+    let company_id = port_uuid(row, "company_id")?;
+    match port_value::<Option<Uuid>>(row, "branch_id")? {
+        Some(branch_id) => Ok(TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        }),
+        None => Ok(TenantScope::Company {
+            holding_id,
+            company_id,
+        }),
+    }
+}
+
+async fn missing_or_denied<T>(
+    tx: &mut Transaction<'_, Postgres>,
+    table: &str,
+    id_column: &str,
+    id: Uuid,
+) -> Result<Option<T>, PortError> {
+    let sql = format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE {id_column}=$1)");
+    let exists: bool = sqlx::query_scalar(&sql)
+        .bind(id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+    if exists {
+        Err(PortError::Denied)
+    } else {
+        Ok(None)
+    }
+}
+
+fn port_value<'r, T>(row: &'r PgRow, column: &str) -> Result<T, PortError>
+where
+    T: Decode<'r, Postgres> + Type<Postgres>,
+{
+    row.try_get(column).map_err(|_| PortError::Internal)
+}
+
+fn port_uuid(row: &PgRow, column: &str) -> Result<Uuid, PortError> {
+    port_value(row, column)
+}
+
+fn port_u64(value: i64) -> Result<u64, PortError> {
+    u64::try_from(value).map_err(|_| PortError::Internal)
+}
+
+fn from_i64(value: i64) -> Result<u64, CqrsSqlxError> {
+    u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
+}
+
+fn parse_payment_method(value: &str) -> Result<PaymentMethod, PortError> {
+    match value {
+        "cash" => Ok(PaymentMethod::Cash),
+        "card" => Ok(PaymentMethod::Card),
+        "bank_transfer" => Ok(PaymentMethod::BankTransfer),
+        "mobile_wallet" => Ok(PaymentMethod::MobileWallet),
+        "voucher" => Ok(PaymentMethod::Voucher),
+        "other" => Ok(PaymentMethod::Other),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_sale_status(value: &str) -> Result<SaleStatus, PortError> {
+    match value {
+        "draft" => Ok(SaleStatus::Draft),
+        "open" => Ok(SaleStatus::Open),
+        "held" => Ok(SaleStatus::Held),
+        "completed" => Ok(SaleStatus::Completed),
+        "voided" => Ok(SaleStatus::Voided),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_refund_status(value: &str) -> Result<RefundStatus, PortError> {
+    match value {
+        "requested" => Ok(RefundStatus::Requested),
+        "approved" => Ok(RefundStatus::Approved),
+        "rejected" => Ok(RefundStatus::Rejected),
+        "posted" => Ok(RefundStatus::Posted),
+        "cancelled" => Ok(RefundStatus::Cancelled),
+        _ => Err(PortError::Internal),
     }
 }
 

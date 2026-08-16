@@ -291,6 +291,18 @@ async fn posting_payroll_emits_the_only_finance_facing_payroll_fact() {
         at() - Duration::minutes(3),
     )
     .unwrap();
+    payroll
+        .pin_calculation_evidence(
+            PayrollCalculationEvidence {
+                policy_version: "TH-PAYROLL-2026.08".into(),
+                rate_table_version: "TH-RATES-2026.08".into(),
+                calculation_sha256: format!("sha256:{}", "a".repeat(64)),
+                source_inputs: Vec::new(),
+                captured_at: at() - Duration::minutes(2),
+            },
+            at() - Duration::minutes(2),
+        )
+        .unwrap();
     payroll.take_uncommitted_events();
     payroll
         .transition(
@@ -336,6 +348,87 @@ async fn posting_payroll_emits_the_only_finance_facing_payroll_fact() {
         [people_payroll::Event::PayrollFinalized(fact)]
             if fact.net_amount.minor_units() == 9_000
     ));
+}
+
+#[tokio::test]
+async fn payroll_evidence_pin_requires_version_and_commits_immutable_snapshot() {
+    let payroll_id = PayrollRunId::try_from_uuid(id(41)).unwrap();
+    let payroll = PayrollRun::create(
+        payroll_id,
+        scope(),
+        "2026-08".into(),
+        date(1),
+        date(31),
+        Currency::try_new("THB").unwrap(),
+        vec![PayrollLine::try_new(employee_id(10), 10_000, 1_000).unwrap()],
+        "preparer".into(),
+        at() - Duration::minutes(1),
+    )
+    .unwrap();
+    let evidence = PayrollCalculationEvidence {
+        policy_version: "TH-PAYROLL-2026.08".into(),
+        rate_table_version: "TH-RATES-2026.08".into(),
+        calculation_sha256: format!("sha256:{}", "a".repeat(64)),
+        source_inputs: Vec::new(),
+        captured_at: at(),
+    };
+    let command = PinPayrollCalculationEvidence {
+        payroll_run_id: payroll_id,
+        evidence: evidence.clone(),
+    };
+    let pin_envelope = |expected| CommandEnvelope {
+        contract_version: CONTRACT_VERSION,
+        command_id: CommandId::try_from_uuid(id(110)).unwrap(),
+        idempotency_key: IdempotencyKey::try_new("payroll-evidence-stable-key").unwrap(),
+        correlation_id: CorrelationId::try_from_uuid(id(111)).unwrap(),
+        causation_id: None,
+        actor: actor("payroll-preparer"),
+        tenant_scope: scope(),
+        audit: AuditContext {
+            purpose: "people_payroll.pin_evidence.test".into(),
+            customer_visible: false,
+            module: Some("people_payroll".into()),
+        },
+        expected_aggregate_version: expected,
+        command: command.clone(),
+    };
+
+    let denied_uow = FakeUnitOfWork::default();
+    let error = handler(
+        FakeWrite {
+            payroll: Some(payroll.clone()),
+            ..FakeWrite::default()
+        },
+        denied_uow.clone(),
+        true,
+    )
+    .handle(pin_envelope(None))
+    .await
+    .unwrap_err();
+    assert_eq!(error.category(), ErrorCategory::Conflict);
+    assert_eq!(denied_uow.commits.load(Ordering::SeqCst), 0);
+
+    let uow = FakeUnitOfWork::default();
+    handler(
+        FakeWrite {
+            payroll: Some(payroll.clone()),
+            ..FakeWrite::default()
+        },
+        uow.clone(),
+        true,
+    )
+    .handle(pin_envelope(Some(payroll.version())))
+    .await
+    .unwrap();
+    let request = uow.request.lock().unwrap().clone().unwrap();
+    assert!(matches!(
+        request.identity.fingerprint,
+        CommandFingerprint::PinPayrollCalculationEvidence { .. }
+    ));
+    let Aggregate::PayrollRun(committed) = request.aggregate else {
+        panic!("expected payroll run")
+    };
+    assert_eq!(committed.calculation_evidence(), Some(&evidence));
 }
 
 #[test]

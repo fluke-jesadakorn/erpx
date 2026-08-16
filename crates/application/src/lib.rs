@@ -1,7 +1,14 @@
 #![doc = "ERPX use cases and ports. The application layer owns orchestration, not persistence or transport."]
 
+pub mod approval_governance;
+pub mod enterprise_home;
+pub mod information_services;
+pub mod jurisdiction_policy;
 pub mod marketing_privacy;
 pub mod marketing_provider_onboarding;
+pub mod notifications;
+pub mod operational_assurance;
+pub mod signature_orchestration;
 pub mod support_workflow;
 
 pub use marketing_privacy::{

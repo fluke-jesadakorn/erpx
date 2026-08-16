@@ -90,7 +90,6 @@ impl SqlxMarketingJourneyStore {
         let payload = serde_json::to_value(journey)?;
         let event = build_event(context, journey, MARKETING_JOURNEY_CREATED_EVENT, payload)?;
         insert_journey(&mut tx, &self.holding_ref, journey, context).await?;
-        save_snapshot(&mut tx, &self.holding_ref, journey).await?;
         append_event(&mut tx, &self.holding_ref, &event).await?;
         let receipt = make_receipt(&event, journey.version(), &context.idempotency_key, false);
         record_idempotency(
@@ -106,7 +105,7 @@ impl SqlxMarketingJourneyStore {
     }
 
     /// Applies one lifecycle command against the authoritative aggregate and
-    /// commits the resulting state, snapshot, source event, and receipt.
+    /// commits the resulting normalized state, source event, and receipt.
     pub async fn transition_journey(
         &self,
         command: &JourneyTransitionCommand,
@@ -162,7 +161,6 @@ impl SqlxMarketingJourneyStore {
             payload,
         )?;
         update_journey(&mut tx, &self.holding_ref, &journey, &command.context).await?;
-        save_snapshot(&mut tx, &self.holding_ref, &journey).await?;
         append_event(&mut tx, &self.holding_ref, &event).await?;
         let receipt = make_receipt(
             &event,
@@ -308,32 +306,6 @@ async fn update_journey(
             actual: None,
         });
     }
-    Ok(())
-}
-
-async fn save_snapshot(
-    tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
-    journey: &Journey,
-) -> Result<(), PersistenceError> {
-    sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            holding_ref=EXCLUDED.holding_ref, version=EXCLUDED.version,
-            state=EXCLUDED.state, updated_at=now()",
-    )
-    .bind(MARKETING_JOURNEY_AGGREGATE)
-    .bind(journey.id())
-    .bind(holding_ref)
-    .bind(as_i64(
-        journey.version(),
-        "Marketing journey snapshot version",
-    )?)
-    .bind(serde_json::to_value(journey)?)
-    .execute(&mut **tx)
-    .await?;
     Ok(())
 }
 

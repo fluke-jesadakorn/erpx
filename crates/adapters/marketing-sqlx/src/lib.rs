@@ -3,12 +3,17 @@
 mod command;
 mod projection;
 mod read;
+mod records;
 
 pub use command::{MarketingCommandAdapter, MarketingWriteRepository};
 pub use projection::{
     MarketingBudgetProjector, MarketingLeadProjector, MarketingOutboxPayload, MarketingSnapshot,
 };
 pub use read::{MarketingReadRepository, decode_cursor, encode_cursor};
+pub use records::{
+    MarketingRecordProjector, MarketingRecordReadAdapter, MarketingRecordSqlxAdapter,
+    RECORD_PROJECTION_NAME, RECORD_SNAPSHOT_EVENT_TYPE,
+};
 
 pub const CONTEXT_NAME: &str = "marketing";
 pub const LEAD_AGGREGATE_TYPE: &str = "lead_candidate";
@@ -18,10 +23,23 @@ pub const BUDGET_PROJECTION_NAME: &str = "marketing.campaign_budgets";
 pub const LEAD_SNAPSHOT_EVENT_TYPE: &str = "marketing.lead_candidate_snapshot";
 pub const BUDGET_SNAPSHOT_EVENT_TYPE: &str = "marketing.campaign_budget_snapshot";
 pub const EVENT_VERSION: u32 = 1;
-pub const WRITE_DDL: &str =
-    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql");
-pub const READ_DDL: &str = include_str!(
-    "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
+pub const WRITE_DDL: &str = concat!(
+    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql"),
+    "\n",
+    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql"),
+    "\n",
+    include_str!(
+        "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
+    )
+);
+pub const READ_DDL: &str = concat!(
+    include_str!(
+        "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
+    ),
+    "\n",
+    include_str!(
+        "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
+    )
 );
 #[cfg(test)]
 pub const BUDGET_WRITE_DDL: &str = include_str!(
@@ -63,5 +81,22 @@ mod tests {
         let source = include_str!("read.rs");
         assert!(!source.contains(concat!("Write", "Pool")));
         assert!(!source.contains(concat!("aggregate_", "snapshots")));
+    }
+
+    #[test]
+    fn commands_use_typed_relational_authority_without_snapshot_fallback() {
+        let source = include_str!("command.rs");
+        assert!(!source.contains("load_snapshot"));
+        assert!(source.contains("lead_candidate_authority"));
+        assert!(source.contains("campaign_budget_authority"));
+        assert!(source.contains("commit_normalized"));
+        for table in [
+            "lead_candidate_authority",
+            "campaign_budget_authority",
+            "budget_allocation_authority",
+            "spend_reservation_authority",
+        ] {
+            assert!(WRITE_DDL.contains(table));
+        }
     }
 }

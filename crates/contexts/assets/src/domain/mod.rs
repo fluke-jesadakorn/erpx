@@ -1,6 +1,17 @@
+mod records;
+
+pub use records::{
+    AssetLifecycleRecord, AssetLifecycleRecordError, AssetLifecycleRecordKind,
+    AssetLifecycleRecordStatus,
+};
+
 use chrono::{DateTime, Utc};
-use erpx_integration_contracts::{DisplayName, ReferenceCode, assets};
-use erpx_kernel::TenantScope;
+use erpx_integration_contracts::{
+    DisplayName, ReferenceCode, StableRecordRef, assets,
+    catalog::ContextId,
+    reference::{RecordTypeId, ReferenceValidationError},
+};
+use erpx_kernel::{RecordId, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -141,7 +152,42 @@ pub struct Asset {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+/// Typed relational persistence state for the Assets aggregate.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssetState {
+    pub id: AssetId,
+    pub version: u64,
+    pub code: String,
+    pub name: String,
+    pub scope: AssetScope,
+    pub location_id: Uuid,
+    pub status: AssetStatus,
+    pub condition: assets::AssetCondition,
+    pub lifecycle: AssetLifecycle,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl Asset {
+    pub fn try_rehydrate(state: AssetState) -> Result<Self, AssetDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            code: state.code,
+            name: state.name,
+            scope: state.scope,
+            location_id: state.location_id,
+            status: state.status,
+            condition: state.condition,
+            lifecycle: state.lifecycle,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn create(
         id: AssetId,
         code: impl Into<String>,
@@ -191,8 +237,29 @@ impl Asset {
         require_id(self.location_id, "location_id")?;
         require_text(&self.code, "asset_code", 128)?;
         require_text(&self.name, "asset_name", MAX_ASSET_NAME_BYTES)?;
+        ReferenceCode::try_new(self.code.clone())
+            .map_err(|_| AssetDomainError::InvalidReference)?;
+        DisplayName::try_new(self.name.clone()).map_err(|_| AssetDomainError::InvalidReference)?;
         AssetScope::try_new(self.scope.tenant_scope().clone())?;
         if self.version == 0 || self.updated_at < self.created_at {
+            return Err(AssetDomainError::InvalidWindow);
+        }
+        if self
+            .lifecycle
+            .placed_in_service_at
+            .is_some_and(|at| at < self.created_at || at > self.updated_at)
+            || self
+                .lifecycle
+                .retired_at
+                .is_some_and(|at| at < self.created_at || at > self.updated_at)
+            || matches!(
+                (
+                    self.lifecycle.placed_in_service_at,
+                    self.lifecycle.retired_at
+                ),
+                (Some(placed), Some(retired)) if retired < placed
+            )
+        {
             return Err(AssetDomainError::InvalidWindow);
         }
         match self.status {
@@ -230,13 +297,16 @@ impl Asset {
     }
 
     pub fn place_in_service(&mut self, at: DateTime<Utc>) -> Result<(), AssetDomainError> {
-        self.transition(
+        let mut candidate = self.clone();
+        candidate.transition(
             AssetStatus::InService,
             assets::AssetCondition::Operational,
             at,
         )?;
-        self.lifecycle.placed_in_service_at = Some(at);
-        self.validate()
+        candidate.lifecycle.placed_in_service_at = Some(at);
+        candidate.validate()?;
+        *self = candidate;
+        Ok(())
     }
 
     pub fn mark_degraded(&mut self, at: DateTime<Utc>) -> Result<(), AssetDomainError> {
@@ -246,7 +316,11 @@ impl Asset {
                 to: AssetStatus::InService,
             });
         }
-        self.change_condition(assets::AssetCondition::Degraded, at)
+        let mut candidate = self.clone();
+        candidate.change_condition(assets::AssetCondition::Degraded, at)?;
+        candidate.validate()?;
+        *self = candidate;
+        Ok(())
     }
 
     pub fn begin_maintenance(
@@ -260,19 +334,23 @@ impl Asset {
         ReferenceCode::try_new(request_code.clone())
             .map_err(|_| AssetDomainError::InvalidReference)?;
         DisplayName::try_new(title.clone()).map_err(|_| AssetDomainError::InvalidReference)?;
-        self.transition(
+        let mut candidate = self.clone();
+        candidate.transition(
             AssetStatus::UnderMaintenance,
             assets::AssetCondition::OutOfService,
             at,
         )?;
-        self.uncommitted_events
+        candidate
+            .uncommitted_events
             .push(DomainEvent::MaintenanceRequested {
-                asset_id: self.id,
+                asset_id: candidate.id,
                 request_code,
                 title,
                 at,
             });
-        self.validate()
+        candidate.validate()?;
+        *self = candidate;
+        Ok(())
     }
 
     pub fn return_to_service(&mut self, at: DateTime<Utc>) -> Result<(), AssetDomainError> {
@@ -282,18 +360,24 @@ impl Asset {
                 to: AssetStatus::InService,
             });
         }
-        self.transition(
+        let mut candidate = self.clone();
+        candidate.transition(
             AssetStatus::InService,
             assets::AssetCondition::Operational,
             at,
         )?;
-        self.validate()
+        candidate.validate()?;
+        *self = candidate;
+        Ok(())
     }
 
     pub fn retire(&mut self, at: DateTime<Utc>) -> Result<(), AssetDomainError> {
-        self.transition(AssetStatus::Retired, assets::AssetCondition::Retired, at)?;
-        self.lifecycle.retired_at = Some(at);
-        self.validate()
+        let mut candidate = self.clone();
+        candidate.transition(AssetStatus::Retired, assets::AssetCondition::Retired, at)?;
+        candidate.lifecycle.retired_at = Some(at);
+        candidate.validate()?;
+        *self = candidate;
+        Ok(())
     }
 
     fn transition(
@@ -388,6 +472,18 @@ impl Asset {
     }
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
+    }
+    /// Stable, route-independent identity used by Collaboration and the Item
+    /// Directory. The descriptor itself is published after commit because it
+    /// must carry the authoritative outbox position.
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        let record_id =
+            RecordId::try_from_uuid(self.id.as_uuid()).expect("validated asset identifier");
+        StableRecordRef::try_new(
+            record_id,
+            ContextId::Assets,
+            RecordTypeId::try_new("asset.asset")?,
+        )
     }
     pub fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)

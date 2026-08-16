@@ -5,11 +5,14 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_customer_authority::{
     CommandFingerprint, CommandIdentity, CommandUnitOfWork, CustomerAccount,
-    CustomerAuthorityCommit, CustomerAuthorityView, CustomerId, MergeTargetVersion, PortError,
-    StoredCommit, WriteRepository,
+    CustomerAuthorityCommit, CustomerAuthorityView, CustomerCode, CustomerId, CustomerIdentity,
+    CustomerStatus, MergeTargetVersion, PortError, StoredCommit, WriteRepository,
 };
-use erpx_integration_contracts::IntegrationEvent;
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_integration_contracts::{
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, record_policy_id,
+};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use sqlx::{Postgres, Row, Transaction};
@@ -25,14 +28,12 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct CustomerAuthorityWriteRepository {
-    store: CommandStore,
+    write: WritePool,
 }
 
 impl CustomerAuthorityWriteRepository {
     pub fn new(pool: WritePool) -> Self {
-        Self {
-            store: CommandStore::new(pool),
-        }
+        Self { write: pool }
     }
 }
 
@@ -43,34 +44,7 @@ impl WriteRepository for CustomerAuthorityWriteRepository {
         authority_scope: &TenantScope,
         customer_id: CustomerId,
     ) -> Result<Option<CustomerAccount>, PortError> {
-        let snapshot = self
-            .store
-            .load_snapshot::<CustomerAccount>(
-                CONTEXT_NAME,
-                &customer_partition(customer_id),
-                AGGREGATE_TYPE,
-                aggregate_id(customer_id)?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
-            return Ok(None);
-        };
-        if snapshot.version != snapshot.state.version()
-            || snapshot.state.id() != customer_id
-            || snapshot.state.validate().is_err()
-        {
-            return Err(PortError::Internal);
-        }
-        if !snapshot
-            .state
-            .authority_links()
-            .iter()
-            .any(|link| authority_scope.contains(link) || link.contains(authority_scope))
-        {
-            return Err(PortError::Denied);
-        }
-        Ok(Some(snapshot.state))
+        load_customer_relational(&self.write, authority_scope, customer_id).await
     }
 }
 
@@ -142,6 +116,20 @@ impl CommandUnitOfWork for CustomerAuthorityCommandAdapter {
                 customer: CustomerAuthorityView::from(&request.aggregate),
             }),
         });
+        let directory_draft = customer_directory_draft(&request.aggregate)?;
+        events.push(OutboxEventWrite {
+            event_id: deterministic_event_id(
+                command_id,
+                ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                events.len(),
+            ),
+            event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+            event_version: ITEM_DIRECTORY_FACT_VERSION,
+            partition: partition.clone(),
+            causation_id: request.causation_id,
+            occurred_at,
+            payload: CustomerAuthorityOutboxPayload::Directory(directory_draft),
+        });
 
         let guard = CustomerAuthorityAtomicGuard {
             aggregate: request.aggregate.clone(),
@@ -163,7 +151,6 @@ impl CommandUnitOfWork for CustomerAuthorityCommandAdapter {
             aggregate_type: AGGREGATE_TYPE.into(),
             aggregate_id,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"customer-authority-audit-v1"),
@@ -179,7 +166,7 @@ impl CommandUnitOfWork for CustomerAuthorityCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -194,6 +181,32 @@ impl CommandUnitOfWork for CustomerAuthorityCommandAdapter {
     }
 }
 
+fn customer_directory_draft(aggregate: &CustomerAccount) -> Result<ItemDescriptorDraft, PortError> {
+    let record = aggregate.record_ref().map_err(|_| PortError::Internal)?;
+    let lifecycle_state = match aggregate.status() {
+        CustomerStatus::Prospect => "prospect",
+        CustomerStatus::Onboarding => "onboarding",
+        CustomerStatus::Active => "active",
+        CustomerStatus::Suspended => "suspended",
+        CustomerStatus::Churned => "churned",
+    };
+    let value = ItemDescriptorDraft {
+        authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+        record,
+        scope: aggregate.primary_authority().clone(),
+        lifecycle_state: lifecycle_state.into(),
+        classification: DataClassification::Confidential,
+        descriptor_version: aggregate.version(),
+        authorized_search_text: format!(
+            "{} {}",
+            aggregate.code().as_str(),
+            aggregate.identity().trading_name()
+        ),
+    };
+    value.validate().map_err(|_| PortError::Internal)?;
+    Ok(value)
+}
+
 struct CustomerAuthorityAtomicGuard {
     aggregate: CustomerAccount,
     merge_target: Option<MergeTargetVersion>,
@@ -201,6 +214,30 @@ struct CustomerAuthorityAtomicGuard {
 
 #[async_trait]
 impl AtomicCommandGuard for CustomerAuthorityAtomicGuard {
+    async fn authoritative_version(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        if context.context != CONTEXT_NAME
+            || context.aggregate_type != AGGREGATE_TYPE
+            || context.aggregate_id.as_uuid() != self.aggregate.id().as_uuid()
+            || context.partition != customer_partition(self.aggregate.id())
+        {
+            return Err(CqrsSqlxError::GuardRejected(
+                "customer authority guard metadata mismatch",
+            ));
+        }
+        let value: Option<i64> = sqlx::query_scalar(
+            "SELECT aggregate_version FROM erpx_customer_authority_write.account_guards
+             WHERE customer_id=$1 FOR UPDATE",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?;
+        value.map(from_i64).transpose()
+    }
+
     async fn validate(
         &self,
         transaction: &mut Transaction<'_, Postgres>,
@@ -279,8 +316,9 @@ impl AtomicCommandGuard for CustomerAuthorityAtomicGuard {
             "INSERT INTO erpx_customer_authority_write.account_guards
                 (customer_id, customer_code, primary_scope_key, primary_holding_id,
                  primary_company_id, customer_status, merged_into_customer_id,
-                 aggregate_version, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                 aggregate_version, trading_name, legal_name, registration_number,
+                 tax_identifier, country, created_at, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
              ON CONFLICT (customer_id) DO UPDATE SET
                 customer_code = EXCLUDED.customer_code,
                 primary_scope_key = EXCLUDED.primary_scope_key,
@@ -289,6 +327,12 @@ impl AtomicCommandGuard for CustomerAuthorityAtomicGuard {
                 customer_status = EXCLUDED.customer_status,
                 merged_into_customer_id = EXCLUDED.merged_into_customer_id,
                 aggregate_version = EXCLUDED.aggregate_version,
+                trading_name = EXCLUDED.trading_name,
+                legal_name = EXCLUDED.legal_name,
+                registration_number = EXCLUDED.registration_number,
+                tax_identifier = EXCLUDED.tax_identifier,
+                country = EXCLUDED.country,
+                created_at = EXCLUDED.created_at,
                 updated_at = EXCLUDED.updated_at",
         )
         .bind(self.aggregate.id().as_uuid())
@@ -301,6 +345,12 @@ impl AtomicCommandGuard for CustomerAuthorityAtomicGuard {
         .bind(status_name(self.aggregate.status()))
         .bind(self.aggregate.merged_into().map(CustomerId::as_uuid))
         .bind(to_i64(context.aggregate_version)?)
+        .bind(self.aggregate.identity().trading_name())
+        .bind(self.aggregate.identity().legal_name())
+        .bind(self.aggregate.identity().registration_number())
+        .bind(self.aggregate.identity().tax_identifier())
+        .bind(self.aggregate.identity().country())
+        .bind(self.aggregate.created_at())
         .bind(self.aggregate.updated_at())
         .execute(&mut **transaction)
         .await?;
@@ -543,6 +593,144 @@ fn to_i64(value: u64) -> Result<i64, CqrsSqlxError> {
     i64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
 }
 
+fn from_i64(value: i64) -> Result<u64, CqrsSqlxError> {
+    u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
+}
+
+async fn load_customer_relational(
+    write: &WritePool,
+    authority: &TenantScope,
+    customer_id: CustomerId,
+) -> Result<Option<CustomerAccount>, PortError> {
+    authority.validate().map_err(|_| PortError::Denied)?;
+    let mut transaction = write.begin().await.map_err(map_store_error)?;
+    let link_rows = sqlx::query(
+        "SELECT scope_kind,holding_id,company_id,branch_id,is_primary
+         FROM erpx_customer_authority_write.authority_link_guards
+         WHERE customer_id=$1 ORDER BY scope_key",
+    )
+    .bind(customer_id.as_uuid())
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(|_| PortError::Unavailable)?;
+    if link_rows.is_empty() {
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM erpx_customer_authority_write.account_guards
+                           WHERE customer_id=$1)",
+        )
+        .bind(customer_id.as_uuid())
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        return if exists {
+            Err(PortError::Internal)
+        } else {
+            Ok(None)
+        };
+    }
+    let mut links = Vec::with_capacity(link_rows.len());
+    let mut primary = None;
+    for row in link_rows {
+        let scope = exact_scope_from_row(&row)?;
+        if row
+            .try_get::<bool, _>("is_primary")
+            .map_err(|_| PortError::Internal)?
+            && primary.replace(scope.clone()).is_some()
+        {
+            return Err(PortError::Internal);
+        }
+        links.push(scope);
+    }
+    if !links
+        .iter()
+        .any(|scope| authority.contains(scope) || scope.contains(authority))
+    {
+        return Err(PortError::Denied);
+    }
+    let row = sqlx::query(
+        "SELECT aggregate_version,customer_code,trading_name,legal_name,
+                registration_number,tax_identifier,country,customer_status,
+                merged_into_customer_id,created_at,updated_at
+         FROM erpx_customer_authority_write.account_guards WHERE customer_id=$1",
+    )
+    .bind(customer_id.as_uuid())
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(|_| PortError::Unavailable)?
+    .ok_or(PortError::Internal)?;
+    let status = match row
+        .try_get::<String, _>("customer_status")
+        .map_err(|_| PortError::Internal)?
+        .as_str()
+    {
+        "prospect" => CustomerStatus::Prospect,
+        "onboarding" => CustomerStatus::Onboarding,
+        "active" => CustomerStatus::Active,
+        "suspended" => CustomerStatus::Suspended,
+        "churned" => CustomerStatus::Churned,
+        _ => return Err(PortError::Internal),
+    };
+    let merged_into = row
+        .try_get::<Option<Uuid>, _>("merged_into_customer_id")
+        .map_err(|_| PortError::Internal)?
+        .map(CustomerId::try_from_uuid)
+        .transpose()
+        .map_err(|_| PortError::Internal)?;
+    CustomerAccount::try_rehydrate(
+        customer_id,
+        u64::try_from(
+            row.try_get::<i64, _>("aggregate_version")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        CustomerCode::try_new(
+            row.try_get::<String, _>("customer_code")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        CustomerIdentity::try_new(
+            row.try_get::<String, _>("trading_name")
+                .map_err(|_| PortError::Internal)?,
+            row.try_get("legal_name").map_err(|_| PortError::Internal)?,
+            row.try_get("registration_number")
+                .map_err(|_| PortError::Internal)?,
+            row.try_get("tax_identifier")
+                .map_err(|_| PortError::Internal)?,
+            row.try_get::<String, _>("country")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        status,
+        primary.ok_or(PortError::Internal)?,
+        links,
+        merged_into,
+        row.try_get("created_at").map_err(|_| PortError::Internal)?,
+        row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+fn exact_scope_from_row(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+    let kind: String = row.try_get("scope_kind").map_err(|_| PortError::Internal)?;
+    let holding_id: Uuid = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
+    let company_id: Option<Uuid> = row.try_get("company_id").map_err(|_| PortError::Internal)?;
+    let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
+    match (kind.as_str(), company_id, branch_id) {
+        ("holding", None, None) => Ok(TenantScope::Holding { holding_id }),
+        ("company", Some(company_id), None) => Ok(TenantScope::Company {
+            holding_id,
+            company_id,
+        }),
+        ("branch", Some(company_id), Some(branch_id)) => Ok(TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        }),
+        _ => Err(PortError::Internal),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -604,5 +792,16 @@ mod tests {
             })
             .is_err()
         );
+    }
+
+    #[test]
+    fn account_command_authority_is_relational_and_snapshot_free() {
+        let production = include_str!("command.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap();
+        assert!(!production.contains("load_snapshot"));
+        assert!(production.contains("authority_link_guards"));
+        assert!(production.contains("commit_normalized"));
     }
 }

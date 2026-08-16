@@ -353,7 +353,7 @@ impl SqlxMarketingStore {
             .execute(&mut *tx)
             .await?;
         }
-        write_marketing_snapshot_and_outbox(
+        write_marketing_source_event(
             &mut tx,
             &self.holding_ref,
             "marketing_profile",
@@ -454,7 +454,7 @@ impl SqlxMarketingStore {
         .bind(&erasure.reason)
         .execute(&mut *tx)
         .await?;
-        write_marketing_snapshot_and_outbox(
+        write_marketing_source_event(
             &mut tx,
             &self.holding_ref,
             "marketing_profile",
@@ -493,7 +493,7 @@ impl SqlxMarketingStore {
         .bind(hash_value(&suppression_payload)?)
         .execute(&mut *tx)
         .await?;
-        write_marketing_snapshot_and_outbox(
+        write_marketing_source_event(
             &mut tx,
             &self.holding_ref,
             "marketing_suppression",
@@ -629,7 +629,7 @@ impl SqlxMarketingStore {
             replayed: false,
         };
         complete_idempotency(&mut tx, &self.holding_ref, idempotency_key, &receipt).await?;
-        write_marketing_snapshot_and_outbox(
+        write_marketing_source_event(
             &mut tx,
             &self.holding_ref,
             "marketing_consent",
@@ -746,7 +746,7 @@ impl SqlxMarketingStore {
             replayed: false,
         };
         complete_idempotency(&mut tx, &self.holding_ref, idempotency_key, &receipt).await?;
-        write_marketing_snapshot_and_outbox(
+        write_marketing_source_event(
             &mut tx,
             &self.holding_ref,
             "marketing_suppression",
@@ -890,7 +890,7 @@ impl SqlxMarketingStore {
             replayed: false,
         };
         complete_idempotency(&mut tx, &self.holding_ref, idempotency_key, &receipt).await?;
-        write_marketing_snapshot_and_outbox(
+        write_marketing_source_event(
             &mut tx,
             &self.holding_ref,
             "marketing_audience",
@@ -2099,7 +2099,7 @@ impl SqlxMarketingStore {
 /// Apply a journey-owned audience membership change inside the caller's
 /// tenant-scoped transaction. The journey execution idempotency receipt is
 /// the command fence; this helper only mutates the audience aggregate and its
-/// existing Marketing snapshot/outbox contract.
+/// existing normalized Marketing authority/outbox contract.
 pub(crate) async fn apply_journey_segment_change_in_transaction(
     tx: &mut Transaction<'_, Postgres>,
     holding_ref: &str,
@@ -2218,7 +2218,7 @@ pub(crate) async fn apply_journey_segment_change_in_transaction(
         .execute(&mut **tx)
         .await?;
     }
-    write_marketing_snapshot_and_outbox(
+    write_marketing_source_event(
         tx,
         holding_ref,
         "marketing_audience",
@@ -2317,7 +2317,7 @@ pub(crate) async fn apply_journey_profile_tag_in_transaction(
         expected: Some(current_version),
         actual: None,
     })?;
-    write_marketing_snapshot_and_outbox(
+    write_marketing_source_event(
         tx,
         holding_ref,
         "marketing_profile",
@@ -2417,7 +2417,7 @@ pub(crate) async fn apply_journey_conversion_in_transaction(
     .bind(payload_hash)
     .execute(&mut **tx)
     .await?;
-    write_marketing_snapshot_and_outbox(
+    write_marketing_source_event(
         tx,
         holding_ref,
         MARKETING_JOURNEY_CONVERSION_AGGREGATE,
@@ -2528,7 +2528,7 @@ pub(crate) async fn apply_journey_owner_notification_in_transaction(
     .bind(payload_hash)
     .execute(&mut **tx)
     .await?;
-    write_marketing_snapshot_and_outbox(
+    write_marketing_source_event(
         tx,
         holding_ref,
         MARKETING_JOURNEY_OWNER_NOTIFICATION_AGGREGATE,
@@ -3053,7 +3053,7 @@ async fn source_event_high_watermark_in_transaction(
     })
 }
 
-async fn write_marketing_snapshot_and_outbox(
+async fn write_marketing_source_event(
     tx: &mut Transaction<'_, Postgres>,
     holding_ref: &str,
     aggregate_type: &str,
@@ -3062,20 +3062,6 @@ async fn write_marketing_snapshot_and_outbox(
     payload: &Value,
     event_type: &str,
 ) -> Result<(), PersistenceError> {
-    sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            holding_ref=$3, version=$4, state=$5, updated_at=now()",
-    )
-    .bind(aggregate_type)
-    .bind(aggregate_id)
-    .bind(holding_ref)
-    .bind(as_i64(version, "marketing aggregate version")?)
-    .bind(payload)
-    .execute(&mut **tx)
-    .await?;
     sqlx::query(
         "INSERT INTO erpx_tenant.outbox_events
             (event_id, aggregate_type, aggregate_id, holding_ref,

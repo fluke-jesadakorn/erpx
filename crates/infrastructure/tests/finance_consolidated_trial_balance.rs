@@ -366,19 +366,4 @@ async fn live_financial_consolidation_publishes_fx_ownership_and_elimination_evi
         .expect("financial report");
     assert_eq!(report.total_debit_minor, 190);
     assert_eq!(report.non_controlling_interest_minor, 40);
-
-    write_store
-        .publish_consolidated_financial_report(&report)
-        .await
-        .expect("publish report");
-    write_store
-        .publish_consolidated_financial_report(&report)
-        .await
-        .expect("idempotent report replay");
-    assert!(
-        write_store
-            .reconcile_consolidated_financial_report(&report)
-            .await
-            .expect("report reconciliation")
-    );
 }

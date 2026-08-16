@@ -1,6 +1,6 @@
--- Wave 9 Operations authority. Generic CQRS snapshots, receipts, audit rows,
--- and outbox events remain authoritative and are committed in the same SQL
--- transaction as these searchable relational guards.
+-- Wave 9 searchable Operations guards. Migration 0081 promotes exception,
+-- work-queue policy and all source-fact variants to typed relational command
+-- authority; receipts, audit and outbox facts remain atomic.
 
 CREATE SCHEMA IF NOT EXISTS erpx_operations_write;
 

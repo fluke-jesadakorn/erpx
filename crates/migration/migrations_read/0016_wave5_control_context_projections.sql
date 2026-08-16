@@ -241,3 +241,31 @@ CREATE UNIQUE INDEX customer_authority_read_one_primary
 CREATE INDEX customer_authority_read_scope
     ON erpx_customer_authority_read.authority_link_projection
         (generation, scope_key, customer_id);
+
+-- D13: disposable active-generation Platform governance read model.
+CREATE TABLE erpx_platform_administration_read.governance_record_projection (
+    projection_name TEXT NOT NULL DEFAULT 'platform_administration.governance-records'
+        CHECK (projection_name = 'platform_administration.governance-records'),
+    generation UUID NOT NULL,
+    partition_key TEXT NOT NULL,
+    record_id UUID NOT NULL,
+    record_type TEXT NOT NULL CHECK (record_type IN (
+        'platform.data-plane-operation', 'platform.migration', 'platform.release'
+    )),
+    source_aggregate_version BIGINT NOT NULL CHECK (source_aggregate_version > 0),
+    source_global_sequence BIGINT NOT NULL CHECK (source_global_sequence > 0),
+    record_scope JSONB NOT NULL,
+    record_title TEXT NOT NULL,
+    lifecycle_state TEXT NOT NULL,
+    state JSONB NOT NULL,
+    aggregate_updated_at TIMESTAMPTZ NOT NULL,
+    projected_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (projection_name, generation, partition_key, record_id),
+    FOREIGN KEY (projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX platform_governance_read_state
+    ON erpx_platform_administration_read.governance_record_projection
+        (generation, record_type, lifecycle_state, aggregate_updated_at DESC, record_id DESC);

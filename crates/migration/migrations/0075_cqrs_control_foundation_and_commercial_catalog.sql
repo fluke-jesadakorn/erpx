@@ -4,17 +4,6 @@
 
 CREATE SCHEMA IF NOT EXISTS erpx_cqrs_write;
 
-CREATE TABLE erpx_cqrs_write.aggregate_snapshots (
-    context_name TEXT NOT NULL,
-    partition_key TEXT NOT NULL,
-    aggregate_type TEXT NOT NULL,
-    aggregate_id UUID NOT NULL,
-    aggregate_version BIGINT NOT NULL CHECK (aggregate_version > 0),
-    state JSONB NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (context_name, partition_key, aggregate_type, aggregate_id)
-);
-
 CREATE TABLE erpx_cqrs_write.command_receipts (
     context_name TEXT NOT NULL,
     partition_key TEXT NOT NULL,
@@ -95,4 +84,3 @@ CREATE TABLE erpx_commercial_write.catalog_plan_guards (
     aggregate_version BIGINT NOT NULL CHECK (aggregate_version > 0),
     updated_at TIMESTAMPTZ NOT NULL
 );
-

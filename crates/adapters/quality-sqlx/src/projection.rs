@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::quality;
+use erpx_integration_contracts::{ItemDescriptorDraft, quality};
 use erpx_quality::{
     application::InspectionView,
     domain::{InspectionKind, InspectionStatus},
@@ -23,6 +23,7 @@ pub struct QualitySnapshot {
 pub enum QualityOutboxPayload {
     Integration(quality::Event),
     Snapshot(QualitySnapshot),
+    Directory(ItemDescriptorDraft),
 }
 
 #[derive(Debug, Clone)]
@@ -75,7 +76,7 @@ impl Projector for QualityInspectionProjector {
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
                      $13, $14, CAST($15 AS NUMERIC), CAST($16 AS NUMERIC),
                      CAST($17 AS NUMERIC), $18, $19, $20, $21, $22, now())
-             ON CONFLICT (projection_name, generation, partition_key, inspection_id)
+             ON CONFLICT (tenant_id,projection_name, generation, partition_key, inspection_id)
              DO UPDATE SET source_aggregate_version = EXCLUDED.source_aggregate_version,
                            source_global_sequence = EXCLUDED.source_global_sequence,
                            reference = EXCLUDED.reference,

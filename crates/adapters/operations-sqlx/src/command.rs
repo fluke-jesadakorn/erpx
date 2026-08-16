@@ -3,8 +3,11 @@ use erpx_cqrs_sqlx::{
     AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
-use erpx_integration_contracts::IntegrationEvent;
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_integration_contracts::{
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, record_policy_id,
+};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
 use erpx_operations::{
     CommandUnitOfWork, ExceptionId, OperationsCommit, OperationsException, PortError,
     WorkQueuePolicy, WorkQueuePolicyId, WorkQueuePolicyUnitOfWork, WriteRepository,
@@ -20,49 +23,23 @@ use uuid::Uuid;
 
 use crate::{
     CONTEXT_NAME, EVENT_VERSION, EXCEPTION_AGGREGATE_TYPE, EXCEPTION_SNAPSHOT_EVENT,
-    POLICY_AGGREGATE_TYPE, POLICY_SNAPSHOT_EVENT, exception_partition, policy_partition,
-    projection::{
-        OperationsOutboxPayload, OperationsSnapshot, exception_status_name, policy_status_name,
+    POLICY_AGGREGATE_TYPE, POLICY_SNAPSHOT_EVENT,
+    authority::{
+        apply_exception_authority, apply_policy_authority, load_exception_authority,
+        load_policy_authority,
     },
+    exception_partition, policy_partition,
+    projection::{OperationsOutboxPayload, OperationsSnapshot, exception_status_name},
 };
 
 #[derive(Debug, Clone)]
 pub struct OperationsWriteRepository {
-    store: CommandStore,
+    pool: WritePool,
 }
 
 impl OperationsWriteRepository {
     pub fn new(pool: WritePool) -> Self {
-        Self {
-            store: CommandStore::new(pool),
-        }
-    }
-
-    async fn load<T: serde::de::DeserializeOwned>(
-        &self,
-        authority: &TenantScope,
-        partition: &str,
-        aggregate_type: &str,
-        id: Uuid,
-        scope: impl Fn(&T) -> &TenantScope,
-        version: impl Fn(&T) -> u64,
-    ) -> Result<Option<T>, PortError> {
-        let aggregate_id = AggregateId::try_from_uuid(id).map_err(|_| PortError::Internal)?;
-        let snapshot = self
-            .store
-            .load_snapshot::<T>(CONTEXT_NAME, partition, aggregate_type, aggregate_id)
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
-            return Ok(None);
-        };
-        if snapshot.version != version(&snapshot.state) {
-            return Err(PortError::Internal);
-        }
-        if !authority.contains(scope(&snapshot.state)) {
-            return Err(PortError::Denied);
-        }
-        Ok(Some(snapshot.state))
+        Self { pool }
     }
 }
 
@@ -73,24 +50,7 @@ impl WriteRepository for OperationsWriteRepository {
         authority: &TenantScope,
         id: ExceptionId,
     ) -> Result<Option<OperationsException>, PortError> {
-        let value = self
-            .load(
-                authority,
-                &exception_partition(id),
-                EXCEPTION_AGGREGATE_TYPE,
-                id.as_uuid(),
-                OperationsException::scope,
-                OperationsException::version,
-            )
-            .await?;
-        if value
-            .as_ref()
-            .is_some_and(|v| v.id() != id || v.validate().is_err())
-        {
-            Err(PortError::Internal)
-        } else {
-            Ok(value)
-        }
+        load_exception_authority(&self.pool, authority, id).await
     }
 
     async fn load_work_queue_policy(
@@ -98,24 +58,7 @@ impl WriteRepository for OperationsWriteRepository {
         authority: &TenantScope,
         id: WorkQueuePolicyId,
     ) -> Result<Option<WorkQueuePolicy>, PortError> {
-        let value = self
-            .load(
-                authority,
-                &policy_partition(id),
-                POLICY_AGGREGATE_TYPE,
-                id.as_uuid(),
-                WorkQueuePolicy::scope,
-                WorkQueuePolicy::version,
-            )
-            .await?;
-        if value
-            .as_ref()
-            .is_some_and(|v| v.id() != id || v.validate().is_err())
-        {
-            Err(PortError::Internal)
-        } else {
-            Ok(value)
-        }
+        load_policy_authority(&self.pool, authority, id).await
     }
 }
 
@@ -182,6 +125,19 @@ impl CommandUnitOfWork for OperationsCommandAdapter {
                 &aggregate, 1, None,
             )),
         });
+        events.push(OutboxEventWrite {
+            event_id: deterministic_event_id(
+                command_id,
+                ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                events.len(),
+            ),
+            event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+            event_version: ITEM_DIRECTORY_FACT_VERSION,
+            partition: partition.clone(),
+            causation_id: request.causation_id,
+            occurred_at: aggregate.updated_at(),
+            payload: OperationsOutboxPayload::Directory(exception_directory_draft(&aggregate)?),
+        });
         let guard = OperationsAtomicGuard::Exception(Box::new(aggregate.clone()));
         let aggregate_id = AggregateId::try_from_uuid(aggregate.id().as_uuid())
             .map_err(|_| PortError::Internal)?;
@@ -198,7 +154,6 @@ impl CommandUnitOfWork for OperationsCommandAdapter {
             aggregate_type: EXCEPTION_AGGREGATE_TYPE.into(),
             aggregate_id,
             expected_version: Some(request.expected_version),
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(
@@ -213,7 +168,7 @@ impl CommandUnitOfWork for OperationsCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -224,6 +179,23 @@ impl CommandUnitOfWork for OperationsCommandAdapter {
         stored.replayed = replayed;
         Ok(stored)
     }
+}
+
+pub(crate) fn exception_directory_draft(
+    aggregate: &OperationsException,
+) -> Result<ItemDescriptorDraft, PortError> {
+    let record = aggregate.record_ref().map_err(|_| PortError::Internal)?;
+    let value = ItemDescriptorDraft {
+        authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+        record,
+        scope: aggregate.scope().clone(),
+        lifecycle_state: exception_status_name(aggregate.status()).into(),
+        classification: DataClassification::Confidential,
+        descriptor_version: aggregate.version(),
+        authorized_search_text: format!("{} {}", aggregate.reference(), aggregate.category()),
+    };
+    value.validate().map_err(|_| PortError::Internal)?;
+    Ok(value)
 }
 
 #[async_trait]
@@ -293,7 +265,6 @@ impl WorkQueuePolicyUnitOfWork for OperationsCommandAdapter {
             aggregate_type: POLICY_AGGREGATE_TYPE.into(),
             aggregate_id,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"operations-policy-audit-v1"),
@@ -305,7 +276,7 @@ impl WorkQueuePolicyUnitOfWork for OperationsCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -334,6 +305,29 @@ impl OperationsAtomicGuard {
 
 #[async_trait]
 impl AtomicCommandGuard for OperationsAtomicGuard {
+    async fn authoritative_version(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        _context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        let (sql, id) = match self {
+            Self::Exception(value) => (
+                "SELECT aggregate_version FROM erpx_operations_write.exception_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1 FOR UPDATE",
+                value.id().as_uuid(),
+            ),
+            Self::Policy(value) => (
+                "SELECT aggregate_version FROM erpx_operations_write.work_queue_policy_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND policy_id=$1 FOR UPDATE",
+                value.id().as_uuid(),
+            ),
+        };
+        sqlx::query_scalar::<_, i64>(sql)
+            .bind(id)
+            .fetch_optional(&mut **tx)
+            .await?
+            .map(|version| u64::try_from(version).map_err(|_| CqrsSqlxError::NumericRange))
+            .transpose()
+    }
+
     async fn validate(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -348,7 +342,7 @@ impl AtomicCommandGuard for OperationsAtomicGuard {
                     &exception_partition(value.id()),
                 )?;
                 let current: Option<i64> = sqlx::query_scalar(
-                    "SELECT aggregate_version FROM erpx_operations_write.exception_guards WHERE exception_id=$1 FOR UPDATE",
+                    "SELECT aggregate_version FROM erpx_operations_write.exception_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND exception_id=$1 FOR UPDATE",
                 )
                 .bind(value.id().as_uuid())
                 .fetch_optional(&mut **tx)
@@ -367,7 +361,7 @@ impl AtomicCommandGuard for OperationsAtomicGuard {
                     &policy_partition(value.id()),
                 )?;
                 let current: Option<i64> = sqlx::query_scalar(
-                    "SELECT aggregate_version FROM erpx_operations_write.work_queue_policy_guards WHERE policy_id=$1 FOR UPDATE",
+                    "SELECT aggregate_version FROM erpx_operations_write.work_queue_policy_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND policy_id=$1 FOR UPDATE",
                 )
                 .bind(value.id().as_uuid())
                 .fetch_optional(&mut **tx)
@@ -387,7 +381,7 @@ impl AtomicCommandGuard for OperationsAtomicGuard {
                     .execute(&mut **tx)
                     .await?;
                 let collision: Option<Uuid> = sqlx::query_scalar(
-                    "SELECT policy_id FROM erpx_operations_write.work_queue_policy_guards WHERE scope_key=$1 AND policy_name=$2 AND policy_id<>$3 FOR UPDATE",
+                    "SELECT policy_id FROM erpx_operations_write.work_queue_policy_authority WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND scope_key=$1 AND policy_name=$2 AND policy_id<>$3 FOR UPDATE",
                 )
                 .bind(scope_key(value.scope())?)
                 .bind(value.name())
@@ -417,19 +411,7 @@ impl AtomicCommandGuard for OperationsAtomicGuard {
                     value.id().as_uuid(),
                     value.version(),
                 )?;
-                let result = sqlx::query("UPDATE erpx_operations_write.exception_guards SET tenant_scope=$2,scope_key=$3,category=$4,severity=$5,policy_ref=$6,assignee_id=$7,manager_id=$8,assignment_authority_ref=$9,assignment_valid_from=$10,assignment_valid_until=$11,due_at=$12,escalation_after_minutes=$13,exception_status=$14,aggregate_version=$15,updated_at=$16 WHERE exception_id=$1")
-                    .bind(value.id().as_uuid()).bind(serde_json::to_value(value.scope())?)
-                    .bind(scope_key(value.scope())?).bind(value.category()).bind(value.severity()).bind(value.policy_ref())
-                    .bind(value.assignment().assignee.as_uuid().to_string()).bind(value.assignment().manager.as_uuid().to_string())
-                    .bind(&value.assignment().authority_ref).bind(value.assignment().valid_from).bind(value.assignment().valid_until)
-                    .bind(value.due_at()).bind(i32::try_from(value.escalation_after_minutes()).map_err(|_| CqrsSqlxError::NumericRange)?)
-                    .bind(exception_status_name(value.status())).bind(i64::try_from(value.version()).map_err(|_| CqrsSqlxError::NumericRange)?)
-                    .bind(value.updated_at()).execute(&mut **tx).await?;
-                if result.rows_affected() != 1 {
-                    return Err(CqrsSqlxError::GuardRejected(
-                        "Operations exception guard missing",
-                    ));
-                }
+                apply_exception_authority(tx, value).await?;
             }
             Self::Policy(value) => {
                 validate_applied(
@@ -438,12 +420,7 @@ impl AtomicCommandGuard for OperationsAtomicGuard {
                     value.id().as_uuid(),
                     value.version(),
                 )?;
-                sqlx::query("INSERT INTO erpx_operations_write.work_queue_policy_guards (policy_id,scope_key,tenant_scope,policy_name,allowed_source_contexts,escalation_after_minutes,policy_status,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (policy_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,tenant_scope=EXCLUDED.tenant_scope,policy_name=EXCLUDED.policy_name,allowed_source_contexts=EXCLUDED.allowed_source_contexts,escalation_after_minutes=EXCLUDED.escalation_after_minutes,policy_status=EXCLUDED.policy_status,aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at")
-                    .bind(value.id().as_uuid()).bind(scope_key(value.scope())?).bind(serde_json::to_value(value.scope())?)
-                    .bind(value.name()).bind(serde_json::to_value(value.allowed_sources())?)
-                    .bind(i32::try_from(value.escalation_after_minutes()).map_err(|_| CqrsSqlxError::NumericRange)?)
-                    .bind(policy_status_name(value.status())).bind(i64::try_from(value.version()).map_err(|_| CqrsSqlxError::NumericRange)?)
-                    .bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?;
+                apply_policy_authority(tx, value).await?;
             }
         }
         Ok(())
@@ -650,14 +627,17 @@ pub(crate) fn map_store_error(error: CqrsSqlxError) -> PortError {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn command_guard_updates_context_tables_inside_shared_transaction() {
+    fn command_guard_updates_typed_authority_inside_shared_transaction() {
         let source = include_str!("command.rs");
-        assert!(source.contains("commit_guarded"));
-        assert!(source.contains("impl AtomicCommandGuard for OperationsAtomicGuard"));
-        assert!(source.contains("exception_guards"));
-        assert!(source.contains("work_queue_policy_guards"));
-        assert!(source.contains("operations-policy-name:"));
-        assert!(source.contains("pg_advisory_xact_lock"));
+        let production = source.split("#[cfg(test)]").next().unwrap();
+        assert!(production.contains("commit_normalized"));
+        assert!(production.contains("impl AtomicCommandGuard for OperationsAtomicGuard"));
+        assert!(production.contains("exception_authority"));
+        assert!(production.contains("work_queue_policy_authority"));
+        assert!(production.contains("operations-policy-name:"));
+        assert!(production.contains("pg_advisory_xact_lock"));
+        assert!(!production.contains("load_snapshot"));
+        assert!(!production.contains("commit_guarded"));
     }
 
     #[test]

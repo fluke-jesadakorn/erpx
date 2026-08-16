@@ -1,14 +1,5 @@
 CREATE SCHEMA IF NOT EXISTS erpx_control;
 
-CREATE TABLE IF NOT EXISTS erpx_control.aggregate_snapshots (
-    aggregate_type TEXT NOT NULL,
-    aggregate_id UUID NOT NULL,
-    aggregate_version BIGINT NOT NULL CHECK (aggregate_version >= 0),
-    state JSONB NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (aggregate_type, aggregate_id)
-);
-
 CREATE TABLE IF NOT EXISTS erpx_control.idempotency_keys (
     idempotency_key TEXT PRIMARY KEY,
     request_hash TEXT NOT NULL,

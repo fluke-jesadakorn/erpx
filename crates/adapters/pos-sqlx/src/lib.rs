@@ -3,12 +3,18 @@
 mod command;
 mod projection;
 mod read;
+mod records;
 
 pub use command::{PosCommandAdapter, PosWriteRepository};
 pub use projection::{
     PosOutboxPayload, PosRefundProjector, PosRefundSnapshot, PosSaleProjector, PosSaleSnapshot,
 };
 pub use read::{PosSqlxReadRepository, decode_refund_cursor, decode_sale_cursor};
+pub use records::{
+    PosLifecycleRecordProjector, PosLifecycleRecordReadAdapter, PosLifecycleRecordSqlxAdapter,
+    RECORD_PROJECTION_NAME as LIFECYCLE_RECORD_PROJECTION_NAME,
+    RECORD_SNAPSHOT_EVENT_TYPE as LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE,
+};
 
 pub const CONTEXT_NAME: &str = "pos";
 pub const SALE_AGGREGATE_TYPE: &str = "sale";
@@ -18,6 +24,11 @@ pub const REFUND_PROJECTION_NAME: &str = "pos.refunds";
 pub const SALE_SNAPSHOT_EVENT_TYPE: &str = "pos.sale_snapshot";
 pub const REFUND_SNAPSHOT_EVENT_TYPE: &str = "pos.refund_snapshot";
 pub const EVENT_VERSION: u32 = 1;
+pub const COMPLETION_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
+pub const COMPLETION_READ_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
+);
 
 #[cfg(test)]
 pub const TENANT_WRITE_FOUNDATION_DDL: &str =

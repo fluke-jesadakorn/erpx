@@ -242,3 +242,29 @@ fn source_fact_must_use_its_owner_database_stream() {
         Err(Customer360DomainError::IncorrectProjectionStream)
     );
 }
+
+#[test]
+fn source_freshness_not_row_count_controls_empty_section_availability() {
+    let coverage = SourceCoverage {
+        customer_profile: true,
+        commercial_subscriptions: true,
+        crm_opportunities: true,
+        sales_orders: true,
+        support_cases: true,
+    };
+    let available = Customer360SectionAvailability::from_source_freshness(
+        coverage,
+        SourceFreshness::Current,
+        SourceFreshness::Current,
+    );
+    assert_eq!(available.commercial, SectionAvailability::Ready);
+    assert_eq!(available.support, SectionAvailability::Ready);
+
+    let degraded = Customer360SectionAvailability::from_source_freshness(
+        coverage,
+        SourceFreshness::Stale,
+        SourceFreshness::Unavailable,
+    );
+    assert_eq!(degraded.overview, SectionAvailability::Stale);
+    assert_eq!(degraded.commercial, SectionAvailability::Unavailable);
+}

@@ -1,3 +1,7 @@
+mod governance;
+
+pub use governance::*;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{
@@ -12,20 +16,26 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::domain::{
-    AccessPrincipal, AccessRole, IdentityAccessAggregate, PermissionKey, PrincipalId,
-    PrincipalStatus, RiskTier, RoleAssignmentId, RoleCode, RoleId,
+    AccessPrincipal, AccessRole, IdentityAccessAggregate, NonHumanPrincipalGovernance,
+    PermissionKey, PrincipalId, PrincipalKind, PrincipalStatus, RiskTier, RoleAssignmentId,
+    RoleCode, RoleId,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum IdentityAccessAction {
     CreatePrincipal,
+    CreateAuthorityGroup,
     ActivatePrincipal,
     SuspendPrincipal,
     ReactivatePrincipal,
     DisablePrincipal,
     AssignRole,
+    RenewRole,
+    RecoverRole,
     RevokeRole,
+    AddGroupMember,
+    RevokeGroupMember,
     DefineRole,
     SetRolePermissions,
     ViewPrincipal,
@@ -74,6 +84,13 @@ pub enum CommandFingerprint {
         scope: TenantScope,
         display_name: String,
     },
+    CreateAuthorityGroup {
+        group_id: PrincipalId,
+        scope: TenantScope,
+        display_name: String,
+        group_kind: PrincipalKind,
+        governance: NonHumanPrincipalGovernance,
+    },
     ActivatePrincipal {
         principal_id: PrincipalId,
     },
@@ -99,9 +116,40 @@ pub enum CommandFingerprint {
         grantor_ref: String,
         approver_ref: Option<String>,
     },
+    RenewRole {
+        principal_id: PrincipalId,
+        assignment_id: RoleAssignmentId,
+        replacement_assignment_id: RoleAssignmentId,
+        valid_until: DateTime<Utc>,
+        grantor_ref: String,
+        approver_ref: Option<String>,
+    },
+    RecoverRole {
+        principal_id: PrincipalId,
+        assignment_id: RoleAssignmentId,
+        role_id: RoleId,
+        scope: TenantScope,
+        risk_tier: RiskTier,
+        valid_from: DateTime<Utc>,
+        valid_until: DateTime<Utc>,
+        grant_reason: String,
+        ticket_reference: Option<String>,
+        grantor_ref: String,
+        approver_ref: Option<String>,
+    },
     RevokeRole {
         principal_id: PrincipalId,
         assignment_id: RoleAssignmentId,
+    },
+    AddGroupMember {
+        group_id: PrincipalId,
+        member_principal_id: PrincipalId,
+        valid_from: DateTime<Utc>,
+        valid_until: DateTime<Utc>,
+    },
+    RevokeGroupMember {
+        group_id: PrincipalId,
+        member_principal_id: PrincipalId,
     },
     DefineRole {
         role_id: RoleId,

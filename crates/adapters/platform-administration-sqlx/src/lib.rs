@@ -1,10 +1,15 @@
 #![doc = "PostgreSQL command, query, and projection adapters for Platform Administration."]
 
 mod command;
+mod governance;
 mod projection;
 mod read;
 
 pub use command::{PlatformAdministrationCommandAdapter, PlatformAdministrationWriteRepository};
+pub use governance::{
+    GOVERNANCE_PROJECTION_NAME, GOVERNANCE_SNAPSHOT_EVENT_TYPE, PlatformGovernanceRecordProjector,
+    PlatformGovernanceRecordReadAdapter, PlatformGovernanceRecordSqlxAdapter, governance_partition,
+};
 pub use projection::{
     AdminContextProjector, ConnectorProjector, PlatformAdministrationOutboxPayload,
     PlatformAdministrationSnapshot, TenantProjector,
@@ -28,7 +33,9 @@ pub const CONTROL_WRITE_DDL: &str = concat!(
         "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
     ),
     "\n",
-    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql")
+    include_str!("../../../migration/migrations/0076_wave5_control_context_guards.sql"),
+    "\n",
+    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
 );
 pub const CONTROL_READ_DDL: &str = concat!(
     include_str!(

@@ -15,8 +15,89 @@ use thiserror::Error;
 use crate::domain::{
     AccessEntry, AccessEntryId, ContractParty, ContractStatus, ContractTransition, DocumentVersion,
     LegalAggregate, LegalContract, LegalContractId, LegalDocument, LegalDocumentId, LegalHold,
-    LegalMatter, LegalMatterId, MatterStatus, RecordLink, RecordRelation,
+    LegalMatter, LegalMatterId, MatterStatus, RecordLink, RecordRelation, SignatureEnvelopeId,
+    SignatureRecipient, VerifiedSignatureCallback,
 };
+
+mod legal_case;
+pub use legal_case::{
+    LegalCaseAuthorizationPort, LegalCaseCommand, LegalCaseQueryPort, LegalCaseReceipt,
+    LegalCaseUnitOfWork, LegalCaseView,
+};
+
+/// Provider-neutral submission payload. Delivery coordinates remain behind
+/// the provider adapter and are resolved from the opaque recipient subjects.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignatureProviderSubmission {
+    pub envelope_id: SignatureEnvelopeId,
+    pub scope: TenantScope,
+    pub document_id: LegalDocumentId,
+    pub document_version: u64,
+    pub document_sha256: String,
+    pub provider_policy_version: String,
+    pub recipients: Vec<SignatureRecipient>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignatureProviderEnvelope {
+    pub provider_envelope_ref: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignatureEvidencePackage {
+    pub provider_envelope_ref: String,
+    pub evidence_object_ref: String,
+    pub evidence_sha256: String,
+}
+
+#[async_trait]
+pub trait ESignatureProviderPort: Send + Sync {
+    async fn create_envelope(
+        &self,
+        request: SignatureProviderSubmission,
+    ) -> Result<SignatureProviderEnvelope, PortError>;
+
+    async fn cancel_envelope(&self, provider_envelope_ref: &str) -> Result<(), PortError>;
+
+    async fn fetch_evidence(
+        &self,
+        provider_envelope_ref: &str,
+    ) -> Result<SignatureEvidencePackage, PortError>;
+}
+
+/// Verification occurs in an outbound adapter before the application may
+/// pass a typed callback into the Legal domain lifecycle.
+#[async_trait]
+pub trait SignatureCallbackVerifierPort: Send + Sync {
+    async fn verify_callback(
+        &self,
+        provider_key: &str,
+        headers: &[(String, String)],
+        body: &[u8],
+        received_at: DateTime<Utc>,
+    ) -> Result<VerifiedSignatureCallback, PortError>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignatureEnvelopeView {
+    pub envelope_id: SignatureEnvelopeId,
+    pub version: u64,
+    pub document_id: LegalDocumentId,
+    pub document_version: u64,
+    pub status: crate::domain::SignatureStatus,
+    pub retention_until: DateTime<Utc>,
+}
+
+#[async_trait]
+pub trait SignatureEnvelopeQueryPort: Send + Sync {
+    /// Queries only the active projection generation. Missing generation is a
+    /// degraded read and must not be treated as a neutral not-found result.
+    async fn get_signature_envelope(
+        &self,
+        authority_scope: &TenantScope,
+        envelope_id: SignatureEnvelopeId,
+    ) -> Result<Option<SignatureEnvelopeView>, PortError>;
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

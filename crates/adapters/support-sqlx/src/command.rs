@@ -3,12 +3,17 @@ use erpx_cqrs_sqlx::{
     AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
-use erpx_integration_contracts::IntegrationEvent;
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_integration_contracts::{
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, customer, identity_access, record_policy_id,
+};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, TenantScope};
 use erpx_support::{
-    CapabilityId, CommandUnitOfWork, Incident, IncidentId, SessionId, SupportAggregate,
-    SupportCapability, SupportCommit, SupportSession, SupportTicket, SupportTicketId,
-    WriteRepository,
+    BroadcastAudience, CapabilityId, CapabilityRevocationReason, CommandUnitOfWork, Incident,
+    IncidentBroadcast, IncidentId, IncidentStatus, IncidentTimelineEntry, MessageAudience,
+    MessageId, SessionId, SessionStatus, SupportAggregate, SupportAuthorityEffect,
+    SupportCapability, SupportCommit, SupportMode, SupportSession, SupportTicket, SupportTicketId,
+    TicketMessage, TicketStatus, WriteRepository,
     ports::{CommandFingerprint, CommandIdentity, DependencyVersion, PortError, StoredCommit},
 };
 use serde_json::json;
@@ -17,8 +22,8 @@ use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
-    CAPABILITY_AGGREGATE_TYPE, CAPABILITY_SNAPSHOT_EVENT, CONTEXT_NAME, EVENT_VERSION,
-    INCIDENT_AGGREGATE_TYPE, INCIDENT_SNAPSHOT_EVENT, SESSION_AGGREGATE_TYPE,
+    AUTHORITY_EFFECT_EVENT, CAPABILITY_AGGREGATE_TYPE, CAPABILITY_SNAPSHOT_EVENT, CONTEXT_NAME,
+    EVENT_VERSION, INCIDENT_AGGREGATE_TYPE, INCIDENT_SNAPSHOT_EVENT, SESSION_AGGREGATE_TYPE,
     SESSION_SNAPSHOT_EVENT, TICKET_AGGREGATE_TYPE, TICKET_SNAPSHOT_EVENT, capability_partition,
     incident_partition,
     projection::{
@@ -30,13 +35,11 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct SupportWriteRepository {
-    store: CommandStore,
+    pool: WritePool,
 }
 impl SupportWriteRepository {
     pub fn new(pool: WritePool) -> Self {
-        Self {
-            store: CommandStore::new(pool),
-        }
+        Self { pool }
     }
 }
 
@@ -48,28 +51,498 @@ impl SupportWriteRepository {
         aggregate_type: &str,
         id: Uuid,
     ) -> Result<Option<SupportAggregate>, PortError> {
-        let aggregate_id = AggregateId::try_from_uuid(id).map_err(|_| PortError::Internal)?;
-        let snapshot = self
-            .store
-            .load_snapshot::<SupportAggregate>(
-                CONTEXT_NAME,
-                partition,
-                aggregate_type,
-                aggregate_id,
-            )
+        let _ = partition;
+        load_support_relational(&self.pool, authority, aggregate_type, id).await
+    }
+}
+
+async fn load_support_relational(
+    pool: &WritePool,
+    authority: &TenantScope,
+    aggregate_type: &str,
+    id: Uuid,
+) -> Result<Option<SupportAggregate>, PortError> {
+    authority.validate().map_err(|_| PortError::Denied)?;
+    let mut tx = pool.begin().await.map_err(map_store_error)?;
+    match aggregate_type {
+        TICKET_AGGREGATE_TYPE => load_ticket_relational(&mut tx, authority, id)
             .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
-            return Ok(None);
-        };
-        if snapshot.version != snapshot.state.version()
-            || snapshot.state.id_uuid() != id
-            || snapshot.state.aggregate_type() != aggregate_type
-            || !authority.contains(snapshot.state.scope())
-        {
-            return Err(PortError::Internal);
+            .map(|value| value.map(SupportAggregate::Ticket)),
+        INCIDENT_AGGREGATE_TYPE => load_incident_relational(&mut tx, authority, id)
+            .await
+            .map(|value| value.map(SupportAggregate::Incident)),
+        SESSION_AGGREGATE_TYPE => load_session_relational(&mut tx, authority, id)
+            .await
+            .map(|value| value.map(SupportAggregate::Session)),
+        CAPABILITY_AGGREGATE_TYPE => load_capability_relational(&mut tx, authority, id)
+            .await
+            .map(|value| value.map(SupportAggregate::Capability)),
+        _ => Err(PortError::Internal),
+    }
+}
+
+async fn load_ticket_relational(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    id: Uuid,
+) -> Result<Option<SupportTicket>, PortError> {
+    let row = support_authorized_root(
+        tx,
+        authority,
+        "SELECT aggregate_version,holding_id,company_id,branch_id,customer_id,customer_account_id,case_code,category,severity,description,ticket_status,created_at,updated_at FROM erpx_support_write.ticket_authority WHERE ticket_id=$1",
+        "erpx_support_write.ticket_authority",
+        "ticket_id",
+        id,
+    )
+    .await?;
+    let Some(row) = row else { return Ok(None) };
+    let messages = sqlx::query("SELECT message_id,author_ref,audience,body,created_at FROM erpx_support_write.ticket_message_authority WHERE ticket_id=$1 ORDER BY message_ordinal")
+        .bind(id)
+        .fetch_all(&mut **tx)
+        .await
+        .map_err(|_| PortError::Unavailable)?
+        .into_iter()
+        .map(|message| {
+            TicketMessage::new(
+                MessageId::try_from_uuid(message.try_get("message_id").map_err(|_| PortError::Internal)?)
+                    .map_err(|_| PortError::Internal)?,
+                message.try_get("author_ref").map_err(|_| PortError::Internal)?,
+                parse_message_audience(message.try_get::<String, _>("audience").map_err(|_| PortError::Internal)?.as_str())?,
+                message.try_get("body").map_err(|_| PortError::Internal)?,
+                message.try_get("created_at").map_err(|_| PortError::Internal)?,
+            )
+            .map_err(|_| PortError::Internal)
+        })
+        .collect::<Result<Vec<_>, PortError>>()?;
+    SupportTicket::try_rehydrate(
+        SupportTicketId::try_from_uuid(id).map_err(|_| PortError::Internal)?,
+        support_row_u64(&row, "aggregate_version")?,
+        support_exact_scope(&row)?,
+        customer::CustomerRef::try_from_uuid(
+            row.try_get("customer_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        customer::CustomerAccountRef::try_from_uuid(
+            row.try_get("customer_account_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        row.try_get("case_code").map_err(|_| PortError::Internal)?,
+        row.try_get("category").map_err(|_| PortError::Internal)?,
+        row.try_get("severity").map_err(|_| PortError::Internal)?,
+        row.try_get("description")
+            .map_err(|_| PortError::Internal)?,
+        parse_ticket_status(
+            row.try_get::<String, _>("ticket_status")
+                .map_err(|_| PortError::Internal)?
+                .as_str(),
+        )?,
+        messages,
+        row.try_get("created_at").map_err(|_| PortError::Internal)?,
+        row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn load_incident_relational(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    id: Uuid,
+) -> Result<Option<Incident>, PortError> {
+    let row = support_authorized_root(
+        tx,
+        authority,
+        "SELECT aggregate_version,holding_id,company_id,branch_id,incident_code,severity,commander_ref,incident_status,created_at,updated_at FROM erpx_support_write.incident_authority WHERE incident_id=$1",
+        "erpx_support_write.incident_authority",
+        "incident_id",
+        id,
+    )
+    .await?;
+    let Some(row) = row else { return Ok(None) };
+    let affected_services = sqlx::query_scalar::<_, String>("SELECT service_ref FROM erpx_support_write.incident_service_authority WHERE incident_id=$1 ORDER BY service_ordinal")
+        .bind(id).fetch_all(&mut **tx).await.map_err(|_| PortError::Unavailable)?;
+    let affected_customer_accounts = sqlx::query_scalar::<_, Uuid>("SELECT customer_account_id FROM erpx_support_write.incident_customer_account_authority WHERE incident_id=$1 ORDER BY account_ordinal")
+        .bind(id).fetch_all(&mut **tx).await.map_err(|_| PortError::Unavailable)?
+        .into_iter().map(customer::CustomerAccountRef::try_from_uuid)
+        .collect::<Result<Vec<_>, _>>().map_err(|_| PortError::Internal)?;
+    let timeline = sqlx::query("SELECT occurred_at,actor_ref,message FROM erpx_support_write.incident_timeline_authority WHERE incident_id=$1 ORDER BY timeline_ordinal")
+        .bind(id).fetch_all(&mut **tx).await.map_err(|_| PortError::Unavailable)?
+        .into_iter().map(|entry| Ok(IncidentTimelineEntry {
+            at: entry.try_get("occurred_at").map_err(|_| PortError::Internal)?,
+            actor_ref: entry.try_get("actor_ref").map_err(|_| PortError::Internal)?,
+            message: entry.try_get("message").map_err(|_| PortError::Internal)?,
+        })).collect::<Result<Vec<_>, PortError>>()?;
+    let broadcasts = sqlx::query("SELECT occurred_at,actor_ref,audience,message FROM erpx_support_write.incident_broadcast_authority WHERE incident_id=$1 ORDER BY broadcast_ordinal")
+        .bind(id).fetch_all(&mut **tx).await.map_err(|_| PortError::Unavailable)?
+        .into_iter().map(|entry| Ok(IncidentBroadcast {
+            at: entry.try_get("occurred_at").map_err(|_| PortError::Internal)?,
+            actor_ref: entry.try_get("actor_ref").map_err(|_| PortError::Internal)?,
+            audience: parse_broadcast_audience(entry.try_get::<String, _>("audience").map_err(|_| PortError::Internal)?.as_str())?,
+            message: entry.try_get("message").map_err(|_| PortError::Internal)?,
+        })).collect::<Result<Vec<_>, PortError>>()?;
+    Incident::try_rehydrate(
+        IncidentId::try_from_uuid(id).map_err(|_| PortError::Internal)?,
+        support_row_u64(&row, "aggregate_version")?,
+        support_exact_scope(&row)?,
+        row.try_get("incident_code")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("severity").map_err(|_| PortError::Internal)?,
+        row.try_get("commander_ref")
+            .map_err(|_| PortError::Internal)?,
+        affected_services,
+        affected_customer_accounts,
+        parse_incident_status(
+            row.try_get::<String, _>("incident_status")
+                .map_err(|_| PortError::Internal)?
+                .as_str(),
+        )?,
+        timeline,
+        broadcasts,
+        row.try_get("created_at").map_err(|_| PortError::Internal)?,
+        row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn load_session_relational(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    id: Uuid,
+) -> Result<Option<SupportSession>, PortError> {
+    let row = support_authorized_root(
+        tx,
+        authority,
+        "SELECT aggregate_version,holding_id,company_id,branch_id,ticket_id,customer_id,customer_account_id,agent_principal_id,represented_principal_id,support_mode,module,reason,session_status,requested_at,expires_at,approved_by,approved_at,revoked_at,revoked_reason FROM erpx_support_write.session_authority WHERE session_id=$1",
+        "erpx_support_write.session_authority",
+        "session_id",
+        id,
+    )
+    .await?;
+    let Some(row) = row else { return Ok(None) };
+    let permissions = sqlx::query_scalar::<_, String>("SELECT permission FROM erpx_support_write.session_permission_authority WHERE session_id=$1 ORDER BY permission_ordinal")
+        .bind(id).fetch_all(&mut **tx).await.map_err(|_| PortError::Unavailable)?;
+    SupportSession::try_rehydrate(
+        SessionId::try_from_uuid(id).map_err(|_| PortError::Internal)?,
+        support_row_u64(&row, "aggregate_version")?,
+        support_exact_scope(&row)?,
+        SupportTicketId::try_from_uuid(row.try_get("ticket_id").map_err(|_| PortError::Internal)?)
+            .map_err(|_| PortError::Internal)?,
+        customer::CustomerRef::try_from_uuid(
+            row.try_get("customer_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        customer::CustomerAccountRef::try_from_uuid(
+            row.try_get("customer_account_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        identity_access::PrincipalRef::try_from_uuid(
+            row.try_get("agent_principal_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        row.try_get::<Option<Uuid>, _>("represented_principal_id")
+            .map_err(|_| PortError::Internal)?
+            .map(identity_access::PrincipalRef::try_from_uuid)
+            .transpose()
+            .map_err(|_| PortError::Internal)?,
+        parse_support_mode(
+            row.try_get::<String, _>("support_mode")
+                .map_err(|_| PortError::Internal)?
+                .as_str(),
+        )?,
+        permissions,
+        row.try_get("module").map_err(|_| PortError::Internal)?,
+        row.try_get("reason").map_err(|_| PortError::Internal)?,
+        parse_session_status(
+            row.try_get::<String, _>("session_status")
+                .map_err(|_| PortError::Internal)?
+                .as_str(),
+        )?,
+        row.try_get("requested_at")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("expires_at").map_err(|_| PortError::Internal)?,
+        row.try_get("approved_by")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("approved_at")
+            .map_err(|_| PortError::Internal)?,
+        row.try_get("revoked_at").map_err(|_| PortError::Internal)?,
+        row.try_get("revoked_reason")
+            .map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn load_capability_relational(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    id: Uuid,
+) -> Result<Option<SupportCapability>, PortError> {
+    let row = support_authorized_root(
+        tx,
+        authority,
+        "SELECT aggregate_version,holding_id,company_id,branch_id,session_id,ticket_id,customer_id,customer_account_id,agent_principal_id,device_ref,support_mode,module,secret_hash_sha256,issued_at,expires_at,revocation_reason,revoked_at FROM erpx_support_write.capability_authority WHERE capability_id=$1",
+        "erpx_support_write.capability_authority",
+        "capability_id",
+        id,
+    )
+    .await?;
+    let Some(row) = row else { return Ok(None) };
+    let permissions = sqlx::query_scalar::<_, String>("SELECT permission FROM erpx_support_write.capability_permission_authority WHERE capability_id=$1 ORDER BY permission_ordinal")
+        .bind(id).fetch_all(&mut **tx).await.map_err(|_| PortError::Unavailable)?;
+    let secret: Vec<u8> = row
+        .try_get("secret_hash_sha256")
+        .map_err(|_| PortError::Internal)?;
+    let secret_hash_sha256: [u8; 32] = secret.try_into().map_err(|_| PortError::Internal)?;
+    let reason = row
+        .try_get::<Option<String>, _>("revocation_reason")
+        .map_err(|_| PortError::Internal)?
+        .map(|value| parse_capability_revocation(value.as_str()))
+        .transpose()?;
+    let revoked_at = row
+        .try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("revoked_at")
+        .map_err(|_| PortError::Internal)?;
+    let revocation = match (reason, revoked_at) {
+        (None, None) => None,
+        (Some(reason), Some(at)) => Some((reason, at)),
+        _ => return Err(PortError::Internal),
+    };
+    SupportCapability::try_rehydrate(
+        CapabilityId::try_from_uuid(id).map_err(|_| PortError::Internal)?,
+        support_row_u64(&row, "aggregate_version")?,
+        SessionId::try_from_uuid(row.try_get("session_id").map_err(|_| PortError::Internal)?)
+            .map_err(|_| PortError::Internal)?,
+        SupportTicketId::try_from_uuid(row.try_get("ticket_id").map_err(|_| PortError::Internal)?)
+            .map_err(|_| PortError::Internal)?,
+        customer::CustomerRef::try_from_uuid(
+            row.try_get("customer_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        customer::CustomerAccountRef::try_from_uuid(
+            row.try_get("customer_account_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        identity_access::PrincipalRef::try_from_uuid(
+            row.try_get("agent_principal_id")
+                .map_err(|_| PortError::Internal)?,
+        )
+        .map_err(|_| PortError::Internal)?,
+        row.try_get("device_ref").map_err(|_| PortError::Internal)?,
+        parse_support_mode(
+            row.try_get::<String, _>("support_mode")
+                .map_err(|_| PortError::Internal)?
+                .as_str(),
+        )?,
+        permissions,
+        support_exact_scope(&row)?,
+        row.try_get("module").map_err(|_| PortError::Internal)?,
+        secret_hash_sha256,
+        row.try_get("issued_at").map_err(|_| PortError::Internal)?,
+        row.try_get("expires_at").map_err(|_| PortError::Internal)?,
+        revocation,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn support_authorized_root(
+    tx: &mut Transaction<'_, Postgres>,
+    authority: &TenantScope,
+    base: &str,
+    table: &str,
+    id_column: &str,
+    id: Uuid,
+) -> Result<Option<sqlx::postgres::PgRow>, PortError> {
+    let (kind, holding, company, branch, companies, branches) =
+        support_authority_parameters(authority)?;
+    let query = format!(
+        "{base} AND ($2='platform' OR ($2='holding' AND holding_id=$3) OR ($2='company' AND holding_id=$3 AND company_id=$4) OR ($2='branch' AND holding_id=$3 AND company_id=$4 AND branch_id=$5) OR ($2='subtree' AND holding_id=$3 AND ((branch_id IS NULL AND cardinality($7::uuid[])=0 AND company_id=ANY($6::uuid[])) OR (branch_id IS NOT NULL AND company_id=ANY($6::uuid[]) AND branch_id=ANY($7::uuid[])))))"
+    );
+    let row = sqlx::query(&query)
+        .bind(id)
+        .bind(kind)
+        .bind(holding)
+        .bind(company)
+        .bind(branch)
+        .bind(companies)
+        .bind(branches)
+        .fetch_optional(&mut **tx)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+    if row.is_some() {
+        return Ok(row);
+    }
+    let exists_query = format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE {id_column}=$1)");
+    let exists: bool = sqlx::query_scalar(&exists_query)
+        .bind(id)
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+    if exists {
+        Err(PortError::Denied)
+    } else {
+        Ok(None)
+    }
+}
+
+type SupportAuthorityParameters = (
+    &'static str,
+    Option<Uuid>,
+    Option<Uuid>,
+    Option<Uuid>,
+    Vec<Uuid>,
+    Vec<Uuid>,
+);
+
+fn support_authority_parameters(
+    authority: &TenantScope,
+) -> Result<SupportAuthorityParameters, PortError> {
+    authority.validate().map_err(|_| PortError::Denied)?;
+    Ok(match authority {
+        TenantScope::Platform => ("platform", None, None, None, vec![], vec![]),
+        TenantScope::Holding { holding_id } => {
+            ("holding", Some(*holding_id), None, None, vec![], vec![])
         }
-        Ok(Some(snapshot.state))
+        TenantScope::Company {
+            holding_id,
+            company_id,
+        } => (
+            "company",
+            Some(*holding_id),
+            Some(*company_id),
+            None,
+            vec![],
+            vec![],
+        ),
+        TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => (
+            "branch",
+            Some(*holding_id),
+            Some(*company_id),
+            Some(*branch_id),
+            vec![],
+            vec![],
+        ),
+        TenantScope::Subtree {
+            holding_id,
+            company_ids,
+            branch_ids,
+        } => (
+            "subtree",
+            Some(*holding_id),
+            None,
+            None,
+            company_ids.clone(),
+            branch_ids.clone(),
+        ),
+    })
+}
+
+fn support_exact_scope(row: &sqlx::postgres::PgRow) -> Result<TenantScope, PortError> {
+    let holding_id = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
+    let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
+    Ok(
+        match row.try_get("branch_id").map_err(|_| PortError::Internal)? {
+            Some(branch_id) => TenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            },
+            None => TenantScope::Company {
+                holding_id,
+                company_id,
+            },
+        },
+    )
+}
+
+fn support_row_u64(row: &sqlx::postgres::PgRow, column: &str) -> Result<u64, PortError> {
+    u64::try_from(
+        row.try_get::<i64, _>(column)
+            .map_err(|_| PortError::Internal)?,
+    )
+    .map_err(|_| PortError::Internal)
+}
+
+fn parse_ticket_status(value: &str) -> Result<TicketStatus, PortError> {
+    match value {
+        "new" => Ok(TicketStatus::New),
+        "triaged" => Ok(TicketStatus::Triaged),
+        "waiting_for_customer" => Ok(TicketStatus::WaitingForCustomer),
+        "access_requested" => Ok(TicketStatus::AccessRequested),
+        "approved" => Ok(TicketStatus::Approved),
+        "in_progress" => Ok(TicketStatus::InProgress),
+        "resolved" => Ok(TicketStatus::Resolved),
+        "customer_confirmed" => Ok(TicketStatus::CustomerConfirmed),
+        "closed" => Ok(TicketStatus::Closed),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_incident_status(value: &str) -> Result<IncidentStatus, PortError> {
+    match value {
+        "investigating" => Ok(IncidentStatus::Investigating),
+        "identified" => Ok(IncidentStatus::Identified),
+        "monitoring" => Ok(IncidentStatus::Monitoring),
+        "resolved" => Ok(IncidentStatus::Resolved),
+        "postmortem_complete" => Ok(IncidentStatus::PostmortemComplete),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_message_audience(value: &str) -> Result<MessageAudience, PortError> {
+    match value {
+        "customer_visible" => Ok(MessageAudience::CustomerVisible),
+        "internal" => Ok(MessageAudience::Internal),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_broadcast_audience(value: &str) -> Result<BroadcastAudience, PortError> {
+    match value {
+        "customer_visible" => Ok(BroadcastAudience::CustomerVisible),
+        "internal" => Ok(BroadcastAudience::Internal),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_support_mode(value: &str) -> Result<SupportMode, PortError> {
+    match value {
+        "diagnostic_read" => Ok(SupportMode::DiagnosticRead),
+        "tenant_mutation" => Ok(SupportMode::TenantMutation),
+        "impersonation" => Ok(SupportMode::Impersonation),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_session_status(value: &str) -> Result<SessionStatus, PortError> {
+    match value {
+        "requested" => Ok(SessionStatus::Requested),
+        "approved" => Ok(SessionStatus::Approved),
+        "revoked" => Ok(SessionStatus::Revoked),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_capability_revocation(value: &str) -> Result<CapabilityRevocationReason, PortError> {
+    match value {
+        "customer_requested" => Ok(CapabilityRevocationReason::CustomerRequested),
+        "agent_disabled" => Ok(CapabilityRevocationReason::AgentDisabled),
+        "device_revoked" => Ok(CapabilityRevocationReason::DeviceRevoked),
+        "session_revoked" => Ok(CapabilityRevocationReason::SessionRevoked),
+        "ticket_closed" => Ok(CapabilityRevocationReason::TicketClosed),
+        "administrative" => Ok(CapabilityRevocationReason::Administrative),
+        _ => Err(PortError::Internal),
     }
 }
 
@@ -207,6 +680,26 @@ impl CommandUnitOfWork for SupportCommandAdapter {
                 payload: SupportOutboxPayload::Integration(event.clone()),
             })
             .collect::<Vec<_>>();
+        let authority_effect_offset = events.len();
+        events.extend(
+            request
+                .authority_effects
+                .iter()
+                .enumerate()
+                .map(|(index, effect)| OutboxEventWrite {
+                    event_id: deterministic_event_id(
+                        command_id,
+                        AUTHORITY_EFFECT_EVENT,
+                        authority_effect_offset + index,
+                    ),
+                    event_type: AUTHORITY_EFFECT_EVENT.into(),
+                    event_version: EVENT_VERSION,
+                    partition: partition.clone(),
+                    causation_id: request.causation_id,
+                    occurred_at,
+                    payload: SupportOutboxPayload::AuthorityEffect(effect.clone()),
+                }),
+        );
         events.push(OutboxEventWrite {
             event_id: deterministic_event_id(command_id, snapshot_event, events.len()),
             event_type: snapshot_event.into(),
@@ -216,6 +709,21 @@ impl CommandUnitOfWork for SupportCommandAdapter {
             occurred_at,
             payload: SupportOutboxPayload::Snapshot(SupportSnapshot::from(&request.aggregate)),
         });
+        if let Some(directory_draft) = support_directory_draft(&request.aggregate)? {
+            events.push(OutboxEventWrite {
+                event_id: deterministic_event_id(
+                    command_id,
+                    ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                    events.len(),
+                ),
+                event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+                event_version: ITEM_DIRECTORY_FACT_VERSION,
+                partition: partition.clone(),
+                causation_id: request.causation_id,
+                occurred_at,
+                payload: SupportOutboxPayload::Directory(directory_draft),
+            });
+        }
         let guard = SupportAtomicGuard {
             aggregate: request.aggregate.clone(),
             dependency: request.dependency.clone(),
@@ -236,7 +744,6 @@ impl CommandUnitOfWork for SupportCommandAdapter {
             aggregate_type: aggregate_type.into(),
             aggregate_id,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"support-audit-v1"),
@@ -248,7 +755,7 @@ impl CommandUnitOfWork for SupportCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -261,6 +768,65 @@ impl CommandUnitOfWork for SupportCommandAdapter {
     }
 }
 
+fn support_directory_draft(
+    aggregate: &SupportAggregate,
+) -> Result<Option<ItemDescriptorDraft>, PortError> {
+    let (record, lifecycle_state, classification, search_text) = match aggregate {
+        SupportAggregate::Ticket(value) => (
+            value.record_ref().map_err(|_| PortError::Internal)?,
+            match value.status() {
+                erpx_support::TicketStatus::New => "new",
+                erpx_support::TicketStatus::Triaged => "triaged",
+                erpx_support::TicketStatus::WaitingForCustomer => "waiting-for-customer",
+                erpx_support::TicketStatus::AccessRequested => "access-requested",
+                erpx_support::TicketStatus::Approved => "approved",
+                erpx_support::TicketStatus::InProgress => "in-progress",
+                erpx_support::TicketStatus::Resolved => "resolved",
+                erpx_support::TicketStatus::CustomerConfirmed => "customer-confirmed",
+                erpx_support::TicketStatus::Closed => "closed",
+            },
+            DataClassification::Confidential,
+            value.case_code().to_owned(),
+        ),
+        SupportAggregate::Incident(value) => (
+            value.record_ref().map_err(|_| PortError::Internal)?,
+            match value.status() {
+                erpx_support::IncidentStatus::Investigating => "investigating",
+                erpx_support::IncidentStatus::Identified => "identified",
+                erpx_support::IncidentStatus::Monitoring => "monitoring",
+                erpx_support::IncidentStatus::Resolved => "resolved",
+                erpx_support::IncidentStatus::PostmortemComplete => "postmortem-complete",
+            },
+            DataClassification::Confidential,
+            value.incident_code().to_owned(),
+        ),
+        SupportAggregate::Session(value) => (
+            value.record_ref().map_err(|_| PortError::Internal)?,
+            match value.status() {
+                erpx_support::SessionStatus::Requested => "requested",
+                erpx_support::SessionStatus::Approved => "approved",
+                erpx_support::SessionStatus::Revoked => "revoked",
+            },
+            DataClassification::Restricted,
+            value.module().to_owned(),
+        ),
+        // Capabilities are authorization internals of an access session, not a
+        // first-class cataloged record. Revocation remains on the session item.
+        SupportAggregate::Capability(_) => return Ok(None),
+    };
+    let value = ItemDescriptorDraft {
+        authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+        record,
+        scope: aggregate.scope().clone(),
+        lifecycle_state: lifecycle_state.into(),
+        classification,
+        descriptor_version: aggregate.version(),
+        authorized_search_text: search_text,
+    };
+    value.validate().map_err(|_| PortError::Internal)?;
+    Ok(Some(value))
+}
+
 struct SupportAtomicGuard {
     aggregate: SupportAggregate,
     dependency: Option<DependencyVersion>,
@@ -268,6 +834,20 @@ struct SupportAtomicGuard {
 
 #[async_trait]
 impl AtomicCommandGuard for SupportAtomicGuard {
+    async fn authoritative_version(
+        &self,
+        tx: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        validate_guard_context(&self.aggregate, context)?;
+        guard_version(
+            tx,
+            self.aggregate.aggregate_type(),
+            self.aggregate.id_uuid(),
+        )
+        .await
+    }
+
     async fn validate(
         &self,
         tx: &mut Transaction<'_, Postgres>,
@@ -304,7 +884,7 @@ impl AtomicCommandGuard for SupportAtomicGuard {
         }
         match &self.aggregate {
             SupportAggregate::Ticket(value) if context.expected_version.is_none() => {
-                let existing: Option<Uuid> = sqlx::query_scalar("SELECT ticket_id FROM erpx_support_write.ticket_guards WHERE scope_key=$1 AND case_code=$2 FOR UPDATE").bind(scope_key(value.scope())?).bind(value.case_code()).fetch_optional(&mut **tx).await?;
+                let existing: Option<Uuid> = sqlx::query_scalar("SELECT ticket_id FROM erpx_support_write.ticket_authority WHERE scope_key=$1 AND case_code=$2 FOR UPDATE").bind(scope_key(value.scope())?).bind(value.case_code()).fetch_optional(&mut **tx).await?;
                 if existing.is_some_and(|id| id != value.id().as_uuid()) {
                     return Err(CqrsSqlxError::GuardRejected(
                         "Support case code already exists",
@@ -312,7 +892,7 @@ impl AtomicCommandGuard for SupportAtomicGuard {
                 }
             }
             SupportAggregate::Session(value) => {
-                let row = sqlx::query("SELECT customer_id,customer_account_id,scope_key,ticket_status FROM erpx_support_write.ticket_guards WHERE ticket_id=$1 FOR SHARE").bind(value.ticket_id().as_uuid()).fetch_optional(&mut **tx).await?;
+                let row = sqlx::query("SELECT customer_id,customer_account_id,holding_id,company_id,branch_id,ticket_status FROM erpx_support_write.ticket_authority WHERE ticket_id=$1 FOR SHARE").bind(value.ticket_id().as_uuid()).fetch_optional(&mut **tx).await?;
                 let Some(row) = row else {
                     return Err(CqrsSqlxError::GuardRejected(
                         "Support ticket guard is missing",
@@ -321,7 +901,7 @@ impl AtomicCommandGuard for SupportAtomicGuard {
                 if row.try_get::<Uuid, _>("customer_id")? != value.customer().as_uuid()
                     || row.try_get::<Uuid, _>("customer_account_id")?
                         != value.customer_account().as_uuid()
-                    || row.try_get::<String, _>("scope_key")? != scope_key(value.scope())?
+                    || !support_scope_matches_row(&row, value.scope())?
                     || row.try_get::<String, _>("ticket_status")? != "access_requested"
                 {
                     return Err(CqrsSqlxError::GuardRejected(
@@ -330,7 +910,7 @@ impl AtomicCommandGuard for SupportAtomicGuard {
                 }
             }
             SupportAggregate::Capability(value) => {
-                let row = sqlx::query("SELECT session_status,expires_at FROM erpx_support_write.session_guards WHERE session_id=$1 FOR SHARE").bind(value.session_id().as_uuid()).fetch_optional(&mut **tx).await?;
+                let row = sqlx::query("SELECT ticket_id,customer_id,customer_account_id,agent_principal_id,support_mode,module,holding_id,company_id,branch_id,session_status,expires_at FROM erpx_support_write.session_authority WHERE session_id=$1 FOR SHARE").bind(value.session_id().as_uuid()).fetch_optional(&mut **tx).await?;
                 let Some(row) = row else {
                     return Err(CqrsSqlxError::GuardRejected(
                         "Support session guard is missing",
@@ -339,9 +919,24 @@ impl AtomicCommandGuard for SupportAtomicGuard {
                 if row.try_get::<String, _>("session_status")? != "approved"
                     || row.try_get::<chrono::DateTime<chrono::Utc>, _>("expires_at")?
                         != value.expires_at()
+                    || row.try_get::<Uuid, _>("ticket_id")? != value.ticket_id().as_uuid()
+                    || row.try_get::<Uuid, _>("customer_id")? != value.customer().as_uuid()
+                    || row.try_get::<Uuid, _>("customer_account_id")?
+                        != value.customer_account().as_uuid()
+                    || row.try_get::<Uuid, _>("agent_principal_id")? != value.agent().as_uuid()
+                    || row.try_get::<String, _>("support_mode")? != support_mode_name(value.mode())
+                    || row.try_get::<String, _>("module")? != value.module()
+                    || !support_scope_matches_row(&row, value.scope())?
                 {
                     return Err(CqrsSqlxError::GuardRejected(
                         "Support capability session is inactive",
+                    ));
+                }
+                let permissions = sqlx::query_scalar::<_, String>("SELECT permission FROM erpx_support_write.session_permission_authority WHERE session_id=$1 ORDER BY permission_ordinal FOR SHARE")
+                    .bind(value.session_id().as_uuid()).fetch_all(&mut **tx).await?;
+                if permissions != value.permissions() {
+                    return Err(CqrsSqlxError::GuardRejected(
+                        "Support capability permissions differ from the session",
                     ));
                 }
             }
@@ -365,39 +960,178 @@ impl AtomicCommandGuard for SupportAtomicGuard {
                 "Support applied guard metadata mismatch",
             ));
         }
-        let version = to_i64(context.aggregate_version)?;
         match &self.aggregate {
-            SupportAggregate::Ticket(v) => {
-                sqlx::query("INSERT INTO erpx_support_write.ticket_guards (ticket_id,scope_key,customer_id,customer_account_id,case_code,category,severity,description,ticket_status,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (ticket_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,case_code=EXCLUDED.case_code,category=EXCLUDED.category,severity=EXCLUDED.severity,description=EXCLUDED.description,ticket_status=EXCLUDED.ticket_status,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at")
-                    .bind(v.id().as_uuid()).bind(scope_key(v.scope())?).bind(v.customer().as_uuid()).bind(v.customer_account().as_uuid()).bind(v.case_code()).bind(v.category()).bind(v.severity()).bind(v.description()).bind(ticket_status_name(v.status())).bind(version).bind(v.created_at()).bind(v.updated_at()).execute(&mut **tx).await?;
-                sqlx::query(
-                    "DELETE FROM erpx_support_write.ticket_message_guards WHERE ticket_id=$1",
-                )
-                .bind(v.id().as_uuid())
-                .execute(&mut **tx)
-                .await?;
-                for message in v.messages() {
-                    sqlx::query("INSERT INTO erpx_support_write.ticket_message_guards (ticket_id,message_id,author_ref,audience,body,created_at) VALUES ($1,$2,$3,$4,$5,$6)").bind(v.id().as_uuid()).bind(message.id().as_uuid()).bind(message.author_ref()).bind(message_audience_name(message.audience())).bind(message.body()).bind(message.created_at()).execute(&mut **tx).await?;
-                }
-            }
-            SupportAggregate::Incident(v) => {
-                sqlx::query("INSERT INTO erpx_support_write.incident_guards (incident_id,scope_key,incident_code,severity,commander_ref,affected_services,affected_customer_accounts,timeline,broadcasts,incident_status,aggregate_version,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (incident_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,incident_code=EXCLUDED.incident_code,severity=EXCLUDED.severity,commander_ref=EXCLUDED.commander_ref,affected_services=EXCLUDED.affected_services,affected_customer_accounts=EXCLUDED.affected_customer_accounts,timeline=EXCLUDED.timeline,broadcasts=EXCLUDED.broadcasts,incident_status=EXCLUDED.incident_status,aggregate_version=EXCLUDED.aggregate_version,created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at")
-                    .bind(v.id().as_uuid()).bind(scope_key(v.scope())?).bind(v.incident_code()).bind(v.severity()).bind(v.commander_ref()).bind(serde_json::to_value(v.affected_services())?).bind(serde_json::to_value(v.affected_customer_accounts())?).bind(serde_json::to_value(v.timeline())?).bind(serde_json::to_value(v.broadcasts())?).bind(incident_status_name(v.status())).bind(version).bind(v.created_at()).bind(v.updated_at()).execute(&mut **tx).await?;
-            }
-            SupportAggregate::Session(v) => {
-                sqlx::query("INSERT INTO erpx_support_write.session_guards (session_id,scope_key,ticket_id,customer_id,customer_account_id,agent_principal_id,represented_principal_id,support_mode,permissions,module,reason,session_status,aggregate_version,requested_at,expires_at,approved_by,approved_at,revoked_at,revoked_reason) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) ON CONFLICT (session_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,ticket_id=EXCLUDED.ticket_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,agent_principal_id=EXCLUDED.agent_principal_id,represented_principal_id=EXCLUDED.represented_principal_id,support_mode=EXCLUDED.support_mode,permissions=EXCLUDED.permissions,module=EXCLUDED.module,reason=EXCLUDED.reason,session_status=EXCLUDED.session_status,aggregate_version=EXCLUDED.aggregate_version,requested_at=EXCLUDED.requested_at,expires_at=EXCLUDED.expires_at,approved_by=EXCLUDED.approved_by,approved_at=EXCLUDED.approved_at,revoked_at=EXCLUDED.revoked_at,revoked_reason=EXCLUDED.revoked_reason")
-                    .bind(v.id().as_uuid()).bind(scope_key(v.scope())?).bind(v.ticket_id().as_uuid()).bind(v.customer().as_uuid()).bind(v.customer_account().as_uuid()).bind(v.agent().as_uuid()).bind(v.represented_principal().map(|p| p.as_uuid())).bind(support_mode_name(v.mode())).bind(serde_json::to_value(v.permissions())?).bind(v.module()).bind(v.reason()).bind(session_status_name(v.status())).bind(version).bind(v.requested_at()).bind(v.expires_at()).bind(v.approved_by()).bind(v.approved_at()).bind(v.revoked_at()).bind(v.revoked_reason()).execute(&mut **tx).await?;
-            }
-            SupportAggregate::Capability(v) => {
-                let (reason, revoked_at) = v
-                    .revocation()
-                    .map(|(r, a)| (Some(capability_revocation_name(r)), Some(a)))
-                    .unwrap_or((None, None));
-                sqlx::query("INSERT INTO erpx_support_write.capability_guards (capability_id,session_id,ticket_id,customer_id,customer_account_id,agent_principal_id,device_ref,support_mode,permissions,approved_scope,scope_key,module,secret_hash_sha256,aggregate_version,issued_at,expires_at,revocation_reason,revoked_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) ON CONFLICT (capability_id) DO UPDATE SET session_id=EXCLUDED.session_id,ticket_id=EXCLUDED.ticket_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,agent_principal_id=EXCLUDED.agent_principal_id,device_ref=EXCLUDED.device_ref,support_mode=EXCLUDED.support_mode,permissions=EXCLUDED.permissions,approved_scope=EXCLUDED.approved_scope,scope_key=EXCLUDED.scope_key,module=EXCLUDED.module,secret_hash_sha256=EXCLUDED.secret_hash_sha256,aggregate_version=EXCLUDED.aggregate_version,issued_at=EXCLUDED.issued_at,expires_at=EXCLUDED.expires_at,revocation_reason=EXCLUDED.revocation_reason,revoked_at=EXCLUDED.revoked_at")
-                    .bind(v.id().as_uuid()).bind(v.session_id().as_uuid()).bind(v.ticket_id().as_uuid()).bind(v.customer().as_uuid()).bind(v.customer_account().as_uuid()).bind(v.agent().as_uuid()).bind(v.device_ref()).bind(support_mode_name(v.mode())).bind(serde_json::to_value(v.permissions())?).bind(serde_json::to_value(v.scope())?).bind(scope_key(v.scope())?).bind(v.module()).bind(v.secret_hash_sha256().as_slice()).bind(version).bind(v.issued_at()).bind(v.expires_at()).bind(reason).bind(revoked_at).execute(&mut **tx).await?;
-            }
+            SupportAggregate::Ticket(value) => apply_ticket(tx, value).await?,
+            SupportAggregate::Incident(value) => apply_incident(tx, value).await?,
+            SupportAggregate::Session(value) => apply_session(tx, value).await?,
+            SupportAggregate::Capability(value) => apply_capability(tx, value).await?,
         }
         Ok(())
+    }
+}
+
+async fn apply_ticket(
+    tx: &mut Transaction<'_, Postgres>,
+    value: &SupportTicket,
+) -> Result<(), CqrsSqlxError> {
+    let (holding_id, company_id, branch_id) = support_scope_columns(value.scope())?;
+    let changed = sqlx::query("INSERT INTO erpx_support_write.ticket_authority (ticket_id,aggregate_version,scope_key,holding_id,company_id,branch_id,customer_id,customer_account_id,case_code,category,severity,description,ticket_status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (tenant_id,ticket_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,case_code=EXCLUDED.case_code,category=EXCLUDED.category,severity=EXCLUDED.severity,description=EXCLUDED.description,ticket_status=EXCLUDED.ticket_status,updated_at=EXCLUDED.updated_at WHERE erpx_support_write.ticket_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
+        .bind(value.id().as_uuid()).bind(to_i64(value.version())?).bind(scope_key(value.scope())?).bind(holding_id).bind(company_id).bind(branch_id)
+        .bind(value.customer().as_uuid()).bind(value.customer_account().as_uuid()).bind(value.case_code()).bind(value.category()).bind(value.severity()).bind(value.description())
+        .bind(ticket_status_name(value.status())).bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?.rows_affected();
+    ensure_support_root_changed(changed)?;
+    sqlx::query("DELETE FROM erpx_support_write.ticket_message_authority WHERE ticket_id=$1")
+        .bind(value.id().as_uuid())
+        .execute(&mut **tx)
+        .await?;
+    for (index, message) in value.messages().iter().enumerate() {
+        sqlx::query("INSERT INTO erpx_support_write.ticket_message_authority (ticket_id,message_ordinal,message_id,author_ref,audience,body,created_at,ticket_version) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)")
+            .bind(value.id().as_uuid()).bind(to_i32(index)?).bind(message.id().as_uuid()).bind(message.author_ref()).bind(message_audience_name(message.audience())).bind(message.body()).bind(message.created_at()).bind(to_i64(value.version())?).execute(&mut **tx).await?;
+    }
+    Ok(())
+}
+
+async fn apply_incident(
+    tx: &mut Transaction<'_, Postgres>,
+    value: &Incident,
+) -> Result<(), CqrsSqlxError> {
+    let (holding_id, company_id, branch_id) = support_scope_columns(value.scope())?;
+    let changed = sqlx::query("INSERT INTO erpx_support_write.incident_authority (incident_id,aggregate_version,scope_key,holding_id,company_id,branch_id,incident_code,severity,commander_ref,incident_status,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (tenant_id,incident_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,incident_code=EXCLUDED.incident_code,severity=EXCLUDED.severity,commander_ref=EXCLUDED.commander_ref,incident_status=EXCLUDED.incident_status,updated_at=EXCLUDED.updated_at WHERE erpx_support_write.incident_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
+        .bind(value.id().as_uuid()).bind(to_i64(value.version())?).bind(scope_key(value.scope())?).bind(holding_id).bind(company_id).bind(branch_id)
+        .bind(value.incident_code()).bind(value.severity()).bind(value.commander_ref()).bind(incident_status_name(value.status())).bind(value.created_at()).bind(value.updated_at()).execute(&mut **tx).await?.rows_affected();
+    ensure_support_root_changed(changed)?;
+    sqlx::query("DELETE FROM erpx_support_write.incident_service_authority WHERE incident_id=$1")
+        .bind(value.id().as_uuid())
+        .execute(&mut **tx)
+        .await?;
+    sqlx::query(
+        "DELETE FROM erpx_support_write.incident_customer_account_authority WHERE incident_id=$1",
+    )
+    .bind(value.id().as_uuid())
+    .execute(&mut **tx)
+    .await?;
+    sqlx::query("DELETE FROM erpx_support_write.incident_timeline_authority WHERE incident_id=$1")
+        .bind(value.id().as_uuid())
+        .execute(&mut **tx)
+        .await?;
+    sqlx::query("DELETE FROM erpx_support_write.incident_broadcast_authority WHERE incident_id=$1")
+        .bind(value.id().as_uuid())
+        .execute(&mut **tx)
+        .await?;
+    for (index, service) in value.affected_services().iter().enumerate() {
+        sqlx::query("INSERT INTO erpx_support_write.incident_service_authority (incident_id,service_ordinal,service_ref,incident_version) VALUES ($1,$2,$3,$4)")
+            .bind(value.id().as_uuid()).bind(to_i32(index)?).bind(service).bind(to_i64(value.version())?).execute(&mut **tx).await?;
+    }
+    for (index, account) in value.affected_customer_accounts().iter().enumerate() {
+        sqlx::query("INSERT INTO erpx_support_write.incident_customer_account_authority (incident_id,account_ordinal,customer_account_id,incident_version) VALUES ($1,$2,$3,$4)")
+            .bind(value.id().as_uuid()).bind(to_i32(index)?).bind(account.as_uuid()).bind(to_i64(value.version())?).execute(&mut **tx).await?;
+    }
+    for (index, entry) in value.timeline().iter().enumerate() {
+        sqlx::query("INSERT INTO erpx_support_write.incident_timeline_authority (incident_id,timeline_ordinal,occurred_at,actor_ref,message,incident_version) VALUES ($1,$2,$3,$4,$5,$6)")
+            .bind(value.id().as_uuid()).bind(to_i32(index)?).bind(entry.at).bind(&entry.actor_ref).bind(&entry.message).bind(to_i64(value.version())?).execute(&mut **tx).await?;
+    }
+    for (index, broadcast) in value.broadcasts().iter().enumerate() {
+        sqlx::query("INSERT INTO erpx_support_write.incident_broadcast_authority (incident_id,broadcast_ordinal,occurred_at,actor_ref,audience,message,incident_version) VALUES ($1,$2,$3,$4,$5,$6,$7)")
+            .bind(value.id().as_uuid()).bind(to_i32(index)?).bind(broadcast.at).bind(&broadcast.actor_ref).bind(broadcast_audience_name(broadcast.audience)).bind(&broadcast.message).bind(to_i64(value.version())?).execute(&mut **tx).await?;
+    }
+    Ok(())
+}
+
+async fn apply_session(
+    tx: &mut Transaction<'_, Postgres>,
+    value: &SupportSession,
+) -> Result<(), CqrsSqlxError> {
+    let (holding_id, company_id, branch_id) = support_scope_columns(value.scope())?;
+    let changed = sqlx::query("INSERT INTO erpx_support_write.session_authority (session_id,aggregate_version,scope_key,holding_id,company_id,branch_id,ticket_id,customer_id,customer_account_id,agent_principal_id,represented_principal_id,support_mode,module,reason,session_status,requested_at,expires_at,approved_by,approved_at,revoked_at,revoked_reason) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) ON CONFLICT (tenant_id,session_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,ticket_id=EXCLUDED.ticket_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,agent_principal_id=EXCLUDED.agent_principal_id,represented_principal_id=EXCLUDED.represented_principal_id,support_mode=EXCLUDED.support_mode,module=EXCLUDED.module,reason=EXCLUDED.reason,session_status=EXCLUDED.session_status,expires_at=EXCLUDED.expires_at,approved_by=EXCLUDED.approved_by,approved_at=EXCLUDED.approved_at,revoked_at=EXCLUDED.revoked_at,revoked_reason=EXCLUDED.revoked_reason WHERE erpx_support_write.session_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
+        .bind(value.id().as_uuid()).bind(to_i64(value.version())?).bind(scope_key(value.scope())?).bind(holding_id).bind(company_id).bind(branch_id)
+        .bind(value.ticket_id().as_uuid()).bind(value.customer().as_uuid()).bind(value.customer_account().as_uuid()).bind(value.agent().as_uuid()).bind(value.represented_principal().map(|id| id.as_uuid()))
+        .bind(support_mode_name(value.mode())).bind(value.module()).bind(value.reason()).bind(session_status_name(value.status())).bind(value.requested_at()).bind(value.expires_at())
+        .bind(value.approved_by()).bind(value.approved_at()).bind(value.revoked_at()).bind(value.revoked_reason()).execute(&mut **tx).await?.rows_affected();
+    ensure_support_root_changed(changed)?;
+    sqlx::query("DELETE FROM erpx_support_write.session_permission_authority WHERE session_id=$1")
+        .bind(value.id().as_uuid())
+        .execute(&mut **tx)
+        .await?;
+    for (index, permission) in value.permissions().iter().enumerate() {
+        sqlx::query("INSERT INTO erpx_support_write.session_permission_authority (session_id,permission_ordinal,permission,session_version) VALUES ($1,$2,$3,$4)")
+            .bind(value.id().as_uuid()).bind(to_i32(index)?).bind(permission).bind(to_i64(value.version())?).execute(&mut **tx).await?;
+    }
+    Ok(())
+}
+
+async fn apply_capability(
+    tx: &mut Transaction<'_, Postgres>,
+    value: &SupportCapability,
+) -> Result<(), CqrsSqlxError> {
+    let (holding_id, company_id, branch_id) = support_scope_columns(value.scope())?;
+    let (reason, revoked_at) = value
+        .revocation()
+        .map(|(reason, at)| (Some(capability_revocation_name(reason)), Some(at)))
+        .unwrap_or((None, None));
+    let changed = sqlx::query("INSERT INTO erpx_support_write.capability_authority (capability_id,aggregate_version,scope_key,holding_id,company_id,branch_id,session_id,ticket_id,customer_id,customer_account_id,agent_principal_id,device_ref,support_mode,module,secret_hash_sha256,issued_at,expires_at,revocation_reason,revoked_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) ON CONFLICT (tenant_id,capability_id) DO UPDATE SET aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,branch_id=EXCLUDED.branch_id,session_id=EXCLUDED.session_id,ticket_id=EXCLUDED.ticket_id,customer_id=EXCLUDED.customer_id,customer_account_id=EXCLUDED.customer_account_id,agent_principal_id=EXCLUDED.agent_principal_id,device_ref=EXCLUDED.device_ref,support_mode=EXCLUDED.support_mode,module=EXCLUDED.module,secret_hash_sha256=EXCLUDED.secret_hash_sha256,expires_at=EXCLUDED.expires_at,revocation_reason=EXCLUDED.revocation_reason,revoked_at=EXCLUDED.revoked_at WHERE erpx_support_write.capability_authority.aggregate_version + 1=EXCLUDED.aggregate_version")
+        .bind(value.id().as_uuid()).bind(to_i64(value.version())?).bind(scope_key(value.scope())?).bind(holding_id).bind(company_id).bind(branch_id)
+        .bind(value.session_id().as_uuid()).bind(value.ticket_id().as_uuid()).bind(value.customer().as_uuid()).bind(value.customer_account().as_uuid()).bind(value.agent().as_uuid())
+        .bind(value.device_ref()).bind(support_mode_name(value.mode())).bind(value.module()).bind(value.secret_hash_sha256().as_slice()).bind(value.issued_at()).bind(value.expires_at()).bind(reason).bind(revoked_at)
+        .execute(&mut **tx).await?.rows_affected();
+    ensure_support_root_changed(changed)?;
+    sqlx::query(
+        "DELETE FROM erpx_support_write.capability_permission_authority WHERE capability_id=$1",
+    )
+    .bind(value.id().as_uuid())
+    .execute(&mut **tx)
+    .await?;
+    for (index, permission) in value.permissions().iter().enumerate() {
+        sqlx::query("INSERT INTO erpx_support_write.capability_permission_authority (capability_id,permission_ordinal,permission,capability_version) VALUES ($1,$2,$3,$4)")
+            .bind(value.id().as_uuid()).bind(to_i32(index)?).bind(permission).bind(to_i64(value.version())?).execute(&mut **tx).await?;
+    }
+    Ok(())
+}
+
+fn support_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+    match scope {
+        TenantScope::Company {
+            holding_id,
+            company_id,
+        } => Ok((*holding_id, *company_id, None)),
+        TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => Ok((*holding_id, *company_id, Some(*branch_id))),
+        _ => Err(CqrsSqlxError::GuardRejected(
+            "Support aggregate scope must be exact",
+        )),
+    }
+}
+
+fn support_scope_matches_row(
+    row: &sqlx::postgres::PgRow,
+    scope: &TenantScope,
+) -> Result<bool, CqrsSqlxError> {
+    let (holding_id, company_id, branch_id) = support_scope_columns(scope)?;
+    Ok(row.try_get::<Uuid, _>("holding_id")? == holding_id
+        && row.try_get::<Uuid, _>("company_id")? == company_id
+        && row.try_get::<Option<Uuid>, _>("branch_id")? == branch_id)
+}
+
+fn ensure_support_root_changed(changed: u64) -> Result<(), CqrsSqlxError> {
+    if changed == 1 {
+        Ok(())
+    } else {
+        Err(CqrsSqlxError::GuardRejected(
+            "Support authority version must advance by exactly one",
+        ))
+    }
+}
+
+fn to_i32(value: usize) -> Result<i32, CqrsSqlxError> {
+    i32::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
+}
+
+const fn broadcast_audience_name(value: BroadcastAudience) -> &'static str {
+    match value {
+        BroadcastAudience::CustomerVisible => "customer_visible",
+        BroadcastAudience::Internal => "internal",
     }
 }
 
@@ -408,16 +1142,16 @@ async fn guard_version(
 ) -> Result<Option<u64>, CqrsSqlxError> {
     let statement = match aggregate_type {
         TICKET_AGGREGATE_TYPE => {
-            "SELECT aggregate_version FROM erpx_support_write.ticket_guards WHERE ticket_id=$1 FOR UPDATE"
+            "SELECT aggregate_version FROM erpx_support_write.ticket_authority WHERE ticket_id=$1 FOR UPDATE"
         }
         INCIDENT_AGGREGATE_TYPE => {
-            "SELECT aggregate_version FROM erpx_support_write.incident_guards WHERE incident_id=$1 FOR UPDATE"
+            "SELECT aggregate_version FROM erpx_support_write.incident_authority WHERE incident_id=$1 FOR UPDATE"
         }
         SESSION_AGGREGATE_TYPE => {
-            "SELECT aggregate_version FROM erpx_support_write.session_guards WHERE session_id=$1 FOR UPDATE"
+            "SELECT aggregate_version FROM erpx_support_write.session_authority WHERE session_id=$1 FOR UPDATE"
         }
         CAPABILITY_AGGREGATE_TYPE => {
-            "SELECT aggregate_version FROM erpx_support_write.capability_guards WHERE capability_id=$1 FOR UPDATE"
+            "SELECT aggregate_version FROM erpx_support_write.capability_authority WHERE capability_id=$1 FOR UPDATE"
         }
         _ => {
             return Err(CqrsSqlxError::InvalidInput(
@@ -453,10 +1187,37 @@ fn validate_commit(request: &SupportCommit) -> Result<(), PortError> {
     if partition != aggregate_partition(&request.aggregate)
         || aggregate_type != request.aggregate.aggregate_type()
         || !request.authority_scope.contains(request.aggregate.scope())
+        || !valid_authority_effects(request)
     {
         Err(PortError::Internal)
     } else {
         Ok(())
+    }
+}
+
+fn valid_authority_effects(request: &SupportCommit) -> bool {
+    match (&request.identity.fingerprint, &request.aggregate) {
+        (
+            CommandFingerprint::TransitionTicket { ticket_id, next },
+            SupportAggregate::Ticket(ticket),
+        ) if *next == TicketStatus::Closed && ticket.status() == TicketStatus::Closed => matches!(
+            request.authority_effects.as_slice(),
+            [SupportAuthorityEffect::TerminateTicketAccess {
+                ticket_id: effect_ticket,
+                effective_at,
+            }] if effect_ticket == ticket_id && *effective_at == ticket.updated_at()
+        ),
+        (
+            CommandFingerprint::RevokeSession { session_id, .. },
+            SupportAggregate::Session(session),
+        ) if session.status() == SessionStatus::Revoked => matches!(
+            request.authority_effects.as_slice(),
+            [SupportAuthorityEffect::TerminateSessionCapabilities {
+                session_id: effect_session,
+                effective_at,
+            }] if effect_session == session_id && session.revoked_at() == Some(*effective_at)
+        ),
+        _ => request.authority_effects.is_empty(),
     }
 }
 

@@ -84,7 +84,7 @@ fn create_quote() -> CreateQuote {
     CreateQuote {
         quote_id: QuoteId::try_from_uuid(id(10)).unwrap(),
         scope: scope(),
-        opportunity: opportunity(crm::OpportunityStage::Won),
+        opportunity: opportunity(crm::OpportunityStage::Proposal),
         quote_code: "QT-10".into(),
         currency: "THB".into(),
         lines: vec![line()],
@@ -93,7 +93,7 @@ fn create_quote() -> CreateQuote {
 }
 
 fn accepted_quote() -> Quote {
-    let mut quote = Quote::create_from_won_opportunity(
+    let mut quote = Quote::create_from_opportunity(
         QuoteId::try_from_uuid(id(10)).unwrap(),
         scope(),
         opportunity(crm::OpportunityStage::Won),

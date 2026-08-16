@@ -92,6 +92,7 @@ fn map_event(
             let _ = (payroll_run_id, status, at);
             None
         }
+        DomainEvent::PayrollEvidencePinned => None,
     }
 }
 

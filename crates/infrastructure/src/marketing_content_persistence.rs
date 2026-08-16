@@ -2030,21 +2030,6 @@ impl SqlxMarketingContentStore {
             .checked_add(1)
             .ok_or_else(|| invalid("Marketing content version overflow"))?;
         write_state(&mut tx, next_version).await?;
-        sqlx::query(
-            "INSERT INTO erpx_tenant.aggregate_snapshots
-                (aggregate_type, aggregate_id, holding_ref, version, state)
-             VALUES ($1,$2,$3,$4,$5)
-             ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-                holding_ref=EXCLUDED.holding_ref, version=EXCLUDED.version,
-                state=EXCLUDED.state, updated_at=now()",
-        )
-        .bind(aggregate_type)
-        .bind(aggregate_id)
-        .bind(&self.holding_ref)
-        .bind(as_i64(next_version, "content aggregate version")?)
-        .bind(&state)
-        .execute(&mut *tx)
-        .await?;
         let event = build_event(
             context,
             aggregate_type,

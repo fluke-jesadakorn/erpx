@@ -1,0 +1,23 @@
+[package]
+name = "erpx-projects-sqlx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+erpx-cqrs.workspace = true
+erpx-cqrs-sqlx.workspace = true
+erpx-integration-contracts.workspace = true
+erpx-kernel.workspace = true
+erpx-projects.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

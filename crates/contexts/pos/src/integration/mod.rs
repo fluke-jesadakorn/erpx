@@ -1,6 +1,6 @@
 use erpx_integration_contracts::{CurrencyCode, MoneyAmount, ReferenceCode, customer, pos};
 
-use crate::domain::{ApprovedRefundState, CompletedSaleState, DomainEvent};
+use crate::domain::{CompletedSaleState, DomainEvent, PostedRefundState};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum IntegrationMappingError {
@@ -21,7 +21,7 @@ fn map_event(event: &DomainEvent) -> Option<Result<pos::Event, IntegrationMappin
                 .map(pos::Event::SaleCompleted)
                 .map_err(|_| IntegrationMappingError::InvalidContractValue),
         ),
-        DomainEvent::RefundApproved(state) => Some(
+        DomainEvent::RefundPosted(state) => Some(
             refund_fact(state)
                 .map(pos::Event::RefundApproved)
                 .map_err(|_| IntegrationMappingError::InvalidContractValue),
@@ -46,14 +46,17 @@ fn sale_fact(state: &CompletedSaleState) -> Result<pos::PosSaleFact, ()> {
     })
 }
 
-fn refund_fact(state: &ApprovedRefundState) -> Result<pos::PosRefundFact, ()> {
+fn refund_fact(state: &PostedRefundState) -> Result<pos::PosRefundFact, ()> {
     let currency = CurrencyCode::try_new(&state.currency).map_err(|_| ())?;
     Ok(pos::PosRefundFact {
         refund: pos::PosTransactionRef::try_from_uuid(state.refund_id.as_uuid()).map_err(|_| ())?,
         original_sale: pos::PosTransactionRef::try_from_uuid(state.sale_id.as_uuid())
             .map_err(|_| ())?,
         amount: MoneyAmount::new(state.amount_minor, currency),
-        approved_at: state.approved_at,
+        // Compatibility: the retained v1 contract field is named
+        // `approved_at`; publication is delayed until posting, so it carries
+        // the effective posted time.
+        approved_at: state.posted_at,
     })
 }
 
@@ -84,12 +87,12 @@ mod tests {
                 completed_at: at(),
             }),
             DomainEvent::RefundRequested,
-            DomainEvent::RefundApproved(ApprovedRefundState {
+            DomainEvent::RefundPosted(PostedRefundState {
                 refund_id: RefundId::try_from_uuid(Uuid::from_u128(4)).unwrap(),
                 sale_id: SaleId::try_from_uuid(Uuid::from_u128(1)).unwrap(),
                 currency: "THB".into(),
                 amount_minor: 107,
-                approved_at: at(),
+                posted_at: at(),
             }),
         ])
         .unwrap();

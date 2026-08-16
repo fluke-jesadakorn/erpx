@@ -22,7 +22,8 @@ mod totp;
 mod webauthn;
 
 pub use access_token::{
-    AccessToken, AccessTokenClaims, AccessTokenLifetime, AccessTokenSigner, ActiveRoleClaim,
+    AccessToken, AccessTokenClaims, AccessTokenIssueWindow, AccessTokenLifetime, AccessTokenSigner,
+    ActiveRoleClaim, AuthenticatedAuthority, AuthenticatedPrincipalKind, AuthenticatedRealm,
     MAX_ACCESS_TOKEN_LIFETIME_SECONDS,
 };
 pub use ceremony::{

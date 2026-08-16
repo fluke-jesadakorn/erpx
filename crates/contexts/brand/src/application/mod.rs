@@ -7,7 +7,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, AuditContext, Clock, CorrelationId, ErrorCategory, ErrorContext, EventId,
-    KernelError, TenantScope,
+    KernelError, RecordId, TenantScope,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -20,12 +20,14 @@ use crate::{
     integration,
     ports::{
         AuthorizationPort, AuthorizationRequest, BrandAction, BrandCommit, BrandStoredCommit,
-        CommandFingerprint, CommandIdentity, CommandUnitOfWork, EntitlementPort,
-        ParentAuthorityPort, PortError, ReadRepository, WriteRepository,
+        CommandFingerprint, CommandIdentity, CommandUnitOfWork, DerivedRecordReadRepository,
+        EntitlementPort, ParentAuthorityPort, PortError, ReadRepository, WriteRepository,
     },
 };
 
-pub use crate::ports::{BrandHistory, BrandProfileView, ResolvedBrandView};
+pub use crate::ports::{
+    BrandAssetView, BrandHistory, BrandProfileView, BrandPublicationView, ResolvedBrandView,
+};
 
 pub const MAX_BRAND_HISTORY_PAGE_SIZE: u16 = 100;
 pub const MAX_BRAND_REASON_BYTES: usize = 512;
@@ -83,6 +85,18 @@ pub struct ListBrandHistory {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetBrandAsset {
+    pub record_id: RecordId,
+    pub scope: BrandScope,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetBrandPublication {
+    pub record_id: RecordId,
+    pub scope: BrandScope,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateBrandDraftResult {
     pub profile: BrandProfileView,
 }
@@ -100,6 +114,16 @@ pub struct GetBrandDraftResult {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GetResolvedBrandResult {
     pub brand: Option<ResolvedBrandView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetBrandAssetResult {
+    pub asset: Option<BrandAssetView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetBrandPublicationResult {
+    pub publication: Option<BrandPublicationView>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -738,6 +762,116 @@ where
             .map_err(|error| port_to_cqrs(error, envelope.correlation_id))?;
         Ok(QueryResult {
             value: projection.value,
+            metadata: QueryMetadata {
+                correlation_id: envelope.correlation_id,
+                projection: projection.metadata,
+                consistency: envelope.consistency,
+            },
+        })
+    }
+}
+
+#[async_trait]
+impl<R, A, E> QueryHandler<GetBrandAsset> for BrandQueryHandler<R, A, E>
+where
+    R: ReadRepository + DerivedRecordReadRepository,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+{
+    type Response = GetBrandAssetResult;
+
+    async fn handle(
+        &self,
+        envelope: QueryEnvelope<GetBrandAsset>,
+    ) -> Result<QueryResult<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        self.authorize_query(
+            &envelope.actor,
+            &envelope.tenant_scope,
+            &envelope.query.scope,
+            BrandAction::ViewAsset,
+        )
+        .await
+        .map_err(|error| to_cqrs(error, envelope.correlation_id))?;
+        let projection = self
+            .read_repository
+            .get_asset(
+                &envelope.tenant_scope,
+                &envelope.query.scope,
+                envelope.query.record_id,
+                &envelope.consistency,
+            )
+            .await
+            .map_err(|error| port_to_cqrs(error, envelope.correlation_id))?;
+        if projection
+            .value
+            .as_ref()
+            .is_some_and(|asset| asset.scope != envelope.query.scope)
+        {
+            return Err(to_cqrs(
+                BrandApplicationError::ScopeOutsideAuthority,
+                envelope.correlation_id,
+            ));
+        }
+        Ok(QueryResult {
+            value: GetBrandAssetResult {
+                asset: projection.value,
+            },
+            metadata: QueryMetadata {
+                correlation_id: envelope.correlation_id,
+                projection: projection.metadata,
+                consistency: envelope.consistency,
+            },
+        })
+    }
+}
+
+#[async_trait]
+impl<R, A, E> QueryHandler<GetBrandPublication> for BrandQueryHandler<R, A, E>
+where
+    R: ReadRepository + DerivedRecordReadRepository,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+{
+    type Response = GetBrandPublicationResult;
+
+    async fn handle(
+        &self,
+        envelope: QueryEnvelope<GetBrandPublication>,
+    ) -> Result<QueryResult<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        self.authorize_query(
+            &envelope.actor,
+            &envelope.tenant_scope,
+            &envelope.query.scope,
+            BrandAction::ViewPublication,
+        )
+        .await
+        .map_err(|error| to_cqrs(error, envelope.correlation_id))?;
+        let projection = self
+            .read_repository
+            .get_publication(
+                &envelope.tenant_scope,
+                &envelope.query.scope,
+                envelope.query.record_id,
+                &envelope.consistency,
+            )
+            .await
+            .map_err(|error| port_to_cqrs(error, envelope.correlation_id))?;
+        if projection
+            .value
+            .as_ref()
+            .is_some_and(|publication| publication.scope != envelope.query.scope)
+        {
+            return Err(to_cqrs(
+                BrandApplicationError::ScopeOutsideAuthority,
+                envelope.correlation_id,
+            ));
+        }
+        Ok(QueryResult {
+            value: GetBrandPublicationResult {
+                publication: projection.value,
+            },
             metadata: QueryMetadata {
                 correlation_id: envelope.correlation_id,
                 projection: projection.metadata,

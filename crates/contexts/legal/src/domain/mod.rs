@@ -1,9 +1,18 @@
 use chrono::{DateTime, Duration, Utc};
-use erpx_integration_contracts::RecordRef;
-use erpx_kernel::TenantScope;
+use erpx_integration_contracts::{
+    RecordRef, StableRecordRef,
+    catalog::ContextId,
+    reference::{RecordTypeId, ReferenceValidationError},
+};
+use erpx_kernel::{RecordId, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
+
+mod e_signature;
+pub use e_signature::*;
+mod legal_case;
+pub use legal_case::{LegalCase, LegalCaseStatus};
 
 pub const MAX_REFERENCE_BYTES: usize = 255;
 pub const MAX_TITLE_BYTES: usize = 255;
@@ -88,6 +97,8 @@ pub enum LegalDomainError {
     AccessClockSkew,
     #[error("the aggregate version overflowed")]
     VersionOverflow,
+    #[error("legal case lifecycle or evidence is invalid")]
+    InvalidLegalCase,
     #[error("the aggregate timestamp moved backwards")]
     TimestampRegression,
     #[error("the Legal matter record link is invalid, duplicated, or exceeds the bounded limit")]
@@ -96,6 +107,18 @@ pub enum LegalDomainError {
     CrossTenantLink,
     #[error("the Legal hold transition is not allowed")]
     InvalidLegalHold,
+    #[error("the signature recipient or external signatory grant is invalid")]
+    InvalidSignatureRecipient,
+    #[error("the signature recipient order is invalid")]
+    InvalidSignatureOrder,
+    #[error("the signature envelope transition is not allowed")]
+    InvalidSignatureTransition,
+    #[error("the signature callback did not pass provider verification")]
+    UnverifiedSignatureCallback,
+    #[error("the signature callback is stale, out of order, or exceeds its bounded history")]
+    OutOfOrderSignatureCallback,
+    #[error("current Legal hold evidence is unavailable")]
+    LegalHoldEvidenceUnavailable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -168,6 +191,44 @@ pub struct LegalContract {
 }
 
 impl LegalContract {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: LegalContractId,
+        version: u64,
+        scope: TenantScope,
+        reference: String,
+        title: String,
+        object_ref: String,
+        content_sha256: String,
+        retention_until: DateTime<Utc>,
+        status: ContractStatus,
+        parties: Vec<ContractParty>,
+        created_by: String,
+        approved_by: Option<String>,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, LegalDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope,
+            reference,
+            title,
+            object_ref,
+            content_sha256,
+            retention_until,
+            status,
+            parties,
+            created_by,
+            approved_by,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn create(
         id: LegalContractId,
@@ -383,6 +444,9 @@ impl LegalContract {
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        stable_record_ref(self.id.as_uuid(), "legal.contract")
+    }
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
@@ -412,6 +476,32 @@ pub struct LegalDocument {
 }
 
 impl LegalDocument {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: LegalDocumentId,
+        version: u64,
+        scope: TenantScope,
+        title: String,
+        versions: Vec<DocumentVersion>,
+        archived: bool,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, LegalDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope,
+            title,
+            versions,
+            archived,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn create(
         id: LegalDocumentId,
         scope: TenantScope,
@@ -565,6 +655,34 @@ pub struct AccessEntry {
 
 impl AccessEntry {
     #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: AccessEntryId,
+        version: u64,
+        scope: TenantScope,
+        document_id: LegalDocumentId,
+        document_version: u64,
+        actor_ref: String,
+        action: String,
+        purpose: String,
+        observed_at: DateTime<Utc>,
+    ) -> Result<Self, LegalDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope,
+            document_id,
+            document_version,
+            actor_ref,
+            action,
+            purpose,
+            observed_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn record(
         id: AccessEntryId,
         scope: TenantScope,
@@ -703,6 +821,38 @@ pub struct LegalMatter {
 }
 
 impl LegalMatter {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: LegalMatterId,
+        version: u64,
+        scope: TenantScope,
+        reference: String,
+        title: String,
+        status: MatterStatus,
+        links: Vec<RecordLink>,
+        legal_hold: Option<LegalHold>,
+        created_by: String,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, LegalDomainError> {
+        let value = Self {
+            id,
+            version,
+            scope,
+            reference,
+            title,
+            status,
+            links,
+            legal_hold,
+            created_by,
+            created_at,
+            updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn create(
         id: LegalMatterId,
         scope: TenantScope,
@@ -925,6 +1075,17 @@ impl LegalMatter {
     pub fn legal_hold(&self) -> Option<&LegalHold> {
         self.legal_hold.as_ref()
     }
+    pub fn legal_hold_record_ref(
+        &self,
+    ) -> Result<Option<StableRecordRef>, ReferenceValidationError> {
+        self.legal_hold
+            .as_ref()
+            .map(|_| legal_hold_record_ref_for(self.id))
+            .transpose()
+    }
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        stable_record_ref(self.id.as_uuid(), "legal.matter")
+    }
     pub fn created_by(&self) -> &str {
         &self.created_by
     }
@@ -1105,6 +1266,27 @@ fn validate_digest(value: &str) -> Result<(), LegalDomainError> {
         });
     }
     Ok(())
+}
+
+fn stable_record_ref(
+    id: Uuid,
+    record_type: &str,
+) -> Result<StableRecordRef, ReferenceValidationError> {
+    let record_id = RecordId::try_from_uuid(id).expect("validated Legal identifier");
+    StableRecordRef::try_new(
+        record_id,
+        ContextId::Legal,
+        RecordTypeId::try_new(record_type)?,
+    )
+}
+
+pub fn legal_hold_record_ref_for(
+    matter_id: LegalMatterId,
+) -> Result<StableRecordRef, ReferenceValidationError> {
+    let mut bytes = *Uuid::new_v5(&matter_id.as_uuid(), b"legal.hold").as_bytes();
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    stable_record_ref(Uuid::from_bytes(bytes), "legal.hold")
 }
 
 fn validate_retention(

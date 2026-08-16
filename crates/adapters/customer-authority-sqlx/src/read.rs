@@ -93,7 +93,13 @@ impl CustomerAuthorityReadRepository {
              LIMIT 1",
         )
         .bind(PROJECTION_NAME)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
@@ -155,7 +161,13 @@ impl ReadRepository for CustomerAuthorityReadRepository {
         .bind(scope.platform)
         .bind(&scope.exact)
         .bind(&scope.prefixes)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let view = row.map(decode_view).transpose()?;
@@ -222,7 +234,13 @@ impl ReadRepository for CustomerAuthorityReadRepository {
         .bind(search)
         .bind(after_code)
         .bind(limit)
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let mut customers = rows

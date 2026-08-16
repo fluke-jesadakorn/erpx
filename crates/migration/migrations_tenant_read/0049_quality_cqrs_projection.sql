@@ -1,6 +1,7 @@
 CREATE SCHEMA IF NOT EXISTS erpx_quality_read;
 
 CREATE TABLE erpx_quality_read.inspection_projection (
+    tenant_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_tenant_id(),
     projection_name TEXT NOT NULL DEFAULT 'quality.inspections'
         CHECK (projection_name = 'quality.inspections'),
     generation UUID NOT NULL,
@@ -29,27 +30,46 @@ CREATE TABLE erpx_quality_read.inspection_projection (
     aggregate_updated_at TIMESTAMPTZ NOT NULL,
     state JSONB NOT NULL,
     projected_at TIMESTAMPTZ NOT NULL,
-    PRIMARY KEY (projection_name, generation, partition_key, inspection_id),
-    FOREIGN KEY (projection_name, generation)
-        REFERENCES erpx_cqrs_read.projection_generations (projection_name, generation)
+    PRIMARY KEY (tenant_id, projection_name, generation, partition_key, inspection_id),
+    FOREIGN KEY (tenant_id, projection_name, generation)
+        REFERENCES erpx_cqrs_read.projection_generations (tenant_id, projection_name, generation)
         ON DELETE CASCADE,
     CHECK (passed_quantity + failed_quantity <= quantity)
 );
 
 CREATE UNIQUE INDEX quality_projection_reference
     ON erpx_quality_read.inspection_projection
-        (generation, holding_id, company_id,
+        (tenant_id, generation, holding_id, company_id,
          COALESCE(branch_id, '00000000-0000-0000-0000-000000000000'::uuid), reference);
 
 CREATE INDEX quality_projection_scope_updated
     ON erpx_quality_read.inspection_projection
-        (generation, holding_id, company_id, branch_id,
+        (tenant_id, generation, holding_id, company_id, branch_id,
          aggregate_updated_at DESC, inspection_id DESC);
 
 CREATE INDEX quality_projection_status_updated
     ON erpx_quality_read.inspection_projection
-        (generation, inspection_status, aggregate_updated_at DESC, inspection_id DESC);
+        (tenant_id, generation, inspection_status, aggregate_updated_at DESC, inspection_id DESC);
 
 CREATE INDEX quality_projection_product_updated
     ON erpx_quality_read.inspection_projection
-        (generation, product_id, aggregate_updated_at DESC, inspection_id DESC);
+        (tenant_id, generation, product_id, aggregate_updated_at DESC, inspection_id DESC);
+
+DO $$
+DECLARE schema_name TEXT; table_name TEXT;
+BEGIN
+    FOR schema_name, table_name IN SELECT * FROM (VALUES
+        ('erpx_quality_read','inspection_projection')
+    ) AS protected(schema_name, table_name)
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format('ALTER TABLE %I.%I FORCE ROW LEVEL SECURITY', schema_name, table_name);
+        EXECUTE format(
+            'CREATE POLICY tenant_isolation ON %I.%I '
+            'USING (tenant_id = erpx_cqrs_read.current_tenant_id()) '
+            'WITH CHECK (tenant_id = erpx_cqrs_read.current_tenant_id())',
+            schema_name, table_name
+        );
+    END LOOP;
+END;
+$$;

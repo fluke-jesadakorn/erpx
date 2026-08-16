@@ -574,20 +574,6 @@ impl SqlxScmStore {
             .await?;
         }
 
-        sqlx::query(
-            "INSERT INTO erpx_tenant.aggregate_snapshots
-                (aggregate_type, aggregate_id, holding_ref, version, state)
-             VALUES ($1,$2,$3,$4,$5)
-             ON CONFLICT (aggregate_type, aggregate_id)
-             DO UPDATE SET holding_ref=$3, version=$4, state=$5, updated_at=now()",
-        )
-        .bind(aggregate_type)
-        .bind(aggregate_id)
-        .bind(&self.holding_ref)
-        .bind(as_i64(version, "SCM aggregate version")?)
-        .bind(&payload)
-        .execute(&mut *tx)
-        .await?;
         let event_payload = serde_json::json!({
             "aggregate_type": aggregate_type,
             "aggregate": payload,
@@ -2941,16 +2927,16 @@ async fn validate_scm_source_snapshot(
     .fetch_optional(&mut **tx)
     .await?
     .ok_or_else(|| {
-        PersistenceError::InvalidData("SCM source event has no aggregate snapshot".into())
+        PersistenceError::InvalidData("SCM source event has no normalized aggregate row".into())
     })?;
-    let source_version = as_u64(row.try_get("version")?, "SCM source snapshot version")?;
+    let source_version = as_u64(row.try_get("version")?, "SCM source aggregate version")?;
     let source_payload: Value = row.try_get("payload")?;
     let (_, _, _, _, _, _, event_aggregate_payload) = aggregate.fields()?;
     if source_version < event.aggregate_version
         || (source_version == event.aggregate_version && source_payload != event_aggregate_payload)
     {
         return Err(PersistenceError::InvalidData(
-            "SCM source snapshot does not match its authoritative outbox event".into(),
+            "SCM source row does not match its authoritative outbox event".into(),
         ));
     }
     Ok(())
@@ -3125,20 +3111,6 @@ async fn persist_aggregate_update_in_transaction(
     .bind(idempotency_key)
     .bind(&payload)
     .bind(holding_ref)
-    .execute(&mut **tx)
-    .await?;
-    sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (aggregate_type, aggregate_id)
-         DO UPDATE SET holding_ref=$3, version=$4, state=$5, updated_at=now()",
-    )
-    .bind(aggregate_type)
-    .bind(aggregate_id)
-    .bind(holding_ref)
-    .bind(as_i64(next_version, "SCM aggregate version")?)
-    .bind(&payload)
     .execute(&mut **tx)
     .await?;
     let event_id = Uuid::new_v4();

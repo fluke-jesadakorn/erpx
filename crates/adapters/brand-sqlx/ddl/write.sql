@@ -1,3 +1,3 @@
 -- Canonical Brand write DDL is composed from control migrations 0075 and 0076.
--- Shared aggregate/receipt/audit/outbox rows and Brand guards/revisions commit
--- in one control-write transaction through CommandStore::commit_guarded.
+-- Typed Brand authority, receipts, audit and outbox facts commit in one
+-- control-write transaction through CommandStore::commit_normalized.

@@ -11,6 +11,14 @@ use erpx_kernel::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+mod sharing;
+pub use sharing::{
+    SharingAction, SharingAgreementList, SharingAuthorizationPort, SharingAuthorizationRequest,
+    SharingCommandIdentity, SharingCommandPayload, SharingCommandRequest, SharingCommandUnitOfWork,
+    SharingCommit, SharingListFilter, SharingReadRepository, SharingWriteRepository,
+    StoredSharingCommit,
+};
+
 use crate::domain::{
     OrganizationNode, OrganizationNodeId, OrganizationNodeKind, OrganizationNodeStatus,
     OrganizationPlacement,

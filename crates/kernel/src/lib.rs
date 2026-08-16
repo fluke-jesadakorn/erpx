@@ -62,11 +62,50 @@ macro_rules! uuid_identifier {
 }
 
 uuid_identifier!(AggregateId);
+uuid_identifier!(BranchId);
+uuid_identifier!(CompanyId);
 uuid_identifier!(CommandId);
 uuid_identifier!(CorrelationId);
+uuid_identifier!(DataPlaneId);
 uuid_identifier!(EventId);
+uuid_identifier!(HoldingId);
+uuid_identifier!(PolicyId);
+uuid_identifier!(PrincipalId);
 uuid_identifier!(QueryId);
+uuid_identifier!(RecordId);
 uuid_identifier!(SessionId);
+uuid_identifier!(TenantId);
+
+/// Classification carried by records, fields, events, and provider payloads.
+///
+/// Ordering is intentional: a larger value is always at least as restrictive
+/// as a smaller value. Adapters may narrow access further, but must never use a
+/// less restrictive classification than the source value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DataClassification {
+    Public,
+    Internal,
+    Confidential,
+    Restricted,
+}
+
+impl DataClassification {
+    /// Returns the stricter classification of two independently classified
+    /// values. This is the propagation rule for envelopes and projections.
+    pub const fn stricter(self, other: Self) -> Self {
+        if (self as u8) >= (other as u8) {
+            self
+        } else {
+            other
+        }
+    }
+
+    /// Returns whether a policy ceiling permits this classification.
+    pub const fn is_permitted_by(self, ceiling: Self) -> bool {
+        (self as u8) <= (ceiling as u8)
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ScopeError {
@@ -271,8 +310,21 @@ fn contains_duplicate(values: &[Uuid]) -> bool {
 pub enum ActorKind {
     PlatformUser,
     TenantUser,
+    Agent,
     Service,
     SystemWorker,
+}
+
+/// Principal categories are identities, not authorization grants. In
+/// particular, an agent or group mention never increases effective authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PrincipalKind {
+    Human,
+    Agent,
+    Service,
+    HumanGroup,
+    AgentPool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -507,5 +559,15 @@ mod tests {
             context.try_insert("overflow", "value"),
             Err(ErrorContextError::TooManyEntries)
         );
+    }
+
+    #[test]
+    fn data_classification_propagates_the_strictest_value() {
+        assert_eq!(
+            DataClassification::Internal.stricter(DataClassification::Restricted),
+            DataClassification::Restricted
+        );
+        assert!(DataClassification::Confidential.is_permitted_by(DataClassification::Restricted));
+        assert!(!DataClassification::Restricted.is_permitted_by(DataClassification::Confidential));
     }
 }

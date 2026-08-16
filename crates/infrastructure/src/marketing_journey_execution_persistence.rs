@@ -2,7 +2,7 @@
 //!
 //! The initial cursor is a durable version-zero seed. Every execution fact
 //! after that is committed atomically with the cursor, a complete shared
-//! outbox envelope, a generic snapshot, and an exact idempotency receipt.
+//! outbox envelope and an exact idempotency receipt.
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::contracts::{
@@ -328,7 +328,6 @@ impl SqlxMarketingJourneyExecutionStore {
             .map_err(domain_error)?;
         let event = build_event(context, &cursor, &fact)?;
         update_cursor(&mut tx, &self.holding_ref, &cursor, expected_version).await?;
-        save_snapshot(&mut tx, &self.holding_ref, &cursor).await?;
         append_event(&mut tx, &self.holding_ref, &event).await?;
         let receipt = make_receipt(&event, cursor.journey_id(), cursor.version(), false);
         record_idempotency(
@@ -412,7 +411,6 @@ impl SqlxMarketingJourneyExecutionStore {
         .map_err(domain_error)?;
         let event = build_event(context, &cursor, &fact)?;
         update_cursor(&mut tx, &self.holding_ref, &cursor, expected_version).await?;
-        save_snapshot(&mut tx, &self.holding_ref, &cursor).await?;
         append_event(&mut tx, &self.holding_ref, &event).await?;
         let receipt = make_receipt(&event, cursor.journey_id(), cursor.version(), false);
         record_idempotency(
@@ -790,7 +788,6 @@ impl SqlxMarketingJourneyExecutionStore {
             fact.expected_cursor_version,
         )
         .await?;
-        save_snapshot(&mut tx, &self.holding_ref, &cursor).await?;
         append_event(&mut tx, &self.holding_ref, &event).await?;
         let receipt = make_receipt(&event, cursor.journey_id(), cursor.version(), false);
         record_idempotency(
@@ -943,29 +940,6 @@ async fn update_cursor(
             actual: None,
         });
     }
-    Ok(())
-}
-
-async fn save_snapshot(
-    tx: &mut Transaction<'_, Postgres>,
-    holding_ref: &str,
-    cursor: &JourneyExecutionCursor,
-) -> Result<(), PersistenceError> {
-    sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            holding_ref=EXCLUDED.holding_ref, version=EXCLUDED.version,
-            state=EXCLUDED.state, updated_at=now()",
-    )
-    .bind(MARKETING_JOURNEY_EXECUTION_AGGREGATE)
-    .bind(cursor.run_id())
-    .bind(holding_ref)
-    .bind(as_i64(cursor.version(), "execution snapshot version")?)
-    .bind(serde_json::to_value(cursor)?)
-    .execute(&mut **tx)
-    .await?;
     Ok(())
 }
 

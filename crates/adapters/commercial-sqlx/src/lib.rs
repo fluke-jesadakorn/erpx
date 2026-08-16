@@ -3,6 +3,7 @@
 mod command;
 mod projection;
 mod read;
+mod records;
 
 pub use command::{CommercialCommandAdapter, CommercialWriteRepository};
 pub use projection::{
@@ -10,6 +11,12 @@ pub use projection::{
     SubscriptionProjector,
 };
 pub use read::{CommercialReadRepository, decode_cursor, encode_cursor};
+pub use records::{
+    CommercialLifecycleRecordProjector, CommercialLifecycleRecordReadAdapter,
+    CommercialLifecycleRecordSqlxAdapter,
+    RECORD_PROJECTION_NAME as LIFECYCLE_RECORD_PROJECTION_NAME,
+    RECORD_SNAPSHOT_EVENT_TYPE as LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE,
+};
 
 pub const CONTEXT_NAME: &str = "commercial";
 pub const CATALOG_PLAN_AGGREGATE: &str = "catalog_plan";
@@ -22,10 +29,19 @@ pub const CATALOG_PLAN_SNAPSHOT_EVENT: &str = "commercial.catalog_plan_snapshot"
 pub const SUBSCRIPTION_SNAPSHOT_EVENT: &str = "commercial.subscription_snapshot";
 pub const ENTITLEMENT_SNAPSHOT_EVENT: &str = "commercial.entitlement_snapshot";
 pub const EVENT_VERSION: u32 = 1;
+pub const COMPLETION_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
+pub const COMPLETION_READ_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
+);
 
 /// Control-write foundation plus the authoritative platform catalog guard.
-pub const CONTROL_WRITE_DDL: &str = include_str!(
-    "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
+pub const CONTROL_WRITE_DDL: &str = concat!(
+    include_str!(
+        "../../../migration/migrations/0075_cqrs_control_foundation_and_commercial_catalog.sql"
+    ),
+    "\n",
+    include_str!("../../../migration/migrations/0082_current_normalized_authority.sql")
 );
 /// Control-read foundation plus the authoritative platform catalog projection.
 pub const CONTROL_READ_DDL: &str = include_str!(
@@ -39,12 +55,19 @@ pub const TENANT_WRITE_CONTEXT_DDL: &str =
 pub const TENANT_WRITE_CATALOG_CLEANUP_DDL: &str = include_str!(
     "../../../migration/migrations_tenant_write/0059_move_commercial_catalog_to_control.sql"
 );
+pub const TENANT_NORMALIZED_AUTHORITY_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
+);
 /// Final ordered tenant-write Commercial DDL composition.
 pub const TENANT_WRITE_DDL: &str = concat!(
     include_str!("../../../migration/migrations_tenant_write/0058_wave4_context_guards.sql"),
     "\n",
     include_str!(
         "../../../migration/migrations_tenant_write/0059_move_commercial_catalog_to_control.sql"
+    ),
+    "\n",
+    include_str!(
+        "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
     )
 );
 
@@ -129,7 +152,10 @@ mod tests {
             TENANT_READ_CATALOG_CLEANUP_DDL
                 .contains("DROP TABLE IF EXISTS erpx_commercial_read.catalog_plan_projection")
         );
-        assert!(TENANT_WRITE_DDL.ends_with(TENANT_WRITE_CATALOG_CLEANUP_DDL));
+        assert!(TENANT_WRITE_DDL.contains(TENANT_WRITE_CATALOG_CLEANUP_DDL));
+        assert!(TENANT_WRITE_DDL.ends_with(TENANT_NORMALIZED_AUTHORITY_DDL));
+        assert!(TENANT_NORMALIZED_AUTHORITY_DDL.contains("subscription_authority"));
+        assert!(TENANT_NORMALIZED_AUTHORITY_DDL.contains("entitlement_authority"));
         assert!(TENANT_READ_DDL.ends_with(TENANT_READ_CATALOG_CLEANUP_DDL));
         assert_eq!(WRITE_DDL, TENANT_WRITE_DDL);
         assert_eq!(READ_DDL, TENANT_READ_DDL);

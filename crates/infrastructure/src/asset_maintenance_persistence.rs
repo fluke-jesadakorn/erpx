@@ -343,7 +343,7 @@ impl SqlxAssetMaintenanceStore {
         if let AssetMaintenanceAggregate::Asset(asset) = aggregate {
             persist_custody_history(&mut tx, &self.holding_ref, asset).await?;
         }
-        persist_shared_snapshot_and_outbox(
+        persist_shared_outbox(
             &mut tx,
             &self.holding_ref,
             aggregate_type,
@@ -1940,7 +1940,7 @@ async fn insert_read_custody_transfer(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn persist_shared_snapshot_and_outbox(
+async fn persist_shared_outbox(
     tx: &mut Transaction<'_, Postgres>,
     holding_ref: &str,
     aggregate_type: &str,
@@ -1950,23 +1950,9 @@ async fn persist_shared_snapshot_and_outbox(
     scope: &AssetScope,
     payload: &Value,
 ) -> Result<(), PersistenceError> {
-    sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ($1,$2,$3,$4,$5)
-         ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-            holding_ref=$3, version=$4, state=$5, updated_at=now()",
-    )
-    .bind(aggregate_type)
-    .bind(aggregate_id)
-    .bind(holding_ref)
-    .bind(as_i64(version, "Asset/Maintenance version")?)
-    .bind(payload)
-    .execute(&mut **tx)
-    .await?;
     // Keep the event aggregate in the same tagged representation consumed by
-    // `project_event`.  The source snapshot remains the raw domain payload,
-    // but the event must carry the authoritative aggregate envelope so the
+    // `project_event`. The normalized source row remains authoritative, and
+    // the event must carry the aggregate envelope so the
     // projector can validate type, identity, and version before writing the
     // disposable read model.
     let event_aggregate = serde_json::json!({

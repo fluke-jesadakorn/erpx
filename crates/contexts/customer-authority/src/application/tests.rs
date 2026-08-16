@@ -54,6 +54,10 @@ fn actor() -> ActorAttribution {
 }
 
 fn account(customer_id: u128, code: &str) -> CustomerAccount {
+    account_in_scope(customer_id, code, company())
+}
+
+fn account_in_scope(customer_id: u128, code: &str, scope: TenantScope) -> CustomerAccount {
     let mut value = CustomerAccount::create(
         CustomerId::try_from_uuid(id(customer_id)).unwrap(),
         CustomerCode::try_new(code).unwrap(),
@@ -65,7 +69,7 @@ fn account(customer_id: u128, code: &str) -> CustomerAccount {
             "TH",
         )
         .unwrap(),
-        company(),
+        scope,
         at(),
     )
     .unwrap();
@@ -412,6 +416,55 @@ fn merge_carries_survivor_version_into_atomic_guard() {
             customer_id: CustomerId::try_from_uuid(id(11)).unwrap(),
             version: 1,
         })
+    );
+}
+
+#[test]
+fn merge_rejects_cross_company_target_even_for_platform_authority() {
+    let retired = account(10, "CUS-10");
+    let survivor = account_in_scope(
+        11,
+        "CUS-11",
+        TenantScope::Company {
+            holding_id: id(1),
+            company_id: id(99),
+        },
+    );
+    let (handler, unit_of_work, _loads) = command_handler(vec![retired, survivor], true);
+    let error = block_on(handler.handle(command_envelope(
+        51,
+        TenantScope::Platform,
+        Some(1),
+        MergeCustomer {
+            retired_customer_id: CustomerId::try_from_uuid(id(10)).unwrap(),
+            surviving_customer_id: CustomerId::try_from_uuid(id(11)).unwrap(),
+        },
+    )))
+    .unwrap_err();
+    assert_eq!(error.category(), ErrorCategory::Denied);
+    assert_eq!(unit_of_work.commits.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn customer_record_reference_is_stable_and_uses_the_singular_route() {
+    let customer_id = Uuid::new_v4();
+    let value = CustomerAccount::create(
+        CustomerId::try_from_uuid(customer_id).unwrap(),
+        CustomerCode::try_new("CUS-REF").unwrap(),
+        CustomerIdentity::try_new("Reference Customer", None, None, None, "TH").unwrap(),
+        company(),
+        at(),
+    )
+    .unwrap();
+    let reference = value.record_ref().unwrap();
+    assert_eq!(reference.id().as_uuid(), customer_id);
+    assert_eq!(
+        reference.canonical_detail_route(),
+        format!("/customer/account/{customer_id}")
+    );
+    assert_eq!(
+        reference.copied_reference_route(),
+        format!("/reference/item/{customer_id}")
     );
 }
 

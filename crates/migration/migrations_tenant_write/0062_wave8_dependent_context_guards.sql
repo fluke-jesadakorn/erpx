@@ -1,7 +1,6 @@
--- Wave 8 dependent-context guards. Authoritative aggregate snapshots,
--- idempotency receipts, audit rows, and typed outbox events remain atomic in
--- erpx_cqrs_write. These context tables enforce relational invariants and
--- searchable uniqueness without becoming a second unit-of-work boundary.
+-- Wave 8 dependent-context guards. Migration 0081 promotes the Finance and
+-- Legal roots plus typed children to current command authority. Idempotency
+-- receipts, audit rows, and typed outbox facts remain atomic in erpx_cqrs_write.
 
 CREATE SCHEMA IF NOT EXISTS erpx_finance_write;
 

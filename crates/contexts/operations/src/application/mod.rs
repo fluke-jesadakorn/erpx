@@ -1,3 +1,9 @@
+mod records;
+
+pub use records::{
+    OperationsLifecycleRecordApplicationError, OperationsLifecycleRecordCommandHandler,
+};
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use erpx_cqrs::{

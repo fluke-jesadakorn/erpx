@@ -345,19 +345,6 @@ impl SqlxQualityStore {
             .execute(&mut *tx)
             .await?;
         }
-        sqlx::query(
-            "INSERT INTO erpx_tenant.aggregate_snapshots
-                (aggregate_type, aggregate_id, holding_ref, version, state)
-             VALUES ('quality_inspection',$1,$2,$3,$4)
-             ON CONFLICT (aggregate_type, aggregate_id) DO UPDATE SET
-                holding_ref=$2, version=$3, state=$4, updated_at=now()",
-        )
-        .bind(inspection.id)
-        .bind(&self.holding_ref)
-        .bind(as_i64(inspection.version, "quality inspection version")?)
-        .bind(&payload)
-        .execute(&mut *tx)
-        .await?;
         let event_id = Uuid::new_v4();
         let event_payload = serde_json::json!({
             "aggregate_type": "quality_inspection",

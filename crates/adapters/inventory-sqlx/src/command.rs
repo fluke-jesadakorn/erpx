@@ -1,17 +1,23 @@
+use std::collections::BTreeMap;
+
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{
     AppliedGuardContext, AtomicCommand, AtomicCommandGuard, AtomicCommandOutcome, AuditWrite,
     CommandStore, CqrsSqlxError, GuardCommandContext, OutboxEventWrite, RequestHash, WritePool,
 };
-use erpx_integration_contracts::IntegrationEvent;
+use erpx_integration_contracts::{
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+};
 use erpx_inventory::{
     CommandFingerprint, CommandIdentity, CommandUnitOfWork, InventoryCommit, PortError,
-    ReservationStatus, StockItem, StockItemId, StoredCommit, WriteRepository,
+    Reservation, ReservationId, ReservationStatus, StockItem, StockItemId, StockItemState,
+    StoredCommit, WarehouseId, WriteRepository,
 };
-use erpx_kernel::{AggregateId, CommandId, EventId, TenantScope};
+use erpx_kernel::{AggregateId, CommandId, DataClassification, EventId, RecordId, TenantScope};
 use serde_json::json;
 use sha2::{Digest, Sha256};
-use sqlx::{Postgres, Transaction};
+use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -22,14 +28,81 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct InventoryWriteRepository {
-    store: CommandStore,
+    pool: WritePool,
 }
 
 impl InventoryWriteRepository {
     pub fn new(pool: WritePool) -> Self {
-        Self {
-            store: CommandStore::new(pool),
-        }
+        Self { pool }
+    }
+}
+
+#[derive(Debug)]
+struct AuthoritySqlScope {
+    mode: &'static str,
+    holding_id: Option<Uuid>,
+    company_id: Option<Uuid>,
+    branch_id: Option<Uuid>,
+    company_ids: Vec<Uuid>,
+    branch_ids: Vec<Uuid>,
+}
+
+impl AuthoritySqlScope {
+    fn try_from_scope(scope: &TenantScope) -> Result<Self, PortError> {
+        scope.validate().map_err(|_| PortError::Denied)?;
+        Ok(match scope {
+            TenantScope::Platform => Self {
+                mode: "platform",
+                holding_id: None,
+                company_id: None,
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Holding { holding_id } => Self {
+                mode: "holding",
+                holding_id: Some(*holding_id),
+                company_id: None,
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Company {
+                holding_id,
+                company_id,
+            } => Self {
+                mode: "company",
+                holding_id: Some(*holding_id),
+                company_id: Some(*company_id),
+                branch_id: None,
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            } => Self {
+                mode: "branch",
+                holding_id: Some(*holding_id),
+                company_id: Some(*company_id),
+                branch_id: Some(*branch_id),
+                company_ids: Vec::new(),
+                branch_ids: Vec::new(),
+            },
+            TenantScope::Subtree {
+                holding_id,
+                company_ids,
+                branch_ids,
+            } => Self {
+                mode: "subtree",
+                holding_id: Some(*holding_id),
+                company_id: None,
+                branch_id: None,
+                company_ids: company_ids.clone(),
+                branch_ids: branch_ids.clone(),
+            },
+        })
     }
 }
 
@@ -40,29 +113,118 @@ impl WriteRepository for InventoryWriteRepository {
         authority_scope: &TenantScope,
         stock_item_id: StockItemId,
     ) -> Result<Option<StockItem>, PortError> {
-        let snapshot = self
-            .store
-            .load_snapshot::<StockItem>(
-                CONTEXT_NAME,
-                &stock_item_partition(stock_item_id),
-                AGGREGATE_TYPE,
-                aggregate_id(stock_item_id)?,
-            )
-            .await
-            .map_err(map_store_error)?;
-        let Some(snapshot) = snapshot else {
+        let authority = AuthoritySqlScope::try_from_scope(authority_scope)?;
+        let mut transaction = self.pool.begin().await.map_err(map_store_error)?;
+        let row = sqlx::query(
+            "SELECT aggregate_version,holding_id,company_id,branch_id,warehouse_id,item_code,
+                    on_hand,reserved,created_at,updated_at
+             FROM erpx_inventory_write.stock_item_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1
+               AND (
+                 $2='platform'
+                 OR ($2='holding' AND holding_id=$3)
+                 OR ($2='company' AND holding_id=$3 AND company_id=$4)
+                 OR ($2='branch' AND holding_id=$3 AND company_id=$4 AND branch_id=$5)
+                 OR ($2='subtree' AND holding_id=$3 AND company_id=ANY($6)
+                     AND ((branch_id IS NULL AND cardinality($7::uuid[])=0)
+                          OR branch_id=ANY($7)))
+               )",
+        )
+        .bind(stock_item_id.as_uuid())
+        .bind(authority.mode)
+        .bind(authority.holding_id)
+        .bind(authority.company_id)
+        .bind(authority.branch_id)
+        .bind(&authority.company_ids)
+        .bind(&authority.branch_ids)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        let Some(row) = row else {
+            transaction
+                .commit()
+                .await
+                .map_err(|_| PortError::Unavailable)?;
             return Ok(None);
         };
-        if snapshot.version != snapshot.state.version()
-            || snapshot.state.id() != stock_item_id
-            || snapshot.state.validate().is_err()
-        {
-            return Err(PortError::Internal);
+        let reservation_rows = sqlx::query(
+            "SELECT reservation_id,quantity,demand_reference,reservation_status
+             FROM erpx_inventory_write.reservation_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1
+             ORDER BY reservation_id",
+        )
+        .bind(stock_item_id.as_uuid())
+        .fetch_all(&mut *transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        transaction
+            .commit()
+            .await
+            .map_err(|_| PortError::Unavailable)?;
+        let holding_id = row.try_get("holding_id").map_err(|_| PortError::Internal)?;
+        let company_id = row.try_get("company_id").map_err(|_| PortError::Internal)?;
+        let branch_id: Option<Uuid> = row.try_get("branch_id").map_err(|_| PortError::Internal)?;
+        let scope = branch_id.map_or(
+            TenantScope::Company {
+                holding_id,
+                company_id,
+            },
+            |branch_id| TenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            },
+        );
+        let mut reservations = BTreeMap::new();
+        for reservation_row in reservation_rows {
+            let reservation_id = ReservationId::try_from_uuid(
+                reservation_row
+                    .try_get("reservation_id")
+                    .map_err(|_| PortError::Internal)?,
+            )
+            .map_err(|_| PortError::Internal)?;
+            let value = Reservation {
+                reservation_id,
+                quantity: reservation_row
+                    .try_get("quantity")
+                    .map_err(|_| PortError::Internal)?,
+                demand_reference: reservation_row
+                    .try_get("demand_reference")
+                    .map_err(|_| PortError::Internal)?,
+                status: parse_reservation_status(
+                    &reservation_row
+                        .try_get::<String, _>("reservation_status")
+                        .map_err(|_| PortError::Internal)?,
+                )?,
+            };
+            if reservations.insert(reservation_id, value).is_some() {
+                return Err(PortError::Internal);
+            }
         }
-        if !authority_scope.contains(snapshot.state.scope()) {
+        let aggregate = StockItem::try_rehydrate(StockItemState {
+            id: stock_item_id,
+            version: from_i64(
+                row.try_get("aggregate_version")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            scope,
+            warehouse_id: WarehouseId::try_from_uuid(
+                row.try_get("warehouse_id")
+                    .map_err(|_| PortError::Internal)?,
+            )
+            .map_err(|_| PortError::Internal)?,
+            item_code: row.try_get("item_code").map_err(|_| PortError::Internal)?,
+            on_hand: row.try_get("on_hand").map_err(|_| PortError::Internal)?,
+            reserved: row.try_get("reserved").map_err(|_| PortError::Internal)?,
+            reservations,
+            created_at: row.try_get("created_at").map_err(|_| PortError::Internal)?,
+            updated_at: row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+        })
+        .map_err(|_| PortError::Internal)?;
+        if !authority_scope.contains(aggregate.scope()) {
             return Err(PortError::Denied);
         }
-        Ok(Some(snapshot.state))
+        Ok(Some(aggregate))
     }
 }
 
@@ -131,6 +293,21 @@ impl CommandUnitOfWork for InventoryCommandAdapter {
                 item: (&request.aggregate).into(),
             }),
         });
+        for draft in reservation_directory_drafts(&request.aggregate)? {
+            events.push(OutboxEventWrite {
+                event_id: deterministic_event_id(
+                    command_id,
+                    ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                    events.len(),
+                ),
+                event_type: ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+                event_version: ITEM_DIRECTORY_FACT_VERSION,
+                partition: partition.clone(),
+                causation_id: request.causation_id,
+                occurred_at,
+                payload: InventoryOutboxPayload::Directory(draft),
+            });
+        }
         let guard = InventoryGuard {
             aggregate: request.aggregate.clone(),
             fingerprint: request.identity.fingerprint.clone(),
@@ -143,13 +320,12 @@ impl CommandUnitOfWork for InventoryCommandAdapter {
             correlation_id: request.correlation_id,
             idempotency_key: request.identity.idempotency_key,
             request_hash: request_hash(&request.identity.fingerprint)?,
-            tenant_scope: request.authority_scope,
+            tenant_scope: aggregate.scope().clone(),
             actor: request.actor,
             audit_context: request.audit,
             aggregate_type: AGGREGATE_TYPE.into(),
             aggregate_id: aggregate_id(id)?,
             expected_version: request.expected_version,
-            aggregate_state: serde_json::to_value(&aggregate).map_err(|_| PortError::Internal)?,
             response: aggregate,
             audit: AuditWrite {
                 audit_id: deterministic_uuid(command_id.as_uuid(), b"inventory-audit-v1"),
@@ -164,7 +340,7 @@ impl CommandUnitOfWork for InventoryCommandAdapter {
         };
         let outcome = self
             .store
-            .commit_guarded(command, &guard)
+            .commit_normalized(command, &guard)
             .await
             .map_err(map_store_error)?;
         let replayed = matches!(outcome, AtomicCommandOutcome::Replayed(_));
@@ -186,6 +362,23 @@ struct InventoryGuard {
 
 #[async_trait]
 impl AtomicCommandGuard for InventoryGuard {
+    async fn authoritative_version(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        guard_context(&self.aggregate, context)?;
+        let current: Option<i64> = sqlx::query_scalar(
+            "SELECT aggregate_version FROM erpx_inventory_write.stock_item_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1
+             FOR UPDATE",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await?;
+        current.map(from_i64_store).transpose()
+    }
+
     async fn validate(
         &self,
         transaction: &mut Transaction<'_, Postgres>,
@@ -193,8 +386,8 @@ impl AtomicCommandGuard for InventoryGuard {
     ) -> Result<(), CqrsSqlxError> {
         guard_context(&self.aggregate, context)?;
         let current: Option<i64> = sqlx::query_scalar(
-            "SELECT aggregate_version FROM erpx_inventory_write.stock_item_guards
-             WHERE stock_item_id=$1 FOR UPDATE",
+            "SELECT aggregate_version FROM erpx_inventory_write.stock_item_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1 FOR UPDATE",
         )
         .bind(self.aggregate.id().as_uuid())
         .fetch_optional(&mut **transaction)
@@ -208,8 +401,9 @@ impl AtomicCommandGuard for InventoryGuard {
             ));
         }
         let duplicate: Option<Uuid> = sqlx::query_scalar(
-            "SELECT stock_item_id FROM erpx_inventory_write.stock_item_guards
-             WHERE scope_key=$1 AND warehouse_id=$2 AND item_code=$3 AND stock_item_id<>$4
+            "SELECT stock_item_id FROM erpx_inventory_write.stock_item_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id()
+               AND scope_key=$1 AND warehouse_id=$2 AND item_code=$3 AND stock_item_id<>$4
              ORDER BY stock_item_id LIMIT 1 FOR UPDATE",
         )
         .bind(scope_key(self.aggregate.scope())?)
@@ -225,10 +419,11 @@ impl AtomicCommandGuard for InventoryGuard {
         }
         match &self.fingerprint {
             CommandFingerprint::ReceiveStock { movement_id, .. }
-            | CommandFingerprint::IssueStock { movement_id, .. } => {
+            | CommandFingerprint::IssueStock { movement_id, .. }
+            | CommandFingerprint::FulfillReservation { movement_id, .. } => {
                 let exists: bool = sqlx::query_scalar(
-                    "SELECT EXISTS (SELECT 1 FROM erpx_inventory_write.movement_guards
-                     WHERE movement_id=$1)",
+                    "SELECT EXISTS (SELECT 1 FROM erpx_inventory_write.movement_authority
+                     WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND movement_id=$1)",
                 )
                 .bind(movement_id.as_uuid())
                 .fetch_one(&mut **transaction)
@@ -241,8 +436,8 @@ impl AtomicCommandGuard for InventoryGuard {
             }
             CommandFingerprint::Reserve { reservation_id, .. } => {
                 let exists: bool = sqlx::query_scalar(
-                    "SELECT EXISTS (SELECT 1 FROM erpx_inventory_write.reservation_guards
-                     WHERE reservation_id=$1)",
+                    "SELECT EXISTS (SELECT 1 FROM erpx_inventory_write.reservation_authority
+                     WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND reservation_id=$1)",
                 )
                 .bind(reservation_id.as_uuid())
                 .fetch_one(&mut **transaction)
@@ -273,32 +468,52 @@ impl AtomicCommandGuard for InventoryGuard {
                 "inventory applied guard mismatch",
             ));
         }
-        sqlx::query(
-            "INSERT INTO erpx_inventory_write.stock_item_guards
-                (stock_item_id,scope_key,warehouse_id,item_code,on_hand,reserved,
-                 aggregate_version,updated_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-             ON CONFLICT (stock_item_id) DO UPDATE SET scope_key=EXCLUDED.scope_key,
+        let (holding_id, company_id, branch_id) = exact_scope_columns(self.aggregate.scope())?;
+        let result = sqlx::query(
+            "INSERT INTO erpx_inventory_write.stock_item_authority
+                (tenant_id,stock_item_id,aggregate_version,scope_key,holding_id,company_id,
+                 branch_id,warehouse_id,item_code,on_hand,reserved,created_at,updated_at)
+             VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+             ON CONFLICT (tenant_id,stock_item_id) DO UPDATE SET
+                aggregate_version=EXCLUDED.aggregate_version,scope_key=EXCLUDED.scope_key,
+                holding_id=EXCLUDED.holding_id,company_id=EXCLUDED.company_id,
+                branch_id=EXCLUDED.branch_id,
                 warehouse_id=EXCLUDED.warehouse_id,item_code=EXCLUDED.item_code,
                 on_hand=EXCLUDED.on_hand,reserved=EXCLUDED.reserved,
-                aggregate_version=EXCLUDED.aggregate_version,updated_at=EXCLUDED.updated_at",
+                created_at=EXCLUDED.created_at,updated_at=EXCLUDED.updated_at
+             WHERE erpx_inventory_write.stock_item_authority.tenant_id=
+                       erpx_cqrs_write.current_tenant_id()
+               AND erpx_inventory_write.stock_item_authority.aggregate_version + 1=
+                       EXCLUDED.aggregate_version",
         )
         .bind(self.aggregate.id().as_uuid())
+        .bind(to_i64(self.aggregate.version())?)
         .bind(scope_key(self.aggregate.scope())?)
+        .bind(holding_id)
+        .bind(company_id)
+        .bind(branch_id)
         .bind(self.aggregate.warehouse_id().as_uuid())
         .bind(self.aggregate.item_code())
         .bind(self.aggregate.on_hand())
         .bind(self.aggregate.reserved())
-        .bind(to_i64(self.aggregate.version())?)
+        .bind(self.aggregate.created_at())
         .bind(self.aggregate.updated_at())
         .execute(&mut **transaction)
         .await?;
+        if result.rows_affected() != 1 {
+            return Err(CqrsSqlxError::GuardRejected(
+                "inventory normalized version did not advance exactly once",
+            ));
+        }
 
-        if let Some((movement_id, quantity_delta, procurement_line)) = movement(&self.fingerprint) {
+        if let Some((movement_id, quantity_delta, procurement_line)) =
+            movement(&self.fingerprint, &self.aggregate)
+        {
             sqlx::query(
-                "INSERT INTO erpx_inventory_write.movement_guards
-                    (movement_id,stock_item_id,quantity_delta,procurement_line_id,
-                     aggregate_version,occurred_at) VALUES ($1,$2,$3,$4,$5,$6)",
+                "INSERT INTO erpx_inventory_write.movement_authority
+                    (tenant_id,movement_id,stock_item_id,quantity_delta,procurement_line_id,
+                     aggregate_version,occurred_at)
+                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6)",
             )
             .bind(movement_id)
             .bind(self.aggregate.id().as_uuid())
@@ -310,15 +525,19 @@ impl AtomicCommandGuard for InventoryGuard {
             .await?;
         }
 
-        sqlx::query("DELETE FROM erpx_inventory_write.reservation_guards WHERE stock_item_id=$1")
-            .bind(self.aggregate.id().as_uuid())
-            .execute(&mut **transaction)
-            .await?;
+        sqlx::query(
+            "DELETE FROM erpx_inventory_write.reservation_authority
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .execute(&mut **transaction)
+        .await?;
         for reservation in self.aggregate.reservations().values() {
             sqlx::query(
-                "INSERT INTO erpx_inventory_write.reservation_guards
-                    (reservation_id,stock_item_id,quantity,demand_reference,reservation_status,
-                     aggregate_version,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+                "INSERT INTO erpx_inventory_write.reservation_authority
+                    (tenant_id,reservation_id,stock_item_id,quantity,demand_reference,
+                     reservation_status,aggregate_version,updated_at)
+                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7)",
             )
             .bind(reservation.reservation_id.as_uuid())
             .bind(self.aggregate.id().as_uuid())
@@ -330,11 +549,77 @@ impl AtomicCommandGuard for InventoryGuard {
             .execute(&mut **transaction)
             .await?;
         }
+        sqlx::query(
+            "DELETE FROM erpx_inventory_write.reservation_records
+             WHERE tenant_id=erpx_cqrs_write.current_tenant_id() AND stock_item_id=$1",
+        )
+        .bind(self.aggregate.id().as_uuid())
+        .execute(&mut **transaction)
+        .await?;
+        for reservation in self.aggregate.reservations().values() {
+            sqlx::query(
+                "INSERT INTO erpx_inventory_write.reservation_records
+                    (tenant_id,reservation_id,stock_item_id,source_item_version,tenant_scope,
+                     warehouse_id,item_code,quantity,demand_reference,reservation_status,updated_at)
+                 VALUES (erpx_cqrs_write.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+            )
+            .bind(reservation.reservation_id.as_uuid())
+            .bind(self.aggregate.id().as_uuid())
+            .bind(to_i64(self.aggregate.version())?)
+            .bind(
+                serde_json::to_value(self.aggregate.scope())
+                    .map_err(|_| CqrsSqlxError::GuardRejected("inventory scope is invalid"))?,
+            )
+            .bind(self.aggregate.warehouse_id().as_uuid())
+            .bind(self.aggregate.item_code())
+            .bind(reservation.quantity)
+            .bind(&reservation.demand_reference)
+            .bind(reservation_status(reservation.status))
+            .bind(self.aggregate.updated_at())
+            .execute(&mut **transaction)
+            .await?;
+        }
         Ok(())
     }
 }
 
-fn movement(fingerprint: &CommandFingerprint) -> Option<(Uuid, i64, Option<Uuid>)> {
+fn reservation_directory_drafts(
+    aggregate: &StockItem,
+) -> Result<Vec<ItemDescriptorDraft>, PortError> {
+    aggregate
+        .reservations()
+        .values()
+        .map(|reservation| {
+            let record = StableRecordRef::try_new(
+                RecordId::try_from_uuid(reservation.reservation_id.as_uuid())
+                    .map_err(|_| PortError::Internal)?,
+                ContextId::Inventory,
+                RecordTypeId::try_new("inventory.reservation").map_err(|_| PortError::Internal)?,
+            )
+            .map_err(|_| PortError::Internal)?;
+            let draft = ItemDescriptorDraft {
+                authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
+                record,
+                scope: aggregate.scope().clone(),
+                lifecycle_state: reservation_status(reservation.status).into(),
+                classification: DataClassification::Confidential,
+                descriptor_version: aggregate.version(),
+                authorized_search_text: format!(
+                    "{} {}",
+                    aggregate.item_code(),
+                    reservation.demand_reference
+                ),
+            };
+            draft.validate().map_err(|_| PortError::Internal)?;
+            Ok(draft)
+        })
+        .collect()
+}
+
+fn movement(
+    fingerprint: &CommandFingerprint,
+    aggregate: &StockItem,
+) -> Option<(Uuid, i64, Option<Uuid>)> {
     match fingerprint {
         CommandFingerprint::ReceiveStock {
             movement_id,
@@ -351,6 +636,14 @@ fn movement(fingerprint: &CommandFingerprint) -> Option<(Uuid, i64, Option<Uuid>
             quantity,
             ..
         } => Some((movement_id.as_uuid(), -*quantity, None)),
+        CommandFingerprint::FulfillReservation {
+            reservation_id,
+            movement_id,
+            ..
+        } => aggregate
+            .reservations()
+            .get(reservation_id)
+            .map(|reservation| (movement_id.as_uuid(), -reservation.quantity, None)),
         _ => None,
     }
 }
@@ -359,6 +652,14 @@ fn reservation_status(status: ReservationStatus) -> &'static str {
     match status {
         ReservationStatus::Active => "active",
         ReservationStatus::Released => "released",
+    }
+}
+
+fn parse_reservation_status(value: &str) -> Result<ReservationStatus, PortError> {
+    match value {
+        "active" => Ok(ReservationStatus::Active),
+        "released" => Ok(ReservationStatus::Released),
+        _ => Err(PortError::Internal),
     }
 }
 
@@ -379,9 +680,15 @@ fn guard_context(
 }
 
 fn validate_commit(request: &InventoryCommit) -> Result<(), PortError> {
+    let next = request
+        .expected_version
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(PortError::Internal)?;
     if request.aggregate.validate().is_err()
         || fingerprint_id(&request.identity.fingerprint) != request.aggregate.id()
         || !request.authority_scope.contains(request.aggregate.scope())
+        || request.aggregate.version() != next
     {
         return Err(PortError::Internal);
     }
@@ -394,7 +701,8 @@ fn fingerprint_id(fingerprint: &CommandFingerprint) -> StockItemId {
         | CommandFingerprint::ReceiveStock { stock_item_id, .. }
         | CommandFingerprint::IssueStock { stock_item_id, .. }
         | CommandFingerprint::Reserve { stock_item_id, .. }
-        | CommandFingerprint::ReleaseReservation { stock_item_id, .. } => *stock_item_id,
+        | CommandFingerprint::ReleaseReservation { stock_item_id, .. }
+        | CommandFingerprint::FulfillReservation { stock_item_id, .. } => *stock_item_id,
     }
 }
 
@@ -414,6 +722,7 @@ fn audit_action(fingerprint: &CommandFingerprint) -> &'static str {
         CommandFingerprint::IssueStock { .. } => "inventory.stock.issue",
         CommandFingerprint::Reserve { .. } => "inventory.stock.reserve",
         CommandFingerprint::ReleaseReservation { .. } => "inventory.reservation.release",
+        CommandFingerprint::FulfillReservation { .. } => "inventory.reservation.fulfill",
     }
 }
 
@@ -471,6 +780,26 @@ fn scope_key(scope: &TenantScope) -> Result<String, CqrsSqlxError> {
 fn to_i64(value: u64) -> Result<i64, CqrsSqlxError> {
     i64::try_from(value).map_err(|_| CqrsSqlxError::GuardRejected("numeric value is too large"))
 }
+fn from_i64(value: i64) -> Result<u64, PortError> {
+    u64::try_from(value).map_err(|_| PortError::Internal)
+}
+fn from_i64_store(value: i64) -> Result<u64, CqrsSqlxError> {
+    u64::try_from(value).map_err(|_| CqrsSqlxError::NumericRange)
+}
+fn exact_scope_columns(scope: &TenantScope) -> Result<(Uuid, Uuid, Option<Uuid>), CqrsSqlxError> {
+    match scope {
+        TenantScope::Company {
+            holding_id,
+            company_id,
+        } => Ok((*holding_id, *company_id, None)),
+        TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => Ok((*holding_id, *company_id, Some(*branch_id))),
+        _ => Err(CqrsSqlxError::GuardRejected("inventory scope is not exact")),
+    }
+}
 fn map_store_error(error: CqrsSqlxError) -> PortError {
     match error {
         CqrsSqlxError::IdempotencyConflict | CqrsSqlxError::CommandReplayConflict => {
@@ -512,8 +841,31 @@ mod tests {
             request_hash(&fingerprint).unwrap()
         );
         assert_eq!(
-            movement(&fingerprint),
+            movement(
+                &fingerprint,
+                &StockItem::register(
+                    StockItemId::try_from_uuid(Uuid::from_u128(10)).unwrap(),
+                    TenantScope::Company {
+                        holding_id: Uuid::from_u128(1),
+                        company_id: Uuid::from_u128(2)
+                    },
+                    erpx_inventory::WarehouseId::try_from_uuid(Uuid::from_u128(11)).unwrap(),
+                    "ITEM-1".into(),
+                    chrono::Utc::now(),
+                )
+                .unwrap()
+            ),
             Some((movement_id.as_uuid(), -3, None))
         );
+    }
+
+    #[test]
+    fn reservation_records_and_directory_facts_share_the_owner_uow() {
+        let source = include_str!("command.rs");
+        assert!(source.contains("reservation_directory_drafts(&request.aggregate)"));
+        assert!(source.contains("InventoryOutboxPayload::Directory(draft)"));
+        assert!(source.contains("erpx_inventory_write.reservation_records"));
+        assert!(source.contains("source_item_version"));
+        assert!(!source.contains(concat!("reservation_", "snapshot")));
     }
 }

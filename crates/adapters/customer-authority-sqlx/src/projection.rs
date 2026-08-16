@@ -3,7 +3,7 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionEvent, ProjectionFailure, Projector, ProjectorContext,
 };
 use erpx_customer_authority::{CustomerAuthorityView, CustomerStatus};
-use erpx_integration_contracts::customer;
+use erpx_integration_contracts::{ItemDescriptorDraft, customer};
 use erpx_kernel::TenantScope;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -24,6 +24,7 @@ pub struct CustomerAuthoritySnapshot {
 pub enum CustomerAuthorityOutboxPayload {
     Integration(customer::Event),
     Snapshot(CustomerAuthoritySnapshot),
+    Directory(ItemDescriptorDraft),
 }
 
 #[derive(Debug, Clone)]

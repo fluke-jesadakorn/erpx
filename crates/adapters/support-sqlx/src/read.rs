@@ -85,7 +85,7 @@ impl SupportReadRepository {
         projection: &str,
         checkpoint: Option<ProjectionCheckpoint>,
     ) -> Result<ProjectionMetadata, PortError> {
-        let status:Option<String>=sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1").bind(projection).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let status:Option<String>=sqlx::query_scalar("SELECT status FROM erpx_cqrs_read.projection_generations WHERE projection_name=$1 AND status IN ('active','building') ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1").bind(projection).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let freshness = match status.as_deref() {
             Some("active") => FreshnessState::Current,
             Some("building") => FreshnessState::Rebuilding,
@@ -118,7 +118,7 @@ impl SupportReadRepository {
         match audience {
             TicketReadAudience::Customer => {
                 let rows = sqlx::query("SELECT message_id,author_ref,body,created_at FROM erpx_support_read.ticket_customer_message_projection WHERE projection_name=$1 AND generation=$2 AND partition_key=$3 AND ticket_id=$4 ORDER BY created_at,message_id")
-                    .bind(TICKET_PROJECTION).bind(generation).bind(partition).bind(id.as_uuid()).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+                    .bind(TICKET_PROJECTION).bind(generation).bind(partition).bind(id.as_uuid()).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
                 Ok((
                     rows.into_iter()
                         .map(decode_customer_message)
@@ -128,7 +128,7 @@ impl SupportReadRepository {
             }
             TicketReadAudience::Internal => {
                 let rows = sqlx::query("SELECT message_id,author_ref,audience,body,created_at FROM erpx_support_read.ticket_internal_message_projection WHERE projection_name=$1 AND generation=$2 AND partition_key=$3 AND ticket_id=$4 ORDER BY created_at,message_id")
-                    .bind(TICKET_PROJECTION).bind(generation).bind(partition).bind(id.as_uuid()).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+                    .bind(TICKET_PROJECTION).bind(generation).bind(partition).bind(id.as_uuid()).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
                 let internal = rows
                     .into_iter()
                     .map(decode_internal_message)
@@ -164,7 +164,7 @@ impl ReadRepository for SupportReadRepository {
             .await?;
         let filter = ScopeFilter::from(authority)?;
         let row=sqlx::query("SELECT item.*,item.generation FROM erpx_support_read.ticket_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.ticket_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))")
-            .bind(TICKET_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(filter.platform).bind(&filter.exact).bind(&filter.prefixes).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(TICKET_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(filter.platform).bind(&filter.exact).bind(&filter.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = if let Some(row) = row {
             let generation: Uuid = row.try_get("generation").map_err(|_| PortError::Internal)?;
             let (customer_messages, internal_messages) = self
@@ -198,7 +198,7 @@ impl ReadRepository for SupportReadRepository {
         let customer = filter.customer.map(|v| v.as_uuid());
         let limit = i64::from(filter.page_size) + 1;
         let rows=sqlx::query("SELECT item.*,item.generation FROM erpx_support_read.ticket_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::text IS NULL OR item.ticket_status=$5) AND ($6::uuid IS NULL OR item.customer_id=$6) AND ($7::uuid IS NULL OR item.ticket_id>$7) ORDER BY item.ticket_id LIMIT $8")
-            .bind(TICKET_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).bind(status).bind(customer).bind(after).bind(limit).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+            .bind(TICKET_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).bind(status).bind(customer).bind(after).bind(limit).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut values = Vec::with_capacity(rows.len());
         for row in rows {
             let id = SupportTicketId::try_from_uuid(
@@ -233,7 +233,7 @@ impl ReadRepository for SupportReadRepository {
             .checkpoint(INCIDENT_PROJECTION, consistency, Some(&partition))
             .await?;
         let scope = ScopeFilter::from(authority)?;
-        let row=sqlx::query("SELECT item.state FROM erpx_support_read.incident_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.incident_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))").bind(INCIDENT_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let row=sqlx::query("SELECT item.state FROM erpx_support_read.incident_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.incident_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))").bind(INCIDENT_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode_state).transpose()?;
         if value
             .as_ref()
@@ -259,7 +259,7 @@ impl ReadRepository for SupportReadRepository {
         let after = filter.cursor.as_deref().map(decode_cursor).transpose()?;
         let status = filter.status.map(incident_status_name);
         let limit = i64::from(filter.page_size) + 1;
-        let rows=sqlx::query("SELECT item.state FROM erpx_support_read.incident_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::text IS NULL OR item.incident_status=$5) AND ($6::uuid IS NULL OR item.incident_id>$6) ORDER BY item.incident_id LIMIT $7").bind(INCIDENT_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).bind(status).bind(after).bind(limit).fetch_all(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let rows=sqlx::query("SELECT item.state FROM erpx_support_read.incident_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND ($2 OR item.scope_key=ANY($3::text[]) OR item.scope_key LIKE ANY($4::text[])) AND ($5::text IS NULL OR item.incident_status=$5) AND ($6::uuid IS NULL OR item.incident_id>$6) ORDER BY item.incident_id LIMIT $7").bind(INCIDENT_PROJECTION).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).bind(status).bind(after).bind(limit).fetch_all(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let mut values = decode_rows::<IncidentView>(rows)?;
         validate_scopes(authority, values.iter().map(|v| &v.scope))?;
         let next_cursor =
@@ -283,7 +283,7 @@ impl ReadRepository for SupportReadRepository {
             .checkpoint(SESSION_PROJECTION, consistency, Some(&partition))
             .await?;
         let scope = ScopeFilter::from(authority)?;
-        let row=sqlx::query("SELECT item.* FROM erpx_support_read.session_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.session_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))").bind(SESSION_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let row=sqlx::query("SELECT item.* FROM erpx_support_read.session_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.session_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))").bind(SESSION_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode_session).transpose()?;
         if value.as_ref().is_some_and(|v: &SupportSessionView| {
             v.session_id != id || !authority.contains(&v.scope)
@@ -306,7 +306,7 @@ impl ReadRepository for SupportReadRepository {
             .checkpoint(CAPABILITY_PROJECTION, consistency, Some(&partition))
             .await?;
         let scope = ScopeFilter::from(authority)?;
-        let row=sqlx::query("SELECT item.* FROM erpx_support_read.capability_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.capability_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))").bind(CAPABILITY_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(self.pool.as_pg_pool()).await.map_err(|_|PortError::Unavailable)?;
+        let row=sqlx::query("SELECT item.* FROM erpx_support_read.capability_projection item JOIN erpx_cqrs_read.projection_generations generation ON generation.projection_name=item.projection_name AND generation.generation=item.generation AND generation.status='active' WHERE item.projection_name=$1 AND item.partition_key=$2 AND item.capability_id=$3 AND ($4 OR item.scope_key=ANY($5::text[]) OR item.scope_key LIKE ANY($6::text[]))").bind(CAPABILITY_PROJECTION).bind(&partition).bind(id.as_uuid()).bind(scope.platform).bind(&scope.exact).bind(&scope.prefixes).fetch_optional(&mut *self.pool.begin().await.map_err(|_| PortError::Unavailable)?).await.map_err(|_|PortError::Unavailable)?;
         let value = row.map(decode_capability).transpose()?;
         if value.as_ref().is_some_and(|v: &SupportCapabilityView| {
             v.capability_id != id || !authority.contains(&v.scope)

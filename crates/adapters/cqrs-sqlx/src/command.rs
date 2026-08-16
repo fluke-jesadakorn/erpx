@@ -66,15 +66,14 @@ pub struct AtomicCommand<R, E> {
     pub aggregate_type: String,
     pub aggregate_id: AggregateId,
     pub expected_version: Option<u64>,
-    pub aggregate_state: Value,
     pub response: R,
     pub audit: AuditWrite,
     pub events: Vec<OutboxEventWrite<E>>,
 }
 
-/// Read-only command identity exposed to a context guard before the shared
-/// snapshot is written. The guard may lock and validate context-owned guard
-/// rows, but it cannot commit or access a raw pool.
+/// Read-only command identity exposed to a context guard before normalized
+/// authority is written. The guard may lock and validate context-owned rows,
+/// but it cannot commit or access a raw pool.
 #[derive(Debug, Clone, Copy)]
 pub struct GuardCommandContext<'a> {
     pub context: &'a str,
@@ -85,7 +84,7 @@ pub struct GuardCommandContext<'a> {
 }
 
 /// The committed aggregate version exposed to a context guard after the
-/// snapshot write and before audit/outbox/receipt completion.
+/// normalized write and before audit/outbox/receipt completion.
 #[derive(Debug, Clone, Copy)]
 pub struct AppliedGuardContext<'a> {
     pub context: &'a str,
@@ -96,11 +95,27 @@ pub struct AppliedGuardContext<'a> {
 }
 
 /// Context-owned invariant/uniqueness hook executed inside the exact shared
-/// command transaction. `validate` is the lock/read phase; `apply` updates the
-/// context guard rows only after optimistic snapshot persistence succeeds.
-/// Any error rolls back the reservation, snapshot, guard, audit, and outbox.
+/// command transaction. `validate` is the lock/read phase; `apply` persists
+/// the next typed relational state after the optimistic version fence passes.
+/// Any error rolls back the authority update, receipt, audit, and outbox.
 #[async_trait::async_trait]
 pub trait AtomicCommandGuard: Send + Sync {
+    /// Locks and returns the context-owned authoritative aggregate version.
+    ///
+    /// Context adapters using [`CommandStore::commit_normalized`] must
+    /// implement this method against their normalized write model. The
+    /// default deliberately fails closed so every adapter must define its
+    /// normalized concurrency fence.
+    async fn authoritative_version(
+        &self,
+        _transaction: &mut Transaction<'_, Postgres>,
+        _context: &GuardCommandContext<'_>,
+    ) -> Result<Option<u64>, CqrsSqlxError> {
+        Err(CqrsSqlxError::GuardRejected(
+            "normalized authoritative version is not implemented",
+        ))
+    }
+
     async fn validate(
         &self,
         transaction: &mut Transaction<'_, Postgres>,
@@ -114,38 +129,10 @@ pub trait AtomicCommandGuard: Send + Sync {
     ) -> Result<(), CqrsSqlxError>;
 }
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NoopAtomicCommandGuard;
-
-#[async_trait::async_trait]
-impl AtomicCommandGuard for NoopAtomicCommandGuard {
-    async fn validate(
-        &self,
-        _transaction: &mut Transaction<'_, Postgres>,
-        _context: &GuardCommandContext<'_>,
-    ) -> Result<(), CqrsSqlxError> {
-        Ok(())
-    }
-
-    async fn apply(
-        &self,
-        _transaction: &mut Transaction<'_, Postgres>,
-        _context: &AppliedGuardContext<'_>,
-    ) -> Result<(), CqrsSqlxError> {
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AtomicCommandOutcome<R> {
     Committed(CommandReceipt<R>),
     Replayed(CommandReceipt<R>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StoredSnapshot<T> {
-    pub version: u64,
-    pub state: T,
 }
 
 impl<R> AtomicCommandOutcome<R> {
@@ -170,42 +157,6 @@ impl CommandStore {
         Self { pool }
     }
 
-    /// Loads authoritative aggregate state for a command handler. This method
-    /// exists only on the write-side store and is intentionally absent from all
-    /// query/read-side adapters.
-    pub async fn load_snapshot<T>(
-        &self,
-        context: &str,
-        partition: &str,
-        aggregate_type: &str,
-        aggregate_id: AggregateId,
-    ) -> Result<Option<StoredSnapshot<T>>, CqrsSqlxError>
-    where
-        T: DeserializeOwned,
-    {
-        validate_text(context, MAX_CONTEXT_LENGTH)?;
-        validate_text(partition, MAX_PARTITION_LENGTH)?;
-        validate_text(aggregate_type, MAX_AGGREGATE_TYPE_LENGTH)?;
-        let row = sqlx::query(
-            "SELECT aggregate_version, state
-             FROM erpx_cqrs_write.aggregate_snapshots
-             WHERE context_name = $1 AND partition_key = $2
-               AND aggregate_type = $3 AND aggregate_id = $4",
-        )
-        .bind(context)
-        .bind(partition)
-        .bind(aggregate_type)
-        .bind(aggregate_id.as_uuid())
-        .fetch_optional(self.pool.inner())
-        .await?;
-        row.map(|row| {
-            let version = to_u64(row.try_get("aggregate_version")?)?;
-            let state = serde_json::from_value(row.try_get("state")?)?;
-            Ok(StoredSnapshot { version, state })
-        })
-        .transpose()
-    }
-
     /// Returns a completed receipt only when the stable command identity and
     /// canonical request hash are exact. A reused key fails closed.
     pub async fn find_receipt<R>(
@@ -221,16 +172,31 @@ impl CommandStore {
     {
         validate_text(context, MAX_CONTEXT_LENGTH)?;
         validate_text(partition, MAX_PARTITION_LENGTH)?;
-        let row = sqlx::query(
+        let mut transaction = self.pool.begin().await?;
+        let statement = if self.pool.tenant_id().is_some() {
             "SELECT command_id, request_hash, status, receipt
              FROM erpx_cqrs_write.command_receipts
-             WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3",
-        )
-        .bind(context)
-        .bind(partition)
-        .bind(idempotency_key.as_str())
-        .fetch_optional(self.pool.inner())
-        .await?;
+             WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3
+               AND tenant_id = $4"
+        } else {
+            "SELECT command_id, request_hash, status, receipt
+             FROM erpx_cqrs_write.command_receipts
+             WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3"
+        };
+        let query = sqlx::query(statement)
+            .bind(context)
+            .bind(partition)
+            .bind(idempotency_key.as_str());
+        let row = match self.pool.tenant_id() {
+            Some(tenant_id) => {
+                query
+                    .bind(tenant_id)
+                    .fetch_optional(&mut *transaction)
+                    .await?
+            }
+            None => query.fetch_optional(&mut *transaction).await?,
+        };
+        transaction.commit().await?;
         let Some(row) = row else {
             return Ok(None);
         };
@@ -255,23 +221,13 @@ impl CommandStore {
         Ok(Some(receipt))
     }
 
-    /// Atomically writes the snapshot, replay receipt, audit evidence, and all
-    /// outbox events. Any error drops the transaction and rolls back the whole
-    /// command. Existing matching receipts are returned without touching state.
-    pub async fn commit<R, E>(
-        &self,
-        command: AtomicCommand<R, E>,
-    ) -> Result<AtomicCommandOutcome<R>, CqrsSqlxError>
-    where
-        R: Serialize + DeserializeOwned,
-        E: Serialize,
-    {
-        self.commit_guarded(command, &NoopAtomicCommandGuard).await
-    }
-
-    /// Commit through a context-owned guard without exposing `WritePool` or a
-    /// transaction completion capability to the adapter.
-    pub async fn commit_guarded<R, E, G>(
+    /// Commits a command whose authoritative state is stored exclusively in
+    /// context-owned normalized tables.
+    ///
+    /// The guard must lock and report the normalized current version and
+    /// persist the next version from `apply`. Receipts, audit evidence, and
+    /// outbox facts remain in the same transaction.
+    pub async fn commit_normalized<R, E, G>(
         &self,
         command: AtomicCommand<R, E>,
         guard: &G,
@@ -282,26 +238,38 @@ impl CommandStore {
         G: AtomicCommandGuard + ?Sized,
     {
         validate_command(&command)?;
-        let mut transaction = self.pool.inner().begin().await?;
-        let reservation = reserve_receipt(&mut transaction, &command).await?;
+        let mut transaction = self.pool.begin().await?;
+        let tenant_id = self.pool.tenant_id();
+        let reservation = reserve_receipt(&mut transaction, tenant_id, &command).await?;
         if !reservation {
-            let receipt = load_replay_receipt(&mut transaction, &command).await?;
+            let receipt = load_replay_receipt(&mut transaction, tenant_id, &command).await?;
             transaction.commit().await?;
             return Ok(AtomicCommandOutcome::Replayed(receipt));
         }
 
-        guard
-            .validate(
-                &mut transaction,
-                &GuardCommandContext {
-                    context: &command.context,
-                    partition: &command.partition,
-                    aggregate_type: &command.aggregate_type,
-                    aggregate_id: command.aggregate_id,
-                    expected_version: command.expected_version,
-                },
-            )
+        let guard_context = GuardCommandContext {
+            context: &command.context,
+            partition: &command.partition,
+            aggregate_type: &command.aggregate_type,
+            aggregate_id: command.aggregate_id,
+            expected_version: command.expected_version,
+        };
+        let observed = guard
+            .authoritative_version(&mut transaction, &guard_context)
             .await?;
+        if observed != command.expected_version {
+            return Err(CqrsSqlxError::OptimisticConcurrency {
+                aggregate_type: command.aggregate_type.clone(),
+                aggregate_id: command.aggregate_id.as_uuid(),
+                expected: command.expected_version,
+                actual: observed,
+            });
+        }
+        let version = observed
+            .unwrap_or(0)
+            .checked_add(1)
+            .ok_or(CqrsSqlxError::NumericRange)?;
+        guard.validate(&mut transaction, &guard_context).await?;
 
         let AtomicCommand {
             context,
@@ -315,23 +283,11 @@ impl CommandStore {
             audit_context,
             aggregate_type,
             aggregate_id,
-            expected_version,
-            aggregate_state,
+            expected_version: _,
             response,
             audit,
             events,
         } = command;
-
-        let version = persist_snapshot(
-            &mut transaction,
-            &context,
-            &partition,
-            &aggregate_type,
-            aggregate_id,
-            expected_version,
-            aggregate_state,
-        )
-        .await?;
         guard
             .apply(
                 &mut transaction,
@@ -344,11 +300,13 @@ impl CommandStore {
                 },
             )
             .await?;
+
         let mut positions = Vec::with_capacity(events.len());
         for event in events {
             positions.push(
                 append_outbox(
                     &mut transaction,
+                    tenant_id,
                     &context,
                     &partition,
                     command_id,
@@ -365,6 +323,7 @@ impl CommandStore {
         }
         persist_audit(
             &mut transaction,
+            tenant_id,
             &context,
             &partition,
             command_id,
@@ -396,6 +355,7 @@ impl CommandStore {
         };
         complete_receipt(
             &mut transaction,
+            tenant_id,
             &context,
             &partition,
             idempotency_key.as_str(),
@@ -456,38 +416,61 @@ fn validate_text(value: &str, maximum: usize) -> Result<(), CqrsSqlxError> {
 
 async fn reserve_receipt<R, E>(
     transaction: &mut Transaction<'_, Postgres>,
+    tenant_id: Option<Uuid>,
     command: &AtomicCommand<R, E>,
 ) -> Result<bool, CqrsSqlxError> {
-    let inserted = sqlx::query(
+    let statement = if tenant_id.is_some() {
+        "INSERT INTO erpx_cqrs_write.command_receipts
+            (context_name, partition_key, idempotency_key, command_id, request_hash,
+             correlation_id, status, created_at, tenant_id)
+         VALUES ($1, $2, $3, $4, $5, $6, 'reserved', now(), $7)
+         ON CONFLICT DO NOTHING"
+    } else {
         "INSERT INTO erpx_cqrs_write.command_receipts
             (context_name, partition_key, idempotency_key, command_id, request_hash,
              correlation_id, status, created_at)
          VALUES ($1, $2, $3, $4, $5, $6, 'reserved', now())
-         ON CONFLICT DO NOTHING",
-    )
-    .bind(&command.context)
-    .bind(&command.partition)
-    .bind(command.idempotency_key.as_str())
-    .bind(command.command_id.as_uuid())
-    .bind(command.request_hash.as_bytes().as_slice())
-    .bind(command.correlation_id.as_uuid())
-    .execute(&mut **transaction)
-    .await?;
+         ON CONFLICT DO NOTHING"
+    };
+    let query = sqlx::query(statement)
+        .bind(&command.context)
+        .bind(&command.partition)
+        .bind(command.idempotency_key.as_str())
+        .bind(command.command_id.as_uuid())
+        .bind(command.request_hash.as_bytes().as_slice())
+        .bind(command.correlation_id.as_uuid());
+    let inserted = match tenant_id {
+        Some(tenant_id) => query.bind(tenant_id).execute(&mut **transaction).await?,
+        None => query.execute(&mut **transaction).await?,
+    };
     if inserted.rows_affected() == 1 {
         return Ok(true);
     }
 
-    let by_key = sqlx::query(
+    let statement = if tenant_id.is_some() {
         "SELECT command_id, request_hash, receipt
          FROM erpx_cqrs_write.command_receipts
          WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3
-         FOR UPDATE",
-    )
-    .bind(&command.context)
-    .bind(&command.partition)
-    .bind(command.idempotency_key.as_str())
-    .fetch_optional(&mut **transaction)
-    .await?;
+           AND tenant_id = $4 FOR UPDATE"
+    } else {
+        "SELECT command_id, request_hash, receipt
+         FROM erpx_cqrs_write.command_receipts
+         WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3
+         FOR UPDATE"
+    };
+    let query = sqlx::query(statement)
+        .bind(&command.context)
+        .bind(&command.partition)
+        .bind(command.idempotency_key.as_str());
+    let by_key = match tenant_id {
+        Some(tenant_id) => {
+            query
+                .bind(tenant_id)
+                .fetch_optional(&mut **transaction)
+                .await?
+        }
+        None => query.fetch_optional(&mut **transaction).await?,
+    };
     let Some(row) = by_key else {
         return Err(CqrsSqlxError::CommandReplayConflict);
     };
@@ -510,87 +493,39 @@ async fn reserve_receipt<R, E>(
 
 async fn load_replay_receipt<R, E>(
     transaction: &mut Transaction<'_, Postgres>,
+    tenant_id: Option<Uuid>,
     command: &AtomicCommand<R, E>,
 ) -> Result<CommandReceipt<R>, CqrsSqlxError>
 where
     R: DeserializeOwned,
 {
-    let value: Value = sqlx::query_scalar(
+    let statement = if tenant_id.is_some() {
         "SELECT receipt
          FROM erpx_cqrs_write.command_receipts
-         WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3",
-    )
-    .bind(&command.context)
-    .bind(&command.partition)
-    .bind(command.idempotency_key.as_str())
-    .fetch_one(&mut **transaction)
-    .await?;
+         WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3
+           AND tenant_id = $4"
+    } else {
+        "SELECT receipt
+         FROM erpx_cqrs_write.command_receipts
+         WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3"
+    };
+    let query = sqlx::query_scalar(statement)
+        .bind(&command.context)
+        .bind(&command.partition)
+        .bind(command.idempotency_key.as_str());
+    let value: Value = match tenant_id {
+        Some(tenant_id) => query.bind(tenant_id).fetch_one(&mut **transaction).await?,
+        None => query.fetch_one(&mut **transaction).await?,
+    };
     let mut receipt: CommandReceipt<R> = serde_json::from_value(value)?;
     receipt.replayed = true;
     Ok(receipt)
 }
 
-async fn persist_snapshot(
-    transaction: &mut Transaction<'_, Postgres>,
-    context: &str,
-    partition: &str,
-    aggregate_type: &str,
-    aggregate_id: AggregateId,
-    expected_version: Option<u64>,
-    state: Value,
-) -> Result<u64, CqrsSqlxError> {
-    let current: Option<i64> = sqlx::query_scalar(
-        "SELECT aggregate_version
-         FROM erpx_cqrs_write.aggregate_snapshots
-         WHERE context_name = $1 AND partition_key = $2
-           AND aggregate_type = $3 AND aggregate_id = $4
-         FOR UPDATE",
-    )
-    .bind(context)
-    .bind(partition)
-    .bind(aggregate_type)
-    .bind(aggregate_id.as_uuid())
-    .fetch_optional(&mut **transaction)
-    .await?;
-    let current = current.map(to_u64).transpose()?;
-    if let Some(expected) = expected_version {
-        let observed = current.unwrap_or(0);
-        if observed != expected {
-            return Err(CqrsSqlxError::OptimisticConcurrency {
-                aggregate_type: aggregate_type.into(),
-                aggregate_id: aggregate_id.as_uuid(),
-                expected: Some(expected),
-                actual: current,
-            });
-        }
-    }
-    let next = current
-        .unwrap_or(0)
-        .checked_add(1)
-        .ok_or(CqrsSqlxError::NumericRange)?;
-    sqlx::query(
-        "INSERT INTO erpx_cqrs_write.aggregate_snapshots
-            (context_name, partition_key, aggregate_type, aggregate_id,
-             aggregate_version, state, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, now())
-         ON CONFLICT (context_name, partition_key, aggregate_type, aggregate_id)
-         DO UPDATE SET aggregate_version = EXCLUDED.aggregate_version,
-                       state = EXCLUDED.state, updated_at = now()",
-    )
-    .bind(context)
-    .bind(partition)
-    .bind(aggregate_type)
-    .bind(aggregate_id.as_uuid())
-    .bind(to_i64(next)?)
-    .bind(state)
-    .execute(&mut **transaction)
-    .await?;
-    Ok(next)
-}
-
 #[allow(clippy::too_many_arguments)]
 async fn append_outbox<E: Serialize>(
     transaction: &mut Transaction<'_, Postgres>,
+    tenant_id: Option<Uuid>,
     context: &str,
     partition: &str,
     command_id: CommandId,
@@ -605,31 +540,41 @@ async fn append_outbox<E: Serialize>(
     let payload = serde_json::to_value(event.payload)?;
     let tenant_scope = serde_json::to_value(tenant_scope)?;
     let actor = serde_json::to_value(actor)?;
-    let global_sequence: i64 = sqlx::query_scalar(
+    let statement = if tenant_id.is_some() {
+        "INSERT INTO erpx_cqrs_write.outbox_events
+            (event_id, context_name, partition_key, command_id, event_type, event_version,
+             aggregate_type, aggregate_id, aggregate_version, tenant_scope, actor,
+             correlation_id, causation_id, payload, occurred_at, available_at, tenant_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now(), $16)
+         RETURNING global_sequence"
+    } else {
         "INSERT INTO erpx_cqrs_write.outbox_events
             (event_id, context_name, partition_key, command_id, event_type, event_version,
              aggregate_type, aggregate_id, aggregate_version, tenant_scope, actor,
              correlation_id, causation_id, payload, occurred_at, available_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
-         RETURNING global_sequence",
-    )
-    .bind(event.event_id.as_uuid())
-    .bind(context)
-    .bind(partition)
-    .bind(command_id.as_uuid())
-    .bind(event.event_type)
-    .bind(i32::try_from(event.event_version).map_err(|_| CqrsSqlxError::NumericRange)?)
-    .bind(aggregate_type)
-    .bind(aggregate_id.as_uuid())
-    .bind(to_i64(aggregate_version)?)
-    .bind(tenant_scope)
-    .bind(actor)
-    .bind(correlation_id.as_uuid())
-    .bind(event.causation_id.map(EventId::as_uuid))
-    .bind(payload)
-    .bind(event.occurred_at)
-    .fetch_one(&mut **transaction)
-    .await?;
+         RETURNING global_sequence"
+    };
+    let query = sqlx::query_scalar(statement)
+        .bind(event.event_id.as_uuid())
+        .bind(context)
+        .bind(partition)
+        .bind(command_id.as_uuid())
+        .bind(event.event_type)
+        .bind(i32::try_from(event.event_version).map_err(|_| CqrsSqlxError::NumericRange)?)
+        .bind(aggregate_type)
+        .bind(aggregate_id.as_uuid())
+        .bind(to_i64(aggregate_version)?)
+        .bind(tenant_scope)
+        .bind(actor)
+        .bind(correlation_id.as_uuid())
+        .bind(event.causation_id.map(EventId::as_uuid))
+        .bind(payload)
+        .bind(event.occurred_at);
+    let global_sequence: i64 = match tenant_id {
+        Some(tenant_id) => query.bind(tenant_id).fetch_one(&mut **transaction).await?,
+        None => query.fetch_one(&mut **transaction).await?,
+    };
     Ok(EventPosition {
         event_id: event.event_id,
         global_sequence: to_u64(global_sequence)?,
@@ -639,6 +584,7 @@ async fn append_outbox<E: Serialize>(
 #[allow(clippy::too_many_arguments)]
 async fn persist_audit(
     transaction: &mut Transaction<'_, Postgres>,
+    tenant_id: Option<Uuid>,
     context: &str,
     partition: &str,
     command_id: CommandId,
@@ -651,53 +597,71 @@ async fn persist_audit(
     aggregate_version: u64,
     audit: AuditWrite,
 ) -> Result<(), CqrsSqlxError> {
-    sqlx::query(
+    let statement = if tenant_id.is_some() {
+        "INSERT INTO erpx_cqrs_write.audit_log
+            (audit_id, context_name, partition_key, command_id, correlation_id,
+             tenant_scope, actor, audit_context, action, aggregate_type,
+             aggregate_id, aggregate_version, details, occurred_at, tenant_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)"
+    } else {
         "INSERT INTO erpx_cqrs_write.audit_log
             (audit_id, context_name, partition_key, command_id, correlation_id,
              tenant_scope, actor, audit_context, action, aggregate_type,
              aggregate_id, aggregate_version, details, occurred_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
-    )
-    .bind(audit.audit_id)
-    .bind(context)
-    .bind(partition)
-    .bind(command_id.as_uuid())
-    .bind(correlation_id.as_uuid())
-    .bind(serde_json::to_value(tenant_scope)?)
-    .bind(serde_json::to_value(actor)?)
-    .bind(serde_json::to_value(audit_context)?)
-    .bind(audit.action)
-    .bind(aggregate_type)
-    .bind(aggregate_id.as_uuid())
-    .bind(to_i64(aggregate_version)?)
-    .bind(audit.details)
-    .bind(audit.occurred_at)
-    .execute(&mut **transaction)
-    .await?;
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)"
+    };
+    let query = sqlx::query(statement)
+        .bind(audit.audit_id)
+        .bind(context)
+        .bind(partition)
+        .bind(command_id.as_uuid())
+        .bind(correlation_id.as_uuid())
+        .bind(serde_json::to_value(tenant_scope)?)
+        .bind(serde_json::to_value(actor)?)
+        .bind(serde_json::to_value(audit_context)?)
+        .bind(audit.action)
+        .bind(aggregate_type)
+        .bind(aggregate_id.as_uuid())
+        .bind(to_i64(aggregate_version)?)
+        .bind(audit.details)
+        .bind(audit.occurred_at);
+    match tenant_id {
+        Some(tenant_id) => query.bind(tenant_id).execute(&mut **transaction).await?,
+        None => query.execute(&mut **transaction).await?,
+    };
     Ok(())
 }
 
 async fn complete_receipt<R: Serialize>(
     transaction: &mut Transaction<'_, Postgres>,
+    tenant_id: Option<Uuid>,
     context: &str,
     partition: &str,
     idempotency_key: &str,
     receipt: &CommandReceipt<R>,
     completed_at: DateTime<Utc>,
 ) -> Result<(), CqrsSqlxError> {
-    let updated = sqlx::query(
+    let statement = if tenant_id.is_some() {
         "UPDATE erpx_cqrs_write.command_receipts
          SET status = 'completed', receipt = $4, completed_at = $5
          WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3
-           AND status = 'reserved'",
-    )
-    .bind(context)
-    .bind(partition)
-    .bind(idempotency_key)
-    .bind(serde_json::to_value(receipt)?)
-    .bind(completed_at)
-    .execute(&mut **transaction)
-    .await?;
+           AND status = 'reserved' AND tenant_id = $6"
+    } else {
+        "UPDATE erpx_cqrs_write.command_receipts
+         SET status = 'completed', receipt = $4, completed_at = $5
+         WHERE context_name = $1 AND partition_key = $2 AND idempotency_key = $3
+           AND status = 'reserved'"
+    };
+    let query = sqlx::query(statement)
+        .bind(context)
+        .bind(partition)
+        .bind(idempotency_key)
+        .bind(serde_json::to_value(receipt)?)
+        .bind(completed_at);
+    let updated = match tenant_id {
+        Some(tenant_id) => query.bind(tenant_id).execute(&mut **transaction).await?,
+        None => query.execute(&mut **transaction).await?,
+    };
     if updated.rows_affected() != 1 {
         return Err(CqrsSqlxError::InvalidInput(
             "command receipt reservation was not completed",

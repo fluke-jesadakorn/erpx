@@ -1,6 +1,17 @@
+mod records;
+
+pub use records::{
+    MaintenanceLifecycleRecord, MaintenanceLifecycleRecordError, MaintenanceLifecycleRecordKind,
+    MaintenanceLifecycleRecordStatus,
+};
+
 use chrono::{DateTime, Utc};
-use erpx_integration_contracts::{ReferenceCode, assets};
-use erpx_kernel::{EventId, TenantScope};
+use erpx_integration_contracts::{
+    ReferenceCode, StableRecordRef, assets,
+    catalog::ContextId,
+    reference::{RecordTypeId, ReferenceValidationError},
+};
+use erpx_kernel::{EventId, RecordId, TenantScope};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -87,6 +98,15 @@ impl MaintenanceRequest {
             asset,
             request_code,
         })
+    }
+
+    pub fn validate(&self) -> Result<(), MaintenanceDomainError> {
+        if self.source_event_id.as_uuid().is_nil() || self.source_aggregate_version == 0 {
+            return Err(MaintenanceDomainError::InvalidSourceVersion);
+        }
+        ReferenceCode::try_new(self.request_code.clone())
+            .map_err(|_| MaintenanceDomainError::InvalidReference)?;
+        Ok(())
     }
 }
 
@@ -196,7 +216,47 @@ pub struct WorkOrder {
     uncommitted_events: Vec<DomainEvent>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkOrderState {
+    pub id: WorkOrderId,
+    pub version: u64,
+    pub code: String,
+    pub scope: TenantScope,
+    pub request: MaintenanceRequest,
+    pub asset_fact: assets::AssetConditionFact,
+    pub title: String,
+    pub status: WorkOrderStatus,
+    pub scheduled_for: Option<DateTime<Utc>>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub downtime: Vec<Downtime>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 impl WorkOrder {
+    pub fn try_rehydrate(state: WorkOrderState) -> Result<Self, MaintenanceDomainError> {
+        let value = Self {
+            id: state.id,
+            version: state.version,
+            code: state.code,
+            scope: state.scope,
+            request: state.request,
+            asset_fact: state.asset_fact,
+            title: state.title,
+            status: state.status,
+            scheduled_for: state.scheduled_for,
+            started_at: state.started_at,
+            completed_at: state.completed_at,
+            downtime: state.downtime,
+            created_at: state.created_at,
+            updated_at: state.updated_at,
+            uncommitted_events: Vec::new(),
+        };
+        value.validate()?;
+        Ok(value)
+    }
+
     pub fn open(
         id: WorkOrderId,
         scope: TenantScope,
@@ -251,13 +311,23 @@ impl WorkOrder {
             "maintenance_title",
             MAX_MAINTENANCE_TITLE_BYTES,
         )?;
-        if self.request.asset != self.asset_fact.asset || self.version == 0 {
+        if self.code != format!("MWO-{}", self.id.as_uuid().simple()) {
+            return Err(MaintenanceDomainError::InvalidReference);
+        }
+        self.request.validate()?;
+        if self.request.asset != self.asset_fact.asset {
             return Err(MaintenanceDomainError::AssetFactMismatch);
+        }
+        if self.asset_fact.condition == assets::AssetCondition::Retired {
+            return Err(MaintenanceDomainError::AssetRetired);
+        }
+        if self.version == 0 {
+            return Err(MaintenanceDomainError::VersionOverflow);
         }
         if self.updated_at < self.created_at {
             return Err(MaintenanceDomainError::InvalidWindow);
         }
-        match self.status {
+        let lifecycle_result = match self.status {
             WorkOrderStatus::Planned
                 if self.scheduled_for.is_some()
                     || self.started_at.is_some()
@@ -284,19 +354,39 @@ impl WorkOrder {
             {
                 Err(MaintenanceDomainError::InvalidWindow)
             }
-            _ => {
-                for (index, current) in self.downtime.iter().enumerate() {
-                    current.validate()?;
-                    if self.downtime[..index]
-                        .iter()
-                        .any(|existing| existing.overlaps(current))
-                    {
-                        return Err(MaintenanceDomainError::OverlappingDowntime);
-                    }
-                }
-                Ok(())
+            _ => Ok(()),
+        };
+        lifecycle_result?;
+        if matches!(
+            (self.scheduled_for, self.started_at),
+            (Some(scheduled), Some(started)) if started < scheduled
+        ) || matches!(
+            (self.started_at, self.completed_at),
+            (Some(started), Some(completed)) if completed <= started
+        ) {
+            return Err(MaintenanceDomainError::InvalidWindow);
+        }
+        for (index, current) in self.downtime.iter().enumerate() {
+            current.validate()?;
+            let Some(started_at) = self.started_at else {
+                return Err(MaintenanceDomainError::InvalidWindow);
+            };
+            if current.started_at < started_at
+                || current.ended_at > self.updated_at
+                || self
+                    .completed_at
+                    .is_some_and(|completed| current.ended_at > completed)
+            {
+                return Err(MaintenanceDomainError::InvalidWindow);
+            }
+            if self.downtime[..index]
+                .iter()
+                .any(|existing| existing.overlaps(current))
+            {
+                return Err(MaintenanceDomainError::OverlappingDowntime);
             }
         }
+        Ok(())
     }
 
     pub fn schedule(
@@ -363,6 +453,12 @@ impl WorkOrder {
             });
         }
         downtime.validate()?;
+        let started_at = self
+            .started_at
+            .ok_or(MaintenanceDomainError::InvalidWindow)?;
+        if downtime.started_at < started_at || downtime.ended_at > at {
+            return Err(MaintenanceDomainError::InvalidWindow);
+        }
         if self
             .downtime
             .iter()
@@ -468,6 +564,15 @@ impl WorkOrder {
     }
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
+    }
+    pub fn record_ref(&self) -> Result<StableRecordRef, ReferenceValidationError> {
+        let record_id =
+            RecordId::try_from_uuid(self.id.as_uuid()).expect("validated work-order identifier");
+        StableRecordRef::try_new(
+            record_id,
+            ContextId::Maintenance,
+            RecordTypeId::try_new("maintenance.work-order")?,
+        )
     }
     pub fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)

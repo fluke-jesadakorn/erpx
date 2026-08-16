@@ -89,7 +89,13 @@ impl MaintenanceReadRepository {
              ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END LIMIT 1",
         )
         .bind(PROJECTION_NAME)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let freshness = match status.as_deref() {
@@ -132,7 +138,13 @@ impl ReadRepository for MaintenanceReadRepository {
         .bind(PROJECTION_NAME)
         .bind(id.as_uuid())
         .bind(&partition)
-        .fetch_optional(self.pool.as_pg_pool())
+        .fetch_optional(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let value = row
@@ -185,7 +197,13 @@ impl ReadRepository for MaintenanceReadRepository {
         .bind(cursor.as_ref().map(|value| value.0))
         .bind(cursor.as_ref().map(|value| value.1.as_uuid()))
         .bind(limit.saturating_mul(8))
-        .fetch_all(self.pool.as_pg_pool())
+        .fetch_all(
+            &mut *self
+                .pool
+                .begin()
+                .await
+                .map_err(|_| PortError::Unavailable)?,
+        )
         .await
         .map_err(|_| PortError::Unavailable)?;
         let mut work_orders = rows

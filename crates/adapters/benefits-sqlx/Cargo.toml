@@ -1,0 +1,21 @@
+[package]
+name = "erpx-benefits-sqlx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+chrono.workspace = true
+erpx-cqrs-sqlx.workspace = true
+erpx-benefits.workspace = true
+erpx-integration-contracts.workspace = true
+erpx-kernel.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+
+[lints]
+workspace = true

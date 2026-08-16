@@ -1,6 +1,6 @@
 -- Finance-owned IFRS/TFRS 15 schedule created from a versioned Sales revenue
--- arrangement. Accepted fulfillments advance recognition independently from
--- invoice and receivable state.
+-- arrangement. Migration 0081 adds typed arrangement, obligation, dimension,
+-- and recognition authority children.
 
 CREATE TABLE erpx_finance_write.revenue_schedule_guards (
     schedule_id UUID PRIMARY KEY,

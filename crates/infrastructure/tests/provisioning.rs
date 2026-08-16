@@ -448,7 +448,7 @@ async fn physical_provisioning_creates_separate_rls_backed_tenant_databases() {
     let store = Arc::new(erpx_infrastructure::SqlxControlPlane::new(pools));
     let provisioner = TenantProvisioner::new(store.clone());
     let registry = SqlxTenantStoreRegistry::new(store.clone());
-    let tenant_id = "tenant-physical-fixture";
+    let tenant_id = "11111111-1111-4111-8111-111111111111";
     // Keep the historical defaults for compatibility, but allow isolated
     // acceptance runs to supply fresh names instead of colliding with a
     // pre-existing developer fixture. The override is test-only and never
@@ -505,7 +505,7 @@ async fn physical_provisioning_creates_separate_rls_backed_tenant_databases() {
     let (write_rls, write_force): (bool, bool) = sqlx::query_as(
         "SELECT c.relrowsecurity, c.relforcerowsecurity
          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-         WHERE n.nspname = 'erpx_tenant' AND c.relname = 'aggregate_snapshots'",
+         WHERE n.nspname = 'erpx_cqrs_write' AND c.relname = 'command_receipts'",
     )
     .fetch_one(&write_pool)
     .await
@@ -572,13 +572,19 @@ async fn physical_provisioning_creates_separate_rls_backed_tenant_databases() {
         .await
         .expect("holding RLS setting");
     assert_eq!(scoped_ref, "holding-physical-fixture");
+    let command_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO erpx_tenant.aggregate_snapshots
-            (aggregate_type, aggregate_id, holding_ref, version, state)
-         VALUES ('fixture', $1, $2, 1, '{}'::jsonb)",
+        "INSERT INTO erpx_cqrs_write.command_receipts
+            (context_name, partition_key, idempotency_key, command_id,
+             request_hash, correlation_id, status, receipt, created_at, completed_at)
+         VALUES ('provisioning-fixture', $1, $2, $3,
+                 decode(repeat('ab', 32), 'hex'), $4, 'completed', '{}'::jsonb,
+                 now(), now())",
     )
-    .bind(Uuid::new_v4())
     .bind(&scoped_ref)
+    .bind(format!("physical-provisioning-{command_id}"))
+    .bind(command_id)
+    .bind(Uuid::new_v4())
     .execute(&mut *scoped_write)
     .await
     .expect("scoped write");
@@ -841,7 +847,7 @@ async fn tenant_organization_bootstrap_is_write_authoritative_and_read_projected
         .await
         .expect("read migration");
     let store = Arc::new(erpx_infrastructure::SqlxControlPlane::new(pools));
-    let tenant_id = "tenant-organization-bootstrap";
+    let tenant_id = "00000000-0000-0000-0000-000000000901";
     let holding_ref = "holding-organization-bootstrap";
     let write_key = std::env::var("ERPX_TEST_ORGANIZATION_TENANT_WRITE_KEY")
         .unwrap_or_else(|_| "tenant-organization-write".into());
@@ -891,7 +897,7 @@ async fn tenant_organization_bootstrap_is_write_authoritative_and_read_projected
         .await
         .expect("organization replay");
     assert_eq!(first, replay);
-    assert!(first.read_projected);
+    assert!(!first.read_projected);
 
     let write_pool = PgPoolOptions::new()
         .max_connections(2)
@@ -904,36 +910,36 @@ async fn tenant_organization_bootstrap_is_write_authoritative_and_read_projected
         .await
         .expect("read pool");
     let mut write_transaction = write_pool.begin().await.expect("write transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
+        .bind(tenant_id)
         .execute(&mut *write_transaction)
         .await
         .expect("write scope");
-    let write_counts: (i64, i64) = sqlx::query_as(
+    let write_counts: (i64, i64, i64) = sqlx::query_as(
         "SELECT
-            (SELECT COUNT(*) FROM erpx_tenant.operations_aggregate_snapshots),
-            (SELECT COUNT(*) FROM erpx_tenant.operations_events)",
+            (SELECT COUNT(*) FROM erpx_organization_write.organization_node_authority),
+            (SELECT COUNT(*) FROM erpx_cqrs_write.command_receipts WHERE context_name='organization'),
+            (SELECT COUNT(*) FROM erpx_cqrs_write.outbox_events WHERE context_name='organization')",
     )
     .fetch_one(&mut *write_transaction)
     .await
     .expect("write organization rows");
-    assert_eq!(write_counts, (1, 1));
+    assert_eq!(write_counts.0, 1);
+    assert_eq!(write_counts.1, 1);
+    assert!(write_counts.2 >= 1);
     write_transaction.rollback().await.expect("write rollback");
     let mut read_transaction = read_pool.begin().await.expect("read transaction");
-    sqlx::query("SELECT set_config('erpx.holding_ref', $1, true)")
-        .bind(holding_ref)
+    sqlx::query("SELECT set_config('app.tenant_id', $1, true)")
+        .bind(tenant_id)
         .execute(&mut *read_transaction)
         .await
         .expect("read scope");
-    let read_counts: (i64, i64) = sqlx::query_as(
-        "SELECT
-            (SELECT COUNT(*) FROM erpx_tenant.operations_read_rows),
-            (SELECT COUNT(*) FROM erpx_tenant.operations_projection_checkpoints)",
-    )
-    .fetch_one(&mut *read_transaction)
-    .await
-    .expect("read organization rows");
-    assert_eq!(read_counts, (1, 1));
+    let read_counts: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM erpx_organization_read.node_projection")
+            .fetch_one(&mut *read_transaction)
+            .await
+            .expect("read organization rows");
+    assert_eq!(read_counts, 0, "projection is asynchronous after bootstrap");
     read_transaction.rollback().await.expect("read rollback");
     write_pool.close().await;
     read_pool.close().await;

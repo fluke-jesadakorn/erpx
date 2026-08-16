@@ -3,8 +3,8 @@
 //! The close aggregate intentionally has no independent identifier or version
 //! field.  A period can have one close review, so `period_id` is the aggregate
 //! identity and this adapter owns the monotonically increasing persistence
-//! version.  Every accepted domain transition updates the tenant write row,
-//! aggregate snapshot, and outbox event in one holding-scoped transaction.
+//! version. Every accepted domain transition updates the normalized tenant
+//! write row and outbox event in one holding-scoped transaction.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -24,7 +24,7 @@ use crate::finance_close_control_evidence::{
     FINANCE_CLOSE_CONTROL_AGGREGATE_TYPE, FINANCE_CLOSE_CONTROL_EVENT_TYPE,
     deterministic_control_aggregate_id_for_scope,
 };
-use crate::finance_persistence::{begin_scoped, write_finance_snapshot_and_outbox};
+use crate::finance_persistence::{begin_scoped, write_finance_source_event};
 
 type CloseReviewRow = (
     i64,
@@ -73,7 +73,6 @@ type CloseControlEvidenceRow = (
 );
 type CloseControlEvidenceEventRow = (Uuid, i64, String, Value);
 type CloseReviewOutboxRow = (String, Value);
-type CloseReviewSnapshotEvidenceRow = (i64, Value, String);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct FinanceCloseSourceReconciliation {
@@ -204,7 +203,7 @@ impl SqlxFinanceCloseStore {
     ///
     /// `expected_version == None` is reserved for the initial open.  Accepted
     /// transitions advance the adapter-owned version by one and emit one
-    /// snapshot/outbox pair atomically.  The current command context is the
+    /// source event atomically. The current command context is the
     /// idempotency binding; it is deliberately not accepted as an independent
     /// string so callers cannot persist a key belonging to another actor or
     /// transition.
@@ -280,12 +279,11 @@ impl SqlxFinanceCloseStore {
                     &mut tx,
                     &self.holding_ref,
                     review_id,
-                    None,
                     1,
                 )
                 .await?;
                 insert_review(&mut tx, &self.holding_ref, review, 1, &payload).await?;
-                write_finance_snapshot_and_outbox(
+                write_finance_source_event(
                     &mut tx,
                     &self.holding_ref,
                     CLOSE_REVIEW_AGGREGATE,
@@ -332,10 +330,8 @@ impl SqlxFinanceCloseStore {
                         key: context.idempotency_key.clone(),
                     });
                 }
-                // Every accepted transition must preserve the complete
-                // snapshot/outbox history. The generic snapshot helper uses
-                // an upsert and the outbox has no aggregate/version unique
-                // constraint, so accepting a transition over a damaged
+                // Every accepted transition must preserve complete normalized
+                // row/outbox history. Accepting a transition over a damaged
                 // predecessor would silently hide an authoritative gap.
                 validate_close_review_persistence_evidence(
                     &mut tx,
@@ -388,7 +384,6 @@ impl SqlxFinanceCloseStore {
                     &mut tx,
                     &self.holding_ref,
                     review_id,
-                    Some(stored_version),
                     next_version,
                 )
                 .await?;
@@ -422,7 +417,7 @@ impl SqlxFinanceCloseStore {
                         actual: Some(stored_version),
                     });
                 }
-                write_finance_snapshot_and_outbox(
+                write_finance_source_event(
                     &mut tx,
                     &self.holding_ref,
                     CLOSE_REVIEW_AGGREGATE,
@@ -1245,31 +1240,6 @@ async fn validate_close_review_persistence_evidence(
     review_version: u64,
     expected_payload: &Value,
 ) -> Result<(), PersistenceError> {
-    let snapshot: Option<CloseReviewSnapshotEvidenceRow> = sqlx::query_as(
-        "SELECT version, state, holding_ref
-         FROM erpx_tenant.aggregate_snapshots
-         WHERE aggregate_type=$1 AND aggregate_id=$2
-         FOR SHARE",
-    )
-    .bind(CLOSE_REVIEW_AGGREGATE)
-    .bind(review_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    let Some((snapshot_version, snapshot_state, snapshot_holding_ref)) = snapshot else {
-        return Err(invalid(format!(
-            "Finance close review version {review_version} requires an authoritative aggregate snapshot"
-        )));
-    };
-    let snapshot_version = as_u64(snapshot_version, "Finance close review snapshot version")?;
-    if snapshot_holding_ref != holding_ref
-        || snapshot_version != review_version
-        || snapshot_state != *expected_payload
-    {
-        return Err(invalid(format!(
-            "Finance close review version {review_version} aggregate snapshot does not match its authoritative row"
-        )));
-    }
-
     let outbox_rows: Vec<CloseReviewOutboxRow> = sqlx::query_as(
         "SELECT event_type, payload
          FROM erpx_tenant.outbox_events
@@ -1294,31 +1264,8 @@ async fn ensure_close_review_next_version_is_unclaimed(
     tx: &mut Transaction<'_, Postgres>,
     holding_ref: &str,
     review_id: Uuid,
-    current_version: Option<u64>,
     next_version: u64,
 ) -> Result<(), PersistenceError> {
-    let existing_snapshot: Option<i64> = sqlx::query_scalar(
-        "SELECT version
-         FROM erpx_tenant.aggregate_snapshots
-         WHERE aggregate_type=$1 AND aggregate_id=$2
-         FOR UPDATE",
-    )
-    .bind(CLOSE_REVIEW_AGGREGATE)
-    .bind(review_id)
-    .fetch_optional(&mut **tx)
-    .await?;
-    if let Some(existing_snapshot) = existing_snapshot {
-        let existing_snapshot = as_u64(
-            existing_snapshot,
-            "existing Finance close review snapshot version",
-        )?;
-        if Some(existing_snapshot) != current_version {
-            return Err(invalid(format!(
-                "Finance close review next version {next_version} has conflicting aggregate snapshot evidence"
-            )));
-        }
-    }
-
     let outbox_event_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)
          FROM erpx_tenant.outbox_events
@@ -1355,7 +1302,7 @@ fn validate_close_review_outbox_rows(
     let (event_type, payload) = &outbox_rows[0];
     if event_type != CLOSE_REVIEW_EVENT {
         return Err(invalid(format!(
-            "Finance close review version {review_version} outbox payload does not match its authoritative snapshot"
+            "Finance close review version {review_version} outbox payload does not match its authoritative row"
         )));
     }
     validate_close_review_outbox_evidence(
@@ -1383,7 +1330,7 @@ fn validate_close_review_outbox_evidence(
     });
     if outbox_event_payloads[0] != expected_event_payload {
         return Err(invalid(format!(
-            "Finance close review version {review_version} outbox payload does not match its authoritative snapshot"
+            "Finance close review version {review_version} outbox payload does not match its authoritative row"
         )));
     }
     Ok(())

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::inventory;
+use erpx_integration_contracts::{ItemDescriptorDraft, inventory};
 use erpx_inventory::StockItemView;
 use serde::{Deserialize, Serialize};
 use sqlx::{Postgres, Transaction};
@@ -20,6 +20,7 @@ pub struct InventorySnapshot {
 pub enum InventoryOutboxPayload {
     Integration(inventory::Event),
     Snapshot(InventorySnapshot),
+    Directory(ItemDescriptorDraft),
 }
 
 #[derive(Debug, Clone)]
@@ -68,7 +69,7 @@ impl Projector for InventoryProjector {
                  warehouse_id,item_code,on_hand,reserved,available,reservations,state,
                  aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,now())
-             ON CONFLICT (projection_name,generation,partition_key,stock_item_id)
+             ON CONFLICT (tenant_id,projection_name,generation,partition_key,stock_item_id)
              DO UPDATE SET source_aggregate_version=EXCLUDED.source_aggregate_version,
                 source_global_sequence=EXCLUDED.source_global_sequence,
                 tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
@@ -105,6 +106,45 @@ impl Projector for InventoryProjector {
                 "inventory snapshot version did not advance",
             ));
         }
+        sqlx::query(
+            "DELETE FROM erpx_inventory_read.reservation_projection
+             WHERE tenant_id=erpx_cqrs_read.current_tenant_id()
+               AND projection_name=$1 AND generation=$2 AND stock_item_id=$3",
+        )
+        .bind(PROJECTION_NAME)
+        .bind(context.generation)
+        .bind(view.stock_item_id.as_uuid())
+        .execute(&mut **transaction)
+        .await
+        .map_err(failure)?;
+        for reservation in &view.reservations {
+            sqlx::query(
+                "INSERT INTO erpx_inventory_read.reservation_projection
+                    (tenant_id,projection_name,generation,partition_key,reservation_id,
+                     stock_item_id,source_aggregate_version,source_global_sequence,tenant_scope,
+                     warehouse_id,item_code,quantity,demand_reference,reservation_status,projected_at)
+                 VALUES (erpx_cqrs_read.current_tenant_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())",
+            )
+            .bind(PROJECTION_NAME)
+            .bind(context.generation)
+            .bind(&event.partition)
+            .bind(reservation.reservation_id.as_uuid())
+            .bind(view.stock_item_id.as_uuid())
+            .bind(to_i64(view.version)?)
+            .bind(to_i64(event.global_sequence)?)
+            .bind(serde_json::to_value(&view.scope).map_err(failure)?)
+            .bind(view.warehouse_id.as_uuid())
+            .bind(&view.item_code)
+            .bind(reservation.quantity)
+            .bind(&reservation.demand_reference)
+            .bind(match reservation.status {
+                erpx_inventory::ReservationStatus::Active => "active",
+                erpx_inventory::ReservationStatus::Released => "released",
+            })
+            .execute(&mut **transaction)
+            .await
+            .map_err(failure)?;
+        }
         Ok(())
     }
 
@@ -116,6 +156,16 @@ impl Projector for InventoryProjector {
         sqlx::query(
             "DELETE FROM erpx_inventory_read.stock_item_projection
              WHERE projection_name=$1 AND generation=$2",
+        )
+        .bind(PROJECTION_NAME)
+        .bind(context.generation)
+        .execute(&mut **transaction)
+        .await
+        .map_err(failure)?;
+        sqlx::query(
+            "DELETE FROM erpx_inventory_read.reservation_projection
+             WHERE tenant_id=erpx_cqrs_read.current_tenant_id()
+               AND projection_name=$1 AND generation=$2",
         )
         .bind(PROJECTION_NAME)
         .bind(context.generation)
@@ -195,5 +245,14 @@ mod tests {
         let projector = InventoryProjector::new();
         assert_eq!(projector.name(), PROJECTION_NAME);
         assert_eq!(projector.event_types(), &[SNAPSHOT_EVENT_TYPE.to_owned()]);
+    }
+
+    #[test]
+    fn reservation_projection_is_owned_by_the_stock_item_generation() {
+        let source = include_str!("projection.rs");
+        assert!(source.contains("erpx_inventory_read.reservation_projection"));
+        assert!(source.contains("context.generation"));
+        assert!(source.contains("source_aggregate_version"));
+        assert!(!source.contains(concat!("ORDER BY projected_at ", "DESC")));
     }
 }

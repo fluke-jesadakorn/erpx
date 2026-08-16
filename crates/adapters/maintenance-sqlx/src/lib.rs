@@ -3,6 +3,7 @@
 mod command;
 mod projection;
 mod read;
+mod records;
 
 pub use command::{
     MaintenanceAssetFactInbox, MaintenanceAssetFactRepository, MaintenanceCommandAdapter,
@@ -10,6 +11,12 @@ pub use command::{
 };
 pub use projection::{MaintenanceOutboxPayload, MaintenanceSnapshot, WorkOrderProjector};
 pub use read::{MaintenanceReadRepository, decode_cursor, encode_cursor};
+pub use records::{
+    MaintenanceLifecycleRecordProjector, MaintenanceLifecycleRecordReadAdapter,
+    MaintenanceLifecycleRecordSqlxAdapter,
+    RECORD_PROJECTION_NAME as LIFECYCLE_RECORD_PROJECTION_NAME,
+    RECORD_SNAPSHOT_EVENT_TYPE as LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE,
+};
 
 pub const CONTEXT_NAME: &str = "maintenance";
 pub const AGGREGATE_TYPE: &str = "work_order";
@@ -31,10 +38,19 @@ pub const TENANT_READ_FOUNDATION_DDL: &str =
 pub const TENANT_READ_CONTEXT_DDL: &str = include_str!(
     "../../../migration/migrations_tenant_read/0052_wave6_paired_context_projections.sql"
 );
+pub const COMPLETION_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_tenant_write/0080_current_record_completion.sql");
+pub const COMPLETION_READ_DDL: &str = include_str!(
+    "../../../migration/migrations_tenant_read/0071_current_record_completion_projection.sql"
+);
 pub const WRITE_DDL: &str = concat!(
     include_str!("../../../migration/migrations_tenant_write/0057_cqrs_foundation.sql"),
     "\n",
-    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql")
+    include_str!("../../../migration/migrations_tenant_write/0060_wave6_paired_context_guards.sql"),
+    "\n",
+    include_str!(
+        "../../../migration/migrations_tenant_write/0081_current_normalized_authority.sql"
+    )
 );
 pub const READ_DDL: &str = concat!(
     include_str!("../../../migration/migrations_tenant_read/0048_cqrs_foundation.sql"),
@@ -76,5 +92,16 @@ mod tests {
         let manifest = include_str!("../Cargo.toml");
         assert!(!manifest.contains("erpx-assets ="));
         assert!(!manifest.contains("contexts/assets"));
+    }
+
+    #[test]
+    fn commands_use_typed_work_order_authority_without_snapshots() {
+        let source = include_str!("command.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap();
+        assert!(!production.contains("load_snapshot"));
+        assert!(!production.contains("commit_guarded"));
+        assert!(production.contains("work_order_authority"));
+        assert!(production.contains("downtime_authority"));
+        assert!(production.contains("commit_normalized"));
     }
 }

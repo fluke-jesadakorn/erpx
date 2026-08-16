@@ -351,17 +351,6 @@ impl SqlxFinanceThaiTaxStore {
         .execute(&mut *tx)
         .await?;
         sqlx::query(
-            "INSERT INTO erpx_tenant.aggregate_snapshots
-                (aggregate_type, aggregate_id, holding_ref, version, state)
-             VALUES ($1,$2,$3,1,$4)",
-        )
-        .bind(FINANCE_THAI_TAX_FACT_AGGREGATE)
-        .bind(fact.fact_id)
-        .bind(&self.holding_ref)
-        .bind(&response)
-        .execute(&mut *tx)
-        .await?;
-        sqlx::query(
             "INSERT INTO erpx_tenant.outbox_events
                 (event_id, aggregate_type, aggregate_id, holding_ref,
                  aggregate_version, event_type, payload, occurred_at)

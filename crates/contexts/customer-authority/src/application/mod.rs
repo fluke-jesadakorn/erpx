@@ -10,6 +10,12 @@ use erpx_kernel::{
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+mod authority_records;
+mod portal_binding;
+
+pub use authority_records::CustomerAuthorityRecordCommandHandler;
+pub use portal_binding::{PortalBindingApplicationError, PortalBindingCommandHandler};
+
 use crate::{
     domain::{
         CustomerAuthorityDomainError, CustomerCode, CustomerId, CustomerIdentity, CustomerStatus,
@@ -103,6 +109,8 @@ pub enum CustomerAuthorityApplicationError {
     VersionConflict { expected: u64, actual: u64 },
     #[error("the surviving customer is not an active merge target")]
     InvalidMergeTarget,
+    #[error("customer merge crosses the primary authority boundary")]
+    IncompatibleMergeAuthority,
     #[error("customer list page size must be between 1 and 100")]
     InvalidPageSize,
     #[error("customer integration event mapping failed")]
@@ -550,6 +558,12 @@ where
             )
             .await
             .map_err(|error| to_cqrs(error, correlation_id))?;
+            if stored.aggregate.primary_authority() != survivor.primary_authority() {
+                return Err(to_cqrs(
+                    CustomerAuthorityApplicationError::IncompatibleMergeAuthority,
+                    correlation_id,
+                ));
+            }
             stored.replayed = true;
             let response = CustomerAuthorityMutationResult {
                 customer: CustomerAuthorityView::from(&stored.aggregate),
@@ -581,6 +595,7 @@ where
         )
         .await
         .map_err(|error| to_cqrs(error, correlation_id))?;
+        let survivor_primary_authority = survivor.primary_authority().clone();
         let existing = ExistingCommand {
             correlation_id,
             causation_id: envelope.causation_id,
@@ -590,7 +605,7 @@ where
             expected_version: envelope.expected_aggregate_version,
             identity,
             customer_id: command.retired_customer_id,
-            additional_scope: Some(survivor.primary_authority().clone()),
+            additional_scope: Some(survivor_primary_authority.clone()),
             action: CustomerAuthorityAction::Merge,
             merge_target: Some(MergeTargetVersion {
                 customer_id: survivor.id(),
@@ -599,7 +614,11 @@ where
         };
         let stored = self
             .execute_existing(existing, |aggregate, at| {
-                aggregate.merge_into(command.surviving_customer_id, at)
+                aggregate.merge_into_compatible(
+                    command.surviving_customer_id,
+                    &survivor_primary_authority,
+                    at,
+                )
             })
             .await?;
         let response = CustomerAuthorityMutationResult {
@@ -771,8 +790,7 @@ fn port_to_cqrs(error: PortError, correlation_id: CorrelationId) -> CqrsError {
 
 fn to_cqrs(error: CustomerAuthorityApplicationError, correlation_id: CorrelationId) -> CqrsError {
     let (code, category, safe_message, retryable) = match &error {
-        CustomerAuthorityApplicationError::Domain(_)
-        | CustomerAuthorityApplicationError::UnexpectedCreateVersion
+        CustomerAuthorityApplicationError::UnexpectedCreateVersion
         | CustomerAuthorityApplicationError::MissingExpectedVersion
         | CustomerAuthorityApplicationError::InvalidMergeTarget
         | CustomerAuthorityApplicationError::InvalidPageSize
@@ -782,12 +800,22 @@ fn to_cqrs(error: CustomerAuthorityApplicationError, correlation_id: Correlation
             "The Customer Authority request is invalid.",
             false,
         ),
-        CustomerAuthorityApplicationError::ScopeOutsideAuthority
+        CustomerAuthorityApplicationError::Domain(
+            CustomerAuthorityDomainError::IncompatibleMergeAuthority,
+        )
+        | CustomerAuthorityApplicationError::ScopeOutsideAuthority
+        | CustomerAuthorityApplicationError::IncompatibleMergeAuthority
         | CustomerAuthorityApplicationError::Port(PortError::Denied)
         | CustomerAuthorityApplicationError::Port(PortError::EntitlementDenied) => (
             "customer_authority.denied",
             ErrorCategory::Denied,
             "The Customer Authority operation is not permitted.",
+            false,
+        ),
+        CustomerAuthorityApplicationError::Domain(_) => (
+            "customer_authority.invalid",
+            ErrorCategory::Invalid,
+            "The Customer Authority request is invalid.",
             false,
         ),
         CustomerAuthorityApplicationError::VersionConflict { .. }

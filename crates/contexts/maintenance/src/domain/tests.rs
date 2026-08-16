@@ -150,3 +150,60 @@ fn request_rejects_zero_source_version() {
         Err(MaintenanceDomainError::InvalidSourceVersion)
     );
 }
+
+#[test]
+fn downtime_must_be_observed_within_execution_and_command_time() {
+    let mut aggregate = work_order();
+    aggregate
+        .schedule(at() + Duration::hours(1), at() + Duration::minutes(30))
+        .unwrap();
+    aggregate.start(at() + Duration::hours(1)).unwrap();
+    let before = aggregate.clone();
+    assert_eq!(
+        aggregate.record_downtime(
+            Downtime {
+                downtime_id: id(50),
+                started_at: at() + Duration::minutes(59),
+                ended_at: at() + Duration::minutes(90),
+                reason: "pre-start interval".into(),
+            },
+            at() + Duration::hours(2),
+        ),
+        Err(MaintenanceDomainError::InvalidWindow)
+    );
+    assert_eq!(aggregate, before);
+
+    assert_eq!(
+        aggregate.record_downtime(
+            Downtime {
+                downtime_id: id(51),
+                started_at: at() + Duration::hours(1),
+                ended_at: at() + Duration::hours(3),
+                reason: "future interval".into(),
+            },
+            at() + Duration::hours(2),
+        ),
+        Err(MaintenanceDomainError::InvalidWindow)
+    );
+    assert_eq!(aggregate, before);
+}
+
+#[test]
+fn work_order_exposes_stable_first_class_record_identity() {
+    let work_order_id = Uuid::new_v4();
+    let value = WorkOrder::open(
+        WorkOrderId::try_from_uuid(work_order_id).unwrap(),
+        scope(),
+        request(),
+        asset_fact(assets::AssetCondition::OutOfService),
+        "Reference work order",
+        at(),
+    )
+    .unwrap();
+    let reference = value.record_ref().unwrap();
+    assert_eq!(reference.id().as_uuid(), work_order_id);
+    assert_eq!(
+        reference.canonical_detail_route(),
+        format!("/maintenance/work-order/{work_order_id}")
+    );
+}

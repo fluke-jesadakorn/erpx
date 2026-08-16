@@ -10,6 +10,8 @@ use super::{DomainEvent, PlatformAdministrationDomainError, bounded};
 const MAX_KEY_BYTES: usize = 120;
 const MAX_CAPABILITY_BYTES: usize = 120;
 const MAX_CAPABILITIES: usize = 32;
+const MAX_EVIDENCE_ID_BYTES: usize = 160;
+const MAX_FAILURE_CATEGORY_BYTES: usize = 160;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
@@ -110,6 +112,80 @@ impl ConnectorTransition {
     }
 }
 
+/// Redacted result of an actual adapter/provider preflight. Endpoint details,
+/// credentials, and provider response bodies are intentionally excluded.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConnectorReadinessEvidence {
+    evidence_id: String,
+    configuration_digest: String,
+    observed_capabilities: BTreeSet<String>,
+    ready: bool,
+    failure_category: Option<String>,
+    observed_at: DateTime<Utc>,
+}
+
+impl ConnectorReadinessEvidence {
+    pub fn try_new(
+        evidence_id: String,
+        configuration_digest: String,
+        observed_capabilities: BTreeSet<String>,
+        ready: bool,
+        failure_category: Option<String>,
+        observed_at: DateTime<Utc>,
+    ) -> Result<Self, PlatformAdministrationDomainError> {
+        let evidence_id = bounded(&evidence_id, "readiness_evidence_id", MAX_EVIDENCE_ID_BYTES)?;
+        validate_digest(&configuration_digest)?;
+        if observed_capabilities.len() > MAX_CAPABILITIES {
+            return Err(PlatformAdministrationDomainError::InvalidCapabilities);
+        }
+        let observed_capabilities = observed_capabilities
+            .into_iter()
+            .map(|value| bounded(&value, "observed_capability", MAX_CAPABILITY_BYTES))
+            .collect::<Result<_, _>>()?;
+        let failure_category = failure_category
+            .map(|value| bounded(&value, "failure_category", MAX_FAILURE_CATEGORY_BYTES))
+            .transpose()?;
+        if failure_category.as_ref().is_some_and(|category| {
+            let category = category.to_ascii_lowercase();
+            ["password", "secret", "token", "credential"]
+                .iter()
+                .any(|marker| category.contains(marker))
+        }) {
+            return Err(PlatformAdministrationDomainError::InvalidReadinessEvidence);
+        }
+        if ready != failure_category.is_none() {
+            return Err(PlatformAdministrationDomainError::InvalidReadinessEvidence);
+        }
+        Ok(Self {
+            evidence_id,
+            configuration_digest: configuration_digest.to_ascii_lowercase(),
+            observed_capabilities,
+            ready,
+            failure_category,
+            observed_at,
+        })
+    }
+
+    pub fn evidence_id(&self) -> &str {
+        &self.evidence_id
+    }
+    pub fn configuration_digest(&self) -> &str {
+        &self.configuration_digest
+    }
+    pub fn observed_capabilities(&self) -> &BTreeSet<String> {
+        &self.observed_capabilities
+    }
+    pub const fn ready(&self) -> bool {
+        self.ready
+    }
+    pub fn failure_category(&self) -> Option<&str> {
+        self.failure_category.as_deref()
+    }
+    pub const fn observed_at(&self) -> DateTime<Utc> {
+        self.observed_at
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConnectorBinding {
     id: ConnectorBindingId,
@@ -119,6 +195,7 @@ pub struct ConnectorBinding {
     key: String,
     configuration_digest: String,
     capabilities: BTreeSet<String>,
+    readiness: Option<ConnectorReadinessEvidence>,
     state: ConnectorState,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -127,6 +204,57 @@ pub struct ConnectorBinding {
 }
 
 impl ConnectorBinding {
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_rehydrate(
+        id: ConnectorBindingId,
+        version: u64,
+        scope: ConnectorScope,
+        mut kind: ConnectorKind,
+        key: String,
+        configuration_digest: String,
+        capabilities: BTreeSet<String>,
+        readiness: Option<ConnectorReadinessEvidence>,
+        state: ConnectorState,
+        created_at: DateTime<Utc>,
+        updated_at: DateTime<Utc>,
+    ) -> Result<Self, PlatformAdministrationDomainError> {
+        scope.validate()?;
+        kind.validate()?;
+        validate_digest(&configuration_digest)?;
+        if version == 0
+            || capabilities.is_empty()
+            || capabilities.len() > MAX_CAPABILITIES
+            || updated_at < created_at
+        {
+            return Err(PlatformAdministrationDomainError::InvalidCapabilities);
+        }
+        let capabilities = capabilities
+            .into_iter()
+            .map(|value| bounded(&value, "connector_capability", MAX_CAPABILITY_BYTES))
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        if let Some(evidence) = &readiness
+            && (evidence.observed_at > updated_at
+                || evidence.configuration_digest != configuration_digest
+                || !capabilities.is_subset(&evidence.observed_capabilities))
+        {
+            return Err(PlatformAdministrationDomainError::InvalidReadinessEvidence);
+        }
+        Ok(Self {
+            id,
+            version,
+            scope,
+            kind,
+            key: bounded(&key, "connector_key", MAX_KEY_BYTES)?,
+            configuration_digest: configuration_digest.to_ascii_lowercase(),
+            capabilities,
+            readiness,
+            state,
+            created_at,
+            updated_at,
+            events: Vec::new(),
+        })
+    }
+
     pub fn register(
         id: ConnectorBindingId,
         scope: ConnectorScope,
@@ -138,13 +266,7 @@ impl ConnectorBinding {
     ) -> Result<Self, PlatformAdministrationDomainError> {
         scope.validate()?;
         kind.validate()?;
-        if configuration_digest.len() != 64
-            || !configuration_digest
-                .bytes()
-                .all(|byte| byte.is_ascii_hexdigit())
-        {
-            return Err(PlatformAdministrationDomainError::InvalidConfigurationDigest);
-        }
+        validate_digest(&configuration_digest)?;
         if capabilities.is_empty() || capabilities.len() > MAX_CAPABILITIES {
             return Err(PlatformAdministrationDomainError::InvalidCapabilities);
         }
@@ -160,6 +282,7 @@ impl ConnectorBinding {
             key: bounded(&key, "connector_key", MAX_KEY_BYTES)?,
             configuration_digest: configuration_digest.to_ascii_lowercase(),
             capabilities,
+            readiness: None,
             state: ConnectorState::Pending,
             created_at: at,
             updated_at: at,
@@ -187,8 +310,56 @@ impl ConnectorBinding {
         if !allowed {
             return Err(PlatformAdministrationDomainError::InvalidConnectorTransition);
         }
+        if action == ConnectorTransition::Activate && !self.has_current_ready_evidence() {
+            return Err(PlatformAdministrationDomainError::ConnectorNotReady);
+        }
+        if at < self.updated_at {
+            return Err(PlatformAdministrationDomainError::InvalidReadinessEvidence);
+        }
         self.state = target;
         self.record(at)
+    }
+
+    pub fn observe_readiness(
+        &mut self,
+        evidence: ConnectorReadinessEvidence,
+    ) -> Result<(), PlatformAdministrationDomainError> {
+        if self.state == ConnectorState::Retired || evidence.observed_at < self.updated_at {
+            return Err(PlatformAdministrationDomainError::InvalidReadinessEvidence);
+        }
+        if evidence.configuration_digest != self.configuration_digest
+            || !self.capabilities.is_subset(&evidence.observed_capabilities)
+        {
+            return Err(PlatformAdministrationDomainError::ReadinessConfigurationMismatch);
+        }
+        if self.readiness.as_ref().is_some_and(|current| {
+            current.observed_at >= evidence.observed_at
+                || current.evidence_id == evidence.evidence_id
+        }) {
+            return Err(PlatformAdministrationDomainError::StaleReadinessEvidence);
+        }
+        let at = evidence.observed_at;
+        let ready = evidence.ready;
+        self.readiness = Some(evidence);
+        self.version = self
+            .version
+            .checked_add(1)
+            .ok_or(PlatformAdministrationDomainError::VersionOverflow)?;
+        self.updated_at = at;
+        self.events.push(DomainEvent::ConnectorReadinessObserved {
+            connector_id: self.id,
+            ready,
+            at,
+        });
+        Ok(())
+    }
+
+    fn has_current_ready_evidence(&self) -> bool {
+        self.readiness.as_ref().is_some_and(|evidence| {
+            evidence.ready
+                && evidence.configuration_digest == self.configuration_digest
+                && self.capabilities.is_subset(&evidence.observed_capabilities)
+        })
     }
 
     fn record(&mut self, at: DateTime<Utc>) -> Result<(), PlatformAdministrationDomainError> {
@@ -226,6 +397,9 @@ impl ConnectorBinding {
     pub fn capabilities(&self) -> &BTreeSet<String> {
         &self.capabilities
     }
+    pub const fn readiness(&self) -> Option<&ConnectorReadinessEvidence> {
+        self.readiness.as_ref()
+    }
     pub const fn state(&self) -> ConnectorState {
         self.state
     }
@@ -237,5 +411,13 @@ impl ConnectorBinding {
     }
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.events)
+    }
+}
+
+fn validate_digest(value: &str) -> Result<(), PlatformAdministrationDomainError> {
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        Err(PlatformAdministrationDomainError::InvalidConfigurationDigest)
+    } else {
+        Ok(())
     }
 }

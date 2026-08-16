@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
-use erpx_integration_contracts::sales;
+use erpx_integration_contracts::{ItemDescriptorDraft, sales};
 use erpx_sales::{
     QuoteStatus, QuoteView, RevenueArrangementStatus, RevenueArrangementView, SalesAggregate,
     SalesOrderStatus, SalesOrderView,
@@ -40,6 +40,7 @@ impl From<&SalesAggregate> for SalesSnapshot {
 pub enum SalesOutboxPayload {
     Integration(sales::Event),
     Snapshot(SalesSnapshot),
+    Directory(ItemDescriptorDraft),
 }
 
 #[derive(Debug, Clone)]
@@ -98,7 +99,7 @@ impl Projector for SalesQuoteProjector {
                quote_code,currency,total_minor,valid_until,quote_status,lines,state,
                aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now())
-             ON CONFLICT (projection_name,generation,partition_key,quote_id) DO UPDATE SET
+             ON CONFLICT (tenant_id,projection_name,generation,partition_key,quote_id) DO UPDATE SET
                source_aggregate_version=EXCLUDED.source_aggregate_version,
                source_global_sequence=EXCLUDED.source_global_sequence,
                tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
@@ -215,7 +216,7 @@ impl Projector for SalesOrderProjector {
                order_code,currency,total_minor,order_status,lines,state,
                aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,now())
-             ON CONFLICT (projection_name,generation,partition_key,sales_order_id) DO UPDATE SET
+             ON CONFLICT (tenant_id,projection_name,generation,partition_key,sales_order_id) DO UPDATE SET
                source_aggregate_version=EXCLUDED.source_aggregate_version,
                source_global_sequence=EXCLUDED.source_global_sequence,
                tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
@@ -335,7 +336,7 @@ impl Projector for SalesRevenueArrangementProjector {
                arrangement_status,dimensions,obligations,fulfillments,state,
                aggregate_created_at,aggregate_updated_at,projected_at)
              VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,now())
-             ON CONFLICT (projection_name,generation,partition_key,arrangement_id) DO UPDATE SET
+             ON CONFLICT (tenant_id,projection_name,generation,partition_key,arrangement_id) DO UPDATE SET
                source_aggregate_version=EXCLUDED.source_aggregate_version,
                source_global_sequence=EXCLUDED.source_global_sequence,
                tenant_scope=EXCLUDED.tenant_scope,scope_key=EXCLUDED.scope_key,
