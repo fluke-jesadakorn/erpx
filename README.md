@@ -101,7 +101,7 @@ the console uses the configured address for browser auth and gRPC-Web traffic.
 
 ### Fresh-state CQRS cutover
 
-`erpx-bootstrap` is the one-shot installer for the direct-v1 typed runtime. It
+`erpx-bootstrap` is the one-shot installer for the generation-v2 target runtime. It
 creates a new control write/read pair, a UUID-tenant write/read pair, and a new
 MinIO namespace. It seeds only Platform Root, Holding Owner, the tenant/holding
 registry, canonical business units, and the neutral published brand. It never
@@ -112,9 +112,10 @@ The complete environment contract is documented in `.env.example`. Run
 `erpx-bootstrap bootstrap`. A successful bootstrap writes the non-secret,
 write-once `.runtime/erpx/cutover/fresh-state.json` manifest. `cargo xtask dev
 --detach` accepts that manifest only when the matching database bootstrap
-receipt is complete, the tenant registry row is active, the v1 authority is
-`typed`, rollback is offline/no-merge, and the exact n8n config hash is
-unchanged. Fresh mode skips legacy database reconciliation and business-data demo
+receipt is complete, the tenant registry row is active, the schema and service
+catalog generations are both `2`, the service range is `IFC-SVC-101..165`,
+rollback is offline/no-merge, and the exact n8n config hash is unchanged. Fresh
+mode skips legacy database reconciliation and business-data demo
 fixtures. When `ERPX_DEV_PERSONA_MODE=enabled` is explicitly configured, the
 development runtime generates the gated controller, secret-free QA persona catalog,
 and local-only role assignments directly in the active fresh control database after

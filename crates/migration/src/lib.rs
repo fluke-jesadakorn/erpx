@@ -2003,6 +2003,14 @@ mod tests {
         assert!(write.sql.contains("Finance source facts are append-only"));
         assert!(write.sql.contains("Legal evidence is append-only"));
         assert!(read.sql.contains("projection_generations"));
+        assert!(read.sql.contains(
+            "FOREIGN KEY (tenant_id, projection_name, generation, partition_key, ticket_id)"
+        ));
+        assert!(
+            !read
+                .sql
+                .contains("FOREIGN KEY (projection_name, generation, partition_key, ticket_id)")
+        );
     }
 
     #[test]
@@ -2049,6 +2057,11 @@ mod tests {
             );
         }
         assert!(write.sql.contains("identity_governance_tenant_isolation"));
+        assert!(
+            write
+                .sql
+                .contains("CREATE SCHEMA IF NOT EXISTS erpx_quality_write;")
+        );
         assert!(read.sql.contains("governance_projection"));
         assert!(
             read.sql

@@ -760,6 +760,11 @@ END;
 $$;
 
 -- D13 Batch J: Quality-owned plan, nonconformance, and corrective-action lifecycles.
+-- Quality's earlier tenant-write guard migration predates the context-owned
+-- schema name used by the normalized authority. Fresh generation-two
+-- databases therefore create the schema here before its first relation.
+CREATE SCHEMA IF NOT EXISTS erpx_quality_write;
+
 CREATE TABLE erpx_quality_write.business_records (
     tenant_id UUID NOT NULL DEFAULT erpx_cqrs_write.current_tenant_id(),
     record_id UUID NOT NULL,

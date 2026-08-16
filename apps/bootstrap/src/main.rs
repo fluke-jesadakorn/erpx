@@ -103,7 +103,7 @@ const OWNER_PERMISSIONS: &[&str] = &[
     "tenant.infrastructure.read",
 ];
 
-/// Tenant-scoped direct-v1 projectors that must establish an initial durable
+/// Tenant-scoped generation-v2 projectors that must establish an initial durable
 /// checkpoint before the Server is allowed to accept traffic.
 const INITIAL_TENANT_PROJECTIONS: [&str; 26] = [
     "quality.inspections",
@@ -1548,7 +1548,7 @@ async fn schedule_initial_projection_jobs(
 ) -> Result<()> {
     let authorization = ProjectionSchedulerAuthorization::new(
         config.root_principal.clone(),
-        "establish initial direct-v1 read-model checkpoints",
+        "establish initial generation-v2 read-model checkpoints",
         config.resources.installation_generation,
     )
     .map_err(|_| BootstrapError("initial projection authorization is invalid"))?;

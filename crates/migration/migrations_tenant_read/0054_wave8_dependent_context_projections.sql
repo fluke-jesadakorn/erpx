@@ -371,9 +371,9 @@ CREATE TABLE erpx_support_read.ticket_customer_message_projection (
     body TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (tenant_id, projection_name, generation, partition_key, ticket_id, message_id),
-    FOREIGN KEY (projection_name, generation, partition_key, ticket_id)
+    FOREIGN KEY (tenant_id, projection_name, generation, partition_key, ticket_id)
         REFERENCES erpx_support_read.ticket_projection
-            (projection_name, generation, partition_key, ticket_id)
+            (tenant_id, projection_name, generation, partition_key, ticket_id)
         ON DELETE CASCADE
 );
 
@@ -390,9 +390,9 @@ CREATE TABLE erpx_support_read.ticket_internal_message_projection (
     body TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (tenant_id, projection_name, generation, partition_key, ticket_id, message_id),
-    FOREIGN KEY (projection_name, generation, partition_key, ticket_id)
+    FOREIGN KEY (tenant_id, projection_name, generation, partition_key, ticket_id)
         REFERENCES erpx_support_read.ticket_projection
-            (projection_name, generation, partition_key, ticket_id)
+            (tenant_id, projection_name, generation, partition_key, ticket_id)
         ON DELETE CASCADE
 );
 

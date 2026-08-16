@@ -120,10 +120,17 @@ impl fmt::Debug for TenantOwnerSeed {
 /// by role assignments. The reference is namespaced so it cannot collide with
 /// unrelated UUID mappings in other contexts.
 pub fn tenant_holding_scope_id(holding_ref: &str) -> Uuid {
-    Uuid::new_v5(
+    let mut bytes = *Uuid::new_v5(
         &Uuid::NAMESPACE_URL,
         format!("erpx:holding-scope:v1:{holding_ref}").as_bytes(),
     )
+    .as_bytes();
+    // Holding scope IDs are also first-class Organization record IDs. Keep
+    // the mapping deterministic while satisfying the opaque UUIDv4-shaped
+    // routing contract used by Item Directory and canonical record routes.
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(bytes)
 }
 
 pub fn tenant_owner_assignment_id(tenant_id: &str, principal_ref: &str) -> Uuid {
@@ -8858,6 +8865,7 @@ mod tests {
         let holding_id = tenant_holding_scope_id("holding-opaque");
         assert_eq!(holding_id, tenant_holding_scope_id("holding-opaque"));
         assert_ne!(holding_id, tenant_holding_scope_id("holding-other"));
+        assert_eq!(holding_id.get_version(), Some(uuid::Version::Random));
         let assignment_id = tenant_owner_assignment_id("tenant-a", "owner-a");
         assert_eq!(
             assignment_id,

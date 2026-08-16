@@ -10,6 +10,7 @@ use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, SystemClock, TenantScope,
 };
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::{BootstrapError, Result, stable_uuid};
 
@@ -68,9 +69,11 @@ pub(crate) async fn seed_typed_neutral_brand(pool: &PgPool, root_principal: &str
         BrandParentAuthorityRepository::new(pool.clone()),
         SystemClock,
     );
-    let profile_id =
-        BrandProfileId::try_from_uuid(stable_uuid("typed-brand-profile", "platform-neutral"))
-            .map_err(|_| BootstrapError("typed neutral brand identifier is invalid"))?;
+    let profile_id = BrandProfileId::try_from_uuid(stable_record_uuid(
+        "typed-brand-profile",
+        "platform-neutral",
+    ))
+    .map_err(|_| BootstrapError("typed neutral brand identifier is invalid"))?;
     let created = handler
         .handle(command_envelope(
             root_principal,
@@ -127,6 +130,16 @@ pub(crate) async fn seed_typed_neutral_brand(pool: &PgPool, root_principal: &str
     Ok(())
 }
 
+fn stable_record_uuid(kind: &str, source: &str) -> Uuid {
+    let mut bytes = *stable_uuid(kind, source).as_bytes();
+    // Item Directory routes accept opaque v4-shaped record IDs only. Keep the
+    // bootstrap seed deterministic while applying the required version and
+    // RFC 4122 variant bits to its otherwise non-reversible UUID bytes.
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(bytes)
+}
+
 fn command_envelope<C>(
     root_principal: &str,
     command_kind: &str,
@@ -165,11 +178,24 @@ fn command_envelope<C>(
 
 #[cfg(test)]
 mod tests {
+    use uuid::Version;
+
+    use super::stable_record_uuid;
+
     #[test]
     fn typed_brand_seed_source_uses_command_handler_and_no_direct_writes() {
         let source = include_str!("typed_seed.rs");
         assert!(source.contains("BrandCommandHandler::new"));
         assert!(!source.contains(concat!("INSERT", " INTO erpx_brand_write")));
         assert!(!source.contains(concat!("DELETE", " FROM")));
+    }
+
+    #[test]
+    fn typed_brand_seed_uses_a_stable_v4_shaped_record_id() {
+        let first = stable_record_uuid("typed-brand-profile", "platform-neutral");
+        let replay = stable_record_uuid("typed-brand-profile", "platform-neutral");
+
+        assert_eq!(first, replay);
+        assert_eq!(first.get_version(), Some(Version::Random));
     }
 }
