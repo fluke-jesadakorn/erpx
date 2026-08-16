@@ -21,7 +21,7 @@ use erpx_domain::{
 };
 use erpx_proto::{
     common::v1::{TenantScope as ProtoTenantScope, tenant_scope},
-    platform::{
+    erpx::platform_administration::v1::{
         DesiredConfigurationMessage, RootAccessCapabilityMessage, RootAccessRevocationMessage,
         TypedDataPlaneCommand,
     },
@@ -39,6 +39,7 @@ use zeroize::Zeroizing;
 const MAX_LOCAL_SECRET_BYTES: u64 = 256 * 1024;
 const MAX_DESIRED_STATE_BYTES: usize = 64 * 1024;
 const MAX_RECENT_COMMAND_IDS: usize = 4_096;
+pub const REQUIRED_SCHEMA_GENERATION: &str = "2";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalReadinessObservation {
@@ -73,12 +74,21 @@ impl LocalReadinessObservation {
                 return Err(AgentError::InvalidLocalReadiness);
             }
         }
+        if self.write_healthy
+            && self.read_healthy
+            && (self.write_schema_version != REQUIRED_SCHEMA_GENERATION
+                || self.read_schema_version != REQUIRED_SCHEMA_GENERATION)
+        {
+            return Err(AgentError::UnsupportedSchemaGeneration);
+        }
         Ok(())
     }
 
     pub fn is_healthy(&self) -> bool {
         self.write_healthy
             && self.read_healthy
+            && self.write_schema_version == REQUIRED_SCHEMA_GENERATION
+            && self.read_schema_version == REQUIRED_SCHEMA_GENERATION
             && self.storage_healthy
             && self.directory_ready
             && self.projections_healthy
@@ -312,6 +322,8 @@ pub enum AgentError {
     InvalidDesiredState,
     #[error("local worker readiness evidence is invalid")]
     InvalidLocalReadiness,
+    #[error("local worker schema generation is unsupported")]
+    UnsupportedSchemaGeneration,
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -1011,8 +1023,8 @@ mod tests {
         let (root, runtime) = test_runtime();
         let observation = LocalReadinessObservation {
             observed_version: 1,
-            write_schema_version: "70".into(),
-            read_schema_version: "70".into(),
+            write_schema_version: REQUIRED_SCHEMA_GENERATION.into(),
+            read_schema_version: REQUIRED_SCHEMA_GENERATION.into(),
             write_healthy: true,
             read_healthy: true,
             storage_healthy: true,
@@ -1034,5 +1046,26 @@ mod tests {
         state.sync_all().expect("sync readiness");
         assert_eq!(runtime.readiness().unwrap(), Some(observation));
         fs::remove_dir_all(root).expect("remove isolated test runtime");
+    }
+
+    #[test]
+    fn healthy_readiness_fails_closed_on_another_schema_generation() {
+        let observation = LocalReadinessObservation {
+            observed_version: 1,
+            write_schema_version: "1".into(),
+            read_schema_version: "1".into(),
+            write_healthy: true,
+            read_healthy: true,
+            storage_healthy: true,
+            directory_ready: true,
+            projections_healthy: true,
+            backup_verified: true,
+            failure_category: None,
+        };
+        assert_eq!(
+            observation.validate().unwrap_err().to_string(),
+            "local worker schema generation is unsupported"
+        );
+        assert!(!observation.is_healthy());
     }
 }

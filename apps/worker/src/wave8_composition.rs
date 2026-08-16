@@ -24,6 +24,7 @@ pub enum Wave8ProjectionKind {
     FinanceTrialBalance,
     FinanceBankTransactions,
     FinanceStatutoryTax,
+    FinanceBusinessRecords,
     LegalContracts,
     LegalDocuments,
     LegalAccessHistory,
@@ -46,6 +47,7 @@ impl Wave8ProjectionKind {
             Self::FinanceTrialBalance => erpx_finance_sqlx::TRIAL_BALANCE_PROJECTION,
             Self::FinanceBankTransactions => erpx_finance_sqlx::BANK_TRANSACTION_PROJECTION,
             Self::FinanceStatutoryTax => erpx_finance_sqlx::STATUTORY_TAX_PROJECTION,
+            Self::FinanceBusinessRecords => erpx_finance_sqlx::RECORD_PROJECTION_NAME,
             Self::LegalContracts => erpx_legal_sqlx::CONTRACT_PROJECTION,
             Self::LegalDocuments => erpx_legal_sqlx::DOCUMENT_PROJECTION,
             Self::LegalAccessHistory => erpx_legal_sqlx::ACCESS_PROJECTION,
@@ -85,8 +87,11 @@ impl Wave8ProjectionExecutor {
             .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
             .await
             .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-        let write = WritePool::from_pg_pool(write.database_pool().clone());
-        let read = ProjectionPool::from_pg_pool(read.database_pool().clone());
+        let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
+        let write = WritePool::for_tenant(write.database_pool().clone(), tenant_id)
+            .map_err(crate::map_cqrs_projection_error)?;
+        let read = ProjectionPool::for_tenant(read.database_pool().clone(), tenant_id)
+            .map_err(crate::map_cqrs_projection_error)?;
         let config = ProjectionRunnerConfig {
             page_size,
             ..ProjectionRunnerConfig::default()
@@ -118,6 +123,9 @@ impl Wave8ProjectionExecutor {
             }
             Wave8ProjectionKind::FinanceStatutoryTax => {
                 finance_runtime(write, read, config, FinanceProjectionKind::StatutoryTax)
+            }
+            Wave8ProjectionKind::FinanceBusinessRecords => {
+                finance_runtime(write, read, config, FinanceProjectionKind::BusinessRecords)
             }
             Wave8ProjectionKind::LegalContracts => {
                 legal_runtime(write, read, config, LegalProjectionKind::Contracts)

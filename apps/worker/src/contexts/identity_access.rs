@@ -7,7 +7,9 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
-use erpx_identity_access_sqlx::{IdentityAccessPrincipalProjector, IdentityAccessRoleProjector};
+use erpx_identity_access_sqlx::{
+    IdentityAccessPrincipalProjector, IdentityAccessRoleProjector, IdentityGovernanceProjector,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdentityAccessProjectionRegistration {
@@ -22,6 +24,7 @@ impl IdentityAccessProjectionFactory {
     pub fn registrations(self) -> Vec<IdentityAccessProjectionRegistration> {
         let principals = IdentityAccessPrincipalProjector::new();
         let roles = IdentityAccessRoleProjector::new();
+        let governance = IdentityGovernanceProjector::new();
         vec![
             IdentityAccessProjectionRegistration {
                 name: principals.name().into(),
@@ -30,6 +33,10 @@ impl IdentityAccessProjectionFactory {
             IdentityAccessProjectionRegistration {
                 name: roles.name().into(),
                 event_types: roles.event_types().to_vec(),
+            },
+            IdentityAccessProjectionRegistration {
+                name: governance.name().into(),
+                event_types: governance.event_types().to_vec(),
             },
         ]
     }
@@ -45,6 +52,7 @@ impl IdentityAccessProjectionFactory {
         Ok(IdentityAccessProjectionRuntime {
             principals: IdentityAccessPrincipalProjector::new(),
             roles: IdentityAccessRoleProjector::new(),
+            governance: IdentityGovernanceProjector::new(),
             runner,
             store,
         })
@@ -55,6 +63,7 @@ impl IdentityAccessProjectionFactory {
 pub struct IdentityAccessProjectionRuntime {
     principals: IdentityAccessPrincipalProjector,
     roles: IdentityAccessRoleProjector,
+    governance: IdentityGovernanceProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
@@ -72,12 +81,20 @@ impl IdentityAccessProjectionRuntime {
         self.runner.run_active(&self.roles).await
     }
 
+    pub async fn run_governance_once(&self) -> Result<ProjectionRun, CqrsSqlxError> {
+        self.runner.run_active(&self.governance).await
+    }
+
     pub async fn begin_principal_rebuild(&self) -> Result<RebuildHandle, CqrsSqlxError> {
         self.store.begin_rebuild(&self.principals).await
     }
 
     pub async fn begin_role_rebuild(&self) -> Result<RebuildHandle, CqrsSqlxError> {
         self.store.begin_rebuild(&self.roles).await
+    }
+
+    pub async fn begin_governance_rebuild(&self) -> Result<RebuildHandle, CqrsSqlxError> {
+        self.store.begin_rebuild(&self.governance).await
     }
 
     pub async fn run_rebuild_page(
@@ -93,6 +110,10 @@ impl IdentityAccessProjectionRuntime {
             self.runner
                 .run_rebuild(&self.roles, handle, after_sequence)
                 .await
+        } else if handle.projection == self.governance.name() {
+            self.runner
+                .run_rebuild(&self.governance, handle, after_sequence)
+                .await
         } else {
             Err(CqrsSqlxError::InvalidInput(
                 "rebuild handle belongs to another projector",
@@ -101,7 +122,10 @@ impl IdentityAccessProjectionRuntime {
     }
 
     pub async fn activate_rebuild(&self, handle: &RebuildHandle) -> Result<(), CqrsSqlxError> {
-        if handle.projection != self.principals.name() && handle.projection != self.roles.name() {
+        if handle.projection != self.principals.name()
+            && handle.projection != self.roles.name()
+            && handle.projection != self.governance.name()
+        {
             return Err(CqrsSqlxError::InvalidInput(
                 "rebuild handle belongs to another projector",
             ));
@@ -113,8 +137,8 @@ impl IdentityAccessProjectionRuntime {
 #[cfg(test)]
 mod tests {
     use erpx_identity_access_sqlx::{
-        PRINCIPAL_PROJECTION_NAME, PRINCIPAL_SNAPSHOT_EVENT_TYPE, ROLE_PROJECTION_NAME,
-        ROLE_SNAPSHOT_EVENT_TYPE,
+        GOVERNANCE_PROJECTION_NAME, GOVERNANCE_SNAPSHOT_EVENT_TYPE, PRINCIPAL_PROJECTION_NAME,
+        PRINCIPAL_SNAPSHOT_EVENT_TYPE, ROLE_PROJECTION_NAME, ROLE_SNAPSHOT_EVENT_TYPE,
     };
 
     use super::*;
@@ -122,7 +146,7 @@ mod tests {
     #[test]
     fn registrations_are_typed_and_snapshot_only() {
         let registrations = IdentityAccessProjectionFactory.registrations();
-        assert_eq!(registrations.len(), 2);
+        assert_eq!(registrations.len(), 3);
         assert_eq!(registrations[0].name, PRINCIPAL_PROJECTION_NAME);
         assert_eq!(
             registrations[0].event_types,
@@ -130,14 +154,19 @@ mod tests {
         );
         assert_eq!(registrations[1].name, ROLE_PROJECTION_NAME);
         assert_eq!(registrations[1].event_types, vec![ROLE_SNAPSHOT_EVENT_TYPE]);
+        assert_eq!(registrations[2].name, GOVERNANCE_PROJECTION_NAME);
+        assert_eq!(
+            registrations[2].event_types,
+            vec![GOVERNANCE_SNAPSHOT_EVENT_TYPE]
+        );
     }
 
     #[tokio::test]
     async fn wrong_rebuild_handle_fails_before_database_access() {
-        let write = WritePool::from_pg_pool(
+        let write = WritePool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/identity_write").unwrap(),
         );
-        let projection = ProjectionPool::from_pg_pool(
+        let projection = ProjectionPool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/identity_read").unwrap(),
         );
         let runtime = IdentityAccessProjectionFactory

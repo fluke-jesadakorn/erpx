@@ -39,8 +39,8 @@ pub struct Wave5ControlProjectionHandler {
 
 impl Wave5ControlProjectionHandler {
     pub fn new(control: Arc<SqlxControlPlane>, page_size: u32) -> Result<Self, WorkerRuntimeError> {
-        let write = WritePool::from_pg_pool(control.pools().write.clone());
-        let read = ProjectionPool::from_pg_pool(control.pools().read.clone());
+        let write = WritePool::from_control_pg_pool(control.pools().write.clone());
+        let read = ProjectionPool::from_control_pg_pool(control.pools().read.clone());
         let config = ProjectionRunnerConfig {
             page_size,
             ..ProjectionRunnerConfig::default()
@@ -58,6 +58,7 @@ impl Wave5ControlProjectionHandler {
             PlatformAdministrationProjectionKind::Tenants,
             PlatformAdministrationProjectionKind::Connectors,
             PlatformAdministrationProjectionKind::AdminContexts,
+            PlatformAdministrationProjectionKind::GovernanceRecords,
         ]
         .into_iter()
         .map(|kind| {

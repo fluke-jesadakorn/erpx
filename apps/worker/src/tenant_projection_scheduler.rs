@@ -620,7 +620,12 @@ where
 
 fn source_projection_for_name(name: &str) -> Option<TenantSourceProjection> {
     match name {
-        erpx_infrastructure::OPERATIONS_READ_PROJECTION => Some(TenantSourceProjection::Operations),
+        erpx_operations_sqlx::EXCEPTION_PROJECTION
+        | erpx_operations_sqlx::SOURCE_SIGNAL_PROJECTION
+        | erpx_operations_sqlx::POLICY_PROJECTION
+        | erpx_operations_sqlx::LIFECYCLE_RECORD_PROJECTION_NAME => {
+            Some(TenantSourceProjection::Operations)
+        }
         erpx_infrastructure::FINANCE_BANKING_READ_PROJECTION => {
             Some(TenantSourceProjection::FinanceBanking)
         }
@@ -629,6 +634,9 @@ fn source_projection_for_name(name: &str) -> Option<TenantSourceProjection> {
         }
         erpx_infrastructure::FINANCE_CLOSE_PROJECTION_NAME => {
             Some(TenantSourceProjection::FinanceClose)
+        }
+        erpx_integration_contracts::ITEM_DIRECTORY_PROJECTION_NAME => {
+            Some(TenantSourceProjection::ItemDirectory)
         }
         _ => None,
     }
@@ -1476,7 +1484,7 @@ mod tests {
     #[test]
     fn replacement_activation_supports_all_fenced_finance_projections() {
         assert_eq!(
-            source_projection_for_name(erpx_infrastructure::OPERATIONS_READ_PROJECTION),
+            source_projection_for_name(erpx_operations_sqlx::EXCEPTION_PROJECTION),
             Some(TenantSourceProjection::Operations)
         );
         assert_eq!(
@@ -1490,6 +1498,10 @@ mod tests {
         assert_eq!(
             source_projection_for_name(erpx_infrastructure::FINANCE_CLOSE_PROJECTION_NAME),
             Some(TenantSourceProjection::FinanceClose)
+        );
+        assert_eq!(
+            source_projection_for_name(erpx_integration_contracts::ITEM_DIRECTORY_PROJECTION_NAME),
+            Some(TenantSourceProjection::ItemDirectory)
         );
         assert_eq!(source_projection_for_name("unknown_projection"), None);
     }

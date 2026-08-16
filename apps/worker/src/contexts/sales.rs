@@ -4,7 +4,10 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
-use erpx_sales_sqlx::{SalesOrderProjector, SalesQuoteProjector, SalesRevenueArrangementProjector};
+use erpx_sales_sqlx::{
+    SalesLifecycleRecordProjector, SalesOrderProjector, SalesQuoteProjector,
+    SalesRevenueArrangementProjector,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SalesProjectionRegistration {
@@ -17,6 +20,7 @@ pub enum SalesProjectionKind {
     Quotes,
     Orders,
     RevenueArrangements,
+    LifecycleRecords,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -28,6 +32,7 @@ impl SalesProjectionFactory {
             registration(&SalesQuoteProjector::new()),
             registration(&SalesOrderProjector::new()),
             registration(&SalesRevenueArrangementProjector::new()),
+            registration(&SalesLifecycleRecordProjector::new()),
         ]
         .into()
     }
@@ -44,6 +49,7 @@ impl SalesProjectionFactory {
             quotes: SalesQuoteProjector::new(),
             orders: SalesOrderProjector::new(),
             revenue_arrangements: SalesRevenueArrangementProjector::new(),
+            lifecycle_records: SalesLifecycleRecordProjector::new(),
             runner,
             store,
         })
@@ -55,6 +61,7 @@ pub struct SalesProjectionRuntime {
     quotes: SalesQuoteProjector,
     orders: SalesOrderProjector,
     revenue_arrangements: SalesRevenueArrangementProjector,
+    lifecycle_records: SalesLifecycleRecordProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
@@ -76,6 +83,9 @@ impl SalesProjectionRuntime {
             SalesProjectionKind::RevenueArrangements => {
                 self.runner.run_active(&self.revenue_arrangements).await
             }
+            SalesProjectionKind::LifecycleRecords => {
+                self.runner.run_active(&self.lifecycle_records).await
+            }
         }
     }
 
@@ -88,6 +98,9 @@ impl SalesProjectionRuntime {
             SalesProjectionKind::Orders => self.store.begin_rebuild(&self.orders).await,
             SalesProjectionKind::RevenueArrangements => {
                 self.store.begin_rebuild(&self.revenue_arrangements).await
+            }
+            SalesProjectionKind::LifecycleRecords => {
+                self.store.begin_rebuild(&self.lifecycle_records).await
             }
         }
     }
@@ -114,6 +127,11 @@ impl SalesProjectionRuntime {
                     .run_rebuild(&self.revenue_arrangements, handle, after_sequence)
                     .await
             }
+            SalesProjectionKind::LifecycleRecords => {
+                self.runner
+                    .run_rebuild(&self.lifecycle_records, handle, after_sequence)
+                    .await
+            }
         }
     }
 
@@ -126,6 +144,7 @@ impl SalesProjectionRuntime {
             SalesProjectionKind::Quotes => self.quotes.name(),
             SalesProjectionKind::Orders => self.orders.name(),
             SalesProjectionKind::RevenueArrangements => self.revenue_arrangements.name(),
+            SalesProjectionKind::LifecycleRecords => self.lifecycle_records.name(),
         };
         if handle.projection != expected {
             return Err(CqrsSqlxError::InvalidInput(
@@ -150,7 +169,8 @@ mod tests {
     use super::*;
     use erpx_cqrs_sqlx::RetryPolicy;
     use erpx_sales_sqlx::{
-        ARRANGEMENT_PROJECTION, ARRANGEMENT_SNAPSHOT_EVENT, ORDER_PROJECTION, ORDER_SNAPSHOT_EVENT,
+        ARRANGEMENT_PROJECTION, ARRANGEMENT_SNAPSHOT_EVENT, LIFECYCLE_RECORD_PROJECTION_NAME,
+        LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE, ORDER_PROJECTION, ORDER_SNAPSHOT_EVENT,
         QUOTE_PROJECTION, QUOTE_SNAPSHOT_EVENT,
     };
 
@@ -170,6 +190,10 @@ mod tests {
                 SalesProjectionRegistration {
                     name: ARRANGEMENT_PROJECTION.into(),
                     event_types: vec![ARRANGEMENT_SNAPSHOT_EVENT.into()],
+                },
+                SalesProjectionRegistration {
+                    name: LIFECYCLE_RECORD_PROJECTION_NAME.into(),
+                    event_types: vec![LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE.into()],
                 },
             ]
         );
@@ -197,10 +221,10 @@ mod tests {
     }
 
     fn lazy_pools() -> (WritePool, ProjectionPool) {
-        let write = WritePool::from_pg_pool(
+        let write = WritePool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/sales_write").unwrap(),
         );
-        let projection = ProjectionPool::from_pg_pool(
+        let projection = ProjectionPool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/sales_read").unwrap(),
         );
         (write, projection)

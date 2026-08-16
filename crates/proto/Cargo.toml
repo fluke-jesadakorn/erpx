@@ -15,5 +15,9 @@ tonic-prost.workspace = true
 sha2.workspace = true
 tonic-prost-build.workspace = true
 
+[dev-dependencies]
+erpx-integration-contracts.workspace = true
+prost-types.workspace = true
+
 [lints]
 workspace = true

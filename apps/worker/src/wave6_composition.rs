@@ -14,27 +14,35 @@ use erpx_maintenance::PortError as MaintenancePortError;
 use erpx_worker::{TenantProjectionExecutor, TenantProjectionExecutorError};
 
 use crate::contexts::{
-    assets::{AssetsProjectionFactory, AssetsProjectionRuntime},
+    assets::{AssetsProjectionFactory, AssetsProjectionKind, AssetsProjectionRuntime},
     crm::{CrmProjectionFactory, CrmProjectionKind, CrmProjectionRuntime},
-    inventory::{InventoryProjectionFactory, InventoryProjectionRuntime},
+    inventory::{InventoryProjectionFactory, InventoryProjectionKind, InventoryProjectionRuntime},
     maintenance::{
         MaintenanceAssetFactRuntime, MaintenanceAssetFactRuntimeError,
-        MaintenanceProjectionFactory, MaintenanceProjectionRuntime,
+        MaintenanceProjectionFactory, MaintenanceProjectionKind, MaintenanceProjectionRuntime,
     },
     marketing::{MarketingProjectionFactory, MarketingProjectionKind, MarketingProjectionRuntime},
-    procurement::{ProcurementProjectionFactory, ProcurementProjectionRuntime},
+    procurement::{
+        ProcurementProjectionFactory, ProcurementProjectionKind, ProcurementProjectionRuntime,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Wave6ProjectionKind {
     MarketingLeadCandidates,
     MarketingCampaignBudgets,
+    MarketingBusinessRecords,
     CrmLeads,
     CrmOpportunities,
+    CrmBusinessRecords,
     ProcurementPurchaseOrders,
+    ProcurementBusinessRecords,
     InventoryStockItems,
+    InventoryLifecycleRecords,
     Assets,
+    AssetLifecycleRecords,
     MaintenanceWorkOrders,
+    MaintenanceLifecycleRecords,
     MaintenanceAssetFacts,
 }
 
@@ -62,14 +70,30 @@ impl Wave6ProjectionExecutor {
             Wave6ProjectionKind::MarketingCampaignBudgets => {
                 erpx_marketing_sqlx::BUDGET_PROJECTION_NAME
             }
+            Wave6ProjectionKind::MarketingBusinessRecords => {
+                erpx_marketing_sqlx::RECORD_PROJECTION_NAME
+            }
             Wave6ProjectionKind::CrmLeads => erpx_crm_sqlx::LEAD_PROJECTION,
             Wave6ProjectionKind::CrmOpportunities => erpx_crm_sqlx::OPPORTUNITY_PROJECTION,
+            Wave6ProjectionKind::CrmBusinessRecords => erpx_crm_sqlx::RECORD_PROJECTION_NAME,
             Wave6ProjectionKind::ProcurementPurchaseOrders => {
                 erpx_procurement_sqlx::PROJECTION_NAME
             }
+            Wave6ProjectionKind::ProcurementBusinessRecords => {
+                erpx_procurement_sqlx::RECORD_PROJECTION_NAME
+            }
             Wave6ProjectionKind::InventoryStockItems => erpx_inventory_sqlx::PROJECTION_NAME,
+            Wave6ProjectionKind::InventoryLifecycleRecords => {
+                erpx_inventory_sqlx::LIFECYCLE_RECORD_PROJECTION_NAME
+            }
             Wave6ProjectionKind::Assets => erpx_assets_sqlx::PROJECTION_NAME,
+            Wave6ProjectionKind::AssetLifecycleRecords => {
+                erpx_assets_sqlx::LIFECYCLE_RECORD_PROJECTION_NAME
+            }
             Wave6ProjectionKind::MaintenanceWorkOrders => erpx_maintenance_sqlx::PROJECTION_NAME,
+            Wave6ProjectionKind::MaintenanceLifecycleRecords => {
+                erpx_maintenance_sqlx::LIFECYCLE_RECORD_PROJECTION_NAME
+            }
             Wave6ProjectionKind::MaintenanceAssetFacts => {
                 erpx_maintenance_sqlx::ASSET_FACT_PROJECTION_NAME
             }
@@ -101,15 +125,19 @@ impl Wave6ProjectionExecutor {
         page_size: u32,
     ) -> Result<SnapshotRuntime, TenantProjectionExecutorError> {
         let (write, read) = self.route_pools(tenant_id, holding_ref).await?;
-        let write = WritePool::from_pg_pool(write);
-        let read = ProjectionPool::from_pg_pool(read);
+        let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
+        let write =
+            WritePool::for_tenant(write, tenant_id).map_err(crate::map_cqrs_projection_error)?;
+        let read = ProjectionPool::for_tenant(read, tenant_id)
+            .map_err(crate::map_cqrs_projection_error)?;
         let config = ProjectionRunnerConfig {
             page_size,
             ..ProjectionRunnerConfig::default()
         };
         let runtime = match self.kind {
             Wave6ProjectionKind::MarketingLeadCandidates
-            | Wave6ProjectionKind::MarketingCampaignBudgets => {
+            | Wave6ProjectionKind::MarketingCampaignBudgets
+            | Wave6ProjectionKind::MarketingBusinessRecords => {
                 let runtime = MarketingProjectionFactory
                     .build(write, read, config)
                     .map_err(crate::map_cqrs_projection_error)?;
@@ -123,6 +151,9 @@ impl Wave6ProjectionExecutor {
                     }
                     Wave6ProjectionKind::MarketingCampaignBudgets => {
                         MarketingProjectionKind::CampaignBudgets
+                    }
+                    Wave6ProjectionKind::MarketingBusinessRecords => {
+                        MarketingProjectionKind::BusinessRecords
                     }
                     _ => unreachable!("matched Marketing projection kind"),
                 };
@@ -148,45 +179,90 @@ impl Wave6ProjectionExecutor {
                 );
                 SnapshotRuntime::Crm(runtime, CrmProjectionKind::Opportunities)
             }
+            Wave6ProjectionKind::CrmBusinessRecords => {
+                let runtime = CrmProjectionFactory
+                    .build(write, read, config)
+                    .map_err(crate::map_cqrs_projection_error)?;
+                debug_assert_eq!(
+                    runtime.registrations(),
+                    CrmProjectionFactory.registrations()
+                );
+                SnapshotRuntime::Crm(runtime, CrmProjectionKind::BusinessRecords)
+            }
             Wave6ProjectionKind::ProcurementPurchaseOrders => {
                 let runtime = ProcurementProjectionFactory
                     .build(write, read, config)
                     .map_err(crate::map_cqrs_projection_error)?;
                 debug_assert_eq!(
-                    runtime.registration(),
-                    ProcurementProjectionFactory.registration()
+                    runtime.registrations(),
+                    ProcurementProjectionFactory.registrations()
                 );
-                SnapshotRuntime::Procurement(runtime)
+                SnapshotRuntime::Procurement(runtime, ProcurementProjectionKind::PurchaseOrders)
             }
-            Wave6ProjectionKind::InventoryStockItems => {
+            Wave6ProjectionKind::ProcurementBusinessRecords => {
+                let runtime = ProcurementProjectionFactory
+                    .build(write, read, config)
+                    .map_err(crate::map_cqrs_projection_error)?;
+                debug_assert_eq!(
+                    runtime.registrations(),
+                    ProcurementProjectionFactory.registrations()
+                );
+                SnapshotRuntime::Procurement(runtime, ProcurementProjectionKind::BusinessRecords)
+            }
+            Wave6ProjectionKind::InventoryStockItems
+            | Wave6ProjectionKind::InventoryLifecycleRecords => {
                 let runtime = InventoryProjectionFactory
                     .build(write, read, config)
                     .map_err(crate::map_cqrs_projection_error)?;
                 debug_assert_eq!(
-                    runtime.registration(),
-                    InventoryProjectionFactory.registration()
+                    runtime.registrations(),
+                    InventoryProjectionFactory.registrations()
                 );
-                SnapshotRuntime::Inventory(runtime)
+                let kind = match self.kind {
+                    Wave6ProjectionKind::InventoryStockItems => InventoryProjectionKind::StockItems,
+                    Wave6ProjectionKind::InventoryLifecycleRecords => {
+                        InventoryProjectionKind::LifecycleRecords
+                    }
+                    _ => unreachable!("matched Inventory projection kind"),
+                };
+                SnapshotRuntime::Inventory(runtime, kind)
             }
-            Wave6ProjectionKind::Assets => {
+            Wave6ProjectionKind::Assets | Wave6ProjectionKind::AssetLifecycleRecords => {
                 let runtime = AssetsProjectionFactory
                     .build(write, read, config)
                     .map_err(crate::map_cqrs_projection_error)?;
                 debug_assert_eq!(
-                    runtime.registration(),
-                    AssetsProjectionFactory.registration()
+                    runtime.registrations(),
+                    AssetsProjectionFactory.registrations()
                 );
-                SnapshotRuntime::Assets(runtime)
+                let kind = match self.kind {
+                    Wave6ProjectionKind::Assets => AssetsProjectionKind::Assets,
+                    Wave6ProjectionKind::AssetLifecycleRecords => {
+                        AssetsProjectionKind::LifecycleRecords
+                    }
+                    _ => unreachable!("matched Assets projection kind"),
+                };
+                SnapshotRuntime::Assets(runtime, kind)
             }
-            Wave6ProjectionKind::MaintenanceWorkOrders => {
+            Wave6ProjectionKind::MaintenanceWorkOrders
+            | Wave6ProjectionKind::MaintenanceLifecycleRecords => {
                 let runtime = MaintenanceProjectionFactory
                     .build(write, read, config)
                     .map_err(crate::map_cqrs_projection_error)?;
                 debug_assert_eq!(
-                    runtime.registration(),
-                    MaintenanceProjectionFactory.registration()
+                    runtime.registrations(),
+                    MaintenanceProjectionFactory.registrations()
                 );
-                SnapshotRuntime::Maintenance(runtime)
+                let kind = match self.kind {
+                    Wave6ProjectionKind::MaintenanceWorkOrders => {
+                        MaintenanceProjectionKind::WorkOrders
+                    }
+                    Wave6ProjectionKind::MaintenanceLifecycleRecords => {
+                        MaintenanceProjectionKind::LifecycleRecords
+                    }
+                    _ => unreachable!("matched Maintenance projection kind"),
+                };
+                SnapshotRuntime::Maintenance(runtime, kind)
             }
             Wave6ProjectionKind::MaintenanceAssetFacts => {
                 return Err(TenantProjectionExecutorError::Permanent);
@@ -219,9 +295,12 @@ impl Wave6ProjectionExecutor {
             .await
             .map_err(|_| TenantProjectionExecutorError::Retryable)?;
         let raw = write.database_pool().clone();
+        let tenant_uuid = crate::cqrs_tenant_uuid(tenant_id)?;
         let runtime = MaintenanceAssetFactRuntime::with_source(
-            WritePool::from_pg_pool(raw.clone()),
+            WritePool::for_tenant(raw.clone(), tenant_uuid)
+                .map_err(crate::map_cqrs_projection_error)?,
             raw,
+            tenant_uuid,
             page_size,
         )
         .map_err(map_fact_error)?;
@@ -257,10 +336,13 @@ impl Wave6ProjectionExecutor {
         // dependency job completes so a separate projector cannot race ahead
         // of Work Order creation and permanently miss the new write.
         let (write, read) = self.route_pools(tenant_id, holding_ref).await?;
+        let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
         let work_orders = MaintenanceProjectionFactory
             .build(
-                WritePool::from_pg_pool(write),
-                ProjectionPool::from_pg_pool(read),
+                WritePool::for_tenant(write, tenant_id)
+                    .map_err(crate::map_cqrs_projection_error)?,
+                ProjectionPool::for_tenant(read, tenant_id)
+                    .map_err(crate::map_cqrs_projection_error)?,
                 ProjectionRunnerConfig {
                     page_size,
                     ..ProjectionRunnerConfig::default()
@@ -269,7 +351,7 @@ impl Wave6ProjectionExecutor {
             .map_err(crate::map_cqrs_projection_error)?;
         loop {
             let run = work_orders
-                .run_once()
+                .run_once(MaintenanceProjectionKind::WorkOrders)
                 .await
                 .map_err(crate::map_cqrs_projection_error)?;
             let complete = run.fetched < page_size;
@@ -332,10 +414,10 @@ impl TenantProjectionExecutor for Wave6ProjectionExecutor {
 enum SnapshotRuntime {
     Marketing(MarketingProjectionRuntime, MarketingProjectionKind),
     Crm(CrmProjectionRuntime, CrmProjectionKind),
-    Procurement(ProcurementProjectionRuntime),
-    Inventory(InventoryProjectionRuntime),
-    Assets(AssetsProjectionRuntime),
-    Maintenance(MaintenanceProjectionRuntime),
+    Procurement(ProcurementProjectionRuntime, ProcurementProjectionKind),
+    Inventory(InventoryProjectionRuntime, InventoryProjectionKind),
+    Assets(AssetsProjectionRuntime, AssetsProjectionKind),
+    Maintenance(MaintenanceProjectionRuntime, MaintenanceProjectionKind),
 }
 
 impl SnapshotRuntime {
@@ -343,40 +425,14 @@ impl SnapshotRuntime {
         match self {
             Self::Marketing(runtime, kind) => runtime.run_once(*kind).await,
             Self::Crm(runtime, kind) => runtime.run_once(*kind).await,
-            Self::Procurement(runtime) => runtime.run_once().await,
-            Self::Inventory(runtime) => runtime.run_once().await,
-            Self::Assets(runtime) => runtime.run_once().await,
-            Self::Maintenance(runtime) => runtime.run_once().await,
+            Self::Procurement(runtime, kind) => runtime.run_once(*kind).await,
+            Self::Inventory(runtime, kind) => runtime.run_once(*kind).await,
+            Self::Assets(runtime, kind) => runtime.run_once(*kind).await,
+            Self::Maintenance(runtime, kind) => runtime.run_once(*kind).await,
         }
     }
 
     async fn rebuild(&self, page_size: u32) -> Result<(), TenantProjectionExecutorError> {
-        macro_rules! rebuild_single {
-            ($runtime:expr) => {{
-                let runtime = $runtime;
-                let handle = runtime
-                    .begin_rebuild()
-                    .await
-                    .map_err(crate::map_cqrs_projection_error)?;
-                let mut cursor = 0;
-                loop {
-                    let run = runtime
-                        .run_rebuild_page(&handle, cursor)
-                        .await
-                        .map_err(crate::map_cqrs_projection_error)?;
-                    cursor = run.cursor;
-                    let complete = run.fetched < page_size;
-                    validate_run(run)?;
-                    if complete {
-                        break;
-                    }
-                }
-                runtime
-                    .activate_rebuild(&handle)
-                    .await
-                    .map_err(crate::map_cqrs_projection_error)
-            }};
-        }
         match self {
             Self::Crm(runtime, kind) => {
                 let handle = runtime
@@ -424,10 +480,98 @@ impl SnapshotRuntime {
                     .await
                     .map_err(crate::map_cqrs_projection_error)
             }
-            Self::Procurement(runtime) => rebuild_single!(runtime),
-            Self::Inventory(runtime) => rebuild_single!(runtime),
-            Self::Assets(runtime) => rebuild_single!(runtime),
-            Self::Maintenance(runtime) => rebuild_single!(runtime),
+            Self::Procurement(runtime, kind) => {
+                let handle = runtime
+                    .begin_rebuild(*kind)
+                    .await
+                    .map_err(crate::map_cqrs_projection_error)?;
+                let mut cursor = 0;
+                loop {
+                    let run = runtime
+                        .run_rebuild_page(*kind, &handle, cursor)
+                        .await
+                        .map_err(crate::map_cqrs_projection_error)?;
+                    cursor = run.cursor;
+                    let complete = run.fetched < page_size;
+                    validate_run(run)?;
+                    if complete {
+                        break;
+                    }
+                }
+                runtime
+                    .activate_rebuild(*kind, &handle)
+                    .await
+                    .map_err(crate::map_cqrs_projection_error)
+            }
+            Self::Inventory(runtime, kind) => {
+                let handle = runtime
+                    .begin_rebuild(*kind)
+                    .await
+                    .map_err(crate::map_cqrs_projection_error)?;
+                let mut cursor = 0;
+                loop {
+                    let run = runtime
+                        .run_rebuild_page(*kind, &handle, cursor)
+                        .await
+                        .map_err(crate::map_cqrs_projection_error)?;
+                    cursor = run.cursor;
+                    let complete = run.fetched < page_size;
+                    validate_run(run)?;
+                    if complete {
+                        break;
+                    }
+                }
+                runtime
+                    .activate_rebuild(*kind, &handle)
+                    .await
+                    .map_err(crate::map_cqrs_projection_error)
+            }
+            Self::Assets(runtime, kind) => {
+                let handle = runtime
+                    .begin_rebuild(*kind)
+                    .await
+                    .map_err(crate::map_cqrs_projection_error)?;
+                let mut cursor = 0;
+                loop {
+                    let run = runtime
+                        .run_rebuild_page(*kind, &handle, cursor)
+                        .await
+                        .map_err(crate::map_cqrs_projection_error)?;
+                    cursor = run.cursor;
+                    let complete = run.fetched < page_size;
+                    validate_run(run)?;
+                    if complete {
+                        break;
+                    }
+                }
+                runtime
+                    .activate_rebuild(*kind, &handle)
+                    .await
+                    .map_err(crate::map_cqrs_projection_error)
+            }
+            Self::Maintenance(runtime, kind) => {
+                let handle = runtime
+                    .begin_rebuild(*kind)
+                    .await
+                    .map_err(crate::map_cqrs_projection_error)?;
+                let mut cursor = 0;
+                loop {
+                    let run = runtime
+                        .run_rebuild_page(*kind, &handle, cursor)
+                        .await
+                        .map_err(crate::map_cqrs_projection_error)?;
+                    cursor = run.cursor;
+                    let complete = run.fetched < page_size;
+                    validate_run(run)?;
+                    if complete {
+                        break;
+                    }
+                }
+                runtime
+                    .activate_rebuild(*kind, &handle)
+                    .await
+                    .map_err(crate::map_cqrs_projection_error)
+            }
         }
     }
 }

@@ -3,7 +3,9 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
-use erpx_marketing_sqlx::{MarketingBudgetProjector, MarketingLeadProjector};
+use erpx_marketing_sqlx::{
+    MarketingBudgetProjector, MarketingLeadProjector, MarketingRecordProjector,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MarketingProjectionRegistration {
@@ -15,6 +17,7 @@ pub struct MarketingProjectionRegistration {
 pub enum MarketingProjectionKind {
     LeadCandidates,
     CampaignBudgets,
+    BusinessRecords,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -25,6 +28,7 @@ impl MarketingProjectionFactory {
         [
             registration(&MarketingLeadProjector::new()),
             registration(&MarketingBudgetProjector::new()),
+            registration(&MarketingRecordProjector::new()),
         ]
         .into()
     }
@@ -40,6 +44,7 @@ impl MarketingProjectionFactory {
         Ok(MarketingProjectionRuntime {
             leads: MarketingLeadProjector::new(),
             budgets: MarketingBudgetProjector::new(),
+            records: MarketingRecordProjector::new(),
             runner,
             store,
         })
@@ -50,6 +55,7 @@ impl MarketingProjectionFactory {
 pub struct MarketingProjectionRuntime {
     leads: MarketingLeadProjector,
     budgets: MarketingBudgetProjector,
+    records: MarketingRecordProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
@@ -66,6 +72,7 @@ impl MarketingProjectionRuntime {
         match kind {
             MarketingProjectionKind::LeadCandidates => self.runner.run_active(&self.leads).await,
             MarketingProjectionKind::CampaignBudgets => self.runner.run_active(&self.budgets).await,
+            MarketingProjectionKind::BusinessRecords => self.runner.run_active(&self.records).await,
         }
     }
 
@@ -77,6 +84,9 @@ impl MarketingProjectionRuntime {
             MarketingProjectionKind::LeadCandidates => self.store.begin_rebuild(&self.leads).await,
             MarketingProjectionKind::CampaignBudgets => {
                 self.store.begin_rebuild(&self.budgets).await
+            }
+            MarketingProjectionKind::BusinessRecords => {
+                self.store.begin_rebuild(&self.records).await
             }
         }
     }
@@ -98,6 +108,11 @@ impl MarketingProjectionRuntime {
                     .run_rebuild(&self.budgets, handle, after_sequence)
                     .await
             }
+            MarketingProjectionKind::BusinessRecords => {
+                self.runner
+                    .run_rebuild(&self.records, handle, after_sequence)
+                    .await
+            }
         }
     }
 
@@ -109,6 +124,7 @@ impl MarketingProjectionRuntime {
         let expected = match kind {
             MarketingProjectionKind::LeadCandidates => self.leads.name(),
             MarketingProjectionKind::CampaignBudgets => self.budgets.name(),
+            MarketingProjectionKind::BusinessRecords => self.records.name(),
         };
         if handle.projection != expected {
             return Err(CqrsSqlxError::InvalidInput(
@@ -131,7 +147,7 @@ mod tests {
     use super::*;
     use erpx_marketing_sqlx::{
         BUDGET_PROJECTION_NAME, BUDGET_SNAPSHOT_EVENT_TYPE, LEAD_PROJECTION_NAME,
-        LEAD_SNAPSHOT_EVENT_TYPE,
+        LEAD_SNAPSHOT_EVENT_TYPE, RECORD_PROJECTION_NAME, RECORD_SNAPSHOT_EVENT_TYPE,
     };
 
     #[test]
@@ -146,6 +162,10 @@ mod tests {
                 MarketingProjectionRegistration {
                     name: BUDGET_PROJECTION_NAME.into(),
                     event_types: vec![BUDGET_SNAPSHOT_EVENT_TYPE.into()],
+                },
+                MarketingProjectionRegistration {
+                    name: RECORD_PROJECTION_NAME.into(),
+                    event_types: vec![RECORD_SNAPSHOT_EVENT_TYPE.into()],
                 },
             ]
         );

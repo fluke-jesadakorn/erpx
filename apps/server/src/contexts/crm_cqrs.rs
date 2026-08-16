@@ -15,9 +15,7 @@ use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId, TenantScope,
 };
-use erpx_proto::{common, platform};
-use platform::crm_command_service_server::CrmCommandService;
-use platform::crm_query_service_server::CrmQueryService;
+use erpx_proto::{common, erpx::crm::v1 as platform};
 use std::sync::Arc;
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
@@ -159,11 +157,8 @@ impl<A, G> CrmQueryRpc<A, G> {
     }
 }
 
-#[async_trait]
-impl<A: CrmCommandApplication, G: CrmRequestAuthenticator> CrmCommandService
-    for CrmCommandRpc<A, G>
-{
-    async fn accept_marketing_lead(
+impl<A: CrmCommandApplication, G: CrmRequestAuthenticator> CrmCommandRpc<A, G> {
+    pub async fn accept_marketing_lead(
         &self,
         request: Request<platform::AcceptMarketingLeadRequest>,
     ) -> Result<Response<platform::AcceptMarketingLeadResponse>, Status> {
@@ -218,7 +213,7 @@ impl<A: CrmCommandApplication, G: CrmRequestAuthenticator> CrmCommandService
             lead: Some(encode_lead(lead)),
         }))
     }
-    async fn create_opportunity(
+    pub async fn create_opportunity(
         &self,
         request: Request<platform::CreateCrmOpportunityRequest>,
     ) -> Result<Response<platform::CrmOpportunityMutationResponse>, Status> {
@@ -235,7 +230,7 @@ impl<A: CrmCommandApplication, G: CrmRequestAuthenticator> CrmCommandService
         let receipt = self.command(transport, input.metadata, command).await?;
         opportunity_response(receipt)
     }
-    async fn transition_opportunity(
+    pub async fn transition_opportunity(
         &self,
         request: Request<platform::TransitionCrmOpportunityRequest>,
     ) -> Result<Response<platform::CrmOpportunityMutationResponse>, Status> {
@@ -277,9 +272,8 @@ fn opportunity_response(
     }))
 }
 
-#[async_trait]
-impl<A: CrmQueryApplication, G: CrmRequestAuthenticator> CrmQueryService for CrmQueryRpc<A, G> {
-    async fn get_crm_lead(
+impl<A: CrmQueryApplication, G: CrmRequestAuthenticator> CrmQueryRpc<A, G> {
+    pub async fn get_crm_lead(
         &self,
         request: Request<platform::GetCrmLeadRequest>,
     ) -> Result<Response<platform::GetCrmLeadResponse>, Status> {
@@ -302,7 +296,7 @@ impl<A: CrmQueryApplication, G: CrmRequestAuthenticator> CrmQueryService for Crm
             metadata: Some(encode_query_metadata(&result.metadata)),
         }))
     }
-    async fn get_opportunity(
+    pub async fn get_opportunity(
         &self,
         request: Request<platform::GetCrmOpportunityRequest>,
     ) -> Result<Response<platform::GetCrmOpportunityResponse>, Status> {
@@ -325,7 +319,7 @@ impl<A: CrmQueryApplication, G: CrmRequestAuthenticator> CrmQueryService for Crm
             metadata: Some(encode_query_metadata(&result.metadata)),
         }))
     }
-    async fn list_opportunities(
+    pub async fn list_opportunities(
         &self,
         request: Request<platform::ListCrmOpportunitiesRequest>,
     ) -> Result<Response<platform::ListCrmOpportunitiesResponse>, Status> {
@@ -505,6 +499,9 @@ fn encode_lead(v: &CrmLeadView) -> platform::CrmLeadRecord {
         qualification_score_basis_points: u32::from(v.qualification_score_basis_points),
         accepted_at: v.accepted_at.to_rfc3339(),
         projected_at: String::new(),
+        campaign_id: v.campaign_id.to_string(),
+        audience_member_id: v.audience_member_id.to_string(),
+        marketing_source_version: v.marketing_source_version,
     }
 }
 fn encode_opportunity(v: &OpportunityView) -> platform::CrmOpportunityRecord {

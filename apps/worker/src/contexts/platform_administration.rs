@@ -7,7 +7,7 @@ use erpx_cqrs_sqlx::{
     ProjectorContext, RebuildHandle, WritePool,
 };
 use erpx_platform_administration_sqlx::{
-    AdminContextProjector, ConnectorProjector, TenantProjector,
+    AdminContextProjector, ConnectorProjector, PlatformGovernanceRecordProjector, TenantProjector,
 };
 use sqlx::{Postgres, Transaction};
 
@@ -22,6 +22,7 @@ pub enum PlatformAdministrationProjectionKind {
     Tenants,
     Connectors,
     AdminContexts,
+    GovernanceRecords,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -33,6 +34,7 @@ impl PlatformAdministrationProjectionFactory {
             registration(&TenantProjector::new()),
             registration(&ConnectorProjector::new()),
             registration(&AdminContextProjector::new()),
+            registration(&PlatformGovernanceRecordProjector::new()),
         ]
     }
     pub fn build(
@@ -53,6 +55,9 @@ impl PlatformAdministrationProjectionFactory {
             }
             PlatformAdministrationProjectionKind::AdminContexts => {
                 PlatformProjector::AdminContext(AdminContextProjector::new())
+            }
+            PlatformAdministrationProjectionKind::GovernanceRecords => {
+                PlatformProjector::GovernanceRecord(PlatformGovernanceRecordProjector::new())
             }
         };
         Ok(PlatformAdministrationProjectionRuntime {
@@ -75,6 +80,7 @@ enum PlatformProjector {
     Tenant(TenantProjector),
     Connector(ConnectorProjector),
     AdminContext(AdminContextProjector),
+    GovernanceRecord(PlatformGovernanceRecordProjector),
 }
 
 #[async_trait::async_trait]
@@ -84,6 +90,7 @@ impl Projector for PlatformProjector {
             Self::Tenant(value) => value.name(),
             Self::Connector(value) => value.name(),
             Self::AdminContext(value) => value.name(),
+            Self::GovernanceRecord(value) => value.name(),
         }
     }
     fn event_types(&self) -> &[String] {
@@ -91,6 +98,7 @@ impl Projector for PlatformProjector {
             Self::Tenant(value) => value.event_types(),
             Self::Connector(value) => value.event_types(),
             Self::AdminContext(value) => value.event_types(),
+            Self::GovernanceRecord(value) => value.event_types(),
         }
     }
     async fn apply(
@@ -103,6 +111,7 @@ impl Projector for PlatformProjector {
             Self::Tenant(value) => value.apply(transaction, context, event).await,
             Self::Connector(value) => value.apply(transaction, context, event).await,
             Self::AdminContext(value) => value.apply(transaction, context, event).await,
+            Self::GovernanceRecord(value) => value.apply(transaction, context, event).await,
         }
     }
     async fn reset(
@@ -114,6 +123,7 @@ impl Projector for PlatformProjector {
             Self::Tenant(value) => value.reset(transaction, context).await,
             Self::Connector(value) => value.reset(transaction, context).await,
             Self::AdminContext(value) => value.reset(transaction, context).await,
+            Self::GovernanceRecord(value) => value.reset(transaction, context).await,
         }
     }
 }
@@ -162,7 +172,8 @@ impl PlatformAdministrationProjectionRuntime {
 mod tests {
     use super::*;
     use erpx_platform_administration_sqlx::{
-        ADMIN_CONTEXT_PROJECTION, CONNECTOR_PROJECTION, TENANT_PROJECTION,
+        ADMIN_CONTEXT_PROJECTION, CONNECTOR_PROJECTION, GOVERNANCE_PROJECTION_NAME,
+        TENANT_PROJECTION,
     };
     #[test]
     fn registration_catalog_is_complete() {
@@ -176,16 +187,17 @@ mod tests {
             vec![
                 TENANT_PROJECTION,
                 CONNECTOR_PROJECTION,
-                ADMIN_CONTEXT_PROJECTION
+                ADMIN_CONTEXT_PROJECTION,
+                GOVERNANCE_PROJECTION_NAME
             ]
         );
     }
     #[tokio::test]
     async fn factory_builds_without_connecting() {
-        let write = WritePool::from_pg_pool(
+        let write = WritePool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/platform_admin_write").unwrap(),
         );
-        let projection = ProjectionPool::from_pg_pool(
+        let projection = ProjectionPool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/platform_admin_read").unwrap(),
         );
         let runtime = PlatformAdministrationProjectionFactory

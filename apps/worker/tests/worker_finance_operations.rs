@@ -8,7 +8,3 @@ mod finance_banking_import_worker;
 mod finance_candidate_activation;
 #[path = "finance_chart_projection.rs"]
 mod finance_chart_projection;
-#[path = "operations_completion_authoritative.rs"]
-mod operations_completion_authoritative;
-#[path = "operations_projection.rs"]
-mod operations_projection;

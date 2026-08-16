@@ -23,6 +23,9 @@ pub(crate) const MANIFEST_RELATIVE_PATH: &str = ".runtime/erpx/cutover/fresh-sta
 #[derive(Debug, Serialize)]
 pub(crate) struct RuntimeCutoverManifest {
     version: u32,
+    schema_generation: i16,
+    service_catalog_generation: u16,
+    service_id_range: &'static str,
     state: &'static str,
     prepared_at: DateTime<Utc>,
     installation_generation: Uuid,
@@ -34,7 +37,6 @@ pub(crate) struct RuntimeCutoverManifest {
     tenant_write_database: String,
     tenant_read_database: String,
     object_namespace: String,
-    v1_service_authority: &'static str,
     n8n_config_sha256: String,
     rollback: Value,
 }
@@ -49,7 +51,10 @@ impl RuntimeCutoverManifest {
         let rollback = serde_json::to_value(rollback)
             .map_err(|_| BootstrapError("rollback metadata could not be serialized"))?;
         Ok(Self {
-            version: 1,
+            version: 2,
+            schema_generation: erpx_migration::SCHEMA_GENERATION,
+            service_catalog_generation: 2,
+            service_id_range: "IFC-SVC-101..165",
             state: "prepared",
             prepared_at,
             installation_generation: resources.installation_generation,
@@ -61,7 +66,6 @@ impl RuntimeCutoverManifest {
             tenant_write_database: resources.databases[2].name.clone(),
             tenant_read_database: resources.databases[3].name.clone(),
             object_namespace: resources.storage_namespace.clone(),
-            v1_service_authority: "typed",
             n8n_config_sha256,
             rollback,
         })
@@ -154,7 +158,11 @@ mod tests {
                 .expect("manifest");
         let encoded = serde_json::to_string(&manifest).expect("serialize");
         assert!(encoded.contains("\"state\":\"prepared\""));
-        assert!(encoded.contains("\"v1_service_authority\":\"typed\""));
+        assert!(encoded.contains("\"version\":2"));
+        assert!(encoded.contains("\"schema_generation\":2"));
+        assert!(encoded.contains("\"service_catalog_generation\":2"));
+        assert!(encoded.contains("\"service_id_range\":\"IFC-SVC-101..165\""));
+        assert!(!encoded.contains("v1_service_authority"));
         for forbidden in ["password", "access_key", "secret_key", "postgres://"] {
             assert!(!encoded.contains(forbidden), "{forbidden}");
         }

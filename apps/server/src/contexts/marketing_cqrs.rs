@@ -15,9 +15,7 @@ use erpx_marketing::{
     ListLeadCandidates, MarketingCommand, MarketingMutationResult, MarketingQuery,
     MarketingQueryResponse, QualifyLeadCandidate, RejectLeadCandidate,
 };
-use erpx_proto::{common, platform};
-use platform::marketing_command_service_server::MarketingCommandService;
-use platform::marketing_query_service_server::MarketingQueryService;
+use erpx_proto::{common, erpx::marketing::v1 as platform};
 use std::sync::Arc;
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
@@ -159,11 +157,8 @@ impl<A, G> MarketingQueryRpc<A, G> {
     }
 }
 
-#[async_trait]
-impl<A: MarketingCommandApplication, G: MarketingRequestAuthenticator> MarketingCommandService
-    for MarketingCommandRpc<A, G>
-{
-    async fn create_lead_candidate(
+impl<A: MarketingCommandApplication, G: MarketingRequestAuthenticator> MarketingCommandRpc<A, G> {
+    pub async fn create_lead_candidate(
         &self,
         request: Request<platform::CreateLeadCandidateRequest>,
     ) -> Result<Response<platform::MarketingLeadCandidateMutationResponse>, Status> {
@@ -187,7 +182,7 @@ impl<A: MarketingCommandApplication, G: MarketingRequestAuthenticator> Marketing
         });
         self.command(transport, input.metadata, command).await
     }
-    async fn capture_engagement(
+    pub async fn capture_engagement(
         &self,
         request: Request<platform::CaptureMarketingEngagementRequest>,
     ) -> Result<Response<platform::MarketingLeadCandidateMutationResponse>, Status> {
@@ -204,7 +199,7 @@ impl<A: MarketingCommandApplication, G: MarketingRequestAuthenticator> Marketing
         )
         .await
     }
-    async fn qualify_lead_candidate(
+    pub async fn qualify_lead_candidate(
         &self,
         request: Request<platform::QualifyLeadCandidateRequest>,
     ) -> Result<Response<platform::MarketingLeadCandidateMutationResponse>, Status> {
@@ -222,7 +217,7 @@ impl<A: MarketingCommandApplication, G: MarketingRequestAuthenticator> Marketing
         )
         .await
     }
-    async fn reject_lead_candidate(
+    pub async fn reject_lead_candidate(
         &self,
         request: Request<platform::RejectLeadCandidateRequest>,
     ) -> Result<Response<platform::MarketingLeadCandidateMutationResponse>, Status> {
@@ -265,11 +260,8 @@ impl<A: MarketingCommandApplication, G: MarketingRequestAuthenticator> Marketing
     }
 }
 
-#[async_trait]
-impl<A: MarketingQueryApplication, G: MarketingRequestAuthenticator> MarketingQueryService
-    for MarketingQueryRpc<A, G>
-{
-    async fn get_lead_candidate(
+impl<A: MarketingQueryApplication, G: MarketingRequestAuthenticator> MarketingQueryRpc<A, G> {
+    pub async fn get_lead_candidate(
         &self,
         request: Request<platform::GetLeadCandidateRequest>,
     ) -> Result<Response<platform::GetLeadCandidateResponse>, Status> {
@@ -296,7 +288,7 @@ impl<A: MarketingQueryApplication, G: MarketingRequestAuthenticator> MarketingQu
             metadata: Some(encode_query_metadata(&result.metadata)),
         }))
     }
-    async fn list_lead_candidates(
+    pub async fn list_lead_candidates(
         &self,
         request: Request<platform::ListLeadCandidatesRequest>,
     ) -> Result<Response<platform::ListLeadCandidatesResponse>, Status> {

@@ -36,6 +36,7 @@ use erpx_marketing_sqlx as marketing_sqlx;
 use erpx_procurement as procurement;
 use erpx_procurement_sqlx as procurement_sqlx;
 use tonic::Status;
+use uuid::Uuid;
 
 use crate::AppState;
 use crate::contexts::{
@@ -259,7 +260,8 @@ impl Wave6TenantApplication {
                 context,
             )
             .await?;
-        Ok(WritePool::from_pg_pool(pool))
+        WritePool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
+            .map_err(|_| invalid_tenant_binding(correlation_id, context))
     }
 
     async fn read_pool(
@@ -278,7 +280,8 @@ impl Wave6TenantApplication {
                 context,
             )
             .await?;
-        Ok(ReadPool::from_pg_pool(pool))
+        ReadPool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
+            .map_err(|_| invalid_tenant_binding(correlation_id, context))
     }
 
     async fn route_pool(
@@ -396,11 +399,12 @@ impl CrmCommandApplication for Wave6TenantApplication {
         let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
         crm::CrmCommandHandler::new(
             crm_sqlx::CrmWriteRepository::new(pool.clone()),
-            crm_sqlx::CrmCommandAdapter::new(pool),
+            crm_sqlx::CrmCommandAdapter::new(pool.clone()),
             access.clone(),
             access,
             SystemClock,
         )
+        .with_qualified_lead_resolver(crm_sqlx::SqlxQualifiedLeadResolver::new(pool))
         .handle(envelope)
         .await
     }
@@ -887,7 +891,11 @@ impl MaintenanceCommandApplication for Wave6TenantApplication {
                 "maintenance",
             )
             .await?;
-        let pool = WritePool::from_pg_pool(raw_pool.clone());
+        let pool = WritePool::for_tenant(
+            raw_pool.clone(),
+            cqrs_tenant_uuid(&route.tenant_id, correlation_id, "maintenance")?,
+        )
+        .map_err(|_| invalid_tenant_binding(correlation_id, "maintenance"))?;
         let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
         let receipt = maintenance::MaintenanceCommandHandler::new(
             maintenance_sqlx::MaintenanceWriteRepository::new(pool.clone()),
@@ -981,7 +989,11 @@ impl Wave6TenantApplication {
                 "maintenance",
             )
             .await?;
-        let pool = WritePool::from_pg_pool(raw_pool.clone());
+        let pool = WritePool::for_tenant(
+            raw_pool.clone(),
+            cqrs_tenant_uuid(&route.tenant_id, correlation_id, "maintenance")?,
+        )
+        .map_err(|_| invalid_tenant_binding(correlation_id, "maintenance"))?;
         let access = Self::access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
         let receipt = maintenance::MaintenanceCommandHandler::new(
             maintenance_sqlx::MaintenanceWriteRepository::new(pool.clone()),
@@ -1450,6 +1462,24 @@ fn storage_configuration_error(correlation_id: CorrelationId, context: &'static 
         format!("{context}.read_configuration"),
         ErrorCategory::Internal,
         "Context read storage could not be initialized.",
+        false,
+    )
+}
+
+fn cqrs_tenant_uuid(
+    tenant_id: &str,
+    correlation_id: CorrelationId,
+    context: &'static str,
+) -> Result<Uuid, CqrsError> {
+    Uuid::parse_str(tenant_id).map_err(|_| invalid_tenant_binding(correlation_id, context))
+}
+
+fn invalid_tenant_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
+    context_failure(
+        correlation_id,
+        format!("{context}.invalid_tenant_identity"),
+        ErrorCategory::Internal,
+        "The routed tenant identity is invalid.",
         false,
     )
 }

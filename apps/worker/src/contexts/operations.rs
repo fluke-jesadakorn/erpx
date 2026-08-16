@@ -12,8 +12,8 @@ use erpx_operations::{
     SourceHandlingResult, SourcePosition,
 };
 use erpx_operations_sqlx::{
-    OperationsExceptionProjector, OperationsSourceSignalProjector,
-    OperationsWorkQueuePolicyProjector,
+    OperationsExceptionProjector, OperationsLifecycleRecordProjector,
+    OperationsSourceSignalProjector, OperationsWorkQueuePolicyProjector,
 };
 use uuid::Uuid;
 
@@ -28,6 +28,7 @@ pub enum OperationsProjectionKind {
     Exceptions,
     SourceSignals,
     WorkQueuePolicies,
+    LifecycleRecords,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -39,6 +40,7 @@ impl OperationsProjectionFactory {
             registration(&OperationsExceptionProjector::new()),
             registration(&OperationsSourceSignalProjector::new()),
             registration(&OperationsWorkQueuePolicyProjector::new()),
+            registration(&OperationsLifecycleRecordProjector::new()),
         ]
         .into()
     }
@@ -55,6 +57,7 @@ impl OperationsProjectionFactory {
             exceptions: OperationsExceptionProjector::new(),
             source_signals: OperationsSourceSignalProjector::new(),
             policies: OperationsWorkQueuePolicyProjector::new(),
+            lifecycle_records: OperationsLifecycleRecordProjector::new(),
             runner,
             store,
         })
@@ -66,6 +69,7 @@ pub struct OperationsProjectionRuntime {
     exceptions: OperationsExceptionProjector,
     source_signals: OperationsSourceSignalProjector,
     policies: OperationsWorkQueuePolicyProjector,
+    lifecycle_records: OperationsLifecycleRecordProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
@@ -86,6 +90,9 @@ impl OperationsProjectionRuntime {
             }
             OperationsProjectionKind::WorkQueuePolicies => {
                 self.runner.run_active(&self.policies).await
+            }
+            OperationsProjectionKind::LifecycleRecords => {
+                self.runner.run_active(&self.lifecycle_records).await
             }
         }
     }
@@ -109,6 +116,11 @@ impl OperationsProjectionRuntime {
             OperationsProjectionKind::WorkQueuePolicies => {
                 self.store
                     .begin_or_resume_rebuild(&self.policies, rebuild_id)
+                    .await
+            }
+            OperationsProjectionKind::LifecycleRecords => {
+                self.store
+                    .begin_or_resume_rebuild(&self.lifecycle_records, rebuild_id)
                     .await
             }
         }
@@ -136,6 +148,11 @@ impl OperationsProjectionRuntime {
                     .run_rebuild(&self.policies, handle, after_sequence)
                     .await
             }
+            OperationsProjectionKind::LifecycleRecords => {
+                self.runner
+                    .run_rebuild(&self.lifecycle_records, handle, after_sequence)
+                    .await
+            }
         }
     }
 
@@ -148,6 +165,7 @@ impl OperationsProjectionRuntime {
             OperationsProjectionKind::Exceptions => self.exceptions.name(),
             OperationsProjectionKind::SourceSignals => self.source_signals.name(),
             OperationsProjectionKind::WorkQueuePolicies => self.policies.name(),
+            OperationsProjectionKind::LifecycleRecords => self.lifecycle_records.name(),
         };
         if handle.projection != expected {
             return Err(CqrsSqlxError::InvalidInput(
@@ -171,6 +189,7 @@ impl OperationsProjectionRuntime {
             OperationsProjectionKind::Exceptions => self.exceptions.name(),
             OperationsProjectionKind::SourceSignals => self.source_signals.name(),
             OperationsProjectionKind::WorkQueuePolicies => self.policies.name(),
+            OperationsProjectionKind::LifecycleRecords => self.lifecycle_records.name(),
         };
         if handle.projection != expected {
             return Err(CqrsSqlxError::InvalidInput(
@@ -304,12 +323,13 @@ where
 mod tests {
     use super::*;
     use erpx_operations_sqlx::{
-        EXCEPTION_PROJECTION, EXCEPTION_SNAPSHOT_EVENT, POLICY_PROJECTION, POLICY_SNAPSHOT_EVENT,
+        EXCEPTION_PROJECTION, EXCEPTION_SNAPSHOT_EVENT, LIFECYCLE_RECORD_PROJECTION_NAME,
+        LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE, POLICY_PROJECTION, POLICY_SNAPSHOT_EVENT,
         SOURCE_SIGNAL_PROJECTION,
     };
 
     #[test]
-    fn registrations_cover_three_rebuildable_operations_projections() {
+    fn registrations_cover_all_rebuildable_operations_projections() {
         assert_eq!(
             OperationsProjectionFactory.registrations(),
             vec![
@@ -324,6 +344,10 @@ mod tests {
                 OperationsProjectionRegistration {
                     name: POLICY_PROJECTION.into(),
                     event_types: vec![POLICY_SNAPSHOT_EVENT.into()],
+                },
+                OperationsProjectionRegistration {
+                    name: LIFECYCLE_RECORD_PROJECTION_NAME.into(),
+                    event_types: vec![LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE.into()],
                 },
             ]
         );

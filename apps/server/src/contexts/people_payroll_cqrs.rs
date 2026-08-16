@@ -25,7 +25,7 @@ use erpx_people_payroll::{
         LeaveRequestListFilter, LeaveRequestView, PayrollRunListFilter, PayrollRunView,
     },
 };
-use erpx_proto::{common, platform};
+use erpx_proto::{common, erpx::people_payroll::v1 as platform};
 use platform::people_payroll_command_service_server::PeoplePayrollCommandService;
 use platform::people_payroll_query_service_server::PeoplePayrollQueryService;
 use tonic::{Request, Response, Status, metadata::MetadataMap};

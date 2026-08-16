@@ -22,12 +22,11 @@ use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId, TenantScope,
 };
-use erpx_proto::{common, platform};
+use erpx_proto::{common, erpx::customer_authority::v1 as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
 use platform::customer_authority_command_service_server::CustomerAuthorityCommandService;
-use platform::customer_authority_query_service_server::CustomerAuthorityQueryService;
 
 const MAX_ROUTE_LENGTH: usize = 255;
 const MAX_SECURITY_INPUT_LENGTH: usize = 512;
@@ -396,13 +395,12 @@ where
     }
 }
 
-#[async_trait]
-impl<A, G> CustomerAuthorityQueryService for CustomerAuthorityQueryRpc<A, G>
+impl<A, G> CustomerAuthorityQueryRpc<A, G>
 where
     A: CustomerAuthorityQueryApplication,
     G: CustomerAuthorityRequestAuthenticator,
 {
-    async fn get(
+    pub async fn get(
         &self,
         request: Request<platform::GetCustomerAuthorityRequest>,
     ) -> Result<Response<platform::GetCustomerAuthorityResponse>, Status> {
@@ -427,7 +425,7 @@ where
         }))
     }
 
-    async fn list(
+    pub async fn list(
         &self,
         request: Request<platform::ListCustomerAuthoritiesRequest>,
     ) -> Result<Response<platform::ListCustomerAuthoritiesResponse>, Status> {

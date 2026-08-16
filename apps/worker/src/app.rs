@@ -23,6 +23,8 @@ pub(crate) mod contexts {
     pub mod sales;
     pub mod support;
 }
+mod current_completion_projection;
+mod wave10_composition;
 mod wave4_composition;
 mod wave5_composition;
 mod wave6_composition;
@@ -41,16 +43,18 @@ use erpx_infrastructure::{
     ProjectionJobKind, ProjectionSchedulerAuthorization, RoleReviewPersistence, RoutedDatabaseSide,
     SalesSourceEventCursor, SqlxControlPlane, SqlxMarketingContentStore,
     SqlxMarketingDeliverySchedulerRepository, SqlxMarketingDeliveryStore,
-    SqlxMarketingJourneyExecutionStore, SqlxOperationsStore, SqlxTenantStoreRegistry,
-    SupportWorkflowStore, TenantDatabaseProvisioningConfig, TenantDatabaseRouter,
+    SqlxMarketingJourneyExecutionStore, SqlxTenantStoreRegistry, SupportWorkflowStore,
+    TenantDatabaseProvisioningConfig, TenantDatabaseRouter,
     UnconfiguredBankProviderCredentialResolver,
 };
+use erpx_worker::FutureEnterpriseProjectionKind;
 use erpx_worker::{
-    AssetMaintenanceProjectionRequest, AssetMaintenanceProjectionRunner,
-    BRANCH_PROVISIONING_HANDLER_NAME, BackupRuntime, BankProviderAdapterRegistry,
-    BranchProvisioningRuntimeHandler, CLUSTER_PITR_CONTROLLER_HANDLER_NAME,
-    ClusterPitrControllerRuntimeHandler, DIRECTORY_SUPERVISOR_HANDLER_NAME,
-    DIRECTORY_SYNC_HANDLER_NAME, DirectorySupervisorRuntimeHandler, DirectorySyncRuntimeHandler,
+    AGENT_ASSIGNMENT_HANDLER_NAME, AssetMaintenanceProjectionRequest,
+    AssetMaintenanceProjectionRunner, BRANCH_PROVISIONING_HANDLER_NAME, BackupRuntime,
+    BankProviderAdapterRegistry, BranchProvisioningRuntimeHandler,
+    CLUSTER_PITR_CONTROLLER_HANDLER_NAME, ClusterPitrControllerRuntimeHandler,
+    DIRECTORY_SUPERVISOR_HANDLER_NAME, DIRECTORY_SYNC_HANDLER_NAME,
+    DirectorySupervisorRuntimeHandler, DirectorySyncRuntimeHandler,
     FINANCE_BANK_PROVIDER_IMPORT_HANDLER_NAME, FINANCE_SUBLEDGER_RECONCILIATION_MAX_ROWS,
     FinanceBankProviderImportAuthorizer, FinanceBankProviderImportError,
     FinanceBankingTenantProjectionExecutor, FinanceChartTenantProjectionExecutor,
@@ -60,6 +64,7 @@ use erpx_worker::{
     FinanceSubledgerTenantProjectionExecutor, FinanceThaiTaxTenantProjectionExecutor,
     G13_TARGET_HANDLER_NAME, G13TargetRuntimeHandler, HR_COMPLETION_HANDLER_NAME,
     HrCompletionRuntimeHandler, HrProjectionRequest, HrProjectionRunner, HrProjectionWorkerError,
+    ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE, ItemDirectoryTenantProjectionExecutor,
     LEGAL_RETENTION_DEFAULT_BATCH_SIZE, LEGAL_RETENTION_HANDLER_NAME, LegalProjectionRequest,
     LegalProjectionRunner, LegalProjectionWorkerError, LegalRetentionRequest, LegalRetentionRunner,
     LegalRetentionWorkerContext, MARKETING_CONTENT_PREVIEW_EXPIRY_HANDLER_NAME,
@@ -74,18 +79,17 @@ use erpx_worker::{
     MarketingDeliverySchedulerHandler, MarketingDeliverySecretManagerResolver,
     MarketingJourneyExecutionHandler, MarketingJourneyIntegrationMultiTenantRuntimeHandler,
     MarketingPublicAbuseCleanupRunner, MarketingTenantProjectionExecutor, NamedWorkerHandler,
-    OPERATIONS_COMPLETION_HANDLER_NAME, OPERATIONS_SLA_NOTIFICATION_HANDLER_NAME,
-    OperationsCompletionPass, OperationsCompletionWorker, OperationsOutboxSlaNotificationPublisher,
-    OperationsSlaNotificationHandler, OperationsTenantProjectionExecutor, PosProjectionRequest,
-    PosProjectionRunner, PosProjectionWorkerError, SUPPORT_WORKFLOW_HANDLER_NAME,
-    SalesProjectionRequest, SalesProjectionRunner, ScmProjectionPageRequest,
-    ScmProjectionRebuildRequest, ScmProjectionRunner, ScmProjectionWorkerError,
-    SqlxMarketingContentPreviewExpiryExecutor, SqlxMarketingJourneyExecutionDecisionSource,
-    SqlxMarketingProjectionFactory, TENANT_BACKUP_HANDLER_NAME,
-    TENANT_BACKUP_RETENTION_HANDLER_NAME, TENANT_PROJECTION_SCHEDULER_HANDLER_NAME,
-    TENANT_PROJECTION_STATUS_PROJECTION_HANDLER_NAME, TenantBackupJobRuntimeHandler,
-    TenantBackupRetentionRuntimeHandler, TenantProjectionExecutor, TenantProjectionExecutorError,
-    WorkerHandlerReport, WorkerRuntime, WorkerRuntimeConfig, WorkerRuntimeError,
+    PosProjectionRequest, PosProjectionRunner, PosProjectionWorkerError,
+    SUPPORT_WORKFLOW_HANDLER_NAME, SalesProjectionRequest, SalesProjectionRunner,
+    ScmProjectionPageRequest, ScmProjectionRebuildRequest, ScmProjectionRunner,
+    ScmProjectionWorkerError, SqlxMarketingContentPreviewExpiryExecutor,
+    SqlxMarketingJourneyExecutionDecisionSource, SqlxMarketingProjectionFactory,
+    TENANT_BACKUP_HANDLER_NAME, TENANT_BACKUP_RETENTION_HANDLER_NAME,
+    TENANT_PROJECTION_SCHEDULER_HANDLER_NAME, TENANT_PROJECTION_STATUS_PROJECTION_HANDLER_NAME,
+    TenantBackupJobRuntimeHandler, TenantBackupRetentionRuntimeHandler, TenantProjectionExecutor,
+    TenantProjectionExecutorError, TrustedAgentTenantOperationsConfig, WorkerHandlerReport,
+    WorkerRuntime, WorkerRuntimeConfig, WorkerRuntimeError,
+    compose_trusted_tenant_agent_operations,
 };
 use erpx_worker::{
     ROLE_REVIEW_NOTIFICATION_HANDLER_NAME, ROLE_REVIEW_SNAPSHOT_HANDLER_NAME,
@@ -103,7 +107,11 @@ use contexts::operations_source::{
     OPERATIONS_SOURCE_INGESTION_HANDLER_NAME, OPERATIONS_SOURCE_MAX_ACTIVE_TENANTS,
     OPERATIONS_SOURCE_MAX_PAGE_SIZE,
 };
-use contexts::quality::QualityProjectionFactory;
+use contexts::organization::OrganizationProjectionKind;
+use contexts::quality::{QualityProjectionFactory, QualityProjectionKind};
+use current_completion_projection::{
+    CurrentCompletionProjectionExecutor, CurrentCompletionProjectionKind,
+};
 use wave4_composition::{
     COMMERCIAL_CATALOG_PROJECTION_HANDLER_NAME, CommercialCatalogProjectionHandler,
     IdentityAccessProjectionKind, Wave4ProjectionExecutor,
@@ -117,6 +125,7 @@ use wave9_composition::{
     Customer360ProjectionHandler, Customer360ProjectionKind, Wave9ProjectionExecutor,
     Wave9ProjectionKind, operations_source_ingestion_handler,
 };
+use wave10_composition::Wave10ProjectionExecutor;
 
 const FINANCE_COMPLETION_HANDLER_NAME: &str = "finance_completion";
 
@@ -377,6 +386,7 @@ enum ProductProjectionExecutor {
     Wave7(Wave7ProjectionExecutor),
     Wave8(Wave8ProjectionExecutor),
     Wave9(Wave9ProjectionExecutor),
+    Wave10(Wave10ProjectionExecutor),
     Legal(LegalProjectionRunner),
     Scm(ScmProjectionRunner),
     Pos(PosProjectionRunner),
@@ -387,11 +397,12 @@ enum ProductProjectionExecutor {
 #[derive(Debug, Clone)]
 struct QualityCqrsProjectionExecutor {
     router: TenantDatabaseRouter,
+    kind: QualityProjectionKind,
 }
 
 impl QualityCqrsProjectionExecutor {
-    const fn new(router: TenantDatabaseRouter) -> Self {
-        Self { router }
+    const fn new(router: TenantDatabaseRouter, kind: QualityProjectionKind) -> Self {
+        Self { router, kind }
     }
 
     async fn runtime(
@@ -410,10 +421,13 @@ impl QualityCqrsProjectionExecutor {
             .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
             .await
             .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+        let tenant_id = cqrs_tenant_uuid(tenant_id)?;
         let runtime = QualityProjectionFactory
             .build(
-                WritePool::from_pg_pool(write.database_pool().clone()),
-                ProjectionPool::from_pg_pool(read.database_pool().clone()),
+                WritePool::for_tenant(write.database_pool().clone(), tenant_id)
+                    .map_err(map_cqrs_projection_error)?,
+                ProjectionPool::for_tenant(read.database_pool().clone(), tenant_id)
+                    .map_err(map_cqrs_projection_error)?,
                 ProjectionRunnerConfig {
                     page_size,
                     ..ProjectionRunnerConfig::default()
@@ -421,8 +435,8 @@ impl QualityCqrsProjectionExecutor {
             )
             .map_err(map_cqrs_projection_error)?;
         debug_assert_eq!(
-            runtime.registration(),
-            QualityProjectionFactory.registration()
+            runtime.registrations(),
+            QualityProjectionFactory.registrations()
         );
         // The runtime owns cloned pool handles for this bounded pass.
         drop(write);
@@ -439,7 +453,7 @@ impl QualityCqrsProjectionExecutor {
         let run = self
             .runtime(tenant_id, holding_ref, page_size)
             .await?
-            .run_once()
+            .run_once(self.kind)
             .await
             .map_err(map_cqrs_projection_error)?;
         if run.retry_scheduled || run.dead_lettered != 0 {
@@ -456,13 +470,13 @@ impl QualityCqrsProjectionExecutor {
     ) -> Result<(), TenantProjectionExecutorError> {
         let runtime = self.runtime(tenant_id, holding_ref, page_size).await?;
         let handle = runtime
-            .begin_rebuild()
+            .begin_rebuild(self.kind)
             .await
             .map_err(map_cqrs_projection_error)?;
         let mut cursor = 0;
         loop {
             let run = runtime
-                .run_rebuild_page(&handle, cursor)
+                .run_rebuild_page(self.kind, &handle, cursor)
                 .await
                 .map_err(map_cqrs_projection_error)?;
             if run.retry_scheduled || run.dead_lettered != 0 {
@@ -474,7 +488,7 @@ impl QualityCqrsProjectionExecutor {
             }
         }
         runtime
-            .activate_rebuild(&handle)
+            .activate_rebuild(self.kind, &handle)
             .await
             .map_err(map_cqrs_projection_error)
     }
@@ -484,12 +498,18 @@ impl QualityCqrsProjectionExecutor {
 impl TenantProjectionExecutor for ProductProjectionExecutor {
     fn projection_name_filter(&self) -> Option<&str> {
         match self {
-            Self::QualityCqrs(_) => Some(erpx_quality_sqlx::PROJECTION_NAME),
+            Self::QualityCqrs(executor) => Some(match executor.kind {
+                QualityProjectionKind::Inspections => erpx_quality_sqlx::PROJECTION_NAME,
+                QualityProjectionKind::LifecycleRecords => {
+                    erpx_quality_sqlx::LIFECYCLE_RECORD_PROJECTION_NAME
+                }
+            }),
             Self::Wave4(executor) => executor.projection_name_filter(),
             Self::Wave6(executor) => executor.projection_name_filter(),
             Self::Wave7(executor) => executor.projection_name_filter(),
             Self::Wave8(executor) => executor.projection_name_filter(),
             Self::Wave9(executor) => executor.projection_name_filter(),
+            Self::Wave10(executor) => executor.projection_name_filter(),
             _ => None,
         }
     }
@@ -545,6 +565,7 @@ impl TenantProjectionExecutor for ProductProjectionExecutor {
             (Self::Wave7(runner), _) => runner.execute(claim).await,
             (Self::Wave8(runner), _) => runner.execute(claim).await,
             (Self::Wave9(runner), _) => runner.execute(claim).await,
+            (Self::Wave10(runner), _) => runner.execute(claim).await,
             (Self::Legal(runner), ProjectionJobKind::Incremental) => runner
                 .project_page(
                     LegalProjectionRequest::new(
@@ -815,6 +836,15 @@ pub(crate) fn map_cqrs_projection_error(
     }
 }
 
+pub(crate) fn cqrs_tenant_uuid(tenant_id: &str) -> Result<Uuid, TenantProjectionExecutorError> {
+    let tenant_id =
+        Uuid::parse_str(tenant_id).map_err(|_| TenantProjectionExecutorError::Permanent)?;
+    if tenant_id.is_nil() {
+        return Err(TenantProjectionExecutorError::Permanent);
+    }
+    Ok(tenant_id)
+}
+
 fn map_legal_projection_error(error: LegalProjectionWorkerError) -> TenantProjectionExecutorError {
     match error {
         LegalProjectionWorkerError::Configuration(_) => TenantProjectionExecutorError::Permanent,
@@ -1002,57 +1032,6 @@ impl NamedWorkerHandler for MarketingContentPreviewExpiryRuntimeHandler {
 }
 
 const MAX_MARKETING_DELIVERY_ACTIVE_HOLDINGS: usize = 1_000;
-
-struct OperationsCompletionRuntimeHandler {
-    worker: OperationsCompletionWorker,
-    pass: OperationsCompletionPass,
-}
-
-impl OperationsCompletionRuntimeHandler {
-    fn from_env(router: TenantDatabaseRouter) -> Result<Self, Box<dyn std::error::Error>> {
-        let pass_json = env::var("ERPX_OPERATIONS_COMPLETION_PASS_JSON").map_err(|_| {
-            "ERPX_OPERATIONS_COMPLETION_PASS_JSON is required; no local authorization fallback is permitted"
-        })?;
-        let pass = serde_json::from_str(&pass_json)
-            .map_err(|error| format!("ERPX_OPERATIONS_COMPLETION_PASS_JSON is invalid: {error}"))?;
-        Ok(Self {
-            worker: OperationsCompletionWorker::new(router),
-            pass,
-        })
-    }
-}
-
-#[async_trait::async_trait]
-impl NamedWorkerHandler for OperationsCompletionRuntimeHandler {
-    fn name(&self) -> &str {
-        OPERATIONS_COMPLETION_HANDLER_NAME
-    }
-
-    async fn run_once(&self, worker_id: Uuid) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
-        let mut pass = self.pass.clone();
-        pass.worker_id = worker_id;
-        let report = self
-            .worker
-            .run_once(pass)
-            .await
-            .map_err(|error| WorkerRuntimeError::Configuration(error.to_string()))?;
-        let processed = report
-            .detections_scheduled
-            .saturating_add(report.reassignments_scheduled)
-            .saturating_add(report.escalations_scheduled)
-            .saturating_add(report.detections_applied)
-            .saturating_add(report.outbox_rows_repaired)
-            .saturating_add(report.reassignments_applied)
-            .saturating_add(report.escalations_applied)
-            .saturating_add(report.projection_events_seen);
-        Ok(WorkerHandlerReport {
-            claimed: processed,
-            processed,
-            has_work: processed != 0,
-            ..WorkerHandlerReport::default()
-        })
-    }
-}
 
 /// Durable Marketing delivery composition over every active holding in the
 /// control-plane registry. Each holding/account still gets its own tenant
@@ -1289,7 +1268,19 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 handler = %handler_name,
                 "worker_started"
             );
-            let registry = if handler_name == TENANT_BACKUP_RETENTION_HANDLER_NAME {
+            let registry = if handler_name == AGENT_ASSIGNMENT_HANDLER_NAME {
+                let routing = TenantDatabaseProvisioningConfig::from_env()?;
+                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let runner = compose_trusted_tenant_agent_operations(
+                    SqlxTenantStoreRegistry::new(Arc::clone(runtime.store())),
+                    router,
+                    TrustedAgentTenantOperationsConfig::try_new(
+                        std::time::Duration::from_secs(60),
+                        100,
+                    )?,
+                )?;
+                runtime.handler_registry_with_agent_assignment(runner)?
+            } else if handler_name == TENANT_BACKUP_RETENTION_HANDLER_NAME {
                 let batch_size = runtime
                     .config()
                     .batch_size
@@ -1462,51 +1453,6 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
             } else if handler_name == G13_TARGET_HANDLER_NAME {
                 let handler =
                     G13TargetRuntimeHandler::from_env(Arc::clone(runtime.store())).await?;
-                let mut registry = runtime.handler_registry()?;
-                registry.register(Arc::new(handler))?;
-                registry
-            } else if handler_name == OPERATIONS_COMPLETION_HANDLER_NAME {
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
-                let handler = OperationsCompletionRuntimeHandler::from_env(router)?;
-                let mut registry = runtime.handler_registry()?;
-                registry.register(Arc::new(handler))?;
-                registry
-            } else if handler_name == OPERATIONS_SLA_NOTIFICATION_HANDLER_NAME {
-                let tenant_id = required_env("ERPX_OPERATIONS_NOTIFICATION_TENANT_ID")?;
-                let holding_ref = required_env("ERPX_OPERATIONS_NOTIFICATION_HOLDING_REF")?;
-                let routing = TenantDatabaseProvisioningConfig::from_env()?;
-                let router = TenantDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
-                let write = router
-                    .route(&tenant_id, &holding_ref, RoutedDatabaseSide::Write)
-                    .await?;
-                let read = router
-                    .route(&tenant_id, &holding_ref, RoutedDatabaseSide::Read)
-                    .await?;
-                let store = SqlxOperationsStore::from_pools(
-                    write.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|_| "Operations notification tenant route is invalid")?;
-                drop(write);
-                drop(read);
-                let actor_ref = optional_env(
-                    "ERPX_OPERATIONS_NOTIFICATION_ACTOR_REF",
-                    "ERPX_WORKER_ACTOR_REF",
-                    format!("erpx-worker:{}", runtime.config().worker_id),
-                );
-                let publisher =
-                    OperationsOutboxSlaNotificationPublisher::new(store.clone(), actor_ref)?;
-                let handler = OperationsSlaNotificationHandler::new(
-                    store,
-                    publisher,
-                    runtime
-                        .config()
-                        .batch_size
-                        .min(erpx_infrastructure::MAX_OPERATIONS_SLA_NOTIFICATION_PAGE_SIZE),
-                    runtime.config().claim_timeout,
-                )?;
                 let mut registry = runtime.handler_registry()?;
                 registry.register(Arc::new(handler))?;
                 registry
@@ -1825,15 +1771,19 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 claim_key_prefix,
                             )?
                     }
-                    "quality" => {
-                        let registration = QualityProjectionFactory.registration();
+                    kind @ ("quality" | "quality_lifecycle_records") => {
+                        let kind = match kind {
+                            "quality" => QualityProjectionKind::Inspections,
+                            "quality_lifecycle_records" => QualityProjectionKind::LifecycleRecords,
+                            _ => unreachable!("matched Quality projection kind"),
+                        };
+                        let registrations = QualityProjectionFactory.registrations();
                         tracing::info!(
-                            projection = %registration.name,
-                            event_types = ?registration.event_types,
+                            projections = ?registrations,
                             "registered typed Quality CQRS projector"
                         );
                         let executor = ProductProjectionExecutor::QualityCqrs(
-                            QualityCqrsProjectionExecutor::new(router),
+                            QualityCqrsProjectionExecutor::new(router, kind),
                         );
                         runtime
                             .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
@@ -1844,12 +1794,18 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     kind @ ("marketing_lead_candidates"
                     | "marketing_campaign_budgets"
+                    | "marketing_business_records"
                     | "crm_leads"
                     | "crm_opportunities"
+                    | "crm_business_records"
                     | "procurement_purchase_orders"
+                    | "procurement_business_records"
                     | "inventory_stock_items"
+                    | "inventory_lifecycle_records"
                     | "assets_cqrs"
+                    | "asset_lifecycle_records"
                     | "maintenance_work_orders"
+                    | "maintenance_lifecycle_records"
                     | "maintenance_asset_facts") => {
                         let kind = match kind {
                             "marketing_lead_candidates" => {
@@ -1858,14 +1814,28 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             "marketing_campaign_budgets" => {
                                 Wave6ProjectionKind::MarketingCampaignBudgets
                             }
+                            "marketing_business_records" => {
+                                Wave6ProjectionKind::MarketingBusinessRecords
+                            }
                             "crm_leads" => Wave6ProjectionKind::CrmLeads,
                             "crm_opportunities" => Wave6ProjectionKind::CrmOpportunities,
+                            "crm_business_records" => Wave6ProjectionKind::CrmBusinessRecords,
                             "procurement_purchase_orders" => {
                                 Wave6ProjectionKind::ProcurementPurchaseOrders
                             }
+                            "procurement_business_records" => {
+                                Wave6ProjectionKind::ProcurementBusinessRecords
+                            }
                             "inventory_stock_items" => Wave6ProjectionKind::InventoryStockItems,
+                            "inventory_lifecycle_records" => {
+                                Wave6ProjectionKind::InventoryLifecycleRecords
+                            }
                             "assets_cqrs" => Wave6ProjectionKind::Assets,
+                            "asset_lifecycle_records" => Wave6ProjectionKind::AssetLifecycleRecords,
                             "maintenance_work_orders" => Wave6ProjectionKind::MaintenanceWorkOrders,
+                            "maintenance_lifecycle_records" => {
+                                Wave6ProjectionKind::MaintenanceLifecycleRecords
+                            }
                             "maintenance_asset_facts" => Wave6ProjectionKind::MaintenanceAssetFacts,
                             _ => unreachable!("matched Wave 6 projection kind"),
                         };
@@ -1882,18 +1852,21 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     kind @ ("sales_quotes"
                     | "sales_orders"
                     | "sales_revenue_arrangements"
+                    | "sales_lifecycle_records"
                     | "people_payroll_employees"
                     | "people_payroll_leave_requests"
                     | "people_payroll_expense_claims"
                     | "people_payroll_payroll_runs"
                     | "pos_sales"
-                    | "pos_refunds") => {
+                    | "pos_refunds"
+                    | "pos_lifecycle_records") => {
                         let kind = match kind {
                             "sales_quotes" => Wave7ProjectionKind::SalesQuotes,
                             "sales_orders" => Wave7ProjectionKind::SalesOrders,
                             "sales_revenue_arrangements" => {
                                 Wave7ProjectionKind::SalesRevenueArrangements
                             }
+                            "sales_lifecycle_records" => Wave7ProjectionKind::SalesLifecycleRecords,
                             "people_payroll_employees" => {
                                 Wave7ProjectionKind::PeoplePayrollEmployees
                             }
@@ -1908,6 +1881,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             "pos_sales" => Wave7ProjectionKind::PosSales,
                             "pos_refunds" => Wave7ProjectionKind::PosRefunds,
+                            "pos_lifecycle_records" => Wave7ProjectionKind::PosLifecycleRecords,
                             _ => unreachable!("matched Wave 7 projection kind"),
                         };
                         let executor = ProductProjectionExecutor::Wave7(
@@ -1916,6 +1890,38 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                         runtime
                             .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
                                 executor,
+                                authorization,
+                                claim_key_prefix,
+                            )?
+                    }
+                    kind @ ("customer_authority_business_records"
+                    | "customer360_owned_records"
+                    | "support_platform_cases"
+                    | "people_payroll_time_records"
+                    | "legal_cases"
+                    | "shared_signatures") => {
+                        let kind = match kind {
+                            "customer_authority_business_records" => {
+                                CurrentCompletionProjectionKind::CustomerAuthorityRecords
+                            }
+                            "customer360_owned_records" => {
+                                CurrentCompletionProjectionKind::Customer360OwnedRecords
+                            }
+                            "support_platform_cases" => {
+                                CurrentCompletionProjectionKind::SupportPlatformCases
+                            }
+                            "people_payroll_time_records" => {
+                                CurrentCompletionProjectionKind::PeoplePayrollTimeRecords
+                            }
+                            "legal_cases" => CurrentCompletionProjectionKind::LegalCases,
+                            "shared_signatures" => {
+                                CurrentCompletionProjectionKind::SharedSignatures
+                            }
+                            _ => unreachable!("matched current completion projection kind"),
+                        };
+                        runtime
+                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                                CurrentCompletionProjectionExecutor::new(router, kind),
                                 authorization,
                                 claim_key_prefix,
                             )?
@@ -1929,6 +1935,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     | "finance_trial_balance"
                     | "finance_bank_transactions"
                     | "finance_statutory_tax"
+                    | "finance_business_records"
                     | "legal_contracts"
                     | "legal_documents"
                     | "legal_access_history"
@@ -1953,6 +1960,9 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 Wave8ProjectionKind::FinanceBankTransactions
                             }
                             "finance_statutory_tax" => Wave8ProjectionKind::FinanceStatutoryTax,
+                            "finance_business_records" => {
+                                Wave8ProjectionKind::FinanceBusinessRecords
+                            }
                             "legal_contracts" => Wave8ProjectionKind::LegalContracts,
                             "legal_documents" => Wave8ProjectionKind::LegalDocuments,
                             "legal_access_history" => Wave8ProjectionKind::LegalAccessHistory,
@@ -1975,17 +1985,78 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     kind @ ("operations_exceptions"
                     | "operations_source_signals"
-                    | "operations_work_queue_policies") => {
+                    | "operations_work_queue_policies"
+                    | "operations_lifecycle_records") => {
                         let kind = match kind {
                             "operations_exceptions" => Wave9ProjectionKind::Exceptions,
                             "operations_source_signals" => Wave9ProjectionKind::SourceSignals,
                             "operations_work_queue_policies" => {
                                 Wave9ProjectionKind::WorkQueuePolicies
                             }
+                            "operations_lifecycle_records" => Wave9ProjectionKind::LifecycleRecords,
                             _ => unreachable!("matched Wave 9 projection kind"),
                         };
                         let executor = ProductProjectionExecutor::Wave9(
                             Wave9ProjectionExecutor::new(router, kind),
+                        );
+                        runtime
+                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                                executor,
+                                authorization,
+                                claim_key_prefix,
+                            )?
+                    }
+                    kind @ ("manufacturing_orders"
+                    | "planning_runs"
+                    | "ecommerce_channels"
+                    | "ecommerce_listings"
+                    | "ecommerce_journeys"
+                    | "talent_candidate"
+                    | "talent_workforce"
+                    | "learning_enrollments"
+                    | "benefits_enrollments"
+                    | "field_service_orders"
+                    | "projects_projects"
+                    | "projects_hierarchy"
+                    | "projects_records"
+                    | "collaboration_threads"
+                    | "collaboration_stream"
+                    | "collaboration_inbox") => {
+                        let kind = match kind {
+                            "manufacturing_orders" => FutureEnterpriseProjectionKind::Manufacturing,
+                            "planning_runs" => FutureEnterpriseProjectionKind::Planning,
+                            "ecommerce_channels" => {
+                                FutureEnterpriseProjectionKind::EcommerceChannels
+                            }
+                            "ecommerce_listings" => {
+                                FutureEnterpriseProjectionKind::EcommerceListings
+                            }
+                            "ecommerce_journeys" => {
+                                FutureEnterpriseProjectionKind::EcommerceJourneys
+                            }
+                            "talent_candidate" => FutureEnterpriseProjectionKind::TalentCandidate,
+                            "talent_workforce" => FutureEnterpriseProjectionKind::TalentWorkforce,
+                            "learning_enrollments" => FutureEnterpriseProjectionKind::Learning,
+                            "benefits_enrollments" => FutureEnterpriseProjectionKind::Benefits,
+                            "field_service_orders" => FutureEnterpriseProjectionKind::FieldService,
+                            "projects_projects" => FutureEnterpriseProjectionKind::Projects,
+                            "projects_hierarchy" => {
+                                FutureEnterpriseProjectionKind::ProjectsHierarchy
+                            }
+                            "projects_records" => FutureEnterpriseProjectionKind::ProjectsRecords,
+                            "collaboration_threads" => {
+                                FutureEnterpriseProjectionKind::CollaborationThreads
+                            }
+                            "collaboration_stream" => {
+                                FutureEnterpriseProjectionKind::CollaborationStream
+                            }
+                            "collaboration_inbox" => {
+                                FutureEnterpriseProjectionKind::CollaborationInbox
+                            }
+                            _ => unreachable!("matched future enterprise projection kind"),
+                        };
+                        let executor = ProductProjectionExecutor::Wave10(
+                            Wave10ProjectionExecutor::new(router, kind),
                         );
                         runtime
                             .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
@@ -2022,9 +2093,40 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 claim_key_prefix,
                             )?
                     }
+                    "identity_access_governance" => {
+                        let executor = ProductProjectionExecutor::Wave4(
+                            Wave4ProjectionExecutor::identity_access(
+                                router,
+                                IdentityAccessProjectionKind::Governance,
+                            ),
+                        );
+                        runtime
+                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                                executor,
+                                authorization,
+                                claim_key_prefix,
+                            )?
+                    }
                     "organization" => {
                         let executor = ProductProjectionExecutor::Wave4(
-                            Wave4ProjectionExecutor::organization(router),
+                            Wave4ProjectionExecutor::organization(
+                                router,
+                                OrganizationProjectionKind::Nodes,
+                            ),
+                        );
+                        runtime
+                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                                executor,
+                                authorization,
+                                claim_key_prefix,
+                            )?
+                    }
+                    "organization_sharing" => {
+                        let executor = ProductProjectionExecutor::Wave4(
+                            Wave4ProjectionExecutor::organization(
+                                router,
+                                OrganizationProjectionKind::SharingAgreements,
+                            ),
                         );
                         runtime
                             .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
@@ -2061,6 +2163,20 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 claim_key_prefix,
                             )?
                     }
+                    "commercial_lifecycle_records" => {
+                        let executor =
+                            ProductProjectionExecutor::Wave4(Wave4ProjectionExecutor::commercial(
+                                Arc::clone(runtime.store()),
+                                router,
+                                CommercialProjectionKind::LifecycleRecords,
+                            ));
+                        runtime
+                            .handler_registry_with_control_plane_multi_tenant_projection_scheduler_executor(
+                                executor,
+                                authorization,
+                                claim_key_prefix,
+                            )?
+                    }
                     "legacy_legal_documents" => {
                         let executor =
                             ProductProjectionExecutor::Legal(LegalProjectionRunner::new(router));
@@ -2071,14 +2187,17 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 claim_key_prefix,
                             )?
                     }
-                    "operations" => {
-                        let page_size = match env::var("ERPX_OPERATIONS_PROJECTION_PAGE_SIZE") {
+                    "item_directory" => {
+                        let page_size = match env::var("ERPX_ITEM_DIRECTORY_PROJECTION_PAGE_SIZE") {
                             Ok(value) => value.parse::<u32>().map_err(
-                                |_| "ERPX_OPERATIONS_PROJECTION_PAGE_SIZE must be an integer",
+                                |_| "ERPX_ITEM_DIRECTORY_PROJECTION_PAGE_SIZE must be an integer",
                             )?,
-                            Err(_) => erpx_infrastructure::MAX_OPERATIONS_EVENT_PAGE_SIZE,
+                            Err(_) => ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE,
                         };
-                        let executor = OperationsTenantProjectionExecutor::new(page_size)?;
+                        let executor = ItemDirectoryTenantProjectionExecutor::new(page_size)
+                            .map_err(
+                                |_| "ERPX_ITEM_DIRECTORY_PROJECTION_PAGE_SIZE is outside its bound",
+                            )?;
                         runtime
                             .handler_registry_with_control_plane_multi_tenant_projection_scheduler(
                                 router,
@@ -2242,7 +2361,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             )?
                     }
                     _ => {
-                        return Err("ERPX_TENANT_PROJECTION_KIND must be one of the registered legacy or CQRS projection scheduler names (Waves 3-9)".into());
+                        return Err("ERPX_TENANT_PROJECTION_KIND must be one of the registered legacy or CQRS projection scheduler names, including item_directory (Waves 3-10)".into());
                     }
                 }
             } else {
@@ -2388,13 +2507,32 @@ mod product_projection_registration_tests {
             .split("fn projection_name_filter(&self)")
             .nth(1)
             .expect("Product projection filter implementation");
-        assert!(
-            filter.contains("Self::QualityCqrs(_) => Some(erpx_quality_sqlx::PROJECTION_NAME)")
-        );
+        assert!(filter.contains("QualityProjectionKind::Inspections =>"));
+        assert!(filter.contains("erpx_quality_sqlx::PROJECTION_NAME"));
+        assert!(filter.contains(
+            "QualityProjectionKind::LifecycleRecords => {\n                    erpx_quality_sqlx::LIFECYCLE_RECORD_PROJECTION_NAME"
+        ));
         assert!(filter.contains("Self::Wave4(executor) => executor.projection_name_filter()"));
         assert!(filter.contains("Self::Wave6(executor) => executor.projection_name_filter()"));
         assert!(filter.contains("Self::Wave7(executor) => executor.projection_name_filter()"));
         assert!(filter.contains("Self::Wave8(executor) => executor.projection_name_filter()"));
         assert!(filter.contains("Self::Wave9(executor) => executor.projection_name_filter()"));
+    }
+
+    #[test]
+    fn future_projection_scheduler_accepts_every_registered_generation() {
+        let source = include_str!("app.rs");
+        for name in [
+            "manufacturing_orders",
+            "planning_runs",
+            "ecommerce_channels",
+            "ecommerce_listings",
+            "ecommerce_journeys",
+            "projects_projects",
+            "projects_hierarchy",
+            "projects_records",
+        ] {
+            assert!(source.matches(&format!("\"{name}\"")).count() >= 2);
+        }
     }
 }

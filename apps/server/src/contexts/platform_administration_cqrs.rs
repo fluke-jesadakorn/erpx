@@ -19,9 +19,7 @@ use erpx_platform_administration::{
     RegisterConnector, RegisterPlatformTenant, RevokeTenantAdminContext, TenantLifecycleAction,
     TenantLifecycleState, TenantView, TransitionConnector, TransitionPlatformTenant,
 };
-use erpx_proto::{common, platform};
-use platform::platform_administration_command_service_server::PlatformAdministrationCommandService;
-use platform::platform_administration_query_service_server::PlatformAdministrationQueryService;
+use erpx_proto::{common, erpx::platform_administration::v1 as platform};
 use std::{collections::BTreeSet, sync::Arc};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
@@ -183,11 +181,10 @@ impl<A, G> PlatformAdministrationQueryRpc<A, G> {
     }
 }
 
-#[async_trait]
 impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationRequestAuthenticator>
-    PlatformAdministrationCommandService for PlatformAdministrationCommandRpc<A, G>
+    PlatformAdministrationCommandRpc<A, G>
 {
-    async fn register_tenant(
+    pub async fn register_tenant(
         &self,
         request: Request<platform::RegisterPlatformTenantRequest>,
     ) -> Result<Response<platform::RegisterPlatformTenantResponse>, Status> {
@@ -225,7 +222,7 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
             tenant: Some(encode_tenant(record)),
         }))
     }
-    async fn transition_tenant(
+    pub async fn transition_tenant(
         &self,
         request: Request<platform::TransitionPlatformTenantRequest>,
     ) -> Result<Response<platform::TransitionPlatformTenantResponse>, Status> {
@@ -254,7 +251,7 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
             tenant: Some(encode_tenant(record)),
         }))
     }
-    async fn register_connector(
+    pub async fn register_connector(
         &self,
         request: Request<platform::RegisterPlatformConnectorRequest>,
     ) -> Result<Response<platform::RegisterPlatformConnectorResponse>, Status> {
@@ -287,7 +284,7 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
             connector: Some(encode_connector(record)),
         }))
     }
-    async fn transition_connector(
+    pub async fn transition_connector(
         &self,
         request: Request<platform::TransitionPlatformConnectorRequest>,
     ) -> Result<Response<platform::TransitionPlatformConnectorResponse>, Status> {
@@ -318,7 +315,7 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
             },
         ))
     }
-    async fn issue_admin_context(
+    pub async fn issue_admin_context(
         &self,
         request: Request<platform::IssuePlatformTenantAdminContextRequest>,
     ) -> Result<Response<platform::IssuePlatformTenantAdminContextResponse>, Status> {
@@ -354,7 +351,7 @@ impl<A: PlatformAdministrationCommandApplication, G: PlatformAdministrationReque
             },
         ))
     }
-    async fn revoke_admin_context(
+    pub async fn revoke_admin_context(
         &self,
         request: Request<platform::RevokePlatformTenantAdminContextRequest>,
     ) -> Result<Response<platform::RevokePlatformTenantAdminContextResponse>, Status> {
@@ -390,11 +387,10 @@ fn response_type_mismatch() -> Status {
     Status::internal("Platform Administration response type mismatch")
 }
 
-#[async_trait]
 impl<A: PlatformAdministrationQueryApplication, G: PlatformAdministrationRequestAuthenticator>
-    PlatformAdministrationQueryService for PlatformAdministrationQueryRpc<A, G>
+    PlatformAdministrationQueryRpc<A, G>
 {
-    async fn get_tenant(
+    pub async fn get_tenant(
         &self,
         request: Request<platform::GetPlatformAdministrationTenantRequest>,
     ) -> Result<Response<platform::GetPlatformAdministrationTenantResponse>, Status> {
@@ -418,7 +414,7 @@ impl<A: PlatformAdministrationQueryApplication, G: PlatformAdministrationRequest
             },
         ))
     }
-    async fn list_tenants(
+    pub async fn list_tenants(
         &self,
         request: Request<platform::ListPlatformAdministrationTenantsRequest>,
     ) -> Result<Response<platform::ListPlatformAdministrationTenantsResponse>, Status> {
@@ -445,7 +441,7 @@ impl<A: PlatformAdministrationQueryApplication, G: PlatformAdministrationRequest
             },
         ))
     }
-    async fn get_connector(
+    pub async fn get_connector(
         &self,
         request: Request<platform::GetPlatformAdministrationConnectorRequest>,
     ) -> Result<Response<platform::GetPlatformAdministrationConnectorResponse>, Status> {
@@ -471,7 +467,7 @@ impl<A: PlatformAdministrationQueryApplication, G: PlatformAdministrationRequest
             },
         ))
     }
-    async fn list_connectors(
+    pub async fn list_connectors(
         &self,
         request: Request<platform::ListPlatformAdministrationConnectorsRequest>,
     ) -> Result<Response<platform::ListPlatformAdministrationConnectorsResponse>, Status> {
@@ -498,7 +494,7 @@ impl<A: PlatformAdministrationQueryApplication, G: PlatformAdministrationRequest
             },
         ))
     }
-    async fn get_admin_context(
+    pub async fn get_admin_context(
         &self,
         request: Request<platform::GetPlatformTenantAdminContextRequest>,
     ) -> Result<Response<platform::GetPlatformTenantAdminContextResponse>, Status> {

@@ -1,7 +1,10 @@
 //! Commercial projection runtime adapter with three independently rebuildable
 //! read models. Composition supplies capability-separated database pools.
 
-use erpx_commercial_sqlx::{CatalogPlanProjector, EntitlementProjector, SubscriptionProjector};
+use erpx_commercial_sqlx::{
+    CatalogPlanProjector, CommercialLifecycleRecordProjector, EntitlementProjector,
+    SubscriptionProjector,
+};
 use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
@@ -18,6 +21,7 @@ pub enum CommercialProjectionKind {
     CatalogPlans,
     Subscriptions,
     Entitlements,
+    LifecycleRecords,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -29,6 +33,7 @@ impl CommercialProjectionFactory {
             registration(&CatalogPlanProjector::new()),
             registration(&SubscriptionProjector::new()),
             registration(&EntitlementProjector::new()),
+            registration(&CommercialLifecycleRecordProjector::new()),
         ]
         .into()
     }
@@ -57,6 +62,7 @@ impl CommercialProjectionFactory {
             catalog: CatalogPlanProjector::new(),
             subscriptions: SubscriptionProjector::new(),
             entitlements: EntitlementProjector::new(),
+            lifecycle_records: CommercialLifecycleRecordProjector::new(),
             control_runner,
             control_store,
             tenant_runner,
@@ -79,6 +85,7 @@ pub struct CommercialProjectionRuntime {
     catalog: CatalogPlanProjector,
     subscriptions: SubscriptionProjector,
     entitlements: EntitlementProjector,
+    lifecycle_records: CommercialLifecycleRecordProjector,
     control_runner: ProjectionRunner,
     control_store: ProjectionStore,
     tenant_runner: ProjectionRunner,
@@ -104,6 +111,9 @@ impl CommercialProjectionRuntime {
             CommercialProjectionKind::Entitlements => {
                 self.tenant_runner.run_active(&self.entitlements).await
             }
+            CommercialProjectionKind::LifecycleRecords => {
+                self.tenant_runner.run_active(&self.lifecycle_records).await
+            }
         }
     }
 
@@ -120,6 +130,11 @@ impl CommercialProjectionRuntime {
             }
             CommercialProjectionKind::Entitlements => {
                 self.tenant_store.begin_rebuild(&self.entitlements).await
+            }
+            CommercialProjectionKind::LifecycleRecords => {
+                self.tenant_store
+                    .begin_rebuild(&self.lifecycle_records)
+                    .await
             }
         }
     }
@@ -146,6 +161,11 @@ impl CommercialProjectionRuntime {
                     .run_rebuild(&self.entitlements, handle, after_sequence)
                     .await
             }
+            CommercialProjectionKind::LifecycleRecords => {
+                self.tenant_runner
+                    .run_rebuild(&self.lifecycle_records, handle, after_sequence)
+                    .await
+            }
         }
     }
 
@@ -158,6 +178,7 @@ impl CommercialProjectionRuntime {
             CommercialProjectionKind::CatalogPlans => self.catalog.name(),
             CommercialProjectionKind::Subscriptions => self.subscriptions.name(),
             CommercialProjectionKind::Entitlements => self.entitlements.name(),
+            CommercialProjectionKind::LifecycleRecords => self.lifecycle_records.name(),
         };
         if handle.projection != expected {
             return Err(CqrsSqlxError::InvalidInput(
@@ -168,7 +189,9 @@ impl CommercialProjectionRuntime {
             CommercialProjectionKind::CatalogPlans => {
                 self.control_store.activate_rebuild(handle).await
             }
-            CommercialProjectionKind::Subscriptions | CommercialProjectionKind::Entitlements => {
+            CommercialProjectionKind::Subscriptions
+            | CommercialProjectionKind::Entitlements
+            | CommercialProjectionKind::LifecycleRecords => {
                 self.tenant_store.activate_rebuild(handle).await
             }
         }
@@ -187,7 +210,8 @@ mod tests {
     use super::*;
     use erpx_commercial_sqlx::{
         CATALOG_PLAN_PROJECTION, CATALOG_PLAN_SNAPSHOT_EVENT, ENTITLEMENT_PROJECTION,
-        ENTITLEMENT_SNAPSHOT_EVENT, SUBSCRIPTION_PROJECTION, SUBSCRIPTION_SNAPSHOT_EVENT,
+        ENTITLEMENT_SNAPSHOT_EVENT, LIFECYCLE_RECORD_PROJECTION_NAME,
+        LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE, SUBSCRIPTION_PROJECTION, SUBSCRIPTION_SNAPSHOT_EVENT,
     };
     use erpx_cqrs_sqlx::RetryPolicy;
     use std::time::Duration;
@@ -209,6 +233,10 @@ mod tests {
                 CommercialProjectionRegistration {
                     name: ENTITLEMENT_PROJECTION.into(),
                     event_types: vec![ENTITLEMENT_SNAPSHOT_EVENT.into()]
+                },
+                CommercialProjectionRegistration {
+                    name: LIFECYCLE_RECORD_PROJECTION_NAME.into(),
+                    event_types: vec![LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE.into()]
                 }
             ]
         );
@@ -216,17 +244,17 @@ mod tests {
 
     fn lazy_pools() -> (WritePool, ProjectionPool, WritePool, ProjectionPool) {
         (
-            WritePool::from_pg_pool(
+            WritePool::from_control_pg_pool(
                 sqlx::PgPool::connect_lazy("postgres://localhost/commercial_control_write")
                     .unwrap(),
             ),
-            ProjectionPool::from_pg_pool(
+            ProjectionPool::from_control_pg_pool(
                 sqlx::PgPool::connect_lazy("postgres://localhost/commercial_control_read").unwrap(),
             ),
-            WritePool::from_pg_pool(
+            WritePool::from_control_pg_pool(
                 sqlx::PgPool::connect_lazy("postgres://localhost/commercial_tenant_write").unwrap(),
             ),
-            ProjectionPool::from_pg_pool(
+            ProjectionPool::from_control_pg_pool(
                 sqlx::PgPool::connect_lazy("postgres://localhost/commercial_tenant_read").unwrap(),
             ),
         )

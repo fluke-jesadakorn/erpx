@@ -21,12 +21,12 @@ const COMMAND_RECEIPTS_MIGRATION: &str =
 const PROTO_BUILD: &str = include_str!("../../../crates/proto/build.rs");
 const PROTO_LIB: &str = include_str!("../../../crates/proto/src/lib.rs");
 const COMMON_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/common/v1/context.proto");
-const PLATFORM_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/platform.proto");
 const IDENTITY_ACCESS_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/identity_access.proto");
+    include_str!("../../../crates/proto/proto/erpx/identity_access/v1/service.proto");
 const PLATFORM_ADMINISTRATION_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/platform_administration.proto");
+    include_str!("../../../crates/proto/proto/erpx/platform_administration/v1/service.proto");
+const ACTIVE_PROTO_CATALOG: &str =
+    include_str!("../../../crates/proto/proto/erpx/catalog/v2/active.proto");
 const MIGRATOR_MAIN: &str = include_str!("../src/main.rs");
 const WORKER_LIB: &str = include_str!("../../worker/src/lib.rs");
 const WORKER_APP: &str = include_str!("../../worker/src/app.rs");
@@ -132,22 +132,23 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         ],
     );
 
-    // The build script is the authoritative protobuf input list. The source
-    // package is versioned and generated at build time; no hand-edited output
-    // is accepted as a compatibility baseline.
+    // Generation-v2 sources are the only inputs to the approved descriptor
+    // and generated Rust business surface.
     require_markers(
         PROTO_BUILD,
         "crates/proto/build.rs",
         &[
-            "const PROTO_SOURCE_FILES",
-            "const PROTO_ENTRYPOINTS",
-            "proto/erpx/common/v1/context.proto",
-            "proto/erpx/platform/v1/platform.proto",
-            "for proto_file in PROTO_SOURCE_FILES",
+            "const ACTIVE_PROTO_SOURCE_FILES",
+            "const ACTIVE_PROTO_ENTRYPOINTS",
+            "proto/erpx/catalog/v2/active.proto",
             "cargo:rerun-if-changed={proto_file}",
             "build_client(true)",
             "build_server(true)",
-            "compile_protos(PROTO_ENTRYPOINTS",
+            "file_descriptor_set_path",
+            "compile_protos(ACTIVE_PROTO_ENTRYPOINTS",
+            "INFRASTRUCTURE_PROTO_ENTRYPOINTS",
+            "generated_hash",
+            "approved_hash",
         ],
     );
     require_markers(
@@ -155,7 +156,20 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         "crates/proto/src/lib.rs",
         &[
             "tonic::include_proto!(\"erpx.common.v1\")",
-            "tonic::include_proto!(\"erpx.platform.v1\")",
+            "pub const ACTIVE_SERVICE_COUNT: usize = 65",
+            "pub const ACTIVE_SERVICE_ID_FIRST: u16 = 101",
+            "pub const ACTIVE_SERVICE_ID_LAST: u16 = 165",
+        ],
+    );
+    require_markers(
+        ACTIVE_PROTO_CATALOG,
+        "catalog/v2/active.proto",
+        &[
+            "package erpx.catalog.v2;",
+            "import \"erpx/identity_access/v1/service.proto\";",
+            "import \"erpx/collaboration/v1/service.proto\";",
+            "import \"erpx/agent/v1/service.proto\";",
+            "import \"erpx/reference/v1/service.proto\";",
         ],
     );
     require_markers(
@@ -164,32 +178,25 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         &["package erpx.common.v1;"],
     );
     require_markers(
-        PLATFORM_PROTO,
-        "platform/v1/platform.proto",
-        &[
-            "package erpx.platform.v1;",
-            "import public \"erpx/platform/v1/identity_access.proto\"",
-            "import public \"erpx/platform/v1/platform_administration.proto\"",
-        ],
-    );
-    require_markers(
         PLATFORM_ADMINISTRATION_PROTO,
-        "platform/v1/platform_administration.proto",
+        "platform_administration/v1/service.proto",
         &[
-            "package erpx.platform.v1;",
-            "service PlatformOperationsService",
+            "package erpx.platform_administration.v1;",
+            "service PlatformAdministrationCommandService",
+            "service PlatformAdministrationQueryService",
         ],
     );
     require_markers(
         IDENTITY_ACCESS_PROTO,
-        "platform/v1/identity_access.proto",
+        "identity_access/v1/service.proto",
         &[
-            "package erpx.platform.v1;",
-            "service DirectoryService",
-            "reserved",
-            "wire compatibility",
+            "package erpx.identity_access.v1;",
+            "service IdentityAccessCommandService",
+            "service IdentityAccessQueryService",
         ],
     );
+    assert!(!PROTO_BUILD.contains(concat!("proto/erpx/platform/", "v1/")));
+    assert!(!PROTO_LIB.contains(concat!("include_proto!(\"erpx.platform", ".v1\")")));
 }
 
 #[test]

@@ -8,36 +8,23 @@ use std::{collections::BTreeMap, env, fmt, sync::Arc, time::Duration as StdDurat
 
 use chrono::{DateTime, Duration, Utc};
 use erpx_domain::asset_maintenance::AssetMaintenanceProjectionReconciliation;
-use erpx_domain::customer::{
-    Customer360, Customer360Projection as DomainCustomer360Projection, CustomerNote,
-};
-use erpx_domain::operations::{
-    AggregateMetadata, Branch, CapacityPlan, Company, Department, DispatchBatch, ExceptionCase,
-    FulfillmentPlan, Headquarters, Holding, OPERATIONS_CONTRACT_VERSION, OperatingCalendar,
-    OperationalCommitment, OperationalPlan, OperationsAggregate, OperationsEvent,
-    ProjectionEventMetadata, Shift, ShiftHandover, StandardOperatingProcedure, Team,
-    WorkQueuePolicy,
-};
 use erpx_domain::sales::SalesProjectionReconciliation;
 use erpx_domain::support::Incident;
 use erpx_infrastructure::{
     AssetMaintenanceProjectionRebuildPreparation, AssetMaintenanceSourceEventCursor,
     AssetMaintenanceSourceEventPage, BankProviderCredentialResolver, CapabilityMetadata,
     ControlPlaneDatabaseConfig, ControlPlanePoolSettings, ControlPlanePools,
-    Customer360ReadReconciliation, MAX_OPERATIONS_EVENT_PAGE_SIZE, MAX_QUALITY_PROJECTION_EVENTS,
-    MAX_QUALITY_SOURCE_PAGE_SIZE, MAX_RESTORE_TEST_SCHEDULE_BATCH_SIZE,
-    MarketingSourceEvent as InfraMarketingSourceEvent,
-    MarketingSourceEventCursor as InfraMarketingSourceEventCursor, OperationsEventCursor,
-    OperationsEventPage, OperationsProjectionApplication, OperationsProjectionRebuildPreparation,
-    OutboxEnvelope, PersistenceError, ProjectionClaimRecord, ProjectionJobKind, RestoreTestClaim,
-    RestoreTestScheduleError, RestoreTestScheduler, RoleReviewPersistence, RoutedDatabaseSide,
-    RoutedTenantDatabase, SalesProjectionRebuildPreparation, SalesSourceEventCursor,
-    SqlxAssetMaintenanceStore, SqlxCommercialStore, SqlxControlPlane, SqlxMarketingStore,
-    SqlxOperationsStore, SqlxSalesStore, SqlxTenantProjectionStatusProjectionStore,
-    StripeInboxRetryPolicy, StripeInboxTransition, StripeSemanticApplyError,
-    StripeSemanticDispatchError, StripeSemanticDispatcher, SupportPersistence,
-    SupportPersistenceError, SupportWorkflowStore, TenantDatabaseProvisioner, TenantDatabaseRouter,
-    TenantProvisioner,
+    MAX_QUALITY_PROJECTION_EVENTS, MAX_QUALITY_SOURCE_PAGE_SIZE,
+    MAX_RESTORE_TEST_SCHEDULE_BATCH_SIZE, MarketingSourceEvent as InfraMarketingSourceEvent,
+    MarketingSourceEventCursor as InfraMarketingSourceEventCursor, OutboxEnvelope,
+    PersistenceError, RestoreTestClaim, RestoreTestScheduleError, RestoreTestScheduler,
+    RoleReviewPersistence, RoutedDatabaseSide, RoutedTenantDatabase,
+    SalesProjectionRebuildPreparation, SalesSourceEventCursor, SqlxAssetMaintenanceStore,
+    SqlxCommercialStore, SqlxControlPlane, SqlxMarketingStore, SqlxSalesStore,
+    SqlxTenantProjectionStatusProjectionStore, StripeInboxRetryPolicy, StripeInboxTransition,
+    StripeSemanticApplyError, StripeSemanticDispatchError, StripeSemanticDispatcher,
+    SupportPersistence, SupportPersistenceError, SupportWorkflowStore, TenantDatabaseProvisioner,
+    TenantDatabaseRouter, TenantProvisioner,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use thiserror::Error;
@@ -58,6 +45,10 @@ pub use erpx_infrastructure::{
     projection_freshness_readiness, tenant_routing_readiness,
 };
 
+mod agent_material;
+mod agent_orchestration_runtime;
+mod agent_provider;
+mod agent_tenant_runtime;
 mod backup_retention;
 mod backup_runtime;
 mod branch_provisioning_runtime;
@@ -77,9 +68,13 @@ mod finance_completion_runtime;
 mod finance_projection;
 mod finance_subledger_projection;
 mod finance_tax_projection;
+mod future_enterprise_projection;
 mod g13_target_runtime;
 mod hr_completion_runtime;
 mod hr_projection;
+mod item_directory_authority;
+mod item_directory_policy;
+mod item_directory_projection;
 mod legal_projection;
 mod legal_retention;
 mod marketing_content_privacy;
@@ -93,8 +88,6 @@ mod marketing_projection;
 mod marketing_provider;
 mod marketing_provider_secret_manager;
 mod marketing_public_abuse;
-mod operations_completion;
-mod operations_notifications;
 mod platform_completion_runtime;
 mod pos_projection;
 mod quality_projection;
@@ -106,6 +99,31 @@ mod support_workflow;
 mod tenant_projection_scheduler;
 mod tenant_projection_status_projection;
 
+pub use agent_material::{
+    AgentEncryptedObjectPort, AgentEnvelopeCiphertext, AgentEnvelopeKeyManagerPort,
+    AgentProtectedMaterialConfig, GovernedAgentProtectedMaterial,
+};
+pub use agent_orchestration_runtime::{
+    AGENT_ASSIGNMENT_HANDLER_NAME, AgentAssignmentNotificationOutboxHandler, AgentAssignmentPass,
+    AgentAssignmentRuntimeHandler, AgentAssignmentWorker, AgentExecutionGuardPort,
+    AgentNotificationOutboxPass, AgentNotificationOutboxWorker, AgentWorkerError,
+    AgentWorkerOutcome, BudgetedAgentProviderPort, ProtectedAgentMaterialPort,
+    compose_sqlx_agent_assignment_runner,
+};
+pub use agent_provider::{
+    AgentNetworkProviderConfig, AgentProviderApproval, AgentProviderConfigurationError,
+    AgentProviderLimits, GovernedAgentProvider, OllamaAgentProvider, OllamaProviderConfig,
+    OpenAiCompatibleAgentProvider, OpenAiCompatibleCredential, OpenAiCompatiblePricing,
+    OpenAiCompatibleProviderConfig, TenantBoundAgentProviderPort,
+};
+pub use agent_tenant_runtime::{
+    AgentGovernanceMaintenancePass, AgentProjectionPass, AgentTenantRuntimeBundle,
+    AgentTenantRuntimeFactoryPort, SqlxTrustedAgentTenantRuntimeFactory,
+    TrustedAgentTenantDependencies, TrustedAgentTenantDependencyPort,
+    TrustedAgentTenantOperationsConfig, TrustedAgentTenantRuntimeConfig,
+    TrustedTenantAgentAssignmentPass, compose_trusted_tenant_agent_operations,
+    compose_trusted_tenant_agent_runner,
+};
 pub use backup_retention::{
     TENANT_BACKUP_RETENTION_HANDLER_NAME, TenantBackupRetentionRuntimeHandler,
 };
@@ -200,6 +218,10 @@ pub use finance_tax_projection::{
     FINANCE_THAI_TAX_PROJECTION_HANDLER_NAME, FINANCE_THAI_TAX_PROJECTION_MAX_PAGE_SIZE,
     FinanceThaiTaxProjectionWorkerError, FinanceThaiTaxTenantProjectionExecutor,
 };
+pub use future_enterprise_projection::{
+    FutureEnterpriseProjectionKind, FutureEnterpriseProjectionRegistration,
+    FutureEnterpriseProjectionRuntime,
+};
 pub use g13_target_runtime::{G13_TARGET_HANDLER_NAME, G13TargetRuntimeHandler};
 pub use hr_completion_runtime::{
     HR_COMPLETION_HANDLER_NAME, HrCompletionConfig, HrCompletionMode, HrCompletionRunReport,
@@ -208,6 +230,24 @@ pub use hr_completion_runtime::{
 pub use hr_projection::{
     HR_PROJECTION_HANDLER_NAME, HR_PROJECTION_MAX_PAGE_SIZE, HrProjectionRebuildReport,
     HrProjectionRequest, HrProjectionRunReport, HrProjectionRunner, HrProjectionWorkerError,
+};
+pub use item_directory_authority::{
+    AuthorityGrantReconciliationReport, AuthorityProjectionError,
+    MAX_AUTHORITY_RECONCILIATION_ROWS, TenantAuthorityEvidenceProjection,
+    decode_authority_evidence,
+};
+pub use item_directory_policy::{
+    IamAuthorityEvidence, MAX_EFFECTIVE_GRANT_TTL, MAX_RECORD_POLICY_FANOUT, MembershipEvidence,
+    OrganizationScopeEvidence, OrganizationScopeEvidenceKind, RecordGrantDecisionProducer,
+    RecordGrantEvaluation, RecordPolicyDecisionClaim, RecordPolicyDecisionError,
+    RecordPolicyDecisionHandler, RecordPolicyDecisionRunReport, RecordPolicyDecisionSource,
+    RecordPolicyFactSink, RecordPolicyReleaseKind, RecordPolicyRuntimeError, RecordPolicyTrigger,
+};
+pub use item_directory_projection::{
+    FUTURE_DESCRIPTOR_GAPS, FUTURE_LIVE_RECORD_FAMILIES, ITEM_DIRECTORY_PROJECTION_MAX_PAGE_SIZE,
+    ItemDirectoryProjectionError, ItemDirectoryTenantProjectionExecutor,
+    TenantItemDirectoryProjector, UNROUTED_FUTURE_AUTHORITY, decode_item_directory_event,
+    decode_item_directory_owner_event,
 };
 pub use legal_projection::{
     LEGAL_PROJECTION_HANDLER_NAME, LEGAL_PROJECTION_MAX_PAGE_SIZE, LegalProjectionRebuildReport,
@@ -285,21 +325,6 @@ pub use marketing_public_abuse::{
     MARKETING_PUBLIC_ABUSE_CLEANUP_RETENTION_SECONDS, MarketingPublicAbuseCleanupError,
     MarketingPublicAbuseCleanupReport, MarketingPublicAbuseCleanupRunner,
     MarketingPublicAbusePurgePort,
-};
-pub use operations_completion::{
-    MAX_OPERATIONS_DETECTION_RULES, MAX_OPERATIONS_DETECTION_SOURCE_TYPES_PER_RULE,
-    MAX_OPERATIONS_ESCALATION_RULES, MAX_OPERATIONS_REASSIGNMENT_RULES,
-    OPERATIONS_COMPLETION_HANDLER_NAME, OperationsCompletionPass,
-    OperationsCompletionReconciliationSummary, OperationsCompletionRunReport,
-    OperationsCompletionWorker, OperationsCompletionWorkerError, OperationsDetectionSchedule,
-    OperationsDetectionScheduleRule, OperationsEscalationSchedule,
-    OperationsEscalationScheduleRule, OperationsReassignmentSchedule,
-    OperationsReassignmentScheduleRule,
-};
-pub use operations_notifications::{
-    OPERATIONS_SLA_NOTIFICATION_HANDLER_NAME, OperationsOutboxSlaNotificationPublisher,
-    OperationsSlaNotificationHandler, OperationsSlaNotificationPublishError,
-    OperationsSlaNotificationPublisher, OperationsSlaNotificationSource,
 };
 pub const PLATFORM_COMPLETION_HANDLER_NAME: &str = "platform_completion";
 pub use platform_completion_runtime::{
@@ -467,7 +492,6 @@ impl marketing_projection::MarketingProjectionStore for SqlxMarketingProjectionS
     }
 }
 
-pub const CUSTOMER_360_HANDLER_NAME: &str = "customer_360";
 pub const INCIDENT_HANDLER_NAME: &str = "incident_projection";
 pub const STRIPE_SEMANTIC_HANDLER_NAME: &str = "stripe_semantic";
 pub const STRIPE_BILLING_POLICY_HANDLER_NAME: &str = "stripe_billing_policy";
@@ -477,7 +501,6 @@ pub const CUSTOMER_ACCESS_AUDIT_HANDLER_NAME: &str = "customer_access_audit_summ
 pub const SUPPORT_CAPABILITY_EXPIRY_HANDLER_NAME: &str = "support_capability_expiry";
 pub const SUPPORT_CAPABILITY_EXPIRY_MAX_BATCH_SIZE: u32 = 1_000;
 pub const RESTORE_TEST_HANDLER_NAME: &str = "restore_test";
-pub const OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE: u32 = MAX_OPERATIONS_EVENT_PAGE_SIZE;
 pub const SALES_PROJECTION_HANDLER_NAME: &str = "sales_projection";
 pub const SALES_PROJECTION_MAX_PAGE_SIZE: u32 =
     erpx_infrastructure::MAX_SALES_SOURCE_EVENT_PAGE_SIZE;
@@ -509,1101 +532,6 @@ pub enum WorkerRuntimeError {
     Migration(#[from] sqlx::migrate::MigrateError),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OperationsEventStreamRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub cursor: Option<OperationsEventCursor>,
-    pub page_size: u32,
-}
-
-impl OperationsEventStreamRequest {
-    pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
-        cursor: Option<OperationsEventCursor>,
-        page_size: u32,
-    ) -> Result<Self, WorkerRuntimeError> {
-        let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
-            cursor,
-            page_size,
-        };
-        request.validate()?;
-        Ok(request)
-    }
-
-    fn validate(&self) -> Result<(), WorkerRuntimeError> {
-        validate_worker_reference(&self.tenant_id, "tenant_id")?;
-        validate_worker_reference(&self.holding_ref, "holding_ref")?;
-        if self.page_size == 0 || self.page_size > OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE {
-            return Err(WorkerRuntimeError::Configuration(format!(
-                "operations event page size must be 1..={OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE}"
-            )));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OperationsProjectionRebuildRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub projection_name: String,
-    pub page_size: u32,
-}
-
-impl OperationsProjectionRebuildRequest {
-    pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
-        projection_name: impl Into<String>,
-    ) -> Result<Self, WorkerRuntimeError> {
-        let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
-            projection_name: projection_name.into(),
-            page_size: OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE,
-        };
-        request.validate()?;
-        Ok(request)
-    }
-
-    pub fn with_page_size(mut self, page_size: u32) -> Result<Self, WorkerRuntimeError> {
-        self.page_size = page_size;
-        self.validate()?;
-        Ok(self)
-    }
-
-    fn validate(&self) -> Result<(), WorkerRuntimeError> {
-        validate_worker_reference(&self.tenant_id, "tenant_id")?;
-        validate_worker_reference(&self.holding_ref, "holding_ref")?;
-        validate_worker_reference(&self.projection_name, "projection_name")?;
-        if self.page_size == 0 || self.page_size > OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE {
-            return Err(WorkerRuntimeError::Configuration(format!(
-                "operations projection page size must be 1..={OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE}"
-            )));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct OperationsEventStreamReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub page: OperationsEventPage,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OperationsProjectionRebuildReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub preparation: OperationsProjectionRebuildPreparation,
-}
-
-/// Tenant-routed Operations read/rebuild seam.
-///
-/// This runner only reads immutable write-side Operations events and clears a
-/// named read projection through the already-scoped infrastructure APIs. It
-/// intentionally has no aggregate consumer and therefore does not report
-/// events as projected or rebuilt.
-#[derive(Debug, Clone)]
-pub struct OperationsEventStreamRunner {
-    router: TenantDatabaseRouter,
-}
-
-impl OperationsEventStreamRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
-        Self { router }
-    }
-
-    pub async fn read_page(
-        &self,
-        request: OperationsEventStreamRequest,
-    ) -> Result<OperationsEventStreamReport, WorkerRuntimeError> {
-        request.validate()?;
-        let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
-            .await?;
-        let result = {
-            match SqlxOperationsStore::from_pools(
-                write.database_pool(),
-                read.database_pool(),
-                request.holding_ref.clone(),
-            ) {
-                Ok(store) => store
-                    .read_event_page(request.cursor, request.page_size)
-                    .await
-                    .map(|page| OperationsEventStreamReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
-                        page,
-                    })
-                    .map_err(|_| redacted_operations_error("event page read")),
-                Err(_) => Err(redacted_operations_error("store construction")),
-            }
-        };
-        write.close().await;
-        read.close().await;
-        result
-    }
-
-    pub async fn prepare_projection_rebuild(
-        &self,
-        request: OperationsProjectionRebuildRequest,
-    ) -> Result<OperationsProjectionRebuildReport, WorkerRuntimeError> {
-        request.validate()?;
-        let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
-            .await?;
-        let result = {
-            match SqlxOperationsStore::from_pools(
-                write.database_pool(),
-                read.database_pool(),
-                request.holding_ref.clone(),
-            ) {
-                Ok(store) => store
-                    .prepare_projection_rebuild(&request.projection_name)
-                    .await
-                    .map(|preparation| OperationsProjectionRebuildReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
-                        preparation,
-                    })
-                    .map_err(|_| redacted_operations_error("projection rebuild preparation")),
-                Err(_) => Err(redacted_operations_error("store construction")),
-            }
-        };
-        write.close().await;
-        read.close().await;
-        result
-    }
-
-    async fn route_store(
-        &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<
-        (
-            erpx_infrastructure::RoutedTenantDatabase,
-            erpx_infrastructure::RoutedTenantDatabase,
-        ),
-        WorkerRuntimeError,
-    > {
-        let write = self
-            .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-            .await
-            .map_err(|_| redacted_operations_error("write database routing"))?;
-        let read = match self
-            .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-            .await
-        {
-            Ok(read) => read,
-            Err(_) => {
-                write.close().await;
-                return Err(redacted_operations_error("read database routing"));
-            }
-        };
-        Ok((write, read))
-    }
-}
-
-/// Errors returned by the tenant-routed Operations projection worker.
-///
-/// Persisted payloads, aggregate identifiers, database details, and tenant
-/// credentials are intentionally excluded from the externally visible error.
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum OperationsProjectionWorkerError {
-    #[error("Operations projection configuration error: {0}")]
-    Configuration(String),
-    #[error("Operations projection {operation} failed")]
-    Projection { operation: &'static str },
-}
-
-impl From<PersistenceError> for OperationsProjectionWorkerError {
-    fn from(_: PersistenceError) -> Self {
-        redacted_operations_projection_error("persistence")
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OperationsProjectionRequest {
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub cursor: Option<OperationsEventCursor>,
-    pub page_size: u32,
-}
-
-impl OperationsProjectionRequest {
-    pub fn new(
-        tenant_id: impl Into<String>,
-        holding_ref: impl Into<String>,
-        cursor: Option<OperationsEventCursor>,
-        page_size: u32,
-    ) -> Result<Self, OperationsProjectionWorkerError> {
-        let request = Self {
-            tenant_id: tenant_id.into(),
-            holding_ref: holding_ref.into(),
-            cursor,
-            page_size,
-        };
-        request.validate()?;
-        Ok(request)
-    }
-
-    fn validate(&self) -> Result<(), OperationsProjectionWorkerError> {
-        validate_projection_reference(&self.tenant_id, "tenant_id")?;
-        validate_projection_reference(&self.holding_ref, "holding_ref")?;
-        validate_projection_page_size(self.page_size)?;
-        if let Some(cursor) = self.cursor
-            && (cursor.aggregate_id.is_nil() || cursor.aggregate_version == 0)
-        {
-            return Err(OperationsProjectionWorkerError::Configuration(
-                "Operations projection cursor is invalid".into(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OperationsProjectionRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub events_seen: u64,
-    pub events_applied: u64,
-    pub events_noop: u64,
-    pub next_cursor: Option<OperationsEventCursor>,
-    pub has_more: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OperationsProjectionRebuildRunReport {
-    pub tenant_id: String,
-    pub holding_ref: String,
-    pub projection_name: String,
-    pub pages_read: u64,
-    pub events_seen: u64,
-    pub events_replayed: u64,
-    pub events_noop: u64,
-    pub preparation: OperationsProjectionRebuildPreparation,
-}
-
-#[derive(Debug, Clone)]
-enum DecodedOperationsAggregate {
-    Holding(Holding),
-    Company(Company),
-    Headquarters(Headquarters),
-    Branch(Branch),
-    Department(Department),
-    Team(Team),
-    OperationalPlan(OperationalPlan),
-    OperationalCommitment(OperationalCommitment),
-    FulfillmentPlan(FulfillmentPlan),
-    CapacityPlan(CapacityPlan),
-    ExceptionCase(ExceptionCase),
-    WorkQueuePolicy(WorkQueuePolicy),
-    OperatingCalendar(OperatingCalendar),
-    Shift(Shift),
-    ShiftHandover(ShiftHandover),
-    StandardOperatingProcedure(StandardOperatingProcedure),
-    DispatchBatch(DispatchBatch),
-}
-
-struct DecodedOperationsEvent {
-    event: OperationsEvent,
-    aggregate: DecodedOperationsAggregate,
-}
-
-#[async_trait::async_trait]
-trait OperationsProjectionApplier: Send + Sync {
-    async fn apply_decoded(
-        &self,
-        event: &OperationsEvent,
-        aggregate: &DecodedOperationsAggregate,
-    ) -> Result<OperationsProjectionApplication, PersistenceError>;
-}
-
-#[async_trait::async_trait]
-impl OperationsProjectionApplier for SqlxOperationsStore {
-    async fn apply_decoded(
-        &self,
-        event: &OperationsEvent,
-        aggregate: &DecodedOperationsAggregate,
-    ) -> Result<OperationsProjectionApplication, PersistenceError> {
-        match aggregate {
-            DecodedOperationsAggregate::Holding(value) => self.project_event(event, value).await,
-            DecodedOperationsAggregate::Company(value) => self.project_event(event, value).await,
-            DecodedOperationsAggregate::Headquarters(value) => {
-                self.project_event(event, value).await
-            }
-            DecodedOperationsAggregate::Branch(value) => self.project_event(event, value).await,
-            DecodedOperationsAggregate::Department(value) => self.project_event(event, value).await,
-            DecodedOperationsAggregate::Team(value) => self.project_event(event, value).await,
-            DecodedOperationsAggregate::OperationalPlan(value) => {
-                self.project_event(event, value).await
-            }
-            DecodedOperationsAggregate::OperationalCommitment(value) => {
-                self.project_event(event, value).await
-            }
-            DecodedOperationsAggregate::FulfillmentPlan(value) => {
-                self.project_event(event, value).await
-            }
-            DecodedOperationsAggregate::CapacityPlan(value) => {
-                self.project_event(event, value).await
-            }
-            DecodedOperationsAggregate::ExceptionCase(value) => {
-                self.project_event(event, value).await
-            }
-            DecodedOperationsAggregate::WorkQueuePolicy(value) => {
-                self.project_event(event, value).await
-            }
-            DecodedOperationsAggregate::OperatingCalendar(value) => {
-                self.project_event(event, value).await
-            }
-            DecodedOperationsAggregate::Shift(value) => self.project_event(event, value).await,
-            DecodedOperationsAggregate::ShiftHandover(value) => {
-                self.project_event(event, value).await
-            }
-            DecodedOperationsAggregate::StandardOperatingProcedure(value) => {
-                self.project_event(event, value).await
-            }
-            DecodedOperationsAggregate::DispatchBatch(value) => {
-                self.project_event(event, value).await
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct OperationsProjectionPageCounts {
-    events_seen: u64,
-    events_applied: u64,
-    events_noop: u64,
-    next_cursor: Option<OperationsEventCursor>,
-    has_more: bool,
-}
-
-/// Decode and apply one bounded page. Decoding the complete page before the
-/// first read-side write prevents a later malformed event from allowing a
-/// partially trusted page to advance the projection.
-async fn apply_operations_page<A: OperationsProjectionApplier + ?Sized>(
-    applier: &A,
-    page: &OperationsEventPage,
-    holding_ref: &str,
-    projection_name: &str,
-) -> Result<OperationsProjectionPageCounts, OperationsProjectionWorkerError> {
-    validate_operations_page_shape(page)?;
-    let decoded = page
-        .events
-        .iter()
-        .map(|record| decode_operations_event(record, holding_ref, projection_name))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|_| redacted_operations_projection_error("event decoding"))?;
-
-    let mut events_applied = 0_u64;
-    for decoded_event in &decoded {
-        let application = applier
-            .apply_decoded(&decoded_event.event, &decoded_event.aggregate)
-            .await
-            .map_err(|_| redacted_operations_projection_error("event projection"))?;
-        if application.applied {
-            events_applied = events_applied.saturating_add(1);
-        }
-    }
-    let events_seen = decoded.len() as u64;
-    Ok(OperationsProjectionPageCounts {
-        events_seen,
-        events_applied,
-        events_noop: events_seen.saturating_sub(events_applied),
-        next_cursor: page.next_cursor,
-        has_more: page.has_more,
-    })
-}
-
-fn validate_operations_page_shape(
-    page: &OperationsEventPage,
-) -> Result<(), OperationsProjectionWorkerError> {
-    if page.events.len() > OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE as usize {
-        return Err(redacted_operations_projection_error("event page bounds"));
-    }
-    let expected_next_cursor = page.events.last().map(|event| event.cursor());
-    if page.has_more != page.next_cursor.is_some()
-        || (page.has_more && expected_next_cursor != page.next_cursor)
-    {
-        return Err(redacted_operations_projection_error(
-            "event page continuation",
-        ));
-    }
-    Ok(())
-}
-
-fn decode_operations_event(
-    record: &erpx_infrastructure::OperationsEventRecord,
-    holding_ref: &str,
-    projection_name: &str,
-) -> Result<DecodedOperationsEvent, ()> {
-    if record.holding_ref != holding_ref
-        || record.envelope.contract_version != OPERATIONS_CONTRACT_VERSION
-        || record.envelope.event_id.is_nil()
-        || record.envelope.event_type.trim().is_empty()
-        || record.envelope.event_type.len() > 255
-        || record.envelope.event_version == 0
-        || record.envelope.aggregate_id.is_nil()
-        || record.envelope.aggregate_version == 0
-        || record.envelope.aggregate_type.trim().is_empty()
-        || record.envelope.correlation_id.is_nil()
-        || !is_valid_projection_reference(projection_name)
-    {
-        return Err(());
-    }
-
-    macro_rules! try_decode_aggregate {
-        ($kind:literal, $type:ty, $variant:ident) => {
-            if record.envelope.aggregate_type == $kind {
-                let aggregate = serde_json::from_value::<$type>(record.envelope.payload.clone())
-                    .map_err(|_| ())?;
-                validate_decoded_aggregate(&aggregate, record, holding_ref)?;
-                return Ok(DecodedOperationsEvent {
-                    event: operations_projection_event(record, projection_name),
-                    aggregate: DecodedOperationsAggregate::$variant(aggregate),
-                });
-            }
-        };
-    }
-
-    try_decode_aggregate!("organization.holding", Holding, Holding);
-    try_decode_aggregate!("organization.company", Company, Company);
-    try_decode_aggregate!("organization.headquarters", Headquarters, Headquarters);
-    try_decode_aggregate!("organization.branch", Branch, Branch);
-    try_decode_aggregate!("organization.department", Department, Department);
-    try_decode_aggregate!("organization.team", Team, Team);
-    try_decode_aggregate!(
-        "operations.operational_plan",
-        OperationalPlan,
-        OperationalPlan
-    );
-    try_decode_aggregate!(
-        "operations.operational_commitment",
-        OperationalCommitment,
-        OperationalCommitment
-    );
-    try_decode_aggregate!(
-        "operations.fulfillment_plan",
-        FulfillmentPlan,
-        FulfillmentPlan
-    );
-    try_decode_aggregate!("operations.capacity_plan", CapacityPlan, CapacityPlan);
-    try_decode_aggregate!("operations.exception_case", ExceptionCase, ExceptionCase);
-    try_decode_aggregate!(
-        "operations.work_queue_policy",
-        WorkQueuePolicy,
-        WorkQueuePolicy
-    );
-    try_decode_aggregate!(
-        "operations.operating_calendar",
-        OperatingCalendar,
-        OperatingCalendar
-    );
-    try_decode_aggregate!("operations.shift", Shift, Shift);
-    try_decode_aggregate!("operations.shift_handover", ShiftHandover, ShiftHandover);
-    try_decode_aggregate!(
-        "operations.standard_operating_procedure",
-        StandardOperatingProcedure,
-        StandardOperatingProcedure
-    );
-    try_decode_aggregate!("operations.dispatch_batch", DispatchBatch, DispatchBatch);
-    Err(())
-}
-
-fn operations_projection_event(
-    record: &erpx_infrastructure::OperationsEventRecord,
-    projection_name: &str,
-) -> OperationsEvent {
-    OperationsEvent {
-        envelope: record.envelope.clone(),
-        projection: ProjectionEventMetadata {
-            projection_name: projection_name.into(),
-            event_id: record.envelope.event_id,
-            aggregate_type: record.envelope.aggregate_type.clone(),
-            aggregate_id: record.envelope.aggregate_id,
-            aggregate_version: record.envelope.aggregate_version,
-            projected_at: record.applied_at,
-        },
-    }
-}
-
-fn validate_decoded_aggregate<A: OperationsAggregate>(
-    aggregate: &A,
-    record: &erpx_infrastructure::OperationsEventRecord,
-    holding_ref: &str,
-) -> Result<(), ()> {
-    let metadata: &AggregateMetadata = aggregate.metadata();
-    if A::AGGREGATE_TYPE != record.envelope.aggregate_type
-        || metadata.id != record.envelope.aggregate_id
-        || metadata.version != record.envelope.aggregate_version
-        || metadata.holding_ref != holding_ref
-        || serde_json::to_value(&metadata.scope).map_err(|_| ())?
-            != serde_json::to_value(&record.envelope.tenant_scope).map_err(|_| ())?
-        || aggregate.validate().is_err()
-        || aggregate.canonical_json().map_err(|_| ())? != record.envelope.payload
-    {
-        return Err(());
-    }
-    Ok(())
-}
-
-/// Routes tenant databases and applies the real Operations read projector.
-/// The write pool is used only for the immutable event page; all aggregate
-/// state/checkpoint writes go through `SqlxOperationsStore::project_event` to
-/// the routed read pool.
-#[derive(Debug, Clone)]
-pub struct OperationsProjectionRunner {
-    router: TenantDatabaseRouter,
-}
-
-impl OperationsProjectionRunner {
-    pub fn new(router: TenantDatabaseRouter) -> Self {
-        Self { router }
-    }
-
-    pub async fn project_page(
-        &self,
-        request: OperationsProjectionRequest,
-    ) -> Result<OperationsProjectionRunReport, OperationsProjectionWorkerError> {
-        request.validate()?;
-        let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
-            .await?;
-        let result = match SqlxOperationsStore::from_pools(
-            write.database_pool(),
-            read.database_pool(),
-            request.holding_ref.clone(),
-        ) {
-            Ok(store) => {
-                async {
-                    let page = store
-                        .read_event_page(request.cursor, request.page_size)
-                        .await
-                        .map_err(|_| redacted_operations_projection_error("event page read"))?;
-                    let counts = apply_operations_page(
-                        &store,
-                        &page,
-                        &request.holding_ref,
-                        erpx_infrastructure::OPERATIONS_READ_PROJECTION,
-                    )
-                    .await?;
-                    Ok(OperationsProjectionRunReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
-                        events_seen: counts.events_seen,
-                        events_applied: counts.events_applied,
-                        events_noop: counts.events_noop,
-                        next_cursor: counts.next_cursor,
-                        has_more: counts.has_more,
-                    })
-                }
-                .await
-            }
-            Err(_) => Err(redacted_operations_projection_error("store construction")),
-        };
-        close_operations_routes(write, read).await;
-        result
-    }
-
-    pub async fn rebuild(
-        &self,
-        request: OperationsProjectionRebuildRequest,
-    ) -> Result<OperationsProjectionRebuildRunReport, OperationsProjectionWorkerError> {
-        request.validate().map_err(|_| {
-            OperationsProjectionWorkerError::Configuration(
-                "Operations projection rebuild request is invalid".into(),
-            )
-        })?;
-        let (write, read) = self
-            .route_store(&request.tenant_id, &request.holding_ref)
-            .await?;
-        let result = match SqlxOperationsStore::from_pools(
-            write.database_pool(),
-            read.database_pool(),
-            request.holding_ref.clone(),
-        ) {
-            Ok(store) => {
-                async {
-                    let preparation = store
-                        .prepare_projection_rebuild(&request.projection_name)
-                        .await
-                        .map_err(|_| {
-                            redacted_operations_projection_error("projection rebuild preparation")
-                        })?;
-                    let mut cursor = None;
-                    let mut pages_read = 0_u64;
-                    let mut events_seen = 0_u64;
-                    let mut events_replayed = 0_u64;
-                    let mut events_noop = 0_u64;
-                    loop {
-                        let page = store
-                            .read_event_page(cursor, request.page_size)
-                            .await
-                            .map_err(|_| redacted_operations_projection_error("event page read"))?;
-                        pages_read = pages_read.saturating_add(1);
-                        let counts = apply_operations_page(
-                            &store,
-                            &page,
-                            &request.holding_ref,
-                            &request.projection_name,
-                        )
-                        .await?;
-                        events_seen = events_seen.saturating_add(counts.events_seen);
-                        events_replayed = events_replayed.saturating_add(counts.events_applied);
-                        events_noop = events_noop.saturating_add(counts.events_noop);
-                        if !counts.has_more {
-                            break;
-                        }
-                        cursor = counts.next_cursor;
-                        if cursor.is_none() {
-                            return Err(redacted_operations_projection_error(
-                                "event page continuation",
-                            ));
-                        }
-                    }
-                    Ok(OperationsProjectionRebuildRunReport {
-                        tenant_id: request.tenant_id.clone(),
-                        holding_ref: request.holding_ref.clone(),
-                        projection_name: request.projection_name.clone(),
-                        pages_read,
-                        events_seen,
-                        events_replayed,
-                        events_noop,
-                        preparation,
-                    })
-                }
-                .await
-            }
-            Err(_) => Err(redacted_operations_projection_error("store construction")),
-        };
-        close_operations_routes(write, read).await;
-        result
-    }
-
-    async fn route_store(
-        &self,
-        tenant_id: &str,
-        holding_ref: &str,
-    ) -> Result<
-        (
-            erpx_infrastructure::RoutedTenantDatabase,
-            erpx_infrastructure::RoutedTenantDatabase,
-        ),
-        OperationsProjectionWorkerError,
-    > {
-        let write = self
-            .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-            .await
-            .map_err(|_| redacted_operations_projection_error("write database routing"))?;
-        let read = match self
-            .router
-            .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-            .await
-        {
-            Ok(read) => read,
-            Err(_) => {
-                write.close().await;
-                return Err(redacted_operations_projection_error(
-                    "read database routing",
-                ));
-            }
-        };
-        Ok((write, read))
-    }
-}
-
-#[async_trait::async_trait]
-impl CandidateProjectionRebuilder for OperationsProjectionRunner {
-    async fn rebuild_candidate(
-        &self,
-        projection_name: &str,
-        candidate: &erpx_infrastructure::RoutedTenantDatabase,
-        source_version: u64,
-    ) -> Result<erpx_infrastructure::ProjectionRebuildReport, WorkerError> {
-        if projection_name != erpx_infrastructure::OPERATIONS_READ_PROJECTION
-            || candidate.side != RoutedDatabaseSide::Read
-        {
-            return Err(WorkerError::Permanent(
-                "candidate Operations projection binding is invalid".into(),
-            ));
-        }
-        let write = self
-            .router
-            .route(
-                &candidate.tenant_id,
-                &candidate.holding_ref,
-                RoutedDatabaseSide::Write,
-            )
-            .await
-            .map_err(|_| {
-                WorkerError::Permanent("candidate Operations write route failed".into())
-            })?;
-        let store = match SqlxOperationsStore::from_pools(
-            write.database_pool(),
-            candidate.database_pool(),
-            candidate.holding_ref.clone(),
-        ) {
-            Ok(store) => store,
-            Err(_) => {
-                write.close().await;
-                return Err(WorkerError::Permanent(
-                    "candidate Operations store binding failed".into(),
-                ));
-            }
-        };
-        let result = async {
-            let source_before = store.source_event_high_watermark().await.map_err(|_| {
-                WorkerError::Retryable("candidate Operations source watermark failed".into())
-            })?;
-            if source_before != source_version {
-                return Err(WorkerError::Permanent(
-                    "candidate Operations source watermark does not match rebuild intent".into(),
-                ));
-            }
-            store
-                .prepare_projection_rebuild(projection_name)
-                .await
-                .map_err(|_| WorkerError::Permanent("candidate Operations clear failed".into()))?;
-            let mut cursor = None;
-            let mut events_replayed = 0_u64;
-            loop {
-                let page = store
-                    .read_event_page(cursor, OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE)
-                    .await
-                    .map_err(|_| {
-                        WorkerError::Permanent("candidate Operations source read failed".into())
-                    })?;
-                let counts =
-                    apply_operations_page(&store, &page, &candidate.holding_ref, projection_name)
-                        .await
-                        .map_err(|_| {
-                            WorkerError::Permanent("candidate Operations replay failed".into())
-                        })?;
-                events_replayed = events_replayed.saturating_add(counts.events_applied);
-                if !counts.has_more {
-                    break;
-                }
-                cursor = counts.next_cursor;
-                if cursor.is_none() {
-                    return Err(WorkerError::Permanent(
-                        "candidate Operations source cursor missing".into(),
-                    ));
-                }
-            }
-            let source_after = store.source_event_high_watermark().await.map_err(|_| {
-                WorkerError::Retryable("candidate Operations source watermark failed".into())
-            })?;
-            if source_after != source_before {
-                return Err(WorkerError::Retryable(
-                    "candidate Operations source changed during rebuild".into(),
-                ));
-            }
-            Ok(erpx_infrastructure::ProjectionRebuildReport {
-                projection_name: projection_name.into(),
-                events_replayed,
-            })
-        }
-        .await;
-        write.close().await;
-        result
-    }
-}
-
-async fn close_operations_routes(
-    write: erpx_infrastructure::RoutedTenantDatabase,
-    read: erpx_infrastructure::RoutedTenantDatabase,
-) {
-    write.close().await;
-    read.close().await;
-}
-
-fn validate_projection_reference(
-    value: &str,
-    field: &str,
-) -> Result<(), OperationsProjectionWorkerError> {
-    if !is_valid_projection_reference(value) {
-        return Err(OperationsProjectionWorkerError::Configuration(format!(
-            "Operations projection {field} is invalid"
-        )));
-    }
-    Ok(())
-}
-
-fn is_valid_projection_reference(value: &str) -> bool {
-    !value.trim().is_empty()
-        && value.len() <= 255
-        && !value
-            .chars()
-            .any(|character| character.is_control() || matches!(character, '/' | '\\' | ':' | ' '))
-}
-
-fn validate_projection_page_size(page_size: u32) -> Result<(), OperationsProjectionWorkerError> {
-    if page_size == 0 || page_size > OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE {
-        return Err(OperationsProjectionWorkerError::Configuration(format!(
-            "Operations projection page size must be 1..={OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE}"
-        )));
-    }
-    Ok(())
-}
-
-fn redacted_operations_projection_error(
-    operation: &'static str,
-) -> OperationsProjectionWorkerError {
-    tracing::error!(operation, "Operations projection worker failed");
-    OperationsProjectionWorkerError::Projection { operation }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct OperationsTenantProjectionExecutor {
-    default_page_size: u32,
-}
-
-impl Default for OperationsTenantProjectionExecutor {
-    fn default() -> Self {
-        Self {
-            default_page_size: OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE,
-        }
-    }
-}
-
-impl OperationsTenantProjectionExecutor {
-    pub fn new(page_size: u32) -> Result<Self, OperationsProjectionWorkerError> {
-        validate_projection_page_size(page_size)?;
-        Ok(Self {
-            default_page_size: page_size,
-        })
-    }
-
-    pub fn page_size(self) -> u32 {
-        self.default_page_size
-    }
-}
-
-struct OperationsProjectionJobPayload {
-    page_size: Option<u32>,
-    cursor: Option<OperationsProjectionJobCursor>,
-    source_version: Option<u64>,
-}
-
-struct OperationsProjectionJobCursor {
-    aggregate_id: Uuid,
-    aggregate_version: u64,
-}
-
-impl OperationsProjectionJobPayload {
-    fn from_claim(
-        claim: &ProjectionClaimRecord,
-        default_page_size: u32,
-    ) -> Result<Self, OperationsProjectionWorkerError> {
-        let Some(payload) = claim.job.payload.as_object() else {
-            if claim.job.payload.is_null() {
-                return Ok(Self {
-                    page_size: Some(default_page_size),
-                    cursor: None,
-                    source_version: None,
-                });
-            }
-            return Err(OperationsProjectionWorkerError::Configuration(
-                "Operations projection job payload is invalid".into(),
-            ));
-        };
-        let page_size = match payload.get("page_size") {
-            None => default_page_size,
-            Some(value) => value
-                .as_u64()
-                .and_then(|value| u32::try_from(value).ok())
-                .ok_or_else(|| {
-                    OperationsProjectionWorkerError::Configuration(
-                        "Operations projection job page size is invalid".into(),
-                    )
-                })?,
-        };
-        let cursor = match payload.get("cursor") {
-            None | Some(serde_json::Value::Null) => None,
-            Some(value) => {
-                let Some(cursor) = value.as_object() else {
-                    return Err(OperationsProjectionWorkerError::Configuration(
-                        "Operations projection job cursor is invalid".into(),
-                    ));
-                };
-                let aggregate_id = cursor
-                    .get("aggregate_id")
-                    .and_then(serde_json::Value::as_str)
-                    .and_then(|value| Uuid::parse_str(value).ok())
-                    .ok_or_else(|| {
-                        OperationsProjectionWorkerError::Configuration(
-                            "Operations projection job cursor is invalid".into(),
-                        )
-                    })?;
-                let aggregate_version = cursor
-                    .get("aggregate_version")
-                    .and_then(serde_json::Value::as_u64)
-                    .ok_or_else(|| {
-                        OperationsProjectionWorkerError::Configuration(
-                            "Operations projection job cursor is invalid".into(),
-                        )
-                    })?;
-                Some(OperationsProjectionJobCursor {
-                    aggregate_id,
-                    aggregate_version,
-                })
-            }
-        };
-        let source_version = match payload.get("source_version") {
-            None | Some(serde_json::Value::Null) => None,
-            Some(value) => {
-                let source_version = value.as_u64().ok_or_else(|| {
-                    OperationsProjectionWorkerError::Configuration(
-                        "Operations projection source version is invalid".into(),
-                    )
-                })?;
-                if source_version == 0 {
-                    return Err(OperationsProjectionWorkerError::Configuration(
-                        "Operations projection source version is invalid".into(),
-                    ));
-                }
-                Some(source_version)
-            }
-        };
-        validate_projection_page_size(page_size)?;
-        if let Some(cursor) = &cursor
-            && (cursor.aggregate_id.is_nil() || cursor.aggregate_version == 0)
-        {
-            return Err(OperationsProjectionWorkerError::Configuration(
-                "Operations projection job cursor is invalid".into(),
-            ));
-        }
-        Ok(Self {
-            page_size: Some(page_size),
-            cursor,
-            source_version,
-        })
-    }
-
-    fn page_size(&self) -> u32 {
-        self.page_size.expect("validated page size")
-    }
-
-    fn cursor(&self) -> Option<OperationsEventCursor> {
-        self.cursor.as_ref().map(|cursor| OperationsEventCursor {
-            aggregate_id: cursor.aggregate_id,
-            aggregate_version: cursor.aggregate_version,
-        })
-    }
-}
-
-#[async_trait::async_trait]
-impl TenantProjectionRoutedExecutor for OperationsTenantProjectionExecutor {
-    async fn execute_routed(
-        &self,
-        claim: &ProjectionClaimRecord,
-        write: &erpx_infrastructure::RoutedTenantDatabase,
-        read: &erpx_infrastructure::RoutedTenantDatabase,
-    ) -> Result<(), TenantProjectionExecutorError> {
-        if claim.job.binding.tenant_id != write.tenant_id
-            || claim.job.binding.holding_ref != write.holding_ref
-            || write.side != RoutedDatabaseSide::Write
-            || read.side != RoutedDatabaseSide::Read
-            || claim.job.projection_name.trim().is_empty()
-            || claim.job.projection_name != erpx_infrastructure::OPERATIONS_READ_PROJECTION
-            || !is_valid_projection_reference(&claim.job.projection_name)
-        {
-            return Err(TenantProjectionExecutorError::Permanent);
-        }
-        let payload = OperationsProjectionJobPayload::from_claim(claim, self.default_page_size)
-            .map_err(|_| TenantProjectionExecutorError::Permanent)?;
-        let store = SqlxOperationsStore::from_pools(
-            write.database_pool(),
-            read.database_pool(),
-            claim.job.binding.holding_ref.clone(),
-        )
-        .map_err(|_| TenantProjectionExecutorError::Permanent)?;
-
-        match claim.job.kind {
-            ProjectionJobKind::Incremental => {
-                let page = store
-                    .read_event_page(payload.cursor(), payload.page_size())
-                    .await
-                    .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-                apply_operations_page(
-                    &store,
-                    &page,
-                    &claim.job.binding.holding_ref,
-                    &claim.job.projection_name,
-                )
-                .await
-                .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-            }
-            ProjectionJobKind::Rebuild => {
-                if payload.cursor().is_some() {
-                    return Err(TenantProjectionExecutorError::Permanent);
-                }
-                let source_before = match payload.source_version {
-                    Some(_) => Some(
-                        store
-                            .source_event_high_watermark()
-                            .await
-                            .map_err(|_| TenantProjectionExecutorError::Retryable)?,
-                    ),
-                    None => None,
-                };
-                if let (Some(expected), Some(actual)) = (payload.source_version, source_before)
-                    && expected != actual
-                {
-                    return Err(TenantProjectionExecutorError::CandidateSourceMoved);
-                }
-                store
-                    .prepare_projection_rebuild(&claim.job.projection_name)
-                    .await
-                    .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-                let mut cursor = None;
-                loop {
-                    let page = store
-                        .read_event_page(cursor, payload.page_size())
-                        .await
-                        .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-                    let counts = apply_operations_page(
-                        &store,
-                        &page,
-                        &claim.job.binding.holding_ref,
-                        &claim.job.projection_name,
-                    )
-                    .await
-                    .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-                    if !counts.has_more {
-                        break;
-                    }
-                    cursor = counts.next_cursor;
-                    if cursor.is_none() {
-                        return Err(TenantProjectionExecutorError::Permanent);
-                    }
-                }
-                if payload.source_version.is_some() {
-                    let source_after = store
-                        .source_event_high_watermark()
-                        .await
-                        .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-                    if Some(source_after) != source_before {
-                        return Err(TenantProjectionExecutorError::CandidateSourceMoved);
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
 fn validate_worker_reference(value: &str, field: &str) -> Result<(), WorkerRuntimeError> {
     if value.trim().is_empty()
         || value.len() > 255
@@ -1612,15 +540,10 @@ fn validate_worker_reference(value: &str, field: &str) -> Result<(), WorkerRunti
             .any(|character| character.is_control() || matches!(character, '/' | '\\' | ':' | ' '))
     {
         return Err(WorkerRuntimeError::Configuration(format!(
-            "operations {field} is invalid"
+            "worker {field} is invalid"
         )));
     }
     Ok(())
-}
-
-fn redacted_operations_error(operation: &str) -> WorkerRuntimeError {
-    tracing::error!(operation, "operations worker seam failed");
-    WorkerRuntimeError::Configuration(format!("operations {operation} failed"))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2397,6 +1320,20 @@ impl WorkerHandlerRegistry {
         self.handlers.keys().cloned().collect()
     }
 
+    fn replace_registered(
+        &mut self,
+        handler: Arc<dyn NamedWorkerHandler>,
+    ) -> Result<(), WorkerRuntimeError> {
+        let name = handler.name().trim();
+        if !self.handlers.contains_key(name) {
+            return Err(WorkerRuntimeError::Configuration(
+                "worker handler replacement target is not registered".into(),
+            ));
+        }
+        self.handlers.insert(name.to_owned(), handler);
+        Ok(())
+    }
+
     fn get(&self, name: &str) -> Option<Arc<dyn NamedWorkerHandler>> {
         self.handlers.get(name).cloned()
     }
@@ -2902,12 +1839,7 @@ impl WorkerRuntime {
 
     pub fn handler_registry(&self) -> Result<WorkerHandlerRegistry, WorkerRuntimeError> {
         let mut registry = WorkerHandlerRegistry::default();
-        registry.register(Arc::new(Customer360RegisteredHandler {
-            store: Arc::clone(&self.store),
-            batch_size: self.config.batch_size,
-            claim_timeout: self.config.claim_timeout,
-            retry_policy: self.config.retry_policy,
-        }))?;
+        registry.register(Arc::new(AgentAssignmentRuntimeHandler::unavailable()))?;
         registry.register(Arc::new(IncidentRegisteredHandler {
             store: Arc::clone(&self.store),
             batch_size: self.config.batch_size,
@@ -2943,6 +1875,48 @@ impl WorkerRuntime {
             self.config.batch_size,
         )))?;
         Ok(registry)
+    }
+
+    /// Replaces the explicit fail-closed Agent Orchestration registration only
+    /// after the composition root has supplied every durable queue, current
+    /// policy, cancellation/budget guard, protected-material, provider, and
+    /// notification dependency.
+    pub fn handler_registry_with_agent_assignment(
+        &self,
+        runner: Arc<dyn AgentAssignmentPass>,
+    ) -> Result<WorkerHandlerRegistry, WorkerRuntimeError> {
+        let mut registry = self.handler_registry()?;
+        registry.replace_registered(Arc::new(AgentAssignmentRuntimeHandler::available(runner)))?;
+        Ok(registry)
+    }
+
+    /// Compose and register the production Agent handler from trusted active
+    /// tenant routes. The caller must supply real provider/KMS authority and
+    /// object storage; no default or environment tenant identity is accepted.
+    pub fn handler_registry_with_trusted_agent_assignment<D>(
+        &self,
+        tenant_registry: erpx_infrastructure::SqlxTenantStoreRegistry,
+        router: TenantDatabaseRouter,
+        objects: erpx_infrastructure::MinioObjectStore,
+        dependencies: D,
+        config: TrustedAgentTenantRuntimeConfig,
+    ) -> Result<WorkerHandlerRegistry, WorkerRuntimeError>
+    where
+        D: TrustedAgentTenantDependencyPort + 'static,
+    {
+        let runner = compose_trusted_tenant_agent_runner(
+            tenant_registry,
+            router,
+            objects,
+            dependencies,
+            config,
+        )
+        .map_err(|_| {
+            WorkerRuntimeError::Configuration(
+                "trusted Agent tenant dependencies are unavailable".into(),
+            )
+        })?;
+        self.handler_registry_with_agent_assignment(runner)
     }
 
     /// Compose the G4 support session/capability/incident projector only when
@@ -3372,13 +2346,6 @@ impl WorkerRuntime {
             .await?)
     }
 
-    pub fn customer_360_handler(&self) -> Customer360OutboxHandler {
-        Customer360OutboxHandler {
-            worker: self.worker.clone(),
-            projection: Customer360Projection::new(Arc::clone(&self.store)),
-        }
-    }
-
     pub fn incident_handler(&self) -> IncidentOutboxHandler {
         IncidentOutboxHandler {
             worker: self.worker.clone(),
@@ -3532,14 +2499,6 @@ impl WorkerRuntime {
 }
 
 #[derive(Debug, Clone)]
-struct Customer360RegisteredHandler {
-    store: Arc<SqlxControlPlane>,
-    batch_size: u32,
-    claim_timeout: chrono::Duration,
-    retry_policy: RetryPolicy,
-}
-
-#[derive(Debug, Clone)]
 struct IncidentRegisteredHandler {
     store: Arc<SqlxControlPlane>,
     batch_size: u32,
@@ -3569,25 +2528,6 @@ impl NamedWorkerHandler for IncidentRegisteredHandler {
         let handler = IncidentOutboxHandler {
             worker: worker.clone(),
             projection: IncidentProjection::new(Arc::clone(&self.store)),
-        };
-        Ok(worker.run_once(&handler).await?.into())
-    }
-}
-
-#[async_trait::async_trait]
-impl NamedWorkerHandler for Customer360RegisteredHandler {
-    fn name(&self) -> &str {
-        CUSTOMER_360_HANDLER_NAME
-    }
-
-    async fn run_once(&self, worker_id: Uuid) -> Result<WorkerHandlerReport, WorkerRuntimeError> {
-        let worker = OutboxWorker::new(Arc::clone(&self.store), worker_id)
-            .with_batch_size(self.batch_size)
-            .with_claim_timeout(self.claim_timeout)
-            .with_retry_policy(self.retry_policy);
-        let handler = Customer360OutboxHandler {
-            worker: worker.clone(),
-            projection: Customer360Projection::new(Arc::clone(&self.store)),
         };
         Ok(worker.run_once(&handler).await?.into())
     }
@@ -3934,11 +2874,6 @@ fn merge_worker_loop_report(total: &mut WorkerLoopReport, report: WorkerLoopRepo
 }
 
 #[derive(Debug, Clone)]
-pub struct Customer360Projection {
-    store: Arc<SqlxControlPlane>,
-}
-
-#[derive(Debug, Clone)]
 pub struct IncidentProjection {
     store: Arc<SqlxControlPlane>,
 }
@@ -3989,68 +2924,6 @@ impl ProjectionHandler for IncidentProjection {
     }
 }
 
-impl Customer360Projection {
-    pub fn new(store: Arc<SqlxControlPlane>) -> Self {
-        Self { store }
-    }
-
-    pub async fn reconcile(&self) -> Result<Customer360ReadReconciliation, WorkerError> {
-        self.store
-            .reconcile_customer_360_read_models()
-            .await
-            .map_err(|error| WorkerError::Retryable(error.to_string()))
-    }
-}
-
-#[async_trait::async_trait]
-impl ProjectionHandler for Customer360Projection {
-    fn handles_event(&self, projection_name: &str, event: &OutboxEnvelope) -> bool {
-        projection_name == CUSTOMER_360_HANDLER_NAME
-            && matches!(event.aggregate_type.as_str(), "customer" | "customer_note")
-    }
-
-    async fn clear(&self, projection_name: &str) -> Result<(), WorkerError> {
-        if projection_name != "customer_360" {
-            return Err(WorkerError::Permanent(format!(
-                "unsupported projection: {projection_name}"
-            )));
-        }
-        self.store
-            .clear_customer_read_model()
-            .await
-            .map_err(|error| WorkerError::Retryable(error.to_string()))
-    }
-
-    async fn project(
-        &self,
-        projection_name: &str,
-        event: &OutboxEnvelope,
-    ) -> Result<(), WorkerError> {
-        if projection_name != "customer_360" {
-            return Err(WorkerError::Permanent(format!(
-                "unsupported projection: {projection_name}"
-            )));
-        }
-        if event.aggregate_type == "customer_note" {
-            let note = customer_note_from_event(&event.payload)?;
-            self.store
-                .upsert_customer_note_read_model(&note, event.occurred_at)
-                .await
-                .map_err(|error| WorkerError::Retryable(error.to_string()))?;
-            return Ok(());
-        }
-        if event.aggregate_type != "customer" {
-            return Ok(());
-        }
-        let projection = customer_projection_from_event(&event.payload)?;
-        self.store
-            .upsert_customer_projection_read_model_at(&projection, event.occurred_at)
-            .await
-            .map_err(|error| WorkerError::Retryable(error.to_string()))?;
-        Ok(())
-    }
-}
-
 pub const CUSTOMER_ACCESS_AUDIT_SUMMARY_PROJECTION_NAME: &str = "customer_access_audit_summary";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -4093,49 +2966,6 @@ fn redacted_audit_projection_error(operation: &str) -> WorkerError {
     WorkerError::Retryable(format!(
         "customer access-audit summary projection {operation} failed"
     ))
-}
-
-fn customer_projection_from_event(
-    payload: &serde_json::Value,
-) -> Result<DomainCustomer360Projection, WorkerError> {
-    let has_enriched_fields = payload
-        .get("account")
-        .and_then(|account| account.get("identity"))
-        .is_some()
-        || payload.get("organization").is_some()
-        || payload.get("commercial").is_some()
-        || payload.get("onboarding").is_some();
-    if has_enriched_fields {
-        serde_json::from_value(payload.clone())
-            .map(DomainCustomer360Projection::canonicalized)
-            .map_err(|error| {
-                WorkerError::Permanent(format!("invalid enriched customer event: {error}"))
-            })
-    } else {
-        serde_json::from_value::<Customer360>(payload.clone())
-            .map(|customer| DomainCustomer360Projection::from_legacy(&customer))
-            .map_err(|error| WorkerError::Permanent(format!("invalid customer event: {error}")))
-    }
-}
-
-fn customer_note_from_event(payload: &serde_json::Value) -> Result<CustomerNote, WorkerError> {
-    let note: CustomerNote = serde_json::from_value(payload.clone())
-        .map_err(|error| WorkerError::Permanent(format!("invalid customer note event: {error}")))?;
-    CustomerNote::new(
-        note.id,
-        note.customer_id,
-        note.author_ref.clone(),
-        note.scope.clone(),
-        note.created_at,
-        note.body.clone(),
-    )
-    .map_err(|error| WorkerError::Permanent(format!("invalid customer note event: {error}")))
-}
-
-#[derive(Debug, Clone)]
-pub struct Customer360OutboxHandler {
-    worker: OutboxWorker,
-    projection: Customer360Projection,
 }
 
 #[derive(Debug, Clone)]
@@ -4346,17 +3176,6 @@ fn bounded_stripe_semantic_claim_timeout(timeout: chrono::Duration) -> chrono::D
         ))
 }
 
-#[async_trait::async_trait]
-impl OutboxHandler for Customer360OutboxHandler {
-    async fn handle(&self, event: &OutboxEnvelope) -> Result<(), WorkerError> {
-        self.worker
-            .project_once("customer_360", event, &self.projection)
-            .await
-            .map(|_| ())
-            .map_err(|error| WorkerError::Retryable(error.to_string()))
-    }
-}
-
 /// The executable uses this guard until the modular-monolith composition root
 /// registers real context handlers. It never acknowledges or mutates an event.
 #[derive(Debug, Default, Clone, Copy)]
@@ -4413,10 +3232,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_domain::access::Scope;
     use erpx_domain::commercial::BillingLifecycle;
-    use erpx_domain::contracts::{ActorAttribution, ActorKind, EventEnvelope};
-    use erpx_domain::operations::{Holding, OrganizationStatus};
     use erpx_domain::support::{SupportCapabilityBinding, SupportMode};
     use erpx_infrastructure::{
         ControlPlaneDatabaseConfig, ControlPlanePools, StripeInboxEvent, StripeInboxStatus,
@@ -4543,41 +3359,9 @@ mod tests {
     }
 
     #[test]
-    fn operations_worker_requests_enforce_page_bounds_and_tenant_binding() {
-        assert!(OperationsEventStreamRequest::new("tenant-1", "holding-1", None, 0).is_err());
-        assert!(
-            OperationsEventStreamRequest::new(
-                "tenant-1",
-                "holding-1",
-                None,
-                OPERATIONS_EVENT_STREAM_MAX_PAGE_SIZE + 1,
-            )
-            .is_err()
-        );
-        assert!(OperationsEventStreamRequest::new("tenant/1", "holding-1", None, 1).is_err());
-        assert!(OperationsEventStreamRequest::new("tenant-1", "holding 1", None, 1).is_err());
-
-        let request = OperationsEventStreamRequest::new("tenant-1", "holding-1", None, 500)
-            .expect("bounded tenant event request");
-        assert_eq!(request.tenant_id, "tenant-1");
-        assert_eq!(request.holding_ref, "holding-1");
-        assert_eq!(request.page_size, MAX_OPERATIONS_EVENT_PAGE_SIZE);
-
-        assert!(
-            OperationsProjectionRebuildRequest::new(
-                "tenant-1",
-                "holding-1",
-                "operations_read_model",
-            )
-            .is_ok()
-        );
-        assert!(OperationsProjectionRebuildRequest::new("tenant-1", "holding-1", " ").is_err());
-    }
-
-    #[test]
     fn candidate_rebuild_request_is_fully_bound_and_bounded() {
         let request = ProjectionCandidateRebuildRequest::new(
-            erpx_infrastructure::OPERATIONS_READ_PROJECTION,
+            erpx_operations_sqlx::EXCEPTION_PROJECTION,
             "tenant-1",
             "holding-1",
             "tenant_candidate_read_1",
@@ -4599,7 +3383,7 @@ mod tests {
         );
         assert!(
             ProjectionCandidateRebuildRequest::new(
-                erpx_infrastructure::OPERATIONS_READ_PROJECTION,
+                erpx_operations_sqlx::EXCEPTION_PROJECTION,
                 "tenant-1",
                 "holding-1",
                 "tenant candidate",
@@ -4609,234 +3393,13 @@ mod tests {
         );
         assert!(
             ProjectionCandidateRebuildRequest::new(
-                erpx_infrastructure::OPERATIONS_READ_PROJECTION,
+                erpx_operations_sqlx::EXCEPTION_PROJECTION,
                 "tenant-1",
                 "holding-1",
                 "tenant_candidate_read_1",
                 0,
             )
             .is_err()
-        );
-    }
-
-    fn test_holding_record(id: Uuid) -> erpx_infrastructure::OperationsEventRecord {
-        let now = Utc::now();
-        let holding = Holding {
-            meta: AggregateMetadata {
-                id,
-                holding_ref: "holding-1".into(),
-                scope: Scope::Holding { holding_id: id },
-                version: 1,
-                created_at: now,
-                updated_at: now,
-            },
-            code: format!("H-{id}"),
-            name: "Test holding".into(),
-            status: OrganizationStatus::Active,
-        };
-        let correlation_id = Uuid::new_v4();
-        let payload = holding
-            .canonical_json()
-            .expect("test holding has canonical payload");
-        let tenant_scope = serde_json::from_value(
-            serde_json::to_value(&holding.meta.scope).expect("scope serializes"),
-        )
-        .expect("scope converts to tenant scope");
-        erpx_infrastructure::OperationsEventRecord {
-            envelope: EventEnvelope {
-                contract_version: OPERATIONS_CONTRACT_VERSION,
-                event_id: Uuid::new_v4(),
-                event_type: "holding.created".into(),
-                event_version: 1,
-                occurred_at: now,
-                aggregate_type: Holding::AGGREGATE_TYPE.into(),
-                aggregate_id: id,
-                aggregate_version: 1,
-                tenant_scope,
-                actor: ActorAttribution {
-                    principal_ref: "worker-test".into(),
-                    kind: ActorKind::SystemWorker,
-                    session_id: None,
-                    represented_principal_ref: None,
-                    support_capability_id: None,
-                },
-                correlation_id,
-                causation_id: None,
-                idempotency_key: None,
-                payload,
-            },
-            holding_ref: "holding-1".into(),
-            applied_at: now,
-        }
-    }
-
-    #[test]
-    fn operations_projection_decodes_allowlisted_aggregate_and_rejects_unknown() {
-        let record = test_holding_record(Uuid::from_u128(1));
-        let decoded = decode_operations_event(
-            &record,
-            "holding-1",
-            erpx_infrastructure::OPERATIONS_READ_PROJECTION,
-        )
-        .expect("holding is in the closed decoder allow-list");
-        assert!(matches!(
-            decoded.aggregate,
-            DecodedOperationsAggregate::Holding(_)
-        ));
-
-        let mut unknown = record.clone();
-        unknown.envelope.aggregate_type = "operations.unknown_secret".into();
-        assert!(
-            decode_operations_event(
-                &unknown,
-                "holding-1",
-                erpx_infrastructure::OPERATIONS_READ_PROJECTION,
-            )
-            .is_err()
-        );
-    }
-
-    #[test]
-    fn operations_projection_rejects_payload_identity_mismatch() {
-        let mut record = test_holding_record(Uuid::from_u128(2));
-        record.envelope.aggregate_id = Uuid::from_u128(99);
-        assert!(
-            decode_operations_event(
-                &record,
-                "holding-1",
-                erpx_infrastructure::OPERATIONS_READ_PROJECTION,
-            )
-            .is_err()
-        );
-
-        let mut scope_mismatch = test_holding_record(Uuid::from_u128(3));
-        scope_mismatch.envelope.tenant_scope = erpx_domain::contracts::TenantScope::Platform;
-        assert!(
-            decode_operations_event(
-                &scope_mismatch,
-                "holding-1",
-                erpx_infrastructure::OPERATIONS_READ_PROJECTION,
-            )
-            .is_err()
-        );
-    }
-
-    #[derive(Debug)]
-    struct FakeOperationsApplier {
-        applied: Vec<bool>,
-        next: Mutex<usize>,
-        failure: bool,
-    }
-
-    #[async_trait::async_trait]
-    impl OperationsProjectionApplier for FakeOperationsApplier {
-        async fn apply_decoded(
-            &self,
-            event: &OperationsEvent,
-            aggregate: &DecodedOperationsAggregate,
-        ) -> Result<OperationsProjectionApplication, PersistenceError> {
-            if self.failure {
-                return Err(PersistenceError::InvalidData(
-                    "postgres://fake-secret".into(),
-                ));
-            }
-            let mut next = self.next.lock().expect("fake counter mutex");
-            let applied = self.applied.get(*next).copied().unwrap_or(false);
-            *next += 1;
-            let (aggregate_type, aggregate_id) = match aggregate {
-                DecodedOperationsAggregate::Holding(value) => {
-                    (Holding::AGGREGATE_TYPE, value.meta.id)
-                }
-                _ => (
-                    event.envelope.aggregate_type.as_str(),
-                    event.envelope.aggregate_id,
-                ),
-            };
-            Ok(OperationsProjectionApplication {
-                projection_name: event.projection.projection_name.clone(),
-                event_id: event.envelope.event_id,
-                aggregate_type: aggregate_type.into(),
-                aggregate_id,
-                aggregate_version: event.envelope.aggregate_version,
-                applied,
-            })
-        }
-    }
-
-    #[tokio::test]
-    async fn operations_projection_reports_page_applied_and_noop_counts() {
-        let first = test_holding_record(Uuid::from_u128(10));
-        let second = test_holding_record(Uuid::from_u128(11));
-        let next_cursor = second.cursor();
-        let page = OperationsEventPage {
-            events: vec![first, second],
-            next_cursor: Some(next_cursor),
-            has_more: true,
-        };
-        let fake = FakeOperationsApplier {
-            applied: vec![true, false],
-            next: Mutex::new(0),
-            failure: false,
-        };
-        let counts = apply_operations_page(
-            &fake,
-            &page,
-            "holding-1",
-            erpx_infrastructure::OPERATIONS_READ_PROJECTION,
-        )
-        .await
-        .expect("bounded page applies through fake");
-        assert_eq!(counts.events_seen, 2);
-        assert_eq!(counts.events_applied, 1);
-        assert_eq!(counts.events_noop, 1);
-        assert_eq!(counts.next_cursor, Some(next_cursor));
-        assert!(counts.has_more);
-    }
-
-    #[tokio::test]
-    async fn operations_projection_redacts_applier_errors() {
-        let record = test_holding_record(Uuid::from_u128(20));
-        let page = OperationsEventPage {
-            events: vec![record],
-            next_cursor: None,
-            has_more: false,
-        };
-        let fake = FakeOperationsApplier {
-            applied: vec![],
-            next: Mutex::new(0),
-            failure: true,
-        };
-        let error = apply_operations_page(
-            &fake,
-            &page,
-            "holding-1",
-            erpx_infrastructure::OPERATIONS_READ_PROJECTION,
-        )
-        .await
-        .expect_err("fake persistence failure");
-        assert_eq!(
-            error,
-            OperationsProjectionWorkerError::Projection {
-                operation: "event projection"
-            }
-        );
-        assert!(!error.to_string().contains("postgres://"));
-        assert!(!error.to_string().contains("fake-secret"));
-    }
-
-    #[test]
-    fn operations_projection_executor_has_bounded_default_and_constructor() {
-        assert_eq!(
-            OperationsTenantProjectionExecutor::default().page_size(),
-            500
-        );
-        assert!(OperationsTenantProjectionExecutor::new(0).is_err());
-        assert!(OperationsTenantProjectionExecutor::new(501).is_err());
-        assert_eq!(
-            OperationsTenantProjectionExecutor::new(25)
-                .expect("bounded executor")
-                .page_size(),
-            25
         );
     }
 
@@ -4963,37 +3526,6 @@ mod tests {
             ASSET_MAINTENANCE_PROJECTION_MAX_EVENTS
         );
         assert!(next_asset_event_count(ASSET_MAINTENANCE_PROJECTION_MAX_EVENTS, 1).is_err());
-    }
-
-    #[tokio::test]
-    async fn operations_worker_debug_does_not_leak_database_configuration() {
-        let write = PgPoolOptions::new()
-            .connect_lazy(
-                "postgres://worker-secret:password@localhost/control-write?sslmode=verify-full",
-            )
-            .expect("lazy write pool");
-        let read = PgPoolOptions::new()
-            .connect_lazy(
-                "postgres://worker-secret:password@localhost/control-read?sslmode=verify-full",
-            )
-            .expect("lazy read pool");
-        let router =
-            TenantDatabaseRouter::new(
-                Arc::new(SqlxControlPlane::new(ControlPlanePools { write, read })),
-                erpx_infrastructure::TenantDatabaseProvisioningConfig {
-                    admin_database_url:
-                        "postgres://admin-secret:password@localhost/postgres?sslmode=verify-full"
-                            .into(),
-                    database_url_template:
-                        "postgres://tenant-secret:password@localhost/{database}?sslmode=verify-full"
-                            .into(),
-                },
-            )
-            .expect("tenant router");
-        let debug = format!("{:?}", OperationsEventStreamRunner::new(router));
-        assert!(!debug.contains("postgres://"));
-        assert!(!debug.contains("password"));
-        assert!(!debug.contains("worker-secret"));
     }
 
     #[async_trait::async_trait]

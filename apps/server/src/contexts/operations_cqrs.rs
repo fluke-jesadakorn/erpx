@@ -22,7 +22,7 @@ use erpx_operations::{
     QueueFilter, ReassignException, ResolveException, WorkQueuePolicyId, WorkQueuePolicyListFilter,
     WorkQueuePolicyStatus, WorkQueuePolicyView,
 };
-use erpx_proto::{common, platform};
+use erpx_proto::{common, erpx::operations::v1 as platform};
 use platform::{
     operations_command_service_server::OperationsCommandService,
     operations_query_service_server::OperationsQueryService,

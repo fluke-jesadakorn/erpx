@@ -6,8 +6,6 @@ mod backup_external_blocker;
 mod backup_retention;
 #[path = "backup_retention_blocker.rs"]
 mod backup_retention_blocker;
-#[path = "customer_360.rs"]
-mod customer_360;
 #[path = "customer_access_audit.rs"]
 mod customer_access_audit;
 #[path = "legal_projection.rs"]

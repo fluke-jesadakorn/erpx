@@ -23,7 +23,8 @@ use erpx_maintenance::{
 };
 use erpx_maintenance_sqlx::{
     ASSET_FACT_EVENT_TYPE, MaintenanceAssetFactInbox, MaintenanceAssetFactRepository,
-    MaintenanceCommandAdapter, MaintenanceWriteRepository, WorkOrderProjector,
+    MaintenanceCommandAdapter, MaintenanceLifecycleRecordProjector, MaintenanceWriteRepository,
+    WorkOrderProjector,
 };
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -41,13 +42,18 @@ pub struct MaintenanceProjectionRegistration {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct MaintenanceProjectionFactory;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MaintenanceProjectionKind {
+    WorkOrders,
+    LifecycleRecords,
+}
+
 impl MaintenanceProjectionFactory {
-    pub fn registration(self) -> MaintenanceProjectionRegistration {
-        let projector = WorkOrderProjector::new();
-        MaintenanceProjectionRegistration {
-            name: projector.name().into(),
-            event_types: projector.event_types().to_vec(),
-        }
+    pub fn registrations(self) -> Vec<MaintenanceProjectionRegistration> {
+        vec![
+            registration(&WorkOrderProjector::new()),
+            registration(&MaintenanceLifecycleRecordProjector::new()),
+        ]
     }
 
     pub fn build(
@@ -59,7 +65,8 @@ impl MaintenanceProjectionFactory {
         let store = ProjectionStore::new(projection);
         let runner = ProjectionRunner::new(ProjectionSource::new(write), store.clone(), config)?;
         Ok(MaintenanceProjectionRuntime {
-            projector: WorkOrderProjector::new(),
+            work_orders: WorkOrderProjector::new(),
+            lifecycle_records: MaintenanceLifecycleRecordProjector::new(),
             runner,
             store,
         })
@@ -68,36 +75,87 @@ impl MaintenanceProjectionFactory {
 
 #[derive(Debug, Clone)]
 pub struct MaintenanceProjectionRuntime {
-    projector: WorkOrderProjector,
+    work_orders: WorkOrderProjector,
+    lifecycle_records: MaintenanceLifecycleRecordProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
 
 impl MaintenanceProjectionRuntime {
-    pub fn registration(&self) -> MaintenanceProjectionRegistration {
-        MaintenanceProjectionFactory.registration()
+    pub fn registrations(&self) -> Vec<MaintenanceProjectionRegistration> {
+        MaintenanceProjectionFactory.registrations()
     }
 
-    pub async fn run_once(&self) -> Result<ProjectionRun, CqrsSqlxError> {
-        self.runner.run_active(&self.projector).await
+    pub async fn run_once(
+        &self,
+        kind: MaintenanceProjectionKind,
+    ) -> Result<ProjectionRun, CqrsSqlxError> {
+        match kind {
+            MaintenanceProjectionKind::WorkOrders => {
+                self.runner.run_active(&self.work_orders).await
+            }
+            MaintenanceProjectionKind::LifecycleRecords => {
+                self.runner.run_active(&self.lifecycle_records).await
+            }
+        }
     }
 
-    pub async fn begin_rebuild(&self) -> Result<RebuildHandle, CqrsSqlxError> {
-        self.store.begin_rebuild(&self.projector).await
+    pub async fn begin_rebuild(
+        &self,
+        kind: MaintenanceProjectionKind,
+    ) -> Result<RebuildHandle, CqrsSqlxError> {
+        match kind {
+            MaintenanceProjectionKind::WorkOrders => {
+                self.store.begin_rebuild(&self.work_orders).await
+            }
+            MaintenanceProjectionKind::LifecycleRecords => {
+                self.store.begin_rebuild(&self.lifecycle_records).await
+            }
+        }
     }
 
     pub async fn run_rebuild_page(
         &self,
+        kind: MaintenanceProjectionKind,
         handle: &RebuildHandle,
         after_sequence: u64,
     ) -> Result<ProjectionRun, CqrsSqlxError> {
-        self.runner
-            .run_rebuild(&self.projector, handle, after_sequence)
-            .await
+        match kind {
+            MaintenanceProjectionKind::WorkOrders => {
+                self.runner
+                    .run_rebuild(&self.work_orders, handle, after_sequence)
+                    .await
+            }
+            MaintenanceProjectionKind::LifecycleRecords => {
+                self.runner
+                    .run_rebuild(&self.lifecycle_records, handle, after_sequence)
+                    .await
+            }
+        }
     }
 
-    pub async fn activate_rebuild(&self, handle: &RebuildHandle) -> Result<(), CqrsSqlxError> {
+    pub async fn activate_rebuild(
+        &self,
+        kind: MaintenanceProjectionKind,
+        handle: &RebuildHandle,
+    ) -> Result<(), CqrsSqlxError> {
+        let expected = match kind {
+            MaintenanceProjectionKind::WorkOrders => self.work_orders.name(),
+            MaintenanceProjectionKind::LifecycleRecords => self.lifecycle_records.name(),
+        };
+        if handle.projection != expected {
+            return Err(CqrsSqlxError::InvalidInput(
+                "rebuild handle belongs to another Maintenance projector",
+            ));
+        }
         self.store.activate_rebuild(handle).await
+    }
+}
+
+fn registration(projector: &impl Projector) -> MaintenanceProjectionRegistration {
+    MaintenanceProjectionRegistration {
+        name: projector.name().into(),
+        event_types: projector.event_types().to_vec(),
     }
 }
 
@@ -148,6 +206,7 @@ impl EntitlementPort for TrustedMaintenanceRequestAccess {
 pub struct MaintenanceAssetFactRuntime {
     inbox: MaintenanceAssetFactInbox,
     tenant_write_pool: PgPool,
+    tenant_id: Uuid,
     source: Option<ProjectionSource>,
     after_sequence: Arc<AtomicU64>,
     page_size: u32,
@@ -157,10 +216,11 @@ impl MaintenanceAssetFactRuntime {
     /// Manual typed-ingest boundary, useful to composition that already owns a
     /// durable event consumer.
     #[allow(dead_code)] // Manual typed-ingest boundary retained for non-polling consumers.
-    pub fn new(tenant_write_pool: PgPool) -> Self {
+    pub fn new(tenant_write_pool: PgPool, tenant_id: Uuid) -> Self {
         Self {
             inbox: MaintenanceAssetFactInbox::new(tenant_write_pool.clone()),
             tenant_write_pool,
+            tenant_id,
             source: None,
             after_sequence: Arc::new(AtomicU64::new(0)),
             page_size: 100,
@@ -173,6 +233,7 @@ impl MaintenanceAssetFactRuntime {
     pub fn with_source(
         source_write: WritePool,
         tenant_write_pool: PgPool,
+        tenant_id: Uuid,
         page_size: u32,
     ) -> Result<Self, MaintenanceAssetFactRuntimeError> {
         if page_size == 0 || page_size > 1_000 {
@@ -183,6 +244,7 @@ impl MaintenanceAssetFactRuntime {
         Ok(Self {
             inbox: MaintenanceAssetFactInbox::new(tenant_write_pool.clone()),
             tenant_write_pool,
+            tenant_id,
             source: Some(ProjectionSource::new(source_write)),
             after_sequence: Arc::new(AtomicU64::new(0)),
             page_size,
@@ -294,7 +356,11 @@ impl MaintenanceAssetFactRuntime {
         let scope = request.tenant_scope().clone();
         let display_title = maintenance_request_title(request_code, title.as_ref());
         let raw_pool = self.tenant_write_pool.clone();
-        let pool = WritePool::from_pg_pool(raw_pool.clone());
+        let pool = WritePool::for_tenant(raw_pool.clone(), self.tenant_id).map_err(|_| {
+            MaintenanceAssetFactRuntimeError::InvalidContract(
+                "Maintenance tenant identity is invalid",
+            )
+        })?;
         let access = TrustedMaintenanceRequestAccess;
         let receipt = erpx_maintenance::MaintenanceCommandHandler::new(
             MaintenanceWriteRepository::new(pool.clone()),
@@ -441,21 +507,27 @@ fn decode_projection_event(
 mod tests {
     use erpx_integration_contracts::{DisplayName, ReferenceCode};
     use erpx_kernel::EventId;
-    use erpx_maintenance_sqlx::{PROJECTION_NAME, SNAPSHOT_EVENT_TYPE};
+    use erpx_maintenance_sqlx::{
+        LIFECYCLE_RECORD_PROJECTION_NAME, LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE, PROJECTION_NAME,
+        SNAPSHOT_EVENT_TYPE,
+    };
 
     use super::*;
 
     #[tokio::test]
     async fn registrations_keep_snapshot_and_cross_context_fact_channels_separate() {
+        let registrations = MaintenanceProjectionFactory.registrations();
+        assert_eq!(registrations.len(), 2);
+        assert_eq!(registrations[0].name, PROJECTION_NAME);
+        assert_eq!(registrations[0].event_types, vec![SNAPSHOT_EVENT_TYPE]);
+        assert_eq!(registrations[1].name, LIFECYCLE_RECORD_PROJECTION_NAME);
         assert_eq!(
-            MaintenanceProjectionFactory.registration(),
-            MaintenanceProjectionRegistration {
-                name: PROJECTION_NAME.into(),
-                event_types: vec![SNAPSHOT_EVENT_TYPE.into()],
-            }
+            registrations[1].event_types,
+            vec![LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE]
         );
         let facts = MaintenanceAssetFactRuntime::new(
             sqlx::PgPool::connect_lazy("postgres://localhost/maintenance_write").unwrap(),
+            Uuid::from_u128(1),
         );
         assert_eq!(
             facts.registration().event_types,
@@ -465,19 +537,45 @@ mod tests {
 
     #[tokio::test]
     async fn projection_factory_builds_without_connecting() {
-        let write = WritePool::from_pg_pool(
+        let write = WritePool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/maintenance_write").unwrap(),
         );
-        let projection = ProjectionPool::from_pg_pool(
+        let projection = ProjectionPool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/maintenance_read").unwrap(),
         );
         let runtime = MaintenanceProjectionFactory
             .build(write, projection, ProjectionRunnerConfig::default())
             .unwrap();
         assert_eq!(
-            runtime.registration(),
-            MaintenanceProjectionFactory.registration()
+            runtime.registrations(),
+            MaintenanceProjectionFactory.registrations()
         );
+    }
+
+    #[tokio::test]
+    async fn cross_projection_rebuild_handle_fails_before_database_access() {
+        let write = WritePool::from_control_pg_pool(
+            sqlx::PgPool::connect_lazy("postgres://localhost/maintenance_write").unwrap(),
+        );
+        let projection = ProjectionPool::from_control_pg_pool(
+            sqlx::PgPool::connect_lazy("postgres://localhost/maintenance_read").unwrap(),
+        );
+        let runtime = MaintenanceProjectionFactory
+            .build(write, projection, ProjectionRunnerConfig::default())
+            .unwrap();
+        let wrong = RebuildHandle {
+            projection: PROJECTION_NAME.into(),
+            generation: Uuid::new_v4(),
+            replaces: None,
+        };
+        assert!(matches!(
+            runtime
+                .activate_rebuild(MaintenanceProjectionKind::LifecycleRecords, &wrong)
+                .await,
+            Err(CqrsSqlxError::InvalidInput(
+                "rebuild handle belongs to another Maintenance projector"
+            ))
+        ));
     }
 
     #[test]
@@ -488,11 +586,14 @@ mod tests {
 
     #[tokio::test]
     async fn invalid_fact_page_size_fails_without_database_access() {
-        let source = WritePool::from_pg_pool(
+        let source = WritePool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/assets_write").unwrap(),
         );
         let target = sqlx::PgPool::connect_lazy("postgres://localhost/maintenance_write").unwrap();
-        assert!(MaintenanceAssetFactRuntime::with_source(source, target, 0).is_err());
+        assert!(
+            MaintenanceAssetFactRuntime::with_source(source, target, Uuid::from_u128(1), 0)
+                .is_err()
+        );
     }
 
     #[test]

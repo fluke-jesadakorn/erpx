@@ -20,6 +20,7 @@ use erpx_operations_sqlx::{
     OperationsCommandAdapter, OperationsReadRepository, OperationsWriteRepository,
 };
 use tonic::{Request, Status};
+use uuid::Uuid;
 
 use crate::AppState;
 use crate::contexts::{
@@ -199,7 +200,7 @@ impl Wave9Application {
         Self {
             router: state.tenant_router.clone(),
             control: state.store.clone(),
-            control_read: ReadPool::from_pg_pool(state.store.pools().read.clone()),
+            control_read: ReadPool::from_control_pg_pool(state.store.pools().read.clone()),
         }
     }
 
@@ -258,7 +259,9 @@ impl OperationsCommandApplication for Wave9Application {
         let pool = self
             .tenant_pool(&route, RoutedDatabaseSide::Write, envelope.correlation_id)
             .await?;
-        let write = WritePool::from_pg_pool(pool);
+        let tenant_id = cqrs_tenant_uuid(&route.tenant_id, envelope.correlation_id, "operations")?;
+        let write = WritePool::for_tenant(pool, tenant_id)
+            .map_err(|_| invalid_tenant_binding(envelope.correlation_id, "operations"))?;
         let repository = OperationsWriteRepository::new(write.clone());
         let unit_of_work = OperationsCommandAdapter::new(write);
         let access = self.access(&envelope.actor, &envelope.tenant_scope, AccessMode::Write);
@@ -286,7 +289,10 @@ impl OperationsQueryApplication for Wave9Application {
         let pool = self
             .tenant_pool(&route, RoutedDatabaseSide::Read, envelope.correlation_id)
             .await?;
-        let read = OperationsReadRepository::new(ReadPool::from_pg_pool(pool)).map_err(|_| {
+        let tenant_id = cqrs_tenant_uuid(&route.tenant_id, envelope.correlation_id, "operations")?;
+        let read_pool = ReadPool::for_tenant(pool, tenant_id)
+            .map_err(|_| invalid_tenant_binding(envelope.correlation_id, "operations"))?;
+        let read = OperationsReadRepository::new(read_pool).map_err(|_| {
             failure(
                 envelope.correlation_id,
                 "operations.read_configuration",
@@ -480,6 +486,28 @@ fn map_customer_auth(status: Status) -> Customer360AuthenticationError {
         }
         _ => Customer360AuthenticationError::Internal,
     }
+}
+
+fn cqrs_tenant_uuid(
+    tenant_id: &str,
+    correlation_id: CorrelationId,
+    context: &'static str,
+) -> Result<Uuid, CqrsError> {
+    Uuid::parse_str(tenant_id).map_err(|_| invalid_tenant_binding(correlation_id, context))
+}
+
+fn invalid_tenant_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
+    let code = match context {
+        "operations" => "operations.invalid_tenant_identity",
+        _ => "context.invalid_tenant_identity",
+    };
+    failure(
+        correlation_id,
+        code,
+        ErrorCategory::Internal,
+        "The routed tenant identity is invalid.",
+        false,
+    )
 }
 
 fn failure(

@@ -14,11 +14,10 @@ use erpx_migration::{
     MigrationPhase,
     g13::{G13StartRunRequest, G13TransitionRequest, phase_from_wire},
 };
-use erpx_proto::platform::{
+use erpx_proto::erpx::platform_administration::v1::{
     AdvanceMigrationPhaseRequest, AdvanceMigrationPhaseResponse, BeginMigrationRunRequest,
     BeginMigrationRunResponse, ListMigrationStatusesRequest, ListMigrationStatusesResponse,
     MigrationStatus, QueueMigrationWorkRequest, QueueMigrationWorkResponse,
-    migration_service_server::MigrationService,
 };
 use sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status};
@@ -58,9 +57,8 @@ fn migration_proof(principal_ref: &str) -> G13AuthorizationProof {
     }
 }
 
-#[tonic::async_trait]
-impl MigrationService for MigrationRpcImpl {
-    async fn list_migration_statuses(
+impl MigrationRpcImpl {
+    pub(crate) async fn list_migration_statuses(
         &self,
         request: Request<ListMigrationStatusesRequest>,
     ) -> Result<Response<ListMigrationStatusesResponse>, Status> {
@@ -150,7 +148,7 @@ impl MigrationService for MigrationRpcImpl {
         result.map_err(|status| crate::errors::enrich(status, Some(correlation_id)))
     }
 
-    async fn queue_migration_work(
+    pub(crate) async fn queue_migration_work(
         &self,
         request: Request<QueueMigrationWorkRequest>,
     ) -> Result<Response<QueueMigrationWorkResponse>, Status> {
@@ -260,7 +258,7 @@ impl MigrationService for MigrationRpcImpl {
         result.map_err(|status| crate::errors::enrich(status, Some(correlation_id)))
     }
 
-    async fn begin_migration_run(
+    pub(crate) async fn begin_migration_run(
         &self,
         request: Request<BeginMigrationRunRequest>,
     ) -> Result<Response<BeginMigrationRunResponse>, Status> {
@@ -350,7 +348,7 @@ impl MigrationService for MigrationRpcImpl {
         result.map_err(|status| crate::errors::enrich(status, Some(correlation_id)))
     }
 
-    async fn advance_migration_phase(
+    pub(crate) async fn advance_migration_phase(
         &self,
         request: Request<AdvanceMigrationPhaseRequest>,
     ) -> Result<Response<AdvanceMigrationPhaseResponse>, Status> {

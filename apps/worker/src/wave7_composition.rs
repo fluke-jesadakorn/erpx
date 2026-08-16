@@ -20,12 +20,14 @@ pub enum Wave7ProjectionKind {
     SalesQuotes,
     SalesOrders,
     SalesRevenueArrangements,
+    SalesLifecycleRecords,
     PeoplePayrollEmployees,
     PeoplePayrollLeaveRequests,
     PeoplePayrollExpenseClaims,
     PeoplePayrollPayrollRuns,
     PosSales,
     PosRefunds,
+    PosLifecycleRecords,
 }
 
 #[derive(Debug, Clone)]
@@ -46,6 +48,9 @@ impl Wave7ProjectionExecutor {
             Wave7ProjectionKind::SalesRevenueArrangements => {
                 erpx_sales_sqlx::ARRANGEMENT_PROJECTION
             }
+            Wave7ProjectionKind::SalesLifecycleRecords => {
+                erpx_sales_sqlx::LIFECYCLE_RECORD_PROJECTION_NAME
+            }
             Wave7ProjectionKind::PeoplePayrollEmployees => {
                 erpx_people_payroll_sqlx::EMPLOYEE_PROJECTION
             }
@@ -60,6 +65,9 @@ impl Wave7ProjectionExecutor {
             }
             Wave7ProjectionKind::PosSales => erpx_pos_sqlx::SALE_PROJECTION_NAME,
             Wave7ProjectionKind::PosRefunds => erpx_pos_sqlx::REFUND_PROJECTION_NAME,
+            Wave7ProjectionKind::PosLifecycleRecords => {
+                erpx_pos_sqlx::LIFECYCLE_RECORD_PROJECTION_NAME
+            }
         }
     }
 
@@ -79,8 +87,11 @@ impl Wave7ProjectionExecutor {
             .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
             .await
             .map_err(|_| TenantProjectionExecutorError::Retryable)?;
-        let write = WritePool::from_pg_pool(write.database_pool().clone());
-        let read = ProjectionPool::from_pg_pool(read.database_pool().clone());
+        let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
+        let write = WritePool::for_tenant(write.database_pool().clone(), tenant_id)
+            .map_err(crate::map_cqrs_projection_error)?;
+        let read = ProjectionPool::for_tenant(read.database_pool().clone(), tenant_id)
+            .map_err(crate::map_cqrs_projection_error)?;
         let config = ProjectionRunnerConfig {
             page_size,
             ..ProjectionRunnerConfig::default()
@@ -112,6 +123,15 @@ impl Wave7ProjectionExecutor {
                         SalesProjectionFactory.registrations()
                     );
                     SnapshotRuntime::Sales(runtime, SalesProjectionKind::RevenueArrangements)
+                }),
+            Wave7ProjectionKind::SalesLifecycleRecords => SalesProjectionFactory
+                .build(write, read, config)
+                .map(|runtime| {
+                    debug_assert_eq!(
+                        runtime.registrations(),
+                        SalesProjectionFactory.registrations()
+                    );
+                    SnapshotRuntime::Sales(runtime, SalesProjectionKind::LifecycleRecords)
                 }),
             Wave7ProjectionKind::PeoplePayrollEmployees => PeoplePayrollProjectionFactory
                 .build(write, read, config)
@@ -180,6 +200,15 @@ impl Wave7ProjectionExecutor {
                         SnapshotRuntime::Pos(runtime, PosProjectionKind::Refunds)
                     })
             }
+            Wave7ProjectionKind::PosLifecycleRecords => PosProjectionFactory
+                .build(write, read, config)
+                .map(|runtime| {
+                    debug_assert_eq!(
+                        runtime.registrations(),
+                        PosProjectionFactory.registrations()
+                    );
+                    SnapshotRuntime::Pos(runtime, PosProjectionKind::LifecycleRecords)
+                }),
         }
         .map_err(crate::map_cqrs_projection_error)
     }

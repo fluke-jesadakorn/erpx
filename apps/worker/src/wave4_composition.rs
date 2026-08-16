@@ -17,13 +17,16 @@ use crate::contexts::{
         CommercialProjectionFactory, CommercialProjectionKind, CommercialProjectionRuntime,
     },
     identity_access::{IdentityAccessProjectionFactory, IdentityAccessProjectionRuntime},
-    organization::{OrganizationProjectionFactory, OrganizationProjectionRuntime},
+    organization::{
+        OrganizationProjectionFactory, OrganizationProjectionKind, OrganizationProjectionRuntime,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdentityAccessProjectionKind {
     Principals,
     Roles,
+    Governance,
 }
 
 #[derive(Debug, Clone)]
@@ -39,6 +42,7 @@ pub enum Wave4ProjectionExecutor {
     },
     Organization {
         router: TenantDatabaseRouter,
+        kind: OrganizationProjectionKind,
     },
 }
 
@@ -55,6 +59,9 @@ impl Wave4ProjectionExecutor {
                 CommercialProjectionKind::Entitlements => {
                     erpx_commercial_sqlx::ENTITLEMENT_PROJECTION
                 }
+                CommercialProjectionKind::LifecycleRecords => {
+                    erpx_commercial_sqlx::LIFECYCLE_RECORD_PROJECTION_NAME
+                }
             },
             Self::IdentityAccess { kind, .. } => match kind {
                 IdentityAccessProjectionKind::Principals => {
@@ -63,8 +70,16 @@ impl Wave4ProjectionExecutor {
                 IdentityAccessProjectionKind::Roles => {
                     erpx_identity_access_sqlx::ROLE_PROJECTION_NAME
                 }
+                IdentityAccessProjectionKind::Governance => {
+                    erpx_identity_access_sqlx::GOVERNANCE_PROJECTION_NAME
+                }
             },
-            Self::Organization { .. } => erpx_organization_sqlx::PROJECTION_NAME,
+            Self::Organization { kind, .. } => match kind {
+                OrganizationProjectionKind::Nodes => erpx_organization_sqlx::PROJECTION_NAME,
+                OrganizationProjectionKind::SharingAgreements => {
+                    erpx_organization_sqlx::SHARING_PROJECTION_NAME
+                }
+            },
         }
     }
 
@@ -102,14 +117,15 @@ impl Wave4ProjectionExecutor {
         Self::IdentityAccess { router, kind }
     }
 
-    pub fn organization(router: TenantDatabaseRouter) -> Self {
-        let registration = OrganizationProjectionFactory.registration();
-        tracing::info!(
-            projection = %registration.name,
-            event_types = ?registration.event_types,
-            "registered typed Organization CQRS projector"
-        );
-        Self::Organization { router }
+    pub fn organization(router: TenantDatabaseRouter, kind: OrganizationProjectionKind) -> Self {
+        for registration in OrganizationProjectionFactory.registrations() {
+            tracing::info!(
+                projection = %registration.name,
+                event_types = ?registration.event_types,
+                "registered typed Organization CQRS projector"
+            );
+        }
+        Self::Organization { router, kind }
     }
 
     async fn identity_runtime(
@@ -154,8 +170,8 @@ impl Wave4ProjectionExecutor {
             )
             .map_err(crate::map_cqrs_projection_error)?;
         debug_assert_eq!(
-            runtime.registration(),
-            OrganizationProjectionFactory.registration()
+            runtime.registrations(),
+            OrganizationProjectionFactory.registrations()
         );
         Ok(runtime)
     }
@@ -170,8 +186,8 @@ impl Wave4ProjectionExecutor {
         let (tenant_write, tenant_read) = route_pools(router, tenant_id, holding_ref).await?;
         let runtime = CommercialProjectionFactory
             .build(
-                WritePool::from_pg_pool(control.pools().write.clone()),
-                ProjectionPool::from_pg_pool(control.pools().read.clone()),
+                WritePool::from_control_pg_pool(control.pools().write.clone()),
+                ProjectionPool::from_control_pg_pool(control.pools().read.clone()),
                 tenant_write,
                 tenant_read,
                 ProjectionRunnerConfig {
@@ -210,12 +226,13 @@ impl Wave4ProjectionExecutor {
                 match kind {
                     IdentityAccessProjectionKind::Principals => runtime.run_principals_once().await,
                     IdentityAccessProjectionKind::Roles => runtime.run_roles_once().await,
+                    IdentityAccessProjectionKind::Governance => runtime.run_governance_once().await,
                 }
             }
-            Self::Organization { router } => {
+            Self::Organization { router, kind } => {
                 Self::organization_runtime(router, tenant_id, holding_ref, page_size)
                     .await?
-                    .run_once()
+                    .run_once(*kind)
                     .await
             }
         }
@@ -272,6 +289,9 @@ impl Wave4ProjectionExecutor {
                         runtime.begin_principal_rebuild().await
                     }
                     IdentityAccessProjectionKind::Roles => runtime.begin_role_rebuild().await,
+                    IdentityAccessProjectionKind::Governance => {
+                        runtime.begin_governance_rebuild().await
+                    }
                 }
                 .map_err(crate::map_cqrs_projection_error)?;
                 run_identity_rebuild(&runtime, &handle, page_size).await?;
@@ -280,17 +300,17 @@ impl Wave4ProjectionExecutor {
                     .await
                     .map_err(crate::map_cqrs_projection_error)
             }
-            Self::Organization { router } => {
+            Self::Organization { router, kind } => {
                 let runtime =
                     Self::organization_runtime(router, tenant_id, holding_ref, page_size).await?;
                 let handle = runtime
-                    .begin_rebuild()
+                    .begin_rebuild(*kind)
                     .await
                     .map_err(crate::map_cqrs_projection_error)?;
                 let mut cursor = 0;
                 loop {
                     let run = runtime
-                        .run_rebuild_page(&handle, cursor)
+                        .run_rebuild_page(*kind, &handle, cursor)
                         .await
                         .map_err(crate::map_cqrs_projection_error)?;
                     if run.retry_scheduled || run.dead_lettered != 0 {
@@ -302,7 +322,7 @@ impl Wave4ProjectionExecutor {
                     }
                 }
                 runtime
-                    .activate_rebuild(&handle)
+                    .activate_rebuild(*kind, &handle)
                     .await
                     .map_err(crate::map_cqrs_projection_error)
             }
@@ -321,8 +341,8 @@ impl CommercialCatalogProjectionHandler {
     pub fn new(control: Arc<SqlxControlPlane>, page_size: u32) -> Result<Self, WorkerRuntimeError> {
         let runtime = CommercialProjectionFactory
             .build_single_plane(
-                WritePool::from_pg_pool(control.pools().write.clone()),
-                ProjectionPool::from_pg_pool(control.pools().read.clone()),
+                WritePool::from_control_pg_pool(control.pools().write.clone()),
+                ProjectionPool::from_control_pg_pool(control.pools().read.clone()),
                 ProjectionRunnerConfig {
                     page_size,
                     ..ProjectionRunnerConfig::default()
@@ -416,9 +436,12 @@ async fn route_pools(
         .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
         .await
         .map_err(|_| TenantProjectionExecutorError::Retryable)?;
+    let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
     Ok((
-        WritePool::from_pg_pool(write.database_pool().clone()),
-        ProjectionPool::from_pg_pool(read.database_pool().clone()),
+        WritePool::for_tenant(write.database_pool().clone(), tenant_id)
+            .map_err(crate::map_cqrs_projection_error)?,
+        ProjectionPool::for_tenant(read.database_pool().clone(), tenant_id)
+            .map_err(crate::map_cqrs_projection_error)?,
     ))
 }
 

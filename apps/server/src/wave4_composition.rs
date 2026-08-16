@@ -36,8 +36,8 @@ use erpx_identity_access::{
     EntitlementPort as IdentityEntitlementPort, GetPrincipal, GetPrincipalResult, GetRole,
     GetRoleResult, IdentityAccessCommandHandler, IdentityAccessQueryHandler, ListPrincipals,
     ListRoles, PortError as IdentityPortError, PrincipalList, PrincipalMutationResult,
-    ReactivatePrincipal, RevokeRole, RoleList, RoleMutationResult, SetRolePermissions,
-    SuspendPrincipal,
+    ReactivatePrincipal, RecoverRole, RenewRole, RevokeRole, RoleList, RoleMutationResult,
+    SetRolePermissions, SuspendPrincipal,
 };
 use erpx_identity_access_sqlx::{
     IdentityAccessCommandAdapter, IdentityAccessReadRepository, IdentityAccessWriteRepository,
@@ -226,7 +226,11 @@ impl IdentityServerApplication {
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "identity_access", "write"))?;
-        Ok(WritePool::from_pg_pool(routed.database_pool().clone()))
+        WritePool::for_tenant(
+            routed.database_pool().clone(),
+            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "identity_access")?,
+        )
+        .map_err(|_| invalid_tenant_binding(correlation_id, "identity_access"))
     }
 
     async fn read_pool(
@@ -243,7 +247,11 @@ impl IdentityServerApplication {
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "identity_access", "read"))?;
-        Ok(ReadPool::from_pg_pool(routed.database_pool().clone()))
+        ReadPool::for_tenant(
+            routed.database_pool().clone(),
+            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "identity_access")?,
+        )
+        .map_err(|_| invalid_tenant_binding(correlation_id, "identity_access"))
     }
 }
 
@@ -308,6 +316,26 @@ impl IdentityAccessCommandApplication for IdentityServerApplication {
         route: IdentityAccessTenantRoute,
         envelope: CommandEnvelope<RevokeRole>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
+        self.execute_command(route, envelope).await
+    }
+    async fn renew_role(
+        &self,
+        route: IdentityAccessTenantRoute,
+        envelope: CommandEnvelope<RenewRole>,
+    ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
+        self.execute_command(route, envelope).await
+    }
+    async fn recover_role(
+        &self,
+        route: IdentityAccessTenantRoute,
+        envelope: CommandEnvelope<RecoverRole>,
+    ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError> {
+        ensure_route_scope(
+            &route.holding_ref,
+            &envelope.command.scope,
+            envelope.correlation_id,
+            "identity_access",
+        )?;
         self.execute_command(route, envelope).await
     }
     async fn define_role(
@@ -500,7 +528,11 @@ impl OrganizationServerApplication {
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "organization", "write"))?;
-        let pool = WritePool::from_pg_pool(routed.database_pool().clone());
+        let pool = WritePool::for_tenant(
+            routed.database_pool().clone(),
+            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "organization")?,
+        )
+        .map_err(|_| invalid_tenant_binding(correlation_id, "organization"))?;
         OrganizationCommandHandler::new(
             OrganizationWriteRepository::new(pool.clone()),
             OrganizationCommandAdapter::new(pool),
@@ -536,17 +568,20 @@ impl OrganizationServerApplication {
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "organization", "read"))?;
-        let repository =
-            OrganizationReadRepository::new(ReadPool::from_pg_pool(routed.database_pool().clone()))
-                .map_err(|_| {
-                    context_failure(
-                        correlation_id,
-                        "organization.read_configuration",
-                        ErrorCategory::Internal,
-                        "Organization read storage could not be initialized.",
-                        false,
-                    )
-                })?;
+        let read = ReadPool::for_tenant(
+            routed.database_pool().clone(),
+            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "organization")?,
+        )
+        .map_err(|_| invalid_tenant_binding(correlation_id, "organization"))?;
+        let repository = OrganizationReadRepository::new(read).map_err(|_| {
+            context_failure(
+                correlation_id,
+                "organization.read_configuration",
+                ErrorCategory::Internal,
+                "Organization read storage could not be initialized.",
+                false,
+            )
+        })?;
         OrganizationQueryHandler::new(repository, access.clone(), access)
             .handle(envelope)
             .await
@@ -919,8 +954,8 @@ impl CommercialServerApplication {
         Self {
             router: state.tenant_router.clone(),
             control: state.store.clone(),
-            control_write: WritePool::from_pg_pool(state.store.pools().write.clone()),
-            control_read: ReadPool::from_pg_pool(state.store.pools().read.clone()),
+            control_write: WritePool::from_control_pg_pool(state.store.pools().write.clone()),
+            control_read: ReadPool::from_control_pg_pool(state.store.pools().read.clone()),
             provider_key,
         }
     }
@@ -939,7 +974,11 @@ impl CommercialServerApplication {
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "commercial", "write"))?;
-        Ok(WritePool::from_pg_pool(routed.database_pool().clone()))
+        WritePool::for_tenant(
+            routed.database_pool().clone(),
+            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "commercial")?,
+        )
+        .map_err(|_| invalid_tenant_binding(correlation_id, "commercial"))
     }
 
     async fn tenant_read(
@@ -956,7 +995,11 @@ impl CommercialServerApplication {
             )
             .await
             .map_err(|_| context_unavailable(correlation_id, "commercial", "read"))?;
-        Ok(ReadPool::from_pg_pool(routed.database_pool().clone()))
+        ReadPool::for_tenant(
+            routed.database_pool().clone(),
+            cqrs_tenant_uuid(&routed.tenant_id, correlation_id, "commercial")?,
+        )
+        .map_err(|_| invalid_tenant_binding(correlation_id, "commercial"))
     }
 
     async fn execute_command<C>(
@@ -1688,6 +1731,24 @@ fn context_unavailable(
         ErrorCategory::Unavailable,
         "Context storage is temporarily unavailable.",
         true,
+    )
+}
+
+fn cqrs_tenant_uuid(
+    tenant_id: &str,
+    correlation_id: CorrelationId,
+    context: &'static str,
+) -> Result<Uuid, CqrsError> {
+    Uuid::parse_str(tenant_id).map_err(|_| invalid_tenant_binding(correlation_id, context))
+}
+
+fn invalid_tenant_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
+    context_failure(
+        correlation_id,
+        format!("{context}.invalid_tenant_identity"),
+        ErrorCategory::Internal,
+        "The routed tenant identity is invalid.",
+        false,
     )
 }
 

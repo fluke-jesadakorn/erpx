@@ -22,14 +22,11 @@ use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId, TenantScope,
 };
-use erpx_proto::{common, platform};
+use erpx_proto::{common, erpx::commercial::v1 as platform};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
-
-use platform::commercial_command_service_server::CommercialCommandService;
-use platform::commercial_query_service_server::CommercialQueryService;
 
 const MAX_ROUTE_LENGTH: usize = 255;
 const MAX_SECURITY_INPUT_LENGTH: usize = 512;
@@ -291,11 +288,10 @@ impl<A, G> CommercialQueryRpc<A, G> {
     }
 }
 
-#[async_trait]
-impl<A: CommercialCommandApplication, G: CommercialRequestAuthenticator> CommercialCommandService
-    for CommercialCommandRpc<A, G>
+impl<A: CommercialCommandApplication, G: CommercialRequestAuthenticator>
+    CommercialCommandRpc<A, G>
 {
-    async fn create_catalog_plan(
+    pub async fn create_catalog_plan(
         &self,
         request: Request<platform::CreateCommercialCatalogPlanRequest>,
     ) -> Result<Response<platform::CommercialCatalogPlanCommandResponse>, Status> {
@@ -327,7 +323,7 @@ impl<A: CommercialCommandApplication, G: CommercialRequestAuthenticator> Commerc
         Ok(Response::new(catalog_command_response(receipt)?))
     }
 
-    async fn publish_catalog_plan(
+    pub async fn publish_catalog_plan(
         &self,
         request: Request<platform::PublishCommercialCatalogPlanRequest>,
     ) -> Result<Response<platform::CommercialCatalogPlanCommandResponse>, Status> {
@@ -355,7 +351,7 @@ impl<A: CommercialCommandApplication, G: CommercialRequestAuthenticator> Commerc
         Ok(Response::new(catalog_command_response(receipt)?))
     }
 
-    async fn create_subscription(
+    pub async fn create_subscription(
         &self,
         request: Request<platform::CreateCommercialSubscriptionRequest>,
     ) -> Result<Response<platform::CommercialSubscriptionCommandResponse>, Status> {
@@ -390,7 +386,7 @@ impl<A: CommercialCommandApplication, G: CommercialRequestAuthenticator> Commerc
         Ok(Response::new(subscription_command_response(receipt)?))
     }
 
-    async fn apply_billing_event(
+    pub async fn apply_billing_event(
         &self,
         request: Request<platform::ApplyCommercialBillingEventRequest>,
     ) -> Result<Response<platform::CommercialSubscriptionCommandResponse>, Status> {
@@ -441,7 +437,7 @@ impl<A: CommercialCommandApplication, G: CommercialRequestAuthenticator> Commerc
         Ok(Response::new(subscription_command_response(receipt)?))
     }
 
-    async fn create_entitlement(
+    pub async fn create_entitlement(
         &self,
         request: Request<platform::CreateCommercialEntitlementRequest>,
     ) -> Result<Response<platform::CommercialEntitlementCommandResponse>, Status> {
@@ -475,7 +471,7 @@ impl<A: CommercialCommandApplication, G: CommercialRequestAuthenticator> Commerc
         Ok(Response::new(entitlement_command_response(receipt)?))
     }
 
-    async fn apply_entitlement_change(
+    pub async fn apply_entitlement_change(
         &self,
         request: Request<platform::ApplyCommercialEntitlementChangeRequest>,
     ) -> Result<Response<platform::CommercialEntitlementCommandResponse>, Status> {
@@ -533,11 +529,8 @@ impl<A: CommercialCommandApplication, G: CommercialRequestAuthenticator> Commerc
     }
 }
 
-#[async_trait]
-impl<A: CommercialQueryApplication, G: CommercialRequestAuthenticator> CommercialQueryService
-    for CommercialQueryRpc<A, G>
-{
-    async fn get_catalog_plan(
+impl<A: CommercialQueryApplication, G: CommercialRequestAuthenticator> CommercialQueryRpc<A, G> {
+    pub async fn get_catalog_plan(
         &self,
         request: Request<platform::GetCommercialCatalogPlanRequest>,
     ) -> Result<Response<platform::GetCommercialCatalogPlanResponse>, Status> {
@@ -561,7 +554,7 @@ impl<A: CommercialQueryApplication, G: CommercialRequestAuthenticator> Commercia
             metadata: Some(encode_query_metadata(&result.metadata)),
         }))
     }
-    async fn list_catalog_plans(
+    pub async fn list_catalog_plans(
         &self,
         request: Request<platform::ListCommercialCatalogPlansRequest>,
     ) -> Result<Response<platform::ListCommercialCatalogPlansResponse>, Status> {
@@ -588,7 +581,7 @@ impl<A: CommercialQueryApplication, G: CommercialRequestAuthenticator> Commercia
             },
         ))
     }
-    async fn get_subscription(
+    pub async fn get_subscription(
         &self,
         request: Request<platform::GetCommercialSubscriptionRequest>,
     ) -> Result<Response<platform::GetCommercialSubscriptionResponse>, Status> {
@@ -612,7 +605,7 @@ impl<A: CommercialQueryApplication, G: CommercialRequestAuthenticator> Commercia
             metadata: Some(encode_query_metadata(&result.metadata)),
         }))
     }
-    async fn list_subscriptions(
+    pub async fn list_subscriptions(
         &self,
         request: Request<platform::ListCommercialSubscriptionsRequest>,
     ) -> Result<Response<platform::ListCommercialSubscriptionsResponse>, Status> {
@@ -644,7 +637,7 @@ impl<A: CommercialQueryApplication, G: CommercialRequestAuthenticator> Commercia
             },
         ))
     }
-    async fn get_entitlement(
+    pub async fn get_entitlement(
         &self,
         request: Request<platform::GetCommercialEntitlementRequest>,
     ) -> Result<Response<platform::GetCommercialEntitlementResponse>, Status> {
@@ -668,7 +661,7 @@ impl<A: CommercialQueryApplication, G: CommercialRequestAuthenticator> Commercia
             metadata: Some(encode_query_metadata(&result.metadata)),
         }))
     }
-    async fn list_entitlements(
+    pub async fn list_entitlements(
         &self,
         request: Request<platform::ListCommercialEntitlementsRequest>,
     ) -> Result<Response<platform::ListCommercialEntitlementsResponse>, Status> {

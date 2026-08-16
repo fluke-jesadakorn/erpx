@@ -16,7 +16,10 @@ use std::{
 use erpx_proto::{
     FILE_DESCRIPTOR_SET,
     common::v1::{ActorAttribution, CommandContext},
-    platform::{DirectoryConnectorSummary, PitrRecoveryPoint, ScheduleTenantBackupRequest},
+    erpx::{
+        identity_access::v1::DirectoryConnectorSummary,
+        platform_administration::v1::{PitrRecoveryPoint, ScheduleTenantBackupRequest},
+    },
 };
 use prost::Message;
 use prost_types::{
@@ -26,9 +29,9 @@ use prost_types::{
 
 const PROTO_BUILD: &str = include_str!("../../../crates/proto/build.rs");
 const IDENTITY_ACCESS_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/identity_access.proto");
+    include_str!("../../../crates/proto/proto/erpx/identity_access/v1/service.proto");
 const PLATFORM_ADMINISTRATION_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/platform_administration.proto");
+    include_str!("../../../crates/proto/proto/erpx/platform_administration/v1/service.proto");
 const MOBILE_AUTH: &str = include_str!("../../../crates/ui/src/auth.rs");
 const MOBILE_SESSION_TARGET: &str = include_str!("../../../crates/ui/src/session_target.rs");
 const ANDROID_BRIDGE: &str = include_str!("../../../crates/android-bridge/src/lib.rs");
@@ -826,70 +829,43 @@ fn g14_generated_descriptor_is_self_consistent_and_g14_fields_are_wire_stable() 
         .iter()
         .filter_map(|file| file.name.as_deref())
         .collect::<BTreeSet<_>>();
+    assert!(names.contains("erpx/interface/v1/reference.proto"));
+    assert!(names.contains("erpx/catalog/v2/active.proto"));
     assert!(names.contains("erpx/common/v1/context.proto"));
-    assert!(names.contains("erpx/platform/v1/platform.proto"));
+    assert!(!names.contains("erpx/platform/v1/platform.proto"));
 
     let inventory = descriptor_inventory(&set);
-    let directory = inventory
+    let resolve = inventory
         .messages
-        .get("erpx.platform.v1.DirectoryConnectorSummary")
-        .expect("directory connector message must be generated");
-    for (number, name) in [
-        (1, "connector_id"),
-        (2, "provider"),
-        (3, "scope_key"),
-        (6, "tls_mode"),
-        (7, "feed_kind"),
-        (9, "max_import_users"),
-    ] {
+        .get("erpx.interface.v1.ResolveReferenceRequest")
+        .expect("stable reference request must be generated");
+    for (number, name) in [(1, "record_id"), (2, "authority_scope"), (3, "purpose")] {
         assert_eq!(
-            directory
-                .fields
-                .get(&number)
-                .map(|field| field.name.as_str()),
+            resolve.fields.get(&number).map(|field| field.name.as_str()),
             Some(name),
-            "directory field number changed for {name}"
+            "reference field number changed for {name}"
         );
     }
 
-    let pitr = inventory
-        .messages
-        .get("erpx.platform.v1.PitrRecoveryPoint")
-        .expect("PITR recovery point message must be generated");
-    for (number, name) in [
-        (1, "target_time"),
-        (2, "target_lsn"),
-        (3, "wal_archive_ref"),
-        (4, "physical_restore_target_ref"),
-    ] {
-        assert_eq!(
-            pitr.fields.get(&number).map(|field| field.name.as_str()),
-            Some(name),
-            "PITR field number changed for {name}"
-        );
-    }
-
-    let schedule = inventory
-        .messages
-        .get("erpx.platform.v1.ScheduleTenantBackupRequest")
-        .expect("backup schedule message must be generated");
-    assert_eq!(
-        schedule.fields.get(&13).map(|field| field.name.as_str()),
-        Some("pitr_recovery_point"),
-        "PITR must remain an additive field at wire number 13"
+    let reference_service = inventory
+        .services
+        .get("erpx.reference.v1.ReferenceQueryService")
+        .expect("reference query service must be active");
+    assert!(reference_service.contains_key("Resolve"));
+    assert!(reference_service.contains_key("Search"));
+    assert!(reference_service.contains_key("ListBacklinks"));
+    let collaboration_service = inventory
+        .services
+        .get("erpx.collaboration.v1.CollaborationCommandService")
+        .expect("collaboration command service must be active");
+    assert!(collaboration_service.contains_key("CreateThread"));
+    assert!(collaboration_service.contains_key("AddComment"));
+    assert!(
+        inventory
+            .services
+            .keys()
+            .all(|service| !service.starts_with("erpx.platform.v1."))
     );
-
-    let directory_service = inventory
-        .services
-        .get("erpx.platform.v1.DirectoryService")
-        .expect("directory service must be generated");
-    assert!(directory_service.contains_key("SaveDirectoryConnector"));
-    assert!(directory_service.contains_key("StartDirectoryImport"));
-    let operations_service = inventory
-        .services
-        .get("erpx.platform.v1.PlatformOperationsService")
-        .expect("platform operations service must be generated");
-    assert!(operations_service.contains_key("ScheduleTenantBackup"));
 }
 
 #[test]
@@ -1048,18 +1024,18 @@ fn g14_descriptor_comparison_rejects_empty_and_ambiguous_baselines() {
 #[test]
 fn g14_descriptor_comparison_rejects_incompatible_field_changes() {
     let mut tampered_baseline = current_descriptor();
-    let directory_summary = tampered_baseline
+    let resolve_reference = tampered_baseline
         .file
         .iter_mut()
         .flat_map(|file| file.message_type.iter_mut())
-        .find(|message| message.name.as_deref() == Some("DirectoryConnectorSummary"))
-        .expect("generated descriptor must contain DirectoryConnectorSummary");
-    let connector_id = directory_summary
+        .find(|message| message.name.as_deref() == Some("ResolveReferenceRequest"))
+        .expect("generated descriptor must contain ResolveReferenceRequest");
+    let record_id = resolve_reference
         .field
         .iter_mut()
         .find(|field| field.number == Some(1))
-        .expect("DirectoryConnectorSummary must retain connector_id at field 1");
-    connector_id.name = Some("tampered_connector_id".into());
+        .expect("ResolveReferenceRequest must retain record_id at field 1");
+    record_id.name = Some("tampered_record_id".into());
 
     let mut encoded_baseline = Vec::new();
     tampered_baseline
@@ -1069,7 +1045,7 @@ fn g14_descriptor_comparison_rejects_incompatible_field_changes() {
         .expect_err("an incompatible approved descriptor must fail closed");
     assert!(
         error.contains(
-            "approved field changed incompatibly: erpx.platform.v1.DirectoryConnectorSummary.1"
+            "approved field changed incompatibly: erpx.interface.v1.ResolveReferenceRequest.1"
         ),
         "unexpected compatibility error: {error}"
     );
@@ -1457,24 +1433,24 @@ fn g14_descriptor_build_is_bound_to_the_checked_in_inputs() {
         &[
             "file_descriptor_set_path",
             "erpx_descriptor_set.bin",
-            "proto/erpx/common/v1/context.proto",
-            "proto/erpx/platform/v1/platform.proto",
-            "proto/erpx/platform/v1/identity_access.proto",
-            "proto/erpx/platform/v1/platform_administration.proto",
+            "proto/erpx/identity_access/v1/service.proto",
+            "proto/erpx/platform_administration/v1/service.proto",
+            "proto/erpx/catalog/v2/active.proto",
             "compile_protos(",
         ],
     );
     require_markers(
         PLATFORM_ADMINISTRATION_PROTO,
-        "proto/erpx/platform/v1/platform_administration.proto",
+        "proto/erpx/platform_administration/v1/service.proto",
         &["message PitrRecoveryPoint", "rpc ScheduleTenantBackup"],
     );
     require_markers(
         IDENTITY_ACCESS_PROTO,
-        "proto/erpx/platform/v1/identity_access.proto",
+        "proto/erpx/identity_access/v1/service.proto",
         &[
             "message DirectoryConnectorSummary",
-            "service DirectoryService",
+            "service IdentityAccessQueryService",
         ],
     );
+    assert!(!PROTO_BUILD.contains(concat!("proto/erpx/platform/", "v1/")));
 }

@@ -10,12 +10,13 @@ use erpx_data_plane_agent::{
 use erpx_domain::{contracts::CONTRACT_VERSION, data_plane::AgentCapability};
 use erpx_proto::{
     common::v1::{ActorAttribution, ActorKind, AuditContext},
-    platform::{
+    erpx::platform_administration::v1::{
         ControlPlaneEnvelope, DataPlaneAgentEnvelope, DataPlaneCommandResult,
         DataPlaneObservationMessage, EnrollDataPlaneAgentRequest, control_plane_envelope,
-        data_plane_agent_envelope, data_plane_agent_service_client::DataPlaneAgentServiceClient,
+        data_plane_agent_envelope,
     },
 };
+use erpx_proto::erpx::platform_administration::data_plane_agent::v1::data_plane_agent_service_client::DataPlaneAgentServiceClient;
 use sha2::Digest;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -257,7 +258,7 @@ fn observation_envelope(
 ) -> DataPlaneAgentEnvelope {
     let correlation_id = Uuid::new_v4();
     DataPlaneAgentEnvelope {
-        payload: Some(data_plane_agent_envelope::Payload::Observation(Box::new(
+        payload: Some(data_plane_agent_envelope::Payload::Observation(
             DataPlaneObservationMessage {
                 contract_version: u32::from(CONTRACT_VERSION),
                 request_id: Uuid::new_v4().to_string(),
@@ -291,7 +292,7 @@ fn observation_envelope(
                     correlation_id: correlation_id.to_string(),
                 }),
             },
-        ))),
+        )),
     }
 }
 
@@ -331,7 +332,7 @@ fn refresh_local_readiness(
 }
 
 fn command_accepted_envelope(
-    command: &erpx_proto::platform::TypedDataPlaneCommand,
+    command: &erpx_proto::erpx::platform_administration::v1::TypedDataPlaneCommand,
 ) -> DataPlaneAgentEnvelope {
     DataPlaneAgentEnvelope {
         payload: Some(data_plane_agent_envelope::Payload::CommandResult(

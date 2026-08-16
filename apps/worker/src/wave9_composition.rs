@@ -341,6 +341,7 @@ pub enum Wave9ProjectionKind {
     Exceptions,
     SourceSignals,
     WorkQueuePolicies,
+    LifecycleRecords,
 }
 
 impl Wave9ProjectionKind {
@@ -349,6 +350,7 @@ impl Wave9ProjectionKind {
             Self::Exceptions => erpx_operations_sqlx::EXCEPTION_PROJECTION,
             Self::SourceSignals => erpx_operations_sqlx::SOURCE_SIGNAL_PROJECTION,
             Self::WorkQueuePolicies => erpx_operations_sqlx::POLICY_PROJECTION,
+            Self::LifecycleRecords => erpx_operations_sqlx::LIFECYCLE_RECORD_PROJECTION_NAME,
         }
     }
 
@@ -357,6 +359,7 @@ impl Wave9ProjectionKind {
             Self::Exceptions => OperationsProjectionKind::Exceptions,
             Self::SourceSignals => OperationsProjectionKind::SourceSignals,
             Self::WorkQueuePolicies => OperationsProjectionKind::WorkQueuePolicies,
+            Self::LifecycleRecords => OperationsProjectionKind::LifecycleRecords,
         }
     }
 }
@@ -399,10 +402,13 @@ impl Wave9ProjectionExecutor {
                 "registered typed Operations CQRS projector"
             );
         }
+        let tenant_id = crate::cqrs_tenant_uuid(tenant_id)?;
         let runtime = factory
             .build(
-                WritePool::from_pg_pool(write.database_pool().clone()),
-                ProjectionPool::from_pg_pool(read.database_pool().clone()),
+                WritePool::for_tenant(write.database_pool().clone(), tenant_id)
+                    .map_err(crate::map_cqrs_projection_error)?,
+                ProjectionPool::for_tenant(read.database_pool().clone(), tenant_id)
+                    .map_err(crate::map_cqrs_projection_error)?,
                 ProjectionRunnerConfig {
                     page_size,
                     ..ProjectionRunnerConfig::default()
@@ -564,8 +570,8 @@ impl Customer360ProjectionHandler {
     fn control_runtime(&self) -> Result<Customer360ControlProjectionRuntime, WorkerRuntimeError> {
         Customer360ProjectionFactory
             .build_control(
-                WritePool::from_pg_pool(self.control.pools().write.clone()),
-                ProjectionPool::from_pg_pool(self.control.pools().read.clone()),
+                WritePool::from_control_pg_pool(self.control.pools().write.clone()),
+                ProjectionPool::from_control_pg_pool(self.control.pools().read.clone()),
                 ProjectionRunnerConfig {
                     page_size: self.page_size,
                     ..ProjectionRunnerConfig::default()
@@ -593,7 +599,7 @@ impl Customer360ProjectionHandler {
             .map_err(configuration_error)?;
         let mut sources = Vec::with_capacity(registrations.len());
         for registration in registrations {
-            let tenant_id = customer360_projection_tenant_id(&registration.tenant_id);
+            let tenant_id = customer360_projection_tenant_id(&registration.tenant_id)?;
             let routed = router
                 .route(
                     &registration.tenant_id,
@@ -604,7 +610,8 @@ impl Customer360ProjectionHandler {
                 .map_err(configuration_error)?;
             sources.push(TenantActivitySource {
                 tenant_id,
-                write_pool: WritePool::from_pg_pool(routed.database_pool().clone()),
+                write_pool: WritePool::for_tenant(routed.database_pool().clone(), tenant_id)
+                    .map_err(configuration_error)?,
             });
         }
         if sources.is_empty() {
@@ -624,7 +631,7 @@ impl Customer360ProjectionHandler {
         }
         let runtime = factory
             .build_tenant(
-                ProjectionPool::from_pg_pool(self.control.pools().read.clone()),
+                ProjectionPool::from_control_pg_pool(self.control.pools().read.clone()),
                 sources,
                 ProjectionRunnerConfig {
                     page_size: self.page_size,
@@ -734,16 +741,18 @@ impl Customer360ProjectionHandler {
     }
 }
 
-fn customer360_projection_tenant_id(registry_id: &str) -> Uuid {
-    Uuid::parse_str(registry_id).unwrap_or_else(|_| {
-        // The pre-cutover registry permits bounded opaque text identifiers.
-        // Keep those development resources readable without changing them;
-        // fresh-state registries use UUID strings and pass through unchanged.
-        Uuid::new_v5(
-            &Uuid::from_u128(0x218b_10cd_e640_52f4_8579_57c9_6119_878e),
-            registry_id.as_bytes(),
+fn customer360_projection_tenant_id(registry_id: &str) -> Result<Uuid, WorkerRuntimeError> {
+    let tenant_id = Uuid::parse_str(registry_id).map_err(|_| {
+        WorkerRuntimeError::Configuration(
+            "Customer 360 tenant registry identity must be a non-nil UUID".into(),
         )
-    })
+    })?;
+    if tenant_id.is_nil() {
+        return Err(WorkerRuntimeError::Configuration(
+            "Customer 360 tenant registry identity must be a non-nil UUID".into(),
+        ));
+    }
+    Ok(tenant_id)
 }
 
 #[async_trait]
@@ -872,18 +881,13 @@ mod tests {
     }
 
     #[test]
-    fn customer360_projection_tenant_ids_preserve_uuid_and_bound_legacy_registry_ids() {
+    fn customer360_projection_tenant_ids_require_authoritative_non_nil_uuid() {
         let current = Uuid::from_u128(41);
         assert_eq!(
-            customer360_projection_tenant_id(&current.to_string()),
+            customer360_projection_tenant_id(&current.to_string()).unwrap(),
             current
         );
-        let first = customer360_projection_tenant_id("demo-tenant");
-        assert!(!first.is_nil());
-        assert_eq!(first, customer360_projection_tenant_id("demo-tenant"));
-        assert_ne!(
-            first,
-            customer360_projection_tenant_id("demo-tenant-restricted")
-        );
+        assert!(customer360_projection_tenant_id("demo-tenant").is_err());
+        assert!(customer360_projection_tenant_id(&Uuid::nil().to_string()).is_err());
     }
 }

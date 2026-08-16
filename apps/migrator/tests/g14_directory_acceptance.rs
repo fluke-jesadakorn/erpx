@@ -556,7 +556,7 @@ fn g14_worker_registrations_match_the_current_composition_root() {
         "apps/worker/src/app.rs",
         &[
             "handler_name == DIRECTORY_SYNC_HANDLER_NAME",
-            "handler_name == OPERATIONS_COMPLETION_HANDLER_NAME",
+            "handler_name == OPERATIONS_SOURCE_INGESTION_HANDLER_NAME",
             "handler_name == HR_COMPLETION_HANDLER_NAME",
             "handler_name == FINANCE_COMPLETION_HANDLER_NAME",
             "handler_name == FINANCE_SUBLEDGER_RECONCILIATION_HANDLER_NAME",
@@ -583,7 +583,7 @@ fn g14_worker_registrations_match_the_current_composition_root() {
     // registration boundary. They do not claim that a worker has connected to
     // a tenant database or completed a live projection/reconciliation pass.
     assert!(WORKER_APP.contains("DirectorySyncRuntimeHandler::from_env"));
-    assert!(WORKER_APP.contains("OperationsCompletionRuntimeHandler::from_env"));
+    assert!(WORKER_APP.contains("operations_source_ingestion_handler("));
     assert!(WORKER_APP.contains("FinanceCompletionRuntimeHandler::from_env"));
     assert!(WORKER_APP.contains("HrCompletionRuntimeHandler::from_env"));
 }
@@ -603,12 +603,13 @@ fn g14_directory_transport_preserves_platform_and_holding_connector_scopes() {
             "directory_scope_access(&scope, &connector.scope)?",
             "directory_scope_access(&scope, &mapping.scope)?",
             "directory administration requires platform or holding scope",
+            "IdentityAccessQueryComposite",
         ],
     );
     let directory_impl = DIRECTORY_SERVER
-        .find("impl DirectoryRpc for DirectoryRpcImpl")
+        .find("impl DirectoryRpcImpl {")
         .and_then(|start| DIRECTORY_SERVER.get(start..))
-        .expect("directory server implementation");
+        .expect("target identity directory implementation");
     for method in [
         "list_directory_connectors",
         "save_directory_connector",

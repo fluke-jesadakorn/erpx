@@ -20,6 +20,7 @@ use erpx_pos_sqlx as pos_sqlx;
 use erpx_sales as sales;
 use erpx_sales_sqlx as sales_sqlx;
 use tonic::Status;
+use uuid::Uuid;
 
 use crate::AppState;
 use crate::contexts::{
@@ -141,7 +142,8 @@ impl Wave7TenantApplication {
                 context,
             )
             .await?;
-        Ok(WritePool::from_pg_pool(pool))
+        WritePool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
+            .map_err(|_| invalid_tenant_binding(correlation_id, context))
     }
 
     async fn read_pool(
@@ -160,7 +162,8 @@ impl Wave7TenantApplication {
                 context,
             )
             .await?;
-        Ok(ReadPool::from_pg_pool(pool))
+        ReadPool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
+            .map_err(|_| invalid_tenant_binding(correlation_id, context))
     }
 
     async fn route_pool(
@@ -563,6 +566,24 @@ fn storage_configuration_error(correlation_id: CorrelationId, context: &'static 
         format!("{context}.read_configuration"),
         ErrorCategory::Internal,
         "Context read storage could not be initialized.",
+        false,
+    )
+}
+
+fn cqrs_tenant_uuid(
+    tenant_id: &str,
+    correlation_id: CorrelationId,
+    context: &'static str,
+) -> Result<Uuid, CqrsError> {
+    Uuid::parse_str(tenant_id).map_err(|_| invalid_tenant_binding(correlation_id, context))
+}
+
+fn invalid_tenant_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
+    context_failure(
+        correlation_id,
+        format!("{context}.invalid_tenant_identity"),
+        ErrorCategory::Internal,
+        "The routed tenant identity is invalid.",
         false,
     )
 }

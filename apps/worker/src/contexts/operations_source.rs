@@ -164,8 +164,11 @@ where
             .map_err(|_| configuration("Operations tenant write route is unavailable"))?;
         let pool = routed.database_pool().clone();
         let source_key = tenant.source_key()?;
-        let adapter =
-            OperationsSourceAdapter::new(WritePool::from_pg_pool(pool.clone()), pool.clone());
+        let tenant_id = Uuid::parse_str(&routed.tenant_id)
+            .map_err(|_| configuration("Operations tenant identity must be a non-nil UUID"))?;
+        let write_pool = WritePool::for_tenant(pool.clone(), tenant_id)
+            .map_err(|_| configuration("Operations tenant identity must be a non-nil UUID"))?;
+        let adapter = OperationsSourceAdapter::new(write_pool, pool.clone());
         let after_sequence = adapter
             .checkpoint(SourceDatabase::Tenant, &source_key, TENANT_SOURCE_PARTITION)
             .await

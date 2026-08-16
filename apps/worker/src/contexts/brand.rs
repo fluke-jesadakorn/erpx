@@ -176,10 +176,10 @@ mod tests {
 
     fn lazy_pools() -> (WritePool, ProjectionPool) {
         (
-            WritePool::from_pg_pool(
+            WritePool::from_control_pg_pool(
                 sqlx::PgPool::connect_lazy("postgres://localhost/brand_control_write").unwrap(),
             ),
-            ProjectionPool::from_pg_pool(
+            ProjectionPool::from_control_pg_pool(
                 sqlx::PgPool::connect_lazy("postgres://localhost/brand_control_read").unwrap(),
             ),
         )

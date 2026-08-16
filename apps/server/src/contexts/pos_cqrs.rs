@@ -19,12 +19,12 @@ use erpx_pos::{
     RefundStatus, RefundView, RegisterId, RejectRefund, RequestRefund, ResumeSale, SaleId,
     SaleLine, SaleLineId, SaleListFilter, SaleStatus, SaleView, VoidSale,
 };
-use erpx_proto::{common, platform};
+use erpx_proto::{common, erpx::pos::v1 as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
-use platform::pos_command_service_server::PosCommandService;
-use platform::pos_query_service_server::PosQueryService;
+use platform::point_of_sale_command_service_server::PointOfSaleCommandService;
+use platform::point_of_sale_query_service_server::PointOfSaleQueryService;
 
 const MAX_ROUTE_LENGTH: usize = 255;
 
@@ -184,7 +184,7 @@ impl<A, G> PosQueryRpc<A, G> {
 }
 
 #[async_trait]
-impl<A: PosCommandApplication, G: PosRequestAuthenticator> PosCommandService
+impl<A: PosCommandApplication, G: PosRequestAuthenticator> PointOfSaleCommandService
     for PosCommandRpc<A, G>
 {
     async fn create_sale(
@@ -437,7 +437,9 @@ async fn execute_refund_command<A: PosCommandApplication, G: PosRequestAuthentic
 }
 
 #[async_trait]
-impl<A: PosQueryApplication, G: PosRequestAuthenticator> PosQueryService for PosQueryRpc<A, G> {
+impl<A: PosQueryApplication, G: PosRequestAuthenticator> PointOfSaleQueryService
+    for PosQueryRpc<A, G>
+{
     async fn get_sale(
         &self,
         request: Request<platform::GetPosSaleRequest>,

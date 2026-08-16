@@ -259,7 +259,8 @@ impl Wave8TenantApplication {
                 context,
             )
             .await?;
-        Ok(WritePool::from_pg_pool(pool))
+        WritePool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
+            .map_err(|_| invalid_tenant_binding(correlation_id, context))
     }
 
     async fn read_pool(
@@ -278,7 +279,8 @@ impl Wave8TenantApplication {
                 context,
             )
             .await?;
-        Ok(ReadPool::from_pg_pool(pool))
+        ReadPool::for_tenant(pool, cqrs_tenant_uuid(tenant_id, correlation_id, context)?)
+            .map_err(|_| invalid_tenant_binding(correlation_id, context))
     }
 
     async fn route_pool(
@@ -744,9 +746,11 @@ impl Wave8ServerAuthenticator {
             )
             .await
             .map_err(|_| SupportAuthenticationError::Unavailable)?;
-        let repository = support_sqlx::SupportWriteRepository::new(WritePool::from_pg_pool(
-            routed.database_pool().clone(),
-        ));
+        let tenant_id = Uuid::parse_str(&routed.tenant_id)
+            .map_err(|_| SupportAuthenticationError::Unavailable)?;
+        let pool = WritePool::for_tenant(routed.database_pool().clone(), tenant_id)
+            .map_err(|_| SupportAuthenticationError::Unavailable)?;
+        let repository = support_sqlx::SupportWriteRepository::new(pool);
         let capability = support::WriteRepository::load_capability(
             &repository,
             request.presented_scope(),
@@ -1076,6 +1080,24 @@ fn storage_configuration_error(correlation_id: CorrelationId, context: &'static 
         format!("{context}.read_configuration"),
         ErrorCategory::Internal,
         "Context read storage could not be initialized.",
+        false,
+    )
+}
+
+fn cqrs_tenant_uuid(
+    tenant_id: &str,
+    correlation_id: CorrelationId,
+    context: &'static str,
+) -> Result<Uuid, CqrsError> {
+    Uuid::parse_str(tenant_id).map_err(|_| invalid_tenant_binding(correlation_id, context))
+}
+
+fn invalid_tenant_binding(correlation_id: CorrelationId, context: &'static str) -> CqrsError {
+    context_failure(
+        correlation_id,
+        format!("{context}.invalid_tenant_identity"),
+        ErrorCategory::Internal,
+        "The routed tenant identity is invalid.",
         false,
     )
 }

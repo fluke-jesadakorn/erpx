@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package erpx.catalog.v2;
+
+import "erpx/identity_access/v1/service.proto";
+import "erpx/platform_administration/v1/service.proto";
+import "erpx/organization/v1/service.proto";
+import "erpx/commercial/v1/service.proto";
+import "erpx/brand/v1/service.proto";
+import "erpx/customer_authority/v1/service.proto";
+import "erpx/customer_360/v1/service.proto";
+import "erpx/support/v1/service.proto";
+import "erpx/finance/v1/service.proto";
+import "erpx/sales/v1/service.proto";
+import "erpx/pos/v1/service.proto";
+import "erpx/procurement/v1/service.proto";
+import "erpx/inventory/v1/service.proto";
+import "erpx/assets/v1/service.proto";
+import "erpx/maintenance/v1/service.proto";
+import "erpx/quality/v1/service.proto";
+import "erpx/operations/v1/service.proto";
+import "erpx/people_payroll/v1/service.proto";
+import "erpx/legal/v1/service.proto";
+import "erpx/marketing/v1/service.proto";
+import "erpx/crm/v1/service.proto";
+import "erpx/manufacturing/v1/service.proto";
+import "erpx/planning/v1/service.proto";
+import "erpx/projects/v1/service.proto";
+import "erpx/ecommerce/v1/service.proto";
+import "erpx/talent/v1/service.proto";
+import "erpx/learning/v1/service.proto";
+import "erpx/benefits/v1/service.proto";
+import "erpx/field_service/v1/service.proto";
+import "erpx/collaboration/v1/service.proto";
+import "erpx/agent/v1/service.proto";
+import "erpx/reference/v1/service.proto";

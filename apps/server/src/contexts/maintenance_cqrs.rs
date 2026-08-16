@@ -21,7 +21,8 @@ use erpx_maintenance::{
     ResumeWorkOrder, ScheduleWorkOrder, StartWorkOrder, WorkOrderId, WorkOrderList,
     WorkOrderListFilter, WorkOrderStatus, WorkOrderView,
 };
-use erpx_proto::{common, platform};
+use erpx_proto::erpx::assets::v1::AssetCondition as ProtoAssetCondition;
+use erpx_proto::{common, erpx::maintenance::v1 as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
@@ -695,10 +696,10 @@ fn encode_status(v: WorkOrderStatus) -> i32 {
 }
 fn encode_condition(v: assets::AssetCondition) -> i32 {
     match v {
-        assets::AssetCondition::Operational => platform::AssetCondition::Operational as i32,
-        assets::AssetCondition::Degraded => platform::AssetCondition::Degraded as i32,
-        assets::AssetCondition::OutOfService => platform::AssetCondition::OutOfService as i32,
-        assets::AssetCondition::Retired => platform::AssetCondition::Retired as i32,
+        assets::AssetCondition::Operational => ProtoAssetCondition::Operational as i32,
+        assets::AssetCondition::Degraded => ProtoAssetCondition::Degraded as i32,
+        assets::AssetCondition::OutOfService => ProtoAssetCondition::OutOfService as i32,
+        assets::AssetCondition::Retired => ProtoAssetCondition::Retired as i32,
     }
 }
 fn encode_receipt<R>(v: &CommandReceipt<R>) -> common::CommandReceipt {

@@ -10,18 +10,19 @@ use erpx_finance::{
     CreateJournal, CreatePeriod, FinanceCommand, FinanceMutationResult, FinanceQuery,
     FinanceQueryResponse, GetChart, GetJournal, GetPeriod, GetStatutoryTaxReport, GetSubledger,
     GetTrialBalance, JournalId, JournalLine, JournalLineId, JournalSource, JournalStatus,
-    ListBankTransactions, ListJournals, ListSubledger, NormalBalance, PeriodId, PeriodStatus,
-    PostJournal, ReopenPeriod, StatutoryTaxFact, StatutoryTaxKind, SubledgerId, SubledgerStatus,
+    ListBankTransactions, ListCharts, ListJournals, ListSubledger, NormalBalance, PeriodId,
+    PeriodStatus, PostJournal, ReopenPeriod, StatutoryTaxFact, StatutoryTaxKind, SubledgerId,
+    SubledgerStatus,
     ports::{
-        BankTransactionListFilter, ChartView, JournalView, PeriodView, SubledgerListFilter,
-        SubledgerView,
+        BankTransactionListFilter, ChartListFilter, ChartView, JournalView, PeriodView,
+        SubledgerListFilter, SubledgerView,
     },
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId, TenantScope,
 };
-use erpx_proto::{common, platform};
+use erpx_proto::{common, erpx::finance::v1 as platform};
 use platform::finance_command_service_server::FinanceCommandService;
 use platform::finance_query_service_server::FinanceQueryService;
 use std::sync::Arc;
@@ -439,6 +440,37 @@ impl<A: FinanceQueryApplication, G: FinanceRequestAuthenticator> FinanceQuerySer
             metadata: Some(encode_query_metadata(&x.metadata)),
         }))
     }
+    async fn list_charts(
+        &self,
+        r: Request<platform::ListFinanceChartRecordsRequest>,
+    ) -> Result<Response<platform::ListFinanceChartRecordsResponse>, Status> {
+        let t = r.metadata().clone();
+        let i = r.into_inner();
+        let filter = ChartListFilter {
+            company_id: i
+                .company_id
+                .as_deref()
+                .map(|value| parse_uuid(value, "company_id"))
+                .transpose()?,
+            page_size: u16::try_from(i.page_size).map_err(|_| invalid("page_size is invalid"))?,
+            cursor: i.cursor,
+        };
+        let x = self
+            .query(
+                t,
+                i.metadata,
+                FinanceQuery::ListCharts(ListCharts { filter }),
+            )
+            .await?;
+        let FinanceQueryResponse::Charts(v) = x.value else {
+            return Err(Status::internal("Finance query response mismatch"));
+        };
+        Ok(Response::new(platform::ListFinanceChartRecordsResponse {
+            charts: v.charts.iter().map(encode_chart).collect(),
+            next_cursor: v.next_cursor,
+            metadata: Some(encode_query_metadata(&x.metadata)),
+        }))
+    }
     async fn get_period(
         &self,
         r: Request<platform::GetFinancePeriodRecordRequest>,
@@ -660,9 +692,10 @@ impl<A: FinanceQueryApplication, G: FinanceRequestAuthenticator> FinanceQuerySer
         let t = r.metadata().clone();
         let i = r.into_inner();
         let x = self
-            .query(
+            .query_with_mfa(
                 t,
                 i.metadata,
+                i.mfa_code,
                 FinanceQuery::GetStatutoryTaxReport(GetStatutoryTaxReport {
                     tax_period: i.tax_period,
                     currency: i.currency,
@@ -705,6 +738,22 @@ impl<A: FinanceQueryApplication, G: FinanceRequestAuthenticator> FinanceQueryRpc
     ) -> Result<QueryResult<FinanceQueryResponse>, Status> {
         let d = decode_query(m, q)?;
         let (route, envelope) = authenticate_query(self.authenticator.as_ref(), t, d).await?;
+        self.application
+            .execute(route, envelope)
+            .await
+            .map_err(status_from_cqrs)
+    }
+
+    async fn query_with_mfa(
+        &self,
+        t: MetadataMap,
+        m: Option<common::QueryRequestMetadata>,
+        mfa_code: Option<String>,
+        q: FinanceQuery,
+    ) -> Result<QueryResult<FinanceQueryResponse>, Status> {
+        let d = decode_query(m, q)?;
+        let (route, envelope) =
+            authenticate_query_with_mfa(self.authenticator.as_ref(), t, d, mfa_code).await?;
         self.application
             .execute(route, envelope)
             .await
@@ -757,6 +806,30 @@ async fn authenticate_query<Q, G: FinanceRequestAuthenticator>(
             presented_route: d.route,
             subscription_id: None,
             mfa_code: None,
+            access_mode: FinanceAccessMode::Read,
+        })
+        .await
+        .map_err(status_from_auth)?;
+    let mut e = d.envelope;
+    e.actor = a.actor().clone();
+    e.tenant_scope = a.tenant_scope().clone();
+    Ok((a.route().clone(), e))
+}
+
+async fn authenticate_query_with_mfa<Q, G: FinanceRequestAuthenticator>(
+    auth: &G,
+    t: MetadataMap,
+    d: DecodedQuery<Q>,
+    mfa_code: Option<String>,
+) -> Result<(FinanceTenantRoute, QueryEnvelope<Q>), Status> {
+    let a = auth
+        .authenticate(FinanceAuthenticationRequest {
+            transport_metadata: t,
+            presented_actor: d.envelope.actor.clone(),
+            presented_scope: d.envelope.tenant_scope.clone(),
+            presented_route: d.route,
+            subscription_id: None,
+            mfa_code,
             access_mode: FinanceAccessMode::Read,
         })
         .await

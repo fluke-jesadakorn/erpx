@@ -12,8 +12,9 @@ const ASSET_PERSISTENCE: &str =
     include_str!("../../../crates/infrastructure/src/asset_maintenance_persistence.rs");
 const ASSET_LIVE_TEST: &str =
     include_str!("../../../crates/infrastructure/tests/asset_maintenance_persistence.rs");
-const PLATFORM_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/asset_maintenance.proto");
+const ASSETS_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/assets/v1/service.proto");
+const MAINTENANCE_PROTO: &str =
+    include_str!("../../../crates/proto/proto/erpx/maintenance/v1/service.proto");
 const SERVER_RUNTIME: &str = include_str!("../../server/src/lib.rs");
 const SERVER_WAVE6_COMPOSITION: &str = include_str!("../../server/src/wave6_composition.rs");
 const WORKER_APP: &str = include_str!("../../worker/src/app.rs");
@@ -188,11 +189,12 @@ fn asset_custody_and_disposal_writes_are_atomic_and_prevalidated() {
             "validate_work_order_asset_link(&mut tx, &self.holding_ref, work_order).await?;",
             "INSERT INTO erpx_tenant.asset_maintenance_aggregates",
             "persist_custody_history(&mut tx, &self.holding_ref, asset).await?;",
-            "persist_shared_snapshot_and_outbox(\n            &mut tx,",
+            "persist_shared_outbox(\n            &mut tx,",
             "INSERT INTO erpx_tenant.asset_maintenance_command_idempotency",
             "tx.commit().await?;\n        Ok(receipt)",
         ],
     );
+    assert!(!save.contains("persist_shared_snapshot"));
     require_markers(
         ASSET_PERSISTENCE,
         "asset_maintenance_persistence.rs custody persistence",
@@ -222,21 +224,33 @@ fn asset_custody_and_disposal_writes_are_atomic_and_prevalidated() {
 #[test]
 fn asset_maintenance_coordinator_transport_is_present() {
     require_markers(
-        PLATFORM_PROTO,
-        "platform.proto",
+        ASSETS_PROTO,
+        "assets/v1/service.proto",
         &[
-            "service AssetMaintenanceService",
-            "SaveAssetMaintenanceAggregateRequest",
-            "GetAssetMaintenanceAggregateRequest",
-            "bytes aggregate_json = 3",
+            "service AssetsCommandService",
+            "service AssetsQueryService",
+            "rpc Create",
+            "rpc Get",
+        ],
+    );
+    require_markers(
+        MAINTENANCE_PROTO,
+        "maintenance/v1/service.proto",
+        &[
+            "service MaintenanceCommandService",
+            "service MaintenanceQueryService",
+            "rpc Open",
+            "rpc Get",
         ],
     );
     require_markers(
         SERVER_RUNTIME,
         "server/lib.rs transport and registration",
         &[
-            "impl AssetMaintenanceService for AssetMaintenanceRpcImpl",
-            "AssetMaintenanceServiceServer::new",
+            "AssetsCommandServiceServer::new",
+            "AssetsQueryServiceServer::new",
+            "MaintenanceCommandServiceServer::new",
+            "MaintenanceQueryServiceServer::new",
         ],
     );
     require_markers(

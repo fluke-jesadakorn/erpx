@@ -79,7 +79,8 @@ impl MarketingApprovalDecisionHandler {
         };
         let mut expected_checkpoint = after;
         for row in rows {
-            self.apply_decision(&pool, worker_id, &row).await?;
+            self.apply_decision(tenant_id, &pool, worker_id, &row)
+                .await?;
             advance_checkpoint(&pool, expected_checkpoint, &row).await?;
             expected_checkpoint = row.global_sequence;
             report.processed = report.processed.saturating_add(1);
@@ -90,13 +91,17 @@ impl MarketingApprovalDecisionHandler {
 
     async fn apply_decision(
         &self,
+        tenant_id: &str,
         pool: &PgPool,
         worker_id: Uuid,
         row: &ApprovalDecisionRow,
     ) -> Result<(), WorkerRuntimeError> {
         let budget_id = CampaignBudgetId::try_from_uuid(row.decision.subject.aggregate_id)
             .map_err(|_| configuration("Operations approval subject is invalid"))?;
-        let write_pool = WritePool::from_pg_pool(pool.clone());
+        let tenant_id = Uuid::parse_str(tenant_id)
+            .map_err(|_| configuration("Marketing tenant identity must be a non-nil UUID"))?;
+        let write_pool = WritePool::for_tenant(pool.clone(), tenant_id)
+            .map_err(|_| configuration("Marketing tenant identity must be a non-nil UUID"))?;
         let write = MarketingWriteRepository::new(write_pool.clone());
         let budget = write
             .load_budget(&row.scope, budget_id)

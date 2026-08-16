@@ -12,7 +12,7 @@ use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId as KernelSessionId, TenantScope,
 };
-use erpx_proto::{common, platform};
+use erpx_proto::{common, erpx::support::v1 as platform};
 use erpx_support::{
     AddIncidentTimeline, AddTicketMessage, ApproveSupportSession, BroadcastAudience,
     BroadcastIncident, CapabilityEvidence, CapabilityId, CapabilityRevocationReason, GetIncident,

@@ -1,0 +1,204 @@
+syntax = "proto3";
+
+package erpx.benefits.v1;
+
+import "erpx/common/v1/context.proto";
+
+enum BenefitPlanStatus {
+  BENEFIT_PLAN_STATUS_UNSPECIFIED = 0;
+  BENEFIT_PLAN_STATUS_DRAFT = 1;
+  BENEFIT_PLAN_STATUS_PUBLISHED = 2;
+  BENEFIT_PLAN_STATUS_RETIRED = 3;
+}
+
+enum BenefitEnrollmentStatus {
+  BENEFIT_ENROLLMENT_STATUS_UNSPECIFIED = 0;
+  BENEFIT_ENROLLMENT_STATUS_DRAFT = 1;
+  BENEFIT_ENROLLMENT_STATUS_ELECTED = 2;
+  BENEFIT_ENROLLMENT_STATUS_PENDING_PROVIDER = 3;
+  BENEFIT_ENROLLMENT_STATUS_ACKNOWLEDGED = 4;
+  BENEFIT_ENROLLMENT_STATUS_PROVIDER_REJECTED = 5;
+  BENEFIT_ENROLLMENT_STATUS_PAYROLL_HANDED_OFF = 6;
+  BENEFIT_ENROLLMENT_STATUS_CANCELLED = 7;
+}
+
+enum CoverageTier {
+  COVERAGE_TIER_UNSPECIFIED = 0;
+  COVERAGE_TIER_EMPLOYEE = 1;
+  COVERAGE_TIER_EMPLOYEE_SPOUSE = 2;
+  COVERAGE_TIER_EMPLOYEE_CHILDREN = 3;
+  COVERAGE_TIER_FAMILY = 4;
+}
+
+message RecordVersionRef {
+  string record_id = 1;
+  uint64 version = 2;
+  string owner_context = 3;
+  string record_type = 4;
+}
+
+message MoneyAmount {
+  sint64 minor_units = 1;
+  string currency = 2;
+}
+
+message BenefitsMutationResponse {
+  erpx.common.v1.CommandReceipt receipt = 1;
+  string record_type = 2;
+  string record_id = 3;
+  string lifecycle_status = 4;
+}
+
+message PublishBenefitPlanRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string plan_id = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string name = 4;
+  string currency = 5;
+  string eligibility_class = 6;
+  uint32 minimum_tenure_days = 7;
+  uint32 employee_contribution_basis_points = 8;
+  uint32 employer_contribution_basis_points = 9;
+  MoneyAmount employee_flat_contribution = 10;
+  MoneyAmount employer_flat_contribution = 11;
+  optional MoneyAmount employee_contribution_cap = 12;
+}
+
+message EligibilityDecision {
+  RecordVersionRef employee = 1;
+  string employment_class = 2;
+  uint32 tenure_days = 3;
+  bool eligible = 4;
+  RecordVersionRef source = 5;
+  string evaluated_at = 6;
+}
+
+message OpenBenefitEnrollmentRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string plan_id = 4;
+  uint64 plan_version = 5;
+  string enrollment_window_id = 6;
+  string window_opens_on = 7;
+  string window_closes_on = 8;
+  string coverage_starts_on = 9;
+  RecordVersionRef employee = 10;
+  EligibilityDecision eligibility = 11;
+  optional string life_event_id = 12;
+  optional string life_event_kind = 13;
+  optional string life_event_occurred_on = 14;
+  optional RecordVersionRef life_event_evidence = 15;
+  string enrollment_date = 16;
+}
+
+message AddBenefitDependentRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  string dependent_id = 3;
+  string person_reference = 4;
+  string relationship = 5;
+  RecordVersionRef eligibility_evidence = 6;
+  erpx.common.v1.TenantScope enrollment_scope = 7;
+}
+
+message ElectBenefitCoverageRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  string plan_id = 3;
+  uint64 plan_version = 4;
+  string election_id = 5;
+  CoverageTier coverage_tier = 6;
+  repeated string dependent_ids = 7;
+  MoneyAmount base_pay = 8;
+  RecordVersionRef base_pay_source = 9;
+  string effective_on = 10;
+  erpx.common.v1.TenantScope enrollment_scope = 11;
+}
+
+message EnrollmentIdentityRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  erpx.common.v1.TenantScope enrollment_scope = 3;
+}
+
+message AcknowledgeBenefitProviderRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  string acknowledgement_id = 3;
+  string request_key = 4;
+  bool accepted = 5;
+  string provider_reference = 6;
+  optional string rejection_reason = 7;
+  string received_at = 8;
+  erpx.common.v1.TenantScope enrollment_scope = 9;
+}
+
+message ReleaseBenefitsPayrollRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  erpx.common.v1.TenantScope enrollment_scope = 3;
+  string handoff_id = 4;
+}
+
+message GetBenefitEnrollmentRequest {
+  erpx.common.v1.QueryContext context = 1;
+  erpx.common.v1.TenantScope enrollment_scope = 2;
+  string enrollment_id = 3;
+}
+
+message GetBenefitsRecordRequest {
+  erpx.common.v1.QueryContext context = 1;
+  erpx.common.v1.TenantScope record_scope = 2;
+  string record_id = 3;
+}
+
+message BenefitEnrollmentProjection {
+  string enrollment_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string plan_id = 4;
+  uint64 plan_version = 5;
+  string employee_record_id = 6;
+  BenefitEnrollmentStatus status = 7;
+  optional string election_id = 8;
+  optional string payroll_handoff_id = 9;
+  uint64 source_position = 10;
+  string projected_at = 11;
+}
+
+message BenefitsRecordProjection {
+  string record_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string record_kind = 4;
+  string subject_record_id = 5;
+  string lifecycle_status = 6;
+  uint64 source_position = 7;
+  string projected_at = 8;
+}
+
+message GetBenefitEnrollmentResponse {
+  optional BenefitEnrollmentProjection enrollment = 1;
+  erpx.common.v1.ProjectionMetadata projection = 2;
+}
+
+message GetBenefitsRecordResponse {
+  optional BenefitsRecordProjection record = 1;
+  erpx.common.v1.ProjectionMetadata projection = 2;
+}
+
+service BenefitsCommandService {
+  rpc PublishPlan(PublishBenefitPlanRequest) returns (BenefitsMutationResponse);
+  rpc OpenEnrollment(OpenBenefitEnrollmentRequest) returns (BenefitsMutationResponse);
+  rpc AddDependent(AddBenefitDependentRequest) returns (BenefitsMutationResponse);
+  rpc ElectCoverage(ElectBenefitCoverageRequest) returns (BenefitsMutationResponse);
+  rpc SubmitProvider(EnrollmentIdentityRequest) returns (BenefitsMutationResponse);
+  rpc AcknowledgeProvider(AcknowledgeBenefitProviderRequest) returns (BenefitsMutationResponse);
+  rpc ReleasePayroll(ReleaseBenefitsPayrollRequest) returns (BenefitsMutationResponse);
+}
+
+service BenefitsQueryService {
+  rpc GetEnrollment(GetBenefitEnrollmentRequest) returns (GetBenefitEnrollmentResponse);
+  rpc GetRecord(GetBenefitsRecordRequest) returns (GetBenefitsRecordResponse);
+}

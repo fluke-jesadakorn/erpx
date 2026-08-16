@@ -6,8 +6,9 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_finance_sqlx::{
     FinanceBankTransactionProjector, FinanceChartProjector, FinanceCustomerInvoiceProjector,
-    FinanceJournalProjector, FinancePeriodProjector, FinanceRevenueScheduleProjector,
-    FinanceStatutoryTaxProjector, FinanceSubledgerProjector, FinanceTrialBalanceProjector,
+    FinanceJournalProjector, FinancePeriodProjector, FinanceRecordProjector,
+    FinanceRevenueScheduleProjector, FinanceStatutoryTaxProjector, FinanceSubledgerProjector,
+    FinanceTrialBalanceProjector,
 };
 use uuid::Uuid;
 
@@ -28,6 +29,7 @@ pub enum FinanceProjectionKind {
     TrialBalance,
     BankTransactions,
     StatutoryTax,
+    BusinessRecords,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -45,6 +47,7 @@ impl FinanceProjectionFactory {
             registration(&FinanceTrialBalanceProjector::new()),
             registration(&FinanceBankTransactionProjector::new()),
             registration(&FinanceStatutoryTaxProjector::new()),
+            registration(&FinanceRecordProjector::new()),
         ]
     }
     pub fn build(
@@ -65,6 +68,7 @@ impl FinanceProjectionFactory {
             trial_balance: FinanceTrialBalanceProjector::new(),
             bank_transactions: FinanceBankTransactionProjector::new(),
             statutory_tax: FinanceStatutoryTaxProjector::new(),
+            records: FinanceRecordProjector::new(),
             runner,
             store,
         })
@@ -82,6 +86,7 @@ pub struct FinanceProjectionRuntime {
     trial_balance: FinanceTrialBalanceProjector,
     bank_transactions: FinanceBankTransactionProjector,
     statutory_tax: FinanceStatutoryTaxProjector,
+    records: FinanceRecordProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
@@ -114,6 +119,7 @@ impl FinanceProjectionRuntime {
             FinanceProjectionKind::StatutoryTax => {
                 self.runner.run_active(&self.statutory_tax).await
             }
+            FinanceProjectionKind::BusinessRecords => self.runner.run_active(&self.records).await,
         }
     }
     pub async fn begin_rebuild(
@@ -167,6 +173,11 @@ impl FinanceProjectionRuntime {
                     .begin_or_resume_rebuild(&self.statutory_tax, rebuild_id)
                     .await
             }
+            FinanceProjectionKind::BusinessRecords => {
+                self.store
+                    .begin_or_resume_rebuild(&self.records, rebuild_id)
+                    .await
+            }
         }
     }
     pub async fn run_rebuild_page(
@@ -215,6 +226,9 @@ impl FinanceProjectionRuntime {
                     .run_rebuild(&self.statutory_tax, handle, after)
                     .await
             }
+            FinanceProjectionKind::BusinessRecords => {
+                self.runner.run_rebuild(&self.records, handle, after).await
+            }
         }
     }
     pub async fn activate_rebuild(
@@ -232,6 +246,7 @@ impl FinanceProjectionRuntime {
             FinanceProjectionKind::TrialBalance => self.trial_balance.name(),
             FinanceProjectionKind::BankTransactions => self.bank_transactions.name(),
             FinanceProjectionKind::StatutoryTax => self.statutory_tax.name(),
+            FinanceProjectionKind::BusinessRecords => self.records.name(),
         };
         if handle.projection != expected {
             return Err(CqrsSqlxError::InvalidInput(
@@ -254,20 +269,20 @@ mod tests {
     use super::*;
     use erpx_finance_sqlx::{
         BANK_TRANSACTION_PROJECTION, CHART_PROJECTION, CUSTOMER_INVOICE_PROJECTION,
-        JOURNAL_PROJECTION, PERIOD_PROJECTION, REVENUE_SCHEDULE_PROJECTION,
+        JOURNAL_PROJECTION, PERIOD_PROJECTION, RECORD_PROJECTION_NAME, REVENUE_SCHEDULE_PROJECTION,
         STATUTORY_TAX_PROJECTION, SUBLEDGER_PROJECTION, TRIAL_BALANCE_PROJECTION,
     };
     #[test]
     fn registrations_are_collision_free() {
         let values = FinanceProjectionFactory.registrations();
-        assert_eq!(values.len(), 9);
+        assert_eq!(values.len(), 10);
         assert_eq!(
             values
                 .iter()
                 .map(|v| v.name.as_str())
                 .collect::<std::collections::BTreeSet<_>>()
                 .len(),
-            9
+            10
         );
         for expected in [
             CHART_PROJECTION,
@@ -279,6 +294,7 @@ mod tests {
             TRIAL_BALANCE_PROJECTION,
             BANK_TRANSACTION_PROJECTION,
             STATUTORY_TAX_PROJECTION,
+            RECORD_PROJECTION_NAME,
         ] {
             assert!(values.iter().any(|v| v.name == expected));
         }

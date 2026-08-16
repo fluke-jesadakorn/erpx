@@ -15,7 +15,7 @@ use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId, TenantScope,
 };
-use erpx_proto::{common, platform};
+use erpx_proto::{common, erpx::quality::v1 as platform};
 use erpx_quality::{
     CancelInspection, CreateInspection, CreateInspectionResult, GetInspection, GetInspectionResult,
     InspectionId, InspectionKind, InspectionList, InspectionListFilter, InspectionMutationResult,

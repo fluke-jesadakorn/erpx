@@ -22,8 +22,7 @@ use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CorrelationId, ErrorCategory, EventId, QueryId,
     SessionId, TenantScope,
 };
-use erpx_proto::{common, platform};
-use platform::customer360_query_service_server::Customer360QueryService;
+use erpx_proto::{common, erpx::customer_360::v1 as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 
@@ -136,11 +135,8 @@ impl<A, G> Customer360QueryRpc<A, G> {
     }
 }
 
-#[async_trait]
-impl<A: Customer360QueryApplication, G: Customer360RequestAuthenticator> Customer360QueryService
-    for Customer360QueryRpc<A, G>
-{
-    async fn get_customer360(
+impl<A: Customer360QueryApplication, G: Customer360RequestAuthenticator> Customer360QueryRpc<A, G> {
+    pub async fn get_customer360(
         &self,
         request: Request<platform::GetCustomer360Request>,
     ) -> Result<Response<platform::GetCustomer360Response>, Status> {
@@ -364,6 +360,11 @@ fn encode_availability(value: SectionAvailability) -> i32 {
         SectionAvailability::AwaitingSource => {
             platform::Customer360SectionAvailabilityState::AwaitingSource as i32
         }
+        SectionAvailability::Stale => platform::Customer360SectionAvailabilityState::Stale as i32,
+        SectionAvailability::Unavailable => {
+            platform::Customer360SectionAvailabilityState::Unavailable as i32
+        }
+        SectionAvailability::Denied => platform::Customer360SectionAvailabilityState::Denied as i32,
         SectionAvailability::NotProjected => {
             platform::Customer360SectionAvailabilityState::NotProjected as i32
         }
@@ -623,6 +624,26 @@ mod tests {
     fn unsupported_sections_encode_as_not_projected() {
         assert_eq!(
             encode_availability(SectionAvailability::NotProjected),
+            platform::Customer360SectionAvailabilityState::NotProjected as i32
+        );
+    }
+
+    #[test]
+    fn degraded_and_denied_sections_have_distinct_fail_closed_wire_states() {
+        assert_eq!(
+            encode_availability(SectionAvailability::Stale),
+            platform::Customer360SectionAvailabilityState::Stale as i32
+        );
+        assert_eq!(
+            encode_availability(SectionAvailability::Unavailable),
+            platform::Customer360SectionAvailabilityState::Unavailable as i32
+        );
+        assert_eq!(
+            encode_availability(SectionAvailability::Denied),
+            platform::Customer360SectionAvailabilityState::Denied as i32
+        );
+        assert_ne!(
+            encode_availability(SectionAvailability::Denied),
             platform::Customer360SectionAvailabilityState::NotProjected as i32
         );
     }

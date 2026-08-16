@@ -21,7 +21,7 @@ use erpx_domain::{
     },
     data_plane::{
         AgentCapability, ApprovalPolicy, BUSINESS_UNIT_CONFIGURATION_MANAGE,
-        BUSINESS_UNIT_CONFIGURATION_READ, BUSINESS_UNIT_ROUTE_CATALOG, BusinessUnitConfiguration,
+        BUSINESS_UNIT_CONFIGURATION_READ, BusinessUnitConfiguration,
         BusinessUnitDirectoryRoleMapping, BusinessUnitId, ConfigurationLayer,
         ConfigurationLifecycle, DataPlaneAgentBinding, DataPlaneAgentState, DesiredConfiguration,
         ObservedDataPlaneState, RootAccessApproval, RootAccessMode, RootAccessRequest,
@@ -37,42 +37,21 @@ use erpx_infrastructure::{
     RootAccessQueueRecord, SqlxCorporateIdentityStore, SqlxDataPlaneControlStore,
     SqlxTenantAdministrationStore,
 };
+use erpx_integration_contracts::catalog::{WORKSPACES, WorkspaceId};
+use erpx_proto::erpx::platform_administration::v1 as target;
+use erpx_proto::erpx::platform_administration::data_plane_agent::v1::data_plane_agent_service_server::{
+    DataPlaneAgentService, DataPlaneAgentServiceServer,
+};
 use erpx_proto::{
     common::v1::{CommandContext, QueryContext, TenantScope as ProtoTenantScope, tenant_scope},
-    platform::{
-        BrandAssetManifestMessage, BrandAssetReferenceMessage, BrandPaletteMessage,
-        BrandScopeMessage, BrandTokenSetMessage, BusinessUnitConfigurationMessage,
-        BusinessUnitDirectoryRoleMappingMessage,
+    erpx::platform_administration::v1 as agent_contract,
+    erpx::platform_administration::v1::{
         ConfigurationLifecycle as ProtoConfigurationLifecycle, ControlPlaneEnvelope,
-        CorporateIdentityHistoryEntryMessage, CorporateIdentityProfileMessage,
         DataPlaneAgentEnvelope, DataPlaneAgentState as ProtoDataPlaneAgentState,
-        DecideDesiredConfigurationRequest, DecideDesiredConfigurationResponse,
-        DecideRootAccessRequest, DecideRootAccessResponse, EnrollDataPlaneAgentRequest,
-        EnrollDataPlaneAgentResponse, GetBusinessUnitConfigurationRequest,
-        GetBusinessUnitConfigurationResponse, GetCorporateIdentityDraftRequest,
-        GetCorporateIdentityDraftResponse, GetNavigationManifestRequest,
-        GetNavigationManifestResponse, GetResolvedCorporateIdentityRequest,
-        GetResolvedCorporateIdentityResponse, GetTenantInfrastructureRequest,
-        GetTenantInfrastructureResponse, IssueDataPlaneEnrollmentRequest,
-        IssueDataPlaneEnrollmentResponse, ListCorporateIdentityHistoryRequest,
-        ListCorporateIdentityHistoryResponse, ListRootAccessRequestsRequest,
-        ListRootAccessRequestsResponse, NavigationAccessState, NavigationManifestGroup,
-        NavigationManifestItem, ProposeDesiredConfigurationRequest,
-        ProposeDesiredConfigurationResponse, PublishCorporateIdentityDraftRequest,
-        PublishCorporateIdentityDraftResponse, ReportDataPlaneObservationRequest,
-        ReportDataPlaneObservationResponse, RequestRootAccessRequest, RequestRootAccessResponse,
-        ResolvedCorporateIdentityMessage, RevokeRootAccessRequest, RevokeRootAccessResponse,
-        RollbackCorporateIdentityRequest, RollbackCorporateIdentityResponse,
-        RootAccessCapabilityMessage, RootAccessQueueEntry, RootAccessRequestMessage,
-        RootAccessRevocationMessage, SaveBusinessUnitConfigurationRequest,
-        SaveBusinessUnitConfigurationResponse, SaveCorporateIdentityDraftRequest,
-        SaveCorporateIdentityDraftResponse, SaveTenantInfrastructureProfileRequest,
-        SaveTenantInfrastructureProfileResponse, TenantDeploymentMode as ProtoDeploymentMode,
-        TenantInfrastructureReadModel, data_plane_agent_envelope,
-        data_plane_agent_service_server::{DataPlaneAgentService, DataPlaneAgentServiceServer},
-        data_plane_control_service_server::{
-            DataPlaneControlService, DataPlaneControlServiceServer,
-        },
+        EnrollDataPlaneAgentRequest, EnrollDataPlaneAgentResponse,
+        ReportDataPlaneObservationRequest, ReportDataPlaneObservationResponse,
+        RootAccessCapabilityMessage, RootAccessRevocationMessage,
+        TenantDeploymentMode as ProtoDeploymentMode, data_plane_agent_envelope,
     },
 };
 use prost::Message;
@@ -175,9 +154,7 @@ impl DataPlaneBroker {
             agent_id,
             ControlPlaneEnvelope {
                 payload: Some(
-                    erpx_proto::platform::control_plane_envelope::Payload::DesiredConfiguration(
-                        message,
-                    ),
+                    agent_contract::control_plane_envelope::Payload::DesiredConfiguration(message),
                 ),
             },
         )
@@ -223,7 +200,7 @@ impl DataPlaneSigningKey {
 
     fn sign_desired(
         &self,
-        message: &mut erpx_proto::platform::DesiredConfigurationMessage,
+        message: &mut agent_contract::DesiredConfigurationMessage,
     ) -> Result<(), Status> {
         if !message.control_plane_signature.is_empty() {
             return Err(Status::invalid_argument(
@@ -279,12 +256,11 @@ pub(crate) struct DataPlaneControlRpcImpl {
     pub(crate) broker: Arc<DataPlaneBroker>,
 }
 
-#[tonic::async_trait]
-impl DataPlaneControlService for DataPlaneControlRpcImpl {
-    async fn get_tenant_infrastructure(
+impl DataPlaneControlRpcImpl {
+    pub(crate) async fn get_tenant_infrastructure(
         &self,
-        request: Request<GetTenantInfrastructureRequest>,
-    ) -> Result<Response<GetTenantInfrastructureResponse>, Status> {
+        request: Request<target::GetTenantInfrastructureRequest>,
+    ) -> Result<Response<target::GetTenantInfrastructureResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let boundary = query_context(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -316,8 +292,8 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
                 Some(tenant_id),
             )
             .await?;
-        Ok(Response::new(GetTenantInfrastructureResponse {
-            infrastructure: Some(TenantInfrastructureReadModel {
+        Ok(Response::new(target::GetTenantInfrastructureResponse {
+            infrastructure: Some(target::TenantInfrastructureReadModel {
                 tenant_id: summary.tenant_id,
                 root_holding_id: summary.root_holding_id.to_string(),
                 deployment_mode: proto_deployment_mode(summary.deployment_mode) as i32,
@@ -355,10 +331,10 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
         }))
     }
 
-    async fn save_tenant_infrastructure_profile(
+    pub(crate) async fn save_tenant_infrastructure_profile(
         &self,
-        request: Request<SaveTenantInfrastructureProfileRequest>,
-    ) -> Result<Response<SaveTenantInfrastructureProfileResponse>, Status> {
+        request: Request<target::SaveTenantInfrastructureProfileRequest>,
+    ) -> Result<Response<target::SaveTenantInfrastructureProfileResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -451,17 +427,19 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             )
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(SaveTenantInfrastructureProfileResponse {
-            profile_version,
-            correlation_id: command.correlation_id.to_string(),
-            awaiting_customer_approval: false,
-        }))
+        Ok(Response::new(
+            target::SaveTenantInfrastructureProfileResponse {
+                profile_version,
+                correlation_id: command.correlation_id.to_string(),
+                awaiting_customer_approval: false,
+            },
+        ))
     }
 
-    async fn get_business_unit_configuration(
+    pub(crate) async fn get_business_unit_configuration(
         &self,
-        request: Request<GetBusinessUnitConfigurationRequest>,
-    ) -> Result<Response<GetBusinessUnitConfigurationResponse>, Status> {
+        request: Request<target::GetBusinessUnitConfigurationRequest>,
+    ) -> Result<Response<target::GetBusinessUnitConfigurationResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let boundary = query_context(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -494,20 +472,22 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             .business_unit_configuration(tenant_id, business_unit)
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(GetBusinessUnitConfigurationResponse {
-            exists: configuration.is_some(),
-            configuration: configuration
-                .as_ref()
-                .map(business_unit_configuration_message)
-                .transpose()?,
-            correlation_id: boundary.correlation_id.to_string(),
-        }))
+        Ok(Response::new(
+            target::GetBusinessUnitConfigurationResponse {
+                exists: configuration.is_some(),
+                configuration: configuration
+                    .as_ref()
+                    .map(business_unit_configuration_message)
+                    .transpose()?,
+                correlation_id: boundary.correlation_id.to_string(),
+            },
+        ))
     }
 
-    async fn save_business_unit_configuration(
+    pub(crate) async fn save_business_unit_configuration(
         &self,
-        request: Request<SaveBusinessUnitConfigurationRequest>,
-    ) -> Result<Response<SaveBusinessUnitConfigurationResponse>, Status> {
+        request: Request<target::SaveBusinessUnitConfigurationRequest>,
+    ) -> Result<Response<target::SaveBusinessUnitConfigurationResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -618,16 +598,18 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             )
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(SaveBusinessUnitConfigurationResponse {
-            configuration_version: configuration.configuration_version,
-            correlation_id: command.correlation_id.to_string(),
-        }))
+        Ok(Response::new(
+            target::SaveBusinessUnitConfigurationResponse {
+                configuration_version: configuration.configuration_version,
+                correlation_id: command.correlation_id.to_string(),
+            },
+        ))
     }
 
-    async fn issue_data_plane_enrollment(
+    pub(crate) async fn issue_data_plane_enrollment(
         &self,
-        request: Request<IssueDataPlaneEnrollmentRequest>,
-    ) -> Result<Response<IssueDataPlaneEnrollmentResponse>, Status> {
+        request: Request<target::IssueDataPlaneEnrollmentRequest>,
+    ) -> Result<Response<target::IssueDataPlaneEnrollmentResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -704,7 +686,7 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             })
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(IssueDataPlaneEnrollmentResponse {
+        Ok(Response::new(target::IssueDataPlaneEnrollmentResponse {
             enrollment_id: enrollment_id.to_string(),
             one_time_bootstrap_token: token.to_vec(),
             expires_at: expires_at.to_rfc3339(),
@@ -712,10 +694,10 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
         }))
     }
 
-    async fn propose_desired_configuration(
+    pub(crate) async fn propose_desired_configuration(
         &self,
-        request: Request<ProposeDesiredConfigurationRequest>,
-    ) -> Result<Response<ProposeDesiredConfigurationResponse>, Status> {
+        request: Request<target::ProposeDesiredConfigurationRequest>,
+    ) -> Result<Response<target::ProposeDesiredConfigurationResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -787,7 +769,7 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             .propose_configuration(&desired, &desired_state, command.correlation_id, at)
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(ProposeDesiredConfigurationResponse {
+        Ok(Response::new(target::ProposeDesiredConfigurationResponse {
             configuration_id: desired.id.to_string(),
             desired_version: desired.desired_version,
             lifecycle: proto_configuration_lifecycle(desired.lifecycle) as i32,
@@ -795,10 +777,10 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
         }))
     }
 
-    async fn decide_desired_configuration(
+    pub(crate) async fn decide_desired_configuration(
         &self,
-        request: Request<DecideDesiredConfigurationRequest>,
-    ) -> Result<Response<DecideDesiredConfigurationResponse>, Status> {
+        request: Request<target::DecideDesiredConfigurationRequest>,
+    ) -> Result<Response<target::DecideDesiredConfigurationResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -920,17 +902,17 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
                 .map_err(persistence_status)?;
             ConfigurationLifecycle::Rejected
         };
-        Ok(Response::new(DecideDesiredConfigurationResponse {
+        Ok(Response::new(target::DecideDesiredConfigurationResponse {
             configuration_id: configuration_id.to_string(),
             lifecycle: proto_configuration_lifecycle(lifecycle) as i32,
             correlation_id: command.correlation_id.to_string(),
         }))
     }
 
-    async fn request_root_access(
+    pub(crate) async fn request_root_access(
         &self,
-        request: Request<RequestRootAccessRequest>,
-    ) -> Result<Response<RequestRootAccessResponse>, Status> {
+        request: Request<target::RequestRootAccessRequest>,
+    ) -> Result<Response<target::RequestRootAccessResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1012,17 +994,17 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             .request_root_access(&domain_request, holding_id, command.correlation_id)
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(RequestRootAccessResponse {
+        Ok(Response::new(target::RequestRootAccessResponse {
             request_id: domain_request.id.to_string(),
             state: "awaiting_customer_approval".into(),
             correlation_id: command.correlation_id.to_string(),
         }))
     }
 
-    async fn decide_root_access(
+    pub(crate) async fn decide_root_access(
         &self,
-        request: Request<DecideRootAccessRequest>,
-    ) -> Result<Response<DecideRootAccessResponse>, Status> {
+        request: Request<target::DecideRootAccessRequest>,
+    ) -> Result<Response<target::DecideRootAccessResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1150,7 +1132,7 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
                     capability.agent_id,
                     ControlPlaneEnvelope {
                         payload: Some(
-                            erpx_proto::platform::control_plane_envelope::Payload::RootAccessCapability(
+                            agent_contract::control_plane_envelope::Payload::RootAccessCapability(
                                 capability_message,
                             ),
                         ),
@@ -1172,7 +1154,7 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
                     .map_err(persistence_status)?;
                 return Err(status);
             }
-            Ok(Response::new(DecideRootAccessResponse {
+            Ok(Response::new(target::DecideRootAccessResponse {
                 request_id: request_id.to_string(),
                 state: "active".into(),
                 expires_at: capability.expires_at.to_rfc3339(),
@@ -1190,7 +1172,7 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
                 )
                 .await
                 .map_err(persistence_status)?;
-            Ok(Response::new(DecideRootAccessResponse {
+            Ok(Response::new(target::DecideRootAccessResponse {
                 request_id: request_id.to_string(),
                 state: "rejected".into(),
                 expires_at: String::new(),
@@ -1199,10 +1181,10 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
         }
     }
 
-    async fn revoke_root_access(
+    pub(crate) async fn revoke_root_access(
         &self,
-        request: Request<RevokeRootAccessRequest>,
-    ) -> Result<Response<RevokeRootAccessResponse>, Status> {
+        request: Request<target::RevokeRootAccessRequest>,
+    ) -> Result<Response<target::RevokeRootAccessResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1284,7 +1266,7 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
                     capability.agent_id,
                     ControlPlaneEnvelope {
                         payload: Some(
-                            erpx_proto::platform::control_plane_envelope::Payload::RootAccessRevocation(
+                            agent_contract::control_plane_envelope::Payload::RootAccessRevocation(
                                 revocation,
                             ),
                         ),
@@ -1292,16 +1274,16 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
                 )
                 .await;
         }
-        Ok(Response::new(RevokeRootAccessResponse {
+        Ok(Response::new(target::RevokeRootAccessResponse {
             revoked: true,
             correlation_id: command.correlation_id.to_string(),
         }))
     }
 
-    async fn list_root_access_requests(
+    pub(crate) async fn list_root_access_requests(
         &self,
-        request: Request<ListRootAccessRequestsRequest>,
-    ) -> Result<Response<ListRootAccessRequestsResponse>, Status> {
+        request: Request<target::ListRootAccessRequestsRequest>,
+    ) -> Result<Response<target::ListRootAccessRequestsResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let boundary = query_context(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1348,7 +1330,7 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             .list_root_access_requests(tenant_id, request.get_ref().include_closed, page_size)
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(ListRootAccessRequestsResponse {
+        Ok(Response::new(target::ListRootAccessRequestsResponse {
             requests: entries
                 .iter()
                 .map(root_access_queue_entry)
@@ -1357,10 +1339,10 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
         }))
     }
 
-    async fn get_resolved_corporate_identity(
+    pub(crate) async fn get_resolved_corporate_identity(
         &self,
-        request: Request<GetResolvedCorporateIdentityRequest>,
-    ) -> Result<Response<GetResolvedCorporateIdentityResponse>, Status> {
+        request: Request<target::GetResolvedCorporateIdentityRequest>,
+    ) -> Result<Response<target::GetResolvedCorporateIdentityResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let boundary = query_context(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1398,16 +1380,18 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             )
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(GetResolvedCorporateIdentityResponse {
-            identity: Some(resolved_identity_message(&resolved)),
-            correlation_id: boundary.correlation_id.to_string(),
-        }))
+        Ok(Response::new(
+            target::GetResolvedCorporateIdentityResponse {
+                identity: Some(resolved_identity_message(&resolved)),
+                correlation_id: boundary.correlation_id.to_string(),
+            },
+        ))
     }
 
-    async fn get_corporate_identity_draft(
+    pub(crate) async fn get_corporate_identity_draft(
         &self,
-        request: Request<GetCorporateIdentityDraftRequest>,
-    ) -> Result<Response<GetCorporateIdentityDraftResponse>, Status> {
+        request: Request<target::GetCorporateIdentityDraftRequest>,
+    ) -> Result<Response<target::GetCorporateIdentityDraftResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let boundary = query_context(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1441,17 +1425,17 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             .draft(&target)
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(GetCorporateIdentityDraftResponse {
+        Ok(Response::new(target::GetCorporateIdentityDraftResponse {
             exists: draft.is_some(),
             draft: draft.as_ref().map(corporate_identity_profile_message),
             correlation_id: boundary.correlation_id.to_string(),
         }))
     }
 
-    async fn save_corporate_identity_draft(
+    pub(crate) async fn save_corporate_identity_draft(
         &self,
-        request: Request<SaveCorporateIdentityDraftRequest>,
-    ) -> Result<Response<SaveCorporateIdentityDraftResponse>, Status> {
+        request: Request<target::SaveCorporateIdentityDraftRequest>,
+    ) -> Result<Response<target::SaveCorporateIdentityDraftResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1514,16 +1498,16 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             )
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(SaveCorporateIdentityDraftResponse {
+        Ok(Response::new(target::SaveCorporateIdentityDraftResponse {
             draft: Some(corporate_identity_profile_message(&saved)),
             correlation_id: command.correlation_id.to_string(),
         }))
     }
 
-    async fn publish_corporate_identity_draft(
+    pub(crate) async fn publish_corporate_identity_draft(
         &self,
-        request: Request<PublishCorporateIdentityDraftRequest>,
-    ) -> Result<Response<PublishCorporateIdentityDraftResponse>, Status> {
+        request: Request<target::PublishCorporateIdentityDraftRequest>,
+    ) -> Result<Response<target::PublishCorporateIdentityDraftResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1590,16 +1574,18 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             )
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(PublishCorporateIdentityDraftResponse {
-            published: Some(corporate_identity_profile_message(&published)),
-            correlation_id: command.correlation_id.to_string(),
-        }))
+        Ok(Response::new(
+            target::PublishCorporateIdentityDraftResponse {
+                published: Some(corporate_identity_profile_message(&published)),
+                correlation_id: command.correlation_id.to_string(),
+            },
+        ))
     }
 
-    async fn rollback_corporate_identity(
+    pub(crate) async fn rollback_corporate_identity(
         &self,
-        request: Request<RollbackCorporateIdentityRequest>,
-    ) -> Result<Response<RollbackCorporateIdentityResponse>, Status> {
+        request: Request<target::RollbackCorporateIdentityRequest>,
+    ) -> Result<Response<target::RollbackCorporateIdentityResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let command = command_domain(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1667,16 +1653,16 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             })
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(RollbackCorporateIdentityResponse {
+        Ok(Response::new(target::RollbackCorporateIdentityResponse {
             published: Some(corporate_identity_profile_message(&published)),
             correlation_id: command.correlation_id.to_string(),
         }))
     }
 
-    async fn list_corporate_identity_history(
+    pub(crate) async fn list_corporate_identity_history(
         &self,
-        request: Request<ListCorporateIdentityHistoryRequest>,
-    ) -> Result<Response<ListCorporateIdentityHistoryResponse>, Status> {
+        request: Request<target::ListCorporateIdentityHistoryRequest>,
+    ) -> Result<Response<target::ListCorporateIdentityHistoryResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let boundary = query_context(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1709,16 +1695,18 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
             .history(&target, request.get_ref().page_size)
             .await
             .map_err(persistence_status)?;
-        Ok(Response::new(ListCorporateIdentityHistoryResponse {
-            entries: entries.iter().map(history_entry_message).collect(),
-            correlation_id: boundary.correlation_id.to_string(),
-        }))
+        Ok(Response::new(
+            target::ListCorporateIdentityHistoryResponse {
+                entries: entries.iter().map(history_entry_message).collect(),
+                correlation_id: boundary.correlation_id.to_string(),
+            },
+        ))
     }
 
-    async fn get_navigation_manifest(
+    pub(crate) async fn get_navigation_manifest(
         &self,
-        request: Request<GetNavigationManifestRequest>,
-    ) -> Result<Response<GetNavigationManifestResponse>, Status> {
+        request: Request<target::GetNavigationManifestRequest>,
+    ) -> Result<Response<target::GetNavigationManifestResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let boundary = query_context(&request, request.get_ref().context.as_ref())?;
         require_actor_match(
@@ -1742,9 +1730,9 @@ impl DataPlaneControlService for DataPlaneControlRpcImpl {
         let home_route = if matches!(scope, Scope::Platform) {
             "/platform"
         } else {
-            "/workspaces/operations"
+            "/work"
         };
-        Ok(Response::new(GetNavigationManifestResponse {
+        Ok(Response::new(target::GetNavigationManifestResponse {
             audience: audience.into(),
             home_route: home_route.into(),
             groups,
@@ -1956,13 +1944,6 @@ impl DataPlaneAgentService for DataPlaneBroker {
     }
 }
 
-pub(crate) fn control_service(
-    state: AppState,
-    broker: Arc<DataPlaneBroker>,
-) -> DataPlaneControlServiceServer<DataPlaneControlRpcImpl> {
-    DataPlaneControlServiceServer::new(DataPlaneControlRpcImpl { state, broker })
-}
-
 /// Start the dedicated agent listener only when all mTLS settings are present.
 /// It is separate from the browser/gRPC-Web listener so client certificates are
 /// mandatory for agents without being required from console browsers.
@@ -2036,7 +2017,7 @@ fn peer_certificate_fingerprint<T>(request: &Request<T>) -> Result<String, Statu
 }
 
 fn parse_observation(
-    input: &erpx_proto::platform::DataPlaneObservationMessage,
+    input: &agent_contract::DataPlaneObservationMessage,
 ) -> Result<ObservedDataPlaneState, Status> {
     validate_agent_envelope_common(
         input.contract_version,
@@ -2066,7 +2047,7 @@ fn parse_observation(
 fn approved_configuration_message(
     approved: ApprovedDesiredConfiguration,
     signing_key_id: &str,
-) -> Result<erpx_proto::platform::DesiredConfigurationMessage, Status> {
+) -> Result<agent_contract::DesiredConfigurationMessage, Status> {
     let desired = approved.desired;
     let (configuration_layer, business_unit) = match desired.layer {
         ConfigurationLayer::Platform => ("platform".to_owned(), String::new()),
@@ -2075,7 +2056,7 @@ fn approved_configuration_message(
             ("business_unit".to_owned(), unit.as_str().to_owned())
         }
     };
-    Ok(erpx_proto::platform::DesiredConfigurationMessage {
+    Ok(agent_contract::DesiredConfigurationMessage {
         contract_version: u32::from(erpx_domain::contracts::CONTRACT_VERSION),
         configuration_id: desired.id.to_string(),
         tenant_id: desired.tenant_id,
@@ -2219,7 +2200,7 @@ async fn brand_authorization_target(
     }
 }
 
-fn parse_brand_scope(input: &BrandScopeMessage) -> Result<BrandScope, Status> {
+fn parse_brand_scope(input: &target::BrandScopeMessage) -> Result<BrandScope, Status> {
     let scope = match input.scope_kind.as_str() {
         "platform"
             if input.tenant_id.is_empty()
@@ -2251,7 +2232,7 @@ fn parse_brand_scope(input: &BrandScopeMessage) -> Result<BrandScope, Status> {
 }
 
 fn parse_corporate_identity_profile(
-    input: &CorporateIdentityProfileMessage,
+    input: &target::CorporateIdentityProfileMessage,
 ) -> Result<CorporateIdentityProfile, Status> {
     let lifecycle = match input.lifecycle.as_str() {
         "draft" => BrandLifecycle::Draft,
@@ -2292,7 +2273,7 @@ fn parse_corporate_identity_profile(
     Ok(profile)
 }
 
-fn parse_brand_tokens(input: &BrandTokenSetMessage) -> Result<BrandTokenSet, Status> {
+fn parse_brand_tokens(input: &target::BrandTokenSetMessage) -> Result<BrandTokenSet, Status> {
     let tokens = BrandTokenSet {
         light: parse_brand_palette(
             input
@@ -2351,7 +2332,7 @@ fn parse_brand_tokens(input: &BrandTokenSetMessage) -> Result<BrandTokenSet, Sta
     Ok(tokens)
 }
 
-fn parse_brand_palette(input: &BrandPaletteMessage) -> Result<BrandPalette, Status> {
+fn parse_brand_palette(input: &target::BrandPaletteMessage) -> Result<BrandPalette, Status> {
     let color = |value: &str| {
         HexColor::new(value.to_owned()).map_err(|error| Status::invalid_argument(error.to_string()))
     };
@@ -2372,7 +2353,7 @@ fn parse_brand_palette(input: &BrandPaletteMessage) -> Result<BrandPalette, Stat
 }
 
 fn parse_brand_assets(
-    input: Option<&BrandAssetManifestMessage>,
+    input: Option<&target::BrandAssetManifestMessage>,
 ) -> Result<BrandAssetManifest, Status> {
     let Some(input) = input else {
         return Ok(BrandAssetManifest::default());
@@ -2393,7 +2374,9 @@ fn parse_brand_assets(
     })
 }
 
-fn parse_brand_asset(input: &BrandAssetReferenceMessage) -> Result<BrandAssetReference, Status> {
+fn parse_brand_asset(
+    input: &target::BrandAssetReferenceMessage,
+) -> Result<BrandAssetReference, Status> {
     let kind = match input.kind.as_str() {
         "logo_mark" => BrandAssetKind::LogoMark,
         "wordmark" => BrandAssetKind::Wordmark,
@@ -2435,8 +2418,8 @@ fn parse_brand_categories(
 
 fn corporate_identity_profile_message(
     profile: &CorporateIdentityProfile,
-) -> CorporateIdentityProfileMessage {
-    CorporateIdentityProfileMessage {
+) -> target::CorporateIdentityProfileMessage {
+    target::CorporateIdentityProfileMessage {
         profile_id: profile.profile_id.to_string(),
         scope: Some(brand_scope_message(&profile.scope)),
         version: profile.version,
@@ -2462,8 +2445,8 @@ fn corporate_identity_profile_message(
 
 fn resolved_identity_message(
     identity: &ResolvedCorporateIdentity,
-) -> ResolvedCorporateIdentityMessage {
-    ResolvedCorporateIdentityMessage {
+) -> target::ResolvedCorporateIdentityMessage {
+    target::ResolvedCorporateIdentityMessage {
         scope: Some(brand_scope_message(&identity.scope)),
         published_version: identity.published_version,
         display_name: identity.display_name.clone(),
@@ -2484,16 +2467,16 @@ fn resolved_identity_message(
     }
 }
 
-fn brand_scope_message(scope: &BrandScope) -> BrandScopeMessage {
+fn brand_scope_message(scope: &BrandScope) -> target::BrandScopeMessage {
     match scope {
-        BrandScope::Platform => BrandScopeMessage {
+        BrandScope::Platform => target::BrandScopeMessage {
             scope_kind: "platform".into(),
-            ..BrandScopeMessage::default()
+            ..target::BrandScopeMessage::default()
         },
         BrandScope::Holding {
             tenant_id,
             holding_id,
-        } => BrandScopeMessage {
+        } => target::BrandScopeMessage {
             scope_kind: "holding".into(),
             tenant_id: tenant_id.clone(),
             root_holding_id: holding_id.to_string(),
@@ -2503,7 +2486,7 @@ fn brand_scope_message(scope: &BrandScope) -> BrandScopeMessage {
             tenant_id,
             holding_id,
             business_unit,
-        } => BrandScopeMessage {
+        } => target::BrandScopeMessage {
             scope_kind: "business_unit".into(),
             tenant_id: tenant_id.clone(),
             root_holding_id: holding_id.to_string(),
@@ -2512,8 +2495,8 @@ fn brand_scope_message(scope: &BrandScope) -> BrandScopeMessage {
     }
 }
 
-fn brand_tokens_message(tokens: &BrandTokenSet) -> BrandTokenSetMessage {
-    BrandTokenSetMessage {
+fn brand_tokens_message(tokens: &BrandTokenSet) -> target::BrandTokenSetMessage {
+    target::BrandTokenSetMessage {
         light: Some(brand_palette_message(&tokens.light)),
         dark: Some(brand_palette_message(&tokens.dark)),
         font_pack: tokens.font_pack.as_str().to_owned(),
@@ -2529,8 +2512,8 @@ fn brand_tokens_message(tokens: &BrandTokenSet) -> BrandTokenSetMessage {
     }
 }
 
-fn brand_palette_message(palette: &BrandPalette) -> BrandPaletteMessage {
-    BrandPaletteMessage {
+fn brand_palette_message(palette: &BrandPalette) -> target::BrandPaletteMessage {
+    target::BrandPaletteMessage {
         primary: palette.primary.as_str().to_owned(),
         on_primary: palette.on_primary.as_str().to_owned(),
         accent: palette.accent.as_str().to_owned(),
@@ -2546,8 +2529,8 @@ fn brand_palette_message(palette: &BrandPalette) -> BrandPaletteMessage {
     }
 }
 
-fn brand_assets_message(assets: &BrandAssetManifest) -> BrandAssetManifestMessage {
-    BrandAssetManifestMessage {
+fn brand_assets_message(assets: &BrandAssetManifest) -> target::BrandAssetManifestMessage {
+    target::BrandAssetManifestMessage {
         logo_mark: assets.logo_mark.as_ref().map(brand_asset_message),
         wordmark: assets.wordmark.as_ref().map(brand_asset_message),
         favicon: assets.favicon.as_ref().map(brand_asset_message),
@@ -2555,14 +2538,14 @@ fn brand_assets_message(assets: &BrandAssetManifest) -> BrandAssetManifestMessag
     }
 }
 
-fn brand_asset_message(asset: &BrandAssetReference) -> BrandAssetReferenceMessage {
+fn brand_asset_message(asset: &BrandAssetReference) -> target::BrandAssetReferenceMessage {
     let kind = match asset.kind {
         BrandAssetKind::LogoMark => "logo_mark",
         BrandAssetKind::Wordmark => "wordmark",
         BrandAssetKind::Favicon => "favicon",
         BrandAssetKind::LoginArtwork => "login_artwork",
     };
-    BrandAssetReferenceMessage {
+    target::BrandAssetReferenceMessage {
         kind: kind.into(),
         object_key: asset.object_key.clone(),
         sha256: asset.sha256.clone(),
@@ -2575,8 +2558,8 @@ fn brand_asset_message(asset: &BrandAssetReference) -> BrandAssetReferenceMessag
 
 fn history_entry_message(
     entry: &CorporateIdentityHistoryEntry,
-) -> CorporateIdentityHistoryEntryMessage {
-    CorporateIdentityHistoryEntryMessage {
+) -> target::CorporateIdentityHistoryEntryMessage {
+    target::CorporateIdentityHistoryEntryMessage {
         profile: Some(corporate_identity_profile_message(&entry.profile)),
         reason: entry.reason.clone(),
         correlation_id: entry.correlation_id.to_string(),
@@ -2607,6 +2590,18 @@ impl CandidateAudience {
     }
 }
 
+#[derive(Clone, Copy)]
+enum NavigationDiscoveryPolicy {
+    AuthorizedOnly,
+    ProductCatalog,
+}
+
+impl NavigationDiscoveryPolicy {
+    const fn includes(self, authorized: bool, include_inaccessible: bool) -> bool {
+        authorized || (include_inaccessible && matches!(self, Self::ProductCatalog))
+    }
+}
+
 fn navigation_required_role_keys(
     audience: CandidateAudience,
     required_permissions: &[String],
@@ -2633,7 +2628,7 @@ async fn navigation_manifest_groups(
     claims: &erpx_identity::AccessTokenClaims,
     scope: &Scope,
     include_inaccessible: bool,
-) -> Vec<NavigationManifestGroup> {
+) -> Vec<target::NavigationManifestGroup> {
     struct Candidate {
         route_id: &'static str,
         label: &'static str,
@@ -2644,6 +2639,7 @@ async fn navigation_manifest_groups(
     }
     struct GroupDefinition {
         audience: CandidateAudience,
+        discovery: NavigationDiscoveryPolicy,
         group_id: &'static str,
         label: &'static str,
         label_key: &'static str,
@@ -2685,9 +2681,10 @@ async fn navigation_manifest_groups(
         target_tenant: Option<&str>,
         include_inaccessible: bool,
         definition: GroupDefinition,
-    ) -> Option<NavigationManifestGroup> {
+    ) -> Option<target::NavigationManifestGroup> {
         let GroupDefinition {
             audience,
+            discovery,
             group_id,
             label,
             label_key,
@@ -2706,7 +2703,7 @@ async fn navigation_manifest_groups(
                     break;
                 }
             }
-            if !authorized && !include_inaccessible {
+            if !discovery.includes(authorized, include_inaccessible) {
                 continue;
             }
             let required_role_keys = if authorized {
@@ -2714,7 +2711,7 @@ async fn navigation_manifest_groups(
             } else {
                 navigation_required_role_keys(audience, &candidate.permissions)
             };
-            items.push(NavigationManifestItem {
+            items.push(target::NavigationManifestItem {
                 route_id: candidate.route_id.into(),
                 label: candidate.label.into(),
                 label_key: candidate.label_key.into(),
@@ -2730,14 +2727,14 @@ async fn navigation_manifest_groups(
                     Vec::new()
                 },
                 access_state: if authorized {
-                    NavigationAccessState::Authorized as i32
+                    target::NavigationAccessState::Authorized as i32
                 } else {
-                    NavigationAccessState::Locked as i32
+                    target::NavigationAccessState::Locked as i32
                 },
                 required_role_keys,
             });
         }
-        (!items.is_empty()).then(|| NavigationManifestGroup {
+        (!items.is_empty()).then(|| target::NavigationManifestGroup {
             group_id: group_id.into(),
             label: label.into(),
             label_key: label_key.into(),
@@ -2767,6 +2764,7 @@ async fn navigation_manifest_groups(
         include_inaccessible,
         GroupDefinition {
             audience: CandidateAudience::Platform,
+            discovery: NavigationDiscoveryPolicy::AuthorizedOnly,
             group_id: "customer_operations",
             label: "Customer Operations",
             label_key: "nav.group.customer_operations",
@@ -2818,6 +2816,7 @@ async fn navigation_manifest_groups(
         include_inaccessible,
         GroupDefinition {
             audience: CandidateAudience::Tenant,
+            discovery: NavigationDiscoveryPolicy::AuthorizedOnly,
             group_id: "tenant_administration",
             label: "Tenant Administration",
             label_key: "nav.group.tenant_administration",
@@ -2894,14 +2893,14 @@ async fn navigation_manifest_groups(
         groups.push(value);
     }
     let mut modules = Vec::new();
-    for descriptor in BUSINESS_UNIT_ROUTE_CATALOG {
+    for descriptor in WORKSPACES {
         modules.push(Candidate {
-            route_id: descriptor.route_id,
-            label: descriptor.label_en,
-            label_key: descriptor.label_key,
-            path: descriptor.canonical_path,
-            icon: descriptor.icon,
-            permissions: vec![descriptor.read_permission.into()],
+            route_id: descriptor.slug,
+            label: workspace_label(descriptor.id),
+            label_key: workspace_label_key(descriptor.id),
+            path: descriptor.route,
+            icon: "module",
+            permissions: vec![workspace_read_permission(descriptor.id).into()],
         });
     }
     if let Some(value) = group(
@@ -2912,6 +2911,7 @@ async fn navigation_manifest_groups(
         include_inaccessible,
         GroupDefinition {
             audience: CandidateAudience::Any,
+            discovery: NavigationDiscoveryPolicy::ProductCatalog,
             group_id: "business_modules",
             label: "Business Modules",
             label_key: "nav.group.business_modules",
@@ -2930,6 +2930,7 @@ async fn navigation_manifest_groups(
         include_inaccessible,
         GroupDefinition {
             audience: CandidateAudience::Platform,
+            discovery: NavigationDiscoveryPolicy::AuthorizedOnly,
             group_id: "platform_administration",
             label: "Platform Administration",
             label_key: "nav.group.platform_administration",
@@ -2998,6 +2999,84 @@ async fn navigation_manifest_groups(
         groups.push(value);
     }
     groups
+}
+
+const fn workspace_label(workspace: WorkspaceId) -> &'static str {
+    match workspace {
+        WorkspaceId::Operations => "Operations",
+        WorkspaceId::Finance => "Finance",
+        WorkspaceId::Sales => "Sales",
+        WorkspaceId::Procurement => "Procurement",
+        WorkspaceId::Inventory => "Inventory",
+        WorkspaceId::Assets => "Assets",
+        WorkspaceId::Maintenance => "Maintenance",
+        WorkspaceId::Quality => "Quality",
+        WorkspaceId::MarketingCrm => "Marketing & CRM",
+        WorkspaceId::HrPayroll => "People & Payroll",
+        WorkspaceId::PointOfSale => "Point of Sale",
+        WorkspaceId::Legal => "Legal",
+        WorkspaceId::Manufacturing => "Manufacturing",
+        WorkspaceId::Planning => "Supply & Demand Planning",
+        WorkspaceId::Projects => "Projects",
+        WorkspaceId::Ecommerce => "E-commerce",
+        WorkspaceId::RecruitingTalent => "Recruiting & Talent",
+        WorkspaceId::Learning => "Learning",
+        WorkspaceId::Benefits => "Benefits",
+        WorkspaceId::FieldService => "Field Service",
+        WorkspaceId::AiCollaboration => "AI & Collaboration",
+    }
+}
+
+const fn workspace_label_key(workspace: WorkspaceId) -> &'static str {
+    match workspace {
+        WorkspaceId::Operations => "nav.workspace.operations",
+        WorkspaceId::Finance => "nav.workspace.finance",
+        WorkspaceId::Sales => "nav.workspace.sales",
+        WorkspaceId::Procurement => "nav.workspace.procurement",
+        WorkspaceId::Inventory => "nav.workspace.inventory",
+        WorkspaceId::Assets => "nav.workspace.assets",
+        WorkspaceId::Maintenance => "nav.workspace.maintenance",
+        WorkspaceId::Quality => "nav.workspace.quality",
+        WorkspaceId::MarketingCrm => "nav.workspace.marketing_crm",
+        WorkspaceId::HrPayroll => "nav.workspace.hr_payroll",
+        WorkspaceId::PointOfSale => "nav.workspace.point_of_sale",
+        WorkspaceId::Legal => "nav.workspace.legal",
+        WorkspaceId::Manufacturing => "nav.workspace.manufacturing",
+        WorkspaceId::Planning => "nav.workspace.planning",
+        WorkspaceId::Projects => "nav.workspace.projects",
+        WorkspaceId::Ecommerce => "nav.workspace.ecommerce",
+        WorkspaceId::RecruitingTalent => "nav.workspace.recruiting_talent",
+        WorkspaceId::Learning => "nav.workspace.learning",
+        WorkspaceId::Benefits => "nav.workspace.benefits",
+        WorkspaceId::FieldService => "nav.workspace.field_service",
+        WorkspaceId::AiCollaboration => "nav.workspace.ai_collaboration",
+    }
+}
+
+const fn workspace_read_permission(workspace: WorkspaceId) -> &'static str {
+    match workspace {
+        WorkspaceId::Operations => "operations.read",
+        WorkspaceId::Finance => "finance.read",
+        WorkspaceId::Sales => "sales.read",
+        WorkspaceId::Procurement => "procurement.read",
+        WorkspaceId::Inventory => "inventory.read",
+        WorkspaceId::Assets => "assets.read",
+        WorkspaceId::Maintenance => "maintenance.read",
+        WorkspaceId::Quality => "quality.read",
+        WorkspaceId::MarketingCrm => "marketing-crm.read",
+        WorkspaceId::HrPayroll => "hr-payroll.read",
+        WorkspaceId::PointOfSale => "point-of-sale.read",
+        WorkspaceId::Legal => "legal.read",
+        WorkspaceId::Manufacturing => "manufacturing.read",
+        WorkspaceId::Planning => "planning.read",
+        WorkspaceId::Projects => "projects.read",
+        WorkspaceId::Ecommerce => "ecommerce.read",
+        WorkspaceId::RecruitingTalent => "talent.read",
+        WorkspaceId::Learning => "learning.read",
+        WorkspaceId::Benefits => "benefits.read",
+        WorkspaceId::FieldService => "field-service.read",
+        WorkspaceId::AiCollaboration => "collaboration.read",
+    }
 }
 
 /// Server-owned action discovery. These identifiers deliberately mirror RPC
@@ -3403,7 +3482,7 @@ fn parse_agent_capability(value: &str) -> Result<AgentCapability, Status> {
 }
 
 fn parse_root_access_mode(value: i32) -> Result<RootAccessMode, Status> {
-    use erpx_proto::platform::RootAccessMode as ProtoMode;
+    use agent_contract::RootAccessMode as ProtoMode;
     match ProtoMode::try_from(value) {
         Ok(ProtoMode::HealthDiagnostic) => Ok(RootAccessMode::HealthDiagnostic),
         Ok(ProtoMode::InfrastructureMaintenance) => Ok(RootAccessMode::InfrastructureMaintenance),
@@ -3543,7 +3622,7 @@ fn bounded_json_object(bytes: &[u8], field: &str) -> Result<Value, Status> {
 }
 
 fn business_unit_role_mapping(
-    mapping: &BusinessUnitDirectoryRoleMappingMessage,
+    mapping: &target::BusinessUnitDirectoryRoleMappingMessage,
     _business_unit: BusinessUnitId,
     holding_id: Uuid,
 ) -> Result<BusinessUnitDirectoryRoleMapping, Status> {
@@ -3581,8 +3660,8 @@ fn super_holding_id(scope: &Scope) -> Uuid {
 
 fn business_unit_configuration_message(
     configuration: &BusinessUnitConfiguration,
-) -> Result<BusinessUnitConfigurationMessage, Status> {
-    Ok(BusinessUnitConfigurationMessage {
+) -> Result<target::BusinessUnitConfigurationMessage, Status> {
+    Ok(target::BusinessUnitConfigurationMessage {
         tenant_id: configuration.tenant_id.clone(),
         root_holding_id: configuration.holding_id.to_string(),
         business_unit: configuration.business_unit.as_str().to_owned(),
@@ -3592,7 +3671,7 @@ fn business_unit_configuration_message(
         directory_role_mappings: configuration
             .directory_role_mappings
             .iter()
-            .map(|mapping| BusinessUnitDirectoryRoleMappingMessage {
+            .map(|mapping| target::BusinessUnitDirectoryRoleMappingMessage {
                 group_ref: mapping.group_ref.clone(),
                 role_key: mapping.role_key.clone(),
                 target_scope: Some(scope_to_proto(&mapping.target_scope)),
@@ -3614,10 +3693,12 @@ fn business_unit_configuration_message(
     })
 }
 
-fn root_access_queue_entry(record: &RootAccessQueueRecord) -> Result<RootAccessQueueEntry, Status> {
+fn root_access_queue_entry(
+    record: &RootAccessQueueRecord,
+) -> Result<target::RootAccessQueueEntry, Status> {
     let request = &record.request;
-    Ok(RootAccessQueueEntry {
-        access_request: Some(RootAccessRequestMessage {
+    Ok(target::RootAccessQueueEntry {
+        access_request: Some(target::RootAccessRequestMessage {
             request_id: request.id.to_string(),
             requester_ref: request.requester.clone(),
             device_ref: request.device_ref.clone(),
@@ -3651,8 +3732,8 @@ fn root_access_queue_entry(record: &RootAccessQueueRecord) -> Result<RootAccessQ
     })
 }
 
-fn proto_root_access_mode(value: RootAccessMode) -> erpx_proto::platform::RootAccessMode {
-    use erpx_proto::platform::RootAccessMode as ProtoMode;
+fn proto_root_access_mode(value: RootAccessMode) -> agent_contract::RootAccessMode {
+    use agent_contract::RootAccessMode as ProtoMode;
     match value {
         RootAccessMode::HealthDiagnostic => ProtoMode::HealthDiagnostic,
         RootAccessMode::InfrastructureMaintenance => ProtoMode::InfrastructureMaintenance,
@@ -3670,7 +3751,7 @@ mod tests {
     fn root_access_modes_are_closed() {
         assert!(parse_root_access_mode(0).is_err());
         assert_eq!(
-            parse_root_access_mode(erpx_proto::platform::RootAccessMode::EmergencyRecovery as i32)
+            parse_root_access_mode(agent_contract::RootAccessMode::EmergencyRecovery as i32)
                 .expect("mode"),
             RootAccessMode::EmergencyRecovery
         );
@@ -3683,68 +3764,36 @@ mod tests {
     }
 
     #[test]
-    fn human_navigation_actions_are_descriptor_rpc_names() {
+    fn server_uses_the_approved_replacement_descriptor() {
         use prost::Message as _;
 
         let descriptor = prost_types::FileDescriptorSet::decode(erpx_proto::FILE_DESCRIPTOR_SET)
             .expect("checked descriptor set");
-        let rpc_names = descriptor
+        let actual = descriptor
             .file
             .iter()
-            .flat_map(|file| &file.service)
-            .flat_map(|service| &service.method)
-            .filter_map(|method| method.name.as_deref())
+            .flat_map(|file| {
+                let package = file.package.as_deref().unwrap_or_default();
+                file.service.iter().filter_map(move |service| {
+                    service
+                        .name
+                        .as_deref()
+                        .map(|name| (package.to_owned(), name.to_owned()))
+                })
+            })
             .collect::<std::collections::BTreeSet<_>>();
-        for route in [
-            "customer_360",
-            "directories",
-            "support",
-            "billing",
-            "operations",
-            "finance",
-            "sales",
-            "procurement",
-            "inventory",
-            "assets",
-            "maintenance",
-            "quality",
-            "hr-payroll",
-            "point-of-sale",
-            "legal",
-            "marketing-crm",
-            "tenant_organization",
-            "tenant_branches",
-            "tenant_identity_access",
-            "tenant_infrastructure",
-            "tenant_configuration",
-            "tenant_root_access",
-            "tenant_corporate_identity",
-            "tenants",
-            "projections",
-            "backups",
-            "integrations",
-            "audit",
-            "role_review",
-            "settings",
-        ] {
-            let capabilities = navigation_action_capabilities(route);
-            assert!(!capabilities.is_empty(), "{route} has no action discovery");
-            assert!(capabilities.iter().all(|value| {
-                value.bytes().all(|byte| byte.is_ascii_alphanumeric())
-                    && value.as_bytes().first().is_some_and(u8::is_ascii_uppercase)
-            }));
-            assert!(
-                capabilities.iter().all(|value| rpc_names.contains(value)),
-                "{route} advertises an action missing from the checked descriptor"
-            );
-        }
-        for descriptor in BUSINESS_UNIT_ROUTE_CATALOG {
-            assert!(
-                !navigation_action_capabilities(descriptor.route_id).is_empty(),
-                "canonical route {} has no action discovery",
-                descriptor.route_id
-            );
-        }
+        let expected = erpx_integration_contracts::catalog::ACTIVE_SERVICES
+            .iter()
+            .map(|service| (service.package.to_owned(), service.name.to_owned()))
+            .collect::<std::collections::BTreeSet<_>>();
+
+        assert_eq!(actual.len(), erpx_proto::ACTIVE_SERVICE_COUNT);
+        assert_eq!(actual, expected);
+        assert!(
+            actual
+                .iter()
+                .all(|(package, _)| package != concat!("erpx.", "platform.v1"))
+        );
     }
 
     #[test]
@@ -3779,6 +3828,18 @@ mod tests {
                 role.role_key
             );
         }
+    }
+
+    #[test]
+    fn server_navigation_uses_all_typed_workspace_routes() {
+        let routes = WORKSPACES
+            .iter()
+            .map(|workspace| workspace.route)
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(routes.len(), 21);
+        assert!(routes.iter().all(|route| route.starts_with('/')));
+        assert!(routes.iter().all(|route| !route.starts_with("/workspaces")));
+        assert!(routes.contains("/ai"));
     }
 
     #[test]
@@ -3825,5 +3886,13 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    #[test]
+    fn inaccessible_navigation_is_discoverable_only_in_the_product_catalog() {
+        assert!(NavigationDiscoveryPolicy::AuthorizedOnly.includes(true, false));
+        assert!(!NavigationDiscoveryPolicy::AuthorizedOnly.includes(false, true));
+        assert!(!NavigationDiscoveryPolicy::ProductCatalog.includes(false, false));
+        assert!(NavigationDiscoveryPolicy::ProductCatalog.includes(false, true));
     }
 }

@@ -4,7 +4,7 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
-use erpx_pos_sqlx::{PosRefundProjector, PosSaleProjector};
+use erpx_pos_sqlx::{PosLifecycleRecordProjector, PosRefundProjector, PosSaleProjector};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PosProjectionRegistration {
@@ -16,6 +16,7 @@ pub struct PosProjectionRegistration {
 pub enum PosProjectionKind {
     Sales,
     Refunds,
+    LifecycleRecords,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -26,6 +27,7 @@ impl PosProjectionFactory {
         [
             registration(&PosSaleProjector::new()),
             registration(&PosRefundProjector::new()),
+            registration(&PosLifecycleRecordProjector::new()),
         ]
         .into()
     }
@@ -41,6 +43,7 @@ impl PosProjectionFactory {
         Ok(PosProjectionRuntime {
             sales: PosSaleProjector::new(),
             refunds: PosRefundProjector::new(),
+            lifecycle_records: PosLifecycleRecordProjector::new(),
             runner,
             store,
         })
@@ -51,6 +54,7 @@ impl PosProjectionFactory {
 pub struct PosProjectionRuntime {
     sales: PosSaleProjector,
     refunds: PosRefundProjector,
+    lifecycle_records: PosLifecycleRecordProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
@@ -64,6 +68,9 @@ impl PosProjectionRuntime {
         match kind {
             PosProjectionKind::Sales => self.runner.run_active(&self.sales).await,
             PosProjectionKind::Refunds => self.runner.run_active(&self.refunds).await,
+            PosProjectionKind::LifecycleRecords => {
+                self.runner.run_active(&self.lifecycle_records).await
+            }
         }
     }
 
@@ -74,6 +81,9 @@ impl PosProjectionRuntime {
         match kind {
             PosProjectionKind::Sales => self.store.begin_rebuild(&self.sales).await,
             PosProjectionKind::Refunds => self.store.begin_rebuild(&self.refunds).await,
+            PosProjectionKind::LifecycleRecords => {
+                self.store.begin_rebuild(&self.lifecycle_records).await
+            }
         }
     }
 
@@ -93,6 +103,11 @@ impl PosProjectionRuntime {
             PosProjectionKind::Refunds => {
                 self.runner
                     .run_rebuild(&self.refunds, handle, after_sequence)
+                    .await
+            }
+            PosProjectionKind::LifecycleRecords => {
+                self.runner
+                    .run_rebuild(&self.lifecycle_records, handle, after_sequence)
                     .await
             }
         }
@@ -115,6 +130,7 @@ impl PosProjectionRuntime {
         let expected = match kind {
             PosProjectionKind::Sales => self.sales.name(),
             PosProjectionKind::Refunds => self.refunds.name(),
+            PosProjectionKind::LifecycleRecords => self.lifecycle_records.name(),
         };
         if handle.projection == expected {
             Ok(())
@@ -136,6 +152,7 @@ fn registration(projector: &impl Projector) -> PosProjectionRegistration {
 #[cfg(test)]
 mod tests {
     use erpx_pos_sqlx::{
+        LIFECYCLE_RECORD_PROJECTION_NAME, LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE,
         REFUND_PROJECTION_NAME, REFUND_SNAPSHOT_EVENT_TYPE, SALE_PROJECTION_NAME,
         SALE_SNAPSHOT_EVENT_TYPE,
     };
@@ -156,16 +173,20 @@ mod tests {
                     name: REFUND_PROJECTION_NAME.into(),
                     event_types: vec![REFUND_SNAPSHOT_EVENT_TYPE.into()],
                 },
+                PosProjectionRegistration {
+                    name: LIFECYCLE_RECORD_PROJECTION_NAME.into(),
+                    event_types: vec![LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE.into()],
+                },
             ]
         );
     }
 
     #[tokio::test]
     async fn factory_builds_lazily_and_rejects_cross_projection_handles() {
-        let write = WritePool::from_pg_pool(
+        let write = WritePool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/pos_write").unwrap(),
         );
-        let projection = ProjectionPool::from_pg_pool(
+        let projection = ProjectionPool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/pos_read").unwrap(),
         );
         let runtime = PosProjectionFactory

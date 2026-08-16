@@ -182,6 +182,7 @@ impl std::fmt::Debug for SetupConfig {
 #[derive(Serialize)]
 struct CheckReport<'a> {
     valid: bool,
+    schema_generation: i16,
     prefix: &'a str,
     installation_generation: Uuid,
     tenant_id: &'a str,
@@ -201,6 +202,9 @@ struct CheckReport<'a> {
 #[derive(Serialize)]
 struct BootstrapCompleteReport<'a> {
     state: &'static str,
+    schema_generation: i16,
+    service_catalog_generation: u16,
+    service_id_range: &'static str,
     installation_generation: Uuid,
     tenant_id: &'a str,
     holding_ref: &'a str,
@@ -209,7 +213,6 @@ struct BootstrapCompleteReport<'a> {
     rollback: &'a RollbackMetadata,
     runtime_manifest: String,
     seed_policy: [&'static str; 5],
-    v1_service_authority: &'static str,
     n8n_config_preserved: bool,
     copied_previous_application_state: bool,
     mutated_previous_resources: bool,
@@ -319,6 +322,7 @@ async fn check() -> Result<()> {
         && object_namespace_fresh;
     emit(&CheckReport {
         valid,
+        schema_generation: erpx_migration::SCHEMA_GENERATION,
         prefix: &config.prefix,
         installation_generation: config.resources.installation_generation,
         tenant_id: &config.tenant_id,
@@ -438,6 +442,8 @@ async fn bootstrap() -> Result<()> {
     erpx_migration::migrate_tenant_read(&tenant_read)
         .await
         .map_err(|_| BootstrapError("tenant read migration failed"))?;
+    verify_generation_v2_database_roles(&control_write, &control_read, &tenant_write, &tenant_read)
+        .await?;
 
     progress.update_phase(BootstrapPhase::ObjectNamespaceCreation, Utc::now())?;
 
@@ -563,6 +569,9 @@ async fn bootstrap() -> Result<()> {
     progress.complete(Utc::now())?;
     emit(&BootstrapCompleteReport {
         state: "complete",
+        schema_generation: erpx_migration::SCHEMA_GENERATION,
+        service_catalog_generation: 2,
+        service_id_range: "IFC-SVC-101..165",
         installation_generation: config.resources.installation_generation,
         tenant_id: &config.tenant_id,
         holding_ref: &config.holding_ref,
@@ -577,13 +586,31 @@ async fn bootstrap() -> Result<()> {
             "canonical_business_units",
             "neutral_brand",
         ],
-        v1_service_authority: "typed",
         n8n_config_preserved: true,
         copied_previous_application_state: false,
         mutated_previous_resources: false,
     })?;
     print_credentials("Platform Root", root_credentials);
     print_credentials("Holding Owner", owner_credentials);
+    Ok(())
+}
+
+async fn verify_generation_v2_database_roles(
+    control_write: &PgPool,
+    control_read: &PgPool,
+    tenant_write: &PgPool,
+    tenant_read: &PgPool,
+) -> Result<()> {
+    for (pool, role) in [
+        (control_write, erpx_migration::DatabaseRole::ControlWrite),
+        (control_read, erpx_migration::DatabaseRole::ControlRead),
+        (tenant_write, erpx_migration::DatabaseRole::TenantWrite),
+        (tenant_read, erpx_migration::DatabaseRole::TenantRead),
+    ] {
+        erpx_migration::verify_schema_manifest(pool, role)
+            .await
+            .map_err(|_| BootstrapError("database schema generation verification failed"))?;
+    }
     Ok(())
 }
 

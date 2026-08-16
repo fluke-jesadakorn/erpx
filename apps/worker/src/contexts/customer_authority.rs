@@ -128,10 +128,10 @@ mod tests {
     }
 
     fn lazy_pools() -> (WritePool, ProjectionPool) {
-        let write = WritePool::from_pg_pool(
+        let write = WritePool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/customer_authority_write").unwrap(),
         );
-        let projection = ProjectionPool::from_pg_pool(
+        let projection = ProjectionPool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/customer_authority_read").unwrap(),
         );
         (write, projection)

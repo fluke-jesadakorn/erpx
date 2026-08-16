@@ -222,8 +222,8 @@ pub(crate) struct PlatformAdministrationServerApplication {
 impl PlatformAdministrationServerApplication {
     pub(crate) fn new(state: &AppState) -> Self {
         Self {
-            write: WritePool::from_pg_pool(state.store.pools().write.clone()),
-            read: ReadPool::from_pg_pool(state.store.pools().read.clone()),
+            write: WritePool::from_control_pg_pool(state.store.pools().write.clone()),
+            read: ReadPool::from_control_pg_pool(state.store.pools().read.clone()),
             tenant_authority: PlatformTenantAuthority {
                 pool: state.store.pools().write.clone(),
             },
@@ -494,8 +494,8 @@ pub(crate) struct BrandServerApplication {
 impl BrandServerApplication {
     pub(crate) fn new(state: &AppState) -> Self {
         Self {
-            write: WritePool::from_pg_pool(state.store.pools().write.clone()),
-            read: ReadPool::from_pg_pool(state.store.pools().read.clone()),
+            write: WritePool::from_control_pg_pool(state.store.pools().write.clone()),
+            read: ReadPool::from_control_pg_pool(state.store.pools().read.clone()),
             write_pool: state.store.pools().write.clone(),
         }
     }
@@ -723,8 +723,8 @@ pub(crate) struct CustomerAuthorityServerApplication {
 impl CustomerAuthorityServerApplication {
     pub(crate) fn new(state: &AppState) -> Self {
         Self {
-            write: WritePool::from_pg_pool(state.store.pools().write.clone()),
-            read: ReadPool::from_pg_pool(state.store.pools().read.clone()),
+            write: WritePool::from_control_pg_pool(state.store.pools().write.clone()),
+            read: ReadPool::from_control_pg_pool(state.store.pools().read.clone()),
         }
     }
 

@@ -16,20 +16,17 @@ use erpx_identity_access::{
     ActivatePrincipal, AssignRole, CreatePrincipal, CreatePrincipalResult, DefineRole,
     DefineRoleResult, DisablePrincipal, GetPrincipal, GetPrincipalResult, GetRole, GetRoleResult,
     ListPrincipals, ListRoles, PermissionKey, PrincipalId, PrincipalList, PrincipalListFilter,
-    PrincipalMutationResult, PrincipalStatus, PrincipalView, ReactivatePrincipal, RevokeRole,
-    RiskTier, RoleAssignmentId, RoleId, RoleList, RoleListFilter, RoleMutationResult, RoleView,
-    SetRolePermissions, SuspendPrincipal,
+    PrincipalMutationResult, PrincipalStatus, PrincipalView, ReactivatePrincipal, RecoverRole,
+    RenewRole, RevokeRole, RiskTier, RoleAssignmentId, RoleAssignmentView, RoleId, RoleList,
+    RoleListFilter, RoleMutationResult, RoleView, SetRolePermissions, SuspendPrincipal,
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId, TenantScope,
 };
-use erpx_proto::{common, platform};
+use erpx_proto::{common, erpx::identity_access::v1 as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
-
-use platform::identity_access_command_service_server::IdentityAccessCommandService;
-use platform::identity_access_query_service_server::IdentityAccessQueryService;
 
 const MAX_ROUTE_LENGTH: usize = 255;
 const MAX_SECURITY_INPUT_LENGTH: usize = 512;
@@ -173,6 +170,16 @@ pub trait IdentityAccessCommandApplication: Send + Sync + 'static {
         route: IdentityAccessTenantRoute,
         envelope: CommandEnvelope<RevokeRole>,
     ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError>;
+    async fn renew_role(
+        &self,
+        route: IdentityAccessTenantRoute,
+        envelope: CommandEnvelope<RenewRole>,
+    ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError>;
+    async fn recover_role(
+        &self,
+        route: IdentityAccessTenantRoute,
+        envelope: CommandEnvelope<RecoverRole>,
+    ) -> Result<CommandReceipt<PrincipalMutationResult>, CqrsError>;
     async fn define_role(
         &self,
         route: IdentityAccessTenantRoute,
@@ -239,13 +246,12 @@ impl<A, G> IdentityAccessQueryRpc<A, G> {
     }
 }
 
-#[async_trait]
-impl<A, G> IdentityAccessCommandService for IdentityAccessCommandRpc<A, G>
+impl<A, G> IdentityAccessCommandRpc<A, G>
 where
     A: IdentityAccessCommandApplication,
     G: IdentityAccessRequestAuthenticator,
 {
-    async fn create_principal(
+    pub async fn create_principal(
         &self,
         request: Request<platform::CreateIdentityAccessPrincipalRequest>,
     ) -> Result<Response<platform::IdentityAccessPrincipalCommandResponse>, Status> {
@@ -270,7 +276,7 @@ where
         )))
     }
 
-    async fn activate_principal(
+    pub async fn activate_principal(
         &self,
         request: Request<platform::IdentityAccessPrincipalMutationRequest>,
     ) -> Result<Response<platform::IdentityAccessPrincipalCommandResponse>, Status> {
@@ -295,7 +301,7 @@ where
         )))
     }
 
-    async fn suspend_principal(
+    pub async fn suspend_principal(
         &self,
         request: Request<platform::IdentityAccessPrincipalMutationRequest>,
     ) -> Result<Response<platform::IdentityAccessPrincipalCommandResponse>, Status> {
@@ -320,7 +326,7 @@ where
         )))
     }
 
-    async fn reactivate_principal(
+    pub async fn reactivate_principal(
         &self,
         request: Request<platform::IdentityAccessPrincipalMutationRequest>,
     ) -> Result<Response<platform::IdentityAccessPrincipalCommandResponse>, Status> {
@@ -345,7 +351,7 @@ where
         )))
     }
 
-    async fn disable_principal(
+    pub async fn disable_principal(
         &self,
         request: Request<platform::IdentityAccessPrincipalMutationRequest>,
     ) -> Result<Response<platform::IdentityAccessPrincipalCommandResponse>, Status> {
@@ -370,7 +376,7 @@ where
         )))
     }
 
-    async fn assign_role(
+    pub async fn assign_role(
         &self,
         request: Request<platform::AssignIdentityAccessRoleRequest>,
     ) -> Result<Response<platform::IdentityAccessPrincipalCommandResponse>, Status> {
@@ -407,7 +413,7 @@ where
         )))
     }
 
-    async fn revoke_role(
+    pub async fn revoke_role(
         &self,
         request: Request<platform::RevokeIdentityAccessRoleRequest>,
     ) -> Result<Response<platform::IdentityAccessPrincipalCommandResponse>, Status> {
@@ -433,7 +439,108 @@ where
         )))
     }
 
-    async fn define_role(
+    pub async fn renew_role(
+        &self,
+        request: Request<platform::RenewRoleRequest>,
+    ) -> Result<Response<platform::RenewRoleResponse>, Status> {
+        let metadata = request.metadata().clone();
+        let input = request.into_inner();
+        let replacement_assignment_id = assignment_id(&input.replacement_assignment_id)?;
+        let decoded = decode_command(
+            input.normalized_metadata,
+            RenewRole {
+                principal_id: principal_id(&input.principal_id)?,
+                assignment_id: assignment_id(&input.assignment_id)?,
+                replacement_assignment_id,
+                valid_until: parse_time(&input.valid_until, "valid_until")?,
+                grantor_ref: input.grantor,
+                approver_ref: optional_text(Some(input.approver)),
+            },
+        )?;
+        let (route, envelope) =
+            authenticate_command(self.authenticator.as_ref(), metadata, decoded).await?;
+        let receipt = self
+            .application
+            .renew_role(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        let assignment = receipt
+            .response
+            .principal
+            .assignments
+            .iter()
+            .find(|value| value.assignment_id == replacement_assignment_id)
+            .ok_or_else(|| Status::internal("renewed role assignment is unavailable"))?;
+        Ok(Response::new(platform::RenewRoleResponse {
+            assignment: Some(legacy_assignment(&receipt.response.principal, assignment)),
+        }))
+    }
+
+    pub async fn recover_final_role(
+        &self,
+        request: Request<platform::RecoverFinalRoleRequest>,
+    ) -> Result<Response<platform::RecoverFinalRoleResponse>, Status> {
+        let metadata = request.metadata().clone();
+        let input = request.into_inner();
+        if input.target != "holding_owner" {
+            return Err(invalid(
+                "only holding_owner recovery is valid for tenant-scoped Identity & Access",
+            ));
+        }
+        let normalized_metadata = input
+            .normalized_metadata
+            .ok_or_else(|| invalid("normalized command metadata is required"))?;
+        let scope = decode_scope(
+            normalized_metadata
+                .tenant_scope
+                .clone()
+                .ok_or_else(|| invalid("tenant scope is required"))?,
+        )?;
+        let TenantScope::Holding { holding_id } = scope.clone() else {
+            return Err(invalid(
+                "holding_owner recovery requires exact holding authority",
+            ));
+        };
+        if parse_uuid(&input.holding_id, "holding_id")? != holding_id {
+            return Err(invalid("recovery holding does not match command authority"));
+        }
+        let assignment_id = assignment_id(&input.request_id)?;
+        let decoded = decode_command(
+            Some(normalized_metadata),
+            RecoverRole {
+                principal_id: principal_id(&input.principal_ref)?,
+                assignment_id,
+                role_id: role_id(&input.role_id)?,
+                scope,
+                risk_tier: decode_risk(input.risk_tier)?,
+                valid_from: parse_time(&input.valid_from, "valid_from")?,
+                valid_until: parse_time(&input.valid_until, "valid_until")?,
+                grant_reason: input.reason,
+                ticket_reference: optional_text(Some(input.ticket_reference)),
+                grantor_ref: input.requester_ref,
+                approver_ref: optional_text(Some(input.approver_ref)),
+            },
+        )?;
+        let (route, envelope) =
+            authenticate_command(self.authenticator.as_ref(), metadata, decoded).await?;
+        let receipt = self
+            .application
+            .recover_role(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
+        let assignment = receipt
+            .response
+            .principal
+            .assignments
+            .iter()
+            .find(|value| value.assignment_id == assignment_id)
+            .ok_or_else(|| Status::internal("recovered role assignment is unavailable"))?;
+        Ok(Response::new(platform::RecoverFinalRoleResponse {
+            assignment: Some(legacy_assignment(&receipt.response.principal, assignment)),
+        }))
+    }
+
+    pub async fn define_role(
         &self,
         request: Request<platform::DefineIdentityAccessRoleRequest>,
     ) -> Result<Response<platform::IdentityAccessRoleCommandResponse>, Status> {
@@ -462,7 +569,7 @@ where
         )))
     }
 
-    async fn set_role_permissions(
+    pub async fn set_role_permissions(
         &self,
         request: Request<platform::SetIdentityAccessRolePermissionsRequest>,
     ) -> Result<Response<platform::IdentityAccessRoleCommandResponse>, Status> {
@@ -489,13 +596,12 @@ where
     }
 }
 
-#[async_trait]
-impl<A, G> IdentityAccessQueryService for IdentityAccessQueryRpc<A, G>
+impl<A, G> IdentityAccessQueryRpc<A, G>
 where
     A: IdentityAccessQueryApplication,
     G: IdentityAccessRequestAuthenticator,
 {
-    async fn get_principal(
+    pub async fn get_principal(
         &self,
         request: Request<platform::GetIdentityAccessPrincipalRequest>,
     ) -> Result<Response<platform::GetIdentityAccessPrincipalResponse>, Status> {
@@ -522,7 +628,7 @@ where
         ))
     }
 
-    async fn list_principals(
+    pub async fn list_principals(
         &self,
         request: Request<platform::ListIdentityAccessPrincipalsRequest>,
     ) -> Result<Response<platform::ListIdentityAccessPrincipalsResponse>, Status> {
@@ -560,7 +666,7 @@ where
         ))
     }
 
-    async fn get_role(
+    pub async fn get_role(
         &self,
         request: Request<platform::GetIdentityAccessRoleRequest>,
     ) -> Result<Response<platform::GetIdentityAccessRoleResponse>, Status> {
@@ -585,7 +691,7 @@ where
         }))
     }
 
-    async fn list_roles(
+    pub async fn list_roles(
         &self,
         request: Request<platform::ListIdentityAccessRolesRequest>,
     ) -> Result<Response<platform::ListIdentityAccessRolesResponse>, Status> {
@@ -1103,6 +1209,71 @@ fn decode_risk(value: i32) -> Result<RiskTier, Status> {
         }
         Some(platform::IdentityAccessRoleRiskTier::Emergency) => Ok(RiskTier::Emergency),
         _ => Err(invalid("role risk tier is invalid")),
+    }
+}
+
+fn legacy_assignment(
+    principal: &PrincipalView,
+    assignment: &RoleAssignmentView,
+) -> platform::RoleAssignment {
+    platform::RoleAssignment {
+        id: assignment.assignment_id.as_uuid().to_string(),
+        principal_ref: principal.principal_id.as_uuid().to_string(),
+        role_key: assignment.role_id.as_uuid().to_string(),
+        scope: scope_key(&assignment.scope),
+        valid_from: assignment.valid_from.to_rfc3339(),
+        valid_until: assignment.valid_until.to_rfc3339(),
+        risk_tier: risk_name(assignment.risk_tier).into(),
+        assignment_version: u32::try_from(principal.version).unwrap_or(u32::MAX),
+        effective: assignment.revoked_at.is_none()
+            && assignment.valid_from <= Utc::now()
+            && Utc::now() < assignment.valid_until,
+    }
+}
+
+fn scope_key(scope: &TenantScope) -> String {
+    match scope {
+        TenantScope::Platform => "platform".into(),
+        TenantScope::Holding { holding_id } => format!("holding:{holding_id}"),
+        TenantScope::Company {
+            holding_id,
+            company_id,
+        } => format!("company:{holding_id}:{company_id}"),
+        TenantScope::Branch {
+            holding_id,
+            company_id,
+            branch_id,
+        } => format!("branch:{holding_id}:{company_id}:{branch_id}"),
+        TenantScope::Subtree {
+            holding_id,
+            company_ids,
+            branch_ids,
+        } => format!(
+            "subtree:{holding_id}:companies={}:branches={}",
+            company_ids
+                .iter()
+                .map(Uuid::to_string)
+                .collect::<Vec<_>>()
+                .join(","),
+            branch_ids
+                .iter()
+                .map(Uuid::to_string)
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
+    }
+}
+
+const fn risk_name(risk: RiskTier) -> &'static str {
+    match risk {
+        RiskTier::Standard => "standard",
+        RiskTier::Administrator => "administrator",
+        RiskTier::High => "high",
+        RiskTier::PlatformRoot => "platform_root",
+        RiskTier::Contractor => "contractor",
+        RiskTier::SupportDiagnostic => "support_diagnostic",
+        RiskTier::SupportMutation => "support_mutation",
+        RiskTier::Emergency => "emergency",
     }
 }
 

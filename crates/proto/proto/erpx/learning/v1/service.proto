@@ -1,0 +1,177 @@
+syntax = "proto3";
+
+package erpx.learning.v1;
+
+import "erpx/common/v1/context.proto";
+
+enum CourseStatus {
+  COURSE_STATUS_UNSPECIFIED = 0;
+  COURSE_STATUS_DRAFT = 1;
+  COURSE_STATUS_PUBLISHED = 2;
+  COURSE_STATUS_RETIRED = 3;
+}
+
+enum LearningEnrollmentStatus {
+  LEARNING_ENROLLMENT_STATUS_UNSPECIFIED = 0;
+  LEARNING_ENROLLMENT_STATUS_ASSIGNED = 1;
+  LEARNING_ENROLLMENT_STATUS_IN_PROGRESS = 2;
+  LEARNING_ENROLLMENT_STATUS_COMPLETED = 3;
+  LEARNING_ENROLLMENT_STATUS_WAIVED = 4;
+  LEARNING_ENROLLMENT_STATUS_CANCELLED = 5;
+}
+
+message RecordVersionRef {
+  string record_id = 1;
+  uint64 version = 2;
+  string owner_context = 3;
+  string record_type = 4;
+}
+
+message RecordRef {
+  string record_id = 1;
+  string owner_context = 2;
+  string record_type = 3;
+}
+
+message LearningMutationResponse {
+  erpx.common.v1.CommandReceipt receipt = 1;
+  string record_type = 2;
+  string record_id = 3;
+  string lifecycle_status = 4;
+}
+
+message PublishCourseRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string course_id = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string title = 4;
+  uint32 passing_basis_points = 5;
+  uint32 required_attendance_minutes = 6;
+  optional RecordRef provider = 7;
+}
+
+message RetireCourseRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string course_id = 2;
+  erpx.common.v1.TenantScope course_scope = 3;
+}
+
+message AssignCourseRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  string assignment_id = 3;
+  erpx.common.v1.TenantScope scope = 4;
+  RecordVersionRef learner = 5;
+  string learner_principal_id = 6;
+  string course_id = 7;
+  uint64 course_version = 8;
+  string due_on = 9;
+}
+
+message RecordAttendanceRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  string attendance_fact_id = 3;
+  string session_id = 4;
+  uint32 attended_minutes = 5;
+  string recorded_by_principal_id = 6;
+  RecordVersionRef evidence = 7;
+  string occurred_at = 8;
+  erpx.common.v1.TenantScope enrollment_scope = 9;
+}
+
+message RecordProviderResultRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  string provider_result_id = 3;
+  string provider_attempt_id = 4;
+  uint32 score_basis_points = 5;
+  bool passed = 6;
+  RecordVersionRef evidence = 7;
+  string received_at = 8;
+  erpx.common.v1.TenantScope enrollment_scope = 9;
+}
+
+message WaiveEnrollmentRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  string waiver_id = 3;
+  string authorized_by_principal_id = 4;
+  string reason = 5;
+  RecordVersionRef evidence = 6;
+  string granted_at = 7;
+  erpx.common.v1.TenantScope enrollment_scope = 8;
+}
+
+message CompleteEnrollmentRequest {
+  erpx.common.v1.CommandContext context = 1;
+  string enrollment_id = 2;
+  erpx.common.v1.TenantScope enrollment_scope = 3;
+  string course_id = 4;
+  uint64 course_version = 5;
+  string completion_id = 6;
+}
+
+message GetLearningEnrollmentRequest {
+  erpx.common.v1.QueryContext context = 1;
+  erpx.common.v1.TenantScope enrollment_scope = 2;
+  string enrollment_id = 3;
+}
+
+message GetLearningRecordRequest {
+  erpx.common.v1.QueryContext context = 1;
+  erpx.common.v1.TenantScope record_scope = 2;
+  string record_id = 3;
+}
+
+message LearningEnrollmentProjection {
+  string enrollment_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string assignment_id = 4;
+  string learner_record_id = 5;
+  string learner_principal_id = 6;
+  string course_id = 7;
+  uint64 course_version = 8;
+  string due_on = 9;
+  LearningEnrollmentStatus status = 10;
+  optional string completion_id = 11;
+  uint64 source_position = 12;
+  string projected_at = 13;
+}
+
+message LearningRecordProjection {
+  string record_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v1.TenantScope scope = 3;
+  string record_kind = 4;
+  string subject_record_id = 5;
+  string lifecycle_status = 6;
+  uint64 source_position = 7;
+  string projected_at = 8;
+}
+
+message GetLearningEnrollmentResponse {
+  optional LearningEnrollmentProjection enrollment = 1;
+  erpx.common.v1.ProjectionMetadata projection = 2;
+}
+
+message GetLearningRecordResponse {
+  optional LearningRecordProjection record = 1;
+  erpx.common.v1.ProjectionMetadata projection = 2;
+}
+
+service LearningCommandService {
+  rpc PublishCourse(PublishCourseRequest) returns (LearningMutationResponse);
+  rpc RetireCourse(RetireCourseRequest) returns (LearningMutationResponse);
+  rpc AssignCourse(AssignCourseRequest) returns (LearningMutationResponse);
+  rpc RecordAttendance(RecordAttendanceRequest) returns (LearningMutationResponse);
+  rpc RecordProviderResult(RecordProviderResultRequest) returns (LearningMutationResponse);
+  rpc WaiveEnrollment(WaiveEnrollmentRequest) returns (LearningMutationResponse);
+  rpc CompleteEnrollment(CompleteEnrollmentRequest) returns (LearningMutationResponse);
+}
+
+service LearningQueryService {
+  rpc GetEnrollment(GetLearningEnrollmentRequest) returns (GetLearningEnrollmentResponse);
+  rpc GetRecord(GetLearningRecordRequest) returns (GetLearningRecordResponse);
+}

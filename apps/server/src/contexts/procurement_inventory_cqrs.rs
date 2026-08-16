@@ -26,7 +26,11 @@ use erpx_procurement::{
     PurchaseOrderLineId, PurchaseOrderList, PurchaseOrderListFilter, PurchaseOrderMutationResult,
     PurchaseOrderStatus, PurchaseOrderView, ReleasePurchaseOrder, SupplierId,
 };
-use erpx_proto::{common, platform};
+use erpx_proto::common;
+mod platform {
+    pub use erpx_proto::erpx::inventory::v1::*;
+    pub use erpx_proto::erpx::procurement::v1::*;
+}
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 

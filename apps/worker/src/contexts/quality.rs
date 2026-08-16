@@ -7,7 +7,7 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
-use erpx_quality_sqlx::QualityInspectionProjector;
+use erpx_quality_sqlx::{QualityInspectionProjector, QualityLifecycleRecordProjector};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QualityProjectionRegistration {
@@ -18,13 +18,18 @@ pub struct QualityProjectionRegistration {
 #[derive(Debug, Clone, Copy, Default)]
 pub struct QualityProjectionFactory;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QualityProjectionKind {
+    Inspections,
+    LifecycleRecords,
+}
+
 impl QualityProjectionFactory {
-    pub fn registration(self) -> QualityProjectionRegistration {
-        let projector = QualityInspectionProjector::new();
-        QualityProjectionRegistration {
-            name: projector.name().into(),
-            event_types: projector.event_types().to_vec(),
-        }
+    pub fn registrations(self) -> Vec<QualityProjectionRegistration> {
+        vec![
+            registration(&QualityInspectionProjector::new()),
+            registration(&QualityLifecycleRecordProjector::new()),
+        ]
     }
 
     pub fn build(
@@ -36,7 +41,8 @@ impl QualityProjectionFactory {
         let store = ProjectionStore::new(projection);
         let runner = ProjectionRunner::new(ProjectionSource::new(write), store.clone(), config)?;
         Ok(QualityProjectionRuntime {
-            projector: QualityInspectionProjector::new(),
+            inspections: QualityInspectionProjector::new(),
+            lifecycle_records: QualityLifecycleRecordProjector::new(),
             runner,
             store,
         })
@@ -45,7 +51,8 @@ impl QualityProjectionFactory {
 
 #[derive(Debug, Clone)]
 pub struct QualityProjectionRuntime {
-    projector: QualityInspectionProjector,
+    inspections: QualityInspectionProjector,
+    lifecycle_records: QualityLifecycleRecordProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
@@ -53,38 +60,84 @@ pub struct QualityProjectionRuntime {
 impl QualityProjectionRuntime {
     /// Metadata consumed by the worker catalog without exposing the SQLx
     /// projector implementation to the composition root.
-    pub fn registration(&self) -> QualityProjectionRegistration {
-        QualityProjectionFactory.registration()
+    pub fn registrations(&self) -> Vec<QualityProjectionRegistration> {
+        QualityProjectionFactory.registrations()
     }
 
     /// Runs one bounded page against the active generation. Duplicate,
     /// out-of-order, retry, DLQ, receipt, and checkpoint semantics are owned by
     /// the shared projection runner.
-    pub async fn run_once(&self) -> Result<ProjectionRun, CqrsSqlxError> {
-        self.runner.run_active(&self.projector).await
+    pub async fn run_once(
+        &self,
+        kind: QualityProjectionKind,
+    ) -> Result<ProjectionRun, CqrsSqlxError> {
+        match kind {
+            QualityProjectionKind::Inspections => self.runner.run_active(&self.inspections).await,
+            QualityProjectionKind::LifecycleRecords => {
+                self.runner.run_active(&self.lifecycle_records).await
+            }
+        }
     }
 
     /// Creates and resets a shadow generation without disturbing active reads.
-    pub async fn begin_rebuild(&self) -> Result<RebuildHandle, CqrsSqlxError> {
-        self.store.begin_rebuild(&self.projector).await
+    pub async fn begin_rebuild(
+        &self,
+        kind: QualityProjectionKind,
+    ) -> Result<RebuildHandle, CqrsSqlxError> {
+        match kind {
+            QualityProjectionKind::Inspections => self.store.begin_rebuild(&self.inspections).await,
+            QualityProjectionKind::LifecycleRecords => {
+                self.store.begin_rebuild(&self.lifecycle_records).await
+            }
+        }
     }
 
     /// Replays one bounded page into a shadow generation. The caller must not
     /// activate while this report has a scheduled retry.
     pub async fn run_rebuild_page(
         &self,
+        kind: QualityProjectionKind,
         handle: &RebuildHandle,
         after_sequence: u64,
     ) -> Result<ProjectionRun, CqrsSqlxError> {
-        self.runner
-            .run_rebuild(&self.projector, handle, after_sequence)
-            .await
+        match kind {
+            QualityProjectionKind::Inspections => {
+                self.runner
+                    .run_rebuild(&self.inspections, handle, after_sequence)
+                    .await
+            }
+            QualityProjectionKind::LifecycleRecords => {
+                self.runner
+                    .run_rebuild(&self.lifecycle_records, handle, after_sequence)
+                    .await
+            }
+        }
     }
 
     /// Atomically switches read traffic after replay has reached its source
     /// fence. A generation race fails closed in `ProjectionStore`.
-    pub async fn activate_rebuild(&self, handle: &RebuildHandle) -> Result<(), CqrsSqlxError> {
+    pub async fn activate_rebuild(
+        &self,
+        kind: QualityProjectionKind,
+        handle: &RebuildHandle,
+    ) -> Result<(), CqrsSqlxError> {
+        let expected = match kind {
+            QualityProjectionKind::Inspections => self.inspections.name(),
+            QualityProjectionKind::LifecycleRecords => self.lifecycle_records.name(),
+        };
+        if handle.projection != expected {
+            return Err(CqrsSqlxError::InvalidInput(
+                "rebuild handle belongs to another Quality projector",
+            ));
+        }
         self.store.activate_rebuild(handle).await
+    }
+}
+
+fn registration(projector: &impl Projector) -> QualityProjectionRegistration {
+    QualityProjectionRegistration {
+        name: projector.name().into(),
+        event_types: projector.event_types().to_vec(),
     }
 }
 
@@ -93,23 +146,32 @@ mod tests {
     use std::time::Duration;
 
     use erpx_cqrs_sqlx::RetryPolicy;
-    use erpx_quality_sqlx::{PROJECTION_NAME, SNAPSHOT_EVENT_TYPE};
+    use erpx_quality_sqlx::{
+        LIFECYCLE_RECORD_PROJECTION_NAME, LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE, PROJECTION_NAME,
+        SNAPSHOT_EVENT_TYPE,
+    };
     use uuid::Uuid;
 
     use super::*;
 
     #[test]
     fn registration_is_typed_and_snapshot_only() {
-        let registration = QualityProjectionFactory.registration();
-        assert_eq!(registration.name, PROJECTION_NAME);
-        assert_eq!(registration.event_types, vec![SNAPSHOT_EVENT_TYPE]);
+        let registrations = QualityProjectionFactory.registrations();
+        assert_eq!(registrations.len(), 2);
+        assert_eq!(registrations[0].name, PROJECTION_NAME);
+        assert_eq!(registrations[0].event_types, vec![SNAPSHOT_EVENT_TYPE]);
+        assert_eq!(registrations[1].name, LIFECYCLE_RECORD_PROJECTION_NAME);
+        assert_eq!(
+            registrations[1].event_types,
+            vec![LIFECYCLE_RECORD_SNAPSHOT_EVENT_TYPE]
+        );
     }
 
     fn lazy_pools() -> (WritePool, ProjectionPool) {
-        let write = WritePool::from_pg_pool(
+        let write = WritePool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/quality_write").unwrap(),
         );
-        let projection = ProjectionPool::from_pg_pool(
+        let projection = ProjectionPool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/quality_read").unwrap(),
         );
         (write, projection)
@@ -123,8 +185,8 @@ mod tests {
             .expect("valid runner configuration");
 
         assert_eq!(
-            runtime.registration(),
-            QualityProjectionFactory.registration()
+            runtime.registrations(),
+            QualityProjectionFactory.registrations()
         );
     }
 
@@ -159,12 +221,33 @@ mod tests {
         };
 
         let error = runtime
-            .run_rebuild_page(&wrong_handle, 0)
+            .run_rebuild_page(QualityProjectionKind::Inspections, &wrong_handle, 0)
             .await
             .expect_err("cross-projector rebuild must fail closed");
         assert!(matches!(
             error,
             CqrsSqlxError::InvalidInput("rebuild handle belongs to another projector")
+        ));
+    }
+
+    #[tokio::test]
+    async fn cross_projection_activation_fails_before_database_access() {
+        let (write, projection) = lazy_pools();
+        let runtime = QualityProjectionFactory
+            .build(write, projection, ProjectionRunnerConfig::default())
+            .expect("valid runner configuration");
+        let wrong = RebuildHandle {
+            projection: PROJECTION_NAME.into(),
+            generation: Uuid::new_v4(),
+            replaces: None,
+        };
+        assert!(matches!(
+            runtime
+                .activate_rebuild(QualityProjectionKind::LifecycleRecords, &wrong)
+                .await,
+            Err(CqrsSqlxError::InvalidInput(
+                "rebuild handle belongs to another Quality projector"
+            ))
         ));
     }
 }

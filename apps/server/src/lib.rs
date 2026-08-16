@@ -20,8 +20,17 @@ mod contexts {
     pub mod sales_cqrs;
     pub mod support_cqrs;
 }
+mod future_agent_projects;
+mod future_auth;
+mod future_benefits;
+mod future_ecommerce;
+mod future_field_service;
+mod future_learning;
+mod future_manufacturing_planning;
+mod future_talent;
 mod operational_metrics;
 mod persistence;
+mod target_transport;
 mod tenant_workspace;
 mod wave4_composition;
 mod wave5_composition;
@@ -38,15 +47,32 @@ use contexts::quality::{
 use contexts::{
     assets_cqrs::{AssetsCommandRpc, AssetsQueryRpc},
     brand_cqrs::{BrandCommandRpc, BrandQueryRpc},
-    commercial_cqrs::{CommercialCommandRpc, CommercialQueryRpc},
-    crm_cqrs::{CrmCommandRpc, CrmQueryRpc},
-    customer_360_cqrs::Customer360QueryRpc,
-    customer_authority_cqrs::{CustomerAuthorityCommandRpc, CustomerAuthorityQueryRpc},
+    commercial_cqrs::{
+        CommercialCommandApplication, CommercialCommandRpc, CommercialQueryApplication,
+        CommercialQueryRpc, CommercialRequestAuthenticator,
+    },
+    crm_cqrs::{
+        CrmCommandApplication, CrmCommandRpc, CrmQueryApplication, CrmQueryRpc,
+        CrmRequestAuthenticator,
+    },
+    customer_360_cqrs::{
+        Customer360QueryApplication, Customer360QueryRpc, Customer360RequestAuthenticator,
+    },
+    customer_authority_cqrs::{
+        CustomerAuthorityCommandRpc, CustomerAuthorityQueryApplication, CustomerAuthorityQueryRpc,
+        CustomerAuthorityRequestAuthenticator,
+    },
     finance_cqrs::{FinanceCommandRpc, FinanceQueryRpc},
-    identity_access::{IdentityAccessCommandRpc, IdentityAccessQueryRpc},
+    identity_access::{
+        IdentityAccessCommandApplication, IdentityAccessCommandRpc, IdentityAccessQueryApplication,
+        IdentityAccessQueryRpc, IdentityAccessRequestAuthenticator,
+    },
     legal_cqrs::{LegalCommandRpc, LegalQueryRpc},
     maintenance_cqrs::{MaintenanceCommandRpc, MaintenanceQueryRpc},
-    marketing_cqrs::{MarketingCommandRpc, MarketingQueryRpc},
+    marketing_cqrs::{
+        MarketingCommandApplication, MarketingCommandRpc, MarketingQueryApplication,
+        MarketingQueryRpc, MarketingRequestAuthenticator,
+    },
     operations_cqrs::{OperationsCommandRpc, OperationsQueryRpc},
     organization_cqrs::{OrganizationCommandRpc, OrganizationQueryRpc},
     people_payroll_cqrs::{PeoplePayrollCommandRpc, PeoplePayrollQueryRpc},
@@ -61,6 +87,10 @@ use contexts::{
     support_cqrs::{SupportCommandRpc, SupportQueryRpc},
 };
 use persistence::seed_tenant_owner;
+use target_transport::{
+    CollaborationCommandRpc, CollaborationQueryRpc, CollaborationStreamRpc, DataPlaneStreamRpc,
+    ReferenceQueryRpc,
+};
 use tenant_workspace::{PresentedTenantRoute, ResolvedTenantWorkspace, resolve_tenant_workspace};
 use wave4_composition::{
     CommercialProviderKey, CommercialServerApplication, CommercialServerAuthenticator,
@@ -85,64 +115,64 @@ use std::{
 };
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use chrono::{DateTime, Duration, NaiveDate, Utc};
+use chrono::{DateTime, Duration, Utc};
+use commercial_target::{
+    commercial_command_service_server::CommercialCommandService as TargetCommercialCommandService,
+    commercial_query_service_server::CommercialQueryService as TargetCommercialQueryService,
+};
+use crm_target::{
+    crm_command_service_server::CrmCommandService as TargetCrmCommandService,
+    crm_query_service_server::CrmQueryService as TargetCrmQueryService,
+};
+use customer_authority_target::customer_authority_query_service_server::CustomerAuthorityQueryService as TargetCustomerAuthorityQueryService;
+use customer360_target::customer360_query_service_server::Customer360QueryService as TargetCustomer360QueryService;
 use erpx_application::{
-    AcknowledgeMarketingProviderVerificationCommand, AddCustomerNoteCommand, ApplicationError,
-    AuditEvent, AuditSink, AuthoritativeRoleLifecycleService, AuthoritativeSupportService,
+    AcknowledgeMarketingProviderVerificationCommand, ApplicationError, AuditEvent, AuditSink,
     AuthorizedMarketingProfilePrivacyPort, BindDomainCommand,
-    ConfigureMarketingProviderAccountCommand, Customer360DetailReadStore, Customer360NoteService,
-    CustomerGlobalReadAuditDetailCursor, CustomerGlobalReadAuditDetailQuery,
-    CustomerGlobalReadAuditDetailService, CustomerGlobalReadAuditQueryContext,
-    CustomerReadMetadata, CustomerReadView, CustomerSecurityAdminScope,
+    ConfigureMarketingProviderAccountCommand, CustomerGlobalReadAuditDetailCursor,
+    CustomerGlobalReadAuditDetailQuery, CustomerGlobalReadAuditDetailService,
+    CustomerGlobalReadAuditQueryContext, CustomerReadView, CustomerSecurityAdminScope,
     DEFAULT_MARKETING_PROVIDER_PRIORITY, EraseMarketingProfileCommand,
     IssueDomainVerificationCommand, IssuePreviewCommand, MarketingContentWritePort,
-    MarketingProfileErasureCorrelation, MarketingProviderChannelRoute, PlatformCustomerService,
-    RevokePreviewCommand, RoleAssignmentStore, RoleLifecycleService as RoleLifecycleUseCase,
-    SetMarketingProviderAccountStateCommand, SubmitPublishedFormCommand,
-    SupportIntersectionRequest, SupportIntersectionService, SupportStore, SystemClock,
-    VerifyDomainCommand, authorize_and_erase_marketing_profile,
+    MarketingProfileErasureCorrelation, MarketingProviderChannelRoute, RevokePreviewCommand,
+    RoleLifecycleService as RoleLifecycleUseCase, SetMarketingProviderAccountStateCommand,
+    SubmitPublishedFormCommand, SupportIntersectionRequest, SupportIntersectionService,
+    SystemClock, VerifyDomainCommand, authorize_and_erase_marketing_profile,
 };
 use erpx_cqrs::{
     CommandEnvelope as CqrsCommandEnvelope, CommandHandler, CommandReceipt as CqrsCommandReceipt,
-    CqrsError, QueryEnvelope as CqrsQueryEnvelope, QueryHandler, QueryResult as CqrsQueryResult,
+    CqrsError, IdempotencyKey, QueryConsistency, QueryEnvelope as CqrsQueryEnvelope, QueryHandler,
+    QueryResult as CqrsQueryResult,
 };
 use erpx_cqrs_sqlx::{ReadPool as CqrsReadPool, WritePool as CqrsWritePool};
+use erpx_customer_360::{
+    Customer360OwnedRecord, Customer360RecordCommand, Customer360RecordKind,
+    Customer360RecordUnitOfWork,
+};
+use erpx_customer_360_sqlx::Customer360RecordSqlxAdapter;
+use erpx_customer_authority::{CustomerId as AuthorityCustomerId, WriteRepository as _};
+use erpx_customer_authority_sqlx::CustomerAuthorityWriteRepository;
 use erpx_domain::{
     access::{
         EffectiveAccessRequest, HOLDING_OWNER_ROLE, RiskTier, RoleAssignment,
-        RoleExpiryNotificationKind, RoleRecoveryRequest, RoleRecoveryTarget, RoleReviewItem, Scope,
-        evaluate_effective_access_chain,
+        RoleExpiryNotificationKind, RoleReviewItem, Scope, evaluate_effective_access_chain,
     },
     commercial::{
         ACTIVE_CATALOG_CURRENCY, ActivateBranchModuleCommand, ActivateCompanyModuleCommand,
         AllocateCompanyCommand, BillingInterval, BillingState, CatalogPriceKind, ChargeKind,
-        CommercialCommandContext, EntitlementAllocationBook, EntitlementDecision, PricingUnit,
+        CommercialCommandContext, EntitlementDecision, PricingUnit,
         SubscriptionItemSelection as DomainSubscriptionItemSelection, active_subscription_currency,
         authorize_module,
     },
     contracts::{ActorAttribution, ActorKind, CONTRACT_VERSION, CommandContext, TenantScope},
     customer::{
-        Customer360DetailReadContext, CustomerGlobalReadContext,
-        CustomerNote as DomainCustomerNote, CustomerNoteCursor, CustomerStatus, GlobalReadActor,
-        GlobalReadAuditRecord, GlobalReadScope, HealthState,
+        Customer360DetailReadContext, CustomerGlobalReadContext, CustomerNoteCursor,
+        CustomerStatus, GlobalReadActor, GlobalReadAuditRecord, GlobalReadScope, HealthState,
     },
     data_plane::{
         BusinessUnitId, BusinessUnitRoleTemplate, ConfigurationLayer,
         directory_role_template_is_allowed,
     },
-    finance::{
-        AccountKind, AccountingPeriod, ChartOfAccounts, FinanceAccessPath,
-        FinanceAuthorizationOperation, FinanceAuthorizationRequest, JournalEntry,
-    },
-    finance_banking::{
-        BankAccount, BankMatchDecision, BankMatchProposal, BankReconciliation, BankStatementImport,
-    },
-    finance_chart::FinanceChart,
-    finance_close::FinanceCloseReview,
-    finance_subledgers::{Allocation, AllocationBatch, Invoice, Payment},
-    finance_tax::ThaiTaxFact,
-    hr::{EmployeeRecord, ExpenseClaim, LeaveRequest, PayrollRun},
-    legal::{LegalAccessHistoryEntry, LegalContract, LegalDocument},
     marketing::MarketingProfileErasure,
     marketing_abuse::{
         AnonymousMarketingAbuseInput, AnonymousMarketingAbusePolicy, MarketingAbuseDecision,
@@ -159,22 +189,11 @@ use erpx_domain::{
     },
     marketing_crm::{AcceptedLeadHandoff, AttributionModel, CrmOpportunity},
     marketing_delivery::DeliveryState,
-    operations::completion::OperationsManagerChainProof,
-    operations::{
-        ExceptionLifecycleAction, ExceptionLifecycleCommand, ExceptionPrincipalReference,
-        ExceptionSlaMetadata, ExceptionStatus, MAX_EXCEPTION_SLA_MINUTES,
-        MAX_OPERATIONS_SOURCE_EVENT_PAYLOAD_BYTES, OperationsSourceDomain, OperationsSourceEvent,
-        OrganizationStatus,
-    },
     platform_completion::{
         BackupControlCommand, PitrRecoveryPoint, PlatformAuthorizationProof, PlatformBackupKind,
         TenantBinding, TenantLifecycleAction, TenantLifecycleCommand,
     },
-    pos::Sale,
-    support::{
-        Incident, IncidentStatus, SupportCapability, SupportCapabilityBinding,
-        SupportCapabilitySecret, SupportDomainPolicy, SupportMode, TicketStatus,
-    },
+    support::{SupportCapabilitySecret, SupportDomainPolicy, SupportMode},
     tenant_administration::{TenantAdminAuthorizationRequest, TenantOrganizationScope},
 };
 use erpx_identity::{
@@ -188,215 +207,53 @@ use erpx_identity::{
     WebAuthnRsProvider, apply_identity_migration, preflight_directory_connector,
 };
 use erpx_infrastructure::{
-    AssetMaintenanceAggregate, AssetMaintenanceReadCursor, AssetMaintenanceReadScope,
-    BankProviderAccountBinding, BankProviderAccountRef, BankProviderCredentialKey,
-    CloseReviewSaveReceipt, ClusterPitrRepository, ControlPlaneDatabaseConfig, ControlPlanePools,
-    DeadLetterReplayCommand, DiagnosticsLimits, DiagnosticsSnapshot, DiagnosticsSnapshotInput,
-    EnvMarketingCallbackSecretResolver, FinanceAllocationBatchReceipt,
-    FinanceBankProviderImportAuthorization, FinanceBankProviderImportJobStatus,
-    FinanceBankProviderImportRequest, FinanceBankingReadCursor, FinanceBankingReadRow,
-    FinanceChartReadCursor, FinanceChartReadScope, FinanceCloseReadAvailability,
-    FinanceCloseReadCursor, FinanceCloseReadFreshness, FinanceCloseReadListRow,
-    FinanceCloseReadMetadata, FinanceCloseReadResult, FinanceCloseReadScope, FinanceCloseReadView,
-    FinanceSubledgerAggregate, FinanceSubledgerReadCursor, FinanceSubledgerReadRow,
-    FinanceSubledgerWriteReceipt, FinanceThaiTaxProjectionReconciliation, HrExpenseReadCursor,
-    HrLeaveReadCursor, HrPayrollRunReadCursor, HrReadScope, HrReassignmentReadCursor,
-    HttpMarketingCallbackSecretManager, LegalAccessReadCursor, LegalContractReadCursor,
-    LegalDocumentReadCursor, LegalReadScope, MAX_ASSET_MAINTENANCE_READ_PAGE_SIZE,
-    MAX_CLUSTER_PITR_PAGE_SIZE, MAX_CRM_READ_PAGE_SIZE, MAX_FINANCE_BANKING_READ_PAGE_SIZE,
-    MAX_FINANCE_CHART_READ_PAGE_SIZE, MAX_FINANCE_CLOSE_READ_PAGE_SIZE,
-    MAX_FINANCE_READ_JOURNAL_PAGE_SIZE, MAX_FINANCE_SUBLEDGER_READ_PAGE_SIZE,
-    MAX_HR_READ_PAGE_SIZE, MAX_HR_READ_PAYROLL_LINES_PER_RUN, MAX_INCIDENT_LIST_PAGE_SIZE,
-    MAX_LEGAL_READ_PAGE_SIZE, MAX_MARKETING_CONTENT_READ_PAGE_SIZE, MAX_OPERATIONS_EVENT_PAGE_SIZE,
-    MAX_OPERATIONS_EXCEPTION_PAGE_SIZE, MAX_ORGANIZATION_PAGE_SIZE, MAX_PLATFORM_AUDIT_PAGE_SIZE,
-    MAX_POS_READ_PAGE_SIZE, MAX_PROJECTION_STATUS_FRESHNESS_SECONDS,
-    MAX_PROJECTION_STATUS_PAGE_SIZE, MAX_SALES_READ_PAGE_SIZE, MAX_SCM_READ_PAGE_SIZE,
-    MAX_TENANT_REGISTRY_PAGE_SIZE, MarketingCallbackSecretResolver,
-    MarketingPublicAbuseWindowRequest, OPERATIONS_READ_PROJECTION, ObjectAccessBindingRequest,
-    OperationsExceptionCursor, OperationsJsonReadCursor, OrganizationNodeCommand,
-    OrganizationNodeKind, PersistenceError, PlatformControlStore, PlatformIntegrationObservation,
-    PosReadScope, PosSaleReadCursor, ProjectionPolicy, ProjectionSchedulerAuthorization,
-    ProjectionStatusCursor, ReadinessObservationState, ReadinessState, RoleReviewPersistence,
-    RoutedDatabaseSide, RoutedTenantDatabase, SalesAggregate, SalesReadCursor, SalesReadScope,
-    ScmAggregate, ScmReadCursor, ScmReadScope, SqlxAssetMaintenanceStore,
-    SqlxBranchProvisioningStore, SqlxCommercialStore, SqlxControlPlane, SqlxCorporateIdentityStore,
-    SqlxFinanceBankProviderImportJobSource, SqlxFinanceBankingStore, SqlxFinanceChartReadStore,
-    SqlxFinanceChartStore, SqlxFinanceCloseReadAdapter, SqlxFinanceCloseStore, SqlxFinanceStore,
-    SqlxFinanceSubledgerStore, SqlxFinanceThaiTaxStore, SqlxG13MigrationStore, SqlxHrPersistence,
-    SqlxHrReadStore, SqlxLegalPersistence, SqlxLegalReadStore, SqlxMarketingContentStore,
-    SqlxMarketingContentWriteAdapter, SqlxMarketingCrmStore, SqlxMarketingDeliveryStore,
-    SqlxMarketingProfilePrivacyAdapter, SqlxMarketingProviderOnboardingStore, SqlxMarketingStore,
-    SqlxOperationsStore, SqlxOrganizationStore, SqlxSalesStore, SqlxScmStore,
-    SqlxTenantAdministrationStore, SqlxTenantStoreRegistry, StripeApiKey, StripeCheckoutLineItem,
-    StripeCheckoutMode, StripeCheckoutSessionCreateRequest,
-    StripeCustomerPortalSessionCreateRequest, StripeHttpClient, StripeInboxInsert,
-    StripeProviderConfig, StripeWebhookEvent, StripeWebhookPersistenceContext,
-    SupportCapabilityAuthorizationRequest, SupportIdempotencyKey, SupportPersistence,
-    SupportPersistenceError, SupportTicketListCursor, TenantAdminContextIssue,
-    TenantBillingGraceExtensionGrant, TenantDataRouteScope, TenantDatabaseProvisioner,
-    TenantDatabaseProvisioningConfig, TenantDatabaseRouter, TenantHoldingBinding,
-    TenantProjectionSchedulerRepository, TenantProjectionStatusReadRepository, TenantProvisioner,
-    TenantRegistryFilter, TenantRegistrySummary, TenantSourceProjection, TenantStoreRegistration,
+    ClusterPitrRepository, ControlPlaneDatabaseConfig, ControlPlanePools, DeadLetterReplayCommand,
+    EnvMarketingCallbackSecretResolver, HttpMarketingCallbackSecretManager,
+    MAX_CLUSTER_PITR_PAGE_SIZE, MAX_CRM_READ_PAGE_SIZE, MAX_MARKETING_CONTENT_READ_PAGE_SIZE,
+    MAX_PLATFORM_AUDIT_PAGE_SIZE, MAX_PROJECTION_STATUS_FRESHNESS_SECONDS,
+    MAX_PROJECTION_STATUS_PAGE_SIZE, MAX_TENANT_REGISTRY_PAGE_SIZE,
+    MarketingCallbackSecretResolver, MarketingPublicAbuseWindowRequest, ObjectAccessBindingRequest,
+    PersistenceError, PlatformControlStore, PlatformIntegrationObservation, ProjectionPolicy,
+    ProjectionSchedulerAuthorization, ProjectionStatusCursor, ReadinessObservationState,
+    ReadinessState, RoutedDatabaseSide, RoutedTenantDatabase, SqlxBranchProvisioningStore,
+    SqlxCommercialStore, SqlxControlPlane, SqlxCorporateIdentityStore, SqlxG13MigrationStore,
+    SqlxMarketingContentStore, SqlxMarketingContentWriteAdapter, SqlxMarketingCrmStore,
+    SqlxMarketingDeliveryStore, SqlxMarketingProfilePrivacyAdapter,
+    SqlxMarketingProviderOnboardingStore, SqlxMarketingStore, SqlxTenantAdministrationStore,
+    SqlxTenantStoreRegistry, StripeApiKey, StripeCheckoutLineItem, StripeCheckoutMode,
+    StripeCheckoutSessionCreateRequest, StripeCustomerPortalSessionCreateRequest, StripeHttpClient,
+    StripeInboxInsert, StripeProviderConfig, StripeWebhookEvent, StripeWebhookPersistenceContext,
+    SupportCapabilityAuthorizationRequest, TenantAdminContextIssue,
+    TenantBillingGraceExtensionGrant, TenantDatabaseProvisioner, TenantDatabaseProvisioningConfig,
+    TenantDatabaseRouter, TenantHoldingBinding, TenantProjectionSchedulerRepository,
+    TenantProjectionStatusReadRepository, TenantProvisioner, TenantRegistryFilter,
+    TenantRegistrySummary, TenantSourceProjection, TenantStoreRegistration,
     UnconfiguredMarketingCallbackSecretResolver, WorkerHeartbeatReadiness,
     WorkerLiveReadinessPolicy, WorkerReadinessComposition, tenant_holding_scope_id,
 };
 use erpx_kernel::{
     ActorAttribution as KernelActorAttribution, ActorKind as KernelActorKind,
+    AuditContext as KernelAuditContext, CommandId as KernelCommandId,
     CorrelationId as KernelCorrelationId, ErrorCategory as KernelErrorCategory,
-    ErrorContext as KernelErrorContext, KernelError, SessionId as KernelSessionId,
-    SystemClock as KernelSystemClock, TenantScope as KernelTenantScope,
+    ErrorContext as KernelErrorContext, KernelError, RecordId as KernelRecordId,
+    SessionId as KernelSessionId, SystemClock as KernelSystemClock,
+    TenantScope as KernelTenantScope,
 };
-use erpx_proto::platform::{
-    AcknowledgeMarketingProviderVerificationRequest,
-    AcknowledgeMarketingProviderVerificationResponse, ActivateBranchEntitlementRequest,
-    ActivateBranchEntitlementResponse, ActivateCompanyEntitlementRequest,
-    ActivateCompanyEntitlementResponse, ActivateProjectionRebuildRequest,
-    ActivateProjectionRebuildResponse, AddCustomerNoteRequest, AddCustomerNoteResponse,
-    AddTicketInternalNoteRequest, AddTicketInternalNoteResponse, AddTicketReplyRequest,
-    AddTicketReplyResponse, AllocateCompanyEntitlementRequest, AllocateCompanyEntitlementResponse,
-    ApproveDirectoryIdentityReplacementRequest, ApproveDirectoryIdentityReplacementResponse,
-    ApproveSupportSessionRequest, BeginTenantProvisioningRequest, BeginTenantProvisioningResponse,
-    BindMarketingDomainRequest, BindMarketingDomainResponse, BranchProvisioningSummary,
-    CheckEntitlementRequest, CheckEntitlementResponse, ConfigureMarketingProviderAccountRequest,
-    ConfigureMarketingProviderAccountResponse, CreateIncidentRequest, CreateIncidentResponse,
-    CreateOperationsExceptionFromSourceRequest, CreateOperationsExceptionFromSourceResponse,
-    CreateTicketRecurrenceRequest, CreateTicketRecurrenceResponse, CreateTicketRequest,
-    CreateTicketResponse, CrmReadRow, Customer360SectionFact, Customer360SectionState,
-    CustomerAccessAuditEntry, CustomerNote as CustomerNoteMessage,
-    CustomerNoteWriteReceipt as CustomerNoteWriteReceiptMessage, CustomerSummary,
-    DirectoryConnectorSummary, DirectoryIdentityConflictSummary, DirectoryIdentityLinkSummary,
-    DirectoryImportStatus as DirectoryImportStatusMessage, DirectoryRoleMappingMessage,
-    EnqueueFinanceBankProviderImportRequest, EnqueueFinanceBankProviderImportResponse,
-    EntitlementCommandReceipt, EraseMarketingProfileRequest, EraseMarketingProfileResponse,
-    FinanceConsolidatedTrialBalanceLine, FinanceJournal, FinanceTrialBalanceLine,
-    GetAssetMaintenanceAggregateRequest, GetAssetMaintenanceAggregateResponse,
-    GetBranchProvisioningRequest, GetBranchProvisioningResponse, GetCustomer360DetailRequest,
-    GetCustomer360DetailResponse, GetCustomerAccessAuditRequest, GetCustomerAccessAuditResponse,
-    GetCustomerProjectionRequest, GetCustomerProjectionResponse, GetCustomerRequest,
-    GetCustomerResponse, GetDirectoryImportStatusRequest, GetDirectoryImportStatusResponse,
-    GetFinanceBankProviderImportJobStatusRequest, GetFinanceBankProviderImportJobStatusResponse,
-    GetFinanceBankingReadRowRequest, GetFinanceBankingReadRowResponse,
-    GetFinanceCloseReviewRequest, GetFinanceCloseReviewResponse,
-    GetFinanceConsolidatedTrialBalanceRequest, GetFinanceConsolidatedTrialBalanceResponse,
-    GetFinanceTrialBalanceRequest, GetFinanceTrialBalanceResponse, GetIncidentRequest,
-    GetIncidentResponse, GetMarketingDeliveryReadRequest, GetMarketingDeliveryReadResponse,
-    GetOperationsSummaryRequest, GetOperationsSummaryResponse, GetPlatformSettingsRequest,
-    GetPlatformSettingsResponse, GetPlatformTenantRequest, GetPlatformTenantResponse,
-    GetSalesAggregateRequest, GetSalesAggregateResponse, GetScmAggregateRequest,
-    GetScmAggregateResponse, GetSupportDiagnosticsRequest, GetSupportDiagnosticsResponse,
-    GetThaiTaxReportRequest, GetThaiTaxReportResponse, GetTicketRequest, GetTicketResponse,
-    ImportBankStatementRequest, ImportBankStatementResponse, Incident as IncidentMessage,
-    IssueMarketingDomainVerificationRequest, IssueMarketingDomainVerificationResponse,
-    IssueMarketingPreviewRequest, IssueMarketingPreviewResponse,
-    ListAssetMaintenanceAggregatesRequest, ListAssetMaintenanceAggregatesResponse,
-    ListBranchProvisioningsRequest, ListBranchProvisioningsResponse, ListCrmReadRowsRequest,
-    ListCrmReadRowsResponse, ListCustomersRequest, ListCustomersResponse,
-    ListDirectoryConflictsRequest, ListDirectoryConflictsResponse, ListDirectoryConnectorsRequest,
-    ListDirectoryConnectorsResponse, ListDirectoryIdentityLinksRequest,
-    ListDirectoryIdentityLinksResponse, ListDirectoryRoleMappingsRequest,
-    ListDirectoryRoleMappingsResponse, ListExpiringRolesRequest, ListExpiringRolesResponse,
-    ListFinanceBankingReadRowsRequest, ListFinanceBankingReadRowsResponse,
-    ListFinanceChartsRequest, ListFinanceChartsResponse, ListFinanceCloseReviewsRequest,
-    ListFinanceCloseReviewsResponse, ListFinanceJournalsRequest, ListFinanceJournalsResponse,
-    ListFinanceSubledgerReadRowsRequest, ListFinanceSubledgerReadRowsResponse,
-    ListHrEmployeesRequest, ListHrEmployeesResponse, ListHrExpenseClaimsRequest,
-    ListHrExpenseClaimsResponse, ListHrLeaveRequestsRequest, ListHrLeaveRequestsResponse,
-    ListHrPayrollRunsRequest, ListHrPayrollRunsResponse, ListHrReassignmentsRequest,
-    ListHrReassignmentsResponse, ListIncidentsRequest, ListIncidentsResponse,
-    ListLegalAccessHistoryRequest, ListLegalAccessHistoryResponse, ListLegalContractsRequest,
-    ListLegalContractsResponse, ListLegalDocumentsRequest, ListLegalDocumentsResponse,
-    ListMarketingContentReadRowsRequest, ListMarketingContentReadRowsResponse,
-    ListOperationsExceptionsRequest, ListOperationsExceptionsResponse,
-    ListOperationsWorkQueuePoliciesRequest, ListOperationsWorkQueuePoliciesResponse,
-    ListOrganizationNodesRequest, ListOrganizationNodesResponse, ListPlatformAuditRequest,
-    ListPlatformAuditResponse, ListPlatformIntegrationsRequest, ListPlatformIntegrationsResponse,
-    ListPlatformTenantsRequest, ListPlatformTenantsResponse, ListPosSalesRequest,
-    ListPosSalesResponse, ListProjectionStatusesRequest, ListProjectionStatusesResponse,
-    ListRoleReviewRequest, ListRoleReviewResponse, ListSalesAggregatesRequest,
-    ListSalesAggregatesResponse, ListScmAggregatesRequest, ListScmAggregatesResponse,
-    ListTenantBackupJobsRequest, ListTenantBackupJobsResponse, ListTenantControlHistoryRequest,
-    ListTenantControlHistoryResponse, ListTicketsRequest, ListTicketsResponse,
-    MarketingContentReadRow, MarketingDeliveryRead, OperationsException, OperationsSourceCount,
-    OperationsSummary, OperationsWorkQueuePolicy as OperationsWorkQueuePolicyMessage,
-    PlatformAuditEntry as PlatformAuditEntryMessage, PlatformIntegrationStatus,
-    PlatformTenantSummary, PostFinanceJournalRequest, PostFinanceJournalResponse,
-    ProjectionStatus as ProjectionStatusMessage, ProposeDirectoryIdentityReplacementRequest,
-    ProposeDirectoryIdentityReplacementResponse, ProvisionBranchRequest, ProvisionBranchResponse,
-    ProvisionTenantResourcesRequest, ProvisionTenantResourcesResponse,
-    PublishOperationsWorkQueuePolicyRequest, PublishOperationsWorkQueuePolicyResponse,
-    RecordCrmAttributionRequest, RecordCrmAttributionResponse, RecordLegalAccessRequest,
-    RecordLegalAccessResponse, RecordThaiTaxFactRequest, RecordThaiTaxFactResponse,
-    RecoverFinalRoleRequest, RecoverFinalRoleResponse, RegisterBankAccountRequest,
-    RegisterBankAccountResponse, RejectDirectoryIdentityReplacementRequest,
-    RejectDirectoryIdentityReplacementResponse, RenewRoleRequest, RenewRoleResponse,
-    ReplayDeadLetterOutboxRequest, ReplayDeadLetterOutboxResponse, RequestSupportSessionRequest,
-    RequestSupportSessionResponse, RetryBranchProvisioningRequest, RetryBranchProvisioningResponse,
-    RevokeMarketingPreviewRequest, RevokeMarketingPreviewResponse, RevokeSupportSessionRequest,
-    RoleAssignment as RoleAssignmentMessage, RoleReviewItem as RoleReviewItemMessage,
-    SaveAssetMaintenanceAggregateRequest, SaveAssetMaintenanceAggregateResponse,
-    SaveBankMatchDecisionRequest, SaveBankMatchDecisionResponse, SaveBankMatchProposalRequest,
-    SaveBankMatchProposalResponse, SaveBankReconciliationRequest, SaveBankReconciliationResponse,
-    SaveCrmHandoffRequest, SaveCrmHandoffResponse, SaveCrmOpportunityRequest,
-    SaveCrmOpportunityResponse, SaveDirectoryConnectorRequest, SaveDirectoryConnectorResponse,
-    SaveDirectoryRoleMappingRequest, SaveDirectoryRoleMappingResponse,
-    SaveFinanceAllocationBatchRequest, SaveFinanceAllocationBatchResponse, SaveFinanceChartRequest,
-    SaveFinanceChartResponse, SaveFinanceCloseReviewRequest, SaveFinanceCloseReviewResponse,
-    SaveFinancePeriodRequest, SaveFinancePeriodResponse, SaveFinanceSubledgerRequest,
-    SaveFinanceSubledgerResponse, SaveHrEmployeeRequest, SaveHrEmployeeResponse,
-    SaveHrExpenseRequest, SaveHrExpenseResponse, SaveHrLeaveRequest, SaveHrLeaveResponse,
-    SaveHrPayrollRequest, SaveHrPayrollResponse, SaveLegalContractRequest,
-    SaveLegalContractResponse, SaveLegalDocumentRequest, SaveLegalDocumentResponse,
-    SaveOrganizationNodeRequest, SaveOrganizationNodeResponse, SavePosSaleRequest,
-    SavePosSaleResponse, SaveSalesAggregateRequest, SaveSalesAggregateResponse,
-    SaveScmAggregateRequest, SaveScmAggregateResponse, ScheduleTenantBackupRequest,
-    ScheduleTenantBackupResponse, SetMarketingProviderAccountStateRequest,
-    SetMarketingProviderAccountStateResponse, StartDirectoryImportRequest,
-    StartDirectoryImportResponse, StartProjectionRebuildRequest, StartProjectionRebuildResponse,
-    SubmitMarketingFormRequest, SubmitMarketingFormResponse, SupportDiagnosticField,
-    SupportDiagnosticsAccess, SupportSession as SupportSessionMessage, SuspendBranchRouteRequest,
-    SuspendBranchRouteResponse, TenantBackupJobSummary as TenantBackupJobSummaryMessage,
-    TenantControlHistoryEntry as TenantControlHistoryEntryMessage, Ticket as TicketMessage,
-    TicketReply, TransitionHrEmployeeRequest, TransitionHrEmployeeResponse,
-    TransitionOperationsExceptionRequest, TransitionOperationsExceptionResponse,
-    TransitionSalesAggregateRequest, TransitionSalesAggregateResponse,
-    TransitionScmAggregateRequest, TransitionScmAggregateResponse, TransitionTenantStateRequest,
-    TransitionTenantStateResponse, UpdateIncidentRequest, UpdateIncidentResponse,
-    UpdateTicketRequest, UpdateTicketResponse, VerifyMarketingDomainRequest,
-    VerifyMarketingDomainResponse,
-    asset_maintenance_service_server::{AssetMaintenanceService, AssetMaintenanceServiceServer},
-    crm_service_server::{CrmService, CrmServiceServer},
-    customer_access_audit_query_service_server::{
-        CustomerAccessAuditQueryService, CustomerAccessAuditQueryServiceServer,
-    },
-    customer_note_command_service_server::{
-        CustomerNoteCommandService, CustomerNoteCommandServiceServer,
-    },
-    customer360_detail_query_service_server::{
-        Customer360DetailQueryService, Customer360DetailQueryServiceServer,
-    },
-    directory_service_server::{DirectoryService as DirectoryRpc, DirectoryServiceServer},
-    entitlement_service_server::{EntitlementService, EntitlementServiceServer},
-    finance_service_server::{FinanceService, FinanceServiceServer},
-    hr_service_server::{HrService, HrServiceServer},
-    legal_service_server::{LegalService, LegalServiceServer},
-    marketing_content_service_server::{MarketingContentService, MarketingContentServiceServer},
-    migration_service_server::MigrationServiceServer,
-    operations_service_server::{OperationsService, OperationsServiceServer},
-    organization_service_server::{OrganizationService, OrganizationServiceServer},
-    platform_customer_service_server::{
-        PlatformCustomerService as CustomerRpc, PlatformCustomerServiceServer,
-    },
-    platform_operations_service_server::{
-        PlatformOperationsService as PlatformOperationsRpc, PlatformOperationsServiceServer,
-    },
-    pos_service_server::{PosService, PosServiceServer},
-    role_lifecycle_service_server::{
-        RoleLifecycleService as RoleLifecycleRpc, RoleLifecycleServiceServer,
-    },
-    saas_billing_service_server::{SaasBillingService as SaasBillingRpc, SaasBillingServiceServer},
-    sales_service_server::{SalesService, SalesServiceServer},
-    scm_service_server::{ScmService, ScmServiceServer},
-    support_service_server::{SupportService as SupportRpc, SupportServiceServer},
+use erpx_operations::SourceHighWatermarkPort;
+use erpx_operations_sqlx::EXCEPTION_PROJECTION as OPERATIONS_READ_PROJECTION;
+use erpx_operations_sqlx::OperationsSourceHighWatermarkReader;
+use erpx_organization::application::MAX_ORGANIZATION_LIST_PAGE_SIZE;
+use erpx_organization::{
+    NodeListFilter as OrganizationNodeListFilter,
+    OrganizationNodeKind as TypedOrganizationNodeKind,
+    OrganizationPlacement as TypedOrganizationPlacement, ReadRepository as _,
+};
+use erpx_organization_sqlx::OrganizationReadRepository;
+use erpx_proto::erpx::{
+    commercial::v1 as commercial_target, crm::v1 as crm_target,
+    customer_360::v1 as customer360_target, customer_authority::v1 as customer_authority_target,
+    identity_access::v1 as identity_target, marketing::v1 as marketing_target,
+    platform_administration::v1 as platform_admin_target,
 };
 use erpx_quality::ports::AuthorizationRequest as QualityAuthorizationRequest;
 use erpx_quality::{
@@ -404,7 +261,16 @@ use erpx_quality::{
     PortError as QualityPortError, QualityCommandHandler, QualityQueryHandler,
 };
 use erpx_quality_sqlx::{QualityCommandAdapter, QualityReadRepository, QualityWriteRepository};
+use erpx_support_sqlx::SupportWriteRepository;
 use hmac::{Hmac, Mac};
+use identity_target::{
+    identity_access_command_service_server::IdentityAccessCommandService as TargetIdentityAccessCommandService,
+    identity_access_query_service_server::IdentityAccessQueryService as TargetIdentityAccessQueryService,
+};
+use marketing_target::{
+    marketing_command_service_server::MarketingCommandService as TargetMarketingCommandService,
+    marketing_query_service_server::MarketingQueryService as TargetMarketingQueryService,
+};
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -440,38 +306,6 @@ const PLATFORM_CUSTOMER_NOTE_WRITE_PERMISSION: &str = "platform.customer.notes.w
 const PLATFORM_TENANT_READ_PERMISSION: &str = "platform.tenant.read";
 const PLATFORM_TENANT_HISTORY_READ_PERMISSION: &str = "platform.tenant.history.read";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum V1ServiceAuthority {
-    Legacy,
-    Typed,
-}
-
-impl V1ServiceAuthority {
-    fn parse(value: &str) -> Result<Self, &'static str> {
-        match value {
-            "legacy" => Ok(Self::Legacy),
-            "typed" => Ok(Self::Typed),
-            _ => Err("ERPX_V1_SERVICE_AUTHORITY must be exactly legacy or typed"),
-        }
-    }
-
-    fn from_environment() -> Result<Self, &'static str> {
-        std::env::var("ERPX_V1_SERVICE_AUTHORITY")
-            .ok()
-            .as_deref()
-            .map(Self::parse)
-            .transpose()?
-            .ok_or("ERPX_V1_SERVICE_AUTHORITY is required")
-    }
-
-    const fn is_legacy(self) -> bool {
-        matches!(self, Self::Legacy)
-    }
-
-    const fn is_typed(self) -> bool {
-        matches!(self, Self::Typed)
-    }
-}
 const PLATFORM_TENANT_ENTER_PERMISSION: &str = "platform.tenant.enter";
 const PLATFORM_TENANT_PROVISION_PERMISSION: &str = "platform.tenant.provision";
 const PLATFORM_TENANT_BACKUP_PERMISSION: &str = "platform.tenant.backup";
@@ -495,25 +329,6 @@ fn directory_permission(scope: &Scope, operation: &str) -> &'static str {
         _ => TENANT_DIRECTORY_MANAGE_PERMISSION,
     }
 }
-
-fn tenant_data_route_scope(scope: &Scope) -> TenantDataRouteScope {
-    match scope {
-        Scope::Branch {
-            company_id,
-            branch_id,
-            ..
-        } => TenantDataRouteScope::Branch {
-            company_id: *company_id,
-            branch_id: *branch_id,
-        },
-        Scope::Company { company_id, .. } => TenantDataRouteScope::Company {
-            company_id: *company_id,
-        },
-        Scope::Platform | Scope::Holding { .. } | Scope::Subtree { .. } => {
-            TenantDataRouteScope::Holding
-        }
-    }
-}
 const MAX_DIRECTORY_IDENTITY_LINK_PAGE_SIZE: u32 = 500;
 const PLATFORM_OUTBOX_REPLAY_PERMISSION: &str = "platform.outbox.replay";
 const ENTITLEMENT_ALLOCATE_PERMISSION: &str = "commercial.entitlement.allocate";
@@ -521,14 +336,6 @@ const ENTITLEMENT_ACTIVATE_PERMISSION: &str = "commercial.entitlement.activate";
 const COMMERCIAL_BILLING_READ_PERMISSION: &str = "commercial.billing.read";
 const COMMERCIAL_BILLING_MANAGE_PERMISSION: &str = "commercial.billing.manage";
 const COMMERCIAL_BILLING_GRACE_EXTEND_PERMISSION: &str = "commercial.billing.grace.extend";
-const INCIDENT_CREATE_PERMISSION: &str = "support.incident.create";
-const INCIDENT_UPDATE_PERMISSION: &str = "support.incident.update";
-const SUPPORT_TICKET_REPLY_PERMISSION: &str = "support.ticket.reply";
-const SUPPORT_TICKET_INTERNAL_NOTE_PERMISSION: &str = "support.ticket.note";
-const MAX_INCIDENT_LEADS: usize = 64;
-const MAX_INCIDENT_SERVICES: usize = 64;
-const MAX_INCIDENT_CUSTOMERS: usize = 256;
-const MAX_INCIDENT_REFERENCE_BYTES: usize = 128;
 const MAX_ROLE_REVIEW_DAYS: u32 = 365;
 
 macro_rules! grpc_handler {
@@ -565,9 +372,11 @@ fn optional_registry_filter(value: &str) -> Option<String> {
     (!value.is_empty()).then(|| value.to_owned())
 }
 
-fn platform_tenant_summary(tenant: TenantRegistrySummary) -> PlatformTenantSummary {
+fn platform_tenant_summary(
+    tenant: TenantRegistrySummary,
+) -> platform_admin_target::PlatformTenantSummary {
     let enterable = tenant.enterable();
-    PlatformTenantSummary {
+    platform_admin_target::PlatformTenantSummary {
         tenant_id: tenant.tenant_id,
         state: tenant.tenant_state,
         registry_version: 0,
@@ -607,8 +416,8 @@ fn platform_tenant_summary(tenant: TenantRegistrySummary) -> PlatformTenantSumma
 fn tenant_admin_context_message(
     context: &erpx_domain::tenant_administration::TenantAdminContext,
     at: DateTime<Utc>,
-) -> erpx_proto::platform::TenantAdminContext {
-    erpx_proto::platform::TenantAdminContext {
+) -> platform_admin_target::TenantAdminContext {
+    platform_admin_target::TenantAdminContext {
         administrative_context_id: context.id.to_string(),
         tenant_id: context.tenant_id.clone(),
         customer_id: context.customer_id.to_string(),
@@ -618,27 +427,6 @@ fn tenant_admin_context_message(
         active: context.revoked_at.is_none() && at >= context.issued_at && at < context.expires_at,
     }
 }
-
-fn finance_banking_read_page_size(value: u32) -> Result<u32, Status> {
-    match value {
-        0 => Ok(25),
-        value if value <= MAX_FINANCE_BANKING_READ_PAGE_SIZE => Ok(value),
-        _ => Err(Status::invalid_argument(
-            "Finance banking read page size exceeds the allowed bound",
-        )),
-    }
-}
-
-fn finance_subledger_read_page_size(value: u32) -> Result<u32, Status> {
-    match value {
-        0 => Ok(25),
-        value if value <= MAX_FINANCE_SUBLEDGER_READ_PAGE_SIZE => Ok(value),
-        _ => Err(Status::invalid_argument(
-            "Finance subledger read page size exceeds the allowed bound",
-        )),
-    }
-}
-
 fn projection_status_page_size(value: u32) -> Result<u32, Status> {
     match value {
         0 => Ok(25),
@@ -692,26 +480,18 @@ async fn operations_source_high_watermark(
     let write = router
         .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
         .await?;
-    let read = match router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
+    let tenant_uuid = Uuid::parse_str(tenant_id).map_err(|_| {
+        PersistenceError::InvalidData(
+            "generation-v2 Operations source requires a UUID tenant_id".into(),
+        )
+    })?;
+    let pool = CqrsWritePool::for_tenant(write.database_pool().clone(), tenant_uuid)
+        .map_err(|_| PersistenceError::Configuration("Operations tenant binding is invalid"))?;
+    let result = OperationsSourceHighWatermarkReader::new(pool)
+        .source_high_watermark()
         .await
-    {
-        Ok(read) => read,
-        Err(error) => {
-            write.close().await;
-            return Err(error);
-        }
-    };
-    let result = match SqlxOperationsStore::from_pools(
-        write.database_pool(),
-        read.database_pool(),
-        holding_ref.to_owned(),
-    ) {
-        Ok(store) => store.source_event_high_watermark().await,
-        Err(error) => Err(error),
-    };
+        .map_err(|_| PersistenceError::Configuration("Operations source fence is unavailable"));
     write.close().await;
-    read.close().await;
     result
 }
 
@@ -741,66 +521,6 @@ fn validate_transport_reference<'a>(
     }
     Ok(value)
 }
-
-fn validate_customer_projection(value: &str) -> Result<&'static str, Status> {
-    match value {
-        "organization" => Ok("organization"),
-        "contacts" => Ok("contacts"),
-        "commercial" => Ok("commercial"),
-        "entitlements" => Ok("entitlements"),
-        "onboarding" => Ok("onboarding"),
-        "health" => Ok("health"),
-        "support" => Ok("support"),
-        "access-audit" => Ok("access-audit"),
-        "notes" => Ok("notes"),
-        _ => Err(Status::invalid_argument(
-            "customer projection is unsupported",
-        )),
-    }
-}
-
-struct EncodedCustomerProjection {
-    payload: Vec<u8>,
-    metadata: CustomerReadMetadata,
-    supported: bool,
-    present: bool,
-    unsupported_reason: Option<String>,
-}
-
-async fn encode_customer_projection<T, F>(view: F) -> Result<EncodedCustomerProjection, Status>
-where
-    T: Serialize,
-    F: Future<Output = Result<CustomerReadView<T>, erpx_application::ApplicationError>>,
-{
-    match view
-        .await
-        .map_err(|error| Status::internal(error.to_string()))?
-    {
-        CustomerReadView::Present { data, metadata } => Ok(EncodedCustomerProjection {
-            payload: serde_json::to_vec(&data)
-                .map_err(|_| Status::internal("customer projection serialization failed"))?,
-            metadata,
-            supported: true,
-            present: true,
-            unsupported_reason: None,
-        }),
-        CustomerReadView::Absent { metadata } => Ok(EncodedCustomerProjection {
-            payload: Vec::new(),
-            metadata,
-            supported: true,
-            present: false,
-            unsupported_reason: None,
-        }),
-        CustomerReadView::Unsupported { metadata, reason } => Ok(EncodedCustomerProjection {
-            payload: Vec::new(),
-            metadata,
-            supported: false,
-            present: false,
-            unsupported_reason: Some(reason),
-        }),
-    }
-}
-
 const fn customer_freshness_name(
     freshness: erpx_application::CustomerReadFreshness,
 ) -> &'static str {
@@ -821,7 +541,7 @@ fn customer_detail_section_state<T>(view: &CustomerReadView<T>) -> &'static str 
 
 fn customer_detail_section_states(
     model: &erpx_domain::customer::Customer360DetailReadModel,
-) -> Vec<Customer360SectionState> {
+) -> Vec<customer360_target::Customer360SectionState> {
     [
         ("account", customer_detail_section_state(&model.account)),
         (
@@ -850,10 +570,12 @@ fn customer_detail_section_states(
         ("notes", customer_detail_section_state(&model.notes)),
     ]
     .into_iter()
-    .map(|(section, state)| Customer360SectionState {
-        section: section.into(),
-        state: state.into(),
-    })
+    .map(
+        |(section, state)| customer360_target::Customer360SectionState {
+            section: section.into(),
+            state: state.into(),
+        },
+    )
     .collect()
 }
 
@@ -863,7 +585,7 @@ fn customer_detail_fact(
     section: &'static str,
     key: &'static str,
     value: impl Into<String>,
-) -> Customer360SectionFact {
+) -> customer360_target::Customer360SectionFact {
     let value = value.into();
     let value = if customer_detail_sensitive_marker(&value) {
         "redacted".to_string()
@@ -875,7 +597,7 @@ fn customer_detail_fact(
     } else {
         value
     };
-    Customer360SectionFact {
+    customer360_target::Customer360SectionFact {
         section: section.into(),
         key: key.into(),
         value,
@@ -902,7 +624,7 @@ fn customer_detail_sensitive_marker(value: &str) -> bool {
 
 fn customer_detail_section_facts(
     model: &erpx_domain::customer::Customer360DetailReadModel,
-) -> Vec<Customer360SectionFact> {
+) -> Vec<customer360_target::Customer360SectionFact> {
     let mut facts = Vec::new();
     if let CustomerReadView::Present { data, .. } = &model.account {
         facts.extend([
@@ -1373,7 +1095,7 @@ fn directory_scope_from_key(scope_key: &str) -> Result<DirectoryScope, Status> {
 
 fn directory_connector_summary(
     snapshot: erpx_identity::DirectoryConnectorSnapshot,
-) -> DirectoryConnectorSummary {
+) -> identity_target::DirectoryConnectorSummary {
     let at = Utc::now();
     let ready = snapshot.lifecycle == DirectoryConnectorLifecycle::Active
         && snapshot.unresolved_conflicts == 0
@@ -1383,7 +1105,7 @@ fn directory_connector_summary(
         && snapshot.last_heartbeat_at.is_some_and(|value| {
             value <= at && at.signed_duration_since(value) <= DIRECTORY_REVOCATION_SLA
         });
-    DirectoryConnectorSummary {
+    identity_target::DirectoryConnectorSummary {
         connector_id: snapshot.id.to_string(),
         provider: match snapshot.provider {
             DirectoryProvider::GenericLdap => "generic_ldap",
@@ -1453,8 +1175,8 @@ fn directory_connector_summary(
 
 fn directory_conflict_summary(
     conflict: DirectoryIdentityConflictSnapshot,
-) -> DirectoryIdentityConflictSummary {
-    DirectoryIdentityConflictSummary {
+) -> identity_target::DirectoryIdentityConflictSummary {
+    identity_target::DirectoryIdentityConflictSummary {
         conflict_id: conflict.conflict_id.to_string(),
         connector_id: conflict.connector_id.to_string(),
         local_principal_ref: conflict.local_principal_ref,
@@ -1522,8 +1244,8 @@ async fn directory_audit_customer(
 
 fn directory_import_status_message(
     status: erpx_identity::DirectoryImportStatus,
-) -> DirectoryImportStatusMessage {
-    DirectoryImportStatusMessage {
+) -> identity_target::DirectoryImportStatus {
+    identity_target::DirectoryImportStatus {
         import_id: status.import_id.to_string(),
         connector_id: status.connector_id.to_string(),
         state: status.state,
@@ -1549,13 +1271,7 @@ struct AppState {
     commercial: Arc<SqlxCommercialStore>,
     tenant_router: Option<Arc<TenantDatabaseRouter>>,
     storage: Arc<StorageComposition>,
-    support_persistence: Arc<SupportPersistence>,
-    customers: Arc<PlatformCustomerService<SqlxControlPlane>>,
-    authoritative_support:
-        Arc<AuthoritativeSupportService<SqlxControlPlane, SystemClock, SqlxControlPlane>>,
     roles: Arc<RoleLifecycleUseCase<SqlxControlPlane, SystemClock>>,
-    authoritative_roles:
-        Arc<AuthoritativeRoleLifecycleService<SqlxControlPlane, SystemClock, SqlxControlPlane>>,
     platform_completion: Arc<PlatformCompletionApi>,
     migration: Arc<SqlxG13MigrationStore>,
 }
@@ -2138,38 +1854,6 @@ impl AuthContext {
         }
         Ok(())
     }
-
-    async fn authorize_customer_support_approver(
-        &self,
-        store: &SqlxControlPlane,
-        claims: &AccessTokenClaims,
-        requested_scope: &Scope,
-    ) -> Result<(), Status> {
-        self.authorize_role(store, claims, requested_scope, "support.session.approve")
-            .await?;
-        let role = claims
-            .active_role
-            .as_ref()
-            .ok_or_else(|| Status::permission_denied("role_selection_required"))?;
-        if !self
-            .identity
-            .selected_local_role_has_any_key(
-                &claims.principal_ref,
-                role,
-                requested_scope,
-                &["holding_owner", "customer_security_head"],
-                Utc::now(),
-            )
-            .await
-            .map_err(|_| Status::internal("customer approval lookup failed"))?
-        {
-            return Err(Status::permission_denied(
-                "customer approval requires an active Holding Owner or Customer Security Head",
-            ));
-        }
-        Ok(())
-    }
-
     async fn authorize_customer_security_admin(
         &self,
         store: &SqlxControlPlane,
@@ -2433,252 +2117,6 @@ impl AppState {
             Scope::Platform | Scope::Holding { .. } | Scope::Subtree { .. } => Ok(()),
         }
     }
-
-    /// Authorize a tenant/customer diagnostics read against current
-    /// write-side state. The transport supplies an immutable capability
-    /// binding, but the capability is not sufficient by itself: the active
-    /// identity session/device, support session, agent role chain, scope,
-    /// module allocation, billing state, and SoD decision are all rechecked.
-    async fn authorize_support_diagnostics(
-        &self,
-        claims: &AccessTokenClaims,
-        requested_scope: &Scope,
-        access: &SupportDiagnosticsAccess,
-    ) -> Result<Uuid, Status> {
-        let parsed = parse_support_diagnostics_access(access, requested_scope)?;
-        if !self
-            .store
-            .customer_scope_contains(parsed.customer_id, requested_scope)
-            .await
-            .map_err(|_| Status::internal("customer scope lookup failed"))?
-        {
-            return Err(Status::permission_denied("customer_scope_not_granted"));
-        }
-
-        let at = Utc::now();
-        let active_device_id = self
-            .auth
-            .identity
-            .active_session_device_id(claims.session_id, at)
-            .await
-            .map_err(map_identity_auth_error)?;
-        validate_authenticated_device_ref(active_device_id, &parsed.device_ref)?;
-
-        let capability_active = self
-            .store
-            .authorize_support_capability(&SupportCapabilityAuthorizationRequest {
-                capability_id: parsed.capability_id,
-                customer_account_id: parsed.customer_id,
-                agent_ref: claims.principal_ref.clone(),
-                device_ref: parsed.device_ref.clone(),
-                session_id: parsed.support_session_id,
-                ticket_id: parsed.support_ticket_id,
-                mode: "diagnostic_read".into(),
-                permission: SUPPORT_DIAGNOSTICS_PERMISSION.into(),
-                scope: parsed.support_scope.clone(),
-                module: parsed.module.clone(),
-                secret_hex: parsed.capability_secret_hex.clone(),
-                at,
-            })
-            .await
-            .map_err(|_| Status::internal("support capability lookup failed"))?;
-        if !capability_active {
-            return Err(Status::permission_denied(
-                "support diagnostics capability is inactive",
-            ));
-        }
-
-        let session = self
-            .store
-            .get_session(parsed.support_session_id)
-            .await
-            .map_err(|_| Status::internal("support session lookup failed"))?
-            .ok_or_else(|| {
-                Status::permission_denied("support diagnostics capability is inactive")
-            })?;
-        if session.customer_account_id != parsed.customer_id
-            || session.agent_ref != claims.principal_ref
-            || session.ticket_id != parsed.support_ticket_id
-            || session.mode != SupportMode::DiagnosticRead
-            || session.module != parsed.module
-            || session.scope != parsed.support_scope
-        {
-            return Err(Status::permission_denied(
-                "support diagnostics capability binding is invalid",
-            ));
-        }
-        let capability = self
-            .store
-            .load_support_capability(parsed.capability_id)
-            .await
-            .map_err(|_| Status::internal("support capability lookup failed"))?
-            .ok_or_else(|| {
-                Status::permission_denied("support diagnostics capability is inactive")
-            })?;
-
-        let Some((lifecycle, _)) = self
-            .commercial
-            .get_billing_lifecycle(parsed.customer_id, parsed.subscription_id)
-            .await
-            .map_err(|_| Status::internal("billing state lookup failed"))?
-        else {
-            return Err(Status::permission_denied("billing_state_not_found"));
-        };
-        let Some((book, _)) = self
-            .commercial
-            .get_entitlement_book(parsed.customer_id, &parsed.module)
-            .await
-            .map_err(|_| Status::internal("entitlement lookup failed"))?
-        else {
-            return Err(Status::permission_denied("module_not_entitled"));
-        };
-        if !diagnostics_module_scope_is_entitled(requested_scope, lifecycle.state, &book, at) {
-            return Err(Status::permission_denied("module_scope_not_active"));
-        }
-        let Some((agent_role, agent_parent_role)) = self
-            .store
-            .effective_role_assignment(
-                &claims.principal_ref,
-                &Scope::Platform,
-                SUPPORT_DIAGNOSTICS_AGENT_PERMISSION,
-                at,
-            )
-            .await
-            .map_err(|_| Status::internal("support role lookup failed"))?
-        else {
-            return Err(Status::permission_denied("support agent role is inactive"));
-        };
-        let sod_passed = self
-            .store
-            .sod_decision_active(&claims.principal_ref, &parsed.module, &Scope::Platform, at)
-            .await
-            .map_err(|_| Status::internal("segregation-of-duties lookup failed"))?;
-
-        let canonical_scope = parsed.approved_scope.canonical_key();
-        let mut evaluation_session = session;
-        evaluation_session.scope = canonical_scope.clone();
-        let mut evaluation_capability = capability;
-        evaluation_capability.binding.scope = canonical_scope.clone();
-        let entitlement = book.module_entitlement();
-        let domain_policy = SupportDomainPolicy::new(
-            SUPPORT_DIAGNOSTICS_AGENT_PERMISSION,
-            std::iter::once(parsed.module.clone()).collect(),
-            true,
-            false,
-            false,
-            sod_passed,
-        );
-        SupportIntersectionService
-            .authorize(&SupportIntersectionRequest {
-                at,
-                agent_identity_ref: &claims.principal_ref,
-                agent_identity_active: true,
-                agent_device_ref: &parsed.device_ref,
-                agent_device_active: true,
-                session: &evaluation_session,
-                capability: &evaluation_capability,
-                capability_secret: &parsed.capability_secret,
-                agent_role: &agent_role,
-                agent_parent_role: agent_parent_role.as_ref(),
-                represented_user_identity_active: false,
-                represented_user_role: None,
-                represented_user_parent_role: None,
-                requested_scope,
-                scope_key: &canonical_scope,
-                module_key: &parsed.module,
-                required_permission: SUPPORT_DIAGNOSTICS_PERMISSION,
-                billing_state: lifecycle.state,
-                entitlement: Some(&entitlement),
-                domain_policy: &domain_policy,
-                is_mutation: false,
-            })
-            .map_err(|_| Status::permission_denied("support diagnostics authorization denied"))?;
-        Ok(parsed.customer_id)
-    }
-
-    /// Role lifecycle is a control-plane mutation, but it still uses the
-    /// authoritative write-side policy. Customer-scoped renewals require the
-    /// customer subscription, module entitlement, role chain, scope binding,
-    /// and SoD decision. Platform-scoped renewals use the explicit identity
-    /// control-plane policy and therefore have no tenant commercial state.
-    async fn authorize_role_lifecycle_command(
-        &self,
-        claims: &AccessTokenClaims,
-        context: &erpx_domain::contracts::CommandContext,
-        customer_id: Option<Uuid>,
-        module_key: &str,
-    ) -> Result<(), Status> {
-        require_actor_match(
-            &claims.principal_ref,
-            &context.actor.principal_ref,
-            "command actor must match the authenticated principal",
-        )?;
-        let scope = access_scope(&context.tenant_scope);
-        match (&scope, customer_id) {
-            (Scope::Platform, Some(_)) => Err(Status::invalid_argument(
-                "customer_id is not valid for platform role renewal",
-            )),
-            (Scope::Platform, None) => {
-                self.auth
-                    .authorize_role(&self.store, claims, &scope, "role.assignment.renew")
-                    .await?;
-                let at = Utc::now();
-                let Some((assignment, parent)) = self
-                    .store
-                    .effective_role_assignment(
-                        &claims.principal_ref,
-                        &scope,
-                        "role.assignment.renew",
-                        at,
-                    )
-                    .await
-                    .map_err(|_| Status::internal("authorization lookup failed"))?
-                else {
-                    return Err(Status::permission_denied(
-                        "effective role permission is not active for this scope",
-                    ));
-                };
-                if !assignment.is_active_at(at)
-                    || !assignment.scope.contains(&scope)
-                    || parent
-                        .as_ref()
-                        .is_some_and(|parent| !parent.effective_at(at, None))
-                {
-                    return Err(Status::permission_denied(
-                        "effective role chain is not active",
-                    ));
-                }
-                if !self
-                    .store
-                    .sod_decision_active(&claims.principal_ref, "identity", &scope, at)
-                    .await
-                    .map_err(|_| Status::internal("segregation-of-duties lookup failed"))?
-                {
-                    return Err(Status::permission_denied("segregation_of_duties_failed"));
-                }
-                Ok(())
-            }
-            (_, None) => Err(Status::invalid_argument(
-                "customer_id is required for tenant role renewal",
-            )),
-            (_, Some(customer_id)) => {
-                let module_key = module_key.trim();
-                if module_key.is_empty() {
-                    return Err(Status::invalid_argument(
-                        "module_key is required for tenant role renewal",
-                    ));
-                }
-                self.authorize_entitled_command(
-                    claims,
-                    context,
-                    customer_id,
-                    module_key,
-                    "role.assignment.renew",
-                )
-                .await
-            }
-        }
-    }
 }
 
 fn access_scope(scope: &TenantScope) -> Scope {
@@ -2764,158 +2202,6 @@ fn finance_banking_read_tenant_scope(scope: &Scope) -> Result<TenantScope, Statu
         )),
     }
 }
-
-fn finance_subledger_read_tenant_scope(scope: &Scope) -> Result<TenantScope, Status> {
-    match scope {
-        Scope::Holding { holding_id } => Ok(TenantScope::Holding {
-            holding_id: *holding_id,
-        }),
-        Scope::Company {
-            holding_id,
-            company_id,
-        } => Ok(TenantScope::Company {
-            holding_id: *holding_id,
-            company_id: *company_id,
-        }),
-        Scope::Branch {
-            holding_id,
-            company_id,
-            branch_id,
-        } => Ok(TenantScope::Branch {
-            holding_id: *holding_id,
-            company_id: *company_id,
-            branch_id: *branch_id,
-        }),
-        Scope::Platform | Scope::Subtree { .. } => Err(Status::permission_denied(
-            "Finance subledger reads require an explicit holding, company, or branch scope",
-        )),
-    }
-}
-
-fn finance_company_scope_contains(scope: &Scope, holding_id: Uuid, company_id: Uuid) -> bool {
-    match scope {
-        Scope::Platform => false,
-        Scope::Holding {
-            holding_id: scoped_holding,
-        } => *scoped_holding == holding_id,
-        Scope::Company {
-            holding_id: scoped_holding,
-            company_id: scoped_company,
-        } => *scoped_holding == holding_id && *scoped_company == company_id,
-        Scope::Branch {
-            holding_id: scoped_holding,
-            company_id: scoped_company,
-            ..
-        } => *scoped_holding == holding_id && *scoped_company == company_id,
-        Scope::Subtree {
-            holding_id: scoped_holding,
-            company_ids,
-            ..
-        } => *scoped_holding == holding_id && company_ids.contains(&company_id),
-    }
-}
-
-fn finance_trial_balance_account_kind(value: &str) -> Result<AccountKind, Status> {
-    match value {
-        "asset" => Ok(AccountKind::Asset),
-        "liability" => Ok(AccountKind::Liability),
-        "equity" => Ok(AccountKind::Equity),
-        "revenue" => Ok(AccountKind::Revenue),
-        "expense" => Ok(AccountKind::Expense),
-        _ => Err(Status::failed_precondition(
-            "Finance chart projection contains an invalid account category",
-        )),
-    }
-}
-
-fn finance_trial_balance_account_kind_text(value: AccountKind) -> &'static str {
-    match value {
-        AccountKind::Asset => "asset",
-        AccountKind::Liability => "liability",
-        AccountKind::Equity => "equity",
-        AccountKind::Revenue => "revenue",
-        AccountKind::Expense => "expense",
-    }
-}
-
-fn finance_trial_balance_freshness(
-    projected_at: Option<DateTime<Utc>>,
-    now: DateTime<Utc>,
-) -> &'static str {
-    let Some(projected_at) = projected_at else {
-        return "unknown";
-    };
-    let age = now.signed_duration_since(projected_at);
-    if age < Duration::zero() {
-        "unknown"
-    } else if age <= Duration::minutes(5) {
-        "fresh"
-    } else {
-        "stale"
-    }
-}
-
-fn finance_chart_read_scope(
-    caller_scope: &Scope,
-    holding_id: &str,
-    company_id: &str,
-) -> Result<FinanceChartReadScope, Status> {
-    if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-        return Err(Status::permission_denied(
-            "Finance chart reads require an explicit holding, company, or branch scope",
-        ));
-    }
-    let holding_id = parse_uuid(holding_id, "holding_id")?;
-    let company_id = parse_uuid(company_id, "company_id")?;
-    let requested_scope = Scope::Company {
-        holding_id,
-        company_id,
-    };
-    if !caller_scope.contains(&requested_scope) {
-        return Err(Status::permission_denied(
-            "Finance chart read scope is not contained",
-        ));
-    }
-    Ok(FinanceChartReadScope {
-        holding_id,
-        company_id,
-    })
-}
-
-fn finance_close_read_scope(
-    scope: &Scope,
-    holding_id: Uuid,
-    company_id: Uuid,
-) -> Result<FinanceCloseReadScope, Status> {
-    match scope {
-        Scope::Holding {
-            holding_id: scoped_holding,
-        } if *scoped_holding == holding_id => FinanceCloseReadScope::new(holding_id, company_id)
-            .map_err(|_| Status::invalid_argument("Finance close scope is invalid")),
-        Scope::Company {
-            holding_id: scoped_holding,
-            company_id: scoped_company,
-        } if *scoped_holding == holding_id && *scoped_company == company_id => {
-            FinanceCloseReadScope::new(holding_id, company_id)
-                .map_err(|_| Status::invalid_argument("Finance close scope is invalid"))
-        }
-        Scope::Branch {
-            holding_id: scoped_holding,
-            company_id: scoped_company,
-            ..
-        } if *scoped_holding == holding_id && *scoped_company == company_id => {
-            FinanceCloseReadScope::new(holding_id, company_id)
-                .map_err(|_| Status::invalid_argument("Finance close scope is invalid"))
-        }
-        Scope::Platform | Scope::Subtree { .. } => Err(Status::permission_denied(
-            "Finance close reads require an explicit holding, company, or branch scope",
-        )),
-        _ => Err(Status::permission_denied(
-            "Finance close read scope does not match the requested company",
-        )),
-    }
-}
-
 fn query_access_scope(context: &erpx_proto::common::v1::QueryContext) -> Result<Scope, Status> {
     let scope = context
         .tenant_scope
@@ -3071,7 +2357,25 @@ impl QualityServerApplication {
                     true,
                 )
             })?;
-        let pool = CqrsWritePool::from_pg_pool(routed.database_pool().clone());
+        let tenant_id = Uuid::parse_str(&routed.tenant_id).map_err(|_| {
+            quality_cqrs_failure(
+                correlation_id,
+                "quality.invalid_tenant_identity",
+                KernelErrorCategory::Internal,
+                "Quality storage tenant identity is invalid.",
+                false,
+            )
+        })?;
+        let pool =
+            CqrsWritePool::for_tenant(routed.database_pool().clone(), tenant_id).map_err(|_| {
+                quality_cqrs_failure(
+                    correlation_id,
+                    "quality.invalid_tenant_identity",
+                    KernelErrorCategory::Internal,
+                    "Quality storage tenant identity is invalid.",
+                    false,
+                )
+            })?;
         let handler = QualityCommandHandler::new(
             QualityWriteRepository::new(pool.clone()),
             QualityCommandAdapter::new(pool),
@@ -3123,17 +2427,34 @@ impl QualityServerApplication {
                     true,
                 )
             })?;
-        let repository =
-            QualityReadRepository::new(CqrsReadPool::from_pg_pool(routed.database_pool().clone()))
-                .map_err(|_| {
-                    quality_cqrs_failure(
-                        correlation_id,
-                        "quality.read_configuration",
-                        KernelErrorCategory::Internal,
-                        "Quality read storage could not be initialized.",
-                        false,
-                    )
-                })?;
+        let tenant_id = Uuid::parse_str(&routed.tenant_id).map_err(|_| {
+            quality_cqrs_failure(
+                correlation_id,
+                "quality.invalid_tenant_identity",
+                KernelErrorCategory::Internal,
+                "Quality read storage tenant identity is invalid.",
+                false,
+            )
+        })?;
+        let read_pool = CqrsReadPool::for_tenant(routed.database_pool().clone(), tenant_id)
+            .map_err(|_| {
+                quality_cqrs_failure(
+                    correlation_id,
+                    "quality.invalid_tenant_identity",
+                    KernelErrorCategory::Internal,
+                    "Quality read storage tenant identity is invalid.",
+                    false,
+                )
+            })?;
+        let repository = QualityReadRepository::new(read_pool).map_err(|_| {
+            quality_cqrs_failure(
+                correlation_id,
+                "quality.read_configuration",
+                KernelErrorCategory::Internal,
+                "Quality read storage could not be initialized.",
+                false,
+            )
+        })?;
         let handler = QualityQueryHandler::new(repository, access.clone(), access);
         let result = handler.handle(envelope).await;
         drop(routed);
@@ -3682,29 +3003,6 @@ fn map_dead_letter_replay_error(error: PersistenceError) -> Status {
 }
 
 type ApprovalMac = Hmac<Sha256>;
-
-fn verify_customer_approval(
-    token: &str,
-    session_id: Uuid,
-    customer_id: Uuid,
-) -> Result<(), Status> {
-    let secret = std::env::var("ERPX_SUPPORT_APPROVAL_SECRET").map_err(|_| {
-        Status::failed_precondition("ERPX_SUPPORT_APPROVAL_SECRET is not configured")
-    })?;
-    if secret.len() < 32 {
-        return Err(Status::failed_precondition(
-            "ERPX_SUPPORT_APPROVAL_SECRET must contain at least 32 characters",
-        ));
-    }
-    let mut mac = ApprovalMac::new_from_slice(secret.as_bytes())
-        .map_err(|_| Status::internal("support approval signer is unavailable"))?;
-    mac.update(format!("{session_id}:{customer_id}").as_bytes());
-    let provided = hex::decode(token)
-        .map_err(|_| Status::permission_denied("customer approval signature is invalid"))?;
-    mac.verify_slice(&provided)
-        .map_err(|_| Status::permission_denied("customer approval signature is invalid"))
-}
-
 fn parse_uuid(value: &str, field: &str) -> Result<Uuid, Status> {
     Uuid::parse_str(value).map_err(|_| Status::invalid_argument(format!("{field} must be a UUID")))
 }
@@ -3712,662 +3010,53 @@ fn parse_uuid(value: &str, field: &str) -> Result<Uuid, Status> {
 fn organization_page_size(value: u32) -> Result<u32, Status> {
     match value {
         0 => Ok(25),
-        value if value <= MAX_ORGANIZATION_PAGE_SIZE => Ok(value),
+        value if value <= u32::from(MAX_ORGANIZATION_LIST_PAGE_SIZE) => Ok(value),
         _ => Err(Status::invalid_argument(
             "organization page size exceeds the allowed bound",
         )),
     }
 }
-
-fn optional_organization_uuid(value: &str, field: &str) -> Result<Option<Uuid>, Status> {
-    if value.trim().is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(parse_uuid(value, field)?))
+const fn typed_organization_kind_name(kind: TypedOrganizationNodeKind) -> &'static str {
+    match kind {
+        TypedOrganizationNodeKind::Holding => "holding",
+        TypedOrganizationNodeKind::Company => "company",
+        TypedOrganizationNodeKind::Headquarters => "headquarters",
+        TypedOrganizationNodeKind::Branch => "branch",
+        TypedOrganizationNodeKind::Department => "department",
+        TypedOrganizationNodeKind::Team => "team",
     }
 }
 
-fn organization_status(value: &str) -> Result<OrganizationStatus, Status> {
-    match value {
-        "active" => Ok(OrganizationStatus::Active),
-        "suspended" => Ok(OrganizationStatus::Suspended),
-        "archived" => Ok(OrganizationStatus::Archived),
-        _ => Err(Status::invalid_argument(
-            "organization status must be active, suspended, or archived",
-        )),
+const fn typed_organization_company_id(
+    node_id: Uuid,
+    placement: &TypedOrganizationPlacement,
+) -> Option<Uuid> {
+    match placement {
+        TypedOrganizationPlacement::Holding => None,
+        TypedOrganizationPlacement::Company { .. } => Some(node_id),
+        TypedOrganizationPlacement::Headquarters { company_id, .. }
+        | TypedOrganizationPlacement::Branch { company_id, .. }
+        | TypedOrganizationPlacement::Department { company_id, .. }
+        | TypedOrganizationPlacement::Team { company_id, .. } => Some(*company_id),
     }
 }
 
-fn organization_cursor(value: &OperationsJsonReadCursor) -> String {
-    hex::encode(format!("{}|{}", value.updated_at.to_rfc3339(), value.aggregate_id).as_bytes())
-}
-
-fn parse_organization_cursor(value: &str) -> Result<Option<OperationsJsonReadCursor>, Status> {
-    if value.trim().is_empty() {
-        return Ok(None);
-    }
-    if value.len() > 512 {
-        return Err(Status::invalid_argument("organization cursor is invalid"));
-    }
-    let decoded = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("organization cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("organization cursor is invalid"))?;
-    let (updated_at, aggregate_id) = decoded
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("organization cursor is invalid"))?;
-    let updated_at = DateTime::parse_from_rfc3339(updated_at)
-        .map_err(|_| Status::invalid_argument("organization cursor is invalid"))?
-        .with_timezone(&Utc);
-    let aggregate_id = parse_uuid(aggregate_id, "organization cursor aggregate_id")?;
-    Ok(Some(OperationsJsonReadCursor {
-        updated_at,
-        aggregate_id,
-    }))
-}
-
-fn operations_exception_page_size(value: u32) -> Result<u32, Status> {
-    match value {
-        0 => Ok(25),
-        value if value <= MAX_OPERATIONS_EXCEPTION_PAGE_SIZE => Ok(value),
-        _ => Err(Status::invalid_argument(
-            "operations exception page size exceeds the allowed bound",
-        )),
+const fn typed_organization_branch_id(
+    node_id: Uuid,
+    placement: &TypedOrganizationPlacement,
+) -> Option<Uuid> {
+    match placement {
+        TypedOrganizationPlacement::Branch { .. } => Some(node_id),
+        TypedOrganizationPlacement::Department { branch_id, .. }
+        | TypedOrganizationPlacement::Team { branch_id, .. } => *branch_id,
+        TypedOrganizationPlacement::Holding
+        | TypedOrganizationPlacement::Company { .. }
+        | TypedOrganizationPlacement::Headquarters { .. } => None,
     }
 }
-
-fn operations_exception_cursor(cursor: &OperationsExceptionCursor) -> String {
-    hex::encode(format!("{}|{}", cursor.updated_at.to_rfc3339(), cursor.aggregate_id).as_bytes())
-}
-
-fn parse_operations_exception_cursor(
-    value: &str,
-) -> Result<Option<OperationsExceptionCursor>, Status> {
-    if value.trim().is_empty() {
-        return Ok(None);
-    }
-    if value.len() > 512 {
-        return Err(Status::invalid_argument(
-            "operations exception cursor is invalid",
-        ));
-    }
-    let decoded = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("operations exception cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("operations exception cursor is invalid"))?;
-    let (updated_at, aggregate_id) = decoded
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("operations exception cursor is invalid"))?;
-    let updated_at = DateTime::parse_from_rfc3339(updated_at)
-        .map_err(|_| Status::invalid_argument("operations exception cursor is invalid"))?
-        .with_timezone(&Utc);
-    let aggregate_id = parse_uuid(aggregate_id, "operations exception cursor aggregate_id")?;
-    Ok(Some(OperationsExceptionCursor {
-        updated_at,
-        aggregate_id,
-    }))
-}
-
-const fn operations_exception_status_name(status: ExceptionStatus) -> &'static str {
-    match status {
-        ExceptionStatus::Detected => "detected",
-        ExceptionStatus::Assigned => "assigned",
-        ExceptionStatus::Acknowledged => "acknowledged",
-        ExceptionStatus::Escalated => "escalated",
-        ExceptionStatus::Resolved => "resolved",
-        ExceptionStatus::Closed => "closed",
-    }
-}
-
-fn encode_hr_leave_cursor(cursor: &HrLeaveReadCursor) -> String {
-    hex::encode(
-        format!(
-            "{}|{}",
-            cursor.starts_on.format("%Y-%m-%d"),
-            cursor.leave_id
-        )
-        .as_bytes(),
-    )
-}
-
-fn decode_hr_leave_cursor(value: &str) -> Result<HrLeaveReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument("HR leave cursor is invalid"));
-    }
-    let decoded =
-        hex::decode(value).map_err(|_| Status::invalid_argument("HR leave cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("HR leave cursor is invalid"))?;
-    let (date, leave_id) = decoded
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("HR leave cursor is invalid"))?;
-    let starts_on = NaiveDate::parse_from_str(date, "%Y-%m-%d")
-        .map_err(|_| Status::invalid_argument("HR leave cursor is invalid"))?;
-    let leave_id = parse_uuid(leave_id, "HR leave cursor")?;
-    if leave_id.is_nil() {
-        return Err(Status::invalid_argument("HR leave cursor is invalid"));
-    }
-    Ok(HrLeaveReadCursor {
-        starts_on,
-        leave_id,
-    })
-}
-
-fn encode_hr_expense_cursor(cursor: &HrExpenseReadCursor) -> String {
-    hex::encode(cursor.expense_id.to_string().as_bytes())
-}
-
-fn decode_hr_expense_cursor(value: &str) -> Result<HrExpenseReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument("HR expense cursor is invalid"));
-    }
-    let decoded =
-        hex::decode(value).map_err(|_| Status::invalid_argument("HR expense cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("HR expense cursor is invalid"))?;
-    let expense_id = parse_uuid(&decoded, "HR expense cursor")?;
-    if expense_id.is_nil() {
-        return Err(Status::invalid_argument("HR expense cursor is invalid"));
-    }
-    Ok(HrExpenseReadCursor { expense_id })
-}
-
-fn encode_hr_payroll_cursor(cursor: &HrPayrollRunReadCursor) -> String {
-    hex::encode(
-        format!(
-            "{}|{}",
-            cursor.starts_on.format("%Y-%m-%d"),
-            cursor.payroll_id
-        )
-        .as_bytes(),
-    )
-}
-
-fn decode_hr_payroll_cursor(value: &str) -> Result<HrPayrollRunReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument("HR payroll cursor is invalid"));
-    }
-    let decoded =
-        hex::decode(value).map_err(|_| Status::invalid_argument("HR payroll cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("HR payroll cursor is invalid"))?;
-    let (date, payroll_id) = decoded
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("HR payroll cursor is invalid"))?;
-    let starts_on = NaiveDate::parse_from_str(date, "%Y-%m-%d")
-        .map_err(|_| Status::invalid_argument("HR payroll cursor is invalid"))?;
-    let payroll_id = parse_uuid(payroll_id, "HR payroll cursor")?;
-    if payroll_id.is_nil() {
-        return Err(Status::invalid_argument("HR payroll cursor is invalid"));
-    }
-    Ok(HrPayrollRunReadCursor {
-        starts_on,
-        payroll_id,
-    })
-}
-
-fn encode_hr_reassignment_cursor(cursor: &HrReassignmentReadCursor) -> String {
-    hex::encode(
-        format!(
-            "{}|{}",
-            cursor.reassigned_at.to_rfc3339(),
-            cursor.workflow_ref
-        )
-        .as_bytes(),
-    )
-}
-
-fn decode_hr_reassignment_cursor(value: &str) -> Result<HrReassignmentReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument(
-            "HR reassignment cursor is invalid",
-        ));
-    }
-    let decoded = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("HR reassignment cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("HR reassignment cursor is invalid"))?;
-    let (reassigned_at, workflow_ref) = decoded
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("HR reassignment cursor is invalid"))?;
-    let reassigned_at = DateTime::parse_from_rfc3339(reassigned_at)
-        .map_err(|_| Status::invalid_argument("HR reassignment cursor is invalid"))?
-        .with_timezone(&Utc);
-    if workflow_ref.is_empty()
-        || workflow_ref.len() > 255
-        || workflow_ref.chars().any(char::is_control)
-    {
-        return Err(Status::invalid_argument(
-            "HR reassignment cursor is invalid",
-        ));
-    }
-    Ok(HrReassignmentReadCursor {
-        reassigned_at,
-        workflow_ref: workflow_ref.to_owned(),
-    })
-}
-
-const MAX_LEGAL_JSON_BYTES: usize = 2 * 1024 * 1024;
-
-fn legal_json<T: serde::de::DeserializeOwned>(
-    bytes: &[u8],
-    field: &'static str,
-) -> Result<T, Status> {
-    if bytes.is_empty() || bytes.len() > MAX_LEGAL_JSON_BYTES {
-        return Err(Status::invalid_argument(format!(
-            "{field} is out of bounds"
-        )));
-    }
-    serde_json::from_slice(bytes)
-        .map_err(|_| Status::invalid_argument(format!("{field} is invalid")))
-}
-
-fn legal_expected_version(
-    has_expected_version: bool,
-    expected_version: u64,
-    context: &erpx_domain::contracts::CommandContext,
-) -> Result<Option<u64>, Status> {
-    let expected = if has_expected_version {
-        if expected_version == 0 {
-            return Err(Status::invalid_argument(
-                "expected_version must be positive",
-            ));
-        }
-        Some(expected_version)
-    } else {
-        None
-    };
-    if expected != context.expected_aggregate_version {
-        return Err(Status::invalid_argument(
-            "expected_version does not match command context",
-        ));
-    }
-    Ok(expected)
-}
-
-fn encode_legal_contract_cursor(cursor: &LegalContractReadCursor) -> String {
-    hex::encode(cursor.contract_id.as_bytes())
-}
-
-fn decode_legal_contract_cursor(value: &str) -> Result<LegalContractReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument("Legal contract cursor is invalid"));
-    }
-    let bytes = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("Legal contract cursor is invalid"))?;
-    let bytes: [u8; 16] = bytes
-        .try_into()
-        .map_err(|_| Status::invalid_argument("Legal contract cursor is invalid"))?;
-    let contract_id = Uuid::from_bytes(bytes);
-    if contract_id.is_nil() {
-        return Err(Status::invalid_argument("Legal contract cursor is invalid"));
-    }
-    Ok(LegalContractReadCursor { contract_id })
-}
-
-fn encode_legal_document_cursor(cursor: &LegalDocumentReadCursor) -> String {
-    hex::encode(cursor.document_id.as_bytes())
-}
-
-fn decode_legal_document_cursor(value: &str) -> Result<LegalDocumentReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument("Legal document cursor is invalid"));
-    }
-    let bytes = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("Legal document cursor is invalid"))?;
-    let bytes: [u8; 16] = bytes
-        .try_into()
-        .map_err(|_| Status::invalid_argument("Legal document cursor is invalid"))?;
-    let document_id = Uuid::from_bytes(bytes);
-    if document_id.is_nil() {
-        return Err(Status::invalid_argument("Legal document cursor is invalid"));
-    }
-    Ok(LegalDocumentReadCursor { document_id })
-}
-
-fn encode_legal_access_cursor(cursor: &LegalAccessReadCursor) -> String {
-    hex::encode(format!("{}|{}", cursor.observed_at.to_rfc3339(), cursor.entry_id).as_bytes())
-}
-
-fn decode_legal_access_cursor(value: &str) -> Result<LegalAccessReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument("Legal access cursor is invalid"));
-    }
-    let bytes = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("Legal access cursor is invalid"))?;
-    let value = String::from_utf8(bytes)
-        .map_err(|_| Status::invalid_argument("Legal access cursor is invalid"))?;
-    let (observed_at, entry_id) = value
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("Legal access cursor is invalid"))?;
-    let observed_at = DateTime::parse_from_rfc3339(observed_at)
-        .map_err(|_| Status::invalid_argument("Legal access cursor is invalid"))?
-        .with_timezone(&Utc);
-    let entry_id = parse_uuid(entry_id, "Legal access cursor")?;
-    if entry_id.is_nil() {
-        return Err(Status::invalid_argument("Legal access cursor is invalid"));
-    }
-    Ok(LegalAccessReadCursor {
-        observed_at,
-        entry_id,
-    })
-}
-
-fn encode_pos_sales_cursor(cursor: &PosSaleReadCursor) -> String {
-    hex::encode(format!("{}|{}", cursor.updated_at.to_rfc3339(), cursor.sale_id).as_bytes())
-}
-
-fn decode_pos_sales_cursor(value: &str) -> Result<PosSaleReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument("POS sales cursor is invalid"));
-    }
-    let decoded =
-        hex::decode(value).map_err(|_| Status::invalid_argument("POS sales cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("POS sales cursor is invalid"))?;
-    let (updated_at, sale_id) = decoded
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("POS sales cursor is invalid"))?;
-    let updated_at = DateTime::parse_from_rfc3339(updated_at)
-        .map_err(|_| Status::invalid_argument("POS sales cursor is invalid"))?
-        .with_timezone(&Utc);
-    let sale_id = parse_uuid(sale_id, "POS sales cursor")?;
-    if sale_id.is_nil() {
-        return Err(Status::invalid_argument("POS sales cursor is invalid"));
-    }
-    Ok(PosSaleReadCursor {
-        updated_at,
-        sale_id,
-    })
-}
-
-fn encode_scm_read_cursor(cursor: &ScmReadCursor) -> String {
-    hex::encode(
-        format!(
-            "{}|{}|{}",
-            cursor.projected_at.to_rfc3339(),
-            cursor.aggregate_type,
-            cursor.aggregate_id
-        )
-        .as_bytes(),
-    )
-}
-
-fn decode_scm_read_cursor(value: &str) -> Result<ScmReadCursor, Status> {
-    if value.is_empty() || value.len() > 384 {
-        return Err(Status::invalid_argument("SCM read cursor is invalid"));
-    }
-    let decoded =
-        hex::decode(value).map_err(|_| Status::invalid_argument("SCM read cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("SCM read cursor is invalid"))?;
-    let mut parts = decoded.split('|');
-    let projected_at = parts
-        .next()
-        .ok_or_else(|| Status::invalid_argument("SCM read cursor is invalid"))?;
-    let aggregate_type = parts
-        .next()
-        .ok_or_else(|| Status::invalid_argument("SCM read cursor is invalid"))?;
-    let aggregate_id = parts
-        .next()
-        .ok_or_else(|| Status::invalid_argument("SCM read cursor is invalid"))?;
-    if parts.next().is_some() {
-        return Err(Status::invalid_argument("SCM read cursor is invalid"));
-    }
-    let projected_at = DateTime::parse_from_rfc3339(projected_at)
-        .map_err(|_| Status::invalid_argument("SCM read cursor is invalid"))?
-        .with_timezone(&Utc);
-    let aggregate_type = match aggregate_type {
-        "product" => "product",
-        "warehouse" => "warehouse",
-        "purchase_request" => "purchase_request",
-        "purchase_order" => "purchase_order",
-        "goods_receipt" => "goods_receipt",
-        "stock_movement" => "stock_movement",
-        "stock_transfer" => "stock_transfer",
-        "stock_reservation" => "stock_reservation",
-        _ => return Err(Status::invalid_argument("SCM read cursor is invalid")),
-    };
-    let aggregate_id = parse_uuid(aggregate_id, "SCM read cursor aggregate ID")?;
-    if aggregate_id.is_nil() {
-        return Err(Status::invalid_argument("SCM read cursor is invalid"));
-    }
-    Ok(ScmReadCursor {
-        projected_at,
-        aggregate_type,
-        aggregate_id,
-    })
-}
-
-fn encode_sales_read_cursor(cursor: &SalesReadCursor) -> String {
-    hex::encode(
-        format!(
-            "{}|{}|{}",
-            cursor.projected_at.to_rfc3339(),
-            cursor.aggregate_type,
-            cursor.aggregate_id
-        )
-        .as_bytes(),
-    )
-}
-
-fn decode_sales_read_cursor(value: &str) -> Result<SalesReadCursor, Status> {
-    if value.is_empty() || value.len() > 384 {
-        return Err(Status::invalid_argument("Sales read cursor is invalid"));
-    }
-    let decoded =
-        hex::decode(value).map_err(|_| Status::invalid_argument("Sales read cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("Sales read cursor is invalid"))?;
-    let mut parts = decoded.split('|');
-    let projected_at = parts
-        .next()
-        .ok_or_else(|| Status::invalid_argument("Sales read cursor is invalid"))?;
-    let aggregate_type = parts
-        .next()
-        .ok_or_else(|| Status::invalid_argument("Sales read cursor is invalid"))?;
-    let aggregate_id = parts
-        .next()
-        .ok_or_else(|| Status::invalid_argument("Sales read cursor is invalid"))?;
-    if parts.next().is_some()
-        || !matches!(
-            aggregate_type,
-            "lead"
-                | "opportunity"
-                | "quote"
-                | "sales_order"
-                | "delivery_handoff"
-                | "invoice_handoff"
-                | "collection_state"
-        )
-    {
-        return Err(Status::invalid_argument("Sales read cursor is invalid"));
-    }
-    let projected_at = DateTime::parse_from_rfc3339(projected_at)
-        .map_err(|_| Status::invalid_argument("Sales read cursor is invalid"))?
-        .with_timezone(&Utc);
-    let aggregate_id = parse_uuid(aggregate_id, "Sales read cursor aggregate ID")?;
-    if aggregate_id.is_nil() {
-        return Err(Status::invalid_argument("Sales read cursor is invalid"));
-    }
-    Ok(SalesReadCursor {
-        projected_at,
-        aggregate_type: aggregate_type.to_owned(),
-        aggregate_id,
-    })
-}
-
-fn encode_asset_maintenance_read_cursor(cursor: &AssetMaintenanceReadCursor) -> String {
-    hex::encode(
-        format!(
-            "{}|{}|{}",
-            cursor.projected_at.to_rfc3339(),
-            cursor.aggregate_type,
-            cursor.aggregate_id
-        )
-        .as_bytes(),
-    )
-}
-
-fn decode_asset_maintenance_read_cursor(value: &str) -> Result<AssetMaintenanceReadCursor, Status> {
-    if value.is_empty() || value.len() > 384 {
-        return Err(Status::invalid_argument(
-            "Asset/Maintenance read cursor is invalid",
-        ));
-    }
-    let decoded = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("Asset/Maintenance read cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("Asset/Maintenance read cursor is invalid"))?;
-    let mut parts = decoded.split('|');
-    let projected_at = parts
-        .next()
-        .ok_or_else(|| Status::invalid_argument("Asset/Maintenance read cursor is invalid"))?;
-    let aggregate_type = parts
-        .next()
-        .ok_or_else(|| Status::invalid_argument("Asset/Maintenance read cursor is invalid"))?;
-    let aggregate_id = parts
-        .next()
-        .ok_or_else(|| Status::invalid_argument("Asset/Maintenance read cursor is invalid"))?;
-    if parts.next().is_some() {
-        return Err(Status::invalid_argument(
-            "Asset/Maintenance read cursor is invalid",
-        ));
-    }
-    let projected_at = DateTime::parse_from_rfc3339(projected_at)
-        .map_err(|_| Status::invalid_argument("Asset/Maintenance read cursor is invalid"))?
-        .with_timezone(&Utc);
-    let aggregate_type = match aggregate_type {
-        "asset" => "asset",
-        "maintenance_work_order" => "maintenance_work_order",
-        _ => {
-            return Err(Status::invalid_argument(
-                "Asset/Maintenance read cursor is invalid",
-            ));
-        }
-    };
-    let aggregate_id = parse_uuid(aggregate_id, "Asset/Maintenance read cursor aggregate ID")?;
-    if aggregate_id.is_nil() {
-        return Err(Status::invalid_argument(
-            "Asset/Maintenance read cursor is invalid",
-        ));
-    }
-    Ok(AssetMaintenanceReadCursor {
-        projected_at,
-        aggregate_type,
-        aggregate_id,
-    })
-}
-
-fn encode_finance_close_read_cursor(cursor: &FinanceCloseReadCursor) -> String {
-    hex::encode(format!("{}|{}", cursor.projected_at.to_rfc3339(), cursor.period_id).as_bytes())
-}
-
-fn decode_finance_close_read_cursor(value: &str) -> Result<FinanceCloseReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument(
-            "Finance close read cursor is invalid",
-        ));
-    }
-    let decoded = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("Finance close read cursor is invalid"))?;
-    let decoded = String::from_utf8(decoded)
-        .map_err(|_| Status::invalid_argument("Finance close read cursor is invalid"))?;
-    let (projected_at, period_id) = decoded
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("Finance close read cursor is invalid"))?;
-    let projected_at = DateTime::parse_from_rfc3339(projected_at)
-        .map_err(|_| Status::invalid_argument("Finance close read cursor is invalid"))?
-        .with_timezone(&Utc);
-    let period_id = parse_uuid(period_id, "Finance close read cursor period ID")?;
-    if period_id.is_nil() {
-        return Err(Status::invalid_argument(
-            "Finance close read cursor is invalid",
-        ));
-    }
-    Ok(FinanceCloseReadCursor {
-        projected_at,
-        period_id,
-    })
-}
-
-/// Encode only the support queue's validated keyset position. The cursor is
+/// Encode the support queue's validated keyset position. The cursor is
 /// opaque at the transport boundary and contains no ticket payload, customer
 /// secret, or authorization material.
-fn encode_support_ticket_cursor(cursor: &SupportTicketListCursor) -> String {
-    let value = format!(
-        "{}|{}",
-        cursor
-            .updated_at()
-            .to_rfc3339_opts(chrono::SecondsFormat::Micros, true),
-        cursor.id()
-    );
-    hex::encode(value.as_bytes())
-}
-
-fn decode_support_ticket_cursor(value: &str) -> Result<SupportTicketListCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument("support ticket cursor is invalid"));
-    }
-    let bytes = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("support ticket cursor is invalid"))?;
-    let value = String::from_utf8(bytes)
-        .map_err(|_| Status::invalid_argument("support ticket cursor is invalid"))?;
-    let (timestamp, id) = value
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("support ticket cursor is invalid"))?;
-    let timestamp = DateTime::parse_from_rfc3339(timestamp)
-        .map_err(|_| Status::invalid_argument("support ticket cursor is invalid"))?
-        .with_timezone(&Utc);
-    let id = parse_uuid(id, "support ticket cursor")?;
-    SupportTicketListCursor::new(timestamp, id)
-        .map_err(|_| Status::invalid_argument("support ticket cursor is invalid"))
-}
-
-fn encode_finance_banking_read_cursor(cursor: &FinanceBankingReadCursor) -> String {
-    hex::encode(format!("{}|{}", cursor.aggregate_type(), cursor.aggregate_id()).as_bytes())
-}
-
-fn decode_finance_banking_read_cursor(value: &str) -> Result<FinanceBankingReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument(
-            "Finance banking read cursor is invalid",
-        ));
-    }
-    let bytes = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("Finance banking read cursor is invalid"))?;
-    let value = String::from_utf8(bytes)
-        .map_err(|_| Status::invalid_argument("Finance banking read cursor is invalid"))?;
-    let (aggregate_type, aggregate_id) = value
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("Finance banking read cursor is invalid"))?;
-    let aggregate_id = parse_uuid(aggregate_id, "Finance banking read cursor aggregate_id")?;
-    FinanceBankingReadCursor::new(aggregate_type, aggregate_id)
-        .map_err(|_| Status::invalid_argument("Finance banking read cursor is invalid"))
-}
-
-fn encode_finance_subledger_read_cursor(cursor: &FinanceSubledgerReadCursor) -> String {
-    hex::encode(format!("{}|{}", cursor.aggregate_type(), cursor.aggregate_id()).as_bytes())
-}
-
-fn decode_finance_subledger_read_cursor(value: &str) -> Result<FinanceSubledgerReadCursor, Status> {
-    if value.is_empty() || value.len() > 256 {
-        return Err(Status::invalid_argument(
-            "Finance subledger read cursor is invalid",
-        ));
-    }
-    let bytes = hex::decode(value)
-        .map_err(|_| Status::invalid_argument("Finance subledger read cursor is invalid"))?;
-    let value = String::from_utf8(bytes)
-        .map_err(|_| Status::invalid_argument("Finance subledger read cursor is invalid"))?;
-    let (aggregate_type, aggregate_id) = value
-        .split_once('|')
-        .ok_or_else(|| Status::invalid_argument("Finance subledger read cursor is invalid"))?;
-    let aggregate_id = parse_uuid(aggregate_id, "Finance subledger read cursor aggregate_id")?;
-    FinanceSubledgerReadCursor::new(aggregate_type, aggregate_id)
-        .map_err(|_| Status::invalid_argument("Finance subledger read cursor is invalid"))
-}
-
 fn encode_projection_status_cursor(cursor: &ProjectionStatusCursor) -> String {
     hex::encode(serde_json::to_vec(cursor).unwrap_or_default())
 }
@@ -4391,29 +3080,6 @@ fn decode_projection_status_cursor(value: &str) -> Result<ProjectionStatusCursor
     )
     .map_err(|_| Status::invalid_argument("projection status cursor is invalid"))
 }
-
-fn finance_persistence_status(error: PersistenceError, correlation_id: Uuid) -> Status {
-    let status = match error {
-        PersistenceError::OptimisticConcurrency { .. }
-        | PersistenceError::IdempotencyConflict { .. } => {
-            Status::aborted("Finance command conflicts with the current aggregate state")
-        }
-        PersistenceError::NotFound { .. } => Status::not_found("Finance aggregate not found"),
-        PersistenceError::InvalidData(_) => {
-            Status::failed_precondition("Finance aggregate cannot be persisted")
-        }
-        PersistenceError::Configuration(_) => {
-            Status::failed_precondition("Finance persistence is not configured")
-        }
-        PersistenceError::Database(_) | PersistenceError::Migration(_) => {
-            Status::unavailable("Finance persistence is unavailable")
-        }
-        PersistenceError::Serialization(_) => Status::internal("Finance persistence failed"),
-        PersistenceError::ClaimLost { .. } => Status::aborted("Finance command ownership changed"),
-    };
-    errors::enrich(status, Some(correlation_id))
-}
-
 fn commercial_command_context(
     context: &CommandContext,
 ) -> Result<CommercialCommandContext, Status> {
@@ -4459,51 +3125,6 @@ fn entitlement_activation_time(value: &str) -> Result<DateTime<Utc>, Status> {
         .map(|value| value.with_timezone(&Utc))
         .map_err(|_| Status::invalid_argument("activated_at is invalid"))
 }
-
-fn require_finance_thai_tax_reconciliation(
-    reconciliation: FinanceThaiTaxProjectionReconciliation,
-) -> Result<(), Status> {
-    if reconciliation.is_reconciled() {
-        Ok(())
-    } else {
-        Err(Status::failed_precondition(
-            "Thai tax source and read projection are not reconciled",
-        ))
-    }
-}
-
-fn product_persistence_status(
-    error: PersistenceError,
-    product: &'static str,
-    correlation_id: Uuid,
-) -> Status {
-    let status = match error {
-        PersistenceError::OptimisticConcurrency { .. }
-        | PersistenceError::IdempotencyConflict { .. } => Status::aborted(format!(
-            "{product} command conflicts with the current aggregate state"
-        )),
-        PersistenceError::NotFound { .. } => {
-            Status::not_found(format!("{product} aggregate not found"))
-        }
-        PersistenceError::InvalidData(_) => {
-            Status::failed_precondition(format!("{product} aggregate cannot be persisted"))
-        }
-        PersistenceError::Configuration(_) => {
-            Status::failed_precondition(format!("{product} persistence is not configured"))
-        }
-        PersistenceError::Database(_) | PersistenceError::Migration(_) => {
-            Status::unavailable(format!("{product} persistence is unavailable"))
-        }
-        PersistenceError::Serialization(_) => {
-            Status::internal(format!("{product} persistence failed"))
-        }
-        PersistenceError::ClaimLost { .. } => {
-            Status::aborted(format!("{product} command ownership changed"))
-        }
-    };
-    errors::enrich(status, Some(correlation_id))
-}
-
 fn marketing_content_persistence_status(error: PersistenceError, correlation_id: Uuid) -> Status {
     let status = match error {
         PersistenceError::OptimisticConcurrency { .. }
@@ -4550,7 +3171,7 @@ const PUBLIC_MARKETING_FORM_REQUESTS_PER_MINUTE: u32 = 30;
 const PUBLIC_MARKETING_PREVIEW_REQUESTS_PER_MINUTE: u32 = 120;
 
 fn marketing_form_values(
-    values: &[erpx_proto::platform::MarketingFormValue],
+    values: &[marketing_target::MarketingFormValue],
 ) -> Result<BTreeMap<String, String>, Status> {
     if values.is_empty() || values.len() > MAX_MARKETING_FORM_VALUES {
         return Err(Status::invalid_argument(
@@ -4578,47 +3199,6 @@ fn marketing_form_values(
     }
     Ok(normalized)
 }
-
-fn legal_persistence_status(error: PersistenceError, correlation_id: Uuid) -> Status {
-    let status = match error {
-        PersistenceError::OptimisticConcurrency { .. }
-        | PersistenceError::IdempotencyConflict { .. } => {
-            Status::aborted("Legal command conflicts with the current aggregate state")
-        }
-        PersistenceError::NotFound { .. } => Status::not_found("Legal record not found"),
-        PersistenceError::InvalidData(_) => {
-            Status::failed_precondition("Legal record cannot be persisted or read")
-        }
-        PersistenceError::Configuration(_) => {
-            Status::failed_precondition("Legal persistence is not configured")
-        }
-        PersistenceError::Database(_) | PersistenceError::Migration(_) => {
-            Status::unavailable("Legal persistence is unavailable")
-        }
-        PersistenceError::Serialization(_) => Status::internal("Legal persistence failed"),
-        PersistenceError::ClaimLost { .. } => Status::aborted("Legal command ownership changed"),
-    };
-    errors::enrich(status, Some(correlation_id))
-}
-
-fn finance_close_read_status(
-    error: erpx_infrastructure::FinanceCloseReadError,
-    correlation_id: Uuid,
-) -> Status {
-    let status = match error {
-        erpx_infrastructure::FinanceCloseReadError::InvalidRequest => {
-            Status::invalid_argument("Finance close read request is invalid")
-        }
-        erpx_infrastructure::FinanceCloseReadError::InvalidProjection => {
-            Status::failed_precondition("Finance close read projection is invalid")
-        }
-        erpx_infrastructure::FinanceCloseReadError::PersistenceUnavailable => {
-            Status::unavailable("Finance close read persistence is unavailable")
-        }
-    };
-    errors::enrich(status, Some(correlation_id))
-}
-
 fn crm_persistence_status(error: PersistenceError, correlation_id: Uuid) -> Status {
     let status = match error {
         PersistenceError::InvalidData(_) => {
@@ -4639,13 +3219,13 @@ fn crm_persistence_status(error: PersistenceError, correlation_id: Uuid) -> Stat
     errors::enrich(status, Some(correlation_id))
 }
 
-const MAX_FINANCE_BANKING_JSON_BYTES: usize = 2 * 1024 * 1024;
+const MAX_BOUNDED_JSON_BYTES: usize = 2 * 1024 * 1024;
 
-fn decode_finance_banking_json<T: serde::de::DeserializeOwned>(
+fn decode_bounded_json<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     field: &'static str,
 ) -> Result<T, Status> {
-    if bytes.is_empty() || bytes.len() > MAX_FINANCE_BANKING_JSON_BYTES {
+    if bytes.is_empty() || bytes.len() > MAX_BOUNDED_JSON_BYTES {
         return Err(Status::invalid_argument(format!(
             "{field} is empty or exceeds its size bound"
         )));
@@ -4653,476 +3233,7 @@ fn decode_finance_banking_json<T: serde::de::DeserializeOwned>(
     serde_json::from_slice(bytes)
         .map_err(|_| Status::invalid_argument(format!("{field} is invalid")))
 }
-
-fn banking_read_row_message(
-    row: FinanceBankingReadRow,
-) -> Result<erpx_proto::platform::FinanceBankingReadRow, Status> {
-    Ok(erpx_proto::platform::FinanceBankingReadRow {
-        aggregate_type: row.aggregate_type,
-        aggregate_id: row.aggregate_id.to_string(),
-        holding_id: row.holding_id.to_string(),
-        company_id: row.company_id.to_string(),
-        source_version: row.source_version,
-        aggregate_json: serde_json::to_vec(&row.aggregate)
-            .map_err(|_| Status::internal("Finance banking read encoding failed"))?,
-    })
-}
-
-fn finance_bank_provider_import_status_message(
-    status: FinanceBankProviderImportJobStatus,
-) -> Result<erpx_proto::platform::FinanceBankProviderImportJobStatus, Status> {
-    if !matches!(
-        status.state.as_str(),
-        "pending" | "claimed" | "retryable" | "completed" | "dead_letter"
-    ) || status.attempts > status.max_attempts
-    {
-        return Err(Status::internal("Finance bank import status is invalid"));
-    }
-    Ok(erpx_proto::platform::FinanceBankProviderImportJobStatus {
-        job_id: status.job_id.to_string(),
-        tenant_id: status.tenant_id,
-        holding_ref: status.holding_ref,
-        import_id: status.import_id.to_string(),
-        state: status.state,
-        source_fence: status.source_fence,
-        attempts: u32::from(status.attempts),
-        max_attempts: u32::from(status.max_attempts),
-        available_at: status.available_at.to_rfc3339(),
-        lease_until: status
-            .lease_until
-            .map(|value| value.to_rfc3339())
-            .unwrap_or_default(),
-        last_failure_class: status.last_failure_class.unwrap_or_default(),
-        completed_at: status
-            .completed_at
-            .map(|value| value.to_rfc3339())
-            .unwrap_or_default(),
-        updated_at: status.updated_at.to_rfc3339(),
-    })
-}
-
-const MAX_FINANCE_SUBLEDGER_JSON_BYTES: usize = 2 * 1024 * 1024;
-
-fn finance_subledger_read_row_message(
-    row: FinanceSubledgerReadRow,
-) -> Result<erpx_proto::platform::FinanceSubledgerReadRow, Status> {
-    let aggregate_json = serde_json::to_vec(&row.aggregate)
-        .map_err(|_| Status::internal("Finance subledger read encoding failed"))?;
-    if aggregate_json.len() > MAX_FINANCE_SUBLEDGER_JSON_BYTES {
-        return Err(Status::internal(
-            "Finance subledger read exceeded its safety bound",
-        ));
-    }
-    Ok(erpx_proto::platform::FinanceSubledgerReadRow {
-        aggregate_type: row.aggregate_type,
-        aggregate_id: row.aggregate_id.to_string(),
-        company_id: row.company_id.to_string(),
-        branch_id: row
-            .branch_id
-            .map(|value| value.to_string())
-            .unwrap_or_default(),
-        source_version: row.aggregate_version,
-        aggregate_json,
-    })
-}
-
-fn finance_subledger_row_scope(row: &FinanceSubledgerReadRow) -> Scope {
-    access_scope(row.aggregate.scope())
-}
-
-fn finance_banking_row_scope(row: &FinanceBankingReadRow) -> Scope {
-    match &row.aggregate {
-        erpx_infrastructure::FinanceBankingReadAggregate::Account(account) => {
-            access_scope(account.scope())
-        }
-        erpx_infrastructure::FinanceBankingReadAggregate::StatementImport(import) => {
-            access_scope(import.scope())
-        }
-        erpx_infrastructure::FinanceBankingReadAggregate::Reconciliation(reconciliation) => {
-            access_scope(reconciliation.scope())
-        }
-    }
-}
-
-/// Map a support aggregate to the transport-safe ticket shape. The domain
-/// projection deliberately removes internal notes before this boundary, so
-/// every ticket response can be reused by customer-facing and platform
-/// clients without accidentally disclosing the internal audience.
-fn ticket_message(ticket: &erpx_domain::support::SupportTicket) -> TicketMessage {
-    let visible = ticket.customer_visible_view();
-    TicketMessage {
-        id: visible.id.to_string(),
-        customer_id: visible.customer_account_id.to_string(),
-        status: format!("{:?}", visible.status).to_lowercase(),
-        severity: visible.severity,
-        description: visible.description,
-        customer_replies: visible
-            .messages
-            .into_iter()
-            .map(|message| TicketReply {
-                id: message.id.to_string(),
-                author_ref: message.author_ref,
-                body: message.body,
-                created_at: message.created_at.to_rfc3339(),
-            })
-            .collect(),
-    }
-}
-
-fn parse_mode(value: &str) -> Result<SupportMode, Status> {
-    match value {
-        "diagnostic_read" => Ok(SupportMode::DiagnosticRead),
-        "tenant_mutation" => Ok(SupportMode::TenantMutation),
-        "impersonation" => Ok(SupportMode::Impersonation),
-        _ => Err(Status::invalid_argument("unsupported support mode")),
-    }
-}
-
-const SUPPORT_DIAGNOSTICS_PERMISSION: &str = "diagnostics:read";
-const SUPPORT_DIAGNOSTICS_AGENT_PERMISSION: &str = "support.session.request";
-
-/// Parsed customer-support diagnostics authority. The raw capability secret
-/// is kept only in this request-local value and has no Debug representation;
-/// it is never copied into an audit record or diagnostics payload.
-struct ParsedSupportDiagnosticsAccess {
-    customer_id: Uuid,
-    capability_id: Uuid,
-    capability_secret_hex: String,
-    capability_secret: SupportCapabilitySecret,
-    support_session_id: Uuid,
-    support_ticket_id: Uuid,
-    device_ref: String,
-    support_scope: String,
-    approved_scope: Scope,
-    module: String,
-    subscription_id: Uuid,
-}
-
-fn validate_diagnostics_access_field(
-    value: &str,
-    field: &'static str,
-    maximum_bytes: usize,
-) -> Result<(), Status> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return Err(Status::permission_denied(format!(
-            "support diagnostics {field} is required"
-        )));
-    }
-    if value.len() > maximum_bytes || value.chars().any(char::is_control) {
-        return Err(Status::permission_denied(format!(
-            "support diagnostics {field} is invalid"
-        )));
-    }
-    Ok(())
-}
-
-fn platform_diagnostics_access_is_empty(access: &SupportDiagnosticsAccess) -> Result<(), Status> {
-    if !access.customer_id.is_empty()
-        || !access.capability_id.is_empty()
-        || !access.capability_secret.is_empty()
-        || !access.support_session_id.is_empty()
-        || !access.support_ticket_id.is_empty()
-        || !access.support_mode.is_empty()
-        || !access.support_scope.is_empty()
-        || !access.module.is_empty()
-        || !access.subscription_id.is_empty()
-        || !access.device_ref.is_empty()
-    {
-        return Err(Status::invalid_argument(
-            "platform diagnostics cannot include customer support capability material",
-        ));
-    }
-    Ok(())
-}
-
-fn parse_support_diagnostics_access(
-    access: &SupportDiagnosticsAccess,
-    requested_scope: &Scope,
-) -> Result<ParsedSupportDiagnosticsAccess, Status> {
-    validate_diagnostics_access_field(&access.customer_id, "customer_id", 64)?;
-    validate_diagnostics_access_field(&access.capability_id, "capability_id", 64)?;
-    validate_diagnostics_access_field(&access.capability_secret, "capability_secret", 64)?;
-    validate_diagnostics_access_field(&access.support_session_id, "support_session_id", 64)?;
-    validate_diagnostics_access_field(&access.support_ticket_id, "support_ticket_id", 64)?;
-    validate_diagnostics_access_field(&access.support_mode, "support_mode", 32)?;
-    validate_diagnostics_access_field(&access.support_scope, "support_scope", 4096)?;
-    validate_diagnostics_access_field(&access.module, "module", 128)?;
-    validate_diagnostics_access_field(&access.subscription_id, "subscription_id", 64)?;
-    validate_diagnostics_access_field(&access.device_ref, "device_ref", 64)?;
-
-    let customer_id = parse_uuid(&access.customer_id, "customer_id")?;
-    let capability_id = parse_uuid(&access.capability_id, "capability_id")?;
-    let support_session_id = parse_uuid(&access.support_session_id, "support_session_id")?;
-    let support_ticket_id = parse_uuid(&access.support_ticket_id, "support_ticket_id")?;
-    let subscription_id = parse_uuid(&access.subscription_id, "subscription_id")?;
-    let device_id = parse_uuid(&access.device_ref, "device_ref")?;
-    if device_id.to_string() != access.device_ref {
-        return Err(Status::permission_denied(
-            "support diagnostics device binding is invalid",
-        ));
-    }
-
-    let support_mode = parse_mode(&access.support_mode).map_err(|_| {
-        Status::permission_denied("support diagnostics requires diagnostic_read capability mode")
-    })?;
-    if support_mode != SupportMode::DiagnosticRead {
-        return Err(Status::permission_denied(
-            "support diagnostics requires diagnostic_read capability mode",
-        ));
-    }
-    let approved_scope = parse_support_scope(&access.support_scope)?;
-    if access.support_scope != support_scope_reference(&approved_scope) {
-        return Err(Status::permission_denied(
-            "support diagnostics scope is not canonical",
-        ));
-    }
-    if matches!(approved_scope, Scope::Platform)
-        || matches!(requested_scope, Scope::Platform)
-        || !approved_scope.contains(requested_scope)
-    {
-        return Err(Status::permission_denied(
-            "support diagnostics scope is not approved",
-        ));
-    }
-
-    let capability_secret = SupportCapabilitySecret::from_hex(&access.capability_secret)
-        .map_err(|_| Status::permission_denied("support diagnostics capability is inactive"))?;
-    Ok(ParsedSupportDiagnosticsAccess {
-        customer_id,
-        capability_id,
-        capability_secret_hex: access.capability_secret.clone(),
-        capability_secret,
-        support_session_id,
-        support_ticket_id,
-        device_ref: access.device_ref.clone(),
-        support_scope: access.support_scope.clone(),
-        approved_scope,
-        module: access.module.clone(),
-        subscription_id,
-    })
-}
-
-fn diagnostics_module_scope_is_entitled(
-    scope: &Scope,
-    billing: BillingState,
-    book: &EntitlementAllocationBook,
-    at: DateTime<Utc>,
-) -> bool {
-    match scope {
-        Scope::Holding { .. } => {
-            authorize_module(billing, Some(&book.module_entitlement()), true, at, false)
-                == EntitlementDecision::Allowed
-        }
-        Scope::Company { company_id, .. } => {
-            book.authorize(billing, *company_id, None, true, at, false)
-                == EntitlementDecision::Allowed
-        }
-        Scope::Branch {
-            company_id,
-            branch_id,
-            ..
-        } => {
-            book.authorize(billing, *company_id, Some(*branch_id), true, at, false)
-                == EntitlementDecision::Allowed
-        }
-        // A subtree can contain branches without a company-to-branch mapping
-        // in this control-plane book. Deny that ambiguous shape rather than
-        // treating purchased capacity as permission for arbitrary branches.
-        Scope::Subtree {
-            company_ids,
-            branch_ids,
-            ..
-        } if !company_ids.is_empty() && branch_ids.is_empty() => company_ids.iter().all(|id| {
-            book.authorize(billing, *id, None, true, at, false) == EntitlementDecision::Allowed
-        }),
-        Scope::Platform | Scope::Subtree { .. } => false,
-    }
-}
-
-fn support_diagnostics_transport_fields(
-    snapshot: &DiagnosticsSnapshot,
-) -> Vec<SupportDiagnosticField> {
-    let mut fields = Vec::with_capacity(12);
-    let mut push = |key: &'static str, value: String| {
-        fields.push(SupportDiagnosticField {
-            key: key.into(),
-            value,
-        });
-    };
-    if let Some(version) = snapshot
-        .versions()
-        .iter()
-        .find(|version| version.component() == "server")
-    {
-        push("diagnostic_version", version.version().to_owned());
-    }
-    push(
-        "diagnostic_schema_version",
-        snapshot.schema_version().to_owned(),
-    );
-    if let Some(lag) = snapshot.projection_lag_seconds() {
-        push("projection_lag_seconds", lag.to_string());
-    }
-    if let Some(health) = snapshot.worker_health() {
-        push("worker_health", health.state().to_owned());
-        if let Some(age) = health.age_seconds() {
-            push("worker_health_age_seconds", age.to_string());
-        }
-    }
-    if let Some(health) = snapshot.backup_health() {
-        push("backup_health", health.health().state().to_owned());
-        push("backup_verified", health.verified().to_string());
-    }
-    push("failed_job_count", snapshot.failed_jobs().len().to_string());
-    push(
-        "integration_error_count",
-        snapshot.integration_errors().len().to_string(),
-    );
-    push(
-        "redacted_configuration_count",
-        snapshot.redacted_configuration_count().to_string(),
-    );
-    let truncated = snapshot.truncated();
-    push(
-        "truncated_item_count",
-        (truncated.versions()
-            + truncated.failed_jobs()
-            + truncated.integration_errors()
-            + truncated.correlation_ids()
-            + truncated.configuration())
-        .to_string(),
-    );
-    fields
-}
-
-fn parse_ticket_status(value: &str) -> Result<TicketStatus, Status> {
-    match value {
-        "new" => Ok(TicketStatus::New),
-        "triaged" => Ok(TicketStatus::Triaged),
-        "waiting_for_customer" => Ok(TicketStatus::WaitingForCustomer),
-        "access_requested" => Ok(TicketStatus::AccessRequested),
-        "approved" => Ok(TicketStatus::Approved),
-        "in_progress" => Ok(TicketStatus::InProgress),
-        "resolved" => Ok(TicketStatus::Resolved),
-        "customer_confirmed" => Ok(TicketStatus::CustomerConfirmed),
-        "closed" => Ok(TicketStatus::Closed),
-        _ => Err(Status::invalid_argument("unsupported ticket status")),
-    }
-}
-
-fn parse_incident_status(value: &str) -> Result<IncidentStatus, Status> {
-    match value {
-        "investigating" => Ok(IncidentStatus::Investigating),
-        "identified" => Ok(IncidentStatus::Identified),
-        "monitoring" => Ok(IncidentStatus::Monitoring),
-        "resolved" => Ok(IncidentStatus::Resolved),
-        "postmortem_complete" => Ok(IncidentStatus::PostmortemComplete),
-        _ => Err(Status::invalid_argument("unsupported incident status")),
-    }
-}
-
-const fn incident_status_name(status: IncidentStatus) -> &'static str {
-    match status {
-        IncidentStatus::Investigating => "investigating",
-        IncidentStatus::Identified => "identified",
-        IncidentStatus::Monitoring => "monitoring",
-        IncidentStatus::Resolved => "resolved",
-        IncidentStatus::PostmortemComplete => "postmortem_complete",
-    }
-}
-
-fn validate_incident_text(
-    value: &str,
-    field: &str,
-    maximum_bytes: usize,
-) -> Result<String, Status> {
-    let value = value.trim();
-    if value.is_empty() {
-        return Err(Status::invalid_argument(format!("{field} is required")));
-    }
-    if value.len() > maximum_bytes || value.chars().any(char::is_control) {
-        return Err(Status::invalid_argument(format!("{field} is invalid")));
-    }
-    Ok(value.to_owned())
-}
-
-fn validate_incident_text_list(
-    values: &[String],
-    field: &'static str,
-    maximum_items: usize,
-) -> Result<Vec<String>, Status> {
-    if values.len() > maximum_items {
-        return Err(Status::invalid_argument(format!(
-            "{field} has too many entries"
-        )));
-    }
-    values
-        .iter()
-        .enumerate()
-        .map(|(index, value)| {
-            validate_incident_text(
-                value,
-                &format!("{field}[{index}]"),
-                MAX_INCIDENT_REFERENCE_BYTES,
-            )
-        })
-        .collect()
-}
-
-fn incident_request_hash(value: &serde_json::Value) -> Result<String, Status> {
-    let bytes = serde_json::to_vec(value)
-        .map_err(|_| Status::internal("incident request hashing failed"))?;
-    Ok(hex::encode(Sha256::digest(bytes)))
-}
-
-fn incident_persistence_status(error: SupportPersistenceError) -> Status {
-    match error {
-        SupportPersistenceError::IdempotencyConflict { .. } => {
-            Status::aborted("incident idempotency key conflicts with an existing command")
-        }
-        SupportPersistenceError::OptimisticConcurrency { .. } => {
-            Status::aborted("incident aggregate version conflict")
-        }
-        SupportPersistenceError::NotFound { .. } => Status::not_found("incident not found"),
-        SupportPersistenceError::InvalidData(_) => {
-            Status::invalid_argument("incident command is invalid")
-        }
-        SupportPersistenceError::Database(_) => {
-            Status::unavailable("incident persistence unavailable")
-        }
-        SupportPersistenceError::Serialization(_) => {
-            Status::internal("incident persistence failed")
-        }
-        SupportPersistenceError::AttachmentScopeDenied
-        | SupportPersistenceError::AttachmentBindingDenied
-        | SupportPersistenceError::AccessRequestTicketBindingDenied
-        | SupportPersistenceError::AttachmentClosedTicket
-        | SupportPersistenceError::AttachmentNotActive
-        | SupportPersistenceError::AttachmentNotExpired
-        | SupportPersistenceError::AttachmentLimitExceeded => {
-            Status::failed_precondition("support attachment policy denied the operation")
-        }
-    }
-}
-
-fn incident_message(incident: Incident, version: u64) -> IncidentMessage {
-    IncidentMessage {
-        id: incident.id.to_string(),
-        status: incident_status_name(incident.status).into(),
-        commander_ref: incident.commander_ref,
-        leads: incident.leads,
-        affected_services: incident.affected_services,
-        affected_customer_accounts: incident
-            .affected_customer_accounts
-            .into_iter()
-            .map(|id| id.to_string())
-            .collect(),
-        version,
-    }
-}
-
-const fn billing_state_name(state: BillingState) -> &'static str {
+fn billing_state_name(state: BillingState) -> &'static str {
     match state {
         BillingState::Trialing => "trialing",
         BillingState::Active => "active",
@@ -5135,8 +3246,8 @@ const fn billing_state_name(state: BillingState) -> &'static str {
 
 fn entitlement_command_receipt(
     receipt: &erpx_domain::commercial::CommercialCommandReceipt,
-) -> EntitlementCommandReceipt {
-    EntitlementCommandReceipt {
+) -> commercial_target::EntitlementCommandReceipt {
+    commercial_target::EntitlementCommandReceipt {
         aggregate_type: receipt.aggregate_type.clone(),
         aggregate_id: receipt.aggregate_id.to_string(),
         version: receipt.aggregate_version,
@@ -5163,15 +3274,6 @@ const fn health_state_name(state: HealthState) -> &'static str {
         HealthState::Unknown => "unknown",
     }
 }
-
-const fn support_mode_name(mode: SupportMode) -> &'static str {
-    match mode {
-        SupportMode::DiagnosticRead => "diagnostic_read",
-        SupportMode::TenantMutation => "tenant_mutation",
-        SupportMode::Impersonation => "impersonation",
-    }
-}
-
 const fn risk_tier_name(tier: RiskTier) -> &'static str {
     match tier {
         RiskTier::PlatformRoot => "platform_root",
@@ -5185,284 +3287,194 @@ const fn risk_tier_name(tier: RiskTier) -> &'static str {
     }
 }
 
-fn to_summary(customer: erpx_domain::customer::Customer360) -> CustomerSummary {
-    CustomerSummary {
-        id: customer.account.id.to_string(),
-        account_code: customer.account.account_code,
-        trading_name: customer.account.trading_name,
-        legal_name: customer.account.legal_name.unwrap_or_default(),
-        country: customer.account.country,
-        status: customer_status_name(customer.account.status).into(),
-        billing_state: billing_state_name(customer.account.billing_state).into(),
-        health: health_state_name(customer.health.state).into(),
-        holding_count: customer.holding_count,
-        company_count: customer.company_count,
-        branch_count: customer.branch_count,
-        active_user_count: customer.active_user_count,
-        expiring_role_count: customer.expiring_role_count,
-        open_ticket_count: customer.open_ticket_count,
-        module_count: customer.module_count,
-        projection_lag_seconds: customer.health.projection_lag_seconds,
-    }
-}
-
 #[derive(Clone)]
 struct CustomerRpcImpl {
     state: AppState,
 }
 
-#[tonic::async_trait]
-impl CustomerRpc for CustomerRpcImpl {
-    async fn list_customers(
+impl CustomerRpcImpl {
+    async fn get_target_customer_access_audit(
         &self,
-        request: Request<ListCustomersRequest>,
-    ) -> Result<Response<ListCustomersResponse>, Status> {
+        request: Request<customer_authority_target::GetCustomerAccessAuditRequest>,
+    ) -> Result<Response<customer_authority_target::GetCustomerAccessAuditResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
                 .get_ref()
                 .context
                 .as_ref()
-                .cloned()
                 .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(&proto_context))?;
-            let scope = query_access_scope(&proto_context)?;
-            require_platform_scope(&scope)?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &scope,
-                    PLATFORM_CUSTOMER_READ_PERMISSION,
-                )
-                .await?;
-            let customers = self
-                .state
-                .customers
-                .list(
-                    (!request.get_ref().search.is_empty())
-                        .then_some(request.get_ref().search.as_str()),
-                )
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            let session_ref = request
-                .metadata()
-                .get("x-erpx-session")
-                .and_then(|value| value.to_str().ok())
-                .map(str::to_owned);
-            for customer in &customers {
-                let audit = GlobalReadAuditRecord::new(
-                    GlobalReadActor {
-                        principal_ref: context.actor.clone(),
-                        session_ref: session_ref.clone(),
-                    },
-                    customer.account.id,
-                    "platform.customer_360",
-                    GlobalReadScope {
-                        label: "platform".into(),
-                        holding_id: None,
-                        company_id: None,
-                        branch_id: None,
-                    },
-                    "platform_customer_console_list",
-                    Utc::now(),
-                    context.correlation_id,
-                )
-                .map_err(|error| Status::internal(error.to_string()))?;
+            let context = query_context(&request, Some(proto_context))?;
+            let scope = query_access_scope(proto_context)?;
+            let id = parse_uuid(&request.get_ref().customer_id, "customer_id")?;
+            let purpose = validate_read_purpose(&request.get_ref().purpose)?.to_owned();
+            if matches!(scope, Scope::Platform) {
                 self.state
-                    .store
-                    .record_global_read(&audit)
-                    .await
-                    .map_err(|_| Status::internal("global-read audit persistence failed"))?;
-            }
-            Ok(Response::new(ListCustomersResponse {
-                customers: customers.into_iter().map(to_summary).collect(),
-            }))
-        })
-    }
-
-    async fn get_customer(
-        &self,
-        request: Request<GetCustomerRequest>,
-    ) -> Result<Response<GetCustomerResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            require_platform_scope(&scope)?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &scope,
-                    PLATFORM_CUSTOMER_READ_PERMISSION,
-                )
-                .await?;
-            let actor_ref = context.actor.clone();
-            let id = parse_uuid(&request.get_ref().customer_id, "customer_id")?;
-            let purpose = validate_read_purpose(&request.get_ref().purpose)?;
-            let customer = self
-                .state
-                .customers
-                .inspect(&actor_ref, id)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            let session_ref = request
-                .metadata()
-                .get("x-erpx-session")
-                .and_then(|value| value.to_str().ok())
-                .map(str::to_owned);
-            let correlation_id = context.correlation_id;
-            let audit = GlobalReadAuditRecord::new(
-                GlobalReadActor {
-                    principal_ref: actor_ref,
-                    session_ref,
-                },
-                id,
-                "platform.customer_360",
-                GlobalReadScope {
-                    label: "platform".into(),
-                    holding_id: None,
-                    company_id: None,
-                    branch_id: None,
-                },
-                purpose,
-                Utc::now(),
-                correlation_id,
-            )
-            .map_err(|error| Status::internal(error.to_string()))?;
-            self.state
-                .store
-                .record_global_read(&audit)
-                .await
-                .map_err(|_| Status::internal("global-read audit persistence failed"))?;
-            Ok(Response::new(GetCustomerResponse {
-                customer: Some(to_summary(customer)),
-                correlation_id: correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn get_customer_projection(
-        &self,
-        request: Request<GetCustomerProjectionRequest>,
-    ) -> Result<Response<GetCustomerProjectionResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            require_platform_scope(&scope)?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &scope,
-                    PLATFORM_CUSTOMER_READ_PERMISSION,
-                )
-                .await?;
-            let id = parse_uuid(&request.get_ref().customer_id, "customer_id")?;
-            let purpose = validate_read_purpose(&request.get_ref().purpose)?;
-            let projection = validate_customer_projection(&request.get_ref().projection)?;
-            let view = match projection {
-                "organization" => {
-                    encode_customer_projection(self.state.store.get_customer_organization(id))
-                        .await?
-                }
-                "contacts" => {
-                    encode_customer_projection(self.state.store.get_customer_contacts(id)).await?
-                }
-                "commercial" => {
-                    encode_customer_projection(self.state.store.get_customer_commercial(id)).await?
-                }
-                "entitlements" => {
-                    encode_customer_projection(self.state.store.get_customer_entitlements(id))
-                        .await?
-                }
-                "onboarding" => {
-                    encode_customer_projection(self.state.store.get_customer_onboarding(id)).await?
-                }
-                "health" => {
-                    encode_customer_projection(self.state.store.get_customer_health(id)).await?
-                }
-                "support" => {
-                    encode_customer_projection(self.state.store.get_customer_support_summary(id))
-                        .await?
-                }
-                "access-audit" => {
-                    encode_customer_projection(
-                        self.state.store.get_customer_access_audit_summary(id),
+                    .auth
+                    .authorize_role(
+                        &self.state.store,
+                        &claims,
+                        &Scope::Platform,
+                        PLATFORM_CUSTOMER_READ_PERMISSION,
                     )
-                    .await?
-                }
-                "notes" => {
-                    encode_customer_projection(self.state.store.get_customer_notes(id)).await?
-                }
-                _ => unreachable!("projection validated above"),
-            };
+                    .await?;
+            } else {
+                self.state
+                    .auth
+                    .authorize_customer_security_admin(&self.state.store, &claims, id, &scope)
+                    .await?;
+            }
             let session_ref = request
                 .metadata()
                 .get("x-erpx-session")
                 .and_then(|value| value.to_str().ok())
                 .map(str::to_owned);
-            let audit = GlobalReadAuditRecord::new(
+            let global_read_audit = GlobalReadAuditRecord::new(
                 GlobalReadActor {
-                    principal_ref: context.actor,
-                    session_ref,
+                    principal_ref: context.actor.clone(),
+                    session_ref: session_ref.clone(),
                 },
                 id,
-                "platform.customer_360",
-                GlobalReadScope {
-                    label: "platform".into(),
-                    holding_id: None,
-                    company_id: None,
-                    branch_id: None,
-                },
-                purpose,
+                "customer_authority.customer_access_audit",
+                global_read_scope_for_customer_scope(&scope)?,
+                purpose.clone(),
                 Utc::now(),
                 context.correlation_id,
             )
             .map_err(|error| Status::internal(error.to_string()))?;
             self.state
                 .store
-                .record_global_read(&audit)
+                .record_global_read(&global_read_audit)
                 .await
                 .map_err(|_| Status::internal("global-read audit persistence failed"))?;
-            Ok(Response::new(GetCustomerProjectionResponse {
+            let before = match (
+                request.get_ref().before_occurred_at.trim(),
+                request.get_ref().before_audit_id.trim(),
+            ) {
+                ("", "") => None,
+                (occurred_at, audit_id) if !occurred_at.is_empty() && !audit_id.is_empty() => {
+                    Some(CustomerGlobalReadAuditDetailCursor {
+                        occurred_at: DateTime::parse_from_rfc3339(occurred_at)
+                            .map_err(|_| Status::invalid_argument("before_occurred_at is invalid"))?
+                            .with_timezone(&Utc),
+                        audit_id: parse_uuid(audit_id, "before_audit_id")?,
+                    })
+                }
+                _ => {
+                    return Err(Status::invalid_argument(
+                        "before_occurred_at and before_audit_id must be supplied together",
+                    ));
+                }
+            };
+            let query = CustomerGlobalReadAuditDetailQuery {
+                customer_id: id,
+                security_admin_scope: customer_security_admin_scope(id, &scope)?,
+                audit: CustomerGlobalReadAuditQueryContext {
+                    requester: GlobalReadActor {
+                        principal_ref: context.actor,
+                        session_ref,
+                    },
+                    purpose,
+                    correlation_id: context.correlation_id,
+                },
+                before,
+                limit: request.get_ref().page_size,
+            };
+            let audit_sink: Arc<dyn AuditSink> = self.state.store.clone();
+            let view = CustomerGlobalReadAuditDetailService::new(
+                Arc::clone(&self.state.store),
+                audit_sink,
+            )
+            .list(query)
+            .await
+            .map_err(|error| errors::application(error, context.correlation_id))?;
+            let mut response = customer_authority_target::GetCustomerAccessAuditResponse {
                 customer_id: id.to_string(),
-                projection: projection.into(),
-                payload_json: view.payload,
-                projection_updated_at: view
-                    .metadata
+                correlation_id: context.correlation_id.to_string(),
+                ..Default::default()
+            };
+            if let CustomerReadView::Present { data, metadata } = view {
+                response.entries = data
+                    .entries
+                    .into_iter()
+                    .map(|entry| {
+                        Ok(customer_authority_target::CustomerAccessAuditEntry {
+                            audit_id: entry.audit_id.to_string(),
+                            actor_ref: entry.actor.principal_ref,
+                            session_ref: entry.actor.session_ref.unwrap_or_default(),
+                            customer_id: entry.customer_id.to_string(),
+                            module: entry.module,
+                            scope: serde_json::to_string(&entry.scope).map_err(|_| {
+                                Status::internal("customer access-audit scope serialization failed")
+                            })?,
+                            purpose: entry.purpose,
+                            occurred_at: entry.occurred_at.to_rfc3339(),
+                            correlation_id: entry.correlation_id.to_string(),
+                        })
+                    })
+                    .collect::<Result<Vec<_>, Status>>()?;
+                if let Some(cursor) = data.next_before {
+                    response.next_before_occurred_at = cursor.occurred_at.to_rfc3339();
+                    response.next_before_audit_id = cursor.audit_id.to_string();
+                }
+                response.projection_updated_at = metadata
                     .projection_updated_at
                     .map(|value| value.to_rfc3339())
-                    .unwrap_or_default(),
-                freshness: customer_freshness_name(view.metadata.freshness).into(),
-                read_only: view.metadata.read_only,
-                correlation_id: context.correlation_id.to_string(),
-                supported: view.supported,
-                unsupported_reason: view.unsupported_reason.unwrap_or_default(),
-                present: view.present,
-            }))
+                    .unwrap_or_default();
+                response.freshness = customer_freshness_name(metadata.freshness).into();
+                response.read_only = metadata.read_only;
+                response.present = true;
+            }
+            Ok(Response::new(response))
         })
     }
+}
 
-    async fn get_customer360_detail(
+#[derive(Clone)]
+struct CustomerAuthorityQueryComposite<A, G> {
+    current: CustomerAuthorityQueryRpc<A, G>,
+    audit: CustomerRpcImpl,
+}
+
+impl<A, G> CustomerAuthorityQueryComposite<A, G> {
+    fn new(current: CustomerAuthorityQueryRpc<A, G>, audit: CustomerRpcImpl) -> Self {
+        Self { current, audit }
+    }
+}
+
+#[tonic::async_trait]
+impl<A, G> TargetCustomerAuthorityQueryService for CustomerAuthorityQueryComposite<A, G>
+where
+    A: CustomerAuthorityQueryApplication,
+    G: CustomerAuthorityRequestAuthenticator,
+{
+    async fn get(
         &self,
-        request: Request<GetCustomer360DetailRequest>,
-    ) -> Result<Response<GetCustomer360DetailResponse>, Status> {
+        request: Request<customer_authority_target::GetCustomerAuthorityRequest>,
+    ) -> Result<Response<customer_authority_target::GetCustomerAuthorityResponse>, Status> {
+        self.current.get(request).await
+    }
+
+    async fn list(
+        &self,
+        request: Request<customer_authority_target::ListCustomerAuthoritiesRequest>,
+    ) -> Result<Response<customer_authority_target::ListCustomerAuthoritiesResponse>, Status> {
+        self.current.list(request).await
+    }
+
+    async fn get_customer_access_audit(
+        &self,
+        request: Request<customer_authority_target::GetCustomerAccessAuditRequest>,
+    ) -> Result<Response<customer_authority_target::GetCustomerAccessAuditResponse>, Status> {
+        self.audit.get_target_customer_access_audit(request).await
+    }
+}
+
+impl CustomerRpcImpl {
+    async fn get_target_customer360_detail(
+        &self,
+        request: Request<customer360_target::GetCustomer360DetailRequest>,
+    ) -> Result<Response<customer360_target::GetCustomer360DetailResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -5527,7 +3539,7 @@ impl CustomerRpc for CustomerRpcImpl {
                         principal_ref: context.actor.clone(),
                         session_ref,
                     },
-                    module: "platform.customer_360.detail".into(),
+                    module: "customer_360.detail".into(),
                     purpose: purpose.into(),
                     correlation_id: context.correlation_id,
                 },
@@ -5544,7 +3556,13 @@ impl CustomerRpc for CustomerRpcImpl {
                     true,
                     String::new(),
                     true,
-                    customer_detail_section_states(data),
+                    customer_detail_section_states(data)
+                        .into_iter()
+                        .map(|state| customer360_target::Customer360SectionState {
+                            section: state.section,
+                            state: state.state,
+                        })
+                        .collect(),
                 ),
                 CustomerReadView::Absent { .. } => (true, String::new(), false, Vec::new()),
                 CustomerReadView::Unsupported { reason, .. } => {
@@ -5552,7 +3570,14 @@ impl CustomerRpc for CustomerRpcImpl {
                 }
             };
             let section_facts = match &view {
-                CustomerReadView::Present { data, .. } => customer_detail_section_facts(data),
+                CustomerReadView::Present { data, .. } => customer_detail_section_facts(data)
+                    .into_iter()
+                    .map(|fact| customer360_target::Customer360SectionFact {
+                        section: fact.section,
+                        key: fact.key,
+                        value: fact.value,
+                    })
+                    .collect(),
                 CustomerReadView::Absent { .. } | CustomerReadView::Unsupported { .. } => {
                     Vec::new()
                 }
@@ -5563,7 +3588,7 @@ impl CustomerRpc for CustomerRpcImpl {
                         let notes = data
                             .notes
                             .iter()
-                            .map(|note| CustomerNoteMessage {
+                            .map(|note| customer360_target::CustomerNote {
                                 id: note.id.to_string(),
                                 author_ref: note.author_ref.clone(),
                                 created_at: note.created_at.to_rfc3339(),
@@ -5602,180 +3627,88 @@ impl CustomerRpc for CustomerRpcImpl {
                 )
                 .await
                 .map_err(|_| Status::internal("global-read audit persistence failed"))?;
-            Ok(Response::new(GetCustomer360DetailResponse {
-                customer_id: customer_id.to_string(),
-                payload_json: Vec::new(),
-                projection_updated_at: metadata
-                    .projection_updated_at
-                    .map(|value| value.to_rfc3339())
-                    .unwrap_or_default(),
-                freshness: customer_freshness_name(metadata.freshness).into(),
-                read_only: metadata.read_only,
-                correlation_id: context.correlation_id.to_string(),
-                supported,
-                unsupported_reason,
-                present,
-                notes,
-                notes_next_before_occurred_at,
-                notes_next_before_id,
-                section_states,
-                section_facts,
-            }))
-        })
-    }
-
-    async fn get_customer_access_audit(
-        &self,
-        request: Request<GetCustomerAccessAuditRequest>,
-    ) -> Result<Response<GetCustomerAccessAuditResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            let id = parse_uuid(&request.get_ref().customer_id, "customer_id")?;
-            let purpose = validate_read_purpose(&request.get_ref().purpose)?.to_owned();
-            if matches!(scope, Scope::Platform) {
-                self.state
-                    .auth
-                    .authorize_role(
-                        &self.state.store,
-                        &claims,
-                        &Scope::Platform,
-                        PLATFORM_CUSTOMER_READ_PERMISSION,
-                    )
-                    .await?;
-            } else {
-                self.state
-                    .auth
-                    .authorize_customer_security_admin(&self.state.store, &claims, id, &scope)
-                    .await?;
-            }
-            let session_ref = request
-                .metadata()
-                .get("x-erpx-session")
-                .and_then(|value| value.to_str().ok())
-                .map(str::to_owned);
-            let global_read_audit = GlobalReadAuditRecord::new(
-                GlobalReadActor {
-                    principal_ref: context.actor.clone(),
-                    session_ref: session_ref.clone(),
-                },
-                id,
-                "platform.customer_access_audit",
-                global_read_scope_for_customer_scope(&scope)?,
-                purpose.clone(),
-                Utc::now(),
-                context.correlation_id,
-            )
-            .map_err(|error| Status::internal(error.to_string()))?;
-            self.state
-                .store
-                .record_global_read(&global_read_audit)
-                .await
-                .map_err(|_| Status::internal("global-read audit persistence failed"))?;
-
-            let before = match (
-                request.get_ref().before_occurred_at.trim(),
-                request.get_ref().before_audit_id.trim(),
-            ) {
-                ("", "") => None,
-                (occurred_at, audit_id) if !occurred_at.is_empty() && !audit_id.is_empty() => {
-                    Some(CustomerGlobalReadAuditDetailCursor {
-                        occurred_at: DateTime::parse_from_rfc3339(occurred_at)
-                            .map_err(|_| Status::invalid_argument("before_occurred_at is invalid"))?
-                            .with_timezone(&Utc),
-                        audit_id: parse_uuid(audit_id, "before_audit_id")?,
-                    })
-                }
-                _ => {
-                    return Err(Status::invalid_argument(
-                        "before_occurred_at and before_audit_id must be supplied together",
-                    ));
-                }
-            };
-            let query = CustomerGlobalReadAuditDetailQuery {
-                customer_id: id,
-                security_admin_scope: customer_security_admin_scope(id, &scope)?,
-                audit: CustomerGlobalReadAuditQueryContext {
-                    requester: GlobalReadActor {
-                        principal_ref: context.actor,
-                        session_ref,
-                    },
-                    purpose,
-                    correlation_id: context.correlation_id,
-                },
-                before,
-                limit: request.get_ref().page_size,
-            };
-            let audit_sink: Arc<dyn AuditSink> = self.state.store.clone();
-            let view = CustomerGlobalReadAuditDetailService::new(
-                Arc::clone(&self.state.store),
-                audit_sink,
-            )
-            .list(query)
-            .await
-            .map_err(|error| errors::application(error, context.correlation_id))?;
-
-            let mut response = GetCustomerAccessAuditResponse {
-                customer_id: id.to_string(),
-                correlation_id: context.correlation_id.to_string(),
-                ..Default::default()
-            };
-            match view {
-                CustomerReadView::Present { data, metadata } => {
-                    response.entries = data
-                        .entries
-                        .into_iter()
-                        .map(|entry| {
-                            Ok(CustomerAccessAuditEntry {
-                                audit_id: entry.audit_id.to_string(),
-                                actor_ref: entry.actor.principal_ref,
-                                session_ref: entry.actor.session_ref.unwrap_or_default(),
-                                customer_id: entry.customer_id.to_string(),
-                                module: entry.module,
-                                scope: serde_json::to_string(&entry.scope).map_err(|_| {
-                                    Status::internal(
-                                        "customer access-audit scope serialization failed",
-                                    )
-                                })?,
-                                purpose: entry.purpose,
-                                occurred_at: entry.occurred_at.to_rfc3339(),
-                                correlation_id: entry.correlation_id.to_string(),
-                            })
-                        })
-                        .collect::<Result<Vec<_>, Status>>()?;
-                    if let Some(cursor) = data.next_before {
-                        response.next_before_occurred_at = cursor.occurred_at.to_rfc3339();
-                        response.next_before_audit_id = cursor.audit_id.to_string();
-                    }
-                    response.projection_updated_at = metadata
+            Ok(Response::new(
+                customer360_target::GetCustomer360DetailResponse {
+                    customer_id: customer_id.to_string(),
+                    payload_json: Vec::new(),
+                    projection_updated_at: metadata
                         .projection_updated_at
                         .map(|value| value.to_rfc3339())
-                        .unwrap_or_default();
-                    response.freshness = customer_freshness_name(metadata.freshness).into();
-                    response.read_only = metadata.read_only;
-                    response.present = true;
-                }
-                CustomerReadView::Absent { .. } | CustomerReadView::Unsupported { .. } => {}
-            }
-            Ok(Response::new(response))
+                        .unwrap_or_default(),
+                    freshness: customer_freshness_name(metadata.freshness).into(),
+                    read_only: metadata.read_only,
+                    correlation_id: context.correlation_id.to_string(),
+                    supported,
+                    unsupported_reason,
+                    present,
+                    notes,
+                    notes_next_before_occurred_at,
+                    notes_next_before_id,
+                    section_states,
+                    section_facts,
+                },
+            ))
         })
     }
+}
 
+#[derive(Clone)]
+struct Customer360QueryComposite<A, G> {
+    current: Customer360QueryRpc<A, G>,
+    detail: CustomerRpcImpl,
+}
+
+impl<A, G> Customer360QueryComposite<A, G> {
+    fn new(current: Customer360QueryRpc<A, G>, detail: CustomerRpcImpl) -> Self {
+        Self { current, detail }
+    }
+}
+
+#[tonic::async_trait]
+impl<A, G> TargetCustomer360QueryService for Customer360QueryComposite<A, G>
+where
+    A: Customer360QueryApplication,
+    G: Customer360RequestAuthenticator,
+{
+    async fn get_customer360(
+        &self,
+        request: Request<customer360_target::GetCustomer360Request>,
+    ) -> Result<Response<customer360_target::GetCustomer360Response>, Status> {
+        self.current.get_customer360(request).await
+    }
+
+    async fn get_customer360_detail(
+        &self,
+        request: Request<customer360_target::GetCustomer360DetailRequest>,
+    ) -> Result<Response<customer360_target::GetCustomer360DetailResponse>, Status> {
+        self.detail.get_target_customer360_detail(request).await
+    }
+}
+
+#[tonic::async_trait]
+impl erpx_proto::erpx::customer_360::v1::customer360_command_service_server::Customer360CommandService
+    for CustomerRpcImpl
+{
     async fn add_customer_note(
         &self,
-        request: Request<AddCustomerNoteRequest>,
-    ) -> Result<Response<AddCustomerNoteResponse>, Status> {
+        request: Request<erpx_proto::erpx::customer_360::v1::AddCustomerNoteRequest>,
+    ) -> Result<
+        Response<erpx_proto::erpx::customer_360::v1::AddCustomerNoteResponse>,
+        Status,
+    > {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
             let scope = access_scope(&context.tenant_scope);
-            require_platform_scope(&scope)?;
+            let authority_scope = legacy_kernel_scope(&context.tenant_scope);
+            if !matches!(
+                authority_scope,
+                KernelTenantScope::Company { .. } | KernelTenantScope::Branch { .. }
+            ) {
+                return Err(Status::permission_denied(
+                    "customer notes require an exact company or branch scope",
+                ));
+            }
             require_actor_match(
                 &claims.principal_ref,
                 &context.actor.principal_ref,
@@ -5786,83 +3719,150 @@ impl CustomerRpc for CustomerRpcImpl {
                 .authorize_role(
                     &self.state.store,
                     &claims,
-                    &Scope::Platform,
+                    &scope,
                     PLATFORM_CUSTOMER_NOTE_WRITE_PERMISSION,
                 )
                 .await?;
             let customer_id = parse_uuid(&request.get_ref().customer_id, "customer_id")?;
             let note_id = parse_uuid(&request.get_ref().note_id, "note_id")?;
-            let note = DomainCustomerNote::new(
-                note_id,
-                customer_id,
-                claims.principal_ref.clone(),
-                Scope::Platform,
-                Utc::now(),
-                request.get_ref().body.clone(),
+            if !request.get_ref().body.trim().is_empty() {
+                return Err(Status::invalid_argument(
+                    "inline customer note bodies are not accepted",
+                ));
+            }
+            let subscription_id = context.subscription_id.map(|id| id.to_string());
+            let workspace = resolve_tenant_workspace(
+                &self.state,
+                &authority_scope,
+                None,
+                subscription_id.as_deref(),
+                true,
             )
-            .map_err(|_| Status::invalid_argument("customer note is invalid"))?;
-            let read_note = note.read_dto();
-            let command = AddCustomerNoteCommand::new(
-                context.command_id,
-                context.idempotency_key.clone(),
-                note,
-                context.audit.purpose.clone(),
-                context.correlation_id,
-            )
-            .map_err(|error| errors::application(error, context.correlation_id))?;
-            let receipt = Customer360NoteService::new(Arc::clone(&self.state.store))
-                .append(command)
+            .await?;
+            if workspace.customer_id != customer_id {
+                return Err(Status::permission_denied(
+                    "customer is outside the active tenant workspace",
+                ));
+            }
+            let customer_repository = CustomerAuthorityWriteRepository::new(
+                CqrsWritePool::from_control_pg_pool(self.state.store.pools().write.clone()),
+            );
+            let customer = customer_repository
+                .load(
+                    &authority_scope,
+                    AuthorityCustomerId::try_from_uuid(customer_id)
+                        .map_err(|_| Status::invalid_argument("customer_id is invalid"))?,
+                )
                 .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            Ok(Response::new(AddCustomerNoteResponse {
-                note: Some(CustomerNoteMessage {
-                    id: read_note.id.to_string(),
-                    author_ref: read_note.author_ref,
-                    created_at: read_note.created_at.to_rfc3339(),
-                    // The command response is a receipt boundary. The body is available only
-                    // after the authorized projection read applies its redaction policy.
-                    body: String::new(),
-                }),
-                receipt: Some(CustomerNoteWriteReceiptMessage {
-                    aggregate_type: receipt.aggregate_type,
-                    aggregate_id: receipt.aggregate_id.to_string(),
-                    aggregate_version: receipt.aggregate_version,
-                    event_id: receipt.event_id.to_string(),
-                    replayed: receipt.replayed,
-                }),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+                .map_err(|error| match error {
+                    erpx_customer_authority::PortError::Denied
+                    | erpx_customer_authority::PortError::NotFound => {
+                        Status::permission_denied("customer is outside the active authority")
+                    }
+                    erpx_customer_authority::PortError::Unavailable
+                    | erpx_customer_authority::PortError::NotReady(_) => {
+                        Status::unavailable("customer authority is unavailable")
+                    }
+                    _ => Status::internal("customer authority lookup failed"),
+                })?
+                .ok_or_else(|| {
+                    Status::permission_denied("customer is outside the active authority")
+                })?;
+            let record = Customer360OwnedRecord::create(
+                KernelRecordId::try_from_uuid(note_id)
+                    .map_err(|_| Status::invalid_argument("note_id is invalid"))?,
+                Customer360RecordKind::Note,
+                authority_scope.clone(),
+                customer
+                    .record_ref()
+                    .map_err(|_| Status::internal("customer reference is invalid"))?,
+                None,
+                customer.version(),
+                request.get_ref().title.clone(),
+                Some(request.get_ref().content_object_ref.clone()),
+                request.get_ref().content_sha256.clone(),
+                claims.principal_ref.clone(),
+                Utc::now(),
+            )
+            .map_err(|_| Status::invalid_argument("customer note metadata is invalid"))?;
+            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
+                Status::unavailable("customer note tenant routing is unavailable")
+            })?;
+            let routed = router
+                .route(
+                    &workspace.tenant_id,
+                    &workspace.holding_ref,
+                    RoutedDatabaseSide::Write,
+                )
+                .await
+                .map_err(|_| Status::unavailable("customer note storage is unavailable"))?;
+            let tenant_id = Uuid::parse_str(&workspace.tenant_id)
+                .map_err(|_| Status::internal("tenant workspace identity is invalid"))?;
+            let write = CqrsWritePool::for_tenant(routed.database_pool().clone(), tenant_id)
+                .map_err(|_| Status::internal("tenant workspace identity is invalid"))?;
+            let receipt = Customer360RecordSqlxAdapter::new(write)
+                .save_record(Customer360RecordCommand {
+                    command_id: KernelCommandId::try_from_uuid(context.command_id)
+                        .map_err(|_| Status::invalid_argument("command_id is invalid"))?,
+                    correlation_id: KernelCorrelationId::try_from_uuid(context.correlation_id)
+                        .map_err(|_| Status::invalid_argument("correlation_id is invalid"))?,
+                    idempotency_key: IdempotencyKey::try_new(context.idempotency_key.clone())
+                        .map_err(|_| Status::invalid_argument("idempotency_key is invalid"))?,
+                    expected_version: context.expected_aggregate_version,
+                    actor: KernelActorAttribution {
+                        principal_ref: claims.principal_ref.clone(),
+                        kind: KernelActorKind::TenantUser,
+                        session_id: Some(
+                            KernelSessionId::try_from_uuid(claims.session_id)
+                                .map_err(|_| Status::internal("session identity is invalid"))?,
+                        ),
+                        represented_principal_ref: context.actor.represented_principal_ref.clone(),
+                        support_capability_id: context.actor.support_capability_id,
+                    },
+                    audit: KernelAuditContext {
+                        purpose: context.audit.purpose.clone(),
+                        customer_visible: context.audit.customer_visible,
+                        module: context.audit.module.clone(),
+                    },
+                    authority_scope,
+                    record,
+                })
+                .await
+                .map_err(|error| match error {
+                    erpx_customer_360::PortError::Denied => {
+                        Status::permission_denied("customer note write is denied")
+                    }
+                    erpx_customer_360::PortError::Unavailable
+                    | erpx_customer_360::PortError::NotReady(_) => {
+                        Status::unavailable("customer note storage is unavailable")
+                    }
+                    erpx_customer_360::PortError::Internal => {
+                        Status::internal("customer note write failed")
+                    }
+                })?;
+            Ok(Response::new(
+                erpx_proto::erpx::customer_360::v1::AddCustomerNoteResponse {
+                    note: Some(erpx_proto::erpx::customer_360::v1::CustomerNote {
+                        id: receipt.record.id().to_string(),
+                        author_ref: receipt.record.created_by().to_owned(),
+                        created_at: receipt.record.created_at().to_rfc3339(),
+                        // Protected note bodies are returned only by an authorized read model.
+                        body: String::new(),
+                    }),
+                    receipt: Some(
+                        erpx_proto::erpx::customer_360::v1::CustomerNoteWriteReceipt {
+                            aggregate_type: "customer_360_owned_record".into(),
+                            aggregate_id: receipt.record.id().to_string(),
+                            aggregate_version: receipt.record.version(),
+                            event_id: Uuid::new_v5(&context.command_id, b"c360-state")
+                                .to_string(),
+                            replayed: receipt.replayed,
+                        },
+                    ),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
-    }
-}
-
-#[tonic::async_trait]
-impl CustomerAccessAuditQueryService for CustomerRpcImpl {
-    async fn get_customer_access_audit(
-        &self,
-        request: Request<GetCustomerAccessAuditRequest>,
-    ) -> Result<Response<GetCustomerAccessAuditResponse>, Status> {
-        <Self as CustomerRpc>::get_customer_access_audit(self, request).await
-    }
-}
-
-#[tonic::async_trait]
-impl Customer360DetailQueryService for CustomerRpcImpl {
-    async fn get_customer360_detail(
-        &self,
-        request: Request<GetCustomer360DetailRequest>,
-    ) -> Result<Response<GetCustomer360DetailResponse>, Status> {
-        <Self as CustomerRpc>::get_customer360_detail(self, request).await
-    }
-}
-
-#[tonic::async_trait]
-impl CustomerNoteCommandService for CustomerRpcImpl {
-    async fn add_customer_note(
-        &self,
-        request: Request<AddCustomerNoteRequest>,
-    ) -> Result<Response<AddCustomerNoteResponse>, Status> {
-        <Self as CustomerRpc>::add_customer_note(self, request).await
     }
 }
 
@@ -6030,12 +4030,11 @@ struct SaasBillingRpcImpl {
     state: AppState,
 }
 
-#[tonic::async_trait]
-impl SaasBillingRpc for SaasBillingRpcImpl {
+impl SaasBillingRpcImpl {
     async fn list_catalog(
         &self,
-        request: Request<erpx_proto::platform::ListSaasCatalogRequest>,
-    ) -> Result<Response<erpx_proto::platform::ListSaasCatalogResponse>, Status> {
+        request: Request<commercial_target::ListSaasCatalogRequest>,
+    ) -> Result<Response<commercial_target::ListSaasCatalogResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -6077,7 +4076,7 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
                 .prices()
                 .iter()
                 .filter(|price| price.amount.currency == currency)
-                .map(|price| erpx_proto::platform::SaasCatalogPrice {
+                .map(|price| commercial_target::SaasCatalogPrice {
                     item_key: price.item_key.clone(),
                     display_name: price.display_name.clone(),
                     kind: catalog_price_kind_name(price.kind).into(),
@@ -6087,20 +4086,18 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
                     currency: price.amount.currency.clone(),
                 })
                 .collect();
-            Ok(Response::new(
-                erpx_proto::platform::ListSaasCatalogResponse {
-                    revision: catalog.revision_number(),
-                    prices,
-                    correlation_id: query.correlation_id.to_string(),
-                },
-            ))
+            Ok(Response::new(commercial_target::ListSaasCatalogResponse {
+                revision: catalog.revision_number(),
+                prices,
+                correlation_id: query.correlation_id.to_string(),
+            }))
         })
     }
 
     async fn get_subscription(
         &self,
-        request: Request<erpx_proto::platform::GetTenantSubscriptionRequest>,
-    ) -> Result<Response<erpx_proto::platform::GetTenantSubscriptionResponse>, Status> {
+        request: Request<commercial_target::GetTenantSubscriptionRequest>,
+    ) -> Result<Response<commercial_target::GetTenantSubscriptionResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -6153,13 +4150,14 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
                             BillingState::ReadOnly | BillingState::Canceled
                         )
                     });
-                    let items = subscription_binding
-                        .item_quantities
-                        .into_iter()
-                        .map(|(item_key, quantity)| {
-                            erpx_proto::platform::SubscriptionItemSelection { item_key, quantity }
-                        })
-                        .collect();
+                    let items =
+                        subscription_binding
+                            .item_quantities
+                            .into_iter()
+                            .map(|(item_key, quantity)| {
+                                commercial_target::SubscriptionItemSelection { item_key, quantity }
+                            })
+                            .collect();
                     (
                         state.to_owned(),
                         subscription_binding.currency,
@@ -6177,8 +4175,8 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
                     )
                 };
             Ok(Response::new(
-                erpx_proto::platform::GetTenantSubscriptionResponse {
-                    subscription: Some(erpx_proto::platform::TenantSubscriptionStatus {
+                commercial_target::GetTenantSubscriptionResponse {
+                    subscription: Some(commercial_target::TenantSubscriptionStatus {
                         tenant_id: tenant_id.to_owned(),
                         state,
                         currency,
@@ -6194,8 +4192,8 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
 
     async fn create_checkout_session(
         &self,
-        request: Request<erpx_proto::platform::CreateCheckoutSessionRequest>,
-    ) -> Result<Response<erpx_proto::platform::CreateCheckoutSessionResponse>, Status> {
+        request: Request<commercial_target::CreateCheckoutSessionRequest>,
+    ) -> Result<Response<commercial_target::CreateCheckoutSessionResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let command = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -6354,7 +4352,7 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
                 .await
                 .map_err(|_| Status::internal("billing audit failed"))?;
             Ok(Response::new(
-                erpx_proto::platform::CreateCheckoutSessionResponse {
+                commercial_target::CreateCheckoutSessionResponse {
                     hosted_url,
                     expires_at,
                     correlation_id: command.correlation_id.to_string(),
@@ -6365,8 +4363,8 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
 
     async fn create_customer_portal_session(
         &self,
-        request: Request<erpx_proto::platform::CreateCustomerPortalSessionRequest>,
-    ) -> Result<Response<erpx_proto::platform::CreateCustomerPortalSessionResponse>, Status> {
+        request: Request<commercial_target::CreateCustomerPortalSessionRequest>,
+    ) -> Result<Response<commercial_target::CreateCustomerPortalSessionResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let command = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -6416,7 +4414,7 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
                 .await
                 .map_err(|_| Status::internal("billing audit failed"))?;
             Ok(Response::new(
-                erpx_proto::platform::CreateCustomerPortalSessionResponse {
+                commercial_target::CreateCustomerPortalSessionResponse {
                     hosted_url: stripe.url,
                     correlation_id: command.correlation_id.to_string(),
                 },
@@ -6426,8 +4424,8 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
 
     async fn list_invoices(
         &self,
-        request: Request<erpx_proto::platform::ListTenantInvoicesRequest>,
-    ) -> Result<Response<erpx_proto::platform::ListTenantInvoicesResponse>, Status> {
+        request: Request<commercial_target::ListTenantInvoicesRequest>,
+    ) -> Result<Response<commercial_target::ListTenantInvoicesResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -6460,11 +4458,11 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
                 .await
                 .map_err(|_| Status::unavailable("tenant invoices are unavailable"))?;
             Ok(Response::new(
-                erpx_proto::platform::ListTenantInvoicesResponse {
+                commercial_target::ListTenantInvoicesResponse {
                     invoices: page
                         .invoices
                         .into_iter()
-                        .map(|invoice| erpx_proto::platform::TenantInvoiceSummary {
+                        .map(|invoice| commercial_target::TenantInvoiceSummary {
                             invoice_id: invoice.invoice_id,
                             state: invoice.state,
                             currency: invoice.currency,
@@ -6487,8 +4485,8 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
 
     async fn grant_grace_extension(
         &self,
-        request: Request<erpx_proto::platform::GrantBillingGraceExtensionRequest>,
-    ) -> Result<Response<erpx_proto::platform::GrantBillingGraceExtensionResponse>, Status> {
+        request: Request<commercial_target::GrantBillingGraceExtensionRequest>,
+    ) -> Result<Response<commercial_target::GrantBillingGraceExtensionResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let command = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -6538,7 +4536,7 @@ impl SaasBillingRpc for SaasBillingRpcImpl {
                 .await
                 .map_err(|error| commercial_persistence_status(error, command.correlation_id))?;
             Ok(Response::new(
-                erpx_proto::platform::GrantBillingGraceExtensionResponse {
+                commercial_target::GrantBillingGraceExtensionResponse {
                     extension_id: extension.id.to_string(),
                     extended_until: extension.extended_until.to_rfc3339(),
                     correlation_id: command.correlation_id.to_string(),
@@ -6553,12 +4551,93 @@ struct PlatformOperationsRpcImpl {
     state: AppState,
 }
 
-#[tonic::async_trait]
-impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
-    async fn list_tenants(
+async fn authorize_branch_administration<T>(
+    state: &AppState,
+    claims: &AccessTokenClaims,
+    request: &Request<T>,
+    scope: &Scope,
+    tenant_id: &str,
+    holding_id: Uuid,
+    mutation: bool,
+) -> Result<(), Status> {
+    let exact_holding = Scope::Holding { holding_id };
+    if !scope.contains(&exact_holding) {
+        return Err(Status::permission_denied(
+            "branch administration requires exact holding or entered-tenant scope",
+        ));
+    }
+    state
+        .auth
+        .authorize_role_for_tenant(
+            &state.store,
+            claims,
+            scope,
+            if mutation {
+                "branch.infrastructure.provision"
+            } else {
+                "organization.read"
+            },
+            Some(tenant_id),
+        )
+        .await?;
+    if matches!(scope, Scope::Platform)
+        || claims.principal_ref == erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL
+    {
+        validate_tenant_admin_context(state, request, claims, tenant_id, holding_id).await?;
+    }
+    Ok(())
+}
+
+async fn require_branch_capacity(store: &SqlxControlPlane, tenant_id: &str) -> Result<(), Status> {
+    let available = persistence::branch_capacity_available(store, tenant_id)
+        .await
+        .map_err(|_| Status::unavailable("subscription branch capacity is unavailable"))?;
+    available
+        .then_some(())
+        .ok_or_else(|| Status::failed_precondition("subscription branch capacity is exhausted"))
+}
+
+async fn branch_provisioning_record(
+    store: &SqlxBranchProvisioningStore,
+    job: erpx_infrastructure::BranchProvisioningJob,
+) -> Result<platform_admin_target::TenantBranchProvisioningRecord, Status> {
+    let route = store
+        .route(&job.tenant_id, job.branch_id)
+        .await
+        .map_err(|_| Status::unavailable("branch route status is unavailable"))?;
+    Ok(platform_admin_target::TenantBranchProvisioningRecord {
+        job_id: job.job_id.to_string(),
+        tenant_id: job.tenant_id,
+        branch_id: job.branch_id.to_string(),
+        branch_code: job.branch_code,
+        branch_name: job.branch_name,
+        enabled_business_units: job
+            .enabled_business_units
+            .iter()
+            .map(|unit| unit.as_str().to_owned())
+            .collect(),
+        state: job.state.as_str().into(),
+        attempt_count: job.attempt_count,
+        failure_category: route
+            .as_ref()
+            .and_then(|route| route.failure_category.clone())
+            .unwrap_or_default(),
+        created_at: job.created_at.to_rfc3339(),
+        updated_at: job.updated_at.to_rfc3339(),
+        completed_at: job
+            .completed_at
+            .map(|value| value.to_rfc3339())
+            .unwrap_or_default(),
+        route_version: route.as_ref().map_or(0, |route| route.route_version),
+        correlation_id: job.correlation_id.to_string(),
+    })
+}
+
+impl PlatformOperationsRpcImpl {
+    pub(crate) async fn list_tenants(
         &self,
-        request: Request<ListPlatformTenantsRequest>,
-    ) -> Result<Response<ListPlatformTenantsResponse>, Status> {
+        request: Request<platform_admin_target::ListPlatformTenantsRequest>,
+    ) -> Result<Response<platform_admin_target::ListPlatformTenantsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -6615,19 +4694,21 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("platform tenant audit failed"))?;
-            Ok(Response::new(ListPlatformTenantsResponse {
-                tenants,
-                has_more: page.has_more,
-                next_after_tenant_id: page.next_after_tenant_id.unwrap_or_default(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::ListPlatformTenantsResponse {
+                    tenants,
+                    has_more: page.has_more,
+                    next_after_tenant_id: page.next_after_tenant_id.unwrap_or_default(),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn get_tenant(
+    pub(crate) async fn get_tenant(
         &self,
-        request: Request<GetPlatformTenantRequest>,
-    ) -> Result<Response<GetPlatformTenantResponse>, Status> {
+        request: Request<platform_admin_target::GetPlatformTenantRequest>,
+    ) -> Result<Response<platform_admin_target::GetPlatformTenantResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -6670,17 +4751,19 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("platform tenant audit failed"))?;
-            Ok(Response::new(GetPlatformTenantResponse {
-                tenant: Some(platform_tenant_summary(tenant)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::GetPlatformTenantResponse {
+                    tenant: Some(platform_tenant_summary(tenant)),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn list_tenant_control_history(
+    pub(crate) async fn list_tenant_control_history(
         &self,
-        request: Request<ListTenantControlHistoryRequest>,
-    ) -> Result<Response<ListTenantControlHistoryResponse>, Status> {
+        request: Request<platform_admin_target::ListTenantControlHistoryRequest>,
+    ) -> Result<Response<platform_admin_target::ListTenantControlHistoryResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -6740,38 +4823,40 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 .list_control_history(tenant_id, cursor, page_size)
                 .await
                 .map_err(|_| Status::unavailable("tenant control history unavailable"))?;
-            Ok(Response::new(ListTenantControlHistoryResponse {
-                entries: page
-                    .entries
-                    .into_iter()
-                    .map(|entry| TenantControlHistoryEntryMessage {
-                        event_id: entry.event_id.to_string(),
-                        event_category: entry.event_category,
-                        safe_action: entry.safe_action,
-                        aggregate_version: entry.aggregate_version,
-                        actor_ref: entry.actor_ref,
-                        correlation_id: entry.correlation_id.to_string(),
-                        occurred_at: entry.occurred_at.to_rfc3339(),
-                    })
-                    .collect(),
-                has_more: page.has_more,
-                next_before_occurred_at: page
-                    .next_cursor
-                    .map(|cursor| cursor.occurred_at.to_rfc3339())
-                    .unwrap_or_default(),
-                next_before_event_id: page
-                    .next_cursor
-                    .map(|cursor| cursor.event_id.to_string())
-                    .unwrap_or_default(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::ListTenantControlHistoryResponse {
+                    entries: page
+                        .entries
+                        .into_iter()
+                        .map(|entry| platform_admin_target::TenantControlHistoryEntry {
+                            event_id: entry.event_id.to_string(),
+                            event_category: entry.event_category,
+                            safe_action: entry.safe_action,
+                            aggregate_version: entry.aggregate_version,
+                            actor_ref: entry.actor_ref,
+                            correlation_id: entry.correlation_id.to_string(),
+                            occurred_at: entry.occurred_at.to_rfc3339(),
+                        })
+                        .collect(),
+                    has_more: page.has_more,
+                    next_before_occurred_at: page
+                        .next_cursor
+                        .map(|cursor| cursor.occurred_at.to_rfc3339())
+                        .unwrap_or_default(),
+                    next_before_event_id: page
+                        .next_cursor
+                        .map(|cursor| cursor.event_id.to_string())
+                        .unwrap_or_default(),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn begin_tenant_admin_context(
+    pub(crate) async fn begin_tenant_admin_context(
         &self,
-        request: Request<erpx_proto::platform::BeginTenantAdminContextRequest>,
-    ) -> Result<Response<erpx_proto::platform::BeginTenantAdminContextResponse>, Status> {
+        request: Request<platform_admin_target::BeginTenantAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::BeginTenantAdminContextResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -6836,7 +4921,7 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                     Status::failed_precondition("tenant configuration is incomplete or unavailable")
                 })?;
             Ok(Response::new(
-                erpx_proto::platform::BeginTenantAdminContextResponse {
+                platform_admin_target::BeginTenantAdminContextResponse {
                     administrative_context: Some(tenant_admin_context_message(
                         &administrative_context,
                         at,
@@ -6847,10 +4932,10 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
         })
     }
 
-    async fn get_tenant_admin_context(
+    pub(crate) async fn get_tenant_admin_context(
         &self,
-        request: Request<erpx_proto::platform::GetTenantAdminContextRequest>,
-    ) -> Result<Response<erpx_proto::platform::GetTenantAdminContextResponse>, Status> {
+        request: Request<platform_admin_target::GetTenantAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::GetTenantAdminContextResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -6908,7 +4993,7 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .map_err(|_| Status::permission_denied("tenant administration context denied"))?;
             Ok(Response::new(
-                erpx_proto::platform::GetTenantAdminContextResponse {
+                platform_admin_target::GetTenantAdminContextResponse {
                     administrative_context: Some(tenant_admin_context_message(
                         &administrative_context,
                         at,
@@ -6919,10 +5004,10 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
         })
     }
 
-    async fn end_tenant_admin_context(
+    pub(crate) async fn end_tenant_admin_context(
         &self,
-        request: Request<erpx_proto::platform::EndTenantAdminContextRequest>,
-    ) -> Result<Response<erpx_proto::platform::EndTenantAdminContextResponse>, Status> {
+        request: Request<platform_admin_target::EndTenantAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::EndTenantAdminContextResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -6957,7 +5042,7 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 .await
                 .map_err(|_| Status::unavailable("tenant administration context unavailable"))?;
             Ok(Response::new(
-                erpx_proto::platform::EndTenantAdminContextResponse {
+                platform_admin_target::EndTenantAdminContextResponse {
                     ended,
                     correlation_id: context.correlation_id.to_string(),
                 },
@@ -6965,10 +5050,10 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
         })
     }
 
-    async fn discover_tenant_organization_units(
+    pub(crate) async fn discover_tenant_organization_units(
         &self,
-        request: Request<erpx_proto::platform::DiscoverTenantOrganizationUnitsRequest>,
-    ) -> Result<Response<erpx_proto::platform::DiscoverTenantOrganizationUnitsResponse>, Status>
+        request: Request<platform_admin_target::DiscoverTenantOrganizationUnitsRequest>,
+    ) -> Result<Response<platform_admin_target::DiscoverTenantOrganizationUnitsResponse>, Status>
     {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
@@ -7059,18 +5144,33 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 )
                 .await
                 .map_err(|_| Status::unavailable("tenant read route is unavailable"))?;
-            let store = SqlxOrganizationStore::from_pools(
-                read.database_pool(),
-                read.database_pool(),
-                registration.holding_ref,
-            )
-            .map_err(|error| organization_persistence_status(error, query.correlation_id))?;
-            let cursor = parse_organization_cursor(&request.get_ref().after_cursor)?;
+            let tenant_uuid = Uuid::parse_str(tenant_id)
+                .map_err(|_| Status::failed_precondition("tenant identity is invalid"))?;
+            let pool = CqrsReadPool::for_tenant(read.database_pool().clone(), tenant_uuid)
+                .map_err(|_| Status::unavailable("tenant read authority is unavailable"))?;
+            let store = OrganizationReadRepository::new(pool)
+                .map_err(|_| Status::unavailable("organization read model is unavailable"))?;
             let page_size = organization_page_size(request.get_ref().page_size)?;
-            let result = store.list(None, cursor, page_size).await;
+            let result = store
+                .list(
+                    &erpx_kernel::TenantScope::Holding {
+                        holding_id: administrative_context.root_holding_id,
+                    },
+                    &OrganizationNodeListFilter {
+                        page_size: u16::try_from(page_size).map_err(|_| {
+                            Status::invalid_argument("page_size is outside its bound")
+                        })?,
+                        cursor: (!request.get_ref().after_cursor.trim().is_empty())
+                            .then(|| request.get_ref().after_cursor.clone()),
+                        ..OrganizationNodeListFilter::default()
+                    },
+                    &QueryConsistency::Eventual,
+                )
+                .await;
             read.close().await;
             let page = result
-                .map_err(|error| organization_persistence_status(error, query.correlation_id))?;
+                .map_err(|_| Status::unavailable("organization read model is unavailable"))?
+                .value;
             administration
                 .record_context_access(
                     &administrative_context,
@@ -7081,38 +5181,41 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 .await
                 .map_err(|_| Status::unavailable("tenant access audit unavailable"))?;
             Ok(Response::new(
-                erpx_proto::platform::DiscoverTenantOrganizationUnitsResponse {
+                platform_admin_target::DiscoverTenantOrganizationUnitsResponse {
                     units: page
                         .nodes
                         .into_iter()
-                        .map(|node| erpx_proto::platform::TenantOrganizationUnit {
-                            kind: node.kind.as_str().into(),
-                            holding_id: node.holding_id.to_string(),
-                            company_id: node
-                                .company_id
-                                .map(|id| id.to_string())
-                                .unwrap_or_default(),
-                            branch_id: node.branch_id.map(|id| id.to_string()).unwrap_or_default(),
+                        .map(|node| platform_admin_target::TenantOrganizationUnit {
+                            kind: typed_organization_kind_name(node.kind).into(),
+                            holding_id: administrative_context.root_holding_id.to_string(),
+                            company_id: typed_organization_company_id(
+                                node.node_id.as_uuid(),
+                                &node.placement,
+                            )
+                            .map(|id| id.to_string())
+                            .unwrap_or_default(),
+                            branch_id: typed_organization_branch_id(
+                                node.node_id.as_uuid(),
+                                &node.placement,
+                            )
+                            .map(|id| id.to_string())
+                            .unwrap_or_default(),
                             code: node.code,
                             name: node.name,
                         })
                         .collect(),
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(organization_cursor)
-                        .unwrap_or_default(),
+                    has_more: page.next_cursor.is_some(),
+                    next_cursor: page.next_cursor.unwrap_or_default(),
                     correlation_id: query.correlation_id.to_string(),
                 },
             ))
         })
     }
 
-    async fn begin_tenant_provisioning(
+    pub(crate) async fn begin_tenant_provisioning(
         &self,
-        request: Request<BeginTenantProvisioningRequest>,
-    ) -> Result<Response<BeginTenantProvisioningResponse>, Status> {
+        request: Request<platform_admin_target::BeginTenantProvisioningRequest>,
+    ) -> Result<Response<platform_admin_target::BeginTenantProvisioningResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -7237,20 +5340,22 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
-            Ok(Response::new(BeginTenantProvisioningResponse {
-                tenant_id,
-                state: "provisioning".into(),
-                registry_version: 1,
-                accepted: true,
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::BeginTenantProvisioningResponse {
+                    tenant_id,
+                    state: "provisioning".into(),
+                    registry_version: 1,
+                    accepted: true,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn provision_tenant_resources(
+    pub(crate) async fn provision_tenant_resources(
         &self,
-        request: Request<ProvisionTenantResourcesRequest>,
-    ) -> Result<Response<ProvisionTenantResourcesResponse>, Status> {
+        request: Request<platform_admin_target::ProvisionTenantResourcesRequest>,
+    ) -> Result<Response<platform_admin_target::ProvisionTenantResourcesResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -7352,23 +5457,25 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
-            Ok(Response::new(ProvisionTenantResourcesResponse {
-                tenant_id: tenant_id.into(),
-                state: registration.state,
-                databases_ready: true,
-                storage_ready: storage_health.reachable,
-                correlation_id: context.correlation_id.to_string(),
-                owner_seeded: owner_receipt.seeded,
-                owner_principal_ref: owner_receipt.principal_ref,
-                owner_recovery_code: owner_receipt.recovery_code.unwrap_or_default(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::ProvisionTenantResourcesResponse {
+                    tenant_id: tenant_id.into(),
+                    state: registration.state,
+                    databases_ready: true,
+                    storage_ready: storage_health.reachable,
+                    correlation_id: context.correlation_id.to_string(),
+                    owner_seeded: owner_receipt.seeded,
+                    owner_principal_ref: owner_receipt.principal_ref,
+                    owner_recovery_code: owner_receipt.recovery_code.unwrap_or_default(),
+                },
+            ))
         })
     }
 
-    async fn activate_tenant(
+    pub(crate) async fn activate_tenant(
         &self,
-        request: Request<TransitionTenantStateRequest>,
-    ) -> Result<Response<TransitionTenantStateResponse>, Status> {
+        request: Request<platform_admin_target::TransitionTenantStateRequest>,
+    ) -> Result<Response<platform_admin_target::TransitionTenantStateResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -7443,19 +5550,21 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await?
                 .into_inner();
-            Ok(Response::new(TransitionTenantStateResponse {
-                tenant_id: receipt.tenant_id,
-                state: receipt.state.as_str().into(),
-                registry_version: receipt.registry_version,
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::TransitionTenantStateResponse {
+                    tenant_id: receipt.tenant_id,
+                    state: receipt.state.as_str().into(),
+                    registry_version: receipt.registry_version,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn suspend_tenant(
+    pub(crate) async fn suspend_tenant(
         &self,
-        request: Request<TransitionTenantStateRequest>,
-    ) -> Result<Response<TransitionTenantStateResponse>, Status> {
+        request: Request<platform_admin_target::TransitionTenantStateRequest>,
+    ) -> Result<Response<platform_admin_target::TransitionTenantStateResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -7530,19 +5639,21 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await?
                 .into_inner();
-            Ok(Response::new(TransitionTenantStateResponse {
-                tenant_id: receipt.tenant_id,
-                state: receipt.state.as_str().into(),
-                registry_version: receipt.registry_version,
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::TransitionTenantStateResponse {
+                    tenant_id: receipt.tenant_id,
+                    state: receipt.state.as_str().into(),
+                    registry_version: receipt.registry_version,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn enter_tenant_recovery(
+    pub(crate) async fn enter_tenant_recovery(
         &self,
-        request: Request<TransitionTenantStateRequest>,
-    ) -> Result<Response<TransitionTenantStateResponse>, Status> {
+        request: Request<platform_admin_target::TransitionTenantStateRequest>,
+    ) -> Result<Response<platform_admin_target::TransitionTenantStateResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -7617,19 +5728,21 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await?
                 .into_inner();
-            Ok(Response::new(TransitionTenantStateResponse {
-                tenant_id: receipt.tenant_id,
-                state: receipt.state.as_str().into(),
-                registry_version: receipt.registry_version,
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::TransitionTenantStateResponse {
+                    tenant_id: receipt.tenant_id,
+                    state: receipt.state.as_str().into(),
+                    registry_version: receipt.registry_version,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn schedule_tenant_backup(
+    pub(crate) async fn schedule_tenant_backup(
         &self,
-        request: Request<ScheduleTenantBackupRequest>,
-    ) -> Result<Response<ScheduleTenantBackupResponse>, Status> {
+        request: Request<platform_admin_target::ScheduleTenantBackupRequest>,
+    ) -> Result<Response<platform_admin_target::ScheduleTenantBackupResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -7786,23 +5899,25 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await?
                 .into_inner();
-            Ok(Response::new(ScheduleTenantBackupResponse {
-                job_id: receipt.id.to_string(),
-                tenant_id: receipt.tenant_id,
-                kind: receipt.kind,
-                state: receipt.state,
-                available_at: receipt.available_at.to_rfc3339(),
-                max_attempts: u32::from(receipt.max_attempts),
-                duplicate: receipt.duplicate,
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::ScheduleTenantBackupResponse {
+                    job_id: receipt.id.to_string(),
+                    tenant_id: receipt.tenant_id,
+                    kind: receipt.kind,
+                    state: receipt.state,
+                    available_at: receipt.available_at.to_rfc3339(),
+                    max_attempts: u32::from(receipt.max_attempts),
+                    duplicate: receipt.duplicate,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn list_tenant_backup_jobs(
+    pub(crate) async fn list_tenant_backup_jobs(
         &self,
-        request: Request<ListTenantBackupJobsRequest>,
-    ) -> Result<Response<ListTenantBackupJobsResponse>, Status> {
+        request: Request<platform_admin_target::ListTenantBackupJobsRequest>,
+    ) -> Result<Response<platform_admin_target::ListTenantBackupJobsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -7845,32 +5960,34 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
-            Ok(Response::new(ListTenantBackupJobsResponse {
-                jobs: jobs
-                    .into_iter()
-                    .map(|job| TenantBackupJobSummaryMessage {
-                        job_id: job.id.to_string(),
-                        tenant_id: job.tenant_id,
-                        kind: job.kind,
-                        state: job.state,
-                        available_at: job.available_at.to_rfc3339(),
-                        attempts: u32::from(job.attempts),
-                        max_attempts: u32::from(job.max_attempts),
-                        verified: job.verified,
-                        error_present: job.last_error_present,
-                        created_at: job.created_at.to_rfc3339(),
-                        updated_at: job.updated_at.to_rfc3339(),
-                    })
-                    .collect(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::ListTenantBackupJobsResponse {
+                    jobs: jobs
+                        .into_iter()
+                        .map(|job| platform_admin_target::TenantBackupJobSummary {
+                            job_id: job.id.to_string(),
+                            tenant_id: job.tenant_id,
+                            kind: job.kind,
+                            state: job.state,
+                            available_at: job.available_at.to_rfc3339(),
+                            attempts: u32::from(job.attempts),
+                            max_attempts: u32::from(job.max_attempts),
+                            verified: job.verified,
+                            error_present: job.last_error_present,
+                            created_at: job.created_at.to_rfc3339(),
+                            updated_at: job.updated_at.to_rfc3339(),
+                        })
+                        .collect(),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn schedule_cluster_base_backup(
+    pub(crate) async fn schedule_cluster_base_backup(
         &self,
-        request: Request<erpx_proto::platform::ScheduleClusterBaseBackupRequest>,
-    ) -> Result<Response<erpx_proto::platform::ScheduleClusterBaseBackupResponse>, Status> {
+        request: Request<platform_admin_target::ScheduleClusterBaseBackupRequest>,
+    ) -> Result<Response<platform_admin_target::ScheduleClusterBaseBackupResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -7910,7 +6027,7 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 .await
                 .map_err(|error| Status::failed_precondition(error.to_string()))?;
             Ok(Response::new(
-                erpx_proto::platform::ScheduleClusterBaseBackupResponse {
+                platform_admin_target::ScheduleClusterBaseBackupResponse {
                     chain_id: chain.id.to_string(),
                     cluster_ref: chain.cluster_ref,
                     chain_ref: chain.chain_ref,
@@ -7922,10 +6039,10 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
         })
     }
 
-    async fn list_cluster_recovery_points(
+    pub(crate) async fn list_cluster_recovery_points(
         &self,
-        request: Request<erpx_proto::platform::ListClusterRecoveryPointsRequest>,
-    ) -> Result<Response<erpx_proto::platform::ListClusterRecoveryPointsResponse>, Status> {
+        request: Request<platform_admin_target::ListClusterRecoveryPointsRequest>,
+    ) -> Result<Response<platform_admin_target::ListClusterRecoveryPointsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -7961,7 +6078,7 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                     .await
                     .map_err(|_| Status::unavailable("cluster PITR read unavailable"))?
                     .into_iter()
-                    .map(|point| erpx_proto::platform::ClusterRecoveryPointSummary {
+                    .map(|point| platform_admin_target::ClusterRecoveryPointSummary {
                         recovery_point_id: point.id.to_string(),
                         chain_id: point.chain_id.to_string(),
                         label: point.label,
@@ -7977,7 +6094,7 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                     })
                     .collect();
             Ok(Response::new(
-                erpx_proto::platform::ListClusterRecoveryPointsResponse {
+                platform_admin_target::ListClusterRecoveryPointsResponse {
                     recovery_points,
                     correlation_id: context.correlation_id.to_string(),
                 },
@@ -7985,10 +6102,10 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
         })
     }
 
-    async fn start_cluster_restore_rehearsal(
+    pub(crate) async fn start_cluster_restore_rehearsal(
         &self,
-        request: Request<erpx_proto::platform::StartClusterRestoreRehearsalRequest>,
-    ) -> Result<Response<erpx_proto::platform::StartClusterRestoreRehearsalResponse>, Status> {
+        request: Request<platform_admin_target::StartClusterRestoreRehearsalRequest>,
+    ) -> Result<Response<platform_admin_target::StartClusterRestoreRehearsalResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -8026,7 +6143,7 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 .await
                 .map_err(|error| Status::failed_precondition(error.to_string()))?;
             Ok(Response::new(
-                erpx_proto::platform::StartClusterRestoreRehearsalResponse {
+                platform_admin_target::StartClusterRestoreRehearsalResponse {
                     rehearsal_id: rehearsal.id.to_string(),
                     recovery_point_id: rehearsal.recovery_point_id.to_string(),
                     restore_target_ref: rehearsal.restore_target_ref,
@@ -8038,10 +6155,10 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
         })
     }
 
-    async fn get_cluster_restore_rehearsal(
+    pub(crate) async fn get_cluster_restore_rehearsal(
         &self,
-        request: Request<erpx_proto::platform::GetClusterRestoreRehearsalRequest>,
-    ) -> Result<Response<erpx_proto::platform::GetClusterRestoreRehearsalResponse>, Status> {
+        request: Request<platform_admin_target::GetClusterRestoreRehearsalRequest>,
+    ) -> Result<Response<platform_admin_target::GetClusterRestoreRehearsalResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -8069,7 +6186,7 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 .await
                 .map_err(|_| Status::not_found("restore rehearsal not found"))?;
             Ok(Response::new(
-                erpx_proto::platform::GetClusterRestoreRehearsalResponse {
+                platform_admin_target::GetClusterRestoreRehearsalResponse {
                     rehearsal_id: result.id.to_string(),
                     verification_complete: result.state == "completed",
                     state: result.state,
@@ -8082,10 +6199,10 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
         })
     }
 
-    async fn start_projection_rebuild(
+    pub(crate) async fn start_projection_rebuild(
         &self,
-        request: Request<StartProjectionRebuildRequest>,
-    ) -> Result<Response<StartProjectionRebuildResponse>, Status> {
+        request: Request<platform_admin_target::StartProjectionRebuildRequest>,
+    ) -> Result<Response<platform_admin_target::StartProjectionRebuildResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -8161,7 +6278,7 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 registry,
                 scheduler_authorization,
             );
-            let policy = ProjectionPolicy::new(MAX_OPERATIONS_EVENT_PAGE_SIZE, 1, 5, 5, 300)
+            let policy = ProjectionPolicy::new(500, 1, 5, 5, 300)
                 .map_err(|_| Status::internal("projection scheduler policy is invalid"))?;
             let (generation, _rebuild) = scheduler
                 .begin_rebuild_after_platform_authorization(
@@ -8174,21 +6291,23 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 )
                 .await
                 .map_err(|_| Status::unavailable("projection rebuild could not be scheduled"))?;
-            Ok(Response::new(StartProjectionRebuildResponse {
-                tenant_id: tenant_id.into(),
-                projection_name: projection_name.into(),
-                state: "rebuilding".into(),
-                source_version,
-                correlation_id: context.correlation_id.to_string(),
-                generation,
-            }))
+            Ok(Response::new(
+                platform_admin_target::StartProjectionRebuildResponse {
+                    tenant_id: tenant_id.into(),
+                    projection_name: projection_name.into(),
+                    state: "rebuilding".into(),
+                    source_version,
+                    correlation_id: context.correlation_id.to_string(),
+                    generation,
+                },
+            ))
         })
     }
 
-    async fn activate_projection_rebuild(
+    pub(crate) async fn activate_projection_rebuild(
         &self,
-        request: Request<ActivateProjectionRebuildRequest>,
-    ) -> Result<Response<ActivateProjectionRebuildResponse>, Status> {
+        request: Request<platform_admin_target::ActivateProjectionRebuildRequest>,
+    ) -> Result<Response<platform_admin_target::ActivateProjectionRebuildResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -8364,20 +6483,22 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
-            Ok(Response::new(ActivateProjectionRebuildResponse {
-                tenant_id: tenant_id.into(),
-                projection_name: projection_name.into(),
-                state: "activated".into(),
-                generation,
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::ActivateProjectionRebuildResponse {
+                    tenant_id: tenant_id.into(),
+                    projection_name: projection_name.into(),
+                    state: "activated".into(),
+                    generation,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn list_projection_statuses(
+    pub(crate) async fn list_projection_statuses(
         &self,
-        request: Request<ListProjectionStatusesRequest>,
-    ) -> Result<Response<ListProjectionStatusesResponse>, Status> {
+        request: Request<platform_admin_target::ListProjectionStatusesRequest>,
+    ) -> Result<Response<platform_admin_target::ListProjectionStatusesResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -8452,7 +6573,7 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 .into_iter()
                 .map(|status| {
                     let freshness = projection_status_freshness(status.published_at, freshness_now);
-                    ProjectionStatusMessage {
+                    platform_admin_target::ProjectionStatus {
                         tenant_id: status.tenant_id,
                         holding_ref: status.holding_ref,
                         projection_name: status.projection_name,
@@ -8501,23 +6622,25 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                     }
                 })
                 .collect();
-            Ok(Response::new(ListProjectionStatusesResponse {
-                statuses,
-                has_more: page.has_more,
-                next_cursor: page
-                    .next_cursor
-                    .as_ref()
-                    .map(encode_projection_status_cursor)
-                    .unwrap_or_default(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::ListProjectionStatusesResponse {
+                    statuses,
+                    has_more: page.has_more,
+                    next_cursor: page
+                        .next_cursor
+                        .as_ref()
+                        .map(encode_projection_status_cursor)
+                        .unwrap_or_default(),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn list_platform_audit(
+    pub(crate) async fn list_platform_audit(
         &self,
-        request: Request<ListPlatformAuditRequest>,
-    ) -> Result<Response<ListPlatformAuditResponse>, Status> {
+        request: Request<platform_admin_target::ListPlatformAuditRequest>,
+    ) -> Result<Response<platform_admin_target::ListPlatformAuditResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -8582,40 +6705,42 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
-            Ok(Response::new(ListPlatformAuditResponse {
-                entries: page
-                    .entries
-                    .into_iter()
-                    .map(|entry| PlatformAuditEntryMessage {
-                        audit_id: entry.audit_id.to_string(),
-                        actor_ref: entry.actor_ref,
-                        action: entry.action,
-                        purpose: entry.purpose,
-                        correlation_id: entry.correlation_id.to_string(),
-                        recorded_at: entry.recorded_at.to_rfc3339(),
-                        customer_scoped: entry.customer_scoped,
-                    })
-                    .collect(),
-                has_more: page.has_more,
-                next_before_recorded_at: page
-                    .next_before
-                    .as_ref()
-                    .map(|(recorded_at, _)| recorded_at.to_rfc3339())
-                    .unwrap_or_default(),
-                next_before_audit_id: page
-                    .next_before
-                    .as_ref()
-                    .map(|(_, audit_id)| audit_id.to_string())
-                    .unwrap_or_default(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::ListPlatformAuditResponse {
+                    entries: page
+                        .entries
+                        .into_iter()
+                        .map(|entry| platform_admin_target::PlatformAuditEntry {
+                            audit_id: entry.audit_id.to_string(),
+                            actor_ref: entry.actor_ref,
+                            action: entry.action,
+                            purpose: entry.purpose,
+                            correlation_id: entry.correlation_id.to_string(),
+                            recorded_at: entry.recorded_at.to_rfc3339(),
+                            customer_scoped: entry.customer_scoped,
+                        })
+                        .collect(),
+                    has_more: page.has_more,
+                    next_before_recorded_at: page
+                        .next_before
+                        .as_ref()
+                        .map(|(recorded_at, _)| recorded_at.to_rfc3339())
+                        .unwrap_or_default(),
+                    next_before_audit_id: page
+                        .next_before
+                        .as_ref()
+                        .map(|(_, audit_id)| audit_id.to_string())
+                        .unwrap_or_default(),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn replay_dead_letter_outbox(
+    pub(crate) async fn replay_dead_letter_outbox(
         &self,
-        request: Request<ReplayDeadLetterOutboxRequest>,
-    ) -> Result<Response<ReplayDeadLetterOutboxResponse>, Status> {
+        request: Request<platform_admin_target::ReplayDeadLetterOutboxRequest>,
+    ) -> Result<Response<platform_admin_target::ReplayDeadLetterOutboxResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -8660,23 +6785,25 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(map_dead_letter_replay_error)?;
-            Ok(Response::new(ReplayDeadLetterOutboxResponse {
-                event_id: receipt.event_id.to_string(),
-                state: if receipt.replayed {
-                    "already_requeued".into()
-                } else {
-                    "requeued".into()
+            Ok(Response::new(
+                platform_admin_target::ReplayDeadLetterOutboxResponse {
+                    event_id: receipt.event_id.to_string(),
+                    state: if receipt.replayed {
+                        "already_requeued".into()
+                    } else {
+                        "requeued".into()
+                    },
+                    correlation_id: receipt.correlation_id.to_string(),
+                    replayed: receipt.replayed,
                 },
-                correlation_id: receipt.correlation_id.to_string(),
-                replayed: receipt.replayed,
-            }))
+            ))
         })
     }
 
-    async fn list_platform_integrations(
+    pub(crate) async fn list_platform_integrations(
         &self,
-        request: Request<ListPlatformIntegrationsRequest>,
-    ) -> Result<Response<ListPlatformIntegrationsResponse>, Status> {
+        request: Request<platform_admin_target::ListPlatformIntegrationsRequest>,
+    ) -> Result<Response<platform_admin_target::ListPlatformIntegrationsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -8753,12 +6880,14 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 .await
                 .map_err(|_| Status::unavailable("platform integration persistence unavailable"))?
                 .into_iter()
-                .map(|observation| PlatformIntegrationStatus {
-                    integration_key: observation.integration_key,
-                    state: observation.state,
-                    capability: observation.capability,
-                    checked_at: observation.checked_at.to_rfc3339(),
-                })
+                .map(
+                    |observation| platform_admin_target::PlatformIntegrationStatus {
+                        integration_key: observation.integration_key,
+                        state: observation.state,
+                        capability: observation.capability,
+                        checked_at: observation.checked_at.to_rfc3339(),
+                    },
+                )
                 .collect();
             self.state
                 .store
@@ -8775,17 +6904,19 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
-            Ok(Response::new(ListPlatformIntegrationsResponse {
-                integrations,
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::ListPlatformIntegrationsResponse {
+                    integrations,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
-    async fn get_platform_settings(
+    pub(crate) async fn get_platform_settings(
         &self,
-        request: Request<GetPlatformSettingsRequest>,
-    ) -> Result<Response<GetPlatformSettingsResponse>, Status> {
+        request: Request<platform_admin_target::GetPlatformSettingsRequest>,
+    ) -> Result<Response<platform_admin_target::GetPlatformSettingsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -8836,20 +6967,598 @@ impl PlatformOperationsRpc for PlatformOperationsRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("platform audit persistence unavailable"))?;
-            Ok(Response::new(GetPlatformSettingsResponse {
-                settings: Some(erpx_proto::platform::PlatformSettingsSummary {
-                    contract_version: u32::from(CONTRACT_VERSION).to_string(),
-                    transport: "tonic gRPC and gRPC-Web".into(),
-                    tenant_isolation: "physical per-holding write/read PostgreSQL databases".into(),
-                    aggregate_authority: "PostgreSQL aggregate state with outbox projection".into(),
-                    billing_authority: "Stripe payment and subscription state".into(),
-                    storage_authority: "MinIO-compatible object storage".into(),
-                    command_owner: format!("ERPX (persisted {command_owner} authority)"),
-                }),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                platform_admin_target::GetPlatformSettingsResponse {
+                    settings: Some(platform_admin_target::PlatformSettingsSummary {
+                        contract_version: u32::from(CONTRACT_VERSION).to_string(),
+                        transport: "tonic gRPC and gRPC-Web".into(),
+                        tenant_isolation: "physical per-holding write/read PostgreSQL databases"
+                            .into(),
+                        aggregate_authority: "PostgreSQL aggregate state with outbox projection"
+                            .into(),
+                        billing_authority: "Stripe payment and subscription state".into(),
+                        storage_authority: "MinIO-compatible object storage".into(),
+                        command_owner: format!("ERPX (persisted {command_owner} authority)"),
+                    }),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
+
+    pub(crate) async fn provision_tenant_branch(
+        &self,
+        request: Request<platform_admin_target::ProvisionTenantBranchRequest>,
+    ) -> Result<Response<platform_admin_target::ProvisionTenantBranchResponse>, Status> {
+        grpc_handler!(request, {
+            let claims = self.state.auth.authorize(&request).await?;
+            let context = command_domain(&request, request.get_ref().context.as_ref())?;
+            require_actor_match(
+                &claims.principal_ref,
+                &context.actor.principal_ref,
+                "command actor must match the authenticated principal",
+            )?;
+            let tenant_id =
+                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?.to_owned();
+            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
+                .get(&tenant_id)
+                .await
+                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+            if registration.state != "active" {
+                return Err(Status::failed_precondition("tenant is not active"));
+            }
+            let holding_id = tenant_holding_scope_id(&registration.holding_ref);
+            let scope = access_scope(&context.tenant_scope);
+            authorize_branch_administration(
+                &self.state,
+                &claims,
+                &request,
+                &scope,
+                &tenant_id,
+                holding_id,
+                true,
+            )
+            .await?;
+            self.state
+                .auth
+                .authorize_mfa_for_tenant(
+                    &self.state.store,
+                    &claims,
+                    &tenant_id,
+                    &request.get_ref().mfa_code,
+                    context.correlation_id,
+                )
+                .await?;
+            require_branch_capacity(&self.state.store, &tenant_id).await?;
+            let input = request.into_inner();
+            let company_id = parse_uuid(&input.company_id, "company_id")?;
+            let branch_id = parse_uuid(&input.branch_id, "branch_id")?;
+            let target_scope = Scope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            };
+            if !scope.contains(&target_scope) {
+                return Err(Status::permission_denied(
+                    "branch provisioning scope is outside the authorized scope",
+                ));
+            }
+            let units = input
+                .enabled_business_units
+                .iter()
+                .map(|unit| {
+                    BusinessUnitId::parse(unit.trim()).map_err(|_| {
+                        Status::invalid_argument("enabled business unit is unsupported")
+                    })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
+            let job = store
+                .enqueue(&erpx_infrastructure::ProvisionBranchRequest {
+                    tenant_id: tenant_id.clone(),
+                    holding_ref: registration.holding_ref,
+                    holding_id,
+                    company_id,
+                    branch_id,
+                    branch_code: input.branch_code,
+                    branch_name: input.branch_name,
+                    registration_number: input.registration_number,
+                    profile_key: validate_transport_reference(
+                        &input.database_profile_key,
+                        "database_profile_key",
+                    )?
+                    .into(),
+                    enabled_business_units: units,
+                    idempotency_key: context.idempotency_key,
+                    requested_by: claims.principal_ref,
+                    correlation_id: context.correlation_id,
+                })
+                .await
+                .map_err(|error| match error {
+                    PersistenceError::InvalidData(message) => Status::failed_precondition(message),
+                    _ => Status::unavailable("branch provisioning queue is unavailable"),
+                })?;
+            let provisioning = branch_provisioning_record(&store, job).await?;
+            Ok(Response::new(
+                platform_admin_target::ProvisionTenantBranchResponse {
+                    provisioning: Some(provisioning),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
+        })
+    }
+
+    pub(crate) async fn get_tenant_branch_provisioning(
+        &self,
+        request: Request<platform_admin_target::GetTenantBranchProvisioningRequest>,
+    ) -> Result<Response<platform_admin_target::GetTenantBranchProvisioningResponse>, Status> {
+        grpc_handler!(request, {
+            let claims = self.state.auth.authorize(&request).await?;
+            let proto_context = request
+                .get_ref()
+                .context
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
+            let query = query_context(&request, Some(&proto_context))?;
+            let tenant_id =
+                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
+            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
+                .get(tenant_id)
+                .await
+                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+            authorize_branch_administration(
+                &self.state,
+                &claims,
+                &request,
+                &query_access_scope(&proto_context)?,
+                tenant_id,
+                tenant_holding_scope_id(&registration.holding_ref),
+                false,
+            )
+            .await?;
+            let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
+            let job = store
+                .get_job(tenant_id, parse_uuid(&request.get_ref().job_id, "job_id")?)
+                .await
+                .map_err(|_| Status::unavailable("branch provisioning status is unavailable"))?
+                .ok_or_else(|| Status::not_found("branch provisioning was not found"))?;
+            Ok(Response::new(
+                platform_admin_target::GetTenantBranchProvisioningResponse {
+                    provisioning: Some(branch_provisioning_record(&store, job).await?),
+                    correlation_id: query.correlation_id.to_string(),
+                },
+            ))
+        })
+    }
+
+    pub(crate) async fn list_tenant_branch_provisionings(
+        &self,
+        request: Request<platform_admin_target::ListTenantBranchProvisioningsRequest>,
+    ) -> Result<Response<platform_admin_target::ListTenantBranchProvisioningsResponse>, Status>
+    {
+        grpc_handler!(request, {
+            let claims = self.state.auth.authorize(&request).await?;
+            let proto_context = request
+                .get_ref()
+                .context
+                .as_ref()
+                .cloned()
+                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
+            let query = query_context(&request, Some(&proto_context))?;
+            let tenant_id =
+                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
+            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
+                .get(tenant_id)
+                .await
+                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+            authorize_branch_administration(
+                &self.state,
+                &claims,
+                &request,
+                &query_access_scope(&proto_context)?,
+                tenant_id,
+                tenant_holding_scope_id(&registration.holding_ref),
+                false,
+            )
+            .await?;
+            let page_size = match request.get_ref().page_size {
+                0 => 50,
+                value if value <= 100 => value,
+                _ => return Err(Status::invalid_argument("page_size must be at most 100")),
+            };
+            let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
+            let jobs = store
+                .list_jobs(tenant_id, page_size)
+                .await
+                .map_err(|_| Status::unavailable("branch provisioning list is unavailable"))?;
+            let mut provisionings = Vec::with_capacity(jobs.len());
+            for job in jobs {
+                provisionings.push(branch_provisioning_record(&store, job).await?);
+            }
+            Ok(Response::new(
+                platform_admin_target::ListTenantBranchProvisioningsResponse {
+                    provisionings,
+                    correlation_id: query.correlation_id.to_string(),
+                },
+            ))
+        })
+    }
+
+    pub(crate) async fn retry_tenant_branch_provisioning(
+        &self,
+        request: Request<platform_admin_target::RetryTenantBranchProvisioningRequest>,
+    ) -> Result<Response<platform_admin_target::RetryTenantBranchProvisioningResponse>, Status>
+    {
+        grpc_handler!(request, {
+            let claims = self.state.auth.authorize(&request).await?;
+            let context = command_domain(&request, request.get_ref().context.as_ref())?;
+            require_actor_match(
+                &claims.principal_ref,
+                &context.actor.principal_ref,
+                "command actor must match the authenticated principal",
+            )?;
+            let tenant_id =
+                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
+            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
+                .get(tenant_id)
+                .await
+                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+            authorize_branch_administration(
+                &self.state,
+                &claims,
+                &request,
+                &access_scope(&context.tenant_scope),
+                tenant_id,
+                tenant_holding_scope_id(&registration.holding_ref),
+                true,
+            )
+            .await?;
+            self.state
+                .auth
+                .authorize_mfa_for_tenant(
+                    &self.state.store,
+                    &claims,
+                    tenant_id,
+                    &request.get_ref().mfa_code,
+                    context.correlation_id,
+                )
+                .await?;
+            require_branch_capacity(&self.state.store, tenant_id).await?;
+            let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
+            let job = store
+                .retry(
+                    tenant_id,
+                    parse_uuid(&request.get_ref().job_id, "job_id")?,
+                    context.correlation_id,
+                    Utc::now(),
+                )
+                .await
+                .map_err(|_| Status::failed_precondition("branch provisioning is not retryable"))?;
+            Ok(Response::new(
+                platform_admin_target::RetryTenantBranchProvisioningResponse {
+                    provisioning: Some(branch_provisioning_record(&store, job).await?),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
+        })
+    }
+
+    pub(crate) async fn suspend_tenant_branch_route(
+        &self,
+        request: Request<platform_admin_target::SuspendTenantBranchRouteRequest>,
+    ) -> Result<Response<platform_admin_target::SuspendTenantBranchRouteResponse>, Status> {
+        grpc_handler!(request, {
+            let claims = self.state.auth.authorize(&request).await?;
+            let context = command_domain(&request, request.get_ref().context.as_ref())?;
+            require_actor_match(
+                &claims.principal_ref,
+                &context.actor.principal_ref,
+                "command actor must match the authenticated principal",
+            )?;
+            let tenant_id =
+                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
+            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
+                .get(tenant_id)
+                .await
+                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
+                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
+            authorize_branch_administration(
+                &self.state,
+                &claims,
+                &request,
+                &access_scope(&context.tenant_scope),
+                tenant_id,
+                tenant_holding_scope_id(&registration.holding_ref),
+                true,
+            )
+            .await?;
+            self.state
+                .auth
+                .authorize_mfa_for_tenant(
+                    &self.state.store,
+                    &claims,
+                    tenant_id,
+                    &request.get_ref().mfa_code,
+                    context.correlation_id,
+                )
+                .await?;
+            let branch_id = parse_uuid(&request.get_ref().branch_id, "branch_id")?;
+            let route = SqlxBranchProvisioningStore::new(self.state.store.clone())
+                .suspend(tenant_id, branch_id, Utc::now())
+                .await
+                .map_err(|_| Status::failed_precondition("active branch route was not found"))?;
+            Ok(Response::new(
+                platform_admin_target::SuspendTenantBranchRouteResponse {
+                    tenant_id: route.tenant_id,
+                    branch_id: route.branch_id.to_string(),
+                    state: route.state.as_str().into(),
+                    route_version: route.route_version,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
+        })
+    }
+}
+
+#[derive(Clone)]
+struct PlatformAdministrationCommandComposite<A, G> {
+    current: PlatformAdministrationCommandRpc<A, G>,
+    operations: PlatformOperationsRpcImpl,
+    migration: migration::MigrationRpcImpl,
+    data_plane: data_plane_rpc::DataPlaneControlRpcImpl,
+}
+
+#[derive(Clone)]
+struct PlatformAdministrationQueryComposite<A, G> {
+    current: PlatformAdministrationQueryRpc<A, G>,
+    operations: PlatformOperationsRpcImpl,
+    migration: migration::MigrationRpcImpl,
+    data_plane: data_plane_rpc::DataPlaneControlRpcImpl,
+}
+
+macro_rules! forward_platform_operation_command {
+    ($name:ident, $target_request:ty, $target_response:ty) => {
+        fn $name<'life0, 'async_trait>(
+            &'life0 self,
+            request: Request<$target_request>,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<Response<$target_response>, Status>>
+                    + Send
+                    + 'async_trait,
+            >,
+        >
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(async move { self.operations.$name(request).await })
+        }
+    };
+}
+
+macro_rules! forward_platform_operation_query {
+    ($target_name:ident, $legacy_name:ident, $target_request:ty, $target_response:ty) => {
+        fn $target_name<'life0, 'async_trait>(
+            &'life0 self,
+            request: Request<$target_request>,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<Response<$target_response>, Status>>
+                    + Send
+                    + 'async_trait,
+            >,
+        >
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(async move { self.operations.$legacy_name(request).await })
+        }
+    };
+}
+
+macro_rules! forward_migration_command {
+    ($name:ident, $target_request:ty, $target_response:ty) => {
+        fn $name<'life0, 'async_trait>(
+            &'life0 self,
+            request: Request<$target_request>,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<Response<$target_response>, Status>>
+                    + Send
+                    + 'async_trait,
+            >,
+        >
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(async move { self.migration.$name(request).await })
+        }
+    };
+}
+
+macro_rules! forward_data_plane_rpc {
+    ($name:ident, $target_request:ty, $target_response:ty) => {
+        fn $name<'life0, 'async_trait>(
+            &'life0 self,
+            request: Request<$target_request>,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = Result<Response<$target_response>, Status>>
+                    + Send
+                    + 'async_trait,
+            >,
+        >
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(async move { self.data_plane.$name(request).await })
+        }
+    };
+}
+
+#[tonic::async_trait]
+impl<A, G>
+    platform_admin_target::platform_administration_command_service_server::PlatformAdministrationCommandService
+    for PlatformAdministrationCommandComposite<A, G>
+where
+    A: contexts::platform_administration_cqrs::PlatformAdministrationCommandApplication,
+    G: contexts::platform_administration_cqrs::PlatformAdministrationRequestAuthenticator,
+{
+    async fn register_tenant(
+        &self,
+        request: Request<platform_admin_target::RegisterPlatformTenantRequest>,
+    ) -> Result<Response<platform_admin_target::RegisterPlatformTenantResponse>, Status> {
+        self.current.register_tenant(request).await
+    }
+
+    async fn transition_tenant(
+        &self,
+        request: Request<platform_admin_target::TransitionPlatformTenantRequest>,
+    ) -> Result<Response<platform_admin_target::TransitionPlatformTenantResponse>, Status> {
+        self.current.transition_tenant(request).await
+    }
+
+    async fn register_connector(
+        &self,
+        request: Request<platform_admin_target::RegisterPlatformConnectorRequest>,
+    ) -> Result<Response<platform_admin_target::RegisterPlatformConnectorResponse>, Status> {
+        self.current.register_connector(request).await
+    }
+
+    async fn transition_connector(
+        &self,
+        request: Request<platform_admin_target::TransitionPlatformConnectorRequest>,
+    ) -> Result<Response<platform_admin_target::TransitionPlatformConnectorResponse>, Status> {
+        self.current.transition_connector(request).await
+    }
+
+    async fn issue_admin_context(
+        &self,
+        request: Request<platform_admin_target::IssuePlatformTenantAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::IssuePlatformTenantAdminContextResponse>, Status> {
+        self.current.issue_admin_context(request).await
+    }
+
+    async fn revoke_admin_context(
+        &self,
+        request: Request<platform_admin_target::RevokePlatformTenantAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::RevokePlatformTenantAdminContextResponse>, Status> {
+        self.current.revoke_admin_context(request).await
+    }
+
+    forward_platform_operation_command!(begin_tenant_admin_context, platform_admin_target::BeginTenantAdminContextRequest, platform_admin_target::BeginTenantAdminContextResponse);
+    forward_platform_operation_command!(end_tenant_admin_context, platform_admin_target::EndTenantAdminContextRequest, platform_admin_target::EndTenantAdminContextResponse);
+    forward_platform_operation_command!(begin_tenant_provisioning, platform_admin_target::BeginTenantProvisioningRequest, platform_admin_target::BeginTenantProvisioningResponse);
+    forward_platform_operation_command!(provision_tenant_resources, platform_admin_target::ProvisionTenantResourcesRequest, platform_admin_target::ProvisionTenantResourcesResponse);
+    forward_platform_operation_command!(activate_tenant, platform_admin_target::TransitionTenantStateRequest, platform_admin_target::TransitionTenantStateResponse);
+    forward_platform_operation_command!(suspend_tenant, platform_admin_target::TransitionTenantStateRequest, platform_admin_target::TransitionTenantStateResponse);
+    forward_platform_operation_command!(enter_tenant_recovery, platform_admin_target::TransitionTenantStateRequest, platform_admin_target::TransitionTenantStateResponse);
+    forward_platform_operation_command!(schedule_tenant_backup, platform_admin_target::ScheduleTenantBackupRequest, platform_admin_target::ScheduleTenantBackupResponse);
+    forward_platform_operation_command!(schedule_cluster_base_backup, platform_admin_target::ScheduleClusterBaseBackupRequest, platform_admin_target::ScheduleClusterBaseBackupResponse);
+    forward_platform_operation_command!(start_cluster_restore_rehearsal, platform_admin_target::StartClusterRestoreRehearsalRequest, platform_admin_target::StartClusterRestoreRehearsalResponse);
+    forward_platform_operation_command!(start_projection_rebuild, platform_admin_target::StartProjectionRebuildRequest, platform_admin_target::StartProjectionRebuildResponse);
+    forward_platform_operation_command!(activate_projection_rebuild, platform_admin_target::ActivateProjectionRebuildRequest, platform_admin_target::ActivateProjectionRebuildResponse);
+    forward_platform_operation_command!(replay_dead_letter_outbox, platform_admin_target::ReplayDeadLetterOutboxRequest, platform_admin_target::ReplayDeadLetterOutboxResponse);
+    forward_platform_operation_command!(provision_tenant_branch, platform_admin_target::ProvisionTenantBranchRequest, platform_admin_target::ProvisionTenantBranchResponse);
+    forward_platform_operation_command!(retry_tenant_branch_provisioning, platform_admin_target::RetryTenantBranchProvisioningRequest, platform_admin_target::RetryTenantBranchProvisioningResponse);
+    forward_platform_operation_command!(suspend_tenant_branch_route, platform_admin_target::SuspendTenantBranchRouteRequest, platform_admin_target::SuspendTenantBranchRouteResponse);
+    forward_migration_command!(queue_migration_work, platform_admin_target::QueueMigrationWorkRequest, platform_admin_target::QueueMigrationWorkResponse);
+    forward_migration_command!(begin_migration_run, platform_admin_target::BeginMigrationRunRequest, platform_admin_target::BeginMigrationRunResponse);
+    forward_migration_command!(advance_migration_phase, platform_admin_target::AdvanceMigrationPhaseRequest, platform_admin_target::AdvanceMigrationPhaseResponse);
+    forward_data_plane_rpc!(save_tenant_infrastructure_profile, platform_admin_target::SaveTenantInfrastructureProfileRequest, platform_admin_target::SaveTenantInfrastructureProfileResponse);
+    forward_data_plane_rpc!(save_business_unit_configuration, platform_admin_target::SaveBusinessUnitConfigurationRequest, platform_admin_target::SaveBusinessUnitConfigurationResponse);
+    forward_data_plane_rpc!(issue_data_plane_enrollment, platform_admin_target::IssueDataPlaneEnrollmentRequest, platform_admin_target::IssueDataPlaneEnrollmentResponse);
+    forward_data_plane_rpc!(propose_desired_configuration, platform_admin_target::ProposeDesiredConfigurationRequest, platform_admin_target::ProposeDesiredConfigurationResponse);
+    forward_data_plane_rpc!(decide_desired_configuration, platform_admin_target::DecideDesiredConfigurationRequest, platform_admin_target::DecideDesiredConfigurationResponse);
+    forward_data_plane_rpc!(request_root_access, platform_admin_target::RequestRootAccessRequest, platform_admin_target::RequestRootAccessResponse);
+    forward_data_plane_rpc!(decide_root_access, platform_admin_target::DecideRootAccessRequest, platform_admin_target::DecideRootAccessResponse);
+    forward_data_plane_rpc!(revoke_root_access, platform_admin_target::RevokeRootAccessRequest, platform_admin_target::RevokeRootAccessResponse);
+    forward_data_plane_rpc!(save_corporate_identity_draft, platform_admin_target::SaveCorporateIdentityDraftRequest, platform_admin_target::SaveCorporateIdentityDraftResponse);
+    forward_data_plane_rpc!(publish_corporate_identity_draft, platform_admin_target::PublishCorporateIdentityDraftRequest, platform_admin_target::PublishCorporateIdentityDraftResponse);
+    forward_data_plane_rpc!(rollback_corporate_identity, platform_admin_target::RollbackCorporateIdentityRequest, platform_admin_target::RollbackCorporateIdentityResponse);
+}
+
+#[tonic::async_trait]
+impl<A, G>
+    platform_admin_target::platform_administration_query_service_server::PlatformAdministrationQueryService
+    for PlatformAdministrationQueryComposite<A, G>
+where
+    A: contexts::platform_administration_cqrs::PlatformAdministrationQueryApplication,
+    G: contexts::platform_administration_cqrs::PlatformAdministrationRequestAuthenticator,
+{
+    async fn get_tenant(
+        &self,
+        request: Request<platform_admin_target::GetPlatformAdministrationTenantRequest>,
+    ) -> Result<Response<platform_admin_target::GetPlatformAdministrationTenantResponse>, Status> {
+        self.current.get_tenant(request).await
+    }
+
+    async fn list_tenants(
+        &self,
+        request: Request<platform_admin_target::ListPlatformAdministrationTenantsRequest>,
+    ) -> Result<Response<platform_admin_target::ListPlatformAdministrationTenantsResponse>, Status> {
+        self.current.list_tenants(request).await
+    }
+
+    async fn get_connector(
+        &self,
+        request: Request<platform_admin_target::GetPlatformAdministrationConnectorRequest>,
+    ) -> Result<Response<platform_admin_target::GetPlatformAdministrationConnectorResponse>, Status> {
+        self.current.get_connector(request).await
+    }
+
+    async fn list_connectors(
+        &self,
+        request: Request<platform_admin_target::ListPlatformAdministrationConnectorsRequest>,
+    ) -> Result<Response<platform_admin_target::ListPlatformAdministrationConnectorsResponse>, Status> {
+        self.current.list_connectors(request).await
+    }
+
+    async fn get_admin_context(
+        &self,
+        request: Request<platform_admin_target::GetPlatformTenantAdminContextRequest>,
+    ) -> Result<Response<platform_admin_target::GetPlatformTenantAdminContextResponse>, Status> {
+        self.current.get_admin_context(request).await
+    }
+
+    forward_platform_operation_query!(list_operational_tenants, list_tenants, platform_admin_target::ListPlatformTenantsRequest, platform_admin_target::ListPlatformTenantsResponse);
+    forward_platform_operation_query!(get_operational_tenant, get_tenant, platform_admin_target::GetPlatformTenantRequest, platform_admin_target::GetPlatformTenantResponse);
+    forward_platform_operation_query!(list_tenant_control_history, list_tenant_control_history, platform_admin_target::ListTenantControlHistoryRequest, platform_admin_target::ListTenantControlHistoryResponse);
+    forward_platform_operation_query!(get_tenant_admin_context, get_tenant_admin_context, platform_admin_target::GetTenantAdminContextRequest, platform_admin_target::GetTenantAdminContextResponse);
+    forward_platform_operation_query!(discover_tenant_organization_units, discover_tenant_organization_units, platform_admin_target::DiscoverTenantOrganizationUnitsRequest, platform_admin_target::DiscoverTenantOrganizationUnitsResponse);
+    forward_platform_operation_query!(list_tenant_backup_jobs, list_tenant_backup_jobs, platform_admin_target::ListTenantBackupJobsRequest, platform_admin_target::ListTenantBackupJobsResponse);
+    forward_platform_operation_query!(list_cluster_recovery_points, list_cluster_recovery_points, platform_admin_target::ListClusterRecoveryPointsRequest, platform_admin_target::ListClusterRecoveryPointsResponse);
+    forward_platform_operation_query!(get_cluster_restore_rehearsal, get_cluster_restore_rehearsal, platform_admin_target::GetClusterRestoreRehearsalRequest, platform_admin_target::GetClusterRestoreRehearsalResponse);
+    forward_platform_operation_query!(list_projection_statuses, list_projection_statuses, platform_admin_target::ListProjectionStatusesRequest, platform_admin_target::ListProjectionStatusesResponse);
+    forward_platform_operation_query!(list_platform_audit, list_platform_audit, platform_admin_target::ListPlatformAuditRequest, platform_admin_target::ListPlatformAuditResponse);
+    forward_platform_operation_query!(list_platform_integrations, list_platform_integrations, platform_admin_target::ListPlatformIntegrationsRequest, platform_admin_target::ListPlatformIntegrationsResponse);
+    forward_platform_operation_query!(get_platform_settings, get_platform_settings, platform_admin_target::GetPlatformSettingsRequest, platform_admin_target::GetPlatformSettingsResponse);
+    forward_platform_operation_query!(get_tenant_branch_provisioning, get_tenant_branch_provisioning, platform_admin_target::GetTenantBranchProvisioningRequest, platform_admin_target::GetTenantBranchProvisioningResponse);
+    forward_platform_operation_query!(list_tenant_branch_provisionings, list_tenant_branch_provisionings, platform_admin_target::ListTenantBranchProvisioningsRequest, platform_admin_target::ListTenantBranchProvisioningsResponse);
+
+    async fn list_migration_statuses(
+        &self,
+        request: Request<platform_admin_target::ListMigrationStatusesRequest>,
+    ) -> Result<Response<platform_admin_target::ListMigrationStatusesResponse>, Status> {
+        self.migration.list_migration_statuses(request).await
+    }
+
+    forward_data_plane_rpc!(get_tenant_infrastructure, platform_admin_target::GetTenantInfrastructureRequest, platform_admin_target::GetTenantInfrastructureResponse);
+    forward_data_plane_rpc!(get_business_unit_configuration, platform_admin_target::GetBusinessUnitConfigurationRequest, platform_admin_target::GetBusinessUnitConfigurationResponse);
+    forward_data_plane_rpc!(list_root_access_requests, platform_admin_target::ListRootAccessRequestsRequest, platform_admin_target::ListRootAccessRequestsResponse);
+    forward_data_plane_rpc!(get_resolved_corporate_identity, platform_admin_target::GetResolvedCorporateIdentityRequest, platform_admin_target::GetResolvedCorporateIdentityResponse);
+    forward_data_plane_rpc!(get_corporate_identity_draft, platform_admin_target::GetCorporateIdentityDraftRequest, platform_admin_target::GetCorporateIdentityDraftResponse);
+    forward_data_plane_rpc!(list_corporate_identity_history, platform_admin_target::ListCorporateIdentityHistoryRequest, platform_admin_target::ListCorporateIdentityHistoryResponse);
+    forward_data_plane_rpc!(get_navigation_manifest, platform_admin_target::GetNavigationManifestRequest, platform_admin_target::GetNavigationManifestResponse);
 }
 
 #[derive(Clone)]
@@ -8948,12 +7657,11 @@ impl DirectoryRpcImpl {
     }
 }
 
-#[tonic::async_trait]
-impl DirectoryRpc for DirectoryRpcImpl {
+impl DirectoryRpcImpl {
     async fn list_directory_connectors(
         &self,
-        request: Request<ListDirectoryConnectorsRequest>,
-    ) -> Result<Response<ListDirectoryConnectorsResponse>, Status> {
+        request: Request<identity_target::ListDirectoryConnectorsRequest>,
+    ) -> Result<Response<identity_target::ListDirectoryConnectorsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -9016,27 +7724,29 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
-            Ok(Response::new(ListDirectoryConnectorsResponse {
-                connectors,
-                correlation_id: context.correlation_id.to_string(),
-                readiness_state: if self.runtime_enabled {
-                    "enabled".into()
-                } else {
-                    "disabled".into()
+            Ok(Response::new(
+                identity_target::ListDirectoryConnectorsResponse {
+                    connectors,
+                    correlation_id: context.correlation_id.to_string(),
+                    readiness_state: if self.runtime_enabled {
+                        "enabled".into()
+                    } else {
+                        "disabled".into()
+                    },
+                    readiness_detail: if self.runtime_enabled {
+                        "connector runtime enabled".into()
+                    } else {
+                        "development profile: LDAP, AD DS, and UCS workers are disabled".into()
+                    },
                 },
-                readiness_detail: if self.runtime_enabled {
-                    "connector runtime enabled".into()
-                } else {
-                    "development profile: LDAP, AD DS, and UCS workers are disabled".into()
-                },
-            }))
+            ))
         })
     }
 
     async fn save_directory_connector(
         &self,
-        request: Request<SaveDirectoryConnectorRequest>,
-    ) -> Result<Response<SaveDirectoryConnectorResponse>, Status> {
+        request: Request<identity_target::SaveDirectoryConnectorRequest>,
+    ) -> Result<Response<identity_target::SaveDirectoryConnectorResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -9238,17 +7948,19 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
-            Ok(Response::new(SaveDirectoryConnectorResponse {
-                connector: Some(directory_connector_summary(snapshot)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                identity_target::SaveDirectoryConnectorResponse {
+                    connector: Some(directory_connector_summary(snapshot)),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn start_directory_import(
         &self,
-        request: Request<StartDirectoryImportRequest>,
-    ) -> Result<Response<StartDirectoryImportResponse>, Status> {
+        request: Request<identity_target::StartDirectoryImportRequest>,
+    ) -> Result<Response<identity_target::StartDirectoryImportResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -9336,19 +8048,21 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
-            Ok(Response::new(StartDirectoryImportResponse {
-                connector_id: connector_id.to_string(),
-                page_count: plan.page_count(),
-                status: "queued".into(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                identity_target::StartDirectoryImportResponse {
+                    connector_id: connector_id.to_string(),
+                    page_count: plan.page_count(),
+                    status: "queued".into(),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn get_directory_import_status(
         &self,
-        request: Request<GetDirectoryImportStatusRequest>,
-    ) -> Result<Response<GetDirectoryImportStatusResponse>, Status> {
+        request: Request<identity_target::GetDirectoryImportStatusRequest>,
+    ) -> Result<Response<identity_target::GetDirectoryImportStatusResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -9406,17 +8120,19 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
-            Ok(Response::new(GetDirectoryImportStatusResponse {
-                status: Some(directory_import_status_message(status)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                identity_target::GetDirectoryImportStatusResponse {
+                    status: Some(directory_import_status_message(status)),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn list_directory_role_mappings(
         &self,
-        request: Request<ListDirectoryRoleMappingsRequest>,
-    ) -> Result<Response<ListDirectoryRoleMappingsResponse>, Status> {
+        request: Request<identity_target::ListDirectoryRoleMappingsRequest>,
+    ) -> Result<Response<identity_target::ListDirectoryRoleMappingsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -9451,7 +8167,7 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 .map_err(|_| Status::internal("directory role mapping read failed"))?
                 .into_iter()
                 .map(
-                    |mapping: DirectoryRoleMapping| DirectoryRoleMappingMessage {
+                    |mapping: DirectoryRoleMapping| identity_target::DirectoryRoleMappingMessage {
                         connector_id: mapping.connector_id.to_string(),
                         group_ref: mapping.group_ref,
                         role_ref: mapping.role_ref,
@@ -9462,17 +8178,19 @@ impl DirectoryRpc for DirectoryRpcImpl {
                     },
                 )
                 .collect();
-            Ok(Response::new(ListDirectoryRoleMappingsResponse {
-                mappings,
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                identity_target::ListDirectoryRoleMappingsResponse {
+                    mappings,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn list_directory_identity_links(
         &self,
-        request: Request<ListDirectoryIdentityLinksRequest>,
-    ) -> Result<Response<ListDirectoryIdentityLinksResponse>, Status> {
+        request: Request<identity_target::ListDirectoryIdentityLinksRequest>,
+    ) -> Result<Response<identity_target::ListDirectoryIdentityLinksResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -9530,7 +8248,7 @@ impl DirectoryRpc for DirectoryRpcImpl {
             };
             let links = links
                 .into_iter()
-                .map(|link| DirectoryIdentityLinkSummary {
+                .map(|link| identity_target::DirectoryIdentityLinkSummary {
                     connector_id: link.connector_id.to_string(),
                     external_subject: link.external_object_id,
                     immutable_identity_key: link.identity_link.unwrap_or_default(),
@@ -9564,19 +8282,21 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
-            Ok(Response::new(ListDirectoryIdentityLinksResponse {
-                links,
-                has_more,
-                next_after_identity_link,
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                identity_target::ListDirectoryIdentityLinksResponse {
+                    links,
+                    has_more,
+                    next_after_identity_link,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn save_directory_role_mapping(
         &self,
-        request: Request<SaveDirectoryRoleMappingRequest>,
-    ) -> Result<Response<SaveDirectoryRoleMappingResponse>, Status> {
+        request: Request<identity_target::SaveDirectoryRoleMappingRequest>,
+    ) -> Result<Response<identity_target::SaveDirectoryRoleMappingResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -9690,25 +8410,27 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
-            Ok(Response::new(SaveDirectoryRoleMappingResponse {
-                mapping: Some(DirectoryRoleMappingMessage {
-                    connector_id: mapping.connector_id.to_string(),
-                    group_ref: mapping.group_ref,
-                    role_ref: mapping.role_ref,
-                    scope_key: mapping.scope.canonical_key().unwrap_or_default(),
-                    requires_mfa: mapping.requires_mfa,
-                    active: mapping.active,
-                    revision: mapping.revision,
-                }),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                identity_target::SaveDirectoryRoleMappingResponse {
+                    mapping: Some(identity_target::DirectoryRoleMappingMessage {
+                        connector_id: mapping.connector_id.to_string(),
+                        group_ref: mapping.group_ref,
+                        role_ref: mapping.role_ref,
+                        scope_key: mapping.scope.canonical_key().unwrap_or_default(),
+                        requires_mfa: mapping.requires_mfa,
+                        active: mapping.active,
+                        revision: mapping.revision,
+                    }),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn preflight_directory_connector(
         &self,
-        request: Request<erpx_proto::platform::PreflightDirectoryConnectorRequest>,
-    ) -> Result<Response<erpx_proto::platform::PreflightDirectoryConnectorResponse>, Status> {
+        request: Request<identity_target::PreflightDirectoryConnectorRequest>,
+    ) -> Result<Response<identity_target::PreflightDirectoryConnectorResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -9820,7 +8542,7 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 )));
             }
             Ok(Response::new(
-                erpx_proto::platform::PreflightDirectoryConnectorResponse {
+                identity_target::PreflightDirectoryConnectorResponse {
                     connector_id: connector_id.to_string(),
                     lifecycle: lifecycle.as_str().into(),
                     tls_verified: true,
@@ -9835,8 +8557,8 @@ impl DirectoryRpc for DirectoryRpcImpl {
 
     async fn transition_directory_connector_lifecycle(
         &self,
-        request: Request<erpx_proto::platform::TransitionDirectoryConnectorLifecycleRequest>,
-    ) -> Result<Response<erpx_proto::platform::TransitionDirectoryConnectorLifecycleResponse>, Status>
+        request: Request<identity_target::TransitionDirectoryConnectorLifecycleRequest>,
+    ) -> Result<Response<identity_target::TransitionDirectoryConnectorLifecycleResponse>, Status>
     {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
@@ -9907,7 +8629,7 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 .await
                 .map_err(|error| Status::failed_precondition(error.to_string()))?;
             Ok(Response::new(
-                erpx_proto::platform::TransitionDirectoryConnectorLifecycleResponse {
+                identity_target::TransitionDirectoryConnectorLifecycleResponse {
                     connector_id: connector_id.to_string(),
                     lifecycle: lifecycle.as_str().into(),
                     correlation_id: context.correlation_id.to_string(),
@@ -9918,8 +8640,8 @@ impl DirectoryRpc for DirectoryRpcImpl {
 
     async fn link_directory_principal(
         &self,
-        request: Request<erpx_proto::platform::LinkDirectoryPrincipalRequest>,
-    ) -> Result<Response<erpx_proto::platform::LinkDirectoryPrincipalResponse>, Status> {
+        request: Request<identity_target::LinkDirectoryPrincipalRequest>,
+    ) -> Result<Response<identity_target::LinkDirectoryPrincipalResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -9968,7 +8690,7 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 .await
                 .map_err(|error| Status::failed_precondition(error.to_string()))?;
             Ok(Response::new(
-                erpx_proto::platform::LinkDirectoryPrincipalResponse {
+                identity_target::LinkDirectoryPrincipalResponse {
                     binding_id: binding.binding_id.to_string(),
                     connector_id: binding.connector_id.to_string(),
                     external_subject: binding.external_object_id,
@@ -9983,8 +8705,8 @@ impl DirectoryRpc for DirectoryRpcImpl {
 
     async fn unlink_directory_principal(
         &self,
-        request: Request<erpx_proto::platform::UnlinkDirectoryPrincipalRequest>,
-    ) -> Result<Response<erpx_proto::platform::UnlinkDirectoryPrincipalResponse>, Status> {
+        request: Request<identity_target::UnlinkDirectoryPrincipalRequest>,
+    ) -> Result<Response<identity_target::UnlinkDirectoryPrincipalResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -10032,7 +8754,7 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 .await
                 .map_err(|error| Status::failed_precondition(error.to_string()))?;
             Ok(Response::new(
-                erpx_proto::platform::UnlinkDirectoryPrincipalResponse {
+                identity_target::UnlinkDirectoryPrincipalResponse {
                     connector_id: connector_id.to_string(),
                     external_subject: input.external_subject.trim().into(),
                     unlinked: true,
@@ -10044,9 +8766,8 @@ impl DirectoryRpc for DirectoryRpcImpl {
 
     async fn get_directory_connector_readiness(
         &self,
-        request: Request<erpx_proto::platform::GetDirectoryConnectorReadinessRequest>,
-    ) -> Result<Response<erpx_proto::platform::GetDirectoryConnectorReadinessResponse>, Status>
-    {
+        request: Request<identity_target::GetDirectoryConnectorReadinessRequest>,
+    ) -> Result<Response<identity_target::GetDirectoryConnectorReadinessResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -10072,7 +8793,7 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 .await
                 .map_err(|_| Status::internal("directory readiness read failed"))?;
             Ok(Response::new(
-                erpx_proto::platform::GetDirectoryConnectorReadinessResponse {
+                identity_target::GetDirectoryConnectorReadinessResponse {
                     connector_id: connector_id.to_string(),
                     lifecycle: readiness.lifecycle.as_str().into(),
                     readiness: readiness.readiness(Utc::now()).into(),
@@ -10101,8 +8822,8 @@ impl DirectoryRpc for DirectoryRpcImpl {
 
     async fn reconcile_directory_connector(
         &self,
-        request: Request<erpx_proto::platform::ReconcileDirectoryConnectorRequest>,
-    ) -> Result<Response<erpx_proto::platform::ReconcileDirectoryConnectorResponse>, Status> {
+        request: Request<identity_target::ReconcileDirectoryConnectorRequest>,
+    ) -> Result<Response<identity_target::ReconcileDirectoryConnectorResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -10158,7 +8879,7 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
             Ok(Response::new(
-                erpx_proto::platform::ReconcileDirectoryConnectorResponse {
+                identity_target::ReconcileDirectoryConnectorResponse {
                     connector_id: connector_id.to_string(),
                     state: if readiness.unresolved_conflicts == 0 {
                         "reconciled"
@@ -10175,8 +8896,8 @@ impl DirectoryRpc for DirectoryRpcImpl {
 
     async fn list_directory_conflicts(
         &self,
-        request: Request<ListDirectoryConflictsRequest>,
-    ) -> Result<Response<ListDirectoryConflictsResponse>, Status> {
+        request: Request<identity_target::ListDirectoryConflictsRequest>,
+    ) -> Result<Response<identity_target::ListDirectoryConflictsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -10237,17 +8958,20 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
-            Ok(Response::new(ListDirectoryConflictsResponse {
-                conflicts,
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                identity_target::ListDirectoryConflictsResponse {
+                    conflicts,
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn propose_directory_identity_replacement(
         &self,
-        request: Request<ProposeDirectoryIdentityReplacementRequest>,
-    ) -> Result<Response<ProposeDirectoryIdentityReplacementResponse>, Status> {
+        request: Request<identity_target::ProposeDirectoryIdentityReplacementRequest>,
+    ) -> Result<Response<identity_target::ProposeDirectoryIdentityReplacementResponse>, Status>
+    {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -10327,17 +9051,20 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
-            Ok(Response::new(ProposeDirectoryIdentityReplacementResponse {
-                conflict: Some(directory_conflict_summary(conflict)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                identity_target::ProposeDirectoryIdentityReplacementResponse {
+                    conflict: Some(directory_conflict_summary(conflict)),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn approve_directory_identity_replacement(
         &self,
-        request: Request<ApproveDirectoryIdentityReplacementRequest>,
-    ) -> Result<Response<ApproveDirectoryIdentityReplacementResponse>, Status> {
+        request: Request<identity_target::ApproveDirectoryIdentityReplacementRequest>,
+    ) -> Result<Response<identity_target::ApproveDirectoryIdentityReplacementResponse>, Status>
+    {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -10417,17 +9144,19 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
-            Ok(Response::new(ApproveDirectoryIdentityReplacementResponse {
-                conflict: Some(directory_conflict_summary(conflict)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                identity_target::ApproveDirectoryIdentityReplacementResponse {
+                    conflict: Some(directory_conflict_summary(conflict)),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn reject_directory_identity_replacement(
         &self,
-        request: Request<RejectDirectoryIdentityReplacementRequest>,
-    ) -> Result<Response<RejectDirectoryIdentityReplacementResponse>, Status> {
+        request: Request<identity_target::RejectDirectoryIdentityReplacementRequest>,
+    ) -> Result<Response<identity_target::RejectDirectoryIdentityReplacementResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -10507,2764 +9236,12 @@ impl DirectoryRpc for DirectoryRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::internal("directory audit failed"))?;
-            Ok(Response::new(RejectDirectoryIdentityReplacementResponse {
-                conflict: Some(directory_conflict_summary(conflict)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-}
-
-struct OrganizationRpcImpl {
-    state: AppState,
-}
-
-async fn authorize_organization_target<T>(
-    state: &AppState,
-    request: &Request<T>,
-    claims: &AccessTokenClaims,
-    scope: &Scope,
-    tenant_id: &str,
-    holding_id: Uuid,
-    permission: &str,
-) -> Result<(), Status> {
-    let scope_holding_id = match scope {
-        Scope::Platform => holding_id,
-        Scope::Holding { holding_id }
-        | Scope::Company { holding_id, .. }
-        | Scope::Branch { holding_id, .. }
-        | Scope::Subtree { holding_id, .. } => *holding_id,
-    };
-    if scope_holding_id != holding_id {
-        return Err(Status::permission_denied(
-            "organization scope does not match the tenant holding",
-        ));
-    }
-    state
-        .auth
-        .authorize_role_for_tenant(&state.store, claims, scope, permission, Some(tenant_id))
-        .await?;
-    if matches!(scope, Scope::Platform)
-        || claims.principal_ref == erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL
-    {
-        validate_tenant_admin_context(state, request, claims, tenant_id, holding_id).await?;
-    }
-    Ok(())
-}
-
-fn organization_target_scope(
-    kind: OrganizationNodeKind,
-    node_id: Uuid,
-    holding_id: Uuid,
-    company_id: Option<Uuid>,
-    branch_id: Option<Uuid>,
-) -> Result<Scope, Status> {
-    match kind {
-        OrganizationNodeKind::Holding => {
-            if node_id != holding_id {
-                return Err(Status::invalid_argument(
-                    "holding node_id must equal holding_id",
-                ));
-            }
-            Ok(Scope::Holding { holding_id })
-        }
-        OrganizationNodeKind::Company => Ok(Scope::Company {
-            holding_id,
-            company_id: node_id,
-        }),
-        OrganizationNodeKind::Headquarters => Ok(Scope::Company {
-            holding_id,
-            company_id: company_id
-                .filter(|value| !value.is_nil())
-                .ok_or_else(|| Status::invalid_argument("company_id is required"))?,
-        }),
-        OrganizationNodeKind::Branch => Ok(Scope::Branch {
-            holding_id,
-            company_id: company_id
-                .filter(|value| !value.is_nil())
-                .ok_or_else(|| Status::invalid_argument("company_id is required"))?,
-            branch_id: node_id,
-        }),
-        OrganizationNodeKind::Department | OrganizationNodeKind::Team => {
-            let company_id = company_id
-                .filter(|value| !value.is_nil())
-                .ok_or_else(|| Status::invalid_argument("company_id is required"))?;
-            Ok(branch_id.map_or(
-                Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-                |branch_id| Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
+            Ok(Response::new(
+                identity_target::RejectDirectoryIdentityReplacementResponse {
+                    conflict: Some(directory_conflict_summary(conflict)),
+                    correlation_id: context.correlation_id.to_string(),
                 },
             ))
-        }
-    }
-}
-
-fn organization_persistence_status(error: PersistenceError, correlation_id: Uuid) -> Status {
-    let status = match error {
-        PersistenceError::OptimisticConcurrency { .. }
-        | PersistenceError::IdempotencyConflict { .. } => {
-            Status::aborted("organization command conflicts with the current state")
-        }
-        PersistenceError::NotFound { .. } => Status::not_found("organization node not found"),
-        PersistenceError::InvalidData(_) => {
-            Status::failed_precondition("organization node cannot be persisted or read")
-        }
-        PersistenceError::Configuration(_) => {
-            Status::failed_precondition("organization persistence is not configured")
-        }
-        PersistenceError::Database(_) | PersistenceError::Migration(_) => {
-            Status::unavailable("organization persistence is unavailable")
-        }
-        PersistenceError::Serialization(_) => Status::internal("organization persistence failed"),
-        PersistenceError::ClaimLost { .. } => {
-            Status::aborted("organization command ownership changed")
-        }
-    };
-    errors::enrich(status, Some(correlation_id))
-}
-
-fn organization_node_message(
-    node: erpx_infrastructure::OrganizationReadNode,
-) -> erpx_proto::platform::OrganizationNode {
-    erpx_proto::platform::OrganizationNode {
-        kind: node.kind.as_str().into(),
-        node_id: node.node_id.to_string(),
-        holding_id: node.holding_id.to_string(),
-        company_id: node
-            .company_id
-            .map_or_else(String::new, |value| value.to_string()),
-        branch_id: node
-            .branch_id
-            .map_or_else(String::new, |value| value.to_string()),
-        department_id: node
-            .department_id
-            .map_or_else(String::new, |value| value.to_string()),
-        code: node.code,
-        name: node.name,
-        registration_number: node.registration_number,
-        status: node.status,
-        aggregate_version: node.aggregate_version,
-        updated_at: node.updated_at.to_rfc3339(),
-    }
-}
-
-async fn authorize_branch_administration<T>(
-    state: &AppState,
-    claims: &AccessTokenClaims,
-    request: &Request<T>,
-    scope: &Scope,
-    tenant_id: &str,
-    holding_id: Uuid,
-    mutation: bool,
-) -> Result<(), Status> {
-    let exact_holding = Scope::Holding { holding_id };
-    if !scope.contains(&exact_holding) {
-        return Err(Status::permission_denied(
-            "branch administration requires exact holding or entered-tenant scope",
-        ));
-    }
-    state
-        .auth
-        .authorize_role_for_tenant(
-            &state.store,
-            claims,
-            scope,
-            if mutation {
-                "branch.infrastructure.provision"
-            } else {
-                "organization.read"
-            },
-            Some(tenant_id),
-        )
-        .await?;
-    if matches!(scope, Scope::Platform)
-        || claims.principal_ref == erpx_identity::DEVELOPMENT_CONTROLLER_PRINCIPAL
-    {
-        validate_tenant_admin_context(state, request, claims, tenant_id, holding_id).await?;
-    }
-    Ok(())
-}
-
-async fn require_branch_capacity(store: &SqlxControlPlane, tenant_id: &str) -> Result<(), Status> {
-    let available = persistence::branch_capacity_available(store, tenant_id)
-        .await
-        .map_err(|_| Status::unavailable("subscription branch capacity is unavailable"))?;
-    available
-        .then_some(())
-        .ok_or_else(|| Status::failed_precondition("subscription branch capacity is exhausted"))
-}
-
-async fn branch_provisioning_message(
-    store: &SqlxBranchProvisioningStore,
-    job: erpx_infrastructure::BranchProvisioningJob,
-) -> Result<BranchProvisioningSummary, Status> {
-    let route = store
-        .route(&job.tenant_id, job.branch_id)
-        .await
-        .map_err(|_| Status::unavailable("branch route status is unavailable"))?;
-    Ok(BranchProvisioningSummary {
-        job_id: job.job_id.to_string(),
-        tenant_id: job.tenant_id,
-        branch_id: job.branch_id.to_string(),
-        branch_code: job.branch_code,
-        branch_name: job.branch_name,
-        enabled_business_units: job
-            .enabled_business_units
-            .iter()
-            .map(|unit| unit.as_str().to_owned())
-            .collect(),
-        state: job.state.as_str().into(),
-        attempt_count: job.attempt_count,
-        failure_category: route
-            .as_ref()
-            .and_then(|route| route.failure_category.clone())
-            .unwrap_or_default(),
-        created_at: job.created_at.to_rfc3339(),
-        updated_at: job.updated_at.to_rfc3339(),
-        completed_at: job
-            .completed_at
-            .map(|value| value.to_rfc3339())
-            .unwrap_or_default(),
-        route_version: route.as_ref().map_or(0, |route| route.route_version),
-        correlation_id: job.correlation_id.to_string(),
-    })
-}
-
-#[tonic::async_trait]
-impl OrganizationService for OrganizationRpcImpl {
-    async fn save_organization_node(
-        &self,
-        request: Request<SaveOrganizationNodeRequest>,
-    ) -> Result<Response<SaveOrganizationNodeResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let scope = access_scope(&context.tenant_scope);
-            let input = request.get_ref().clone();
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let kind = OrganizationNodeKind::parse(input.kind.trim())
-                .map_err(|_| Status::invalid_argument("organization kind is unsupported"))?;
-            let node_id = parse_uuid(&input.node_id, "node_id")?;
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = optional_organization_uuid(&input.company_id, "company_id")?;
-            let branch_id = optional_organization_uuid(&input.branch_id, "branch_id")?;
-            let department_id = optional_organization_uuid(&input.department_id, "department_id")?;
-            let target_scope =
-                organization_target_scope(kind, node_id, holding_id, company_id, branch_id)?;
-            if !scope.contains(&target_scope) {
-                return Err(Status::permission_denied(
-                    "organization command scope is outside the authorized scope",
-                ));
-            }
-            let data_route_scope = tenant_data_route_scope(&target_scope);
-            let expected_version = if input.has_expected_version {
-                if input.expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(input.expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            if kind == OrganizationNodeKind::Branch && expected_version.is_none() {
-                return Err(Status::failed_precondition(
-                    "new branches must be created through ProvisionBranch",
-                ));
-            }
-            let status = organization_status(input.status.trim())?;
-            let registry = SqlxTenantStoreRegistry::new(self.state.store.clone());
-            let registration = registry
-                .get(tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            if registration.state != "active" {
-                return Err(Status::failed_precondition("tenant is not active"));
-            }
-            let expected_holding_id =
-                erpx_infrastructure::tenant_holding_scope_id(&registration.holding_ref);
-            if expected_holding_id != holding_id {
-                return Err(Status::permission_denied(
-                    "organization holding does not match the tenant route",
-                ));
-            }
-            authorize_organization_target(
-                &self.state,
-                &request,
-                &claims,
-                &scope,
-                tenant_id,
-                holding_id,
-                "organization.admin",
-            )
-            .await?;
-            let router = self
-                .state
-                .tenant_router
-                .as_ref()
-                .ok_or_else(|| Status::unavailable("tenant routing is not configured"))?;
-            let write = router
-                .route_scoped(
-                    tenant_id,
-                    &registration.holding_ref,
-                    data_route_scope,
-                    RoutedDatabaseSide::Write,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant write route is unavailable"))?;
-            let read = match router
-                .route_scoped(
-                    tenant_id,
-                    &registration.holding_ref,
-                    data_route_scope,
-                    RoutedDatabaseSide::Read,
-                )
-                .await
-            {
-                Ok(read) => read,
-                Err(_) => {
-                    write.close().await;
-                    return Err(Status::unavailable("tenant read route is unavailable"));
-                }
-            };
-            let store = SqlxOrganizationStore::from_pools(
-                write.database_pool(),
-                read.database_pool(),
-                registration.holding_ref.clone(),
-            )
-            .map_err(|error| organization_persistence_status(error, context.correlation_id))?;
-            let result = store
-                .save(&OrganizationNodeCommand {
-                    kind,
-                    node_id,
-                    holding_ref: registration.holding_ref,
-                    holding_id,
-                    company_id,
-                    branch_id,
-                    department_id,
-                    code: input.code,
-                    name: input.name,
-                    registration_number: input.registration_number,
-                    status,
-                    expected_version,
-                    idempotency_key: context.idempotency_key,
-                    actor: context.actor,
-                    correlation_id: context.correlation_id,
-                    at: Utc::now(),
-                })
-                .await
-                .map_err(|error| organization_persistence_status(error, context.correlation_id));
-            write.close().await;
-            read.close().await;
-            let receipt = result?;
-            Ok(Response::new(SaveOrganizationNodeResponse {
-                kind: receipt.kind.as_str().into(),
-                node_id: receipt.node_id.to_string(),
-                aggregate_version: receipt.aggregate_version,
-                event_id: receipt.event_id.to_string(),
-                applied: receipt.applied,
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn list_organization_nodes(
-        &self,
-        request: Request<ListOrganizationNodesRequest>,
-    ) -> Result<Response<ListOrganizationNodesResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .cloned()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(&proto_context))?;
-            let scope = query_access_scope(&proto_context)?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_id = parse_uuid(&request.get_ref().holding_id, "holding_id")?;
-            let holding_scope = Scope::Holding { holding_id };
-            if !scope.contains(&holding_scope) {
-                return Err(Status::permission_denied(
-                    "organization read scope is outside the authorized scope",
-                ));
-            }
-            let kind = if request.get_ref().kind.trim().is_empty() {
-                None
-            } else {
-                Some(
-                    OrganizationNodeKind::parse(request.get_ref().kind.trim()).map_err(|_| {
-                        Status::invalid_argument("organization kind is unsupported")
-                    })?,
-                )
-            };
-            let cursor = parse_organization_cursor(&request.get_ref().after_cursor)?;
-            let page_size = organization_page_size(request.get_ref().page_size)?;
-            let registry = SqlxTenantStoreRegistry::new(self.state.store.clone());
-            let registration = registry
-                .get(tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            if registration.state != "active"
-                || erpx_infrastructure::tenant_holding_scope_id(&registration.holding_ref)
-                    != holding_id
-            {
-                return Err(Status::failed_precondition(
-                    "tenant organization route is unavailable",
-                ));
-            }
-            authorize_organization_target(
-                &self.state,
-                &request,
-                &claims,
-                &scope,
-                tenant_id,
-                holding_id,
-                "organization.read",
-            )
-            .await?;
-            let router = self
-                .state
-                .tenant_router
-                .as_ref()
-                .ok_or_else(|| Status::unavailable("tenant routing is not configured"))?;
-            let read = router
-                .route_scoped(
-                    tenant_id,
-                    &registration.holding_ref,
-                    tenant_data_route_scope(&scope),
-                    RoutedDatabaseSide::Read,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant read route is unavailable"))?;
-            let store = SqlxOrganizationStore::from_pools(
-                read.database_pool(),
-                read.database_pool(),
-                registration.holding_ref,
-            )
-            .map_err(|error| organization_persistence_status(error, context.correlation_id))?;
-            let result = store.list(kind, cursor, page_size).await;
-            read.close().await;
-            let page = result
-                .map_err(|error| organization_persistence_status(error, context.correlation_id))?;
-            Ok(Response::new(ListOrganizationNodesResponse {
-                nodes: page
-                    .nodes
-                    .into_iter()
-                    .map(organization_node_message)
-                    .collect(),
-                has_more: page.has_more,
-                next_cursor: page
-                    .next_cursor
-                    .as_ref()
-                    .map(organization_cursor)
-                    .unwrap_or_default(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn provision_branch(
-        &self,
-        request: Request<ProvisionBranchRequest>,
-    ) -> Result<Response<ProvisionBranchResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?.to_owned();
-            let registry = SqlxTenantStoreRegistry::new(self.state.store.clone());
-            let registration = registry
-                .get(&tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            if registration.state != "active" {
-                return Err(Status::failed_precondition("tenant is not active"));
-            }
-            let holding_id = tenant_holding_scope_id(&registration.holding_ref);
-            let scope = access_scope(&context.tenant_scope);
-            authorize_branch_administration(
-                &self.state,
-                &claims,
-                &request,
-                &scope,
-                &tenant_id,
-                holding_id,
-                true,
-            )
-            .await?;
-            self.state
-                .auth
-                .authorize_mfa_for_tenant(
-                    &self.state.store,
-                    &claims,
-                    &tenant_id,
-                    &request.get_ref().mfa_code,
-                    context.correlation_id,
-                )
-                .await?;
-            require_branch_capacity(&self.state.store, &tenant_id).await?;
-            let input = request.into_inner();
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let branch_id = parse_uuid(&input.branch_id, "branch_id")?;
-            let target_scope = Scope::Branch {
-                holding_id,
-                company_id,
-                branch_id,
-            };
-            if !scope.contains(&target_scope) {
-                return Err(Status::permission_denied(
-                    "branch provisioning scope is outside the authorized scope",
-                ));
-            }
-            let units = input
-                .enabled_business_units
-                .iter()
-                .map(|unit| {
-                    BusinessUnitId::parse(unit.trim()).map_err(|_| {
-                        Status::invalid_argument("enabled business unit is unsupported")
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
-            let job = store
-                .enqueue(&erpx_infrastructure::ProvisionBranchRequest {
-                    tenant_id: tenant_id.clone(),
-                    holding_ref: registration.holding_ref,
-                    holding_id,
-                    company_id,
-                    branch_id,
-                    branch_code: input.branch_code,
-                    branch_name: input.branch_name,
-                    registration_number: input.registration_number,
-                    profile_key: validate_transport_reference(
-                        &input.database_profile_key,
-                        "database_profile_key",
-                    )?
-                    .into(),
-                    enabled_business_units: units,
-                    idempotency_key: context.idempotency_key,
-                    requested_by: claims.principal_ref,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|error| match error {
-                    PersistenceError::InvalidData(message) => Status::failed_precondition(message),
-                    _ => Status::unavailable("branch provisioning queue is unavailable"),
-                })?;
-            let provisioning = branch_provisioning_message(&store, job).await?;
-            Ok(Response::new(ProvisionBranchResponse {
-                provisioning: Some(provisioning),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn get_branch_provisioning(
-        &self,
-        request: Request<GetBranchProvisioningRequest>,
-    ) -> Result<Response<GetBranchProvisioningResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .cloned()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let query = query_context(&request, Some(&proto_context))?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            authorize_branch_administration(
-                &self.state,
-                &claims,
-                &request,
-                &query_access_scope(&proto_context)?,
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
-                false,
-            )
-            .await?;
-            let job_id = parse_uuid(&request.get_ref().job_id, "job_id")?;
-            let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
-            let job = store
-                .get_job(tenant_id, job_id)
-                .await
-                .map_err(|_| Status::unavailable("branch provisioning status is unavailable"))?
-                .ok_or_else(|| Status::not_found("branch provisioning was not found"))?;
-            Ok(Response::new(GetBranchProvisioningResponse {
-                provisioning: Some(branch_provisioning_message(&store, job).await?),
-                correlation_id: query.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn list_branch_provisionings(
-        &self,
-        request: Request<ListBranchProvisioningsRequest>,
-    ) -> Result<Response<ListBranchProvisioningsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .cloned()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let query = query_context(&request, Some(&proto_context))?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            authorize_branch_administration(
-                &self.state,
-                &claims,
-                &request,
-                &query_access_scope(&proto_context)?,
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
-                false,
-            )
-            .await?;
-            let page_size = match request.get_ref().page_size {
-                0 => 50,
-                value if value <= 100 => value,
-                _ => return Err(Status::invalid_argument("page_size must be at most 100")),
-            };
-            let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
-            let jobs = store
-                .list_jobs(tenant_id, page_size)
-                .await
-                .map_err(|_| Status::unavailable("branch provisioning list is unavailable"))?;
-            let mut provisionings = Vec::with_capacity(jobs.len());
-            for job in jobs {
-                provisionings.push(branch_provisioning_message(&store, job).await?);
-            }
-            Ok(Response::new(ListBranchProvisioningsResponse {
-                provisionings,
-                correlation_id: query.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn retry_branch_provisioning(
-        &self,
-        request: Request<RetryBranchProvisioningRequest>,
-    ) -> Result<Response<RetryBranchProvisioningResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            authorize_branch_administration(
-                &self.state,
-                &claims,
-                &request,
-                &access_scope(&context.tenant_scope),
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
-                true,
-            )
-            .await?;
-            self.state
-                .auth
-                .authorize_mfa_for_tenant(
-                    &self.state.store,
-                    &claims,
-                    tenant_id,
-                    &request.get_ref().mfa_code,
-                    context.correlation_id,
-                )
-                .await?;
-            require_branch_capacity(&self.state.store, tenant_id).await?;
-            let store = SqlxBranchProvisioningStore::new(self.state.store.clone());
-            let job = store
-                .retry(
-                    tenant_id,
-                    parse_uuid(&request.get_ref().job_id, "job_id")?,
-                    context.correlation_id,
-                    Utc::now(),
-                )
-                .await
-                .map_err(|_| Status::failed_precondition("branch provisioning is not retryable"))?;
-            Ok(Response::new(RetryBranchProvisioningResponse {
-                provisioning: Some(branch_provisioning_message(&store, job).await?),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn suspend_branch_route(
-        &self,
-        request: Request<SuspendBranchRouteRequest>,
-    ) -> Result<Response<SuspendBranchRouteResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            authorize_branch_administration(
-                &self.state,
-                &claims,
-                &request,
-                &access_scope(&context.tenant_scope),
-                tenant_id,
-                tenant_holding_scope_id(&registration.holding_ref),
-                true,
-            )
-            .await?;
-            self.state
-                .auth
-                .authorize_mfa_for_tenant(
-                    &self.state.store,
-                    &claims,
-                    tenant_id,
-                    &request.get_ref().mfa_code,
-                    context.correlation_id,
-                )
-                .await?;
-            let branch_id = parse_uuid(&request.get_ref().branch_id, "branch_id")?;
-            let route = SqlxBranchProvisioningStore::new(self.state.store.clone())
-                .suspend(tenant_id, branch_id, Utc::now())
-                .await
-                .map_err(|_| Status::failed_precondition("active branch route was not found"))?;
-            Ok(Response::new(SuspendBranchRouteResponse {
-                tenant_id: route.tenant_id,
-                branch_id: route.branch_id.to_string(),
-                state: route.state.as_str().into(),
-                route_version: route.route_version,
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-}
-
-#[derive(Clone)]
-struct OperationsRpcImpl {
-    state: AppState,
-}
-
-impl OperationsRpcImpl {
-    async fn active_exception_principal(
-        &self,
-        principal_ref: &str,
-        scope: &Scope,
-        permission: &str,
-        at: DateTime<Utc>,
-    ) -> Result<ExceptionPrincipalReference, Status> {
-        let principal_ref = validate_transport_reference(principal_ref, "principal_ref")?;
-        let assignment = self
-            .state
-            .store
-            .effective_role_assignment_chain(principal_ref, scope, permission, at)
-            .await
-            .map_err(|_| Status::internal("exception principal authorization lookup failed"))?
-            .map(|(assignment, _)| assignment)
-            .ok_or_else(|| Status::permission_denied("exception principal is not active"))?;
-        Ok(ExceptionPrincipalReference {
-            principal_ref: principal_ref.into(),
-            valid_from: assignment.valid_from,
-            valid_until: assignment.valid_until,
-        })
-    }
-
-    /// Resolve the assignee's complete role-assignment chain and bind the
-    /// requested manager to its authoritative root. A manager is not merely
-    /// another active Operations reader: the root assignment must carry
-    /// exception-management authority and every delegation edge must remain
-    /// active, scoped, and permission-preserving at the command timestamp.
-    async fn active_manager_chain(
-        &self,
-        subject_principal_ref: &str,
-        manager_principal_ref: &str,
-        scope: &Scope,
-        at: DateTime<Utc>,
-    ) -> Result<(ExceptionPrincipalReference, OperationsManagerChainProof), Status> {
-        let subject_principal_ref =
-            validate_transport_reference(subject_principal_ref, "assignee")?;
-        let manager_principal_ref = validate_transport_reference(manager_principal_ref, "manager")?;
-        let (assignment, parents) = self
-            .state
-            .store
-            .effective_role_assignment_chain(subject_principal_ref, scope, "operations.read", at)
-            .await
-            .map_err(|_| Status::internal("manager chain authorization lookup failed"))?
-            .ok_or_else(|| Status::permission_denied("assignee role chain is not active"))?;
-        let mut assignments = Vec::with_capacity(parents.len() + 1);
-        assignments.push(assignment);
-        assignments.extend(parents);
-        let manager_assignment = assignments
-            .last()
-            .ok_or_else(|| Status::permission_denied("manager role chain is empty"))?;
-        if manager_assignment.principal_ref != manager_principal_ref {
-            return Err(Status::permission_denied(
-                "manager is not the authoritative parent of the assignee",
-            ));
-        }
-        let manager_id = manager_assignment.id;
-        let manager_valid_from = manager_assignment.valid_from;
-        let manager_valid_until = manager_assignment.valid_until;
-        let proof = OperationsManagerChainProof {
-            subject_principal_ref: subject_principal_ref.into(),
-            manager_principal_ref: manager_principal_ref.into(),
-            scope: scope.clone(),
-            evaluated_at: at,
-            authority_source_ref: format!("role-assignment-chain:{manager_id}"),
-            assignments,
-        };
-        proof
-            .validate(at)
-            .map_err(|_| Status::permission_denied("manager role chain is not authoritative"))?;
-        Ok((
-            ExceptionPrincipalReference {
-                principal_ref: manager_principal_ref.into(),
-                valid_from: manager_valid_from,
-                valid_until: manager_valid_until,
-            },
-            proof,
-        ))
-    }
-}
-
-fn operations_persistence_status(error: PersistenceError, correlation_id: Uuid) -> Status {
-    let status = match error {
-        PersistenceError::OptimisticConcurrency { .. }
-        | PersistenceError::IdempotencyConflict { .. } => {
-            Status::aborted("operations state conflicts with the current state")
-        }
-        PersistenceError::NotFound { .. } => Status::not_found("operations row not found"),
-        PersistenceError::InvalidData(_) => {
-            Status::failed_precondition("operations projection is invalid")
-        }
-        PersistenceError::Configuration(_) => {
-            Status::failed_precondition("operations persistence is not configured")
-        }
-        PersistenceError::Database(_) | PersistenceError::Migration(_) => {
-            Status::unavailable("operations persistence is unavailable")
-        }
-        PersistenceError::Serialization(_) => Status::internal("operations projection failed"),
-        PersistenceError::ClaimLost { .. } => {
-            Status::aborted("operations projection ownership changed")
-        }
-    };
-    errors::enrich(status, Some(correlation_id))
-}
-
-fn operations_scope_and_holding(
-    proto_context: &erpx_proto::common::v1::QueryContext,
-    holding_id: Uuid,
-) -> Result<(erpx_domain::contracts::TenantScope, Scope), Status> {
-    let scope = query_access_scope(proto_context)?;
-    let holding_scope = Scope::Holding { holding_id };
-    if !scope.contains(&holding_scope) {
-        return Err(Status::permission_denied(
-            "operations read scope is outside the authorized scope",
-        ));
-    }
-    Ok((
-        erpx_domain::contracts::TenantScope::Holding { holding_id },
-        scope,
-    ))
-}
-
-async fn routed_operations_store(
-    state: &AppState,
-    tenant_id: &str,
-    holding_id: Uuid,
-) -> Result<
-    (
-        SqlxOperationsStore,
-        RoutedTenantDatabase,
-        RoutedTenantDatabase,
-    ),
-    Status,
-> {
-    let registry = SqlxTenantStoreRegistry::new(state.store.clone());
-    let registration = registry
-        .get(tenant_id)
-        .await
-        .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-        .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-    if registration.state != "active"
-        || erpx_infrastructure::tenant_holding_scope_id(&registration.holding_ref) != holding_id
-    {
-        return Err(Status::failed_precondition(
-            "operations tenant route is unavailable",
-        ));
-    }
-    let router = state
-        .tenant_router
-        .as_ref()
-        .ok_or_else(|| Status::unavailable("tenant routing is not configured"))?;
-    let write = router
-        .route(
-            tenant_id,
-            &registration.holding_ref,
-            RoutedDatabaseSide::Write,
-        )
-        .await
-        .map_err(|_| Status::unavailable("tenant write route is unavailable"))?;
-    let read = match router
-        .route(
-            tenant_id,
-            &registration.holding_ref,
-            RoutedDatabaseSide::Read,
-        )
-        .await
-    {
-        Ok(read) => read,
-        Err(_) => {
-            write.close().await;
-            return Err(Status::unavailable("tenant read route is unavailable"));
-        }
-    };
-    let store = match SqlxOperationsStore::from_pools(
-        write.database_pool(),
-        read.database_pool(),
-        registration.holding_ref,
-    ) {
-        Ok(store) => store,
-        Err(error) => {
-            write.close().await;
-            read.close().await;
-            return Err(operations_persistence_status(error, Uuid::new_v4()));
-        }
-    };
-    Ok((store, write, read))
-}
-
-#[tonic::async_trait]
-impl OperationsService for OperationsRpcImpl {
-    async fn get_operations_summary(
-        &self,
-        request: Request<GetOperationsSummaryRequest>,
-    ) -> Result<Response<GetOperationsSummaryResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .cloned()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(&proto_context))?;
-            let holding_id = parse_uuid(&request.get_ref().holding_id, "holding_id")?;
-            let (_, scope) = operations_scope_and_holding(&proto_context, holding_id)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "operations.read")
-                .await?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let registry = SqlxTenantStoreRegistry::new(self.state.store.clone());
-            let registration = registry
-                .get(tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            if registration.state != "active"
-                || erpx_infrastructure::tenant_holding_scope_id(&registration.holding_ref)
-                    != holding_id
-            {
-                return Err(Status::failed_precondition(
-                    "operations tenant route is unavailable",
-                ));
-            }
-            let router = self
-                .state
-                .tenant_router
-                .as_ref()
-                .ok_or_else(|| Status::unavailable("tenant routing is not configured"))?;
-            let write = router
-                .route(
-                    tenant_id,
-                    &registration.holding_ref,
-                    RoutedDatabaseSide::Write,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant write route is unavailable"))?;
-            let read = match router
-                .route(
-                    tenant_id,
-                    &registration.holding_ref,
-                    RoutedDatabaseSide::Read,
-                )
-                .await
-            {
-                Ok(read) => read,
-                Err(_) => {
-                    write.close().await;
-                    return Err(Status::unavailable("tenant read route is unavailable"));
-                }
-            };
-            let store = SqlxOperationsStore::from_pools(
-                write.database_pool(),
-                read.database_pool(),
-                registration.holding_ref.clone(),
-            )
-            .map_err(|error| operations_persistence_status(error, context.correlation_id))?;
-            let result = store.read_summary().await;
-            write.close().await;
-            read.close().await;
-            let summary = result
-                .map_err(|error| operations_persistence_status(error, context.correlation_id))?;
-            Ok(Response::new(GetOperationsSummaryResponse {
-                summary: Some(OperationsSummary {
-                    tenant_id: tenant_id.into(),
-                    holding_id: holding_id.to_string(),
-                    projection_name: OPERATIONS_READ_PROJECTION.into(),
-                    read_row_count: summary.read_row_count,
-                    exception_count: summary.exception_count,
-                    projection_checkpoint_count: summary.projection_checkpoint_count,
-                    event_count: summary.event_count,
-                    source_reference_count: summary.source_reference_count,
-                    source_counts: summary
-                        .source_domain_counts
-                        .into_iter()
-                        .map(|(source_domain, reference_count)| OperationsSourceCount {
-                            source_domain,
-                            reference_count,
-                        })
-                        .collect(),
-                    latest_event_at: summary
-                        .latest_event_at
-                        .map(|value| value.to_rfc3339())
-                        .unwrap_or_default(),
-                }),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn list_operations_exceptions(
-        &self,
-        request: Request<ListOperationsExceptionsRequest>,
-    ) -> Result<Response<ListOperationsExceptionsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .cloned()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(&proto_context))?;
-            let holding_id = parse_uuid(&request.get_ref().holding_id, "holding_id")?;
-            let (_, scope) = operations_scope_and_holding(&proto_context, holding_id)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "operations.read")
-                .await?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let cursor = parse_operations_exception_cursor(&request.get_ref().after_cursor)?;
-            let page_size = operations_exception_page_size(request.get_ref().page_size)?;
-            let registry = SqlxTenantStoreRegistry::new(self.state.store.clone());
-            let registration = registry
-                .get(tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            if registration.state != "active"
-                || erpx_infrastructure::tenant_holding_scope_id(&registration.holding_ref)
-                    != holding_id
-            {
-                return Err(Status::failed_precondition(
-                    "operations tenant route is unavailable",
-                ));
-            }
-            let router = self
-                .state
-                .tenant_router
-                .as_ref()
-                .ok_or_else(|| Status::unavailable("tenant routing is not configured"))?;
-            let write = router
-                .route(
-                    tenant_id,
-                    &registration.holding_ref,
-                    RoutedDatabaseSide::Write,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant write route is unavailable"))?;
-            let read = match router
-                .route(
-                    tenant_id,
-                    &registration.holding_ref,
-                    RoutedDatabaseSide::Read,
-                )
-                .await
-            {
-                Ok(read) => read,
-                Err(_) => {
-                    write.close().await;
-                    return Err(Status::unavailable("tenant read route is unavailable"));
-                }
-            };
-            let store = SqlxOperationsStore::from_pools(
-                write.database_pool(),
-                read.database_pool(),
-                registration.holding_ref.clone(),
-            )
-            .map_err(|error| operations_persistence_status(error, context.correlation_id))?;
-            let result = store
-                .read_active_exception_page(OPERATIONS_READ_PROJECTION, cursor, page_size)
-                .await;
-            write.close().await;
-            read.close().await;
-            let page = result
-                .map_err(|error| operations_persistence_status(error, context.correlation_id))?;
-            Ok(Response::new(ListOperationsExceptionsResponse {
-                exceptions: page
-                    .cases
-                    .into_iter()
-                    .map(|row| OperationsException {
-                        exception_id: row.aggregate_id.to_string(),
-                        category: row.value.category,
-                        severity: row.value.severity,
-                        status: operations_exception_status_name(row.value.status).into(),
-                        assigned_to: row.value.assigned_to.unwrap_or_default(),
-                        manager_ref: row.value.manager_ref.unwrap_or_default(),
-                        due_at: row
-                            .value
-                            .due_at
-                            .map(|value| value.to_rfc3339())
-                            .unwrap_or_default(),
-                        aggregate_version: row.aggregate_version,
-                        updated_at: row.updated_at.to_rfc3339(),
-                    })
-                    .collect(),
-                has_more: page.has_more,
-                next_cursor: page
-                    .next_cursor
-                    .as_ref()
-                    .map(operations_exception_cursor)
-                    .unwrap_or_default(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn create_operations_exception_from_source(
-        &self,
-        request: Request<CreateOperationsExceptionFromSourceRequest>,
-    ) -> Result<Response<CreateOperationsExceptionFromSourceResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let caller_scope = access_scope(&context.tenant_scope);
-            let input = request.into_inner();
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let holding_scope = Scope::Holding { holding_id };
-            if matches!(caller_scope, Scope::Platform) || !caller_scope.contains(&holding_scope) {
-                return Err(Status::permission_denied(
-                    "source exception scope is outside the authorized holding",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &caller_scope,
-                    "operations.exception.manage",
-                )
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let exception_id = parse_uuid(&input.exception_id, "exception_id")?;
-            let source_id = parse_uuid(&input.source_id, "source_id")?;
-            let source_event_id = parse_uuid(&input.source_event_id, "source_event_id")?;
-            if input.source_version == 0 || input.event_version == 0 {
-                return Err(Status::invalid_argument(
-                    "source and event versions must be positive",
-                ));
-            }
-            if input.payload_json.is_empty()
-                || input.payload_json.len() > MAX_OPERATIONS_SOURCE_EVENT_PAYLOAD_BYTES
-            {
-                return Err(Status::invalid_argument(
-                    "source payload is empty or exceeds the allowed bound",
-                ));
-            }
-            let source_domain = OperationsSourceDomain::parse(&input.source_domain)
-                .map_err(|_| Status::invalid_argument("source domain is unsupported"))?;
-            let occurred_at = DateTime::parse_from_rfc3339(input.occurred_at.trim())
-                .map_err(|_| Status::invalid_argument("occurred_at must be RFC3339"))?
-                .with_timezone(&Utc);
-            let payload: Value = serde_json::from_slice(&input.payload_json)
-                .map_err(|_| Status::invalid_argument("source payload must be valid JSON"))?;
-            let source_event = OperationsSourceEvent {
-                source_domain,
-                source_type: validate_transport_reference(&input.source_type, "source_type")?
-                    .into(),
-                source_id,
-                source_event_id,
-                source_version: input.source_version,
-                event_type: validate_transport_reference(&input.event_type, "event_type")?.into(),
-                event_version: u16::try_from(input.event_version)
-                    .map_err(|_| Status::invalid_argument("event version is out of range"))?,
-                holding_ref: String::new(),
-                scope: holding_scope,
-                actor: context.actor.clone(),
-                correlation_id: context.correlation_id,
-                causation_id: context.causation_id,
-                occurred_at,
-                payload,
-            };
-            let category = validate_transport_reference(&input.category, "category")?;
-            let severity = validate_transport_reference(&input.severity, "severity")?;
-            let (store, write, read) =
-                routed_operations_store(&self.state, tenant_id, holding_id).await?;
-            let registration = SqlxTenantStoreRegistry::new(self.state.store.clone())
-                .get(tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            let mut source_event = source_event;
-            source_event.holding_ref = registration.holding_ref.clone();
-            let result = store
-                .create_exception_from_source_event(&source_event, exception_id, category, severity)
-                .await
-                .map_err(|error| operations_persistence_status(error, context.correlation_id));
-            write.close().await;
-            read.close().await;
-            let result = result?;
-            Ok(Response::new(CreateOperationsExceptionFromSourceResponse {
-                exception_id: exception_id.to_string(),
-                source_event_id: result.source_event_id.to_string(),
-                aggregate_version: result.aggregate_version,
-                event_id: result.event_id.to_string(),
-                applied: result.applied,
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn transition_operations_exception(
-        &self,
-        request: Request<TransitionOperationsExceptionRequest>,
-    ) -> Result<Response<TransitionOperationsExceptionResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let caller_scope = access_scope(&context.tenant_scope);
-            if matches!(caller_scope, Scope::Platform) {
-                return Err(Status::permission_denied(
-                    "Operations exception commands require tenant scope",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &caller_scope,
-                    "operations.exception.manage",
-                )
-                .await?;
-            let input = request.into_inner();
-            if matches!(input.action.trim(), "assign" | "reassign" | "escalate") {
-                self.state
-                    .auth
-                    .authorize_mfa(&claims, &input.mfa_code)
-                    .await?;
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let exception_id = parse_uuid(&input.exception_id, "exception_id")?;
-            let expected_version = context.expected_aggregate_version.ok_or_else(|| {
-                Status::invalid_argument("expected aggregate version is required")
-            })?;
-            if expected_version == 0 {
-                return Err(Status::invalid_argument(
-                    "expected aggregate version must be positive",
-                ));
-            }
-            let registry = SqlxTenantStoreRegistry::new(self.state.store.clone());
-            let registration = registry
-                .get(tenant_id)
-                .await
-                .map_err(|_| Status::unavailable("tenant registry is unavailable"))?
-                .ok_or_else(|| Status::not_found("tenant is not registered"))?;
-            if registration.state != "active"
-                || erpx_infrastructure::tenant_holding_scope_id(&registration.holding_ref)
-                    != holding_id
-            {
-                return Err(Status::failed_precondition(
-                    "operations tenant route is unavailable",
-                ));
-            }
-            let router = self
-                .state
-                .tenant_router
-                .as_ref()
-                .ok_or_else(|| Status::unavailable("tenant routing is not configured"))?;
-            let write = router
-                .route(
-                    tenant_id,
-                    &registration.holding_ref,
-                    RoutedDatabaseSide::Write,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant write route is unavailable"))?;
-            let read = match router
-                .route(
-                    tenant_id,
-                    &registration.holding_ref,
-                    RoutedDatabaseSide::Read,
-                )
-                .await
-            {
-                Ok(read) => read,
-                Err(_) => {
-                    write.close().await;
-                    return Err(Status::unavailable("tenant read route is unavailable"));
-                }
-            };
-            let store = SqlxOperationsStore::from_pools(
-                write.database_pool(),
-                read.database_pool(),
-                registration.holding_ref.clone(),
-            )
-            .map_err(|error| operations_persistence_status(error, context.correlation_id))?;
-            let exception = store
-                .get_aggregate::<erpx_domain::operations::ExceptionCase>(exception_id)
-                .await
-                .map_err(|error| operations_persistence_status(error, context.correlation_id))?;
-            let Some(exception) = exception else {
-                write.close().await;
-                read.close().await;
-                return Err(Status::not_found("operations exception not found"));
-            };
-            if !caller_scope.contains(&exception.meta.scope) {
-                write.close().await;
-                read.close().await;
-                return Err(Status::permission_denied(
-                    "operations exception scope is outside the authorized scope",
-                ));
-            }
-            let at = Utc::now();
-            let actor = self
-                .active_exception_principal(
-                    &claims.principal_ref,
-                    &exception.meta.scope,
-                    "operations.exception.manage",
-                    at,
-                )
-                .await?;
-            let action = input.action.trim();
-            let action = match action {
-                "assign" => {
-                    let assignee = self
-                        .active_exception_principal(
-                            &input.assignee,
-                            &exception.meta.scope,
-                            "operations.read",
-                            at,
-                        )
-                        .await?;
-                    let (manager, _) = self
-                        .active_manager_chain(
-                            &assignee.principal_ref,
-                            &input.manager,
-                            &exception.meta.scope,
-                            at,
-                        )
-                        .await?;
-                    let due_at = DateTime::parse_from_rfc3339(input.sla_due_at.trim())
-                        .map_err(|_| Status::invalid_argument("sla_due_at must be RFC3339"))?
-                        .with_timezone(&Utc);
-                    if input.sla_escalation_after_minutes == 0
-                        || input.sla_escalation_after_minutes > MAX_EXCEPTION_SLA_MINUTES
-                    {
-                        return Err(Status::invalid_argument(
-                            "sla escalation window is outside the allowed bound",
-                        ));
-                    }
-                    ExceptionLifecycleAction::Assign {
-                        assignee,
-                        manager,
-                        sla: ExceptionSlaMetadata {
-                            policy_ref: validate_transport_reference(
-                                &input.sla_policy_ref,
-                                "sla_policy_ref",
-                            )?
-                            .into(),
-                            due_at,
-                            escalation_after_minutes: input.sla_escalation_after_minutes,
-                        },
-                    }
-                }
-                "reassign" => ExceptionLifecycleAction::Reassign {
-                    assignee: self
-                        .active_exception_principal(
-                            &input.assignee,
-                            &exception.meta.scope,
-                            "operations.read",
-                            at,
-                        )
-                        .await?,
-                    manager: {
-                        let (manager, _) = self
-                            .active_manager_chain(
-                                &input.assignee,
-                                &input.manager,
-                                &exception.meta.scope,
-                                at,
-                            )
-                            .await?;
-                        manager
-                    },
-                },
-                "acknowledge" => ExceptionLifecycleAction::Acknowledge,
-                "escalate" => ExceptionLifecycleAction::Escalate {
-                    manager: {
-                        let subject = exception.assigned_to.as_deref().ok_or_else(|| {
-                            Status::failed_precondition(
-                                "escalation requires an active exception assignee",
-                            )
-                        })?;
-                        let (manager, _) = self
-                            .active_manager_chain(
-                                subject,
-                                &input.manager,
-                                &exception.meta.scope,
-                                at,
-                            )
-                            .await?;
-                        manager
-                    },
-                },
-                "resolve" => ExceptionLifecycleAction::Resolve,
-                "close" => ExceptionLifecycleAction::Close,
-                _ => {
-                    return Err(Status::invalid_argument(
-                        "operations exception action is unsupported",
-                    ));
-                }
-            };
-            let command = ExceptionLifecycleCommand {
-                exception_id,
-                expected_version,
-                at,
-                actor,
-                actor_attribution: context.actor,
-                idempotency_key: context.idempotency_key,
-                correlation_id: context.correlation_id,
-                causation_id: context.causation_id,
-                action,
-            };
-            let result = store
-                .apply_exception_lifecycle_command(&command)
-                .await
-                .map_err(|error| operations_persistence_status(error, context.correlation_id));
-            write.close().await;
-            read.close().await;
-            let result = result?;
-            Ok(Response::new(TransitionOperationsExceptionResponse {
-                exception_id: result.exception_id.to_string(),
-                from_status: operations_exception_status_name(result.from).into(),
-                to_status: operations_exception_status_name(result.to).into(),
-                aggregate_version: result.aggregate_version,
-                event_id: result.event_id.to_string(),
-                applied: result.applied,
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn publish_operations_work_queue_policy(
-        &self,
-        request: Request<PublishOperationsWorkQueuePolicyRequest>,
-    ) -> Result<Response<PublishOperationsWorkQueuePolicyResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let caller_scope = access_scope(&context.tenant_scope);
-            let holding_id = parse_uuid(&request.get_ref().holding_id, "holding_id")?;
-            let holding_scope = Scope::Holding { holding_id };
-            if matches!(caller_scope, Scope::Platform) || !caller_scope.contains(&holding_scope) {
-                return Err(Status::permission_denied(
-                    "work queue policy scope is outside the authorized scope",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &caller_scope,
-                    "operations.manage",
-                )
-                .await?;
-            let input = request.into_inner();
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let policy_id = parse_uuid(&input.policy_id, "policy_id")?;
-            let name = validate_transport_reference(&input.name, "name")?;
-            if input.allowed_domains.is_empty() || input.allowed_domains.len() > 16 {
-                return Err(Status::invalid_argument(
-                    "allowed_domains must contain between one and sixteen entries",
-                ));
-            }
-            let allowed_domains = input
-                .allowed_domains
-                .iter()
-                .map(|domain| {
-                    validate_transport_reference(domain, "allowed_domain").map(str::to_owned)
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            if input.escalation_after_minutes == 0
-                || input.escalation_after_minutes > MAX_EXCEPTION_SLA_MINUTES
-            {
-                return Err(Status::invalid_argument(
-                    "escalation_after_minutes is outside the allowed bound",
-                ));
-            }
-            let expected_version = context.expected_aggregate_version.unwrap_or(0);
-            let at = Utc::now();
-            let (store, write, read) =
-                routed_operations_store(&self.state, tenant_id, holding_id).await?;
-            let result = store
-                .publish_work_queue_policy(
-                    policy_id,
-                    holding_scope,
-                    name,
-                    allowed_domains,
-                    input.escalation_after_minutes,
-                    expected_version,
-                    context.actor,
-                    context.idempotency_key,
-                    context.correlation_id,
-                    context.causation_id,
-                    at,
-                )
-                .await
-                .map_err(|error| operations_persistence_status(error, context.correlation_id));
-            write.close().await;
-            read.close().await;
-            let result = result?;
-            Ok(Response::new(PublishOperationsWorkQueuePolicyResponse {
-                policy_id: result.policy_id.to_string(),
-                status: result.status,
-                aggregate_version: result.aggregate_version,
-                event_id: result.event_id.to_string(),
-                applied: result.applied,
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn list_operations_work_queue_policies(
-        &self,
-        request: Request<ListOperationsWorkQueuePoliciesRequest>,
-    ) -> Result<Response<ListOperationsWorkQueuePoliciesResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .cloned()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(&proto_context))?;
-            let holding_id = parse_uuid(&request.get_ref().holding_id, "holding_id")?;
-            let (_, scope) = operations_scope_and_holding(&proto_context, holding_id)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "operations.read")
-                .await?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let page_size = match request.get_ref().page_size {
-                0 => 25,
-                value if value <= 100 => value,
-                _ => {
-                    return Err(Status::invalid_argument(
-                        "policy page size exceeds the allowed bound",
-                    ));
-                }
-            };
-            let cursor = parse_organization_cursor(&request.get_ref().after_cursor)?;
-            let (store, write, read) =
-                routed_operations_store(&self.state, tenant_id, holding_id).await?;
-            let result = store
-                .read_json_page("operations.work_queue_policy", cursor, page_size)
-                .await
-                .map_err(|error| operations_persistence_status(error, context.correlation_id));
-            write.close().await;
-            read.close().await;
-            let page = result?;
-            let mut policies = Vec::with_capacity(page.rows.len());
-            for row in page.rows {
-                let state = row.state;
-                let name = state
-                    .get("name")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| Status::failed_precondition("policy read model is malformed"))?;
-                let allowed_domains = state
-                    .get("allowed_domains")
-                    .and_then(Value::as_array)
-                    .ok_or_else(|| Status::failed_precondition("policy read model is malformed"))?
-                    .iter()
-                    .map(|value| {
-                        value.as_str().map(str::to_owned).ok_or_else(|| {
-                            Status::failed_precondition("policy read model is malformed")
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let escalation_after_minutes = state
-                    .get("escalation_after_minutes")
-                    .and_then(Value::as_u64)
-                    .and_then(|value| u32::try_from(value).ok())
-                    .ok_or_else(|| Status::failed_precondition("policy read model is malformed"))?;
-                policies.push(OperationsWorkQueuePolicyMessage {
-                    policy_id: row.aggregate_id.to_string(),
-                    name: name.to_owned(),
-                    allowed_domains,
-                    escalation_after_minutes,
-                    status: row.lifecycle_status,
-                    aggregate_version: row.aggregate_version,
-                    updated_at: row.updated_at.to_rfc3339(),
-                });
-            }
-            Ok(Response::new(ListOperationsWorkQueuePoliciesResponse {
-                policies,
-                has_more: page.has_more,
-                next_cursor: page
-                    .next_cursor
-                    .as_ref()
-                    .map(organization_cursor)
-                    .unwrap_or_default(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-}
-
-#[derive(Clone)]
-struct SupportRpcImpl {
-    state: AppState,
-}
-
-#[tonic::async_trait]
-impl SupportRpc for SupportRpcImpl {
-    async fn create_ticket(
-        &self,
-        request: Request<CreateTicketRequest>,
-    ) -> Result<Response<CreateTicketResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &access_scope(&context.tenant_scope),
-                    "support.ticket.create",
-                )
-                .await?;
-            let input = request.into_inner();
-            let customer_id = parse_uuid(&input.customer_id, "customer_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "support",
-                    "support.ticket.create",
-                )
-                .await?;
-            let ticket = self
-                .state
-                .authoritative_support
-                .open_ticket(&context, customer_id, input.severity, input.description)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            Ok(Response::new(CreateTicketResponse {
-                ticket: Some(ticket_message(&ticket)),
-            }))
-        })
-    }
-
-    async fn update_ticket(
-        &self,
-        request: Request<UpdateTicketRequest>,
-    ) -> Result<Response<UpdateTicketResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &access_scope(&context.tenant_scope),
-                    "support.ticket.update",
-                )
-                .await?;
-            let input = request.into_inner();
-            let ticket_id = parse_uuid(&input.ticket_id, "ticket_id")?;
-            let next_status = parse_ticket_status(&input.next_status)?;
-            let ticket = self
-                .state
-                .store
-                .get_ticket(ticket_id)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?
-                .ok_or_else(|| Status::not_found("support ticket not found"))?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    ticket.customer_account_id,
-                    "support",
-                    "support.ticket.update",
-                )
-                .await?;
-            let ticket = self
-                .state
-                .authoritative_support
-                .transition_ticket(&context, ticket_id, next_status)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            if matches!(ticket.status, TicketStatus::Closed) {
-                self.state
-                    .store
-                    .revoke_support_capabilities_for_ticket(ticket.id, Utc::now())
-                    .await
-                    .map_err(|_| Status::internal("support capability revocation failed"))?;
-            }
-            Ok(Response::new(UpdateTicketResponse {
-                ticket: Some(ticket_message(&ticket)),
-            }))
-        })
-    }
-
-    async fn get_ticket(
-        &self,
-        request: Request<GetTicketRequest>,
-    ) -> Result<Response<GetTicketResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "support.ticket.read")
-                .await?;
-            let ticket_id = parse_uuid(&request.get_ref().ticket_id, "ticket_id")?;
-            let ticket = self
-                .state
-                .store
-                .get_ticket(ticket_id)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?
-                .ok_or_else(|| Status::not_found("support ticket not found"))?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(ticket.customer_account_id, &scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let purpose = validate_read_purpose(
-                proto_context
-                    .audit
-                    .as_ref()
-                    .map(|audit| audit.purpose.as_str())
-                    .unwrap_or_default(),
-            )?;
-            self.state
-                .store
-                .record(erpx_application::AuditEvent {
-                    actor_ref: context.actor,
-                    customer_account_id: Some(ticket.customer_account_id),
-                    action: "support.ticket.read".into(),
-                    purpose: purpose.into(),
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("support ticket audit unavailable"))?;
-            Ok(Response::new(GetTicketResponse {
-                ticket: Some(ticket_message(&ticket)),
-                correlation_id: context.correlation_id.to_string(),
-                present: true,
-            }))
-        })
-    }
-
-    async fn list_tickets(
-        &self,
-        request: Request<ListTicketsRequest>,
-    ) -> Result<Response<ListTicketsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .clone()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(&proto_context))?;
-            let scope = query_access_scope(&proto_context)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "support.ticket.read")
-                .await?;
-            let input = request.into_inner();
-            let status = (!input.status.trim().is_empty())
-                .then(|| parse_ticket_status(&input.status))
-                .transpose()?;
-            let customer_id = if input.customer_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.customer_id, "customer_id")?)
-            };
-            let after_cursor = if input.after_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_support_ticket_cursor(&input.after_cursor)?)
-            };
-            let page = self
-                .state
-                .support_persistence
-                .list_tickets_after(status, customer_id, input.page_size, after_cursor.as_ref())
-                .await
-                .map_err(incident_persistence_status)?;
-
-            let mut tickets = Vec::with_capacity(page.tickets.len());
-            for ticket in page.tickets {
-                if self
-                    .state
-                    .store
-                    .customer_scope_contains(ticket.value.customer_account_id, &scope)
-                    .await
-                    .map_err(|_| Status::internal("customer scope lookup failed"))?
-                {
-                    tickets.push(ticket_message(&ticket.value));
-                }
-            }
-            let purpose = validate_read_purpose(
-                proto_context
-                    .audit
-                    .as_ref()
-                    .map(|audit| audit.purpose.as_str())
-                    .unwrap_or_default(),
-            )?;
-            self.state
-                .store
-                .record(erpx_application::AuditEvent {
-                    actor_ref: context.actor,
-                    customer_account_id: customer_id,
-                    action: "support.ticket.list".into(),
-                    purpose: purpose.into(),
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("support ticket audit unavailable"))?;
-
-            Ok(Response::new(ListTicketsResponse {
-                tickets,
-                has_more: page.has_more,
-                correlation_id: context.correlation_id.to_string(),
-                next_cursor: page
-                    .next_cursor
-                    .as_ref()
-                    .map(encode_support_ticket_cursor)
-                    .unwrap_or_default(),
-            }))
-        })
-    }
-
-    async fn create_ticket_recurrence(
-        &self,
-        request: Request<CreateTicketRecurrenceRequest>,
-    ) -> Result<Response<CreateTicketRecurrenceResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &access_scope(&context.tenant_scope),
-                    "support.ticket.create",
-                )
-                .await?;
-            let input = request.into_inner();
-            let closed_ticket_id = parse_uuid(&input.closed_ticket_id, "closed_ticket_id")?;
-            let closed_ticket = self
-                .state
-                .store
-                .get_ticket(closed_ticket_id)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?
-                .ok_or_else(|| Status::not_found("closed support ticket not found"))?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    closed_ticket.customer_account_id,
-                    "support",
-                    "support.ticket.create",
-                )
-                .await?;
-            let ticket = self
-                .state
-                .authoritative_support
-                .open_ticket_recurrence(
-                    &context,
-                    closed_ticket_id,
-                    input.severity,
-                    input.description,
-                )
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            Ok(Response::new(CreateTicketRecurrenceResponse {
-                ticket: Some(ticket_message(&ticket)),
-            }))
-        })
-    }
-
-    async fn add_ticket_reply(
-        &self,
-        request: Request<AddTicketReplyRequest>,
-    ) -> Result<Response<AddTicketReplyResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &access_scope(&context.tenant_scope),
-                    SUPPORT_TICKET_REPLY_PERMISSION,
-                )
-                .await?;
-            let input = request.into_inner();
-            let ticket_id = parse_uuid(&input.ticket_id, "ticket_id")?;
-            let ticket = self
-                .state
-                .store
-                .get_ticket(ticket_id)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?
-                .ok_or_else(|| Status::not_found("support ticket not found"))?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    ticket.customer_account_id,
-                    "support",
-                    SUPPORT_TICKET_REPLY_PERMISSION,
-                )
-                .await?;
-            let ticket = self
-                .state
-                .authoritative_support
-                .add_customer_reply(&context, ticket_id, input.body)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            Ok(Response::new(AddTicketReplyResponse {
-                ticket: Some(ticket_message(&ticket)),
-            }))
-        })
-    }
-
-    async fn add_ticket_internal_note(
-        &self,
-        request: Request<AddTicketInternalNoteRequest>,
-    ) -> Result<Response<AddTicketInternalNoteResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &access_scope(&context.tenant_scope),
-                    SUPPORT_TICKET_INTERNAL_NOTE_PERMISSION,
-                )
-                .await?;
-            let input = request.into_inner();
-            let ticket_id = parse_uuid(&input.ticket_id, "ticket_id")?;
-            let ticket = self
-                .state
-                .store
-                .get_ticket(ticket_id)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?
-                .ok_or_else(|| Status::not_found("support ticket not found"))?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    ticket.customer_account_id,
-                    "support",
-                    SUPPORT_TICKET_INTERNAL_NOTE_PERMISSION,
-                )
-                .await?;
-            let ticket = self
-                .state
-                .authoritative_support
-                .add_internal_note(&context, ticket_id, input.body)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            Ok(Response::new(AddTicketInternalNoteResponse {
-                ticket: Some(ticket_message(&ticket)),
-            }))
-        })
-    }
-
-    async fn create_incident(
-        &self,
-        request: Request<CreateIncidentRequest>,
-    ) -> Result<Response<CreateIncidentResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if !matches!(scope, Scope::Platform) {
-                return Err(Status::permission_denied(
-                    "incident commands require platform scope",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &scope,
-                    INCIDENT_CREATE_PERMISSION,
-                )
-                .await?;
-
-            let input = request.into_inner();
-            let commander_ref = validate_incident_text(
-                &input.commander_ref,
-                "commander_ref",
-                MAX_INCIDENT_REFERENCE_BYTES,
-            )?;
-            require_actor_match(
-                &claims.principal_ref,
-                &commander_ref,
-                "incident commander must match the authenticated principal",
-            )?;
-            let leads = validate_incident_text_list(&input.leads, "leads", MAX_INCIDENT_LEADS)?;
-            let affected_services = validate_incident_text_list(
-                &input.affected_services,
-                "affected_services",
-                MAX_INCIDENT_SERVICES,
-            )?;
-            if input.affected_customer_accounts.len() > MAX_INCIDENT_CUSTOMERS {
-                return Err(Status::invalid_argument(
-                    "affected_customer_accounts has too many entries",
-                ));
-            }
-            let affected_customer_accounts = input
-                .affected_customer_accounts
-                .iter()
-                .map(|value| parse_uuid(value, "affected_customer_account"))
-                .collect::<Result<Vec<_>, _>>()?;
-            let request_hash = incident_request_hash(&serde_json::json!({
-                "command_id": context.command_id,
-                "commander_ref": commander_ref.clone(),
-                "leads": leads.clone(),
-                "affected_services": affected_services.clone(),
-                "affected_customer_accounts": affected_customer_accounts.clone(),
-            }))?;
-            let mut incident = Incident::new(
-                commander_ref,
-                leads,
-                affected_services,
-                affected_customer_accounts,
-                Utc::now(),
-            )
-            .map_err(|_| Status::invalid_argument("incident input is invalid"))?;
-            // The command ID is the stable aggregate identity for create
-            // retries. This lets SupportPersistence replay the same command
-            // without generating a second incident.
-            incident.id = context.command_id;
-            let persisted = self
-                .state
-                .support_persistence
-                .insert_incident(
-                    &incident,
-                    &SupportIdempotencyKey::new(context.idempotency_key.clone(), request_hash),
-                )
-                .await
-                .map_err(incident_persistence_status)?;
-            self.state
-                .store
-                .record(erpx_application::AuditEvent {
-                    actor_ref: context.actor.principal_ref,
-                    customer_account_id: None,
-                    action: "incident_created".into(),
-                    purpose: context.audit.purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("incident audit unavailable"))?;
-            Ok(Response::new(CreateIncidentResponse {
-                incident: Some(incident_message(persisted.value, persisted.version)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn update_incident(
-        &self,
-        request: Request<UpdateIncidentRequest>,
-    ) -> Result<Response<UpdateIncidentResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if !matches!(scope, Scope::Platform) {
-                return Err(Status::permission_denied(
-                    "incident commands require platform scope",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &scope,
-                    INCIDENT_UPDATE_PERMISSION,
-                )
-                .await?;
-
-            let input = request.into_inner();
-            let incident_id = parse_uuid(&input.incident_id, "incident_id")?;
-            let next_status = parse_incident_status(&input.next_status)?;
-            let expected_version = context.expected_aggregate_version.ok_or_else(|| {
-                Status::failed_precondition("incident update requires expected_aggregate_version")
-            })?;
-            let current = self
-                .state
-                .support_persistence
-                .get_incident(incident_id)
-                .await
-                .map_err(incident_persistence_status)?
-                .ok_or_else(|| Status::not_found("incident not found"))?;
-            let request_hash = incident_request_hash(&serde_json::json!({
-                "command_id": context.command_id,
-                "incident_id": incident_id,
-                "next_status": incident_status_name(next_status),
-                "expected_version": expected_version,
-                "actor_ref": context.actor.principal_ref.clone(),
-            }))?;
-            let mut incident = current.value;
-            if incident.status == next_status {
-                if current.version == expected_version {
-                    return Err(Status::failed_precondition(
-                        "invalid incident lifecycle transition",
-                    ));
-                }
-                // A same-status request with a stale version is allowed to
-                // reach persistence so an already-completed idempotent retry
-                // can return its stored result; a fresh command still fails
-                // the optimistic concurrency check.
-            } else {
-                incident
-                    .transition(next_status, Utc::now(), &context.actor.principal_ref)
-                    .map_err(|_| {
-                        Status::failed_precondition("invalid incident lifecycle transition")
-                    })?;
-            }
-            let persisted = self
-                .state
-                .support_persistence
-                .update_incident(
-                    &incident,
-                    expected_version,
-                    &SupportIdempotencyKey::new(context.idempotency_key.clone(), request_hash),
-                )
-                .await
-                .map_err(incident_persistence_status)?;
-            self.state
-                .store
-                .record(erpx_application::AuditEvent {
-                    actor_ref: context.actor.principal_ref,
-                    customer_account_id: None,
-                    action: "incident_transitioned".into(),
-                    purpose: context.audit.purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("incident audit unavailable"))?;
-            Ok(Response::new(UpdateIncidentResponse {
-                incident: Some(incident_message(persisted.value, persisted.version)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn get_incident(
-        &self,
-        request: Request<GetIncidentRequest>,
-    ) -> Result<Response<GetIncidentResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            let purpose = proto_context
-                .audit
-                .as_ref()
-                .map(|audit| audit.purpose.clone())
-                .unwrap_or_default();
-            if !matches!(scope, Scope::Platform) {
-                return Err(Status::permission_denied(
-                    "incident reads require platform scope",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "support.incident.read")
-                .await?;
-            let input = request.into_inner();
-            let incident_id = parse_uuid(&input.incident_id, "incident_id")?;
-            self.state
-                .store
-                .record(erpx_application::AuditEvent {
-                    actor_ref: context.actor,
-                    customer_account_id: None,
-                    action: "incident_read".into(),
-                    purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("incident audit unavailable"))?;
-            let incident = self
-                .state
-                .support_persistence
-                .get_incident(incident_id)
-                .await
-                .map_err(incident_persistence_status)?;
-            let mut response = GetIncidentResponse {
-                correlation_id: context.correlation_id.to_string(),
-                ..Default::default()
-            };
-            if let Some(persisted) = incident {
-                response.incident = Some(incident_message(persisted.value, persisted.version));
-                response.present = true;
-            }
-            Ok(Response::new(response))
-        })
-    }
-
-    async fn list_incidents(
-        &self,
-        request: Request<ListIncidentsRequest>,
-    ) -> Result<Response<ListIncidentsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            let purpose = proto_context
-                .audit
-                .as_ref()
-                .map(|audit| audit.purpose.clone())
-                .unwrap_or_default();
-            if !matches!(scope, Scope::Platform) {
-                return Err(Status::permission_denied(
-                    "incident reads require platform scope",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "support.incident.read")
-                .await?;
-            let input = request.into_inner();
-            if input.page_size == 0 || input.page_size > MAX_INCIDENT_LIST_PAGE_SIZE {
-                return Err(Status::invalid_argument(
-                    "incident list page_size must be between 1 and 100",
-                ));
-            }
-            let status = (!input.status.trim().is_empty())
-                .then(|| parse_incident_status(input.status.trim()))
-                .transpose()?;
-
-            // The shared AuditEvent contract has no separate scope column;
-            // the fixed platform scope is explicit in the action while actor,
-            // purpose, and correlation remain independently queryable.
-            self.state
-                .store
-                .record(erpx_application::AuditEvent {
-                    actor_ref: context.actor,
-                    customer_account_id: None,
-                    action: "incident_list_read:platform".into(),
-                    purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("incident audit unavailable"))?;
-
-            let page = self
-                .state
-                .support_persistence
-                .list_incidents(status, input.page_size)
-                .await
-                .map_err(incident_persistence_status)?;
-            let has_more = page.has_more;
-            Ok(Response::new(ListIncidentsResponse {
-                incidents: page
-                    .incidents
-                    .into_iter()
-                    .map(|incident| incident_message(incident.value, incident.version))
-                    .collect(),
-                has_more,
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn request_support_session(
-        &self,
-        request: Request<RequestSupportSessionRequest>,
-    ) -> Result<Response<RequestSupportSessionResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &access_scope(&context.tenant_scope),
-                    "support.session.request",
-                )
-                .await?;
-            let input = request.into_inner();
-            require_actor_match(
-                &claims.principal_ref,
-                &input.agent_ref,
-                "support agent must match the authenticated principal",
-            )?;
-            let requested_scope = access_scope(&context.tenant_scope);
-            let approved_scope = parse_support_scope(&input.scope)?;
-            if input.scope != support_scope_reference(&approved_scope) {
-                return Err(Status::invalid_argument(
-                    "support scope must use canonical formatting",
-                ));
-            }
-            if !approved_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied(
-                    "support approval scope does not contain the command scope",
-                ));
-            }
-            let mode = parse_mode(&input.mode)?;
-            let ticket_id = parse_uuid(&input.ticket_id, "ticket_id")?;
-            let customer_id = parse_uuid(&input.customer_id, "customer_id")?;
-            let module = if input.module.trim().is_empty() {
-                "support"
-            } else {
-                input.module.as_str()
-            };
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "support",
-                    "support.session.request",
-                )
-                .await?;
-            let session = self
-                .state
-                .authoritative_support
-                .request_session(
-                    &context,
-                    ticket_id,
-                    customer_id,
-                    &input.agent_ref,
-                    mode,
-                    input.permissions,
-                    &input.scope,
-                    module,
-                    &input.reason,
-                    Duration::minutes(i64::from(input.duration_minutes)),
-                    (!input.represented_tenant_user.is_empty())
-                        .then_some(input.represented_tenant_user),
-                )
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            self.state
-                .store
-                .persist_support_access_request(&session)
-                .await
-                .map_err(|_| Status::internal("support approval request persistence failed"))?;
-            Ok(Response::new(RequestSupportSessionResponse {
-                session: Some(to_session_message(session)),
-            }))
-        })
-    }
-
-    async fn approve_support_session(
-        &self,
-        request: Request<ApproveSupportSessionRequest>,
-    ) -> Result<Response<SupportSessionMessage>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            if context.actor.principal_ref != claims.principal_ref {
-                return Err(Status::permission_denied(
-                    "customer approver must match the authenticated principal",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_customer_support_approver(
-                    &self.state.store,
-                    &claims,
-                    &access_scope(&context.tenant_scope),
-                )
-                .await?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &access_scope(&context.tenant_scope),
-                    "support.session.approve",
-                )
-                .await?;
-            let token = request
-                .metadata()
-                .get("x-erpx-customer-approval")
-                .and_then(|value| value.to_str().ok())
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| Status::unauthenticated("customer approval metadata is required"))?
-                .to_owned();
-            let input = request.into_inner();
-            require_actor_match(
-                &claims.principal_ref,
-                &input.customer_approver,
-                "customer approver must match the authenticated principal",
-            )?;
-            let id = parse_uuid(&input.session_id, "session_id")?;
-            let session = self
-                .state
-                .store
-                .get_session(id)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?
-                .ok_or_else(|| Status::not_found("support session not found"))?;
-            let requested_scope = parse_support_scope(&session.scope)?;
-            if session.scope != support_scope_reference(&requested_scope) {
-                return Err(Status::failed_precondition(
-                    "stored support session scope is not canonical",
-                ));
-            }
-            let approver_scope = access_scope(&context.tenant_scope);
-            if !approver_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied(
-                    "customer approval scope does not contain the requested support scope",
-                ));
-            }
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    session.customer_account_id,
-                    "support",
-                    "support.session.approve",
-                )
-                .await?;
-            verify_customer_approval(&token, id, session.customer_account_id)?;
-            let session = self
-                .state
-                .authoritative_support
-                .approve_session(&context, id, &input.customer_approver)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            let active_device_id = self
-                .state
-                .auth
-                .identity
-                .active_session_device_id(claims.session_id, Utc::now())
-                .await
-                .map_err(map_identity_auth_error)?;
-            let device_ref = active_device_id.to_string();
-            validate_authenticated_device_ref(active_device_id, &input.device_ref)?;
-            let approved_at = session
-                .approved_at
-                .ok_or_else(|| Status::internal("approved support session has no timestamp"))?;
-            let duration = session.expires_at.signed_duration_since(approved_at);
-            let binding = SupportCapabilityBinding::new(
-                session.customer_account_id,
-                session.agent_ref.clone(),
-                &device_ref,
-                session.id,
-                session.ticket_id,
-                session.mode,
-                session.permissions.clone(),
-                session.scope.clone(),
-                session.module.clone(),
-            )
-            .map_err(|_| Status::invalid_argument("support capability binding is invalid"))?;
-            let (capability, secret) = SupportCapability::issue(binding, approved_at, duration)
-                .map_err(|_| Status::failed_precondition("support capability is expired"))?;
-            self.state
-                .store
-                .persist_approved_support_capability(
-                    &session,
-                    &capability,
-                    &hex::encode(Sha256::digest(token.as_bytes())),
-                )
-                .await
-                .map_err(|_| {
-                    Status::internal("support approval and capability persistence failed")
-                })?;
-            let mut response = to_session_message(session);
-            response.capability_id = capability.id.to_string();
-            response.capability_secret = secret.as_hex();
-            Ok(Response::new(response))
-        })
-    }
-
-    async fn get_support_diagnostics(
-        &self,
-        request: Request<GetSupportDiagnosticsRequest>,
-    ) -> Result<Response<GetSupportDiagnosticsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            let customer_account_id = match request.get_ref().access.as_ref() {
-                None => {
-                    // Preserve the original platform-only operational
-                    // diagnostics contract for older clients. A missing
-                    // access context can never select tenant data because
-                    // platform scope and the platform role are still exact.
-                    require_platform_scope(&scope)?;
-                    self.state
-                        .auth
-                        .authorize_role(
-                            &self.state.store,
-                            &claims,
-                            &scope,
-                            SUPPORT_DIAGNOSTICS_PERMISSION,
-                        )
-                        .await?;
-                    None
-                }
-                Some(access) => match access.mode {
-                    1 => {
-                        platform_diagnostics_access_is_empty(access)?;
-                        require_platform_scope(&scope)?;
-                        self.state
-                            .auth
-                            .authorize_role(
-                                &self.state.store,
-                                &claims,
-                                &scope,
-                                SUPPORT_DIAGNOSTICS_PERMISSION,
-                            )
-                            .await?;
-                        None
-                    }
-                    2 => Some(
-                        self.state
-                            .authorize_support_diagnostics(&claims, &scope, access)
-                            .await?,
-                    ),
-                    _ => {
-                        return Err(Status::invalid_argument(
-                            "diagnostics access mode must be platform or customer_support",
-                        ));
-                    }
-                },
-            };
-            let purpose = validate_read_purpose(&request.get_ref().purpose)?.to_owned();
-            let captured_at = Utc::now();
-            let control_ready = self.state.store.check_ready().await.is_ok();
-            let identity_ready = self.state.auth.identity.check_ready().await.is_ok();
-            let mut input = DiagnosticsSnapshotInput::new(captured_at);
-            input.add_version("server", env!("CARGO_PKG_VERSION"));
-            input.set_worker_health(
-                if control_ready && identity_ready {
-                    ReadinessObservationState::NotProbed
-                } else {
-                    ReadinessObservationState::Unavailable
-                },
-                Some(captured_at),
-                Some(0),
-                Some(if control_ready && identity_ready {
-                    "worker_observation_not_available"
-                } else {
-                    "control_plane_or_identity_unavailable"
-                }),
-            );
-            let snapshot = input
-                .build(DiagnosticsLimits::default())
-                .map_err(|_| Status::internal("diagnostics snapshot exceeded its safety bound"))?;
-            let payload_json = serde_json::to_vec(&snapshot)
-                .map_err(|_| Status::internal("diagnostics serialization failed"))?;
-            self.state
-                .store
-                .record(erpx_application::AuditEvent {
-                    actor_ref: context.actor,
-                    customer_account_id,
-                    action: "support.diagnostics.read".into(),
-                    purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::internal("diagnostics audit persistence failed"))?;
-            Ok(Response::new(GetSupportDiagnosticsResponse {
-                payload_json,
-                schema_version: snapshot.schema_version().into(),
-                correlation_id: context.correlation_id.to_string(),
-                fields: support_diagnostics_transport_fields(&snapshot),
-                captured_at: snapshot.captured_at().to_rfc3339(),
-            }))
-        })
-    }
-
-    async fn revoke_support_session(
-        &self,
-        request: Request<RevokeSupportSessionRequest>,
-    ) -> Result<Response<()>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &access_scope(&context.tenant_scope),
-                    "support.session.revoke",
-                )
-                .await?;
-            require_actor_match(
-                &claims.principal_ref,
-                &request.get_ref().actor_ref,
-                "revoking actor must match the authenticated principal",
-            )?;
-            let id = parse_uuid(&request.get_ref().session_id, "session_id")?;
-            let session = self
-                .state
-                .store
-                .get_session(id)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?
-                .ok_or_else(|| Status::not_found("support session not found"))?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    session.customer_account_id,
-                    "support",
-                    "support.session.revoke",
-                )
-                .await?;
-            self.state
-                .authoritative_support
-                .revoke_session(&context, id)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            self.state
-                .store
-                .revoke_support_capabilities_for_session(id, Utc::now())
-                .await
-                .map_err(|_| Status::internal("support capability revocation failed"))?;
-            tracing::info!(session_id = %id, actor = %context.actor.principal_ref, "support session revoked");
-            Ok(Response::new(()))
         })
     }
 }
@@ -13274,12 +9251,11 @@ struct RoleRpcImpl {
     state: AppState,
 }
 
-#[tonic::async_trait]
-impl RoleLifecycleRpc for RoleRpcImpl {
+impl RoleRpcImpl {
     async fn list_expiring_roles(
         &self,
-        request: Request<ListExpiringRolesRequest>,
-    ) -> Result<Response<ListExpiringRolesResponse>, Status> {
+        request: Request<identity_target::ListExpiringRolesRequest>,
+    ) -> Result<Response<identity_target::ListExpiringRolesResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -13302,85 +9278,16 @@ impl RoleLifecycleRpc for RoleRpcImpl {
                 )
                 .await
                 .map_err(|error| errors::application(error, context.correlation_id))?;
-            Ok(Response::new(ListExpiringRolesResponse {
+            Ok(Response::new(identity_target::ListExpiringRolesResponse {
                 assignments: assignments.into_iter().map(to_role_message).collect(),
-            }))
-        })
-    }
-
-    async fn renew_role(
-        &self,
-        request: Request<RenewRoleRequest>,
-    ) -> Result<Response<RenewRoleResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let requested_scope = access_scope(&context.tenant_scope);
-            let input = request.into_inner();
-            require_actor_match(
-                &claims.principal_ref,
-                &input.grantor,
-                "role grantor must match the authenticated principal",
-            )?;
-            let customer_id = (!input.customer_id.trim().is_empty())
-                .then(|| parse_uuid(&input.customer_id, "customer_id"))
-                .transpose()?;
-            self.state
-                .authorize_role_lifecycle_command(&claims, &context, customer_id, &input.module_key)
-                .await?;
-            let id = parse_uuid(&input.assignment_id, "assignment_id")?;
-            let current = self
-                .state
-                .store
-                .get(id)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?
-                .ok_or_else(|| Status::not_found("role assignment not found"))?;
-            // The command actor may renew only assignments fully contained by the
-            // actor's command scope. Reversing this relation would let a narrow
-            // branch operator renew a holding/company-wide assignment.
-            if !requested_scope.contains(&current.scope) {
-                return Err(Status::permission_denied(
-                    "role assignment is outside the command scope",
-                ));
-            }
-            if !input.approver.trim().is_empty() {
-                self.state
-                    .auth
-                    .authorize_independent_role(
-                        &self.state.store,
-                        &input.approver,
-                        &current.scope,
-                        "role.assignment.approve",
-                        &claims.principal_ref,
-                    )
-                    .await?;
-            }
-            let valid_until = DateTime::parse_from_rfc3339(&input.valid_until)
-                .map_err(|_| Status::invalid_argument("valid_until must be RFC3339"))?
-                .with_timezone(&Utc);
-            let assignment = self
-                .state
-                .authoritative_roles
-                .renew(
-                    &context,
-                    id,
-                    valid_until,
-                    &input.grantor,
-                    (!input.approver.is_empty()).then_some(input.approver),
-                )
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            Ok(Response::new(RenewRoleResponse {
-                assignment: Some(to_role_message(assignment)),
             }))
         })
     }
 
     async fn list_role_review(
         &self,
-        request: Request<ListRoleReviewRequest>,
-    ) -> Result<Response<ListRoleReviewResponse>, Status> {
+        request: Request<identity_target::ListRoleReviewRequest>,
+    ) -> Result<Response<identity_target::ListRoleReviewResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -13402,7 +9309,7 @@ impl RoleLifecycleRpc for RoleRpcImpl {
             }
             let queue = self
                 .state
-                .authoritative_roles
+                .roles
                 .review_queue(Duration::days(i64::from(within_days)))
                 .await
                 .map_err(|error| errors::application(error, context.correlation_id))?;
@@ -13412,1776 +9319,311 @@ impl RoleLifecycleRpc for RoleRpcImpl {
                 .filter(|item| scope.contains(&item.assignment.scope))
                 .map(to_role_review_message)
                 .collect();
-            Ok(Response::new(ListRoleReviewResponse {
+            Ok(Response::new(identity_target::ListRoleReviewResponse {
                 evaluated_at: queue.evaluated_at.to_rfc3339(),
                 expiry_horizon_until: queue.expiry_horizon_until.to_rfc3339(),
                 items,
             }))
         })
     }
-
-    async fn recover_final_role(
-        &self,
-        request: Request<RecoverFinalRoleRequest>,
-    ) -> Result<Response<RecoverFinalRoleResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let requested_scope = access_scope(&context.tenant_scope);
-            let input = request.into_inner();
-            require_actor_match(
-                &claims.principal_ref,
-                &input.requester_ref,
-                "recovery requester must match the authenticated principal",
-            )?;
-            let target = match input.target.as_str() {
-                "platform_root" => {
-                    if !input.holding_id.trim().is_empty() {
-                        return Err(Status::invalid_argument(
-                            "holding_id is not valid for platform_root recovery",
-                        ));
-                    }
-                    RoleRecoveryTarget::PlatformRoot
-                }
-                "holding_owner" => RoleRecoveryTarget::HoldingOwner {
-                    holding_id: parse_uuid(&input.holding_id, "holding_id")?,
-                },
-                _ => return Err(Status::invalid_argument("unsupported recovery target")),
-            };
-            if !requested_scope.contains(&target_scope(&target)) {
-                return Err(Status::permission_denied(
-                    "recovery target is outside the command scope",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &requested_scope,
-                    "role.assignment.recover",
-                )
-                .await?;
-            let valid_until = DateTime::parse_from_rfc3339(&input.valid_until)
-                .map_err(|_| Status::invalid_argument("valid_until must be RFC3339"))?
-                .with_timezone(&Utc);
-            let authority_level = u8::try_from(input.authority_level)
-                .map_err(|_| Status::invalid_argument("authority_level is out of range"))?;
-            let recovery = RoleRecoveryRequest {
-                request_id: parse_uuid(&input.request_id, "request_id")?,
-                target,
-                principal_ref: input.principal_ref,
-                permissions: input.permissions,
-                functional_domain: input.functional_domain,
-                authority_level,
-                valid_from: Utc::now(),
-                valid_until,
-                timezone: input.timezone,
-                grant_reason: input.reason,
-                ticket_reference: (!input.ticket_reference.trim().is_empty())
-                    .then_some(input.ticket_reference),
-                requester_ref: input.requester_ref,
-                approver_ref: input.approver_ref,
-                reviewer_ref: (!input.reviewer_ref.trim().is_empty()).then_some(input.reviewer_ref),
-            };
-            self.state
-                .auth
-                .authorize_independent_role(
-                    &self.state.store,
-                    &recovery.approver_ref,
-                    &target_scope(&recovery.target),
-                    "role.assignment.approve",
-                    &claims.principal_ref,
-                )
-                .await?;
-            if let Some(reviewer_ref) = recovery.reviewer_ref.as_deref() {
-                self.state
-                    .auth
-                    .authorize_independent_role(
-                        &self.state.store,
-                        reviewer_ref,
-                        &target_scope(&recovery.target),
-                        "role.assignment.review",
-                        &claims.principal_ref,
-                    )
-                    .await?;
-            }
-            let mut recovery_receipt_request = recovery.clone();
-            let assignment = self
-                .state
-                .authoritative_roles
-                .recover_final_role(&context, recovery)
-                .await
-                .map_err(|error| errors::application(error, context.correlation_id))?;
-            // The authoritative role service replaces the transport-supplied
-            // start instant with its write-side clock. Bind the durable
-            // recovery receipt to the committed assignment, not to the
-            // untrusted request timestamp captured before the command.
-            recovery_receipt_request.valid_from = assignment.valid_from;
-            RoleReviewPersistence::new(self.state.store.pools().write.clone())
-                .record_recovery_receipt(
-                    &recovery_receipt_request,
-                    u64::from(assignment.assignment_version),
-                    "approved",
-                    &context.idempotency_key,
-                    &context.actor.principal_ref,
-                    context.correlation_id,
-                )
-                .await
-                .map_err(|_| {
-                    Status::unavailable("role recovery receipt persistence unavailable")
-                })?;
-            Ok(Response::new(RecoverFinalRoleResponse {
-                assignment: Some(to_role_message(assignment)),
-            }))
-        })
-    }
 }
 
 #[derive(Clone)]
-struct FinanceRpcImpl {
-    state: AppState,
+struct IdentityAccessCommandComposite<A, G> {
+    current: IdentityAccessCommandRpc<A, G>,
+    directory: DirectoryRpcImpl,
 }
 
-#[derive(Clone)]
-struct HrRpcImpl {
-    state: AppState,
-}
-
-impl HrRpcImpl {
-    async fn save_employee(
-        &self,
-        request: Request<SaveHrEmployeeRequest>,
-    ) -> Result<Response<SaveHrEmployeeResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "HR writes require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.employee_json.is_empty() || input.employee_json.len() > 256 * 1024 {
-                return Err(Status::invalid_argument("employee_json is out of bounds"));
-            }
-            let employee: EmployeeRecord = serde_json::from_slice(&input.employee_json)
-                .map_err(|_| Status::invalid_argument("employee_json is invalid"))?;
-            if employee.last_command_id != context.command_id
-                || employee.last_idempotency_key != context.idempotency_key
-                || access_scope(&employee.scope.tenant_scope()) != scope
-            {
-                return Err(Status::permission_denied(
-                    "HR employee identity or command scope does not match context",
-                ));
-            }
-            let expected_version = if input.has_expected_version {
-                if input.expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(input.expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "hr", "hr.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxHrPersistence::new(write.database_pool().clone(), holding_ref)
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .save_employee(&employee, expected_version)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "hr.employee.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("HR audit persistence unavailable"))?;
-                Ok::<SaveHrEmployeeResponse, Status>(SaveHrEmployeeResponse {
-                    receipt: Some(erpx_proto::platform::HrWriteReceipt {
-                        aggregate_type: receipt.aggregate_type.as_str().into(),
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        idempotency_key: receipt.idempotency_key,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn transition_employee(
-        &self,
-        request: Request<TransitionHrEmployeeRequest>,
-    ) -> Result<Response<TransitionHrEmployeeResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "HR transitions require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let employee_id = parse_uuid(&input.employee_id, "employee_id")?;
-            if input.transition.trim().is_empty() || input.transition.len() > 64 {
-                return Err(Status::invalid_argument(
-                    "employee transition is outside its bound",
-                ));
-            }
-            if input.expected_version == 0
-                || context.expected_aggregate_version != Some(input.expected_version)
-            {
-                return Err(Status::invalid_argument(
-                    "expected_version must be positive and match command context",
-                ));
-            }
-            let terminated_on = if input.terminated_on.trim().is_empty() {
-                None
-            } else {
-                Some(
-                    NaiveDate::parse_from_str(input.terminated_on.trim(), "%Y-%m-%d")
-                        .map_err(|_| Status::invalid_argument("terminated_on is invalid"))?,
-                )
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "hr", "hr.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxHrPersistence::new(write.database_pool().clone(), holding_ref)
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .transition_employee(
-                        employee_id,
-                        &input.transition,
-                        terminated_on,
-                        input.expected_version,
-                        &context,
-                    )
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "hr.employee.transitioned".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("HR audit persistence unavailable"))?;
-                Ok::<TransitionHrEmployeeResponse, Status>(TransitionHrEmployeeResponse {
-                    receipt: Some(erpx_proto::platform::HrWriteReceipt {
-                        aggregate_type: receipt.aggregate_type,
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        idempotency_key: receipt.idempotency_key,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn save_leave(
-        &self,
-        request: Request<SaveHrLeaveRequest>,
-    ) -> Result<Response<SaveHrLeaveResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "HR writes require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.leave_json.is_empty() || input.leave_json.len() > 256 * 1024 {
-                return Err(Status::invalid_argument("leave_json is out of bounds"));
-            }
-            let leave: LeaveRequest = serde_json::from_slice(&input.leave_json)
-                .map_err(|_| Status::invalid_argument("leave_json is invalid"))?;
-            if leave.last_command_id != context.command_id
-                || access_scope(&leave.scope.tenant_scope()) != scope
-            {
-                return Err(Status::permission_denied(
-                    "HR leave identity or command scope does not match context",
-                ));
-            }
-            let expected_version = if input.has_expected_version {
-                if input.expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(input.expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "hr", "hr.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxHrPersistence::new(write.database_pool().clone(), holding_ref)
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .save_leave(&leave, &context.idempotency_key, expected_version)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "hr.leave.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("HR audit persistence unavailable"))?;
-                Ok::<SaveHrLeaveResponse, Status>(SaveHrLeaveResponse {
-                    receipt: Some(erpx_proto::platform::HrWriteReceipt {
-                        aggregate_type: receipt.aggregate_type.as_str().into(),
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        idempotency_key: receipt.idempotency_key,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn save_expense(
-        &self,
-        request: Request<SaveHrExpenseRequest>,
-    ) -> Result<Response<SaveHrExpenseResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "HR writes require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.expense_json.is_empty() || input.expense_json.len() > 256 * 1024 {
-                return Err(Status::invalid_argument("expense_json is out of bounds"));
-            }
-            let expense: ExpenseClaim = serde_json::from_slice(&input.expense_json)
-                .map_err(|_| Status::invalid_argument("expense_json is invalid"))?;
-            if access_scope(&expense.scope.tenant_scope()) != scope {
-                return Err(Status::permission_denied(
-                    "HR expense scope does not match context",
-                ));
-            }
-            let expected_version = if input.has_expected_version {
-                if input.expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(input.expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "hr", "hr.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxHrPersistence::new(write.database_pool().clone(), holding_ref)
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .save_expense(&expense, &context.idempotency_key, expected_version)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "hr.expense.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("HR audit persistence unavailable"))?;
-                Ok::<SaveHrExpenseResponse, Status>(SaveHrExpenseResponse {
-                    receipt: Some(erpx_proto::platform::HrWriteReceipt {
-                        aggregate_type: receipt.aggregate_type.as_str().into(),
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        idempotency_key: receipt.idempotency_key,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn save_payroll(
-        &self,
-        request: Request<SaveHrPayrollRequest>,
-    ) -> Result<Response<SaveHrPayrollResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "HR writes require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.payroll_json.is_empty() || input.payroll_json.len() > 512 * 1024 {
-                return Err(Status::invalid_argument("payroll_json is out of bounds"));
-            }
-            let payroll: PayrollRun = serde_json::from_slice(&input.payroll_json)
-                .map_err(|_| Status::invalid_argument("payroll_json is invalid"))?;
-            if access_scope(&payroll.scope.tenant_scope()) != scope {
-                return Err(Status::permission_denied(
-                    "HR payroll scope does not match context",
-                ));
-            }
-            let expected_version = if input.has_expected_version {
-                if input.expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(input.expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "hr", "hr.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxHrPersistence::new(write.database_pool().clone(), holding_ref)
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .save_payroll(&payroll, &context.idempotency_key, expected_version)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "hr.payroll.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("HR audit persistence unavailable"))?;
-                Ok::<SaveHrPayrollResponse, Status>(SaveHrPayrollResponse {
-                    receipt: Some(erpx_proto::platform::HrWriteReceipt {
-                        aggregate_type: receipt.aggregate_type,
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        idempotency_key: receipt.idempotency_key,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_leave_requests(
-        &self,
-        request: Request<ListHrLeaveRequestsRequest>,
-    ) -> Result<Response<ListHrLeaveRequestsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "HR reads require an explicit holding, company, or branch scope",
-                ));
-            }
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let branch_id = if input.branch_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.branch_id, "branch_id")?)
-            };
-            let requested_scope = match branch_id {
-                Some(branch_id) => Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                None => Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-            };
-            if !caller_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied("HR read scope is not contained"));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "hr.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = input.page_size;
-            if page_size == 0 || page_size > MAX_HR_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_HR_READ_PAGE_SIZE}"
-                )));
-            }
-            let before_cursor = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_hr_leave_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxHrReadStore::new(read.database_pool().clone(), holding_ref)
-                    .map_err(|_| Status::internal("HR read store configuration is invalid"))?;
-                let page = store
-                    .list_leave_requests(
-                        HrReadScope {
-                            holding_id,
-                            company_id,
-                            branch_id,
-                        },
-                        page_size,
-                        before_cursor.as_ref(),
-                    )
-                    .await
-                    .map_err(|_| Status::internal("HR leave read failed"))?;
-                let leave_requests = page
-                    .rows
-                    .into_iter()
-                    .map(|row| erpx_proto::platform::HrLeaveReadRow {
-                        leave_id: row.leave_id.to_string(),
-                        holding_id: row.holding_id.to_string(),
-                        company_id: row.company_id.to_string(),
-                        branch_id: row
-                            .branch_id
-                            .map(|value| value.to_string())
-                            .unwrap_or_default(),
-                        employee_id: row.employee_id.to_string(),
-                        starts_on: row.starts_on.to_string(),
-                        ends_on: row.ends_on.to_string(),
-                        reason: row.reason,
-                        status: row.status,
-                        requested_by: row.requested_by,
-                        approved_by: row.approved_by.unwrap_or_default(),
-                        source_version: row.source_version,
-                        source_event_id: row.source_event_id.to_string(),
-                        projected_at: row.projected_at.to_rfc3339(),
-                    })
-                    .collect();
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "hr.leave.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "HR leave read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("HR audit persistence unavailable"))?;
-                Ok::<ListHrLeaveRequestsResponse, Status>(ListHrLeaveRequestsResponse {
-                    leave_requests,
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(encode_hr_leave_cursor)
-                        .unwrap_or_default(),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_expense_claims(
-        &self,
-        request: Request<ListHrExpenseClaimsRequest>,
-    ) -> Result<Response<ListHrExpenseClaimsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "HR reads require an explicit holding, company, or branch scope",
-                ));
-            }
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let branch_id = if input.branch_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.branch_id, "branch_id")?)
-            };
-            let requested_scope = match branch_id {
-                Some(branch_id) => Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                None => Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-            };
-            if !caller_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied("HR read scope is not contained"));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "hr.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = input.page_size;
-            if page_size == 0 || page_size > MAX_HR_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_HR_READ_PAGE_SIZE}"
-                )));
-            }
-            let before_cursor = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_hr_expense_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxHrReadStore::new(read.database_pool().clone(), holding_ref)
-                    .map_err(|_| Status::internal("HR read store configuration is invalid"))?;
-                let page = store
-                    .list_expense_claims(
-                        HrReadScope {
-                            holding_id,
-                            company_id,
-                            branch_id,
-                        },
-                        page_size,
-                        before_cursor.as_ref(),
-                    )
-                    .await
-                    .map_err(|_| Status::internal("HR expense read failed"))?;
-                let expenses = page
-                    .rows
-                    .into_iter()
-                    .map(|row| erpx_proto::platform::HrExpenseReadRow {
-                        expense_id: row.expense_id.to_string(),
-                        holding_id: row.holding_id.to_string(),
-                        company_id: row.company_id.to_string(),
-                        branch_id: row
-                            .branch_id
-                            .map(|value| value.to_string())
-                            .unwrap_or_default(),
-                        employee_id: row.employee_id.to_string(),
-                        currency: row.currency,
-                        amount_minor: row.amount_minor,
-                        status: row.status,
-                        submitted_by: row.submitted_by,
-                        approved_by: row.approved_by.unwrap_or_default(),
-                        source_version: row.source_version,
-                        source_event_id: row.source_event_id.to_string(),
-                        projected_at: row.projected_at.to_rfc3339(),
-                    })
-                    .collect();
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "hr.expense.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "HR expense read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("HR audit persistence unavailable"))?;
-                Ok::<ListHrExpenseClaimsResponse, Status>(ListHrExpenseClaimsResponse {
-                    expenses,
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(encode_hr_expense_cursor)
-                        .unwrap_or_default(),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_payroll_runs(
-        &self,
-        request: Request<ListHrPayrollRunsRequest>,
-    ) -> Result<Response<ListHrPayrollRunsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "HR reads require an explicit holding, company, or branch scope",
-                ));
-            }
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let branch_id = if input.branch_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.branch_id, "branch_id")?)
-            };
-            let requested_scope = match branch_id {
-                Some(branch_id) => Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                None => Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-            };
-            if !caller_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied("HR read scope is not contained"));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "hr.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = input.page_size;
-            if page_size == 0 || page_size > MAX_HR_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_HR_READ_PAGE_SIZE}"
-                )));
-            }
-            let line_page_size = input.line_page_size;
-            if line_page_size == 0 || line_page_size > MAX_HR_READ_PAYROLL_LINES_PER_RUN {
-                return Err(Status::invalid_argument(format!(
-                    "line_page_size must be 1..={MAX_HR_READ_PAYROLL_LINES_PER_RUN}"
-                )));
-            }
-            let before_cursor = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_hr_payroll_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxHrReadStore::new(read.database_pool().clone(), holding_ref)
-                    .map_err(|_| Status::internal("HR read store configuration is invalid"))?;
-                let page = store
-                    .list_payroll_runs(
-                        HrReadScope {
-                            holding_id,
-                            company_id,
-                            branch_id,
-                        },
-                        page_size,
-                        line_page_size,
-                        before_cursor.as_ref(),
-                    )
-                    .await
-                    .map_err(|_| Status::internal("HR payroll read failed"))?;
-                let payroll_runs = page
-                    .rows
-                    .into_iter()
-                    .map(|row| erpx_proto::platform::HrPayrollRunReadRow {
-                        payroll_id: row.payroll_id.to_string(),
-                        holding_id: row.holding_id.to_string(),
-                        company_id: row.company_id.to_string(),
-                        branch_id: row
-                            .branch_id
-                            .map(|value| value.to_string())
-                            .unwrap_or_default(),
-                        starts_on: row.starts_on.to_string(),
-                        ends_on: row.ends_on.to_string(),
-                        status: row.status,
-                        prepared_by: row.prepared_by,
-                        reviewed_by: row.reviewed_by.unwrap_or_default(),
-                        approved_by: row.approved_by.unwrap_or_default(),
-                        total_gross_minor: row.total_gross_minor,
-                        total_deductions_minor: row.total_deductions_minor,
-                        total_net_minor: row.total_net_minor,
-                        source_version: row.source_version,
-                        source_event_id: row.source_event_id.to_string(),
-                        projected_at: row.projected_at.to_rfc3339(),
-                        lines: row
-                            .lines
-                            .into_iter()
-                            .map(|line| erpx_proto::platform::HrPayrollLineReadRow {
-                                line_no: line.line_no,
-                                holding_id: line.holding_id.to_string(),
-                                company_id: line.company_id.to_string(),
-                                branch_id: line
-                                    .branch_id
-                                    .map(|value| value.to_string())
-                                    .unwrap_or_default(),
-                                employee_id: line.employee_id.to_string(),
-                                gross_minor: line.gross_minor,
-                                deductions_minor: line.deductions_minor,
-                                net_minor: line.net_minor,
-                                source_version: line.source_version,
-                                source_event_id: line.source_event_id.to_string(),
-                                projected_at: line.projected_at.to_rfc3339(),
-                            })
-                            .collect(),
-                        lines_truncated: row.lines_truncated,
-                    })
-                    .collect();
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "hr.payroll.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "HR payroll read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("HR audit persistence unavailable"))?;
-                Ok::<ListHrPayrollRunsResponse, Status>(ListHrPayrollRunsResponse {
-                    payroll_runs,
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(encode_hr_payroll_cursor)
-                        .unwrap_or_default(),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_reassignments(
-        &self,
-        request: Request<ListHrReassignmentsRequest>,
-    ) -> Result<Response<ListHrReassignmentsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "HR reads require an explicit holding, company, or branch scope",
-                ));
-            }
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let branch_id = if input.branch_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.branch_id, "branch_id")?)
-            };
-            let requested_scope = match branch_id {
-                Some(branch_id) => Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                None => Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-            };
-            if !caller_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied("HR read scope is not contained"));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "hr.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = input.page_size;
-            if page_size == 0 || page_size > MAX_HR_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_HR_READ_PAGE_SIZE}"
-                )));
-            }
-            let before_cursor = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_hr_reassignment_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxHrReadStore::new(read.database_pool().clone(), holding_ref)
-                    .map_err(|_| Status::internal("HR read store configuration is invalid"))?;
-                let page = store
-                    .list_reassignments(
-                        HrReadScope {
-                            holding_id,
-                            company_id,
-                            branch_id,
-                        },
-                        page_size,
-                        before_cursor.as_ref(),
-                    )
-                    .await
-                    .map_err(|_| Status::internal("HR reassignment read failed"))?;
-                let reassignments = page
-                    .rows
-                    .into_iter()
-                    .map(|row| erpx_proto::platform::HrReassignmentReadRow {
-                        workflow_ref: row.workflow_ref,
-                        holding_id: row.holding_id.to_string(),
-                        company_id: row.company_id.to_string(),
-                        branch_id: row.branch_id.map(|id| id.to_string()).unwrap_or_default(),
-                        expired_principal_ref: row.expired_principal_ref,
-                        replacement_principal_ref: row.replacement_principal_ref,
-                        reason: row.reason,
-                        reassigned_at: row.reassigned_at.to_rfc3339(),
-                        source_version: row.source_version,
-                        source_event_id: row.source_event_id.to_string(),
-                        projected_at: row.projected_at.to_rfc3339(),
-                    })
-                    .collect();
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "hr.reassignment.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "HR reassignment read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("HR audit persistence unavailable"))?;
-                Ok::<ListHrReassignmentsResponse, Status>(ListHrReassignmentsResponse {
-                    reassignments,
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(encode_hr_reassignment_cursor)
-                        .unwrap_or_default(),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_employees(
-        &self,
-        request: Request<ListHrEmployeesRequest>,
-    ) -> Result<Response<ListHrEmployeesResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "HR reads require an explicit holding, company, or branch scope",
-                ));
-            }
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let branch_id = if input.branch_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.branch_id, "branch_id")?)
-            };
-            let requested_scope = match branch_id {
-                Some(branch_id) => Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                None => Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-            };
-            if !caller_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied("HR read scope is not contained"));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "hr.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = input.page_size;
-            if page_size == 0 || page_size > MAX_HR_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_HR_READ_PAGE_SIZE}"
-                )));
-            }
-            let before_employee_id = if input.before_employee_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.before_employee_id, "before_employee_id")?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxHrReadStore::new(read.database_pool().clone(), holding_ref)
-                    .map_err(|_| Status::internal("HR read store configuration is invalid"))?;
-                let page = store
-                    .list_employees(
-                        HrReadScope {
-                            holding_id,
-                            company_id,
-                            branch_id,
-                        },
-                        page_size,
-                        before_employee_id,
-                    )
-                    .await
-                    .map_err(|_| Status::internal("HR employee read failed"))?;
-                let employees = page
-                    .rows
-                    .into_iter()
-                    .map(|row| erpx_proto::platform::HrEmployeeReadRow {
-                        employee_id: row.employee_id.to_string(),
-                        holding_id: row.holding_id.to_string(),
-                        company_id: row.company_id.to_string(),
-                        branch_id: row
-                            .branch_id
-                            .map(|value| value.to_string())
-                            .unwrap_or_default(),
-                        employee_ref: row.employee_ref,
-                        display_name: row.display_name,
-                        status: row.status,
-                        hired_on: row.hired_on.to_string(),
-                        terminated_on: row
-                            .terminated_on
-                            .map(|value| value.to_string())
-                            .unwrap_or_default(),
-                        source_version: row.source_version,
-                        source_event_id: row.source_event_id.to_string(),
-                        projected_at: row.projected_at.to_rfc3339(),
-                    })
-                    .collect();
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "hr.employee.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "HR employee read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("HR audit persistence unavailable"))?;
-                Ok::<ListHrEmployeesResponse, Status>(ListHrEmployeesResponse {
-                    employees,
-                    has_more: page.has_more,
-                    next_before_employee_id: page
-                        .next_before_employee_id
-                        .map(|value| value.to_string())
-                        .unwrap_or_default(),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
+impl<A, G> IdentityAccessCommandComposite<A, G> {
+    fn new(current: IdentityAccessCommandRpc<A, G>, directory: DirectoryRpcImpl) -> Self {
+        Self { current, directory }
     }
 }
 
 #[tonic::async_trait]
-impl HrService for HrRpcImpl {
-    async fn save_hr_employee(
-        &self,
-        request: Request<SaveHrEmployeeRequest>,
-    ) -> Result<Response<SaveHrEmployeeResponse>, Status> {
-        self.save_employee(request).await
-    }
-
-    async fn transition_hr_employee(
-        &self,
-        request: Request<TransitionHrEmployeeRequest>,
-    ) -> Result<Response<TransitionHrEmployeeResponse>, Status> {
-        self.transition_employee(request).await
-    }
-
-    async fn save_hr_leave(
-        &self,
-        request: Request<SaveHrLeaveRequest>,
-    ) -> Result<Response<SaveHrLeaveResponse>, Status> {
-        self.save_leave(request).await
-    }
-
-    async fn save_hr_expense(
-        &self,
-        request: Request<SaveHrExpenseRequest>,
-    ) -> Result<Response<SaveHrExpenseResponse>, Status> {
-        self.save_expense(request).await
-    }
-
-    async fn save_hr_payroll(
-        &self,
-        request: Request<SaveHrPayrollRequest>,
-    ) -> Result<Response<SaveHrPayrollResponse>, Status> {
-        self.save_payroll(request).await
-    }
-
-    async fn list_hr_employees(
-        &self,
-        request: Request<ListHrEmployeesRequest>,
-    ) -> Result<Response<ListHrEmployeesResponse>, Status> {
-        self.list_employees(request).await
-    }
-
-    async fn list_hr_leave_requests(
-        &self,
-        request: Request<ListHrLeaveRequestsRequest>,
-    ) -> Result<Response<ListHrLeaveRequestsResponse>, Status> {
-        self.list_leave_requests(request).await
-    }
-
-    async fn list_hr_expense_claims(
-        &self,
-        request: Request<ListHrExpenseClaimsRequest>,
-    ) -> Result<Response<ListHrExpenseClaimsResponse>, Status> {
-        self.list_expense_claims(request).await
-    }
-
-    async fn list_hr_payroll_runs(
-        &self,
-        request: Request<ListHrPayrollRunsRequest>,
-    ) -> Result<Response<ListHrPayrollRunsResponse>, Status> {
-        self.list_payroll_runs(request).await
-    }
-
-    async fn list_hr_reassignments(
-        &self,
-        request: Request<ListHrReassignmentsRequest>,
-    ) -> Result<Response<ListHrReassignmentsResponse>, Status> {
-        self.list_reassignments(request).await
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct FinanceAllocationBatchInput {
-    payment: Payment,
-    invoices: Vec<Invoice>,
-    allocations: Vec<Allocation>,
-}
-
-fn finance_subledger_receipt(
-    receipt: FinanceSubledgerWriteReceipt,
-) -> erpx_proto::platform::FinanceSubledgerReceipt {
-    erpx_proto::platform::FinanceSubledgerReceipt {
-        aggregate_type: receipt.aggregate_type,
-        aggregate_id: receipt.aggregate_id.to_string(),
-        version: receipt.version,
-        replayed: receipt.replayed,
-    }
-}
-
-fn finance_allocation_response(
-    receipt: FinanceAllocationBatchReceipt,
-    correlation_id: Uuid,
-) -> SaveFinanceAllocationBatchResponse {
-    SaveFinanceAllocationBatchResponse {
-        payment: Some(finance_subledger_receipt(receipt.payment)),
-        invoices: receipt
-            .invoices
-            .into_iter()
-            .map(finance_subledger_receipt)
-            .collect(),
-        allocations: receipt
-            .allocations
-            .into_iter()
-            .map(finance_subledger_receipt)
-            .collect(),
-        replayed: receipt.replayed,
-        correlation_id: correlation_id.to_string(),
-    }
-}
-
-fn finance_chart_source_metadata_message(
-    source: erpx_infrastructure::FinanceChartSourceMetadata,
-) -> erpx_proto::platform::FinanceChartSourceMetadata {
-    let causation_id = source.causation_id.map(|value| value.to_string());
-    erpx_proto::platform::FinanceChartSourceMetadata {
-        contract_version: u32::from(source.contract_version),
-        event_version: u32::from(source.event_version),
-        actor_ref: source.actor_ref,
-        actor_kind: source.actor_kind,
-        correlation_id: source.correlation_id.to_string(),
-        causation_id: causation_id.clone().unwrap_or_default(),
-        has_causation_id: causation_id.is_some(),
-        idempotency_key: source.idempotency_key,
-    }
-}
-
-fn finance_chart_account_read_row_message(
-    row: erpx_infrastructure::FinanceAccountReadRow,
-) -> erpx_proto::platform::FinanceChartAccountReadRow {
-    let parent_account_id = row.parent_account_id.map(|value| value.to_string());
-    erpx_proto::platform::FinanceChartAccountReadRow {
-        account_id: row.account_id.to_string(),
-        holding_id: row.holding_id.to_string(),
-        company_id: row.company_id.to_string(),
-        code: row.code,
-        name: row.name,
-        category: row.category,
-        normal_balance: row.normal_balance,
-        parent_account_id: parent_account_id.clone().unwrap_or_default(),
-        has_parent_account_id: parent_account_id.is_some(),
-        status: row.status,
-        source_version: row.source_version,
-        source_event_id: row.source_event_id.to_string(),
-        source: Some(finance_chart_source_metadata_message(row.source)),
-        projected_at: row.projected_at.to_rfc3339(),
-    }
-}
-
-fn finance_chart_read_row_message(
-    row: erpx_infrastructure::FinanceChartReadRow,
-) -> Result<erpx_proto::platform::FinanceChartReadRow, Status> {
-    Ok(erpx_proto::platform::FinanceChartReadRow {
-        chart_id: row.chart_id.to_string(),
-        holding_id: row.holding_id.to_string(),
-        company_id: row.company_id.to_string(),
-        name: row.name,
-        source_version: row.source_version,
-        source_event_id: row.source_event_id.to_string(),
-        source: Some(finance_chart_source_metadata_message(row.source)),
-        projected_at: row.projected_at.to_rfc3339(),
-        accounts: row
-            .accounts
-            .into_iter()
-            .map(finance_chart_account_read_row_message)
-            .collect(),
-    })
-}
-
-fn finance_close_status_text(status: erpx_domain::finance_close::CloseStatus) -> &'static str {
-    match status {
-        erpx_domain::finance_close::CloseStatus::Open => "open",
-        erpx_domain::finance_close::CloseStatus::Review => "review",
-        erpx_domain::finance_close::CloseStatus::Closed => "closed",
-    }
-}
-
-fn finance_close_receipt(
-    receipt: CloseReviewSaveReceipt,
-) -> erpx_proto::platform::FinanceCloseReviewReceipt {
-    erpx_proto::platform::FinanceCloseReviewReceipt {
-        review_id: receipt.review_id.to_string(),
-        version: receipt.version,
-        status: finance_close_status_text(receipt.status).into(),
-        idempotency_key: receipt.idempotency_key,
-        replayed: receipt.replayed,
-    }
-}
-
-fn finance_close_read_availability_text(value: FinanceCloseReadAvailability) -> &'static str {
-    match value {
-        FinanceCloseReadAvailability::Present => "present",
-        FinanceCloseReadAvailability::Missing => "missing",
-    }
-}
-
-fn finance_close_read_freshness_text(value: FinanceCloseReadFreshness) -> &'static str {
-    match value {
-        FinanceCloseReadFreshness::Fresh => "fresh",
-        FinanceCloseReadFreshness::Stale => "stale",
-        FinanceCloseReadFreshness::Unknown => "unknown",
-    }
-}
-
-fn finance_close_read_metadata_message(
-    metadata: FinanceCloseReadMetadata,
-) -> erpx_proto::platform::FinanceCloseReadMetadata {
-    erpx_proto::platform::FinanceCloseReadMetadata {
-        period_id: metadata.period_id.to_string(),
-        holding_id: metadata.holding_id.to_string(),
-        company_id: metadata.company_id.to_string(),
-        availability: finance_close_read_availability_text(metadata.availability).into(),
-        freshness: finance_close_read_freshness_text(metadata.freshness).into(),
-        read_only: metadata.read_only,
-        review_updated_at: metadata
-            .review_updated_at
-            .map(|value| value.to_rfc3339())
-            .unwrap_or_default(),
-        projection_updated_at: metadata
-            .projection_updated_at
-            .map(|value| value.to_rfc3339())
-            .unwrap_or_default(),
-        source_version: metadata.source_version.unwrap_or_default(),
-        has_source_version: metadata.source_version.is_some(),
-        expected_fact_count: metadata.expected_fact_count,
-        observed_fact_count: metadata.observed_fact_count,
-        missing_fact_count: metadata.missing_fact_count,
-    }
-}
-
-fn finance_close_read_view_message(
-    view: FinanceCloseReadView,
-) -> erpx_proto::platform::FinanceCloseReadView {
-    let statement =
-        view.report.statement.map(
-            |statement| erpx_proto::platform::FinanceCloseStatementSummary {
-                debit_minor: statement.debit_minor,
-                credit_minor: statement.credit_minor,
-                net_minor: statement.net_minor,
-                balanced: statement.balanced,
-            },
-        );
-    erpx_proto::platform::FinanceCloseReadView {
-        review: Some(erpx_proto::platform::FinanceCloseReviewProjection {
-            holding_id: view.review.holding_id.to_string(),
-            company_id: view.review.company_id.to_string(),
-            period_id: view.review.period_id.to_string(),
-            status: match view.review.status {
-                erpx_infrastructure::FinanceCloseReviewStatus::Open => "open",
-                erpx_infrastructure::FinanceCloseReviewStatus::Review => "review",
-                erpx_infrastructure::FinanceCloseReviewStatus::Closed => "closed",
-            }
-            .into(),
-            version: view.review.version,
-            idempotency_key: view.review.idempotency_key,
-            opened_by: view.review.opened_by,
-            reviewed_by: view.review.reviewed_by.unwrap_or_default(),
-            closed_by: view.review.closed_by.unwrap_or_default(),
-        }),
-        report: Some(erpx_proto::platform::FinanceCloseReport {
-            statement,
-            controls: Some(erpx_proto::platform::FinanceCloseControlSummary {
-                total: view.report.controls.total,
-                resolved: view.report.controls.resolved,
-                unresolved: view.report.controls.unresolved,
-            }),
-            accounts: view
-                .report
-                .accounts
-                .into_iter()
-                .map(|account| erpx_proto::platform::FinanceCloseAccountSummary {
-                    account_id: account.account_id.to_string(),
-                    debit_minor: account.debit_minor,
-                    credit_minor: account.credit_minor,
-                    net_minor: account.net_minor,
-                })
-                .collect(),
-        }),
-        metadata: Some(finance_close_read_metadata_message(view.metadata)),
-    }
-}
-
-fn finance_close_read_row_message(
-    row: FinanceCloseReadListRow,
-) -> erpx_proto::platform::FinanceCloseReviewReadRow {
-    erpx_proto::platform::FinanceCloseReviewReadRow {
-        holding_id: row.holding_id.to_string(),
-        company_id: row.company_id.to_string(),
-        period_id: row.period_id.to_string(),
-        status: match row.status {
-            erpx_infrastructure::FinanceCloseReviewStatus::Open => "open",
-            erpx_infrastructure::FinanceCloseReviewStatus::Review => "review",
-            erpx_infrastructure::FinanceCloseReviewStatus::Closed => "closed",
-        }
-        .into(),
-        source_version: row.source_version,
-        projected_at: row.projected_at.to_rfc3339(),
-        freshness: finance_close_read_freshness_text(row.freshness).into(),
-        control_total: row.control_total,
-        unresolved_controls: row.unresolved_controls,
-        net_minor: row.net_minor.unwrap_or_default(),
-        statement_present: row.statement_present,
-        balanced: row.balanced,
-    }
-}
-
-async fn with_banking_store<T, F, Fut>(
-    router: &TenantDatabaseRouter,
-    tenant_id: &str,
-    holding_ref: &str,
-    correlation_id: Uuid,
-    operation: F,
-) -> Result<T, Status>
+impl<A, G> TargetIdentityAccessCommandService for IdentityAccessCommandComposite<A, G>
 where
-    F: FnOnce(SqlxFinanceBankingStore) -> Fut,
-    Fut: Future<Output = Result<T, Status>>,
+    A: IdentityAccessCommandApplication,
+    G: IdentityAccessRequestAuthenticator,
 {
-    let write = router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-        .await
-        .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-    let read = match router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-        .await
+    async fn save_directory_connector(
+        &self,
+        request: Request<identity_target::SaveDirectoryConnectorRequest>,
+    ) -> Result<Response<identity_target::SaveDirectoryConnectorResponse>, Status> {
+        self.directory.save_directory_connector(request).await
+    }
+
+    async fn start_directory_import(
+        &self,
+        request: Request<identity_target::StartDirectoryImportRequest>,
+    ) -> Result<Response<identity_target::StartDirectoryImportResponse>, Status> {
+        self.directory.start_directory_import(request).await
+    }
+
+    async fn save_directory_role_mapping(
+        &self,
+        request: Request<identity_target::SaveDirectoryRoleMappingRequest>,
+    ) -> Result<Response<identity_target::SaveDirectoryRoleMappingResponse>, Status> {
+        self.directory.save_directory_role_mapping(request).await
+    }
+
+    async fn preflight_directory_connector(
+        &self,
+        request: Request<identity_target::PreflightDirectoryConnectorRequest>,
+    ) -> Result<Response<identity_target::PreflightDirectoryConnectorResponse>, Status> {
+        self.directory.preflight_directory_connector(request).await
+    }
+
+    async fn transition_directory_connector_lifecycle(
+        &self,
+        request: Request<identity_target::TransitionDirectoryConnectorLifecycleRequest>,
+    ) -> Result<Response<identity_target::TransitionDirectoryConnectorLifecycleResponse>, Status>
     {
-        Ok(read) => read,
-        Err(_) => {
-            write.close().await;
-            return Err(Status::unavailable("tenant read database is unavailable"));
-        }
-    };
-    let result = async {
-        let store = SqlxFinanceBankingStore::from_pools(
-            write.database_pool(),
-            read.database_pool(),
-            holding_ref,
-        )
-        .map_err(|error| finance_persistence_status(error, correlation_id))?;
-        operation(store).await
+        self.directory
+            .transition_directory_connector_lifecycle(request)
+            .await
     }
-    .await;
-    write.close().await;
-    read.close().await;
-    result
-}
 
-async fn with_close_store<T, F, Fut>(
-    router: &TenantDatabaseRouter,
-    tenant_id: &str,
-    holding_ref: &str,
-    correlation_id: Uuid,
-    operation: F,
-) -> Result<T, Status>
-where
-    F: FnOnce(SqlxFinanceCloseStore) -> Fut,
-    Fut: Future<Output = Result<T, Status>>,
-{
-    let write = router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-        .await
-        .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-    let result = async {
-        let store = SqlxFinanceCloseStore::new(write.database_pool().clone(), holding_ref)
-            .map_err(|error| finance_persistence_status(error, correlation_id))?;
-        operation(store).await
+    async fn link_directory_principal(
+        &self,
+        request: Request<identity_target::LinkDirectoryPrincipalRequest>,
+    ) -> Result<Response<identity_target::LinkDirectoryPrincipalResponse>, Status> {
+        self.directory.link_directory_principal(request).await
     }
-    .await;
-    write.close().await;
-    result
-}
 
-async fn with_close_read_adapter<T, F, Fut>(
-    router: &TenantDatabaseRouter,
-    tenant_id: &str,
-    holding_ref: &str,
-    correlation_id: Uuid,
-    operation: F,
-) -> Result<T, Status>
-where
-    F: FnOnce(SqlxFinanceCloseReadAdapter) -> Fut,
-    Fut: Future<Output = Result<T, Status>>,
-{
-    let read = match router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-        .await
+    async fn unlink_directory_principal(
+        &self,
+        request: Request<identity_target::UnlinkDirectoryPrincipalRequest>,
+    ) -> Result<Response<identity_target::UnlinkDirectoryPrincipalResponse>, Status> {
+        self.directory.unlink_directory_principal(request).await
+    }
+
+    async fn reconcile_directory_connector(
+        &self,
+        request: Request<identity_target::ReconcileDirectoryConnectorRequest>,
+    ) -> Result<Response<identity_target::ReconcileDirectoryConnectorResponse>, Status> {
+        self.directory.reconcile_directory_connector(request).await
+    }
+
+    async fn propose_directory_identity_replacement(
+        &self,
+        request: Request<identity_target::ProposeDirectoryIdentityReplacementRequest>,
+    ) -> Result<Response<identity_target::ProposeDirectoryIdentityReplacementResponse>, Status>
     {
-        Ok(read) => read,
-        Err(_) => return Err(Status::unavailable("tenant read database is unavailable")),
-    };
-    let result = async {
-        let adapter = SqlxFinanceCloseReadAdapter::new(read.database_pool().clone(), holding_ref)
-            .map_err(|_| {
-            finance_persistence_status(
-                PersistenceError::Configuration("close read adapter"),
-                correlation_id,
-            )
-        })?;
-        operation(adapter).await
+        self.directory
+            .propose_directory_identity_replacement(request)
+            .await
     }
-    .await;
-    read.close().await;
-    result
+
+    async fn approve_directory_identity_replacement(
+        &self,
+        request: Request<identity_target::ApproveDirectoryIdentityReplacementRequest>,
+    ) -> Result<Response<identity_target::ApproveDirectoryIdentityReplacementResponse>, Status>
+    {
+        self.directory
+            .approve_directory_identity_replacement(request)
+            .await
+    }
+
+    async fn reject_directory_identity_replacement(
+        &self,
+        request: Request<identity_target::RejectDirectoryIdentityReplacementRequest>,
+    ) -> Result<Response<identity_target::RejectDirectoryIdentityReplacementResponse>, Status> {
+        self.directory
+            .reject_directory_identity_replacement(request)
+            .await
+    }
+
+    async fn renew_role(
+        &self,
+        request: Request<identity_target::RenewRoleRequest>,
+    ) -> Result<Response<identity_target::RenewRoleResponse>, Status> {
+        self.current.renew_role(request).await
+    }
+
+    async fn recover_final_role(
+        &self,
+        request: Request<identity_target::RecoverFinalRoleRequest>,
+    ) -> Result<Response<identity_target::RecoverFinalRoleResponse>, Status> {
+        self.current.recover_final_role(request).await
+    }
+
+    async fn create_principal(
+        &self,
+        request: Request<identity_target::CreateIdentityAccessPrincipalRequest>,
+    ) -> Result<Response<identity_target::IdentityAccessPrincipalCommandResponse>, Status> {
+        self.current.create_principal(request).await
+    }
+
+    async fn activate_principal(
+        &self,
+        request: Request<identity_target::IdentityAccessPrincipalMutationRequest>,
+    ) -> Result<Response<identity_target::IdentityAccessPrincipalCommandResponse>, Status> {
+        self.current.activate_principal(request).await
+    }
+
+    async fn suspend_principal(
+        &self,
+        request: Request<identity_target::IdentityAccessPrincipalMutationRequest>,
+    ) -> Result<Response<identity_target::IdentityAccessPrincipalCommandResponse>, Status> {
+        self.current.suspend_principal(request).await
+    }
+
+    async fn reactivate_principal(
+        &self,
+        request: Request<identity_target::IdentityAccessPrincipalMutationRequest>,
+    ) -> Result<Response<identity_target::IdentityAccessPrincipalCommandResponse>, Status> {
+        self.current.reactivate_principal(request).await
+    }
+
+    async fn disable_principal(
+        &self,
+        request: Request<identity_target::IdentityAccessPrincipalMutationRequest>,
+    ) -> Result<Response<identity_target::IdentityAccessPrincipalCommandResponse>, Status> {
+        self.current.disable_principal(request).await
+    }
+
+    async fn assign_role(
+        &self,
+        request: Request<identity_target::AssignIdentityAccessRoleRequest>,
+    ) -> Result<Response<identity_target::IdentityAccessPrincipalCommandResponse>, Status> {
+        self.current.assign_role(request).await
+    }
+
+    async fn revoke_role(
+        &self,
+        request: Request<identity_target::RevokeIdentityAccessRoleRequest>,
+    ) -> Result<Response<identity_target::IdentityAccessPrincipalCommandResponse>, Status> {
+        self.current.revoke_role(request).await
+    }
+
+    async fn define_role(
+        &self,
+        request: Request<identity_target::DefineIdentityAccessRoleRequest>,
+    ) -> Result<Response<identity_target::IdentityAccessRoleCommandResponse>, Status> {
+        self.current.define_role(request).await
+    }
+
+    async fn set_role_permissions(
+        &self,
+        request: Request<identity_target::SetIdentityAccessRolePermissionsRequest>,
+    ) -> Result<Response<identity_target::IdentityAccessRoleCommandResponse>, Status> {
+        self.current.set_role_permissions(request).await
+    }
 }
 
-async fn with_banking_read_store<T, F, Fut>(
-    router: &TenantDatabaseRouter,
-    tenant_id: &str,
-    holding_ref: &str,
-    correlation_id: Uuid,
-    operation: F,
-) -> Result<T, Status>
-where
-    F: FnOnce(SqlxFinanceBankingStore) -> Fut,
-    Fut: Future<Output = Result<T, Status>>,
-{
-    let read = router
-        .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-        .await
-        .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-    let result = async {
-        let store = SqlxFinanceBankingStore::from_pools(
-            read.database_pool(),
-            read.database_pool(),
-            holding_ref,
-        )
-        .map_err(|error| finance_persistence_status(error, correlation_id))?;
-        operation(store).await
+#[derive(Clone)]
+struct IdentityAccessQueryComposite<A, G> {
+    current: IdentityAccessQueryRpc<A, G>,
+    directory: DirectoryRpcImpl,
+    roles: RoleRpcImpl,
+}
+
+impl<A, G> IdentityAccessQueryComposite<A, G> {
+    fn new(
+        current: IdentityAccessQueryRpc<A, G>,
+        directory: DirectoryRpcImpl,
+        roles: RoleRpcImpl,
+    ) -> Self {
+        Self {
+            current,
+            directory,
+            roles,
+        }
     }
-    .await;
-    read.close().await;
-    result
+}
+
+#[tonic::async_trait]
+impl<A, G> TargetIdentityAccessQueryService for IdentityAccessQueryComposite<A, G>
+where
+    A: IdentityAccessQueryApplication,
+    G: IdentityAccessRequestAuthenticator,
+{
+    async fn list_directory_connectors(
+        &self,
+        request: Request<identity_target::ListDirectoryConnectorsRequest>,
+    ) -> Result<Response<identity_target::ListDirectoryConnectorsResponse>, Status> {
+        self.directory.list_directory_connectors(request).await
+    }
+
+    async fn get_directory_import_status(
+        &self,
+        request: Request<identity_target::GetDirectoryImportStatusRequest>,
+    ) -> Result<Response<identity_target::GetDirectoryImportStatusResponse>, Status> {
+        self.directory.get_directory_import_status(request).await
+    }
+
+    async fn list_directory_role_mappings(
+        &self,
+        request: Request<identity_target::ListDirectoryRoleMappingsRequest>,
+    ) -> Result<Response<identity_target::ListDirectoryRoleMappingsResponse>, Status> {
+        self.directory.list_directory_role_mappings(request).await
+    }
+
+    async fn list_directory_identity_links(
+        &self,
+        request: Request<identity_target::ListDirectoryIdentityLinksRequest>,
+    ) -> Result<Response<identity_target::ListDirectoryIdentityLinksResponse>, Status> {
+        self.directory.list_directory_identity_links(request).await
+    }
+
+    async fn get_directory_connector_readiness(
+        &self,
+        request: Request<identity_target::GetDirectoryConnectorReadinessRequest>,
+    ) -> Result<Response<identity_target::GetDirectoryConnectorReadinessResponse>, Status> {
+        self.directory
+            .get_directory_connector_readiness(request)
+            .await
+    }
+
+    async fn list_directory_conflicts(
+        &self,
+        request: Request<identity_target::ListDirectoryConflictsRequest>,
+    ) -> Result<Response<identity_target::ListDirectoryConflictsResponse>, Status> {
+        self.directory.list_directory_conflicts(request).await
+    }
+
+    async fn list_expiring_roles(
+        &self,
+        request: Request<identity_target::ListExpiringRolesRequest>,
+    ) -> Result<Response<identity_target::ListExpiringRolesResponse>, Status> {
+        self.roles.list_expiring_roles(request).await
+    }
+
+    async fn list_role_review(
+        &self,
+        request: Request<identity_target::ListRoleReviewRequest>,
+    ) -> Result<Response<identity_target::ListRoleReviewResponse>, Status> {
+        self.roles.list_role_review(request).await
+    }
+
+    async fn get_principal(
+        &self,
+        request: Request<identity_target::GetIdentityAccessPrincipalRequest>,
+    ) -> Result<Response<identity_target::GetIdentityAccessPrincipalResponse>, Status> {
+        self.current.get_principal(request).await
+    }
+
+    async fn list_principals(
+        &self,
+        request: Request<identity_target::ListIdentityAccessPrincipalsRequest>,
+    ) -> Result<Response<identity_target::ListIdentityAccessPrincipalsResponse>, Status> {
+        self.current.list_principals(request).await
+    }
+
+    async fn get_role(
+        &self,
+        request: Request<identity_target::GetIdentityAccessRoleRequest>,
+    ) -> Result<Response<identity_target::GetIdentityAccessRoleResponse>, Status> {
+        self.current.get_role(request).await
+    }
+
+    async fn list_roles(
+        &self,
+        request: Request<identity_target::ListIdentityAccessRolesRequest>,
+    ) -> Result<Response<identity_target::ListIdentityAccessRolesResponse>, Status> {
+        self.current.list_roles(request).await
+    }
 }
 
 async fn with_crm_read_store<T, F, Fut>(
@@ -15236,2305 +9678,15 @@ where
 }
 
 #[derive(Clone)]
-struct PosRpcImpl {
-    state: AppState,
-}
-
-#[tonic::async_trait]
-impl PosService for PosRpcImpl {
-    async fn save_pos_sale(
-        &self,
-        request: Request<SavePosSaleRequest>,
-    ) -> Result<Response<SavePosSaleResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "POS writes require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.sale_json.is_empty() || input.sale_json.len() > 512 * 1024 {
-                return Err(Status::invalid_argument("sale_json is out of bounds"));
-            }
-            let sale: Sale = serde_json::from_slice(&input.sale_json)
-                .map_err(|_| Status::invalid_argument("sale_json is invalid"))?;
-            if sale.command_id != context.command_id
-                || sale.idempotency_key != format!("pos/sale/{}", context.idempotency_key)
-                || !context.tenant_scope.contains(&sale.scope)
-                || access_scope(&sale.scope) != scope
-            {
-                return Err(Status::permission_denied(
-                    "POS sale identity or command scope does not match context",
-                ));
-            }
-            let expected_version = if input.has_expected_version {
-                if input.expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(input.expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "pos", "pos.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = erpx_infrastructure::SqlxPosPersistence::new(
-                    write.database_pool().clone(),
-                    holding_ref,
-                )
-                .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .save_sale(&sale, expected_version)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "pos.sale.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("POS audit persistence unavailable"))?;
-                Ok::<SavePosSaleResponse, Status>(SavePosSaleResponse {
-                    aggregate_type: receipt.aggregate_type,
-                    aggregate_id: receipt.aggregate_id.to_string(),
-                    version: receipt.version,
-                    idempotency_key: receipt.idempotency_key,
-                    replayed: receipt.replayed,
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_pos_sales(
-        &self,
-        request: Request<ListPosSalesRequest>,
-    ) -> Result<Response<ListPosSalesResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "POS reads require an explicit holding, company, or branch scope",
-                ));
-            }
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let branch_id = if input.branch_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.branch_id, "branch_id")?)
-            };
-            let requested_scope = match branch_id {
-                Some(branch_id) => Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                None => Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-            };
-            if !caller_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied("POS read scope is not contained"));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "pos.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = input.page_size;
-            if page_size == 0 || page_size > MAX_POS_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_POS_READ_PAGE_SIZE}"
-                )));
-            }
-            let before_cursor = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_pos_sales_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = erpx_infrastructure::SqlxPosProjectionStore::from_pools(
-                    read.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|_| Status::internal("POS read store configuration is invalid"))?;
-                let page = store
-                    .list_sales(
-                        PosReadScope {
-                            holding_id,
-                            company_id,
-                            branch_id,
-                        },
-                        page_size,
-                        before_cursor.as_ref(),
-                    )
-                    .await
-                    .map_err(|_| Status::internal("POS sales read failed"))?;
-                let sales = page
-                    .rows
-                    .into_iter()
-                    .map(|row| erpx_proto::platform::PosSaleReadRow {
-                        sale_id: row.sale_id.to_string(),
-                        holding_id: row.holding_id.to_string(),
-                        company_id: row.company_id.to_string(),
-                        branch_id: row.branch_id.map(|id| id.to_string()).unwrap_or_default(),
-                        reference: row.reference,
-                        customer_id: row.customer_id.map(|id| id.to_string()).unwrap_or_default(),
-                        register_id: row.register_id.map(|id| id.to_string()).unwrap_or_default(),
-                        currency: row.currency,
-                        subtotal_minor: row.subtotal_minor,
-                        tax_minor: row.tax_minor,
-                        total_minor: row.total_minor,
-                        paid_minor: row.paid_minor,
-                        status: row.status,
-                        created_at: row.created_at.to_rfc3339(),
-                        updated_at: row.updated_at.to_rfc3339(),
-                        source_version: row.source_version,
-                        source_event_id: row.source_event_id.to_string(),
-                        projected_at: row.projected_at.to_rfc3339(),
-                        lines: row
-                            .lines
-                            .into_iter()
-                            .map(|line| erpx_proto::platform::PosSaleReadLine {
-                                line_id: line.line_id.to_string(),
-                                line_no: line.line_no,
-                                item_reference: line.item_reference,
-                                description: line.description,
-                                quantity: line.quantity,
-                                unit_price_minor: line.unit_price_minor,
-                                tax_minor: line.tax_minor,
-                                subtotal_minor: line.subtotal_minor,
-                                total_minor: line.total_minor,
-                                product_id: line
-                                    .product_id
-                                    .map(|id| id.to_string())
-                                    .unwrap_or_default(),
-                                source_version: line.source_version,
-                                source_event_id: line.source_event_id.to_string(),
-                                projected_at: line.projected_at.to_rfc3339(),
-                            })
-                            .collect(),
-                        payments: row
-                            .payments
-                            .into_iter()
-                            .map(|payment| erpx_proto::platform::PosSaleReadPayment {
-                                payment_id: payment.payment_id.to_string(),
-                                amount_minor: payment.amount_minor,
-                                method: payment.method,
-                                received_at: payment.received_at.to_rfc3339(),
-                                source_version: payment.source_version,
-                                source_event_id: payment.source_event_id.to_string(),
-                                projected_at: payment.projected_at.to_rfc3339(),
-                            })
-                            .collect(),
-                        lines_truncated: row.lines_truncated,
-                        payments_truncated: row.payments_truncated,
-                    })
-                    .collect();
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "pos.sale.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "POS sales read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("POS audit persistence unavailable"))?;
-                Ok::<ListPosSalesResponse, Status>(ListPosSalesResponse {
-                    sales,
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(encode_pos_sales_cursor)
-                        .unwrap_or_default(),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-}
-
-#[derive(Clone)]
-struct SalesRpcImpl {
-    state: AppState,
-}
-
-#[tonic::async_trait]
-impl SalesService for SalesRpcImpl {
-    async fn save_sales_aggregate(
-        &self,
-        request: Request<SaveSalesAggregateRequest>,
-    ) -> Result<Response<SaveSalesAggregateResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            explicit_product_scope(access_scope(&context.tenant_scope), "Sales")?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.aggregate_json.is_empty() || input.aggregate_json.len() > 1024 * 1024 {
-                return Err(Status::invalid_argument("aggregate_json is out of bounds"));
-            }
-            let aggregate: SalesAggregate = serde_json::from_slice(&input.aggregate_json)
-                .map_err(|_| Status::invalid_argument("Sales aggregate_json is invalid"))?;
-            aggregate.validate_for_command(&context).map_err(|error| {
-                product_persistence_status(error, "Sales", context.correlation_id)
-            })?;
-            let expected_version = if input.has_expected_version {
-                if input.expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(input.expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "sales", "sales.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxSalesStore::from_pools(
-                    write.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "Sales", context.correlation_id)
-                })?;
-                let receipt = store
-                    .save(&aggregate, expected_version)
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(error, "Sales", context.correlation_id)
-                    })?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "sales.aggregate.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Sales audit persistence unavailable"))?;
-                Ok::<SaveSalesAggregateResponse, Status>(SaveSalesAggregateResponse {
-                    receipt: Some(erpx_proto::platform::SalesWriteReceipt {
-                        aggregate_type: receipt.aggregate_type,
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn transition_sales_aggregate(
-        &self,
-        request: Request<TransitionSalesAggregateRequest>,
-    ) -> Result<Response<TransitionSalesAggregateResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            explicit_product_scope(access_scope(&context.tenant_scope), "Sales")?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let aggregate_type =
-                validate_transport_reference(&input.aggregate_type, "aggregate_type")?;
-            let aggregate_id = parse_uuid(&input.aggregate_id, "aggregate_id")?;
-            let transition = validate_transport_reference(&input.transition, "transition")?;
-            if input.expected_version == 0 {
-                return Err(Status::invalid_argument(
-                    "expected_version must be positive",
-                ));
-            }
-            if context.expected_aggregate_version != Some(input.expected_version) {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "sales", "sales.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxSalesStore::from_pools(
-                    write.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "Sales", context.correlation_id)
-                })?;
-                let receipt = store
-                    .transition(
-                        aggregate_type,
-                        aggregate_id,
-                        transition,
-                        input.expected_version,
-                        &context,
-                    )
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(error, "Sales", context.correlation_id)
-                    })?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "sales.aggregate.transitioned".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Sales audit persistence unavailable"))?;
-                Ok::<TransitionSalesAggregateResponse, Status>(TransitionSalesAggregateResponse {
-                    receipt: Some(erpx_proto::platform::SalesWriteReceipt {
-                        aggregate_type: receipt.aggregate_type,
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn get_sales_aggregate(
-        &self,
-        request: Request<GetSalesAggregateRequest>,
-    ) -> Result<Response<GetSalesAggregateResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = explicit_product_scope(query_access_scope(proto_context)?, "Sales")?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let aggregate_type =
-                validate_transport_reference(&input.aggregate_type, "aggregate_type")?;
-            let aggregate_id = parse_uuid(&input.aggregate_id, "aggregate_id")?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "sales.read")
-                .await?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &caller_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxSalesStore::from_pools(
-                    read.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "Sales", context.correlation_id)
-                })?;
-                let value = store
-                    .get(aggregate_type, aggregate_id)
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(error, "Sales", context.correlation_id)
-                    })?;
-                let (aggregate_json, source_version, present) = match value {
-                    Some((aggregate, source_version)) => (
-                        serde_json::to_vec(&aggregate)
-                            .map_err(|_| Status::internal("Sales aggregate encoding failed"))?,
-                        source_version,
-                        true,
-                    ),
-                    None => (Vec::new(), 0, false),
-                };
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "sales.aggregate.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "Sales aggregate read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Sales audit persistence unavailable"))?;
-                Ok::<GetSalesAggregateResponse, Status>(GetSalesAggregateResponse {
-                    aggregate_type: aggregate_type.into(),
-                    aggregate_id: aggregate_id.to_string(),
-                    source_version,
-                    aggregate_json,
-                    present,
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_sales_aggregates(
-        &self,
-        request: Request<ListSalesAggregatesRequest>,
-    ) -> Result<Response<ListSalesAggregatesResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = explicit_product_scope(query_access_scope(proto_context)?, "Sales")?;
-            if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Sales reads require an explicit holding, company, or branch scope",
-                ));
-            }
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let branch_id = if input.branch_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.branch_id, "branch_id")?)
-            };
-            let requested_scope = match branch_id {
-                Some(branch_id) => Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                None => Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-            };
-            if !caller_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied(
-                    "Sales read scope is not contained",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "sales.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = input.page_size;
-            if page_size == 0 || page_size > MAX_SALES_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_SALES_READ_PAGE_SIZE}"
-                )));
-            }
-            let before_cursor = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_sales_read_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxSalesStore::from_pools(
-                    read.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "Sales", context.correlation_id)
-                })?;
-                let page = store
-                    .list_for_scope(
-                        SalesReadScope {
-                            holding_id,
-                            company_id,
-                            branch_id,
-                        },
-                        page_size,
-                        before_cursor.as_ref(),
-                    )
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(error, "Sales", context.correlation_id)
-                    })?;
-                let rows = page
-                    .rows
-                    .into_iter()
-                    .map(|row| erpx_proto::platform::SalesAggregateReadRow {
-                        aggregate_type: row.aggregate_type,
-                        aggregate_id: row.aggregate_id.to_string(),
-                        holding_id: row.holding_id.to_string(),
-                        company_id: row.company_id.to_string(),
-                        branch_id: row.branch_id.map(|id| id.to_string()).unwrap_or_default(),
-                        reference: row.reference,
-                        source_version: row.source_version,
-                        projected_at: row.projected_at.to_rfc3339(),
-                    })
-                    .collect();
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "sales.aggregate.listed".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "Sales aggregate list read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Sales audit persistence unavailable"))?;
-                Ok::<ListSalesAggregatesResponse, Status>(ListSalesAggregatesResponse {
-                    rows,
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(encode_sales_read_cursor)
-                        .unwrap_or_default(),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-}
-
-#[derive(Clone)]
-struct ScmRpcImpl {
-    state: AppState,
-}
-
-#[tonic::async_trait]
-impl ScmService for ScmRpcImpl {
-    async fn save_scm_aggregate(
-        &self,
-        request: Request<SaveScmAggregateRequest>,
-    ) -> Result<Response<SaveScmAggregateResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            explicit_product_scope(access_scope(&context.tenant_scope), "SCM")?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.aggregate_json.is_empty() || input.aggregate_json.len() > 1024 * 1024 {
-                return Err(Status::invalid_argument("aggregate_json is out of bounds"));
-            }
-            let aggregate: ScmAggregate = serde_json::from_slice(&input.aggregate_json)
-                .map_err(|_| Status::invalid_argument("SCM aggregate_json is invalid"))?;
-            aggregate.validate_for_command(&context).map_err(|error| {
-                product_persistence_status(error, "SCM", context.correlation_id)
-            })?;
-            let expected_version = if input.has_expected_version {
-                if input.expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(input.expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "scm", "scm.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxScmStore::from_pools(
-                    write.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "SCM", context.correlation_id)
-                })?;
-                let receipt = store
-                    .save(&aggregate, expected_version)
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(error, "SCM", context.correlation_id)
-                    })?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "scm.aggregate.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("SCM audit persistence unavailable"))?;
-                Ok::<SaveScmAggregateResponse, Status>(SaveScmAggregateResponse {
-                    receipt: Some(erpx_proto::platform::ScmWriteReceipt {
-                        aggregate_type: receipt.aggregate_type,
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn transition_scm_aggregate(
-        &self,
-        request: Request<TransitionScmAggregateRequest>,
-    ) -> Result<Response<TransitionScmAggregateResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            explicit_product_scope(access_scope(&context.tenant_scope), "SCM")?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let aggregate_type =
-                validate_transport_reference(&input.aggregate_type, "aggregate_type")?;
-            let aggregate_id = parse_uuid(&input.aggregate_id, "aggregate_id")?;
-            let transition = validate_transport_reference(&input.transition, "transition")?;
-            if input.expected_version == 0 {
-                return Err(Status::invalid_argument(
-                    "expected_version must be positive",
-                ));
-            }
-            if context.expected_aggregate_version != Some(input.expected_version) {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "scm", "scm.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxScmStore::from_pools(
-                    write.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "SCM", context.correlation_id)
-                })?;
-                let receipt = store
-                    .transition(
-                        aggregate_type,
-                        aggregate_id,
-                        transition,
-                        input.expected_version,
-                        &context,
-                    )
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(error, "SCM", context.correlation_id)
-                    })?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "scm.aggregate.transitioned".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("SCM audit persistence unavailable"))?;
-                Ok::<TransitionScmAggregateResponse, Status>(TransitionScmAggregateResponse {
-                    receipt: Some(erpx_proto::platform::ScmWriteReceipt {
-                        aggregate_type: receipt.aggregate_type,
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn get_scm_aggregate(
-        &self,
-        request: Request<GetScmAggregateRequest>,
-    ) -> Result<Response<GetScmAggregateResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = explicit_product_scope(query_access_scope(proto_context)?, "SCM")?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let aggregate_type =
-                validate_transport_reference(&input.aggregate_type, "aggregate_type")?;
-            let aggregate_id = parse_uuid(&input.aggregate_id, "aggregate_id")?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "scm.read")
-                .await?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &caller_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxScmStore::from_pools(
-                    read.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "SCM", context.correlation_id)
-                })?;
-                let value = store
-                    .get(aggregate_type, aggregate_id)
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(error, "SCM", context.correlation_id)
-                    })?;
-                let (aggregate_json, source_version, present) = match value {
-                    Some(row) => (
-                        serde_json::to_vec(&row.aggregate)
-                            .map_err(|_| Status::internal("SCM aggregate encoding failed"))?,
-                        row.aggregate_version,
-                        true,
-                    ),
-                    None => (Vec::new(), 0, false),
-                };
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "scm.aggregate.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "SCM aggregate read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("SCM audit persistence unavailable"))?;
-                Ok::<GetScmAggregateResponse, Status>(GetScmAggregateResponse {
-                    aggregate_type: aggregate_type.into(),
-                    aggregate_id: aggregate_id.to_string(),
-                    source_version,
-                    aggregate_json,
-                    present,
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_scm_aggregates(
-        &self,
-        request: Request<ListScmAggregatesRequest>,
-    ) -> Result<Response<ListScmAggregatesResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = explicit_product_scope(query_access_scope(proto_context)?, "SCM")?;
-            if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "SCM reads require an explicit holding, company, or branch scope",
-                ));
-            }
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let branch_id = if input.branch_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.branch_id, "branch_id")?)
-            };
-            let requested_scope = match branch_id {
-                Some(branch_id) => Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                None => Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-            };
-            if !caller_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied("SCM read scope is not contained"));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "scm.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = input.page_size;
-            if page_size == 0 || page_size > MAX_SCM_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_SCM_READ_PAGE_SIZE}"
-                )));
-            }
-            let before_cursor = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_scm_read_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxScmStore::from_pools(
-                    read.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "SCM", context.correlation_id)
-                })?;
-                let page = store
-                    .list_for_scope(
-                        ScmReadScope {
-                            holding_id,
-                            company_id,
-                            branch_id,
-                        },
-                        page_size,
-                        before_cursor.as_ref(),
-                    )
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(error, "SCM", context.correlation_id)
-                    })?;
-                let rows = page
-                    .rows
-                    .into_iter()
-                    .map(|row| {
-                        let aggregate = row.row.aggregate;
-                        let aggregate_type = row.row.aggregate_type;
-                        let aggregate_json = serde_json::to_vec(&aggregate)
-                            .map_err(|_| Status::internal("SCM aggregate encoding failed"))?;
-                        let (holding_id, company_id, branch_id) = match aggregate.scope() {
-                            erpx_domain::contracts::TenantScope::Company {
-                                holding_id,
-                                company_id,
-                            } => (*holding_id, *company_id, None),
-                            erpx_domain::contracts::TenantScope::Branch {
-                                holding_id,
-                                company_id,
-                                branch_id,
-                            } => (*holding_id, *company_id, Some(*branch_id)),
-                            _ => {
-                                return Err(Status::internal(
-                                    "SCM read aggregate scope was invalid",
-                                ));
-                            }
-                        };
-                        Ok::<_, Status>(erpx_proto::platform::ScmAggregateReadRow {
-                            aggregate_type,
-                            aggregate_id: row.row.aggregate_id.to_string(),
-                            holding_id: holding_id.to_string(),
-                            company_id: company_id.to_string(),
-                            branch_id: branch_id.map(|id| id.to_string()).unwrap_or_default(),
-                            reference: row.reference,
-                            source_version: row.row.aggregate_version,
-                            aggregate_json,
-                            projected_at: row.projected_at.to_rfc3339(),
-                        })
-                    })
-                    .collect::<Result<Vec<_>, Status>>()?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "scm.aggregate.listed".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "SCM aggregate list read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("SCM audit persistence unavailable"))?;
-                Ok::<ListScmAggregatesResponse, Status>(ListScmAggregatesResponse {
-                    rows,
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(encode_scm_read_cursor)
-                        .unwrap_or_default(),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-}
-
-#[derive(Clone)]
-struct AssetMaintenanceRpcImpl {
-    state: AppState,
-}
-
-#[tonic::async_trait]
-impl AssetMaintenanceService for AssetMaintenanceRpcImpl {
-    async fn save_asset_maintenance_aggregate(
-        &self,
-        request: Request<SaveAssetMaintenanceAggregateRequest>,
-    ) -> Result<Response<SaveAssetMaintenanceAggregateResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("command context is required"))?;
-            let context = command_domain(&request, Some(proto_context))?;
-            explicit_product_scope(access_scope(&context.tenant_scope), "Asset/Maintenance")?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let idempotency_key =
-                validate_transport_reference(&input.idempotency_key, "idempotency_key")?;
-            if idempotency_key != context.idempotency_key {
-                return Err(Status::invalid_argument(
-                    "idempotency_key does not match command context",
-                ));
-            }
-            if input.aggregate_json.is_empty() || input.aggregate_json.len() > 1024 * 1024 {
-                return Err(Status::invalid_argument("aggregate_json is out of bounds"));
-            }
-            let aggregate: AssetMaintenanceAggregate =
-                serde_json::from_slice(&input.aggregate_json).map_err(|_| {
-                    Status::invalid_argument("Asset/Maintenance aggregate_json is invalid")
-                })?;
-            let expected_version = if input.has_expected_version {
-                if input.expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(input.expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "asset_maintenance",
-                    "asset_maintenance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxAssetMaintenanceStore::from_pools(
-                    write.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "Asset/Maintenance", context.correlation_id)
-                })?;
-                let receipt = store
-                    .save(&aggregate, idempotency_key, expected_version)
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(
-                            error,
-                            "Asset/Maintenance",
-                            context.correlation_id,
-                        )
-                    })?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "asset_maintenance.aggregate.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| {
-                        Status::unavailable("Asset/Maintenance audit persistence unavailable")
-                    })?;
-                Ok::<SaveAssetMaintenanceAggregateResponse, Status>(
-                    SaveAssetMaintenanceAggregateResponse {
-                        receipt: Some(erpx_proto::platform::AssetMaintenanceWriteReceipt {
-                            aggregate_type: receipt.aggregate_type,
-                            aggregate_id: receipt.aggregate_id.to_string(),
-                            version: receipt.version,
-                            replayed: receipt.replayed,
-                        }),
-                        correlation_id: context.correlation_id.to_string(),
-                    },
-                )
-            }
-            .await;
-            read.close().await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn get_asset_maintenance_aggregate(
-        &self,
-        request: Request<GetAssetMaintenanceAggregateRequest>,
-    ) -> Result<Response<GetAssetMaintenanceAggregateResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope =
-                explicit_product_scope(query_access_scope(proto_context)?, "Asset/Maintenance")?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let aggregate_type =
-                validate_transport_reference(&input.aggregate_type, "aggregate_type")?;
-            let aggregate_id = parse_uuid(&input.aggregate_id, "aggregate_id")?;
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &caller_scope,
-                    "asset_maintenance.read",
-                )
-                .await?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &caller_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxAssetMaintenanceStore::from_pools(
-                    read.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "Asset/Maintenance", context.correlation_id)
-                })?;
-                let value = store
-                    .get(aggregate_type, aggregate_id)
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(
-                            error,
-                            "Asset/Maintenance",
-                            context.correlation_id,
-                        )
-                    })?;
-                let (aggregate_json, source_version, present) = match value {
-                    Some((aggregate, source_version)) => (
-                        serde_json::to_vec(&aggregate).map_err(|_| {
-                            Status::internal("Asset/Maintenance aggregate encoding failed")
-                        })?,
-                        source_version,
-                        true,
-                    ),
-                    None => (Vec::new(), 0, false),
-                };
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "asset_maintenance.aggregate.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "Asset/Maintenance aggregate read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| {
-                        Status::unavailable("Asset/Maintenance audit persistence unavailable")
-                    })?;
-                Ok::<GetAssetMaintenanceAggregateResponse, Status>(
-                    GetAssetMaintenanceAggregateResponse {
-                        aggregate_type: aggregate_type.into(),
-                        aggregate_id: aggregate_id.to_string(),
-                        source_version,
-                        aggregate_json,
-                        present,
-                        correlation_id: context.correlation_id.to_string(),
-                    },
-                )
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_asset_maintenance_aggregates(
-        &self,
-        request: Request<ListAssetMaintenanceAggregatesRequest>,
-    ) -> Result<Response<ListAssetMaintenanceAggregatesResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope =
-                explicit_product_scope(query_access_scope(proto_context)?, "Asset/Maintenance")?;
-            if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Asset/Maintenance reads require an explicit holding, company, or branch scope",
-                ));
-            }
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let branch_id = if input.branch_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.branch_id, "branch_id")?)
-            };
-            let requested_scope = match branch_id {
-                Some(branch_id) => Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                None => Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-            };
-            if !caller_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied(
-                    "Asset/Maintenance read scope is not contained",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(
-                    &self.state.store,
-                    &claims,
-                    &caller_scope,
-                    "asset_maintenance.read",
-                )
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.page_size == 0 || input.page_size > MAX_ASSET_MAINTENANCE_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_ASSET_MAINTENANCE_READ_PAGE_SIZE}"
-                )));
-            }
-            let before_cursor = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_asset_maintenance_read_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let result = async {
-                let store = SqlxAssetMaintenanceStore::from_pools(
-                    read.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| {
-                    product_persistence_status(error, "Asset/Maintenance", context.correlation_id)
-                })?;
-                let page = store
-                    .list_for_scope(
-                        AssetMaintenanceReadScope {
-                            holding_id,
-                            company_id,
-                            branch_id,
-                        },
-                        input.page_size,
-                        before_cursor.as_ref(),
-                    )
-                    .await
-                    .map_err(|error| {
-                        product_persistence_status(
-                            error,
-                            "Asset/Maintenance",
-                            context.correlation_id,
-                        )
-                    })?;
-                let rows = page
-                    .rows
-                    .into_iter()
-                    .map(|row| {
-                        let (holding_id, company_id, branch_id) = match &row.aggregate {
-                            AssetMaintenanceAggregate::Asset(asset) => (
-                                asset.scope.holding_id,
-                                asset.scope.company_id,
-                                asset.scope.branch_id,
-                            ),
-                            AssetMaintenanceAggregate::MaintenanceWorkOrder(work_order) => (
-                                work_order.scope.holding_id,
-                                work_order.scope.company_id,
-                                work_order.scope.branch_id,
-                            ),
-                        };
-                        let aggregate_json = serde_json::to_vec(&row.aggregate).map_err(|_| {
-                            Status::internal("Asset/Maintenance aggregate encoding failed")
-                        })?;
-                        Ok::<_, Status>(erpx_proto::platform::AssetMaintenanceAggregateReadRow {
-                            aggregate_type: row.aggregate.aggregate_type().into(),
-                            aggregate_id: row.aggregate.aggregate_id().to_string(),
-                            holding_id: holding_id.to_string(),
-                            company_id: company_id.to_string(),
-                            branch_id: branch_id.map(|id| id.to_string()).unwrap_or_default(),
-                            reference: row.reference,
-                            source_version: row.source_version,
-                            aggregate_json,
-                            projected_at: row.projected_at.to_rfc3339(),
-                        })
-                    })
-                    .collect::<Result<Vec<_>, Status>>()?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "asset_maintenance.aggregate.listed".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "Asset/Maintenance aggregate list read".into()),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| {
-                        Status::unavailable("Asset/Maintenance audit persistence unavailable")
-                    })?;
-                Ok::<ListAssetMaintenanceAggregatesResponse, Status>(
-                    ListAssetMaintenanceAggregatesResponse {
-                        rows,
-                        has_more: page.has_more,
-                        next_cursor: page
-                            .next_cursor
-                            .as_ref()
-                            .map(encode_asset_maintenance_read_cursor)
-                            .unwrap_or_default(),
-                        correlation_id: context.correlation_id.to_string(),
-                    },
-                )
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-}
-
-fn legal_read_scope(
-    caller_scope: &Scope,
-    holding_id: &str,
-    company_id: &str,
-    branch_id: &str,
-) -> Result<LegalReadScope, Status> {
-    if matches!(caller_scope, Scope::Platform | Scope::Subtree { .. }) {
-        return Err(Status::permission_denied(
-            "Legal reads require an explicit holding, company, or branch scope",
-        ));
-    }
-    let holding_id = parse_uuid(holding_id, "holding_id")?;
-    let company_id = parse_uuid(company_id, "company_id")?;
-    let branch_id = if branch_id.trim().is_empty() {
-        None
-    } else {
-        Some(parse_uuid(branch_id, "branch_id")?)
-    };
-    let requested_scope = match branch_id {
-        Some(branch_id) => Scope::Branch {
-            holding_id,
-            company_id,
-            branch_id,
-        },
-        None => Scope::Company {
-            holding_id,
-            company_id,
-        },
-    };
-    if !caller_scope.contains(&requested_scope) {
-        return Err(Status::permission_denied(
-            "Legal read scope is not contained",
-        ));
-    }
-    Ok(LegalReadScope {
-        holding_id,
-        company_id,
-        branch_id,
-    })
-}
-
-fn legal_access_scope(scope: LegalReadScope) -> Scope {
-    match scope.branch_id {
-        Some(branch_id) => Scope::Branch {
-            holding_id: scope.holding_id,
-            company_id: scope.company_id,
-            branch_id,
-        },
-        None => Scope::Company {
-            holding_id: scope.holding_id,
-            company_id: scope.company_id,
-        },
-    }
-}
-
-#[derive(Clone)]
-struct LegalRpcImpl {
-    state: AppState,
-}
-
-impl LegalRpcImpl {
-    async fn save_contract(
-        &self,
-        request: Request<SaveLegalContractRequest>,
-    ) -> Result<Response<SaveLegalContractResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let context = command_domain(&request, input.context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Legal writes require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let contract: LegalContract = legal_json(&input.contract_json, "contract_json")?;
-            let expected = legal_expected_version(
-                input.has_expected_version,
-                input.expected_version,
-                &context,
-            )?;
-            if !context
-                .tenant_scope
-                .contains(&contract.scope.tenant_scope())
-                || contract.last_command_id != context.command_id
-            {
-                return Err(Status::permission_denied(
-                    "Legal contract identity or command scope does not match context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "legal", "legal.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let correlation_id = context.correlation_id;
-            let result = async {
-                let store = SqlxLegalPersistence::new(write.database_pool().clone(), holding_ref)
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                let receipt = store
-                    .save_contract(&contract, &context, expected)
-                    .await
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "legal.contract.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Legal audit persistence unavailable"))?;
-                Ok::<SaveLegalContractResponse, Status>(SaveLegalContractResponse {
-                    receipt: Some(erpx_proto::platform::LegalWriteReceipt {
-                        aggregate_type: receipt.aggregate_type.as_str().into(),
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        idempotency_key: receipt.idempotency_key,
-                        event_id: receipt.event_id.to_string(),
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn save_document(
-        &self,
-        request: Request<SaveLegalDocumentRequest>,
-    ) -> Result<Response<SaveLegalDocumentResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let context = command_domain(&request, input.context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Legal writes require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let document: LegalDocument = legal_json(&input.document_json, "document_json")?;
-            let expected = legal_expected_version(
-                input.has_expected_version,
-                input.expected_version,
-                &context,
-            )?;
-            if !context
-                .tenant_scope
-                .contains(&document.scope.tenant_scope())
-            {
-                return Err(Status::permission_denied(
-                    "Legal document scope does not match context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "legal", "legal.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let correlation_id = context.correlation_id;
-            let result = async {
-                let store = SqlxLegalPersistence::new(write.database_pool().clone(), holding_ref)
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                let receipt = store
-                    .save_document(&document, &context, expected)
-                    .await
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "legal.document.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Legal audit persistence unavailable"))?;
-                Ok::<SaveLegalDocumentResponse, Status>(SaveLegalDocumentResponse {
-                    receipt: Some(erpx_proto::platform::LegalWriteReceipt {
-                        aggregate_type: receipt.aggregate_type.as_str().into(),
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        idempotency_key: receipt.idempotency_key,
-                        event_id: receipt.event_id.to_string(),
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn record_access(
-        &self,
-        request: Request<RecordLegalAccessRequest>,
-    ) -> Result<Response<RecordLegalAccessResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let context = command_domain(&request, input.context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Legal writes require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let entry: LegalAccessHistoryEntry = legal_json(&input.access_json, "access_json")?;
-            if context.expected_aggregate_version.is_some()
-                || !context.tenant_scope.contains(&entry.scope.tenant_scope())
-                || entry.actor_ref != context.actor.principal_ref
-            {
-                return Err(Status::permission_denied(
-                    "Legal access identity or command scope does not match context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(&claims, &context, customer_id, "legal", "legal.write")
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let correlation_id = context.correlation_id;
-            let result = async {
-                let store = SqlxLegalPersistence::new(write.database_pool().clone(), holding_ref)
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                let receipt = store
-                    .record_access_history(&entry, &context)
-                    .await
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "legal.access.recorded".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Legal audit persistence unavailable"))?;
-                Ok::<RecordLegalAccessResponse, Status>(RecordLegalAccessResponse {
-                    receipt: Some(erpx_proto::platform::LegalWriteReceipt {
-                        aggregate_type: receipt.aggregate_type.as_str().into(),
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        idempotency_key: receipt.idempotency_key,
-                        event_id: receipt.event_id.to_string(),
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_contracts(
-        &self,
-        request: Request<ListLegalContractsRequest>,
-    ) -> Result<Response<ListLegalContractsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            let read_scope = legal_read_scope(
-                &caller_scope,
-                &input.holding_id,
-                &input.company_id,
-                &input.branch_id,
-            )?;
-            let requested_scope = legal_access_scope(read_scope);
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "legal.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.page_size == 0 || input.page_size > MAX_LEGAL_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_LEGAL_READ_PAGE_SIZE}"
-                )));
-            }
-            let before = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_legal_contract_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let correlation_id = context.correlation_id;
-            let result = async {
-                let store = SqlxLegalReadStore::new(read.database_pool().clone(), holding_ref)
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                let page = store
-                    .list_contracts(read_scope, input.page_size, before)
-                    .await
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                let contracts = page
-                    .rows
-                    .into_iter()
-                    .map(|row| erpx_proto::platform::LegalContractReadRow {
-                        contract_id: row.contract_id.to_string(),
-                        holding_id: row.holding_id.to_string(),
-                        company_id: row.company_id.to_string(),
-                        branch_id: row.branch_id.map(|id| id.to_string()).unwrap_or_default(),
-                        reference: row.reference,
-                        title: row.title,
-                        object_ref: row.object_ref,
-                        content_sha256: row.content_sha256,
-                        retention_until: row.retention_until.to_rfc3339(),
-                        status: row.status,
-                        created_by: row.created_by,
-                        approved_by: row.approved_by.unwrap_or_default(),
-                        source_version: row.source_version,
-                        source_event_id: row.source_event_id.to_string(),
-                        projected_at: row.projected_at.to_rfc3339(),
-                        parties: row
-                            .parties
-                            .into_iter()
-                            .map(|party| erpx_proto::platform::LegalContractPartyReadRow {
-                                party_id: party.party_id.to_string(),
-                                role: party.party_role,
-                            })
-                            .collect(),
-                        retention_state: row.retention.retention_state,
-                        source_correlation_id: row.source.correlation_id.to_string(),
-                    })
-                    .collect();
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "legal.contract.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "Legal contract read".into()),
-                        correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Legal audit persistence unavailable"))?;
-                Ok::<ListLegalContractsResponse, Status>(ListLegalContractsResponse {
-                    contracts,
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(encode_legal_contract_cursor)
-                        .unwrap_or_default(),
-                    correlation_id: correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_documents(
-        &self,
-        request: Request<ListLegalDocumentsRequest>,
-    ) -> Result<Response<ListLegalDocumentsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            let read_scope = legal_read_scope(
-                &caller_scope,
-                &input.holding_id,
-                &input.company_id,
-                &input.branch_id,
-            )?;
-            let requested_scope = legal_access_scope(read_scope);
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "legal.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.page_size == 0 || input.page_size > MAX_LEGAL_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_LEGAL_READ_PAGE_SIZE}"
-                )));
-            }
-            let before = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_legal_document_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let correlation_id = context.correlation_id;
-            let result = async {
-                let store = SqlxLegalReadStore::new(read.database_pool().clone(), holding_ref)
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                let page = store
-                    .list_documents(read_scope, input.page_size, before)
-                    .await
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                let documents = page
-                    .rows
-                    .into_iter()
-                    .map(|row| erpx_proto::platform::LegalDocumentReadRow {
-                        document_id: row.document_id.to_string(),
-                        holding_id: row.holding_id.to_string(),
-                        company_id: row.company_id.to_string(),
-                        branch_id: row.branch_id.map(|id| id.to_string()).unwrap_or_default(),
-                        title: row.title,
-                        current_version: row.current_version,
-                        archived: row.archived,
-                        source_version: row.source_version,
-                        source_event_id: row.source_event_id.to_string(),
-                        projected_at: row.projected_at.to_rfc3339(),
-                        versions: row
-                            .versions
-                            .into_iter()
-                            .map(
-                                |version| erpx_proto::platform::LegalDocumentVersionReadRow {
-                                    version: version.version,
-                                    object_ref: version.object_ref,
-                                    content_sha256: version.content_sha256,
-                                    created_at: version.created_at.to_rfc3339(),
-                                    created_by: version.created_by,
-                                    source_version: version.source_version,
-                                    source_event_id: version.source_event_id.to_string(),
-                                },
-                            )
-                            .collect(),
-                        source_correlation_id: row.source.correlation_id.to_string(),
-                    })
-                    .collect();
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "legal.document.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "Legal document read".into()),
-                        correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Legal audit persistence unavailable"))?;
-                Ok::<ListLegalDocumentsResponse, Status>(ListLegalDocumentsResponse {
-                    documents,
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(encode_legal_document_cursor)
-                        .unwrap_or_default(),
-                    correlation_id: correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_access_history(
-        &self,
-        request: Request<ListLegalAccessHistoryRequest>,
-    ) -> Result<Response<ListLegalAccessHistoryResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            let read_scope = legal_read_scope(
-                &caller_scope,
-                &input.holding_id,
-                &input.company_id,
-                &input.branch_id,
-            )?;
-            let requested_scope = legal_access_scope(read_scope);
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "legal.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let document_id = if input.document_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.document_id, "document_id")?)
-            };
-            if input.page_size == 0 || input.page_size > MAX_LEGAL_READ_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_LEGAL_READ_PAGE_SIZE}"
-                )));
-            }
-            let before = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_legal_access_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &requested_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let correlation_id = context.correlation_id;
-            let result = async {
-                let store = SqlxLegalReadStore::new(read.database_pool().clone(), holding_ref)
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                let page = store
-                    .list_access_history(read_scope, document_id, input.page_size, before)
-                    .await
-                    .map_err(|error| legal_persistence_status(error, correlation_id))?;
-                let entries = page
-                    .rows
-                    .into_iter()
-                    .map(|row| erpx_proto::platform::LegalAccessHistoryReadRow {
-                        entry_id: row.entry_id.to_string(),
-                        document_id: row.document_id.to_string(),
-                        holding_id: row.holding_id.to_string(),
-                        company_id: row.company_id.to_string(),
-                        branch_id: row.branch_id.map(|id| id.to_string()).unwrap_or_default(),
-                        document_version: row.document_version,
-                        actor_ref: row.actor_ref,
-                        action: row.action,
-                        purpose: row.purpose,
-                        observed_at: row.observed_at.to_rfc3339(),
-                        source_version: row.source_version,
-                        source_event_id: row.source_event_id.to_string(),
-                        projected_at: row.projected_at.to_rfc3339(),
-                        source_correlation_id: row.source.correlation_id.to_string(),
-                    })
-                    .collect();
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "legal.access.read".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "Legal access history read".into()),
-                        correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Legal audit persistence unavailable"))?;
-                Ok::<ListLegalAccessHistoryResponse, Status>(ListLegalAccessHistoryResponse {
-                    entries,
-                    has_more: page.has_more,
-                    next_cursor: page
-                        .next_cursor
-                        .as_ref()
-                        .map(encode_legal_access_cursor)
-                        .unwrap_or_default(),
-                    correlation_id: correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-}
-
-#[tonic::async_trait]
-impl LegalService for LegalRpcImpl {
-    async fn save_legal_contract(
-        &self,
-        request: Request<SaveLegalContractRequest>,
-    ) -> Result<Response<SaveLegalContractResponse>, Status> {
-        self.save_contract(request).await
-    }
-
-    async fn save_legal_document(
-        &self,
-        request: Request<SaveLegalDocumentRequest>,
-    ) -> Result<Response<SaveLegalDocumentResponse>, Status> {
-        self.save_document(request).await
-    }
-
-    async fn record_legal_access(
-        &self,
-        request: Request<RecordLegalAccessRequest>,
-    ) -> Result<Response<RecordLegalAccessResponse>, Status> {
-        self.record_access(request).await
-    }
-
-    async fn list_legal_contracts(
-        &self,
-        request: Request<ListLegalContractsRequest>,
-    ) -> Result<Response<ListLegalContractsResponse>, Status> {
-        self.list_contracts(request).await
-    }
-
-    async fn list_legal_documents(
-        &self,
-        request: Request<ListLegalDocumentsRequest>,
-    ) -> Result<Response<ListLegalDocumentsResponse>, Status> {
-        self.list_documents(request).await
-    }
-
-    async fn list_legal_access_history(
-        &self,
-        request: Request<ListLegalAccessHistoryRequest>,
-    ) -> Result<Response<ListLegalAccessHistoryResponse>, Status> {
-        self.list_access_history(request).await
-    }
-}
-
-#[derive(Clone)]
 struct CrmRpcImpl {
     state: AppState,
 }
 
-#[tonic::async_trait]
-impl CrmService for CrmRpcImpl {
+impl CrmRpcImpl {
     async fn list_crm_read_rows(
         &self,
-        request: Request<ListCrmReadRowsRequest>,
-    ) -> Result<Response<ListCrmReadRowsResponse>, Status> {
+        request: Request<crm_target::ListCrmReadRowsRequest>,
+    ) -> Result<Response<crm_target::ListCrmReadRowsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let proto_context = request
@@ -17623,7 +9775,7 @@ impl CrmService for CrmRpcImpl {
                 .rows
                 .into_iter()
                 .map(|row| {
-                    Ok::<CrmReadRow, Status>(CrmReadRow {
+                    Ok::<crm_target::CrmReadRow, Status>(crm_target::CrmReadRow {
                         aggregate_type: row.aggregate_type,
                         aggregate_id: row.aggregate_id.to_string(),
                         holding_id: row.holding_id.to_string(),
@@ -17635,7 +9787,7 @@ impl CrmService for CrmRpcImpl {
                     })
                 })
                 .collect::<Result<Vec<_>, Status>>()?;
-            Ok(Response::new(ListCrmReadRowsResponse {
+            Ok(Response::new(crm_target::ListCrmReadRowsResponse {
                 rows,
                 has_more: page.has_more,
                 next_after_id: page
@@ -17646,11 +9798,13 @@ impl CrmService for CrmRpcImpl {
             }))
         })
     }
+}
 
+impl CrmRpcImpl {
     async fn save_crm_handoff(
         &self,
-        request: Request<SaveCrmHandoffRequest>,
-    ) -> Result<Response<SaveCrmHandoffResponse>, Status> {
+        request: Request<crm_target::SaveCrmHandoffRequest>,
+    ) -> Result<Response<crm_target::SaveCrmHandoffResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let mut context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -17670,7 +9824,7 @@ impl CrmService for CrmRpcImpl {
             .await?;
             context.subscription_id = workspace.subscription_id;
             let handoff: AcceptedLeadHandoff =
-                decode_finance_banking_json(&request.get_ref().handoff_json, "handoff_json")?;
+                decode_bounded_json(&request.get_ref().handoff_json, "handoff_json")?;
             handoff
                 .validate()
                 .map_err(|_| Status::failed_precondition("CRM handoff is invalid"))?;
@@ -17718,8 +9872,8 @@ impl CrmService for CrmRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("CRM audit persistence unavailable"))?;
-            Ok(Response::new(SaveCrmHandoffResponse {
-                receipt: Some(erpx_proto::platform::CrmWriteReceipt {
+            Ok(Response::new(crm_target::SaveCrmHandoffResponse {
+                receipt: Some(crm_target::CrmWriteReceipt {
                     aggregate_type: receipt.aggregate_type,
                     aggregate_id: receipt.aggregate_id.to_string(),
                     reference: receipt.reference,
@@ -17733,8 +9887,8 @@ impl CrmService for CrmRpcImpl {
 
     async fn save_crm_opportunity(
         &self,
-        request: Request<SaveCrmOpportunityRequest>,
-    ) -> Result<Response<SaveCrmOpportunityResponse>, Status> {
+        request: Request<crm_target::SaveCrmOpportunityRequest>,
+    ) -> Result<Response<crm_target::SaveCrmOpportunityResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let mut context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -17753,10 +9907,8 @@ impl CrmService for CrmRpcImpl {
             )
             .await?;
             context.subscription_id = workspace.subscription_id;
-            let opportunity: CrmOpportunity = decode_finance_banking_json(
-                &request.get_ref().opportunity_json,
-                "opportunity_json",
-            )?;
+            let opportunity: CrmOpportunity =
+                decode_bounded_json(&request.get_ref().opportunity_json, "opportunity_json")?;
             opportunity
                 .validate()
                 .map_err(|_| Status::failed_precondition("CRM opportunity is invalid"))?;
@@ -17810,8 +9962,8 @@ impl CrmService for CrmRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("CRM audit persistence unavailable"))?;
-            Ok(Response::new(SaveCrmOpportunityResponse {
-                receipt: Some(erpx_proto::platform::CrmWriteReceipt {
+            Ok(Response::new(crm_target::SaveCrmOpportunityResponse {
+                receipt: Some(crm_target::CrmWriteReceipt {
                     aggregate_type: receipt.aggregate_type,
                     aggregate_id: receipt.aggregate_id.to_string(),
                     reference: receipt.reference,
@@ -17825,8 +9977,8 @@ impl CrmService for CrmRpcImpl {
 
     async fn record_crm_attribution(
         &self,
-        request: Request<RecordCrmAttributionRequest>,
-    ) -> Result<Response<RecordCrmAttributionResponse>, Status> {
+        request: Request<crm_target::RecordCrmAttributionRequest>,
+    ) -> Result<Response<crm_target::RecordCrmAttributionResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let mut context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -17899,8 +10051,8 @@ impl CrmService for CrmRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("CRM audit persistence unavailable"))?;
-            Ok(Response::new(RecordCrmAttributionResponse {
-                receipt: Some(erpx_proto::platform::CrmAttributionWriteReceipt {
+            Ok(Response::new(crm_target::RecordCrmAttributionResponse {
+                receipt: Some(crm_target::CrmAttributionWriteReceipt {
                     record_id: receipt.record_id.to_string(),
                     reference: receipt.reference,
                     model: receipt.model,
@@ -17911,6 +10063,114 @@ impl CrmService for CrmRpcImpl {
                 correlation_id: correlation_id.to_string(),
             }))
         })
+    }
+}
+
+#[derive(Clone)]
+struct CrmCommandComposite<A, G> {
+    current: CrmCommandRpc<A, G>,
+    ancillary: CrmRpcImpl,
+}
+
+impl<A, G> CrmCommandComposite<A, G> {
+    fn new(current: CrmCommandRpc<A, G>, ancillary: CrmRpcImpl) -> Self {
+        Self { current, ancillary }
+    }
+}
+
+#[tonic::async_trait]
+impl<A, G> TargetCrmCommandService for CrmCommandComposite<A, G>
+where
+    A: CrmCommandApplication,
+    G: CrmRequestAuthenticator,
+{
+    async fn save_crm_handoff(
+        &self,
+        request: Request<crm_target::SaveCrmHandoffRequest>,
+    ) -> Result<Response<crm_target::SaveCrmHandoffResponse>, Status> {
+        self.ancillary.save_crm_handoff(request).await
+    }
+
+    async fn save_crm_opportunity(
+        &self,
+        request: Request<crm_target::SaveCrmOpportunityRequest>,
+    ) -> Result<Response<crm_target::SaveCrmOpportunityResponse>, Status> {
+        self.ancillary.save_crm_opportunity(request).await
+    }
+
+    async fn record_crm_attribution(
+        &self,
+        request: Request<crm_target::RecordCrmAttributionRequest>,
+    ) -> Result<Response<crm_target::RecordCrmAttributionResponse>, Status> {
+        self.ancillary.record_crm_attribution(request).await
+    }
+
+    async fn accept_marketing_lead(
+        &self,
+        request: Request<crm_target::AcceptMarketingLeadRequest>,
+    ) -> Result<Response<crm_target::AcceptMarketingLeadResponse>, Status> {
+        self.current.accept_marketing_lead(request).await
+    }
+
+    async fn create_opportunity(
+        &self,
+        request: Request<crm_target::CreateCrmOpportunityRequest>,
+    ) -> Result<Response<crm_target::CrmOpportunityMutationResponse>, Status> {
+        self.current.create_opportunity(request).await
+    }
+
+    async fn transition_opportunity(
+        &self,
+        request: Request<crm_target::TransitionCrmOpportunityRequest>,
+    ) -> Result<Response<crm_target::CrmOpportunityMutationResponse>, Status> {
+        self.current.transition_opportunity(request).await
+    }
+}
+
+#[derive(Clone)]
+struct CrmQueryComposite<A, G> {
+    current: CrmQueryRpc<A, G>,
+    ancillary: CrmRpcImpl,
+}
+
+impl<A, G> CrmQueryComposite<A, G> {
+    fn new(current: CrmQueryRpc<A, G>, ancillary: CrmRpcImpl) -> Self {
+        Self { current, ancillary }
+    }
+}
+
+#[tonic::async_trait]
+impl<A, G> TargetCrmQueryService for CrmQueryComposite<A, G>
+where
+    A: CrmQueryApplication,
+    G: CrmRequestAuthenticator,
+{
+    async fn list_crm_read_rows(
+        &self,
+        request: Request<crm_target::ListCrmReadRowsRequest>,
+    ) -> Result<Response<crm_target::ListCrmReadRowsResponse>, Status> {
+        self.ancillary.list_crm_read_rows(request).await
+    }
+
+    async fn get_crm_lead(
+        &self,
+        request: Request<crm_target::GetCrmLeadRequest>,
+    ) -> Result<Response<crm_target::GetCrmLeadResponse>, Status> {
+        self.current.get_crm_lead(request).await
+    }
+
+    async fn get_opportunity(
+        &self,
+        request: Request<crm_target::GetCrmOpportunityRequest>,
+    ) -> Result<Response<crm_target::GetCrmOpportunityResponse>, Status> {
+        self.current.get_opportunity(request).await
+    }
+
+    async fn list_opportunities(
+        &self,
+        request: Request<crm_target::ListCrmOpportunitiesRequest>,
+    ) -> Result<Response<crm_target::ListCrmOpportunitiesResponse>, Status> {
+        self.current.list_opportunities(request).await
     }
 }
 
@@ -17999,8 +10259,8 @@ fn marketing_provider_onboarding_status(error: PersistenceError, correlation_id:
 
 fn marketing_provider_receipt(
     receipt: erpx_application::MarketingProviderAccountWriteReceipt,
-) -> erpx_proto::platform::MarketingProviderAccountWriteReceipt {
-    erpx_proto::platform::MarketingProviderAccountWriteReceipt {
+) -> marketing_target::MarketingProviderAccountWriteReceipt {
+    marketing_target::MarketingProviderAccountWriteReceipt {
         provider_account_id: receipt.provider_account_id.to_string(),
         provider_account_ref: receipt.provider_account_ref,
         tenant_id: receipt.tenant_id,
@@ -18018,8 +10278,8 @@ fn marketing_provider_receipt(
 
 fn marketing_receipt(
     receipt: erpx_application::MarketingContentWriteReceipt,
-) -> erpx_proto::platform::MarketingContentWriteReceipt {
-    erpx_proto::platform::MarketingContentWriteReceipt {
+) -> marketing_target::MarketingContentWriteReceipt {
+    marketing_target::MarketingContentWriteReceipt {
         aggregate_type: receipt.aggregate_type,
         aggregate_id: receipt.aggregate_id.to_string(),
         version: receipt.version,
@@ -18145,12 +10405,11 @@ struct MarketingContentRpcImpl {
     state: AppState,
 }
 
-#[tonic::async_trait]
-impl MarketingContentService for MarketingContentRpcImpl {
+impl MarketingContentRpcImpl {
     async fn submit_marketing_form(
         &self,
-        request: Request<SubmitMarketingFormRequest>,
-    ) -> Result<Response<SubmitMarketingFormResponse>, Status> {
+        request: Request<marketing_target::SubmitMarketingFormRequest>,
+    ) -> Result<Response<marketing_target::SubmitMarketingFormResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -18226,24 +10485,26 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 })
                 .await
                 .map_err(|_| Status::unavailable("Marketing audit persistence unavailable"))?;
-            Ok(Response::new(SubmitMarketingFormResponse {
-                receipt: Some(erpx_proto::platform::MarketingContentWriteReceipt {
-                    aggregate_type: receipt.aggregate_type,
-                    aggregate_id: receipt.aggregate_id.to_string(),
-                    version: receipt.version,
-                    idempotency_key: receipt.idempotency_key,
-                    event_id: receipt.event_id.to_string(),
-                    replayed: receipt.replayed,
-                }),
-                correlation_id: correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                marketing_target::SubmitMarketingFormResponse {
+                    receipt: Some(marketing_target::MarketingContentWriteReceipt {
+                        aggregate_type: receipt.aggregate_type,
+                        aggregate_id: receipt.aggregate_id.to_string(),
+                        version: receipt.version,
+                        idempotency_key: receipt.idempotency_key,
+                        event_id: receipt.event_id.to_string(),
+                        replayed: receipt.replayed,
+                    }),
+                    correlation_id: correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn get_marketing_delivery_read(
         &self,
-        request: Request<GetMarketingDeliveryReadRequest>,
-    ) -> Result<Response<GetMarketingDeliveryReadResponse>, Status> {
+        request: Request<marketing_target::GetMarketingDeliveryReadRequest>,
+    ) -> Result<Response<marketing_target::GetMarketingDeliveryReadResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -18302,8 +10563,8 @@ impl MarketingContentService for MarketingContentRpcImpl {
                     marketing_content_persistence_status(error, context.correlation_id)
                 })?;
                 let Some(dispatch) = dispatch else {
-                    return Ok::<GetMarketingDeliveryReadResponse, Status>(
-                        GetMarketingDeliveryReadResponse {
+                    return Ok::<marketing_target::GetMarketingDeliveryReadResponse, Status>(
+                        marketing_target::GetMarketingDeliveryReadResponse {
                             delivery: None,
                             correlation_id: context.correlation_id.to_string(),
                         },
@@ -18325,8 +10586,8 @@ impl MarketingContentService for MarketingContentRpcImpl {
                         "Marketing delivery read scope is outside the authorized scope",
                     ));
                 }
-                Ok(GetMarketingDeliveryReadResponse {
-                    delivery: Some(MarketingDeliveryRead {
+                Ok(marketing_target::GetMarketingDeliveryReadResponse {
+                    delivery: Some(marketing_target::MarketingDeliveryRead {
                         delivery_id: dispatch.id.to_string(),
                         holding_id: holding_id.to_string(),
                         state: marketing_delivery_state_text(dispatch.state).into(),
@@ -18364,8 +10625,8 @@ impl MarketingContentService for MarketingContentRpcImpl {
 
     async fn list_marketing_content_read_rows(
         &self,
-        request: Request<ListMarketingContentReadRowsRequest>,
-    ) -> Result<Response<ListMarketingContentReadRowsResponse>, Status> {
+        request: Request<marketing_target::ListMarketingContentReadRowsRequest>,
+    ) -> Result<Response<marketing_target::ListMarketingContentReadRowsResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -18502,7 +10763,7 @@ impl MarketingContentService for MarketingContentRpcImpl {
                             "Marketing content projection contains an invalid label",
                         ));
                     }
-                    mapped.push(MarketingContentReadRow {
+                    mapped.push(marketing_target::MarketingContentReadRow {
                         aggregate_type: row.aggregate_type,
                         aggregate_id: row.aggregate_id.to_string(),
                         holding_id,
@@ -18534,8 +10795,8 @@ impl MarketingContentService for MarketingContentRpcImpl {
                     .map_err(|_| {
                         Status::unavailable("Marketing content audit persistence unavailable")
                     })?;
-                Ok::<ListMarketingContentReadRowsResponse, Status>(
-                    ListMarketingContentReadRowsResponse {
+                Ok::<marketing_target::ListMarketingContentReadRowsResponse, Status>(
+                    marketing_target::ListMarketingContentReadRowsResponse {
                         rows: mapped,
                         has_more: next_cursor.is_some(),
                         next_after_id: next_cursor.map(|id| id.to_string()).unwrap_or_default(),
@@ -18551,8 +10812,8 @@ impl MarketingContentService for MarketingContentRpcImpl {
 
     async fn erase_marketing_profile(
         &self,
-        request: Request<EraseMarketingProfileRequest>,
-    ) -> Result<Response<EraseMarketingProfileResponse>, Status> {
+        request: Request<marketing_target::EraseMarketingProfileRequest>,
+    ) -> Result<Response<marketing_target::EraseMarketingProfileResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -18642,21 +10903,23 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 &context,
             )
             .await?;
-            Ok(Response::new(EraseMarketingProfileResponse {
-                receipt: Some(erpx_proto::platform::MarketingProfileErasureReceipt {
-                    profile_id: receipt.profile_id.to_string(),
-                    idempotency_key: receipt.idempotency_key,
-                    replayed: receipt.replayed,
-                }),
-                correlation_id: correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                marketing_target::EraseMarketingProfileResponse {
+                    receipt: Some(marketing_target::MarketingProfileErasureReceipt {
+                        profile_id: receipt.profile_id.to_string(),
+                        idempotency_key: receipt.idempotency_key,
+                        replayed: receipt.replayed,
+                    }),
+                    correlation_id: correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn issue_marketing_preview(
         &self,
-        request: Request<IssueMarketingPreviewRequest>,
-    ) -> Result<Response<IssueMarketingPreviewResponse>, Status> {
+        request: Request<marketing_target::IssueMarketingPreviewRequest>,
+    ) -> Result<Response<marketing_target::IssueMarketingPreviewResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -18724,20 +10987,22 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 &context,
             )
             .await?;
-            Ok(Response::new(IssueMarketingPreviewResponse {
-                receipt: Some(marketing_receipt(receipt)),
-                preview_id: preview.id.to_string(),
-                token,
-                expires_at: preview.expires_at.to_rfc3339(),
-                correlation_id: correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                marketing_target::IssueMarketingPreviewResponse {
+                    receipt: Some(marketing_receipt(receipt)),
+                    preview_id: preview.id.to_string(),
+                    token,
+                    expires_at: preview.expires_at.to_rfc3339(),
+                    correlation_id: correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn revoke_marketing_preview(
         &self,
-        request: Request<RevokeMarketingPreviewRequest>,
-    ) -> Result<Response<RevokeMarketingPreviewResponse>, Status> {
+        request: Request<marketing_target::RevokeMarketingPreviewRequest>,
+    ) -> Result<Response<marketing_target::RevokeMarketingPreviewResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -18794,17 +11059,19 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 &context,
             )
             .await?;
-            Ok(Response::new(RevokeMarketingPreviewResponse {
-                receipt: Some(marketing_receipt(receipt)),
-                correlation_id: correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                marketing_target::RevokeMarketingPreviewResponse {
+                    receipt: Some(marketing_receipt(receipt)),
+                    correlation_id: correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn issue_marketing_domain_verification(
         &self,
-        request: Request<IssueMarketingDomainVerificationRequest>,
-    ) -> Result<Response<IssueMarketingDomainVerificationResponse>, Status> {
+        request: Request<marketing_target::IssueMarketingDomainVerificationRequest>,
+    ) -> Result<Response<marketing_target::IssueMarketingDomainVerificationResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -18866,18 +11133,20 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 &context,
             )
             .await?;
-            Ok(Response::new(IssueMarketingDomainVerificationResponse {
-                receipt: Some(marketing_receipt(receipt)),
-                challenge,
-                correlation_id: correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                marketing_target::IssueMarketingDomainVerificationResponse {
+                    receipt: Some(marketing_receipt(receipt)),
+                    challenge,
+                    correlation_id: correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn verify_marketing_domain(
         &self,
-        request: Request<VerifyMarketingDomainRequest>,
-    ) -> Result<Response<VerifyMarketingDomainResponse>, Status> {
+        request: Request<marketing_target::VerifyMarketingDomainRequest>,
+    ) -> Result<Response<marketing_target::VerifyMarketingDomainResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -18941,17 +11210,19 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 &context,
             )
             .await?;
-            Ok(Response::new(VerifyMarketingDomainResponse {
-                receipt: Some(marketing_receipt(receipt)),
-                correlation_id: correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                marketing_target::VerifyMarketingDomainResponse {
+                    receipt: Some(marketing_receipt(receipt)),
+                    correlation_id: correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn bind_marketing_domain(
         &self,
-        request: Request<BindMarketingDomainRequest>,
-    ) -> Result<Response<BindMarketingDomainResponse>, Status> {
+        request: Request<marketing_target::BindMarketingDomainRequest>,
+    ) -> Result<Response<marketing_target::BindMarketingDomainResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -19019,17 +11290,19 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 &context,
             )
             .await?;
-            Ok(Response::new(BindMarketingDomainResponse {
-                receipt: Some(marketing_receipt(receipt)),
-                correlation_id: correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                marketing_target::BindMarketingDomainResponse {
+                    receipt: Some(marketing_receipt(receipt)),
+                    correlation_id: correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn configure_marketing_provider_account(
         &self,
-        request: Request<ConfigureMarketingProviderAccountRequest>,
-    ) -> Result<Response<ConfigureMarketingProviderAccountResponse>, Status> {
+        request: Request<marketing_target::ConfigureMarketingProviderAccountRequest>,
+    ) -> Result<Response<marketing_target::ConfigureMarketingProviderAccountResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -19107,17 +11380,20 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .map_err(|error| {
                     marketing_provider_onboarding_status(error, context.correlation_id)
                 })?;
-            Ok(Response::new(ConfigureMarketingProviderAccountResponse {
-                receipt: Some(marketing_provider_receipt(receipt)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                marketing_target::ConfigureMarketingProviderAccountResponse {
+                    receipt: Some(marketing_provider_receipt(receipt)),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn acknowledge_marketing_provider_verification(
         &self,
-        request: Request<AcknowledgeMarketingProviderVerificationRequest>,
-    ) -> Result<Response<AcknowledgeMarketingProviderVerificationResponse>, Status> {
+        request: Request<marketing_target::AcknowledgeMarketingProviderVerificationRequest>,
+    ) -> Result<Response<marketing_target::AcknowledgeMarketingProviderVerificationResponse>, Status>
+    {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -19170,7 +11446,7 @@ impl MarketingContentService for MarketingContentRpcImpl {
                     marketing_provider_onboarding_status(error, context.correlation_id)
                 })?;
             Ok(Response::new(
-                AcknowledgeMarketingProviderVerificationResponse {
+                marketing_target::AcknowledgeMarketingProviderVerificationResponse {
                     receipt: Some(marketing_provider_receipt(receipt)),
                     correlation_id: context.correlation_id.to_string(),
                 },
@@ -19180,8 +11456,8 @@ impl MarketingContentService for MarketingContentRpcImpl {
 
     async fn set_marketing_provider_account_state(
         &self,
-        request: Request<SetMarketingProviderAccountStateRequest>,
-    ) -> Result<Response<SetMarketingProviderAccountStateResponse>, Status> {
+        request: Request<marketing_target::SetMarketingProviderAccountStateRequest>,
+    ) -> Result<Response<marketing_target::SetMarketingProviderAccountStateResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.state.auth.authorize(&request).await?;
             let input = request.get_ref();
@@ -19228,2740 +11504,188 @@ impl MarketingContentService for MarketingContentRpcImpl {
                 .map_err(|error| {
                     marketing_provider_onboarding_status(error, context.correlation_id)
                 })?;
-            Ok(Response::new(SetMarketingProviderAccountStateResponse {
-                receipt: Some(marketing_provider_receipt(receipt)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-}
-
-#[tonic::async_trait]
-impl FinanceService for FinanceRpcImpl {
-    async fn list_posted_journals(
-        &self,
-        request: Request<ListFinanceJournalsRequest>,
-    ) -> Result<Response<ListFinanceJournalsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance journal reads require an explicit holding, company, or branch scope",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "finance.read")
-                .await?;
-            let input = request.get_ref();
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = input.page_size;
-            if page_size == 0 || page_size > MAX_FINANCE_READ_JOURNAL_PAGE_SIZE {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_FINANCE_READ_JOURNAL_PAGE_SIZE}"
-                )));
-            }
-            let before_journal_id = if input.before_journal_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.before_journal_id, "before_journal_id")?)
-            };
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(
-                    tenant_id,
-                    holding_ref,
-                    erpx_infrastructure::RoutedDatabaseSide::Write,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let read = match router
-                .route(
-                    tenant_id,
-                    holding_ref,
-                    erpx_infrastructure::RoutedDatabaseSide::Read,
-                )
-                .await
-            {
-                Ok(read) => read,
-                Err(_) => {
-                    write.close().await;
-                    return Err(Status::unavailable("tenant read database is unavailable"));
-                }
-            };
-            let result = async {
-                let store = SqlxFinanceStore::from_pools(
-                    write.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|_| Status::internal("Finance store configuration is invalid"))?;
-                let (journals, has_more) = store
-                    .read_journal_page(page_size, before_journal_id)
-                    .await
-                    .map_err(|_| Status::internal("Finance journal read failed"))?;
-                let next_before_journal_id = if has_more {
-                    journals
-                        .last()
-                        .map(|journal| journal.journal_id.to_string())
-                        .unwrap_or_default()
-                } else {
-                    String::new()
-                };
-                let journals = journals
-                    .into_iter()
-                    .map(|journal| -> Result<FinanceJournal, Status> {
-                        Ok(FinanceJournal {
-                            id: journal.journal_id.to_string(),
-                            company_id: journal.company_id.to_string(),
-                            period_id: journal.period_id.to_string(),
-                            source_version: journal.source_version,
-                            posted_at: journal.posted_at.to_rfc3339(),
-                            payload_json: serde_json::to_vec(&journal.payload)
-                                .map_err(|_| Status::internal("Finance journal encoding failed"))?,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, Status>>()?;
-                Ok::<ListFinanceJournalsResponse, Status>(ListFinanceJournalsResponse {
-                    journals,
-                    has_more,
-                    next_before_journal_id,
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn get_finance_trial_balance(
-        &self,
-        request: Request<GetFinanceTrialBalanceRequest>,
-    ) -> Result<Response<GetFinanceTrialBalanceResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            let read_scope =
-                finance_chart_read_scope(&caller_scope, &input.holding_id, &input.company_id)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "finance.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let chart_id = parse_uuid(&input.chart_id, "chart_id")?;
-            if input.chart_json.is_empty() || input.chart_json.len() > 2 * 1024 * 1024 {
-                return Err(Status::invalid_argument("chart_json is out of bounds"));
-            }
-            let chart: ChartOfAccounts = serde_json::from_slice(&input.chart_json)
-                .map_err(|_| Status::invalid_argument("chart_json is invalid"))?;
-            chart
-                .validate()
-                .map_err(|_| Status::invalid_argument("chart_json is invalid"))?;
-            if chart.id != chart_id
-                || chart.holding_id != read_scope.holding_id
-                || chart.company_id != read_scope.company_id
-            {
-                return Err(Status::permission_denied(
-                    "Finance chart scope does not match the requested read scope",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &caller_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let correlation_id = context.correlation_id;
-            let result = async {
-                let chart_store =
-                    SqlxFinanceChartReadStore::new(read.database_pool().clone(), holding_ref)
-                        .map_err(|_| {
-                            Status::internal("Finance chart read configuration is invalid")
-                        })?;
-                let mut cursor = None;
-                let mut projected_chart = None;
-                for _ in 0..100 {
-                    let page = chart_store
-                        .list_charts(read_scope, 100, cursor)
-                        .await
-                        .map_err(|_| Status::unavailable("Finance chart read failed"))?;
-                    projected_chart = page.rows.into_iter().find(|row| row.chart_id == chart_id);
-                    if projected_chart.is_some() || !page.has_more {
-                        break;
-                    }
-                    cursor = page.next_cursor;
-                }
-                let projected_chart = projected_chart.ok_or_else(|| {
-                    Status::failed_precondition(
-                        "Finance chart projection is unavailable within read bounds",
-                    )
-                })?;
-                if projected_chart.holding_id != chart.holding_id
-                    || projected_chart.company_id != chart.company_id
-                    || projected_chart.name != chart.name
-                {
-                    return Err(Status::failed_precondition(
-                        "Finance chart snapshot does not match the read projection",
-                    ));
-                }
-                if projected_chart.accounts.len() > 4096
-                    || projected_chart.accounts.len() != chart.accounts.len()
-                {
-                    return Err(Status::failed_precondition(
-                        "Finance chart projection account set is incomplete",
-                    ));
-                }
-                for projected_account in projected_chart.accounts {
-                    let account = chart.account(projected_account.account_id).ok_or_else(|| {
-                        Status::failed_precondition(
-                            "Finance chart projection account set is inconsistent",
-                        )
-                    })?;
-                    let projected_kind =
-                        finance_trial_balance_account_kind(&projected_account.category)?;
-                    let expected_normal_balance = match account.kind {
-                        AccountKind::Asset | AccountKind::Expense => "debit",
-                        AccountKind::Liability | AccountKind::Equity | AccountKind::Revenue => {
-                            "credit"
-                        }
-                    };
-                    let expected_status = if account.active { "active" } else { "inactive" };
-                    if account.code != projected_account.code
-                        || account.name != projected_account.name
-                        || account.kind != projected_kind
-                        || expected_normal_balance != projected_account.normal_balance
-                        || account.parent_id != projected_account.parent_account_id
-                        || expected_status != projected_account.status
-                    {
-                        return Err(Status::failed_precondition(
-                            "Finance chart snapshot does not match the read projection",
-                        ));
-                    }
-                }
-
-                let store = SqlxFinanceStore::from_pools(
-                    read.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|_| Status::internal("Finance store configuration is invalid"))?;
-                let trial_balance = store
-                    .trial_balance(&chart)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, correlation_id))?;
-                let source_version = projected_chart.source_version;
-                let projection_updated_at = projected_chart.projected_at;
-                let now = Utc::now();
-                let lines = trial_balance
-                    .lines
-                    .into_iter()
-                    .map(|line| FinanceTrialBalanceLine {
-                        account_id: line.account_id.to_string(),
-                        account_code: line.account_code,
-                        account_name: line.account_name,
-                        account_kind: finance_trial_balance_account_kind_text(line.account_kind)
-                            .into(),
-                        debit_minor: line.debit_minor,
-                        credit_minor: line.credit_minor,
-                        net_minor: line.net_minor,
-                    })
-                    .collect();
-                Ok::<GetFinanceTrialBalanceResponse, Status>(GetFinanceTrialBalanceResponse {
-                    holding_id: trial_balance.holding_id.to_string(),
-                    company_id: trial_balance.company_id.to_string(),
-                    chart_id: chart.id.to_string(),
-                    currency: trial_balance.currency,
-                    lines,
-                    total_debit_minor: trial_balance.total_debit_minor,
-                    total_credit_minor: trial_balance.total_credit_minor,
-                    projection_updated_at: projection_updated_at.to_rfc3339(),
-                    freshness: finance_trial_balance_freshness(Some(projection_updated_at), now)
-                        .into(),
-                    read_only: true,
-                    source_version,
-                    has_source_version: source_version > 0,
-                    correlation_id: correlation_id.to_string(),
-                })
-            }
-            .await;
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.trial_balance.read".into(),
-                    purpose: proto_context
-                        .audit
-                        .as_ref()
-                        .map(|audit| audit.purpose.clone())
-                        .unwrap_or_else(|| "Finance trial-balance read".into()),
-                    correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn get_finance_consolidated_trial_balance(
-        &self,
-        request: Request<GetFinanceConsolidatedTrialBalanceRequest>,
-    ) -> Result<Response<GetFinanceConsolidatedTrialBalanceResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let requested_scope = Scope::Holding { holding_id };
-            if !caller_scope.contains(&requested_scope) {
-                return Err(Status::permission_denied(
-                    "Finance consolidation scope is not contained",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "finance.read")
-                .await?;
-            if input.chart_json.is_empty()
-                || input.chart_json.len() > erpx_infrastructure::MAX_FINANCE_CONSOLIDATED_CHARTS
-            {
-                return Err(Status::invalid_argument(
-                    "at least one and at most 1000 company charts are required",
-                ));
-            }
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &caller_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let charts = input
-                .chart_json
-                .iter()
-                .map(|chart_json| {
-                    if chart_json.is_empty() || chart_json.len() > 2 * 1024 * 1024 {
-                        return Err(Status::invalid_argument("chart_json is out of bounds"));
-                    }
-                    let chart: ChartOfAccounts = serde_json::from_slice(chart_json)
-                        .map_err(|_| Status::invalid_argument("chart_json is invalid"))?;
-                    chart
-                        .validate()
-                        .map_err(|_| Status::invalid_argument("chart_json is invalid"))?;
-                    if chart.holding_id != holding_id {
-                        return Err(Status::permission_denied(
-                            "Finance chart holding does not match consolidation scope",
-                        ));
-                    }
-                    Ok(chart)
-                })
-                .collect::<Result<Vec<_>, Status>>()?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let correlation_id = context.correlation_id;
-            let result = async {
-                let chart_store = SqlxFinanceChartReadStore::new(
-                    read.database_pool().clone(),
-                    holding_ref.to_owned(),
-                )
-                .map_err(|_| Status::internal("Finance chart read configuration is invalid"))?;
-                for chart in &charts {
-                    let scope = erpx_infrastructure::FinanceChartReadScope {
-                        holding_id,
-                        company_id: chart.company_id,
-                    };
-                    let mut cursor = None;
-                    let projected = loop {
-                        let page = chart_store
-                            .list_charts(scope, 100, cursor)
-                            .await
-                            .map_err(|_| Status::unavailable("Finance chart read failed"))?;
-                        if let Some(row) =
-                            page.rows.into_iter().find(|row| row.chart_id == chart.id)
-                        {
-                            break Some(row);
-                        }
-                        if !page.has_more {
-                            break None;
-                        }
-                        cursor = page.next_cursor;
-                    }
-                    .ok_or_else(|| {
-                        Status::failed_precondition(
-                            "Finance chart projection is unavailable within read bounds",
-                        )
-                    })?;
-                    if projected.holding_id != chart.holding_id
-                        || projected.company_id != chart.company_id
-                        || projected.name != chart.name
-                        || projected.accounts.len() != chart.accounts.len()
-                    {
-                        return Err(Status::failed_precondition(
-                            "Finance chart projection does not match the supplied chart",
-                        ));
-                    }
-                    for account in &chart.accounts {
-                        let projected_account = projected
-                            .accounts
-                            .iter()
-                            .find(|candidate| candidate.account_id == account.id)
-                            .ok_or_else(|| {
-                                Status::failed_precondition(
-                                    "Finance chart projection account set is incomplete",
-                                )
-                            })?;
-                        let kind = finance_trial_balance_account_kind(&projected_account.category)?;
-                        let expected_normal_balance = match account.kind {
-                            AccountKind::Asset | AccountKind::Expense => "debit",
-                            AccountKind::Liability | AccountKind::Equity | AccountKind::Revenue => {
-                                "credit"
-                            }
-                        };
-                        let expected_status = if account.active { "active" } else { "inactive" };
-                        if projected_account.code != account.code
-                            || projected_account.name != account.name
-                            || kind != account.kind
-                            || projected_account.normal_balance != expected_normal_balance
-                            || projected_account.parent_account_id != account.parent_id
-                            || projected_account.status != expected_status
-                        {
-                            return Err(Status::failed_precondition(
-                                "Finance chart projection account is inconsistent",
-                            ));
-                        }
-                    }
-                }
-                let store = SqlxFinanceStore::from_pools(
-                    read.database_pool(),
-                    read.database_pool(),
-                    holding_ref.to_owned(),
-                )
-                .map_err(|_| Status::internal("Finance store configuration is invalid"))?;
-                let (report, source_version) = store
-                    .consolidated_trial_balance(&charts)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, correlation_id))?;
-                let lines = report
-                    .lines
-                    .into_iter()
-                    .map(|line| FinanceConsolidatedTrialBalanceLine {
-                        account_code: line.account_code,
-                        account_name: line.account_name,
-                        account_kind: finance_trial_balance_account_kind_text(line.account_kind)
-                            .into(),
-                        debit_minor: line.debit_minor,
-                        credit_minor: line.credit_minor,
-                        net_minor: line.net_minor,
-                    })
-                    .collect();
-                Ok::<GetFinanceConsolidatedTrialBalanceResponse, Status>(
-                    GetFinanceConsolidatedTrialBalanceResponse {
-                        holding_id: report.holding_id.to_string(),
-                        currency: report.currency,
-                        company_ids: report
-                            .company_ids
-                            .into_iter()
-                            .map(|company_id| company_id.to_string())
-                            .collect(),
-                        lines,
-                        total_debit_minor: report.total_debit_minor,
-                        total_credit_minor: report.total_credit_minor,
-                        source_version,
-                        has_source_version: source_version > 0,
-                        read_only: true,
-                        correlation_id: correlation_id.to_string(),
-                    },
-                )
-            }
-            .await;
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.consolidated_trial_balance.read".into(),
-                    purpose: proto_context
-                        .audit
-                        .as_ref()
-                        .map(|audit| audit.purpose.clone())
-                        .unwrap_or_else(|| "Finance consolidated trial-balance read".into()),
-                    correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn save_finance_period(
-        &self,
-        request: Request<SaveFinancePeriodRequest>,
-    ) -> Result<Response<SaveFinancePeriodResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance period mutations require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let period_json = &request.get_ref().period_json;
-            if period_json.is_empty() || period_json.len() > 256 * 1024 {
-                return Err(Status::invalid_argument("period_json is out of bounds"));
-            }
-            let period: AccountingPeriod = serde_json::from_slice(period_json)
-                .map_err(|_| Status::invalid_argument("period_json is invalid"))?;
-            period.validate().map_err(|error| {
-                finance_persistence_status(
-                    PersistenceError::InvalidData(error.to_string()),
-                    context.correlation_id,
-                )
-            })?;
-            if !finance_company_scope_contains(&scope, period.holding_id, period.company_id) {
-                return Err(Status::permission_denied(
-                    "Finance period company is outside the command scope",
-                ));
-            }
-            let expected_version = if request.get_ref().has_expected_version {
-                if request.get_ref().expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(request.get_ref().expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(
-                    tenant_id,
-                    holding_ref,
-                    erpx_infrastructure::RoutedDatabaseSide::Write,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxFinanceStore::from_pools(
-                    write.database_pool(),
-                    write.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let version = store
-                    .save_period(&period, expected_version)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "finance.period.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-                Ok::<SaveFinancePeriodResponse, Status>(SaveFinancePeriodResponse {
-                    receipt: Some(erpx_proto::platform::FinancePeriodWriteReceipt {
-                        aggregate_type: "finance_period".into(),
-                        period_id: period.id.to_string(),
-                        version,
-                        replayed: false,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn post_finance_journal(
-        &self,
-        request: Request<PostFinanceJournalRequest>,
-    ) -> Result<Response<PostFinanceJournalResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance journal mutations require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let input = request.get_ref();
-            if input.chart_json.is_empty()
-                || input.chart_json.len() > 2 * 1024 * 1024
-                || input.period_json.is_empty()
-                || input.period_json.len() > 256 * 1024
-                || input.journal_json.is_empty()
-                || input.journal_json.len() > 2 * 1024 * 1024
-            {
-                return Err(Status::invalid_argument(
-                    "Finance journal payload is out of bounds",
-                ));
-            }
-            let chart: ChartOfAccounts = serde_json::from_slice(&input.chart_json)
-                .map_err(|_| Status::invalid_argument("chart_json is invalid"))?;
-            let period: AccountingPeriod = serde_json::from_slice(&input.period_json)
-                .map_err(|_| Status::invalid_argument("period_json is invalid"))?;
-            let journal: JournalEntry = serde_json::from_slice(&input.journal_json)
-                .map_err(|_| Status::invalid_argument("journal_json is invalid"))?;
-            chart.validate().map_err(|error| {
-                finance_persistence_status(
-                    PersistenceError::InvalidData(error.to_string()),
-                    context.correlation_id,
-                )
-            })?;
-            period.validate().map_err(|error| {
-                finance_persistence_status(
-                    PersistenceError::InvalidData(error.to_string()),
-                    context.correlation_id,
-                )
-            })?;
-            journal.validate().map_err(|error| {
-                finance_persistence_status(
-                    PersistenceError::InvalidData(error.to_string()),
-                    context.correlation_id,
-                )
-            })?;
-            if !finance_company_scope_contains(&scope, journal.holding_id(), journal.company_id())
-                || chart.holding_id != journal.holding_id()
-                || chart.company_id != journal.company_id()
-                || period.holding_id != journal.holding_id()
-                || period.company_id != journal.company_id()
-                || period.id != journal.period_id()
-            {
-                return Err(Status::permission_denied(
-                    "Finance journal scope or period binding is invalid",
-                ));
-            }
-            let journal_context = journal.context();
-            if journal_context.command_id != context.command_id
-                || journal_context.idempotency_key != context.idempotency_key
-                || journal_context.actor.principal_ref != context.actor.principal_ref
-                || access_scope(&journal_context.tenant_scope) != scope
-            {
-                return Err(Status::permission_denied(
-                    "Finance journal command context does not match transport context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(
-                    tenant_id,
-                    holding_ref,
-                    erpx_infrastructure::RoutedDatabaseSide::Write,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxFinanceStore::from_pools(
-                    write.database_pool(),
-                    write.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .post_journal(journal, &chart, &period, Utc::now())
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "finance.journal.posted".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-                Ok::<PostFinanceJournalResponse, Status>(PostFinanceJournalResponse {
-                    receipt: Some(erpx_proto::platform::FinanceJournalPostReceipt {
-                        journal_id: receipt.journal.id().to_string(),
-                        company_id: receipt.journal.company_id().to_string(),
-                        period_id: receipt.journal.period_id().to_string(),
-                        posted_at: receipt.journal.posted_at().to_rfc3339(),
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn save_subledger(
-        &self,
-        request: Request<SaveFinanceSubledgerRequest>,
-    ) -> Result<Response<SaveFinanceSubledgerResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance mutations require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "finance.write")
-                .await?;
-            if request.get_ref().aggregate_json.len() > 1_048_576 {
-                return Err(Status::invalid_argument(
-                    "aggregate_json exceeds its size bound",
-                ));
-            }
-            let payload =
-                serde_json::from_slice::<serde_json::Value>(&request.get_ref().aggregate_json)
-                    .map_err(|_| Status::invalid_argument("aggregate_json is invalid"))?;
-            let requested_type = request.get_ref().aggregate_type.trim();
-            if requested_type.is_empty() || requested_type.len() > 64 {
-                return Err(Status::invalid_argument("aggregate_type is invalid"));
-            }
-            let aggregate: FinanceSubledgerAggregate = serde_json::from_value(serde_json::json!({
-                "aggregate_type": requested_type,
-                "aggregate": payload,
-            }))
-            .map_err(|_| Status::invalid_argument("Finance aggregate payload is invalid"))?;
-            aggregate
-                .validate()
-                .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-            if aggregate.aggregate_type() != requested_type
-                || access_scope(aggregate.scope()) != scope
-            {
-                return Err(Status::permission_denied(
-                    "Finance aggregate type or scope does not match the command",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(
-                    tenant_id,
-                    holding_ref,
-                    erpx_infrastructure::RoutedDatabaseSide::Write,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxFinanceSubledgerStore::from_pools(
-                    write.database_pool(),
-                    write.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .save_with_request_key(
-                        &aggregate,
-                        context.expected_aggregate_version,
-                        &context.idempotency_key,
-                    )
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(erpx_application::AuditEvent {
-                        actor_ref: context.actor.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "finance.subledger.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-                Ok::<SaveFinanceSubledgerResponse, Status>(SaveFinanceSubledgerResponse {
-                    receipt: Some(erpx_proto::platform::FinanceSubledgerReceipt {
-                        aggregate_type: receipt.aggregate_type,
-                        aggregate_id: receipt.aggregate_id.to_string(),
-                        version: receipt.version,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn save_allocation_batch(
-        &self,
-        request: Request<SaveFinanceAllocationBatchRequest>,
-    ) -> Result<Response<SaveFinanceAllocationBatchResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance allocation commands require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            if request.get_ref().batch_json.len() > 2_097_152 {
-                return Err(Status::invalid_argument(
-                    "batch_json exceeds its size bound",
-                ));
-            }
-            let input = serde_json::from_slice::<FinanceAllocationBatchInput>(
-                &request.get_ref().batch_json,
-            )
-            .map_err(|_| Status::invalid_argument("batch_json is invalid"))?;
-            let batch = AllocationBatch::new(input.payment.metadata.id, input.allocations)
-                .map_err(|_| Status::failed_precondition("Finance allocation batch is invalid"))?;
-            if access_scope(&input.payment.metadata.scope) != scope
-                || input
-                    .invoices
-                    .iter()
-                    .any(|invoice| access_scope(&invoice.metadata.scope) != scope)
-                || batch
-                    .allocations
-                    .iter()
-                    .any(|allocation| access_scope(&allocation.metadata.scope) != scope)
-            {
-                return Err(Status::permission_denied(
-                    "Finance allocation records do not match the command scope",
-                ));
-            }
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "finance.write")
-                .await?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let expected_payment_version = context.expected_aggregate_version.ok_or_else(|| {
-                Status::failed_precondition(
-                    "Finance allocation commands require expected_aggregate_version",
-                )
-            })?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(
-                    tenant_id,
-                    holding_ref,
-                    erpx_infrastructure::RoutedDatabaseSide::Write,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxFinanceSubledgerStore::from_pools(
-                    write.database_pool(),
-                    write.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .save_allocation_batch(
-                        &batch,
-                        &input.payment,
-                        &input.invoices,
-                        expected_payment_version,
-                    )
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(erpx_application::AuditEvent {
-                        actor_ref: context.actor.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "finance.allocation_batch.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-                Ok::<SaveFinanceAllocationBatchResponse, Status>(finance_allocation_response(
-                    receipt,
-                    context.correlation_id,
-                ))
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn save_finance_chart(
-        &self,
-        request: Request<SaveFinanceChartRequest>,
-    ) -> Result<Response<SaveFinanceChartResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance chart mutations require an explicit holding, company, or branch scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let chart_json = &request.get_ref().chart_json;
-            if chart_json.is_empty() || chart_json.len() > 2 * 1024 * 1024 {
-                return Err(Status::invalid_argument("chart_json is out of bounds"));
-            }
-            let chart: FinanceChart = serde_json::from_slice(chart_json)
-                .map_err(|_| Status::invalid_argument("chart_json is invalid"))?;
-            chart.validate().map_err(|error| {
-                finance_persistence_status(
-                    PersistenceError::InvalidData(error.to_string()),
-                    context.correlation_id,
-                )
-            })?;
-            if chart.last_command.command_id != context.command_id
-                || chart.last_command.idempotency_key != context.idempotency_key
-                || access_scope(&chart.tenant_scope()) != scope
-            {
-                return Err(Status::permission_denied(
-                    "Finance chart identity or command scope does not match context",
-                ));
-            }
-            let expected_version = if request.get_ref().has_expected_version {
-                if request.get_ref().expected_version == 0 {
-                    return Err(Status::invalid_argument(
-                        "expected_version must be positive",
-                    ));
-                }
-                Some(request.get_ref().expected_version)
-            } else {
-                None
-            };
-            if expected_version != context.expected_aggregate_version {
-                return Err(Status::invalid_argument(
-                    "expected_version does not match command context",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "finance.write")
-                .await?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(
-                    tenant_id,
-                    holding_ref,
-                    erpx_infrastructure::RoutedDatabaseSide::Write,
-                )
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxFinanceChartStore::new(write.database_pool().clone(), holding_ref)
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .save_chart(&chart, &context, expected_version)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "finance.chart.saved".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-                Ok::<SaveFinanceChartResponse, Status>(SaveFinanceChartResponse {
-                    receipt: Some(erpx_proto::platform::FinanceChartWriteReceipt {
-                        aggregate_type: erpx_infrastructure::FINANCE_CHART_AGGREGATE.into(),
-                        chart_id: receipt.chart_id.to_string(),
-                        version: receipt.version,
-                        idempotency_key: receipt.idempotency_key,
-                        event_id: receipt.event_id.to_string(),
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_finance_charts(
-        &self,
-        request: Request<ListFinanceChartsRequest>,
-    ) -> Result<Response<ListFinanceChartsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            let read_scope =
-                finance_chart_read_scope(&caller_scope, &input.holding_id, &input.company_id)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "finance.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = if input.page_size == 0 {
-                25
-            } else if input.page_size <= MAX_FINANCE_CHART_READ_PAGE_SIZE {
-                input.page_size
-            } else {
-                return Err(Status::invalid_argument(format!(
-                    "page_size must be 1..={MAX_FINANCE_CHART_READ_PAGE_SIZE}"
-                )));
-            };
-            let cursor = if input.after_chart_id.trim().is_empty() {
-                None
-            } else {
-                Some(FinanceChartReadCursor {
-                    chart_id: parse_uuid(&input.after_chart_id, "after_chart_id")?,
-                })
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &caller_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let correlation_id = context.correlation_id;
-            let result = async {
-                let store =
-                    SqlxFinanceChartReadStore::new(read.database_pool().clone(), holding_ref)
-                        .map_err(|error| finance_persistence_status(error, correlation_id))?;
-                let page = store
-                    .list_charts(read_scope, page_size, cursor)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, correlation_id))?;
-                let charts = page
-                    .rows
-                    .into_iter()
-                    .map(finance_chart_read_row_message)
-                    .collect::<Result<Vec<_>, Status>>()?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "finance.chart.read.list".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "Finance chart read".into()),
-                        correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-                Ok::<ListFinanceChartsResponse, Status>(ListFinanceChartsResponse {
-                    charts,
-                    has_more: page.has_more,
-                    next_after_chart_id: page
-                        .next_cursor
-                        .map(|cursor| cursor.chart_id.to_string())
-                        .unwrap_or_default(),
-                    correlation_id: correlation_id.to_string(),
-                })
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn list_finance_subledger_read_rows(
-        &self,
-        request: Request<ListFinanceSubledgerReadRowsRequest>,
-    ) -> Result<Response<ListFinanceSubledgerReadRowsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            let read_scope = finance_subledger_read_tenant_scope(&caller_scope)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "finance.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = finance_subledger_read_page_size(input.page_size)?;
-            let aggregate_type = if input.aggregate_type.trim().is_empty() {
-                None
-            } else {
-                Some(
-                    validate_transport_reference(&input.aggregate_type, "aggregate_type")?
-                        .to_owned(),
-                )
-            };
-            let company_id = if input.company_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.company_id, "company_id")?)
-            };
-            let after = if input.after_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_finance_subledger_read_cursor(&input.after_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &caller_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let read = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-                .map_err(|_| Status::unavailable("tenant read database is unavailable"))?;
-            let correlation_id = context.correlation_id;
-            let result = async {
-                let store = SqlxFinanceSubledgerStore::from_pools(
-                    read.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| finance_persistence_status(error, correlation_id))?;
-                let page = store
-                    .list_read_rows(
-                        &read_scope,
-                        aggregate_type.as_deref(),
-                        company_id,
-                        after.as_ref(),
-                        page_size,
-                    )
-                    .await
-                    .map_err(|error| finance_persistence_status(error, correlation_id))?;
-                let mut rows = Vec::with_capacity(page.rows.len());
-                for row in page.rows {
-                    if !caller_scope.contains(&finance_subledger_row_scope(&row)) {
-                        return Err(Status::internal("Finance subledger read scope mismatch"));
-                    }
-                    rows.push(finance_subledger_read_row_message(row)?);
-                }
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: claims.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "finance.subledger.read.list".into(),
-                        purpose: proto_context
-                            .audit
-                            .as_ref()
-                            .map(|audit| audit.purpose.clone())
-                            .unwrap_or_else(|| "Finance subledger read list".into()),
-                        correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-                Ok::<ListFinanceSubledgerReadRowsResponse, Status>(
-                    ListFinanceSubledgerReadRowsResponse {
-                        rows,
-                        has_more: page.has_more,
-                        next_cursor: page
-                            .next_cursor
-                            .as_ref()
-                            .map(encode_finance_subledger_read_cursor)
-                            .unwrap_or_default(),
-                        correlation_id: correlation_id.to_string(),
-                    },
-                )
-            }
-            .await;
-            read.close().await;
-            Ok(Response::new(result?))
-        })
-    }
-
-    async fn save_finance_close_review(
-        &self,
-        request: Request<SaveFinanceCloseReviewRequest>,
-    ) -> Result<Response<SaveFinanceCloseReviewResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance close mutations require an explicit scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            let period: AccountingPeriod =
-                decode_finance_banking_json(&request.get_ref().period_json, "period_json")?;
-            let review: FinanceCloseReview =
-                decode_finance_banking_json(&request.get_ref().review_json, "review_json")?;
-            period
-                .validate()
-                .map_err(|_| Status::failed_precondition("Finance accounting period is invalid"))?;
-            if review.holding_id() != period.holding_id
-                || review.company_id() != period.company_id
-                || review.period_id() != period.id
-                || !context.tenant_scope.contains(&TenantScope::Company {
-                    holding_id: review.holding_id(),
-                    company_id: review.company_id(),
-                })
-            {
-                return Err(Status::permission_denied(
-                    "Finance close scope does not match the accounting period",
-                ));
-            }
-            let embedded_context = match review.status() {
-                erpx_domain::finance_close::CloseStatus::Open => review.opened_context(),
-                erpx_domain::finance_close::CloseStatus::Review => {
-                    review.reviewed_context().ok_or_else(|| {
-                        Status::failed_precondition("Finance close reviewer is missing")
-                    })?
-                }
-                erpx_domain::finance_close::CloseStatus::Closed => {
-                    review.closed_context().ok_or_else(|| {
-                        Status::failed_precondition("Finance close closer is missing")
-                    })?
-                }
-            };
-            if embedded_context.command_id != context.command_id
-                || embedded_context.idempotency_key != context.idempotency_key
-                || embedded_context.actor != context.actor
-                || embedded_context.correlation_id != context.correlation_id
-            {
-                return Err(Status::failed_precondition(
-                    "Finance close command context is not bound to the review",
-                ));
-            }
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let expected_version = request
-                .get_ref()
-                .has_expected_version
-                .then_some(request.get_ref().expected_version);
-            let receipt = with_close_store(
-                router,
-                tenant_id,
-                holding_ref,
-                context.correlation_id,
-                |store| async move {
-                    store
-                        .save_review(&review, &period, expected_version)
-                        .await
-                        .map_err(|error| finance_persistence_status(error, context.correlation_id))
-                },
-            )
-            .await?;
-            self.state
-                .store
-                .record(erpx_application::AuditEvent {
-                    actor_ref: context.actor.principal_ref.clone(),
-                    customer_account_id: Some(customer_id),
-                    action: "finance.close_review.saved".into(),
-                    purpose: context.audit.purpose.clone(),
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            Ok(Response::new(SaveFinanceCloseReviewResponse {
-                receipt: Some(finance_close_receipt(receipt)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn register_bank_account(
-        &self,
-        request: Request<RegisterBankAccountRequest>,
-    ) -> Result<Response<RegisterBankAccountResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance banking mutations require an explicit scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            let account: BankAccount =
-                decode_finance_banking_json(&request.get_ref().account_json, "account_json")?;
-            account
-                .validate_for_command(&context)
-                .map_err(|_| Status::failed_precondition("Finance bank account is invalid"))?;
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let receipt = with_banking_store(
-                router,
-                tenant_id,
-                holding_ref,
-                context.correlation_id,
-                |store| async move {
-                    store
-                        .register_account(&account, &context.idempotency_key)
-                        .await
-                        .map_err(|error| finance_persistence_status(error, context.correlation_id))
-                },
-            )
-            .await?;
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: context.actor.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.bank_account.registered".into(),
-                    purpose: context.audit.purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            Ok(Response::new(RegisterBankAccountResponse {
-                receipt: Some(erpx_proto::platform::BankAccountReceipt {
-                    account_id: receipt.account_id.to_string(),
-                    version: receipt.version,
-                    replayed: receipt.replayed,
-                }),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn import_bank_statement(
-        &self,
-        request: Request<ImportBankStatementRequest>,
-    ) -> Result<Response<ImportBankStatementResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance banking mutations require an explicit scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            let account: BankAccount =
-                decode_finance_banking_json(&request.get_ref().account_json, "account_json")?;
-            let import: BankStatementImport =
-                decode_finance_banking_json(&request.get_ref().import_json, "import_json")?;
-            account
-                .validate_for_command(&context)
-                .map_err(|_| Status::failed_precondition("Finance bank account is invalid"))?;
-            import
-                .validate_for_command(&context)
-                .map_err(|_| Status::failed_precondition("Finance bank statement is invalid"))?;
-            if import.bank_account_id() != account.id() {
-                return Err(Status::failed_precondition(
-                    "Finance bank statement binding is invalid",
-                ));
-            }
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            require_actor_match(
-                &claims.principal_ref,
-                &import.context().actor.principal_ref,
-                "bank statement actor must match the authenticated principal",
-            )?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let receipt = with_banking_store(
-                router,
-                tenant_id,
-                holding_ref,
-                context.correlation_id,
-                |store| async move {
-                    store
-                        .import_statement(&account, &import)
-                        .await
-                        .map_err(|error| finance_persistence_status(error, context.correlation_id))
-                },
-            )
-            .await?;
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: context.actor.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.bank_statement.imported".into(),
-                    purpose: context.audit.purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            Ok(Response::new(ImportBankStatementResponse {
-                receipt: Some(erpx_proto::platform::BankImportReceipt {
-                    import_id: receipt.import_id.to_string(),
-                    transaction_count: receipt.transaction_count as u64,
-                    replayed: receipt.replayed,
-                }),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn enqueue_finance_bank_provider_import(
-        &self,
-        request: Request<EnqueueFinanceBankProviderImportRequest>,
-    ) -> Result<Response<EnqueueFinanceBankProviderImportResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let context = command_domain(&request, input.context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance bank-provider imports require an explicit scope",
-                ));
-            }
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let provider_key = validate_transport_reference(&input.provider_key, "provider_key")?;
-            let provider_account_ref =
-                validate_transport_reference(&input.provider_account_ref, "provider_account_ref")?;
-            let credential_key_ref =
-                validate_transport_reference(&input.credential_key_ref, "credential_key_ref")?;
-            let account: BankAccount =
-                decode_finance_banking_json(&input.account_json, "account_json")?;
-            account
-                .validate_for_command(&context)
-                .map_err(|_| Status::failed_precondition("Finance bank account is invalid"))?;
-            if !account.is_active() {
-                return Err(Status::failed_precondition(
-                    "Finance bank account is inactive",
-                ));
-            }
-            let expected_provider_prefix = format!("{provider_key}:");
-            let local_provider_account_ref = provider_account_ref
-                .strip_prefix(&expected_provider_prefix)
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| {
-                    Status::invalid_argument(
-                        "provider_account_ref must be provider_key:opaque_account_reference",
-                    )
-                })?;
-            let provider_account =
-                BankProviderAccountRef::try_new(provider_key, local_provider_account_ref).map_err(
-                    |_| Status::invalid_argument("provider account reference is invalid"),
-                )?;
-            if provider_account.storage_reference() != provider_account_ref {
-                return Err(Status::invalid_argument(
-                    "provider account reference is not canonical",
-                ));
-            }
-            let credential_key = BankProviderCredentialKey::try_new(credential_key_ref)
-                .map_err(|_| Status::invalid_argument("credential key reference is invalid"))?;
-            let binding = BankProviderAccountBinding::try_new(
-                account.id(),
-                provider_account,
-                account.scope().clone(),
-                account.holding_id(),
-                account.company_id(),
-                account.currency(),
-                account.display_name(),
-            )
-            .map_err(|_| Status::failed_precondition("bank provider account binding is invalid"))?;
-            let starts_on = NaiveDate::parse_from_str(&input.starts_on, "%Y-%m-%d")
-                .map_err(|_| Status::invalid_argument("starts_on must be YYYY-MM-DD"))?;
-            let ends_on = NaiveDate::parse_from_str(&input.ends_on, "%Y-%m-%d")
-                .map_err(|_| Status::invalid_argument("ends_on must be YYYY-MM-DD"))?;
-            if starts_on > ends_on {
-                return Err(Status::invalid_argument("statement date window is invalid"));
-            }
-            let page_size = if input.page_size == 0 {
-                100
-            } else {
-                input.page_size
-            };
-            if page_size > 500 {
-                return Err(Status::invalid_argument(
-                    "page_size exceeds the provider bound",
-                ));
-            }
-            let import_id = parse_uuid(&input.import_id, "import_id")?;
-            let max_attempts = if input.max_attempts == 0 {
-                3
-            } else {
-                input.max_attempts
-            };
-            if !(1..=8).contains(&max_attempts) {
-                return Err(Status::invalid_argument(
-                    "max_attempts must be between 1 and 8",
-                ));
-            }
-
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            self.state
-                .auth
-                .authorize_mfa(&claims, &input.mfa_code)
-                .await?;
-            let decision = FinanceAuthorizationRequest {
-                context: context.clone(),
-                operation: FinanceAuthorizationOperation::ImportBankStatement,
-                mfa_verified: true,
-                approver_principal_ref: None,
-                access_path: FinanceAccessPath::Normal,
-            }
-            .evaluate()
-            .map_err(|_| {
-                Status::permission_denied("Finance bank import authorization was denied")
-            })?;
-            let authorization =
-                FinanceBankProviderImportAuthorization::from_decision(&decision, &context)
-                    .map_err(|_| {
-                        Status::permission_denied("Finance bank import authorization was denied")
-                    })?;
-
-            let route = self
-                .state
-                .store
-                .resolve_finance_bank_provider_account(
-                    provider_account_ref,
-                    provider_key,
-                    tenant_id,
-                    holding_ref,
-                    credential_key.as_str(),
-                )
-                .await
-                .map_err(|_| Status::unavailable("Finance bank-provider route is unavailable"))?
-                .ok_or_else(|| {
-                    Status::failed_precondition("Finance bank-provider route is not active")
-                })?;
-            if route.holding_id != account.holding_id()
-                || route.provider_account_ref != provider_account_ref
-                || route.provider_key != provider_key
-                || route.tenant_id != tenant_id
-                || route.holding_ref != holding_ref
-                || route.credential_key_ref != credential_key.as_str()
-            {
-                return Err(Status::failed_precondition(
-                    "Finance bank-provider route does not match the account",
-                ));
-            }
-            let import_request = FinanceBankProviderImportRequest {
-                provider_account_ref: provider_account_ref.to_owned(),
-                provider_key: provider_key.to_owned(),
-                tenant_id: tenant_id.to_owned(),
-                holding_ref: holding_ref.to_owned(),
-                credential_key,
-                account: binding,
-                starts_on,
-                ends_on,
-                page_size,
-                import_id,
-                context: context.clone(),
-            };
-            let source = SqlxFinanceBankProviderImportJobSource::new(&self.state.store);
-            let job_id = source
-                .enqueue(
-                    &import_request,
-                    &authorization,
-                    route.version,
-                    Utc::now(),
-                    u16::try_from(max_attempts).map_err(|_| {
-                        Status::invalid_argument("max_attempts is outside the allowed bound")
-                    })?,
-                )
-                .await
-                .map_err(|_| {
-                    Status::unavailable("Finance bank-provider import queue is unavailable")
-                })?;
-            Ok(Response::new(EnqueueFinanceBankProviderImportResponse {
-                job_id: job_id.to_string(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
-    }
-
-    async fn get_finance_bank_provider_import_job_status(
-        &self,
-        request: Request<GetFinanceBankProviderImportJobStatusRequest>,
-    ) -> Result<Response<GetFinanceBankProviderImportJobStatusResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance bank import status requires an explicit scope",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "finance.read")
-                .await?;
-            let input = request.get_ref();
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let job_id = parse_uuid(&input.job_id, "job_id")?;
-            let source = SqlxFinanceBankProviderImportJobSource::new(&self.state.store);
-            let status = source
-                .status(job_id)
-                .await
-                .map_err(|_| Status::unavailable("Finance bank import status unavailable"))?
-                .ok_or_else(|| Status::not_found("Finance bank import job was not found"))?;
-            if status.tenant_id != tenant_id || status.holding_ref != holding_ref {
-                return Err(Status::not_found("Finance bank import job was not found"));
-            }
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: claims.principal_ref,
-                    customer_account_id: None,
-                    action: "finance.bank_provider_import.status_read".into(),
-                    purpose: proto_context
-                        .audit
-                        .as_ref()
-                        .map(|audit| audit.purpose.clone())
-                        .unwrap_or_else(|| "finance bank-provider import status read".into()),
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
             Ok(Response::new(
-                GetFinanceBankProviderImportJobStatusResponse {
-                    status: Some(finance_bank_provider_import_status_message(status)?),
+                marketing_target::SetMarketingProviderAccountStateResponse {
+                    receipt: Some(marketing_provider_receipt(receipt)),
                     correlation_id: context.correlation_id.to_string(),
                 },
             ))
         })
     }
+}
 
-    async fn save_bank_reconciliation(
+#[derive(Clone)]
+struct MarketingCommandComposite<A, G> {
+    current: MarketingCommandRpc<A, G>,
+    ancillary: MarketingContentRpcImpl,
+}
+
+impl<A, G> MarketingCommandComposite<A, G> {
+    fn new(current: MarketingCommandRpc<A, G>, ancillary: MarketingContentRpcImpl) -> Self {
+        Self { current, ancillary }
+    }
+}
+
+#[tonic::async_trait]
+impl<A, G> TargetMarketingCommandService for MarketingCommandComposite<A, G>
+where
+    A: MarketingCommandApplication,
+    G: MarketingRequestAuthenticator,
+{
+    async fn submit_marketing_form(
         &self,
-        request: Request<SaveBankReconciliationRequest>,
-    ) -> Result<Response<SaveBankReconciliationResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance banking mutations require an explicit scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            let account: BankAccount =
-                decode_finance_banking_json(&request.get_ref().account_json, "account_json")?;
-            let import: BankStatementImport =
-                decode_finance_banking_json(&request.get_ref().import_json, "import_json")?;
-            let reconciliation: BankReconciliation = decode_finance_banking_json(
-                &request.get_ref().reconciliation_json,
-                "reconciliation_json",
-            )?;
-            account
-                .validate_for_command(&context)
-                .map_err(|_| Status::failed_precondition("Finance bank account is invalid"))?;
-            import
-                .validate_for_command(&context)
-                .map_err(|_| Status::failed_precondition("Finance bank statement is invalid"))?;
-            reconciliation
-                .validate()
-                .map_err(|_| Status::failed_precondition("Finance reconciliation is invalid"))?;
-            if !context.tenant_scope.contains(reconciliation.scope())
-                || reconciliation.bank_account_id() != account.id()
-                || reconciliation.statement_import_id() != import.id()
-            {
-                return Err(Status::permission_denied(
-                    "Finance reconciliation binding is invalid",
-                ));
-            }
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            require_actor_match(
-                &claims.principal_ref,
-                &reconciliation.context().actor.principal_ref,
-                "reconciliation actor must match the authenticated principal",
-            )?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let expected = request
-                .get_ref()
-                .has_expected_version
-                .then_some(request.get_ref().expected_version);
-            let receipt = with_banking_store(
-                router,
-                tenant_id,
-                holding_ref,
-                context.correlation_id,
-                |store| async move {
-                    store
-                        .save_reconciliation(&account, &import, &reconciliation, expected)
-                        .await
-                        .map_err(|error| finance_persistence_status(error, context.correlation_id))
-                },
-            )
-            .await?;
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: context.actor.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.bank_reconciliation.saved".into(),
-                    purpose: context.audit.purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            Ok(Response::new(SaveBankReconciliationResponse {
-                receipt: Some(erpx_proto::platform::BankReconciliationReceipt {
-                    reconciliation_id: receipt.reconciliation_id.to_string(),
-                    version: receipt.version,
-                    replayed: receipt.replayed,
-                }),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
+        request: Request<marketing_target::SubmitMarketingFormRequest>,
+    ) -> Result<Response<marketing_target::SubmitMarketingFormResponse>, Status> {
+        self.ancillary.submit_marketing_form(request).await
     }
 
-    async fn save_bank_match_proposal(
+    async fn erase_marketing_profile(
         &self,
-        request: Request<SaveBankMatchProposalRequest>,
-    ) -> Result<Response<SaveBankMatchProposalResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance bank matching requires an explicit scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            let proposal: BankMatchProposal =
-                decode_finance_banking_json(&request.get_ref().proposal_json, "proposal_json")?;
-            proposal.validate().map_err(|_| {
-                Status::failed_precondition("Finance bank match proposal is invalid")
-            })?;
-            if !context.tenant_scope.contains(proposal.scope()) {
-                return Err(Status::permission_denied(
-                    "Finance bank match proposal scope is outside the command",
-                ));
-            }
-            require_actor_match(
-                &claims.principal_ref,
-                &proposal.context().actor.principal_ref,
-                "bank match proposal actor must match the authenticated principal",
-            )?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let correlation_id = context.correlation_id;
-            let receipt = with_banking_store(
-                router,
-                tenant_id,
-                holding_ref,
-                correlation_id,
-                |store| async move {
-                    store
-                        .save_match_proposal(&proposal)
-                        .await
-                        .map_err(|error| finance_persistence_status(error, correlation_id))
-                },
-            )
-            .await?;
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: context.actor.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.bank_match.proposal_saved".into(),
-                    purpose: context.audit.purpose,
-                    correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            Ok(Response::new(SaveBankMatchProposalResponse {
-                receipt: Some(erpx_proto::platform::BankMatchProposalReceipt {
-                    proposal_id: receipt.proposal_id.to_string(),
-                    idempotency_key: receipt.idempotency_key,
-                    replayed: receipt.replayed,
-                }),
-                correlation_id: correlation_id.to_string(),
-            }))
-        })
+        request: Request<marketing_target::EraseMarketingProfileRequest>,
+    ) -> Result<Response<marketing_target::EraseMarketingProfileResponse>, Status> {
+        self.ancillary.erase_marketing_profile(request).await
     }
 
-    async fn save_bank_match_decision(
+    async fn issue_marketing_preview(
         &self,
-        request: Request<SaveBankMatchDecisionRequest>,
-    ) -> Result<Response<SaveBankMatchDecisionResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance bank matching requires an explicit scope",
-                ));
-            }
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            let decision: BankMatchDecision =
-                decode_finance_banking_json(&request.get_ref().decision_json, "decision_json")?;
-            decision.validate().map_err(|_| {
-                Status::failed_precondition("Finance bank match decision is invalid")
-            })?;
-            if !context.tenant_scope.contains(decision.scope()) {
-                return Err(Status::permission_denied(
-                    "Finance bank match decision scope is outside the command",
-                ));
-            }
-            require_actor_match(
-                &claims.principal_ref,
-                &decision.context().actor.principal_ref,
-                "bank match decision actor must match the authenticated principal",
-            )?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let correlation_id = context.correlation_id;
-            let receipt = with_banking_store(
-                router,
-                tenant_id,
-                holding_ref,
-                correlation_id,
-                |store| async move {
-                    store
-                        .save_match_decision(&decision)
-                        .await
-                        .map_err(|error| finance_persistence_status(error, correlation_id))
-                },
-            )
-            .await?;
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: context.actor.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.bank_match.decision_saved".into(),
-                    purpose: context.audit.purpose,
-                    correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            Ok(Response::new(SaveBankMatchDecisionResponse {
-                receipt: Some(erpx_proto::platform::BankMatchDecisionReceipt {
-                    decision_id: receipt.decision_id.to_string(),
-                    proposal_id: receipt.proposal_id.to_string(),
-                    idempotency_key: receipt.idempotency_key,
-                    replayed: receipt.replayed,
-                }),
-                correlation_id: correlation_id.to_string(),
-            }))
-        })
+        request: Request<marketing_target::IssueMarketingPreviewRequest>,
+    ) -> Result<Response<marketing_target::IssueMarketingPreviewResponse>, Status> {
+        self.ancillary.issue_marketing_preview(request).await
     }
 
-    async fn get_finance_close_review(
+    async fn revoke_marketing_preview(
         &self,
-        request: Request<GetFinanceCloseReviewRequest>,
-    ) -> Result<Response<GetFinanceCloseReviewResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            let holding_id = parse_uuid(&request.get_ref().holding_id, "holding_id")?;
-            let company_id = parse_uuid(&request.get_ref().company_id, "company_id")?;
-            let read_scope = finance_close_read_scope(&scope, holding_id, company_id)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "finance.read")
-                .await?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            let period_id = parse_uuid(&request.get_ref().period_id, "period_id")?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let result = with_close_read_adapter(
-                router,
-                tenant_id,
-                holding_ref,
-                context.correlation_id,
-                |adapter| async move {
-                    adapter
-                        .read_review(period_id, read_scope, Utc::now())
-                        .await
-                        .map_err(|error| finance_close_read_status(error, context.correlation_id))
-                },
-            )
-            .await?;
-            let purpose = proto_context
-                .audit
-                .as_ref()
-                .map(|audit| audit.purpose.clone())
-                .unwrap_or_else(|| "finance close review read".into());
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.close_review.read".into(),
-                    purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            let mut response = GetFinanceCloseReviewResponse {
-                view: None,
-                missing: false,
-                missing_metadata: None,
-                correlation_id: context.correlation_id.to_string(),
-            };
-            match result {
-                FinanceCloseReadResult::Present(view) => {
-                    response.view = Some(finance_close_read_view_message(*view));
-                }
-                FinanceCloseReadResult::Missing(metadata) => {
-                    response.missing = true;
-                    response.missing_metadata = Some(finance_close_read_metadata_message(metadata));
-                }
-            }
-            Ok(Response::new(response))
-        })
+        request: Request<marketing_target::RevokeMarketingPreviewRequest>,
+    ) -> Result<Response<marketing_target::RevokeMarketingPreviewResponse>, Status> {
+        self.ancillary.revoke_marketing_preview(request).await
     }
 
-    async fn list_finance_close_reviews(
+    async fn issue_marketing_domain_verification(
         &self,
-        request: Request<ListFinanceCloseReviewsRequest>,
-    ) -> Result<Response<ListFinanceCloseReviewsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let caller_scope = query_access_scope(proto_context)?;
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let read_scope = finance_close_read_scope(&caller_scope, holding_id, company_id)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &caller_scope, "finance.read")
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = match input.page_size {
-                0 => 25,
-                value if value <= MAX_FINANCE_CLOSE_READ_PAGE_SIZE => value,
-                _ => {
-                    return Err(Status::invalid_argument(format!(
-                        "Finance close read page size must be 1..={MAX_FINANCE_CLOSE_READ_PAGE_SIZE}"
-                    )));
-                }
-            };
-            let before = if input.before_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_finance_close_read_cursor(&input.before_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &caller_scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let correlation_id = context.correlation_id;
-            let page = with_close_read_adapter(
-                self.state.tenant_router.as_ref().ok_or_else(|| {
-                    Status::failed_precondition("tenant database routing is not configured")
-                })?,
-                tenant_id,
-                holding_ref,
-                correlation_id,
-                |adapter| async move {
-                    adapter
-                        .list_reviews(read_scope, page_size, before, Utc::now())
-                        .await
-                        .map_err(|error| finance_close_read_status(error, correlation_id))
-                },
-            )
-            .await?;
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.close_review.list".into(),
-                    purpose: proto_context
-                        .audit
-                        .as_ref()
-                        .map(|audit| audit.purpose.clone())
-                        .unwrap_or_else(|| "finance close review list".into()),
-                    correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            Ok(Response::new(ListFinanceCloseReviewsResponse {
-                rows: page
-                    .rows
-                    .into_iter()
-                    .map(finance_close_read_row_message)
-                    .collect(),
-                has_more: page.has_more,
-                next_cursor: page
-                    .next_cursor
-                    .as_ref()
-                    .map(encode_finance_close_read_cursor)
-                    .unwrap_or_default(),
-                correlation_id: correlation_id.to_string(),
-            }))
-        })
+        request: Request<marketing_target::IssueMarketingDomainVerificationRequest>,
+    ) -> Result<Response<marketing_target::IssueMarketingDomainVerificationResponse>, Status> {
+        self.ancillary
+            .issue_marketing_domain_verification(request)
+            .await
     }
 
-    async fn get_finance_banking_read_row(
+    async fn verify_marketing_domain(
         &self,
-        request: Request<GetFinanceBankingReadRowRequest>,
-    ) -> Result<Response<GetFinanceBankingReadRowResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Finance banking reads require an explicit scope",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "finance.read")
-                .await?;
-            let tenant_id =
-                validate_transport_reference(&request.get_ref().tenant_id, "tenant_id")?;
-            let holding_ref =
-                validate_transport_reference(&request.get_ref().holding_ref, "holding_ref")?;
-            let aggregate_type =
-                validate_transport_reference(&request.get_ref().aggregate_type, "aggregate_type")?;
-            let aggregate_id = parse_uuid(&request.get_ref().aggregate_id, "aggregate_id")?;
-            let read_scope = finance_banking_read_tenant_scope(&scope)?;
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let row = with_banking_read_store(
-                router,
-                tenant_id,
-                holding_ref,
-                context.correlation_id,
-                |store| async move {
-                    store
-                        .get_read_row(aggregate_type, aggregate_id, &read_scope)
-                        .await
-                        .map_err(|error| finance_persistence_status(error, context.correlation_id))
-                },
-            )
-            .await?;
-            let row = match row {
-                Some(row) if !scope.contains(&finance_banking_row_scope(&row)) => {
-                    return Err(Status::internal("Finance banking read scope mismatch"));
-                }
-                Some(row) => Some(banking_read_row_message(row)?),
-                None => None,
-            };
-            let purpose = proto_context
-                .audit
-                .as_ref()
-                .map(|audit| audit.purpose.clone())
-                .unwrap_or_else(|| "finance banking read".into());
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.banking.read".into(),
-                    purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            Ok(Response::new(GetFinanceBankingReadRowResponse {
-                row,
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
+        request: Request<marketing_target::VerifyMarketingDomainRequest>,
+    ) -> Result<Response<marketing_target::VerifyMarketingDomainResponse>, Status> {
+        self.ancillary.verify_marketing_domain(request).await
     }
 
-    async fn list_finance_banking_read_rows(
+    async fn bind_marketing_domain(
         &self,
-        request: Request<ListFinanceBankingReadRowsRequest>,
-    ) -> Result<Response<ListFinanceBankingReadRowsResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let proto_context = request
-                .get_ref()
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            let read_scope = finance_banking_read_tenant_scope(&scope)?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "finance.read")
-                .await?;
-            let input = request.get_ref();
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let page_size = finance_banking_read_page_size(input.page_size)?;
-            let aggregate_type = if input.aggregate_type.trim().is_empty() {
-                None
-            } else {
-                Some(
-                    validate_transport_reference(&input.aggregate_type, "aggregate_type")?
-                        .to_owned(),
-                )
-            };
-            let company_id = if input.company_id.trim().is_empty() {
-                None
-            } else {
-                Some(parse_uuid(&input.company_id, "company_id")?)
-            };
-            let after = if input.after_cursor.trim().is_empty() {
-                None
-            } else {
-                Some(decode_finance_banking_read_cursor(&input.after_cursor)?)
-            };
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let page = with_banking_read_store(
-                router,
-                tenant_id,
-                holding_ref,
-                context.correlation_id,
-                |store| async move {
-                    store
-                        .list_read_rows(
-                            &read_scope,
-                            aggregate_type.as_deref(),
-                            company_id,
-                            after.as_ref(),
-                            page_size,
-                        )
-                        .await
-                        .map_err(|error| finance_persistence_status(error, context.correlation_id))
-                },
-            )
-            .await?;
-            let mut rows = Vec::with_capacity(page.rows.len());
-            for row in page.rows {
-                if !scope.contains(&finance_banking_row_scope(&row)) {
-                    return Err(Status::internal("Finance banking read scope mismatch"));
-                }
-                rows.push(banking_read_row_message(row)?);
-            }
-            let purpose = proto_context
-                .audit
-                .as_ref()
-                .map(|audit| audit.purpose.clone())
-                .unwrap_or_else(|| "finance banking read list".into());
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.banking.read.list".into(),
-                    purpose,
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            Ok(Response::new(ListFinanceBankingReadRowsResponse {
-                rows,
-                has_more: page.has_more,
-                next_cursor: page
-                    .next_cursor
-                    .as_ref()
-                    .map(encode_finance_banking_read_cursor)
-                    .unwrap_or_default(),
-                correlation_id: context.correlation_id.to_string(),
-            }))
-        })
+        request: Request<marketing_target::BindMarketingDomainRequest>,
+    ) -> Result<Response<marketing_target::BindMarketingDomainResponse>, Status> {
+        self.ancillary.bind_marketing_domain(request).await
     }
 
-    async fn record_thai_tax_fact(
+    async fn configure_marketing_provider_account(
         &self,
-        request: Request<RecordThaiTaxFactRequest>,
-    ) -> Result<Response<RecordThaiTaxFactResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let context = command_domain(&request, request.get_ref().context.as_ref())?;
-            let scope = access_scope(&context.tenant_scope);
-            if matches!(scope, Scope::Platform | Scope::Subtree { .. }) {
-                return Err(Status::permission_denied(
-                    "Thai tax facts require an explicit company scope",
-                ));
-            }
-            require_actor_match(
-                &claims.principal_ref,
-                &context.actor.principal_ref,
-                "command actor must match the authenticated principal",
-            )?;
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "finance.write")
-                .await?;
-            let input = request.get_ref();
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            if input.fact_json.is_empty() || input.fact_json.len() > 1_048_576 {
-                return Err(Status::invalid_argument("fact_json is out of bounds"));
-            }
-            let mut fact: ThaiTaxFact = serde_json::from_slice(&input.fact_json)
-                .map_err(|_| Status::invalid_argument("fact_json is invalid"))?;
-            fact.context = context.clone();
-            fact.validate()
-                .map_err(|_| Status::failed_precondition("Thai tax fact is invalid"))?;
-            let fact_scope = Scope::Company {
-                holding_id: fact.holding_id,
-                company_id: fact.company_id,
-            };
-            if !context.tenant_scope.contains(&TenantScope::Company {
-                holding_id: fact.holding_id,
-                company_id: fact.company_id,
-            }) || !scope.contains(&fact_scope)
-            {
-                return Err(Status::permission_denied(
-                    "Thai tax fact scope does not match the command scope",
-                ));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            self.state
-                .authorize_entitled_command(
-                    &claims,
-                    &context,
-                    customer_id,
-                    "finance",
-                    "finance.write",
-                )
-                .await?;
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let result = async {
-                let store = SqlxFinanceThaiTaxStore::from_pools(
-                    write.database_pool(),
-                    write.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let receipt = store
-                    .record_fact(&fact)
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                self.state
-                    .store
-                    .record(AuditEvent {
-                        actor_ref: context.actor.principal_ref.clone(),
-                        customer_account_id: Some(customer_id),
-                        action: "finance.thai_tax_fact.recorded".into(),
-                        purpose: context.audit.purpose.clone(),
-                        correlation_id: context.correlation_id,
-                    })
-                    .await
-                    .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-                Ok::<RecordThaiTaxFactResponse, Status>(RecordThaiTaxFactResponse {
-                    receipt: Some(erpx_proto::platform::ThaiTaxFactReceipt {
-                        fact_id: receipt.fact_id.to_string(),
-                        version: receipt.version,
-                        replayed: receipt.replayed,
-                    }),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            Ok(Response::new(result?))
-        })
+        request: Request<marketing_target::ConfigureMarketingProviderAccountRequest>,
+    ) -> Result<Response<marketing_target::ConfigureMarketingProviderAccountResponse>, Status> {
+        self.ancillary
+            .configure_marketing_provider_account(request)
+            .await
     }
 
-    async fn get_thai_tax_report(
+    async fn acknowledge_marketing_provider_verification(
         &self,
-        request: Request<GetThaiTaxReportRequest>,
-    ) -> Result<Response<GetThaiTaxReportResponse>, Status> {
-        grpc_handler!(request, {
-            let claims = self.state.auth.authorize(&request).await?;
-            let input = request.get_ref();
-            let proto_context = input
-                .context
-                .as_ref()
-                .ok_or_else(|| Status::failed_precondition("query context is required"))?;
-            let context = query_context(&request, Some(proto_context))?;
-            let scope = query_access_scope(proto_context)?;
-            let holding_id = parse_uuid(&input.holding_id, "holding_id")?;
-            let company_id = parse_uuid(&input.company_id, "company_id")?;
-            let requested_scope = Scope::Company {
-                holding_id,
-                company_id,
-            };
-            if !scope.contains(&requested_scope) {
-                return Err(Status::permission_denied(
-                    "Thai tax report scope is not granted",
-                ));
-            }
-            self.state
-                .auth
-                .authorize_role(&self.state.store, &claims, &scope, "finance.read")
-                .await?;
-            self.state
-                .auth
-                .authorize_mfa(&claims, &input.mfa_code)
-                .await?;
-            let tenant_id = validate_transport_reference(&input.tenant_id, "tenant_id")?;
-            let holding_ref = validate_transport_reference(&input.holding_ref, "holding_ref")?;
-            let tax_period = validate_transport_reference(&input.tax_period, "tax_period")?;
-            let currency = validate_transport_reference(&input.currency, "currency")?;
-            if input.page_size == 0 || input.page_size > 1_000_000 {
-                return Err(Status::invalid_argument("page_size must be 1..=1000000"));
-            }
-            let customer_id = parse_uuid(tenant_id, "tenant_id")?;
-            if !self
-                .state
-                .store
-                .customer_scope_contains(customer_id, &scope)
-                .await
-                .map_err(|_| Status::internal("customer scope lookup failed"))?
-            {
-                return Err(Status::permission_denied("customer_scope_not_granted"));
-            }
-            let router = self.state.tenant_router.as_ref().ok_or_else(|| {
-                Status::failed_precondition("tenant database routing is not configured")
-            })?;
-            let write = router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Write)
-                .await
-                .map_err(|_| Status::unavailable("tenant write database is unavailable"))?;
-            let read = match router
-                .route(tenant_id, holding_ref, RoutedDatabaseSide::Read)
-                .await
-            {
-                Ok(read) => read,
-                Err(_) => {
-                    write.close().await;
-                    return Err(Status::unavailable("tenant read database is unavailable"));
-                }
-            };
-            let result = async {
-                let store = SqlxFinanceThaiTaxStore::from_pools(
-                    write.database_pool(),
-                    read.database_pool(),
-                    holding_ref,
-                )
-                .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let reconciliation = store
-                    .reconcile_projection()
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                require_finance_thai_tax_reconciliation(reconciliation)?;
-                let read = store
-                    .list_report(
-                        holding_id,
-                        company_id,
-                        tax_period,
-                        currency,
-                        input.page_size,
-                    )
-                    .await
-                    .map_err(|error| finance_persistence_status(error, context.correlation_id))?;
-                let facts = read
-                    .report
-                    .facts
-                    .iter()
-                    .map(|fact| erpx_proto::platform::ThaiTaxFactReadRow {
-                        fact_id: fact.fact_id.to_string(),
-                        journal_id: fact.journal_id.to_string(),
-                        line_id: fact.line_id.to_string(),
-                        tax_date: fact.tax_date.to_string(),
-                        kind: fact.kind.as_str().into(),
-                        currency: fact.currency.clone(),
-                        base_minor: fact.base_minor,
-                        tax_minor: fact.tax_minor,
-                        tax_rate_basis_points: fact.tax_rate_basis_points,
-                        tax_identifier: fact.tax_identifier.clone(),
-                        source_version: read.source_version,
-                    })
-                    .collect();
-                Ok::<GetThaiTaxReportResponse, Status>(GetThaiTaxReportResponse {
-                    holding_id: read.report.holding_id.to_string(),
-                    company_id: read.report.company_id.to_string(),
-                    tax_period: read.report.tax_period,
-                    currency: read.report.currency,
-                    fact_count: read.report.fact_count,
-                    output_vat_base_minor: read.report.output_vat_base_minor,
-                    output_vat_minor: read.report.output_vat_minor,
-                    input_vat_base_minor: read.report.input_vat_base_minor,
-                    input_vat_minor: read.report.input_vat_minor,
-                    withholding_base_minor: read.report.withholding_base_minor,
-                    withholding_minor: read.report.withholding_minor,
-                    facts,
-                    source_version: read.source_version,
-                    projected_at: read.projected_at.to_rfc3339(),
-                    correlation_id: context.correlation_id.to_string(),
-                })
-            }
-            .await;
-            write.close().await;
-            read.close().await;
-            self.state
-                .store
-                .record(AuditEvent {
-                    actor_ref: claims.principal_ref,
-                    customer_account_id: Some(customer_id),
-                    action: "finance.thai_tax_report.read".into(),
-                    purpose: proto_context
-                        .audit
-                        .as_ref()
-                        .map(|audit| audit.purpose.clone())
-                        .unwrap_or_else(|| "finance statutory tax report read".into()),
-                    correlation_id: context.correlation_id,
-                })
-                .await
-                .map_err(|_| Status::unavailable("Finance audit persistence unavailable"))?;
-            Ok(Response::new(result?))
-        })
+        request: Request<marketing_target::AcknowledgeMarketingProviderVerificationRequest>,
+    ) -> Result<Response<marketing_target::AcknowledgeMarketingProviderVerificationResponse>, Status>
+    {
+        self.ancillary
+            .acknowledge_marketing_provider_verification(request)
+            .await
+    }
+
+    async fn set_marketing_provider_account_state(
+        &self,
+        request: Request<marketing_target::SetMarketingProviderAccountStateRequest>,
+    ) -> Result<Response<marketing_target::SetMarketingProviderAccountStateResponse>, Status> {
+        self.ancillary
+            .set_marketing_provider_account_state(request)
+            .await
+    }
+
+    async fn create_lead_candidate(
+        &self,
+        request: Request<marketing_target::CreateLeadCandidateRequest>,
+    ) -> Result<Response<marketing_target::MarketingLeadCandidateMutationResponse>, Status> {
+        self.current.create_lead_candidate(request).await
+    }
+
+    async fn capture_engagement(
+        &self,
+        request: Request<marketing_target::CaptureMarketingEngagementRequest>,
+    ) -> Result<Response<marketing_target::MarketingLeadCandidateMutationResponse>, Status> {
+        self.current.capture_engagement(request).await
+    }
+
+    async fn qualify_lead_candidate(
+        &self,
+        request: Request<marketing_target::QualifyLeadCandidateRequest>,
+    ) -> Result<Response<marketing_target::MarketingLeadCandidateMutationResponse>, Status> {
+        self.current.qualify_lead_candidate(request).await
+    }
+
+    async fn reject_lead_candidate(
+        &self,
+        request: Request<marketing_target::RejectLeadCandidateRequest>,
+    ) -> Result<Response<marketing_target::MarketingLeadCandidateMutationResponse>, Status> {
+        self.current.reject_lead_candidate(request).await
+    }
+}
+
+#[derive(Clone)]
+struct MarketingQueryComposite<A, G> {
+    current: MarketingQueryRpc<A, G>,
+    ancillary: MarketingContentRpcImpl,
+}
+
+impl<A, G> MarketingQueryComposite<A, G> {
+    fn new(current: MarketingQueryRpc<A, G>, ancillary: MarketingContentRpcImpl) -> Self {
+        Self { current, ancillary }
+    }
+}
+
+#[tonic::async_trait]
+impl<A, G> TargetMarketingQueryService for MarketingQueryComposite<A, G>
+where
+    A: MarketingQueryApplication,
+    G: MarketingRequestAuthenticator,
+{
+    async fn get_marketing_delivery_read(
+        &self,
+        request: Request<marketing_target::GetMarketingDeliveryReadRequest>,
+    ) -> Result<Response<marketing_target::GetMarketingDeliveryReadResponse>, Status> {
+        self.ancillary.get_marketing_delivery_read(request).await
+    }
+
+    async fn list_marketing_content_read_rows(
+        &self,
+        request: Request<marketing_target::ListMarketingContentReadRowsRequest>,
+    ) -> Result<Response<marketing_target::ListMarketingContentReadRowsResponse>, Status> {
+        self.ancillary
+            .list_marketing_content_read_rows(request)
+            .await
+    }
+
+    async fn get_lead_candidate(
+        &self,
+        request: Request<marketing_target::GetLeadCandidateRequest>,
+    ) -> Result<Response<marketing_target::GetLeadCandidateResponse>, Status> {
+        self.current.get_lead_candidate(request).await
+    }
+
+    async fn list_lead_candidates(
+        &self,
+        request: Request<marketing_target::ListLeadCandidatesRequest>,
+    ) -> Result<Response<marketing_target::ListLeadCandidatesResponse>, Status> {
+        self.current.list_lead_candidates(request).await
     }
 }
 
@@ -22081,12 +11805,221 @@ impl EntitlementRpcImpl {
     }
 }
 
+#[derive(Clone)]
+struct CommercialCommandComposite<A, G> {
+    current: CommercialCommandRpc<A, G>,
+    entitlement: EntitlementRpcImpl,
+    billing: SaasBillingRpcImpl,
+}
+
+impl<A, G> CommercialCommandComposite<A, G> {
+    fn new(
+        current: CommercialCommandRpc<A, G>,
+        entitlement: EntitlementRpcImpl,
+        billing: SaasBillingRpcImpl,
+    ) -> Self {
+        Self {
+            current,
+            entitlement,
+            billing,
+        }
+    }
+}
+
 #[tonic::async_trait]
-impl EntitlementService for EntitlementRpcImpl {
+impl<A, G> TargetCommercialCommandService for CommercialCommandComposite<A, G>
+where
+    A: CommercialCommandApplication,
+    G: CommercialRequestAuthenticator,
+{
+    async fn allocate_company_entitlement(
+        &self,
+        request: Request<commercial_target::AllocateCompanyEntitlementRequest>,
+    ) -> Result<Response<commercial_target::AllocateCompanyEntitlementResponse>, Status> {
+        self.entitlement.allocate_company_entitlement(request).await
+    }
+
+    async fn activate_company_entitlement(
+        &self,
+        request: Request<commercial_target::ActivateCompanyEntitlementRequest>,
+    ) -> Result<Response<commercial_target::ActivateCompanyEntitlementResponse>, Status> {
+        self.entitlement.activate_company_entitlement(request).await
+    }
+
+    async fn activate_branch_entitlement(
+        &self,
+        request: Request<commercial_target::ActivateBranchEntitlementRequest>,
+    ) -> Result<Response<commercial_target::ActivateBranchEntitlementResponse>, Status> {
+        self.entitlement.activate_branch_entitlement(request).await
+    }
+
+    async fn create_checkout_session(
+        &self,
+        request: Request<commercial_target::CreateCheckoutSessionRequest>,
+    ) -> Result<Response<commercial_target::CreateCheckoutSessionResponse>, Status> {
+        self.billing.create_checkout_session(request).await
+    }
+
+    async fn create_customer_portal_session(
+        &self,
+        request: Request<commercial_target::CreateCustomerPortalSessionRequest>,
+    ) -> Result<Response<commercial_target::CreateCustomerPortalSessionResponse>, Status> {
+        self.billing.create_customer_portal_session(request).await
+    }
+
+    async fn grant_grace_extension(
+        &self,
+        request: Request<commercial_target::GrantBillingGraceExtensionRequest>,
+    ) -> Result<Response<commercial_target::GrantBillingGraceExtensionResponse>, Status> {
+        self.billing.grant_grace_extension(request).await
+    }
+
+    async fn create_catalog_plan(
+        &self,
+        request: Request<commercial_target::CreateCommercialCatalogPlanRequest>,
+    ) -> Result<Response<commercial_target::CommercialCatalogPlanCommandResponse>, Status> {
+        self.current.create_catalog_plan(request).await
+    }
+
+    async fn publish_catalog_plan(
+        &self,
+        request: Request<commercial_target::PublishCommercialCatalogPlanRequest>,
+    ) -> Result<Response<commercial_target::CommercialCatalogPlanCommandResponse>, Status> {
+        self.current.publish_catalog_plan(request).await
+    }
+
+    async fn create_subscription(
+        &self,
+        request: Request<commercial_target::CreateCommercialSubscriptionRequest>,
+    ) -> Result<Response<commercial_target::CommercialSubscriptionCommandResponse>, Status> {
+        self.current.create_subscription(request).await
+    }
+
+    async fn apply_billing_event(
+        &self,
+        request: Request<commercial_target::ApplyCommercialBillingEventRequest>,
+    ) -> Result<Response<commercial_target::CommercialSubscriptionCommandResponse>, Status> {
+        self.current.apply_billing_event(request).await
+    }
+
+    async fn create_entitlement(
+        &self,
+        request: Request<commercial_target::CreateCommercialEntitlementRequest>,
+    ) -> Result<Response<commercial_target::CommercialEntitlementCommandResponse>, Status> {
+        self.current.create_entitlement(request).await
+    }
+
+    async fn apply_entitlement_change(
+        &self,
+        request: Request<commercial_target::ApplyCommercialEntitlementChangeRequest>,
+    ) -> Result<Response<commercial_target::CommercialEntitlementCommandResponse>, Status> {
+        self.current.apply_entitlement_change(request).await
+    }
+}
+
+#[derive(Clone)]
+struct CommercialQueryComposite<A, G> {
+    current: CommercialQueryRpc<A, G>,
+    entitlement: EntitlementRpcImpl,
+    billing: SaasBillingRpcImpl,
+}
+
+impl<A, G> CommercialQueryComposite<A, G> {
+    fn new(
+        current: CommercialQueryRpc<A, G>,
+        entitlement: EntitlementRpcImpl,
+        billing: SaasBillingRpcImpl,
+    ) -> Self {
+        Self {
+            current,
+            entitlement,
+            billing,
+        }
+    }
+}
+
+#[tonic::async_trait]
+impl<A, G> TargetCommercialQueryService for CommercialQueryComposite<A, G>
+where
+    A: CommercialQueryApplication,
+    G: CommercialRequestAuthenticator,
+{
     async fn check_entitlement(
         &self,
-        request: Request<CheckEntitlementRequest>,
-    ) -> Result<Response<CheckEntitlementResponse>, Status> {
+        request: Request<commercial_target::CheckEntitlementRequest>,
+    ) -> Result<Response<commercial_target::CheckEntitlementResponse>, Status> {
+        self.entitlement.check_entitlement(request).await
+    }
+
+    async fn list_saas_catalog(
+        &self,
+        request: Request<commercial_target::ListSaasCatalogRequest>,
+    ) -> Result<Response<commercial_target::ListSaasCatalogResponse>, Status> {
+        self.billing.list_catalog(request).await
+    }
+
+    async fn get_tenant_subscription(
+        &self,
+        request: Request<commercial_target::GetTenantSubscriptionRequest>,
+    ) -> Result<Response<commercial_target::GetTenantSubscriptionResponse>, Status> {
+        self.billing.get_subscription(request).await
+    }
+
+    async fn list_tenant_invoices(
+        &self,
+        request: Request<commercial_target::ListTenantInvoicesRequest>,
+    ) -> Result<Response<commercial_target::ListTenantInvoicesResponse>, Status> {
+        self.billing.list_invoices(request).await
+    }
+
+    async fn get_catalog_plan(
+        &self,
+        request: Request<commercial_target::GetCommercialCatalogPlanRequest>,
+    ) -> Result<Response<commercial_target::GetCommercialCatalogPlanResponse>, Status> {
+        self.current.get_catalog_plan(request).await
+    }
+
+    async fn list_catalog_plans(
+        &self,
+        request: Request<commercial_target::ListCommercialCatalogPlansRequest>,
+    ) -> Result<Response<commercial_target::ListCommercialCatalogPlansResponse>, Status> {
+        self.current.list_catalog_plans(request).await
+    }
+
+    async fn get_subscription(
+        &self,
+        request: Request<commercial_target::GetCommercialSubscriptionRequest>,
+    ) -> Result<Response<commercial_target::GetCommercialSubscriptionResponse>, Status> {
+        self.current.get_subscription(request).await
+    }
+
+    async fn list_subscriptions(
+        &self,
+        request: Request<commercial_target::ListCommercialSubscriptionsRequest>,
+    ) -> Result<Response<commercial_target::ListCommercialSubscriptionsResponse>, Status> {
+        self.current.list_subscriptions(request).await
+    }
+
+    async fn get_entitlement(
+        &self,
+        request: Request<commercial_target::GetCommercialEntitlementRequest>,
+    ) -> Result<Response<commercial_target::GetCommercialEntitlementResponse>, Status> {
+        self.current.get_entitlement(request).await
+    }
+
+    async fn list_entitlements(
+        &self,
+        request: Request<commercial_target::ListCommercialEntitlementsRequest>,
+    ) -> Result<Response<commercial_target::ListCommercialEntitlementsResponse>, Status> {
+        self.current.list_entitlements(request).await
+    }
+}
+
+impl EntitlementRpcImpl {
+    async fn check_entitlement(
+        &self,
+        request: Request<commercial_target::CheckEntitlementRequest>,
+    ) -> Result<Response<commercial_target::CheckEntitlementResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.auth.authorize(&request).await?;
             let proto_context = request
@@ -22120,7 +12053,7 @@ impl EntitlementService for EntitlementRpcImpl {
                 .await
                 .map_err(|_| Status::internal("customer scope lookup failed"))?
             {
-                return Ok(Response::new(CheckEntitlementResponse {
+                return Ok(Response::new(commercial_target::CheckEntitlementResponse {
                     allowed: false,
                     reason: "customer_scope_not_granted".into(),
                 }));
@@ -22132,7 +12065,7 @@ impl EntitlementService for EntitlementRpcImpl {
                     parse_uuid(&input.support_capability_id, "support_capability_id")?;
                 let approved_scope = parse_support_scope(&input.support_scope)?;
                 if !approved_scope.contains(&scope) {
-                    return Ok(Response::new(CheckEntitlementResponse {
+                    return Ok(Response::new(commercial_target::CheckEntitlementResponse {
                         allowed: false,
                         reason: "support_scope_not_granted".into(),
                     }));
@@ -22140,7 +12073,7 @@ impl EntitlementService for EntitlementRpcImpl {
                 let Some(device_ref) = (!input.support_device_ref.trim().is_empty())
                     .then_some(input.support_device_ref.clone())
                 else {
-                    return Ok(Response::new(CheckEntitlementResponse {
+                    return Ok(Response::new(commercial_target::CheckEntitlementResponse {
                         allowed: false,
                         reason: "support_capability_inactive".into(),
                     }));
@@ -22153,7 +12086,7 @@ impl EntitlementService for EntitlementRpcImpl {
                         .then(|| parse_uuid(&input.support_ticket_id, "support_ticket_id"))
                         .transpose()?,
                 ) else {
-                    return Ok(Response::new(CheckEntitlementResponse {
+                    return Ok(Response::new(commercial_target::CheckEntitlementResponse {
                         allowed: false,
                         reason: "support_capability_inactive".into(),
                     }));
@@ -22184,7 +12117,7 @@ impl EntitlementService for EntitlementRpcImpl {
                 .await
                 .map_err(|_| Status::internal("billing state lookup failed"))?
             else {
-                return Ok(Response::new(CheckEntitlementResponse {
+                return Ok(Response::new(commercial_target::CheckEntitlementResponse {
                     allowed: false,
                     reason: "billing_state_not_found".into(),
                 }));
@@ -22195,7 +12128,7 @@ impl EntitlementService for EntitlementRpcImpl {
                 .await
                 .map_err(|_| Status::internal("entitlement lookup failed"))?
             else {
-                return Ok(Response::new(CheckEntitlementResponse {
+                return Ok(Response::new(commercial_target::CheckEntitlementResponse {
                     allowed: false,
                     reason: "module_not_entitled".into(),
                 }));
@@ -22211,7 +12144,7 @@ impl EntitlementService for EntitlementRpcImpl {
                 .await
                 .map_err(|_| Status::internal("role authorization lookup failed"))?
             else {
-                return Ok(Response::new(CheckEntitlementResponse {
+                return Ok(Response::new(commercial_target::CheckEntitlementResponse {
                     allowed: false,
                     reason: "effective_role_missing".into(),
                 }));
@@ -22222,7 +12155,7 @@ impl EntitlementService for EntitlementRpcImpl {
                 .await
                 .map_err(|_| Status::internal("segregation-of-duties lookup failed"))?
             {
-                return Ok(Response::new(CheckEntitlementResponse {
+                return Ok(Response::new(commercial_target::CheckEntitlementResponse {
                     allowed: false,
                     reason: "segregation_of_duties_failed".into(),
                 }));
@@ -22289,7 +12222,7 @@ impl EntitlementService for EntitlementRpcImpl {
                     )),
                 };
             }
-            Ok(Response::new(CheckEntitlementResponse {
+            Ok(Response::new(commercial_target::CheckEntitlementResponse {
                 allowed: decision.is_ok(),
                 reason: decision
                     .err()
@@ -22300,8 +12233,8 @@ impl EntitlementService for EntitlementRpcImpl {
 
     async fn allocate_company_entitlement(
         &self,
-        request: Request<AllocateCompanyEntitlementRequest>,
-    ) -> Result<Response<AllocateCompanyEntitlementResponse>, Status> {
+        request: Request<commercial_target::AllocateCompanyEntitlementRequest>,
+    ) -> Result<Response<commercial_target::AllocateCompanyEntitlementResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -22341,17 +12274,19 @@ impl EntitlementService for EntitlementRpcImpl {
                 )
                 .await
                 .map_err(|error| commercial_persistence_status(error, context.correlation_id))?;
-            Ok(Response::new(AllocateCompanyEntitlementResponse {
-                receipt: Some(entitlement_command_receipt(&receipt)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                commercial_target::AllocateCompanyEntitlementResponse {
+                    receipt: Some(entitlement_command_receipt(&receipt)),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn activate_company_entitlement(
         &self,
-        request: Request<ActivateCompanyEntitlementRequest>,
-    ) -> Result<Response<ActivateCompanyEntitlementResponse>, Status> {
+        request: Request<commercial_target::ActivateCompanyEntitlementRequest>,
+    ) -> Result<Response<commercial_target::ActivateCompanyEntitlementResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -22391,17 +12326,19 @@ impl EntitlementService for EntitlementRpcImpl {
                 )
                 .await
                 .map_err(|error| commercial_persistence_status(error, context.correlation_id))?;
-            Ok(Response::new(ActivateCompanyEntitlementResponse {
-                receipt: Some(entitlement_command_receipt(&receipt)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                commercial_target::ActivateCompanyEntitlementResponse {
+                    receipt: Some(entitlement_command_receipt(&receipt)),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 
     async fn activate_branch_entitlement(
         &self,
-        request: Request<ActivateBranchEntitlementRequest>,
-    ) -> Result<Response<ActivateBranchEntitlementResponse>, Status> {
+        request: Request<commercial_target::ActivateBranchEntitlementRequest>,
+    ) -> Result<Response<commercial_target::ActivateBranchEntitlementResponse>, Status> {
         grpc_handler!(request, {
             let claims = self.auth.authorize(&request).await?;
             let context = command_domain(&request, request.get_ref().context.as_ref())?;
@@ -22444,38 +12381,19 @@ impl EntitlementService for EntitlementRpcImpl {
                 )
                 .await
                 .map_err(|error| commercial_persistence_status(error, context.correlation_id))?;
-            Ok(Response::new(ActivateBranchEntitlementResponse {
-                receipt: Some(entitlement_command_receipt(&receipt)),
-                correlation_id: context.correlation_id.to_string(),
-            }))
+            Ok(Response::new(
+                commercial_target::ActivateBranchEntitlementResponse {
+                    receipt: Some(entitlement_command_receipt(&receipt)),
+                    correlation_id: context.correlation_id.to_string(),
+                },
+            ))
         })
     }
 }
 
-fn to_session_message(session: erpx_domain::support::SupportSession) -> SupportSessionMessage {
-    SupportSessionMessage {
-        id: session.id.to_string(),
-        ticket_id: session.ticket_id.to_string(),
-        customer_id: session.customer_account_id.to_string(),
-        mode: support_mode_name(session.mode).into(),
-        status: if session.approved_at.is_some() {
-            "approved".into()
-        } else {
-            "requested".into()
-        },
-        expires_at: session.expires_at.to_rfc3339(),
-        approval_state: session
-            .approved_by
-            .unwrap_or_else(|| "pending_customer".into()),
-        capability_id: String::new(),
-        capability_secret: String::new(),
-        module: session.module,
-    }
-}
-
-fn to_role_message(assignment: RoleAssignment) -> RoleAssignmentMessage {
+fn to_role_message(assignment: RoleAssignment) -> identity_target::RoleAssignment {
     let effective = assignment.is_active_at(Utc::now());
-    RoleAssignmentMessage {
+    identity_target::RoleAssignment {
         id: assignment.id.to_string(),
         principal_ref: assignment.principal_ref,
         role_key: assignment.role_key,
@@ -22488,16 +12406,7 @@ fn to_role_message(assignment: RoleAssignment) -> RoleAssignmentMessage {
     }
 }
 
-fn target_scope(target: &RoleRecoveryTarget) -> Scope {
-    match target {
-        RoleRecoveryTarget::PlatformRoot => Scope::Platform,
-        RoleRecoveryTarget::HoldingOwner { holding_id } => Scope::Holding {
-            holding_id: *holding_id,
-        },
-    }
-}
-
-fn to_role_review_message(item: RoleReviewItem) -> RoleReviewItemMessage {
+fn to_role_review_message(item: RoleReviewItem) -> identity_target::RoleReviewItem {
     let (notification_kind, notification_key) = item
         .notification
         .as_ref()
@@ -22512,7 +12421,7 @@ fn to_role_review_message(item: RoleReviewItem) -> RoleReviewItemMessage {
             )
         })
         .unwrap_or_default();
-    RoleReviewItemMessage {
+    identity_target::RoleReviewItem {
         assignment_id: item.assignment_id.to_string(),
         principal_ref: item.principal_ref,
         valid_from: item.valid_from.to_rfc3339(),
@@ -23981,6 +13890,7 @@ async fn handle_http_health(
                     auth: &auth,
                     store: &store,
                     commercial: &commercial,
+                    router: tenant_router.as_deref(),
                     storage: &storage,
                 },
             )
@@ -24517,6 +14427,7 @@ struct ObjectHttpContext<'a> {
     auth: &'a AuthContext,
     store: &'a SqlxControlPlane,
     commercial: &'a SqlxCommercialStore,
+    router: Option<&'a TenantDatabaseRouter>,
     storage: &'a StorageComposition,
 }
 
@@ -24565,6 +14476,7 @@ async fn handle_object_http(
             context.auth,
             context.store,
             context.commercial,
+            context.router,
             ObjectPolicyRequest {
                 tenant_id: &request.tenant_id,
                 storage_namespace: &request.storage_namespace,
@@ -24621,6 +14533,7 @@ async fn handle_object_http(
         context.auth,
         context.store,
         context.commercial,
+        context.router,
         ObjectPolicyRequest {
             tenant_id: &request.tenant_id,
             storage_namespace: &request.storage_namespace,
@@ -24660,6 +14573,7 @@ async fn authorize_object_request(
     auth: &AuthContext,
     store: &SqlxControlPlane,
     commercial: &SqlxCommercialStore,
+    router: Option<&TenantDatabaseRouter>,
     policy: ObjectPolicyRequest<'_>,
 ) -> Result<(), ObjectAuthorizationError> {
     let token = headers
@@ -24802,43 +14716,156 @@ async fn authorize_object_request(
             .ok_or(ObjectAuthorizationError::Denied)?;
         let capability_secret = SupportCapabilitySecret::from_hex(&secret_hex)
             .map_err(|_| ObjectAuthorizationError::Denied)?;
-        let session = store
-            .get_session(session_id)
-            .await
-            .map_err(|_| ObjectAuthorizationError::Denied)?
-            .ok_or(ObjectAuthorizationError::Denied)?;
-        let capability = store
-            .load_support_capability(capability_id)
-            .await
-            .map_err(|_| ObjectAuthorizationError::Denied)?
-            .ok_or(ObjectAuthorizationError::Denied)?;
-        let persisted_authorization = store
-            .authorize_support_capability(&SupportCapabilityAuthorizationRequest {
-                capability_id,
-                customer_account_id: customer_id,
-                agent_ref: claims.principal_ref.clone(),
-                device_ref: device_ref.to_owned(),
-                session_id,
-                ticket_id,
-                mode: mode.to_owned(),
-                permission: policy.permission.to_owned(),
-                scope: capability_scope.to_owned(),
-                module: "documents".into(),
-                secret_hex,
-                at,
-            })
+        let authority_scope = match scope {
+            Scope::Company {
+                holding_id,
+                company_id,
+            } => KernelTenantScope::Company {
+                holding_id,
+                company_id,
+            },
+            Scope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            } => KernelTenantScope::Branch {
+                holding_id,
+                company_id,
+                branch_id,
+            },
+            _ => return Err(ObjectAuthorizationError::Denied),
+        };
+        let router = router.ok_or(ObjectAuthorizationError::Denied)?;
+        let routed = router
+            .route(
+                policy.tenant_id,
+                &registration.holding_ref,
+                RoutedDatabaseSide::Write,
+            )
             .await
             .map_err(|_| ObjectAuthorizationError::Denied)?;
-        if !persisted_authorization {
+        let tenant_id =
+            Uuid::parse_str(policy.tenant_id).map_err(|_| ObjectAuthorizationError::Denied)?;
+        let write = CqrsWritePool::for_tenant(routed.database_pool().clone(), tenant_id)
+            .map_err(|_| ObjectAuthorizationError::Denied)?;
+        let repository = SupportWriteRepository::new(write);
+        let ticket = erpx_support::WriteRepository::load_ticket(
+            &repository,
+            &authority_scope,
+            erpx_support::SupportTicketId::try_from_uuid(ticket_id)
+                .map_err(|_| ObjectAuthorizationError::Denied)?,
+        )
+        .await
+        .map_err(|_| ObjectAuthorizationError::Denied)?
+        .ok_or(ObjectAuthorizationError::Denied)?;
+        let normalized_session = erpx_support::WriteRepository::load_session(
+            &repository,
+            &authority_scope,
+            erpx_support::SessionId::try_from_uuid(session_id)
+                .map_err(|_| ObjectAuthorizationError::Denied)?,
+        )
+        .await
+        .map_err(|_| ObjectAuthorizationError::Denied)?
+        .ok_or(ObjectAuthorizationError::Denied)?;
+        let normalized_capability = erpx_support::WriteRepository::load_capability(
+            &repository,
+            &authority_scope,
+            erpx_support::CapabilityId::try_from_uuid(capability_id)
+                .map_err(|_| ObjectAuthorizationError::Denied)?,
+        )
+        .await
+        .map_err(|_| ObjectAuthorizationError::Denied)?
+        .ok_or(ObjectAuthorizationError::Denied)?;
+        let legacy_mode = match normalized_session.mode() {
+            erpx_support::SupportMode::DiagnosticRead => SupportMode::DiagnosticRead,
+            erpx_support::SupportMode::TenantMutation => SupportMode::TenantMutation,
+            erpx_support::SupportMode::Impersonation => SupportMode::Impersonation,
+        };
+        let mode_name = match legacy_mode {
+            SupportMode::DiagnosticRead => "diagnostic_read",
+            SupportMode::TenantMutation => "tenant_mutation",
+            SupportMode::Impersonation => "impersonation",
+        };
+        if ticket.id().as_uuid() != ticket_id
+            || ticket.customer_account().as_uuid() != customer_id
+            || ticket.status() == erpx_support::TicketStatus::Closed
+            || ticket.scope() != &authority_scope
+            || normalized_session.ticket_id().as_uuid() != ticket_id
+            || normalized_session.customer_account().as_uuid() != customer_id
+            || normalized_session.agent().as_uuid().to_string() != claims.principal_ref
+            || normalized_session.scope() != &authority_scope
+            || !normalized_session.is_active(at)
+            || normalized_session.module() != "documents"
+            || !normalized_session
+                .permissions()
+                .iter()
+                .any(|permission| permission == policy.permission)
+            || normalized_capability.id().as_uuid() != capability_id
+            || normalized_capability.session_id().as_uuid() != session_id
+            || normalized_capability.ticket_id().as_uuid() != ticket_id
+            || normalized_capability.customer_account().as_uuid() != customer_id
+            || normalized_capability.agent().as_uuid().to_string() != claims.principal_ref
+            || normalized_capability.device_ref() != device_ref
+            || normalized_capability.mode() != normalized_session.mode()
+            || normalized_capability.scope() != &authority_scope
+            || normalized_capability.module() != "documents"
+            || normalized_capability.revocation().is_some()
+            || normalized_capability.issued_at() > at
+            || at >= normalized_capability.expires_at()
+            || !normalized_capability
+                .permissions()
+                .iter()
+                .any(|permission| permission == policy.permission)
+            || mode != mode_name
+            || approved_scope != scope
+        {
             return Err(ObjectAuthorizationError::Denied);
         }
-        let approved_scope =
-            parse_support_scope(&session.scope).map_err(|_| ObjectAuthorizationError::Denied)?;
         let canonical_scope = approved_scope.canonical_key();
-        let mut evaluation_session = session;
-        evaluation_session.scope = canonical_scope.clone();
-        let mut evaluation_capability = capability;
-        evaluation_capability.binding.scope = canonical_scope;
+        let evaluation_session = erpx_domain::support::SupportSession {
+            id: session_id,
+            ticket_id,
+            customer_account_id: customer_id,
+            agent_ref: claims.principal_ref.clone(),
+            represented_tenant_user: normalized_session
+                .represented_principal()
+                .map(|principal| principal.as_uuid().to_string()),
+            mode: legacy_mode,
+            permissions: normalized_session.permissions().to_vec(),
+            scope: canonical_scope.clone(),
+            module: normalized_session.module().into(),
+            reason: normalized_session.reason().into(),
+            requested_at: normalized_session.requested_at(),
+            expires_at: normalized_session.expires_at(),
+            approved_by: normalized_session.approved_by().map(str::to_owned),
+            approved_at: normalized_session.approved_at(),
+            revoked_at: normalized_session.revoked_at(),
+        };
+        evaluation_session
+            .validate()
+            .map_err(|_| ObjectAuthorizationError::Denied)?;
+        let binding = erpx_domain::support::SupportCapabilityBinding::new(
+            customer_id,
+            claims.principal_ref.clone(),
+            device_ref.to_owned(),
+            session_id,
+            ticket_id,
+            legacy_mode,
+            normalized_capability.permissions().to_vec(),
+            canonical_scope,
+            normalized_capability.module().to_owned(),
+        )
+        .map_err(|_| ObjectAuthorizationError::Denied)?;
+        let evaluation_capability = erpx_domain::support::SupportCapability::from_persisted(
+            capability_id,
+            binding,
+            normalized_capability.issued_at(),
+            normalized_capability.expires_at(),
+            *normalized_capability.secret_hash_sha256(),
+            None,
+            None,
+        )
+        .map_err(|_| ObjectAuthorizationError::Denied)?;
         Some((
             evaluation_session,
             evaluation_capability,
@@ -25767,11 +15794,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         return Err("ERPX_LOG_FORMAT must be pretty or json".into());
     }
-    let v1_service_authority = V1ServiceAuthority::from_environment()?;
-    tracing::info!(
-        authority = ?v1_service_authority,
-        "ERPX direct-v1 service authority selected"
-    );
+    tracing::info!("ERPX target service catalog authority selected");
     // The local profile controls local composition/readiness and is not an
     // authorization switch. Development persona access remains a separate,
     // explicitly requested feature whose full set of gates is validated
@@ -25807,7 +15830,6 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let commercial = Arc::new(SqlxCommercialStore::new(&store));
     let tenant_router = configure_tenant_router(store.clone())?;
     let marketing_callback_secrets = configure_marketing_callback_secret_resolver()?;
-    let support_persistence = Arc::new(SupportPersistence::new(store.pools().write.clone()));
     let identity = Arc::new(SqlxIdentityStore::new(store.pools().write.clone()));
     let directory_secrets = configure_directory_secret_resolver()?;
     let passkeys = configure_passkey_service((*identity).clone())?;
@@ -25829,19 +15851,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         commercial: commercial.clone(),
         tenant_router,
         storage: storage.clone(),
-        support_persistence,
-        customers: Arc::new(PlatformCustomerService::new(store.clone(), audit.clone())),
-        authoritative_support: Arc::new(AuthoritativeSupportService::new(
-            store.clone(),
-            clock.clone(),
-            store.clone(),
-        )),
         roles: Arc::new(RoleLifecycleUseCase::new(store.clone(), clock, audit)),
-        authoritative_roles: Arc::new(AuthoritativeRoleLifecycleService::new(
-            store.clone(),
-            Arc::new(SystemClock),
-            store.clone(),
-        )),
         platform_completion: Arc::new(PlatformCompletionApi::new(Arc::new(
             PlatformControlStore::new(store.clone()),
         ))),
@@ -25869,7 +15879,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             commercial: state.commercial.clone(),
             tenant_router: state.tenant_router.clone(),
             storage: state.storage.clone(),
-            readiness,
+            readiness: readiness.clone(),
             marketing_callback_secrets,
         },
     ));
@@ -25917,6 +15927,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let wave8_authenticator = Arc::new(Wave8ServerAuthenticator::new(state.clone()));
     let wave9_application = Arc::new(Wave9Application::new(&state));
     let wave9_authenticator = Arc::new(Wave9ServerAuthenticator::new(state.clone()));
+    let future_agent_projects = future_agent_projects::tonic_services(state.clone());
     tracing::info!(%address, "ERPX Tonic server listening");
     tonic::transport::Server::builder()
         .accept_http1(true)
@@ -25925,56 +15936,33 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         }))
         .layer(grpc_web_cors_layer())
         .layer(tonic_web::GrpcWebLayer::new())
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| PlatformCustomerServiceServer::new(CustomerRpcImpl {
-                    state: state.clone(),
-                })),
-        )
-        .add_service(CustomerAccessAuditQueryServiceServer::new(
-            CustomerRpcImpl {
-                state: state.clone(),
-            },
-        ))
-        .add_service(Customer360DetailQueryServiceServer::new(CustomerRpcImpl {
-            state: state.clone(),
-        }))
-        .add_service(CustomerNoteCommandServiceServer::new(CustomerRpcImpl {
-            state: state.clone(),
-        }))
-        .add_service(data_plane_rpc::control_service(
-            state.clone(),
-            data_plane_broker,
-        ))
-        .add_service(PlatformOperationsServiceServer::new(
-            PlatformOperationsRpcImpl {
-                state: state.clone(),
-            },
-        ))
-        .add_service(MigrationServiceServer::new(migration::MigrationRpcImpl {
-            state: state.clone(),
-        }))
-        .add_service(DirectoryServiceServer::new(DirectoryRpcImpl {
-            state: state.clone(),
-            runtime_enabled: std::env::var("ERPX_DIRECTORY_RUNTIME").as_deref() == Ok("enabled"),
-        }))
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| OrganizationServiceServer::new(OrganizationRpcImpl {
-                    state: state.clone(),
-                })),
-        )
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| OperationsServiceServer::new(OperationsRpcImpl {
-                    state: state.clone(),
-                })),
+        .add_service(
+            erpx_proto::erpx::reference::v1::reference_query_service_server::ReferenceQueryServiceServer::new(
+                ReferenceQueryRpc::new(state.clone()),
+            ),
         )
         .add_service(
-            erpx_proto::platform::operations_command_service_server::OperationsCommandServiceServer::new(
+            erpx_proto::erpx::collaboration::v1::collaboration_command_service_server::CollaborationCommandServiceServer::new(
+                CollaborationCommandRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::collaboration::v1::collaboration_query_service_server::CollaborationQueryServiceServer::new(
+                CollaborationQueryRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::collaboration::v1::collaboration_stream_service_server::CollaborationStreamServiceServer::new(
+                CollaborationStreamRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::platform_administration::v1::data_plane_stream_service_server::DataPlaneStreamServiceServer::new(
+                DataPlaneStreamRpc::new(state.clone(), readiness),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::operations::v1::operations_command_service_server::OperationsCommandServiceServer::new(
                 OperationsCommandRpc::new(
                     wave9_application.clone(),
                     wave9_authenticator.clone(),
@@ -25982,7 +15970,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::platform::operations_query_service_server::OperationsQueryServiceServer::new(
+            erpx_proto::erpx::operations::v1::operations_query_service_server::OperationsQueryServiceServer::new(
                 OperationsQueryRpc::new(
                     wave9_application.clone(),
                     wave9_authenticator.clone(),
@@ -25990,97 +15978,92 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::platform::customer360_query_service_server::Customer360QueryServiceServer::new(
-                Customer360QueryRpc::new(wave9_application, wave9_authenticator),
+            erpx_proto::erpx::customer_360::v1::customer360_command_service_server::Customer360CommandServiceServer::new(
+                CustomerRpcImpl {
+                    state: state.clone(),
+                },
             ),
         )
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| SupportServiceServer::new(SupportRpcImpl { state: state.clone() })),
-        )
-        .add_service(RoleLifecycleServiceServer::new(RoleRpcImpl {
-            state: state.clone(),
-        }))
-        .add_service(EntitlementServiceServer::new(EntitlementRpcImpl {
-            auth: auth.clone(),
-            store: store.clone(),
-            commercial: commercial.clone(),
-        }))
-        .add_service(SaasBillingServiceServer::new(SaasBillingRpcImpl {
-            state: state.clone(),
-        }))
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| FinanceServiceServer::new(FinanceRpcImpl { state: state.clone() })),
-        )
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| HrServiceServer::new(HrRpcImpl { state: state.clone() })),
-        )
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| PosServiceServer::new(PosRpcImpl { state: state.clone() })),
-        )
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| SalesServiceServer::new(SalesRpcImpl { state: state.clone() })),
-        )
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| ScmServiceServer::new(ScmRpcImpl { state: state.clone() })),
-        )
-        .add_optional_service(v1_service_authority.is_legacy().then(|| {
-            AssetMaintenanceServiceServer::new(AssetMaintenanceRpcImpl {
-                state: state.clone(),
-            })
-        }))
         .add_service(
-            erpx_proto::platform::quality_command_service_server::QualityCommandServiceServer::new(
+            erpx_proto::erpx::customer_360::v1::customer360_query_service_server::Customer360QueryServiceServer::new(
+                Customer360QueryComposite::new(
+                    Customer360QueryRpc::new(wave9_application, wave9_authenticator),
+                    CustomerRpcImpl { state: state.clone() },
+                ),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::quality::v1::quality_command_service_server::QualityCommandServiceServer::new(
                 QualityCommandRpc::new(quality_application.clone(), quality_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::quality_query_service_server::QualityQueryServiceServer::new(
+            erpx_proto::erpx::quality::v1::quality_query_service_server::QualityQueryServiceServer::new(
                 QualityQueryRpc::new(quality_application, quality_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::platform::commercial_command_service_server::CommercialCommandServiceServer::new(
-                CommercialCommandRpc::new(
-                    commercial_application.clone(),
-                    commercial_authenticator.clone(),
+            erpx_proto::erpx::commercial::v1::commercial_command_service_server::CommercialCommandServiceServer::new(
+                CommercialCommandComposite::new(
+                    CommercialCommandRpc::new(
+                        commercial_application.clone(),
+                        commercial_authenticator.clone(),
+                    ),
+                    EntitlementRpcImpl {
+                        auth: auth.clone(),
+                        store: store.clone(),
+                        commercial: commercial.clone(),
+                    },
+                    SaasBillingRpcImpl { state: state.clone() },
                 ),
             ),
         )
         .add_service(
-            erpx_proto::platform::commercial_query_service_server::CommercialQueryServiceServer::new(
-                CommercialQueryRpc::new(commercial_application, commercial_authenticator),
-            ),
-        )
-        .add_service(
-            erpx_proto::platform::identity_access_command_service_server::IdentityAccessCommandServiceServer::new(
-                IdentityAccessCommandRpc::new(
-                    identity_access_application.clone(),
-                    identity_access_authenticator.clone(),
+            erpx_proto::erpx::commercial::v1::commercial_query_service_server::CommercialQueryServiceServer::new(
+                CommercialQueryComposite::new(
+                    CommercialQueryRpc::new(commercial_application, commercial_authenticator),
+                    EntitlementRpcImpl {
+                        auth: auth.clone(),
+                        store: store.clone(),
+                        commercial: commercial.clone(),
+                    },
+                    SaasBillingRpcImpl { state: state.clone() },
                 ),
             ),
         )
         .add_service(
-            erpx_proto::platform::identity_access_query_service_server::IdentityAccessQueryServiceServer::new(
-                IdentityAccessQueryRpc::new(
-                    identity_access_application,
-                    identity_access_authenticator,
+            erpx_proto::erpx::identity_access::v1::identity_access_command_service_server::IdentityAccessCommandServiceServer::new(
+                IdentityAccessCommandComposite::new(
+                    IdentityAccessCommandRpc::new(
+                        identity_access_application.clone(),
+                        identity_access_authenticator.clone(),
+                    ),
+                    DirectoryRpcImpl {
+                        state: state.clone(),
+                        runtime_enabled: std::env::var("ERPX_DIRECTORY_RUNTIME").as_deref()
+                            == Ok("enabled"),
+                    },
                 ),
             ),
         )
         .add_service(
-            erpx_proto::platform::organization_command_service_server::OrganizationCommandServiceServer::new(
+            erpx_proto::erpx::identity_access::v1::identity_access_query_service_server::IdentityAccessQueryServiceServer::new(
+                IdentityAccessQueryComposite::new(
+                    IdentityAccessQueryRpc::new(
+                        identity_access_application,
+                        identity_access_authenticator,
+                    ),
+                    DirectoryRpcImpl {
+                        state: state.clone(),
+                        runtime_enabled: std::env::var("ERPX_DIRECTORY_RUNTIME").as_deref()
+                            == Ok("enabled"),
+                    },
+                    RoleRpcImpl { state: state.clone() },
+                ),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::organization::v1::organization_command_service_server::OrganizationCommandServiceServer::new(
                 OrganizationCommandRpc::new(
                     organization_application.clone(),
                     organization_authenticator.clone(),
@@ -26088,7 +16071,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::platform::organization_query_service_server::OrganizationQueryServiceServer::new(
+            erpx_proto::erpx::organization::v1::organization_query_service_server::OrganizationQueryServiceServer::new(
                 OrganizationQueryRpc::new(
                     organization_application,
                     organization_authenticator,
@@ -26096,33 +16079,49 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::platform::platform_administration_command_service_server::PlatformAdministrationCommandServiceServer::new(
-                PlatformAdministrationCommandRpc::new(
-                    platform_administration_application.clone(),
-                    platform_administration_authenticator.clone(),
-                ),
+            erpx_proto::erpx::platform_administration::v1::platform_administration_command_service_server::PlatformAdministrationCommandServiceServer::new(
+                PlatformAdministrationCommandComposite {
+                    current: PlatformAdministrationCommandRpc::new(
+                        platform_administration_application.clone(),
+                        platform_administration_authenticator.clone(),
+                    ),
+                    operations: PlatformOperationsRpcImpl { state: state.clone() },
+                    migration: migration::MigrationRpcImpl { state: state.clone() },
+                    data_plane: data_plane_rpc::DataPlaneControlRpcImpl {
+                        state: state.clone(),
+                        broker: data_plane_broker.clone(),
+                    },
+                },
             ),
         )
         .add_service(
-            erpx_proto::platform::platform_administration_query_service_server::PlatformAdministrationQueryServiceServer::new(
-                PlatformAdministrationQueryRpc::new(
-                    platform_administration_application,
-                    platform_administration_authenticator,
-                ),
+            erpx_proto::erpx::platform_administration::v1::platform_administration_query_service_server::PlatformAdministrationQueryServiceServer::new(
+                PlatformAdministrationQueryComposite {
+                    current: PlatformAdministrationQueryRpc::new(
+                        platform_administration_application,
+                        platform_administration_authenticator,
+                    ),
+                    operations: PlatformOperationsRpcImpl { state: state.clone() },
+                    migration: migration::MigrationRpcImpl { state: state.clone() },
+                    data_plane: data_plane_rpc::DataPlaneControlRpcImpl {
+                        state: state.clone(),
+                        broker: data_plane_broker,
+                    },
+                },
             ),
         )
         .add_service(
-            erpx_proto::platform::brand_command_service_server::BrandCommandServiceServer::new(
+            erpx_proto::erpx::brand::v1::brand_command_service_server::BrandCommandServiceServer::new(
                 BrandCommandRpc::new(brand_application.clone(), brand_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::brand_query_service_server::BrandQueryServiceServer::new(
+            erpx_proto::erpx::brand::v1::brand_query_service_server::BrandQueryServiceServer::new(
                 BrandQueryRpc::new(brand_application, brand_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::platform::customer_authority_command_service_server::CustomerAuthorityCommandServiceServer::new(
+            erpx_proto::erpx::customer_authority::v1::customer_authority_command_service_server::CustomerAuthorityCommandServiceServer::new(
                 CustomerAuthorityCommandRpc::new(
                     customer_authority_application.clone(),
                     customer_authority_authenticator.clone(),
@@ -26130,85 +16129,100 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::platform::customer_authority_query_service_server::CustomerAuthorityQueryServiceServer::new(
-                CustomerAuthorityQueryRpc::new(
-                    customer_authority_application,
-                    customer_authority_authenticator,
+            erpx_proto::erpx::customer_authority::v1::customer_authority_query_service_server::CustomerAuthorityQueryServiceServer::new(
+                CustomerAuthorityQueryComposite::new(
+                    CustomerAuthorityQueryRpc::new(
+                        customer_authority_application,
+                        customer_authority_authenticator,
+                    ),
+                    CustomerRpcImpl { state: state.clone() },
                 ),
             ),
         )
         .add_service(
-            erpx_proto::platform::marketing_command_service_server::MarketingCommandServiceServer::new(
-                MarketingCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
+            erpx_proto::erpx::marketing::v1::marketing_command_service_server::MarketingCommandServiceServer::new(
+                MarketingCommandComposite::new(
+                    MarketingCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
+                    MarketingContentRpcImpl { state: state.clone() },
+                ),
             ),
         )
         .add_service(
-            erpx_proto::platform::marketing_query_service_server::MarketingQueryServiceServer::new(
-                MarketingQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
+            erpx_proto::erpx::marketing::v1::marketing_query_service_server::MarketingQueryServiceServer::new(
+                MarketingQueryComposite::new(
+                    MarketingQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
+                    MarketingContentRpcImpl { state: state.clone() },
+                ),
             ),
         )
         .add_service(
-            erpx_proto::platform::crm_command_service_server::CrmCommandServiceServer::new(
-                CrmCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
+            erpx_proto::erpx::crm::v1::crm_command_service_server::CrmCommandServiceServer::new(
+                CrmCommandComposite::new(
+                    CrmCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
+                    CrmRpcImpl { state: state.clone() },
+                ),
             ),
         )
         .add_service(
-            erpx_proto::platform::crm_query_service_server::CrmQueryServiceServer::new(
-                CrmQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
+            erpx_proto::erpx::crm::v1::crm_query_service_server::CrmQueryServiceServer::new(
+                CrmQueryComposite::new(
+                    CrmQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
+                    CrmRpcImpl { state: state.clone() },
+                ),
             ),
         )
         .add_service(
-            erpx_proto::platform::procurement_command_service_server::ProcurementCommandServiceServer::new(
+            erpx_proto::erpx::procurement::v1::procurement_command_service_server::ProcurementCommandServiceServer::new(
                 ProcurementCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::procurement_query_service_server::ProcurementQueryServiceServer::new(
+            erpx_proto::erpx::procurement::v1::procurement_query_service_server::ProcurementQueryServiceServer::new(
                 ProcurementQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::inventory_command_service_server::InventoryCommandServiceServer::new(
+            erpx_proto::erpx::inventory::v1::inventory_command_service_server::InventoryCommandServiceServer::new(
                 InventoryCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::inventory_query_service_server::InventoryQueryServiceServer::new(
+            erpx_proto::erpx::inventory::v1::inventory_query_service_server::InventoryQueryServiceServer::new(
                 InventoryQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::assets_command_service_server::AssetsCommandServiceServer::new(
+            erpx_proto::erpx::assets::v1::assets_command_service_server::AssetsCommandServiceServer::new(
                 AssetsCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::assets_query_service_server::AssetsQueryServiceServer::new(
+            erpx_proto::erpx::assets::v1::assets_query_service_server::AssetsQueryServiceServer::new(
                 AssetsQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::maintenance_command_service_server::MaintenanceCommandServiceServer::new(
+            erpx_proto::erpx::maintenance::v1::maintenance_command_service_server::MaintenanceCommandServiceServer::new(
                 MaintenanceCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::maintenance_query_service_server::MaintenanceQueryServiceServer::new(
+            erpx_proto::erpx::maintenance::v1::maintenance_query_service_server::MaintenanceQueryServiceServer::new(
                 MaintenanceQueryRpc::new(wave6_application, wave6_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::platform::sales_command_service_server::SalesCommandServiceServer::new(
+            erpx_proto::erpx::sales::v1::sales_command_service_server::SalesCommandServiceServer::new(
                 SalesCommandRpc::new(wave7_application.clone(), wave7_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::sales_query_service_server::SalesQueryServiceServer::new(
+            erpx_proto::erpx::sales::v1::sales_query_service_server::SalesQueryServiceServer::new(
                 SalesQueryRpc::new(wave7_application.clone(), wave7_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::people_payroll_command_service_server::PeoplePayrollCommandServiceServer::new(
+            erpx_proto::erpx::people_payroll::v1::people_payroll_command_service_server::PeoplePayrollCommandServiceServer::new(
                 PeoplePayrollCommandRpc::new(
                     wave7_application.clone(),
                     wave7_authenticator.clone(),
@@ -26216,7 +16230,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::platform::people_payroll_query_service_server::PeoplePayrollQueryServiceServer::new(
+            erpx_proto::erpx::people_payroll::v1::people_payroll_query_service_server::PeoplePayrollQueryServiceServer::new(
                 PeoplePayrollQueryRpc::new(
                     wave7_application.clone(),
                     wave7_authenticator.clone(),
@@ -26224,96 +16238,180 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::platform::pos_command_service_server::PosCommandServiceServer::new(
+            erpx_proto::erpx::pos::v1::point_of_sale_command_service_server::PointOfSaleCommandServiceServer::new(
                 PosCommandRpc::new(wave7_application.clone(), wave7_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::platform::pos_query_service_server::PosQueryServiceServer::new(
+            erpx_proto::erpx::pos::v1::point_of_sale_query_service_server::PointOfSaleQueryServiceServer::new(
                 PosQueryRpc::new(wave7_application, wave7_authenticator),
             ),
         )
-        .add_optional_service(v1_service_authority.is_typed().then(|| {
-            erpx_proto::platform::finance_command_service_server::FinanceCommandServiceServer::new(
+        .add_service(
+            erpx_proto::erpx::finance::v1::finance_command_service_server::FinanceCommandServiceServer::new(
                 FinanceCommandRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
-            )
-        }))
-        .add_optional_service(v1_service_authority.is_typed().then(|| {
-            erpx_proto::platform::finance_query_service_server::FinanceQueryServiceServer::new(
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::finance::v1::finance_query_service_server::FinanceQueryServiceServer::new(
                 FinanceQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
-            )
-        }))
-        .add_optional_service(v1_service_authority.is_typed().then(|| {
-            erpx_proto::platform::legal_command_service_server::LegalCommandServiceServer::new(
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::legal::v1::legal_command_service_server::LegalCommandServiceServer::new(
                 LegalCommandRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
-            )
-        }))
-        .add_optional_service(v1_service_authority.is_typed().then(|| {
-            erpx_proto::platform::legal_query_service_server::LegalQueryServiceServer::new(
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::legal::v1::legal_query_service_server::LegalQueryServiceServer::new(
                 LegalQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
-            )
-        }))
-        .add_optional_service(v1_service_authority.is_typed().then(|| {
-            erpx_proto::platform::support_command_service_server::SupportCommandServiceServer::new(
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::support::v1::support_command_service_server::SupportCommandServiceServer::new(
                 SupportCommandRpc::new(
                     wave8_application.clone(),
                     wave8_authenticator.clone(),
                     wave8_application.clone(),
                     wave8_application.clone(),
                 ),
-            )
-        }))
-        .add_optional_service(v1_service_authority.is_typed().then(|| {
-            erpx_proto::platform::support_query_service_server::SupportQueryServiceServer::new(
-                SupportQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
-            )
-        }))
-        .add_optional_service(
-            v1_service_authority
-                .is_legacy()
-                .then(|| LegalServiceServer::new(LegalRpcImpl { state: state.clone() })),
+            ),
         )
-        // The Marketing & CRM console still reads the bounded CRM projection through this
-        // compatibility service while its lifecycle commands move to the typed CQRS services.
-        // Keep the read boundary available in typed-authority mode; it has a distinct service
-        // name and resolves tenant routing from the authenticated role scope server-side.
-        .add_service(CrmServiceServer::new(CrmRpcImpl {
-            state: state.clone(),
-        }))
-        .add_service(MarketingContentServiceServer::new(
-            MarketingContentRpcImpl {
-                state: state.clone(),
-            },
-        ))
+        .add_service(
+            erpx_proto::erpx::support::v1::support_query_service_server::SupportQueryServiceServer::new(
+                SupportQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
+            ),
+        )
+        .add_service(future_agent_projects.agent_command)
+        .add_service(future_agent_projects.agent_query)
+        .add_service(future_agent_projects.projects_command)
+        .add_service(future_agent_projects.projects_query)
+        .add_service(
+            erpx_proto::erpx::manufacturing::v1::manufacturing_command_service_server::ManufacturingCommandServiceServer::new(
+                future_manufacturing_planning::ManufacturingCommandRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::manufacturing::v1::manufacturing_query_service_server::ManufacturingQueryServiceServer::new(
+                future_manufacturing_planning::ManufacturingQueryRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::planning::v1::planning_command_service_server::PlanningCommandServiceServer::new(
+                future_manufacturing_planning::PlanningCommandRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::planning::v1::planning_query_service_server::PlanningQueryServiceServer::new(
+                future_manufacturing_planning::PlanningQueryRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::benefits::v1::benefits_command_service_server::BenefitsCommandServiceServer::new(
+                future_benefits::BenefitsCommandRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::benefits::v1::benefits_query_service_server::BenefitsQueryServiceServer::new(
+                future_benefits::BenefitsQueryRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::learning::v1::learning_command_service_server::LearningCommandServiceServer::new(
+                future_learning::LearningCommandRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::learning::v1::learning_query_service_server::LearningQueryServiceServer::new(
+                future_learning::LearningQueryRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::field_service::v1::field_service_command_service_server::FieldServiceCommandServiceServer::new(
+                future_field_service::FieldServiceCommandRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::field_service::v1::field_service_query_service_server::FieldServiceQueryServiceServer::new(
+                future_field_service::FieldServiceQueryRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::ecommerce::v1::ecommerce_command_service_server::EcommerceCommandServiceServer::new(
+                future_ecommerce::EcommerceCommandRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::ecommerce::v1::ecommerce_query_service_server::EcommerceQueryServiceServer::new(
+                future_ecommerce::EcommerceQueryRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::talent::v1::talent_command_service_server::TalentCommandServiceServer::new(
+                future_talent::TalentCommandRpc::new(state.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::talent::v1::talent_query_service_server::TalentQueryServiceServer::new(
+                future_talent::TalentQueryRpc::new(state.clone()),
+            ),
+        )
         .serve(address)
         .await?;
     Ok(())
 }
 
 #[cfg(test)]
-mod v1_service_authority_tests {
-    use super::V1ServiceAuthority;
-
+mod target_service_registration_tests {
     #[test]
-    fn authority_parser_is_exact_and_fail_closed() {
-        assert_eq!(
-            V1ServiceAuthority::parse("legacy"),
-            Ok(V1ServiceAuthority::Legacy)
-        );
-        assert_eq!(
-            V1ServiceAuthority::parse("typed"),
-            Ok(V1ServiceAuthority::Typed)
-        );
-        for invalid in ["", "Legacy", "TYPED", "both", " typed "] {
-            assert!(V1ServiceAuthority::parse(invalid).is_err());
+    fn current_context_servers_register_only_target_packages() {
+        let source = include_str!("lib.rs");
+        let current_services = [
+            ("identity_access", "identity_access"),
+            ("platform_administration", "platform_administration"),
+            ("organization", "organization"),
+            ("commercial", "commercial"),
+            ("brand", "brand"),
+            ("customer_authority", "customer_authority"),
+            ("customer_360", "customer360"),
+            ("support", "support"),
+            ("finance", "finance"),
+            ("sales", "sales"),
+            ("pos", "point_of_sale"),
+            ("procurement", "procurement"),
+            ("inventory", "inventory"),
+            ("assets", "assets"),
+            ("maintenance", "maintenance"),
+            ("quality", "quality"),
+            ("operations", "operations"),
+            ("people_payroll", "people_payroll"),
+            ("legal", "legal"),
+            ("marketing", "marketing"),
+            ("crm", "crm"),
+        ];
+        for (module, service) in current_services {
+            for kind in ["command", "query"] {
+                let target =
+                    format!("erpx_proto::erpx::{module}::v1::{service}_{kind}_service_server::");
+                assert!(
+                    source.contains(&target),
+                    "missing target {kind} service registration for {module}"
+                );
+            }
         }
-    }
-
-    #[test]
-    fn exactly_one_migrated_service_family_is_authoritative() {
-        for authority in [V1ServiceAuthority::Legacy, V1ServiceAuthority::Typed] {
-            assert_ne!(authority.is_legacy(), authority.is_typed());
-        }
+        assert!(!source.contains(concat!(
+            "erpx_proto::",
+            "platform::operations_",
+            "command_service_server"
+        )));
+        assert!(!source.contains(concat!(
+            "erpx_proto::",
+            "platform::finance_",
+            "query_service_server"
+        )));
+        assert!(!source.contains(concat!("CustomerNoteCommand", "ServiceServer::new")));
+        assert!(!source.contains(concat!("add_optional_", "service")));
+        assert!(!source.contains(concat!("ERPX_V1_SERVICE_", "AUTHORITY")));
     }
 }
 
@@ -26675,6 +16773,9 @@ mod marketing_callback_http_tests {
 #[cfg(test)]
 mod server_security_tests {
     use super::*;
+    use erpx_domain::support::{SupportCapability, SupportCapabilityBinding};
+
+    const SUPPORT_DIAGNOSTICS_PERMISSION: &str = "diagnostics:read";
 
     #[test]
     fn local_runtime_profiles_use_the_xtask_readiness_barrier() {
@@ -26834,130 +16935,6 @@ mod server_security_tests {
     }
 
     #[test]
-    fn support_ticket_transition_parser_is_closed_and_terminal_status_is_explicit() {
-        assert_eq!(
-            parse_ticket_status("triaged").expect("triaged"),
-            TicketStatus::Triaged
-        );
-        assert_eq!(
-            parse_ticket_status("closed").expect("closed"),
-            TicketStatus::Closed
-        );
-        assert!(parse_ticket_status("customer_confirmed ").is_err());
-        assert!(parse_ticket_status("operations").is_err());
-    }
-
-    #[test]
-    fn support_ticket_cursor_round_trip_is_opaque_and_bounded() {
-        let timestamp = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("timestamp");
-        let cursor =
-            SupportTicketListCursor::new(timestamp, Uuid::from_u128(0x9012)).expect("cursor");
-        let encoded = encode_support_ticket_cursor(&cursor);
-        assert!(!encoded.contains("1700000000"));
-        assert_eq!(
-            decode_support_ticket_cursor(&encoded).expect("decode"),
-            cursor
-        );
-        assert!(decode_support_ticket_cursor("").is_err());
-        assert!(decode_support_ticket_cursor(&"a".repeat(257)).is_err());
-        assert!(decode_support_ticket_cursor("00").is_err());
-    }
-
-    #[test]
-    fn ticket_transport_excludes_internal_notes_from_customer_replies() {
-        let now = Utc::now();
-        let mut ticket = erpx_domain::support::SupportTicket {
-            id: Uuid::new_v4(),
-            customer_account_id: Uuid::new_v4(),
-            status: TicketStatus::InProgress,
-            severity: "high".into(),
-            description: "transport-safe ticket".into(),
-            recurrence_of: None,
-            messages: Vec::new(),
-            assignment: None,
-            escalation: None,
-            sla_deadline: None,
-        };
-        ticket.messages.push(
-            erpx_domain::support::SupportTicketMessage::customer_reply(
-                Uuid::new_v4(),
-                "customer-1",
-                "visible reply",
-                now,
-            )
-            .expect("reply"),
-        );
-        ticket.messages.push(
-            erpx_domain::support::SupportTicketMessage::internal_note(
-                Uuid::new_v4(),
-                "agent-1",
-                "secret internal note",
-                now,
-            )
-            .expect("note"),
-        );
-
-        let response = ticket_message(&ticket);
-        assert_eq!(response.customer_replies.len(), 1);
-        assert_eq!(response.customer_replies[0].body, "visible reply");
-        assert!(
-            !response
-                .customer_replies
-                .iter()
-                .any(|reply| reply.body.contains("secret"))
-        );
-    }
-
-    #[test]
-    fn incident_status_parser_preserves_postmortem_terminal_name() {
-        assert_eq!(
-            parse_incident_status("postmortem_complete").expect("postmortem status"),
-            IncidentStatus::PostmortemComplete
-        );
-        assert_eq!(
-            incident_status_name(IncidentStatus::PostmortemComplete),
-            "postmortem_complete"
-        );
-        assert!(parse_incident_status("postmortemcomplete").is_err());
-        assert!(parse_incident_status("resolved ").is_err());
-    }
-
-    #[test]
-    fn incident_transport_retains_domain_terminal_transition_rules() {
-        let now = Utc::now();
-        let mut incident = Incident::new("commander-1", vec![], vec!["api".into()], vec![], now)
-            .expect("incident");
-        for status in [
-            IncidentStatus::Identified,
-            IncidentStatus::Monitoring,
-            IncidentStatus::Resolved,
-            IncidentStatus::PostmortemComplete,
-        ] {
-            incident
-                .transition(status, now, "commander-1")
-                .expect("valid lifecycle transition");
-        }
-        assert_eq!(incident.status, IncidentStatus::PostmortemComplete);
-        assert!(
-            incident
-                .transition(IncidentStatus::Investigating, now, "commander-1")
-                .is_err()
-        );
-    }
-
-    #[test]
-    fn incident_transport_bounds_inputs_and_redacts_persistence_details() {
-        let too_many = vec!["service".to_owned(); MAX_INCIDENT_SERVICES + 1];
-        assert!(validate_incident_text_list(&too_many, "services", MAX_INCIDENT_SERVICES).is_err());
-        assert!(validate_incident_text("bad\nvalue", "service", 128).is_err());
-        let status = incident_persistence_status(SupportPersistenceError::IdempotencyConflict {
-            key: "opaque-idempotency-value".into(),
-        });
-        assert_eq!(status.code(), tonic::Code::Aborted);
-        assert!(!status.message().contains("opaque-idempotency-value"));
-    }
-
-    #[test]
     fn support_scope_is_canonical_and_contains_only_authorized_descendants() {
         let holding_id = Uuid::from_u128(1);
         let company_id = Uuid::from_u128(2);
@@ -27020,99 +16997,6 @@ mod server_security_tests {
         let device_id = Uuid::from_u128(104);
         assert!(validate_authenticated_device_ref(device_id, &device_id.to_string()).is_ok());
         assert!(validate_authenticated_device_ref(device_id, "client-chosen-device").is_err());
-    }
-
-    fn valid_support_diagnostics_access() -> (SupportDiagnosticsAccess, Scope) {
-        let holding_id = Uuid::from_u128(201);
-        let company_id = Uuid::from_u128(202);
-        let requested_scope = Scope::Branch {
-            holding_id,
-            company_id,
-            branch_id: Uuid::from_u128(203),
-        };
-        let approved_scope = Scope::Company {
-            holding_id,
-            company_id,
-        };
-        (
-            SupportDiagnosticsAccess {
-                mode: 2,
-                customer_id: Uuid::from_u128(204).to_string(),
-                capability_id: Uuid::from_u128(205).to_string(),
-                capability_secret: "00".repeat(32),
-                support_session_id: Uuid::from_u128(206).to_string(),
-                support_ticket_id: Uuid::from_u128(207).to_string(),
-                support_mode: "diagnostic_read".into(),
-                support_scope: support_scope_reference(&approved_scope),
-                module: "support".into(),
-                subscription_id: Uuid::from_u128(208).to_string(),
-                device_ref: Uuid::from_u128(209).to_string(),
-            },
-            requested_scope,
-        )
-    }
-
-    #[test]
-    fn support_diagnostics_transport_is_typed_and_fail_closed() {
-        let (valid, requested_scope) = valid_support_diagnostics_access();
-        assert!(parse_support_diagnostics_access(&valid, &requested_scope).is_ok());
-
-        let missing = SupportDiagnosticsAccess {
-            mode: 2,
-            ..SupportDiagnosticsAccess::default()
-        };
-        assert!(parse_support_diagnostics_access(&missing, &requested_scope).is_err());
-
-        let mut wrong_mode = valid.clone();
-        wrong_mode.support_mode = "tenant_mutation".into();
-        assert!(parse_support_diagnostics_access(&wrong_mode, &requested_scope).is_err());
-
-        let mut wrong_scope = valid.clone();
-        wrong_scope.support_scope = support_scope_reference(&Scope::Branch {
-            holding_id: Uuid::from_u128(201),
-            company_id: Uuid::from_u128(202),
-            branch_id: Uuid::from_u128(999),
-        });
-        assert!(parse_support_diagnostics_access(&wrong_scope, &requested_scope).is_err());
-
-        let mut malformed_device = valid.clone();
-        malformed_device.device_ref = "client-chosen-device".into();
-        assert!(parse_support_diagnostics_access(&malformed_device, &requested_scope).is_err());
-
-        let mut malformed_session = valid;
-        malformed_session.support_session_id = "different-session".into();
-        assert!(parse_support_diagnostics_access(&malformed_session, &requested_scope).is_err());
-    }
-
-    #[test]
-    fn platform_diagnostics_cannot_carry_customer_capability_material() {
-        let mut access = SupportDiagnosticsAccess {
-            mode: 1,
-            ..SupportDiagnosticsAccess::default()
-        };
-        assert!(platform_diagnostics_access_is_empty(&access).is_ok());
-        access.capability_secret = "00".repeat(32);
-        assert_eq!(
-            platform_diagnostics_access_is_empty(&access)
-                .expect_err("platform mode must not carry a bearer")
-                .code(),
-            tonic::Code::InvalidArgument
-        );
-    }
-
-    #[test]
-    fn diagnostics_snapshot_redaction_survives_the_transport_boundary() {
-        let mut input = DiagnosticsSnapshotInput::new(Utc::now());
-        input.add_version("server", "test");
-        input.add_configuration("DATABASE_PASSWORD", "must-not-appear");
-        input.add_configuration("environment", "test");
-        let snapshot = input
-            .build(DiagnosticsLimits::default())
-            .expect("bounded diagnostics snapshot");
-        let payload = serde_json::to_string(&snapshot).expect("serialize diagnostics");
-        assert!(!payload.contains("must-not-appear"));
-        assert!(payload.contains("environment"));
-        assert_eq!(snapshot.redacted_configuration_count(), 1);
     }
 
     #[test]
@@ -27275,440 +17159,6 @@ mod server_security_tests {
             .is_err()
         );
     }
-
-    #[test]
-    fn finance_close_read_scope_rejects_broad_and_cross_company_requests() {
-        let holding_id = Uuid::from_u128(301);
-        let company_id = Uuid::from_u128(302);
-        let branch_id = Uuid::from_u128(303);
-        assert!(
-            finance_close_read_scope(&Scope::Holding { holding_id }, holding_id, company_id,)
-                .is_ok()
-        );
-        assert!(
-            finance_close_read_scope(
-                &Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                holding_id,
-                company_id,
-            )
-            .is_ok()
-        );
-        assert!(
-            finance_close_read_scope(
-                &Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-                holding_id,
-                Uuid::from_u128(304),
-            )
-            .is_err()
-        );
-        assert!(
-            finance_close_read_scope(
-                &Scope::Subtree {
-                    holding_id,
-                    company_ids: vec![company_id],
-                    branch_ids: vec![branch_id],
-                },
-                holding_id,
-                company_id,
-            )
-            .is_err()
-        );
-        assert!(finance_close_read_scope(&Scope::Platform, holding_id, company_id).is_err());
-    }
-
-    #[test]
-    fn finance_chart_read_scope_is_explicit_and_contained() {
-        let holding_id = Uuid::from_u128(401);
-        let company_id = Uuid::from_u128(402);
-        let branch_id = Uuid::from_u128(403);
-        let holding_scope = finance_chart_read_scope(
-            &Scope::Holding { holding_id },
-            &holding_id.to_string(),
-            &company_id.to_string(),
-        )
-        .expect("holding contains company chart read");
-        assert_eq!(holding_scope.holding_id, holding_id);
-        assert_eq!(holding_scope.company_id, company_id);
-        assert!(
-            finance_chart_read_scope(
-                &Scope::Branch {
-                    holding_id,
-                    company_id,
-                    branch_id,
-                },
-                &holding_id.to_string(),
-                &company_id.to_string(),
-            )
-            .is_err()
-        );
-        assert!(
-            finance_chart_read_scope(
-                &Scope::Company {
-                    holding_id,
-                    company_id,
-                },
-                &holding_id.to_string(),
-                &Uuid::from_u128(404).to_string(),
-            )
-            .is_err()
-        );
-        assert!(
-            finance_chart_read_scope(
-                &Scope::Subtree {
-                    holding_id,
-                    company_ids: vec![company_id],
-                    branch_ids: vec![branch_id],
-                },
-                &holding_id.to_string(),
-                &company_id.to_string(),
-            )
-            .is_err()
-        );
-        assert!(
-            finance_chart_read_scope(
-                &Scope::Platform,
-                &holding_id.to_string(),
-                &company_id.to_string(),
-            )
-            .is_err()
-        );
-    }
-}
-
-#[cfg(test)]
-mod finance_banking_transport_tests {
-    use super::*;
-
-    #[test]
-    fn banking_json_decoder_is_bounded_and_typed() {
-        let value: serde_json::Value =
-            decode_finance_banking_json(br#"{"safe":true}"#, "payload").expect("JSON");
-        assert_eq!(value["safe"], true);
-        assert!(decode_finance_banking_json::<serde_json::Value>(b"", "payload").is_err());
-        assert!(
-            decode_finance_banking_json::<serde_json::Value>(
-                &vec![b'x'; MAX_FINANCE_BANKING_JSON_BYTES + 1],
-                "payload",
-            )
-            .is_err()
-        );
-        assert!(decode_finance_banking_json::<BankAccount>(br#"{"id":"bad"}"#, "account").is_err());
-    }
-
-    #[test]
-    fn banking_read_mapping_exposes_only_typed_projection_fields() {
-        assert_eq!(
-            finance_persistence_status(
-                PersistenceError::InvalidData("secret=do-not-leak".into()),
-                Uuid::new_v4(),
-            )
-            .message(),
-            "Finance aggregate cannot be persisted"
-        );
-    }
-
-    #[test]
-    fn banking_read_list_bounds_and_cursor_are_opaque_and_deterministic() {
-        assert_eq!(finance_banking_read_page_size(0).expect("default"), 25);
-        assert_eq!(
-            finance_banking_read_page_size(MAX_FINANCE_BANKING_READ_PAGE_SIZE).expect("maximum"),
-            MAX_FINANCE_BANKING_READ_PAGE_SIZE
-        );
-        assert!(finance_banking_read_page_size(MAX_FINANCE_BANKING_READ_PAGE_SIZE + 1).is_err());
-
-        let cursor = FinanceBankingReadCursor::new("finance_bank_account", Uuid::from_u128(22))
-            .expect("cursor");
-        let encoded = encode_finance_banking_read_cursor(&cursor);
-        assert_eq!(
-            decode_finance_banking_read_cursor(&encoded)
-                .expect("round trip")
-                .aggregate_id(),
-            cursor.aggregate_id()
-        );
-        assert_eq!(
-            decode_finance_banking_read_cursor(&encoded)
-                .expect("round trip")
-                .aggregate_type(),
-            cursor.aggregate_type()
-        );
-        assert!(decode_finance_banking_read_cursor("").is_err());
-        assert!(decode_finance_banking_read_cursor("zz").is_err());
-        assert!(decode_finance_banking_read_cursor(&"a".repeat(257)).is_err());
-    }
-
-    #[test]
-    fn banking_read_scope_conversion_rejects_broad_or_composite_scope() {
-        let holding_id = Uuid::from_u128(31);
-        let company_id = Uuid::from_u128(32);
-        let branch_id = Uuid::from_u128(33);
-        assert!(finance_banking_read_tenant_scope(&Scope::Platform).is_err());
-        assert!(
-            finance_banking_read_tenant_scope(&Scope::Subtree {
-                holding_id,
-                company_ids: vec![company_id],
-                branch_ids: vec![branch_id],
-            })
-            .is_err()
-        );
-        assert_eq!(
-            finance_banking_read_tenant_scope(&Scope::Company {
-                holding_id,
-                company_id,
-            })
-            .expect("company scope"),
-            TenantScope::Company {
-                holding_id,
-                company_id,
-            }
-        );
-    }
-
-    #[test]
-    fn bank_match_transport_payloads_are_bounded_and_errors_are_redacted() {
-        let proposal: serde_json::Value =
-            decode_finance_banking_json(br#"{"candidates":[]}"#, "proposal_json")
-                .expect("bounded proposal JSON");
-        assert_eq!(proposal["candidates"], serde_json::json!([]));
-        assert!(
-            decode_finance_banking_json::<serde_json::Value>(
-                &vec![b'x'; MAX_FINANCE_BANKING_JSON_BYTES + 1],
-                "decision_json",
-            )
-            .is_err()
-        );
-        assert_eq!(
-            finance_persistence_status(
-                PersistenceError::InvalidData("token=must-not-leak".into()),
-                Uuid::new_v4(),
-            )
-            .message(),
-            "Finance aggregate cannot be persisted"
-        );
-    }
-}
-
-#[cfg(test)]
-mod finance_subledger_transport_tests {
-    use super::*;
-
-    #[test]
-    fn subledger_read_list_bounds_and_cursor_are_opaque_and_deterministic() {
-        assert_eq!(finance_subledger_read_page_size(0).expect("default"), 25);
-        assert_eq!(
-            finance_subledger_read_page_size(MAX_FINANCE_SUBLEDGER_READ_PAGE_SIZE)
-                .expect("maximum"),
-            MAX_FINANCE_SUBLEDGER_READ_PAGE_SIZE
-        );
-        assert!(
-            finance_subledger_read_page_size(MAX_FINANCE_SUBLEDGER_READ_PAGE_SIZE + 1).is_err()
-        );
-
-        let cursor = FinanceSubledgerReadCursor::new("receivable_invoice", Uuid::from_u128(52))
-            .expect("cursor");
-        let encoded = encode_finance_subledger_read_cursor(&cursor);
-        let decoded = decode_finance_subledger_read_cursor(&encoded).expect("round trip");
-        assert_eq!(decoded.aggregate_id(), cursor.aggregate_id());
-        assert_eq!(decoded.aggregate_type(), cursor.aggregate_type());
-        assert!(decode_finance_subledger_read_cursor("").is_err());
-        assert!(decode_finance_subledger_read_cursor("zz").is_err());
-        assert!(decode_finance_subledger_read_cursor(&"a".repeat(257)).is_err());
-    }
-
-    #[test]
-    fn subledger_read_scope_conversion_rejects_broad_or_composite_scope() {
-        let holding_id = Uuid::from_u128(61);
-        let company_id = Uuid::from_u128(62);
-        let branch_id = Uuid::from_u128(63);
-        assert!(finance_subledger_read_tenant_scope(&Scope::Platform).is_err());
-        assert!(
-            finance_subledger_read_tenant_scope(&Scope::Subtree {
-                holding_id,
-                company_ids: vec![company_id],
-                branch_ids: vec![branch_id],
-            })
-            .is_err()
-        );
-        assert_eq!(
-            finance_subledger_read_tenant_scope(&Scope::Branch {
-                holding_id,
-                company_id,
-                branch_id,
-            })
-            .expect("branch scope"),
-            TenantScope::Branch {
-                holding_id,
-                company_id,
-                branch_id,
-            }
-        );
-    }
-}
-
-#[cfg(test)]
-mod finance_thai_tax_transport_tests {
-    use super::*;
-
-    #[test]
-    fn thai_tax_report_rejects_source_read_drift_before_serving_totals() {
-        let drifted = FinanceThaiTaxProjectionReconciliation {
-            source_events: 4,
-            projected_rows: 3,
-            mismatched_rows: 1,
-        };
-        let status =
-            require_finance_thai_tax_reconciliation(drifted).expect_err("drift must fail closed");
-        assert_eq!(status.code(), tonic::Code::FailedPrecondition);
-        assert_eq!(
-            status.message(),
-            "Thai tax source and read projection are not reconciled"
-        );
-    }
-
-    #[test]
-    fn thai_tax_report_accepts_only_exact_reconciliation() {
-        let reconciled = FinanceThaiTaxProjectionReconciliation {
-            source_events: 4,
-            projected_rows: 4,
-            mismatched_rows: 0,
-        };
-        assert!(require_finance_thai_tax_reconciliation(reconciled).is_ok());
-    }
-}
-
-#[cfg(test)]
-mod hr_transport_tests {
-    use super::*;
-
-    #[test]
-    fn leave_cursor_is_opaque_bounded_and_round_trips() {
-        let cursor = HrLeaveReadCursor {
-            starts_on: NaiveDate::from_ymd_opt(2026, 7, 25).expect("date"),
-            leave_id: Uuid::new_v4(),
-        };
-        let encoded = encode_hr_leave_cursor(&cursor);
-        assert!(!encoded.contains('-'));
-        assert_eq!(decode_hr_leave_cursor(&encoded).expect("cursor"), cursor);
-        assert!(decode_hr_leave_cursor("not-hex").is_err());
-        assert!(decode_hr_leave_cursor(&"a".repeat(257)).is_err());
-    }
-
-    #[test]
-    fn leave_cursor_rejects_nil_and_malformed_values() {
-        let date = NaiveDate::from_ymd_opt(2026, 7, 25).expect("date");
-        let nil = hex::encode(format!("{date}|{}", Uuid::nil()).as_bytes());
-        assert!(decode_hr_leave_cursor(&nil).is_err());
-        let bad_date = hex::encode(format!("not-a-date|{}", Uuid::new_v4()).as_bytes());
-        assert!(decode_hr_leave_cursor(&bad_date).is_err());
-    }
-
-    #[test]
-    fn expense_cursor_is_opaque_and_rejects_nil_values() {
-        let cursor = HrExpenseReadCursor {
-            expense_id: Uuid::new_v4(),
-        };
-        let encoded = encode_hr_expense_cursor(&cursor);
-        assert!(!encoded.contains('-'));
-        assert_eq!(decode_hr_expense_cursor(&encoded).expect("cursor"), cursor);
-        let nil = encode_hr_expense_cursor(&HrExpenseReadCursor {
-            expense_id: Uuid::nil(),
-        });
-        assert!(decode_hr_expense_cursor(&nil).is_err());
-    }
-
-    #[test]
-    fn payroll_cursor_is_opaque_and_round_trips() {
-        let cursor = HrPayrollRunReadCursor {
-            starts_on: NaiveDate::from_ymd_opt(2026, 7, 25).expect("date"),
-            payroll_id: Uuid::new_v4(),
-        };
-        let encoded = encode_hr_payroll_cursor(&cursor);
-        assert_eq!(decode_hr_payroll_cursor(&encoded).expect("cursor"), cursor);
-        assert!(decode_hr_payroll_cursor("00").is_err());
-    }
-
-    #[test]
-    fn reassignment_cursor_is_opaque_bounded_and_round_trips() {
-        let cursor = HrReassignmentReadCursor {
-            reassigned_at: DateTime::parse_from_rfc3339("2026-07-25T04:05:06Z")
-                .expect("timestamp")
-                .with_timezone(&Utc),
-            workflow_ref: "workflow-001".into(),
-        };
-        let encoded = encode_hr_reassignment_cursor(&cursor);
-        assert!(!encoded.contains('-'));
-        assert_eq!(
-            decode_hr_reassignment_cursor(&encoded).expect("cursor"),
-            cursor
-        );
-        assert!(decode_hr_reassignment_cursor("00").is_err());
-        assert!(decode_hr_reassignment_cursor(&"a".repeat(257)).is_err());
-    }
-}
-
-#[cfg(test)]
-mod pos_transport_tests {
-    use super::*;
-
-    #[test]
-    fn sales_cursor_is_opaque_bounded_and_round_trips() {
-        let cursor = PosSaleReadCursor {
-            updated_at: DateTime::parse_from_rfc3339("2026-07-25T04:05:06Z")
-                .expect("timestamp")
-                .with_timezone(&Utc),
-            sale_id: Uuid::new_v4(),
-        };
-        let encoded = encode_pos_sales_cursor(&cursor);
-        assert!(!encoded.contains('-'));
-        assert_eq!(decode_pos_sales_cursor(&encoded).expect("cursor"), cursor);
-        assert!(decode_pos_sales_cursor("not-hex").is_err());
-        assert!(decode_pos_sales_cursor(&"a".repeat(257)).is_err());
-    }
-
-    #[test]
-    fn sales_cursor_rejects_nil_and_malformed_values() {
-        let timestamp = "2026-07-25T04:05:06Z";
-        let nil = hex::encode(format!("{timestamp}|{}", Uuid::nil()).as_bytes());
-        assert!(decode_pos_sales_cursor(&nil).is_err());
-        let bad_timestamp = hex::encode(format!("not-a-time|{}", Uuid::new_v4()).as_bytes());
-        assert!(decode_pos_sales_cursor(&bad_timestamp).is_err());
-    }
-}
-
-#[cfg(test)]
-mod sales_transport_tests {
-    use super::*;
-
-    #[test]
-    fn sales_read_cursor_is_opaque_bounded_and_allowlisted() {
-        let cursor = SalesReadCursor {
-            projected_at: DateTime::parse_from_rfc3339("2026-07-25T04:05:06Z")
-                .expect("timestamp")
-                .with_timezone(&Utc),
-            aggregate_type: "sales_order".into(),
-            aggregate_id: Uuid::new_v4(),
-        };
-        let encoded = encode_sales_read_cursor(&cursor);
-        assert!(!encoded.contains('-'));
-        assert_eq!(decode_sales_read_cursor(&encoded).expect("cursor"), cursor);
-        assert!(decode_sales_read_cursor("not-hex").is_err());
-        assert!(decode_sales_read_cursor(&"a".repeat(385)).is_err());
-        let invalid_type = hex::encode(
-            format!(
-                "{}|invoice|{}",
-                cursor.projected_at.to_rfc3339(),
-                cursor.aggregate_id
-            )
-            .as_bytes(),
-        );
-        assert!(decode_sales_read_cursor(&invalid_type).is_err());
-    }
 }
 
 #[cfg(test)]
@@ -27717,7 +17167,7 @@ mod marketing_content_transport_tests {
 
     #[test]
     fn form_values_are_bounded_string_maps() {
-        let values = marketing_form_values(&[erpx_proto::platform::MarketingFormValue {
+        let values = marketing_form_values(&[marketing_target::MarketingFormValue {
             key: "email".into(),
             value: "customer@example.com".into(),
         }])
@@ -27728,7 +17178,7 @@ mod marketing_content_transport_tests {
         );
         assert!(marketing_form_values(&[]).is_err());
         assert!(
-            marketing_form_values(&[erpx_proto::platform::MarketingFormValue {
+            marketing_form_values(&[marketing_target::MarketingFormValue {
                 key: "email".into(),
                 value: "a".repeat(MAX_MARKETING_FORM_VALUE_BYTES + 1),
             }])
@@ -27919,55 +17369,6 @@ mod tenant_owner_seed_tests {
                 .await
                 .expect("read isolation query");
         assert_eq!(read_table, None);
-    }
-}
-
-#[cfg(test)]
-mod finance_bank_provider_import_status_tests {
-    use super::*;
-
-    #[test]
-    fn finance_bank_import_status_mapping_is_bounded_and_payload_free() {
-        let now = Utc::now();
-        let message =
-            finance_bank_provider_import_status_message(FinanceBankProviderImportJobStatus {
-                job_id: Uuid::from_u128(1),
-                tenant_id: "tenant-opaque".into(),
-                holding_ref: "holding-opaque".into(),
-                import_id: Uuid::from_u128(2),
-                state: "retryable".into(),
-                source_fence: 7,
-                attempts: 2,
-                max_attempts: 3,
-                available_at: now,
-                lease_until: None,
-                last_failure_class: Some("retryable".into()),
-                completed_at: None,
-                updated_at: now,
-            })
-            .expect("bounded status");
-        assert_eq!(message.state, "retryable");
-        assert_eq!(message.attempts, 2);
-        assert_eq!(message.max_attempts, 3);
-        assert!(message.lease_until.is_empty());
-        assert!(!format!("{message:?}").contains("credential"));
-        let mut invalid = FinanceBankProviderImportJobStatus {
-            job_id: Uuid::from_u128(3),
-            tenant_id: "tenant".into(),
-            holding_ref: "holding".into(),
-            import_id: Uuid::from_u128(4),
-            state: "pending".into(),
-            source_fence: 1,
-            attempts: 0,
-            max_attempts: 1,
-            available_at: now,
-            lease_until: None,
-            last_failure_class: None,
-            completed_at: None,
-            updated_at: now,
-        };
-        invalid.state = "unknown".into();
-        assert!(finance_bank_provider_import_status_message(invalid).is_err());
     }
 }
 

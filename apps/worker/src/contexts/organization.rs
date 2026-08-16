@@ -7,7 +7,7 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
-use erpx_organization_sqlx::OrganizationNodeProjector;
+use erpx_organization_sqlx::{OrganizationNodeProjector, OrganizationSharingProjector};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OrganizationProjectionRegistration {
@@ -15,16 +15,20 @@ pub struct OrganizationProjectionRegistration {
     pub event_types: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OrganizationProjectionKind {
+    Nodes,
+    SharingAgreements,
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct OrganizationProjectionFactory;
 
 impl OrganizationProjectionFactory {
-    pub fn registration(self) -> OrganizationProjectionRegistration {
-        let projector = OrganizationNodeProjector::new();
-        OrganizationProjectionRegistration {
-            name: projector.name().into(),
-            event_types: projector.event_types().to_vec(),
-        }
+    pub fn registrations(self) -> Vec<OrganizationProjectionRegistration> {
+        let nodes = OrganizationNodeProjector::new();
+        let sharing = OrganizationSharingProjector::new();
+        vec![registration(&nodes), registration(&sharing)]
     }
 
     pub fn build(
@@ -36,7 +40,8 @@ impl OrganizationProjectionFactory {
         let store = ProjectionStore::new(projection);
         let runner = ProjectionRunner::new(ProjectionSource::new(write), store.clone(), config)?;
         Ok(OrganizationProjectionRuntime {
-            projector: OrganizationNodeProjector::new(),
+            nodes: OrganizationNodeProjector::new(),
+            sharing: OrganizationSharingProjector::new(),
             runner,
             store,
         })
@@ -45,38 +50,85 @@ impl OrganizationProjectionFactory {
 
 #[derive(Debug, Clone)]
 pub struct OrganizationProjectionRuntime {
-    projector: OrganizationNodeProjector,
+    nodes: OrganizationNodeProjector,
+    sharing: OrganizationSharingProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
 
 impl OrganizationProjectionRuntime {
-    pub fn registration(&self) -> OrganizationProjectionRegistration {
-        OrganizationProjectionFactory.registration()
+    pub fn registrations(&self) -> Vec<OrganizationProjectionRegistration> {
+        OrganizationProjectionFactory.registrations()
     }
 
     /// Duplicate, out-of-order, retry, DLQ, receipt, and checkpoint semantics
     /// are provided by the shared projection runner.
-    pub async fn run_once(&self) -> Result<ProjectionRun, CqrsSqlxError> {
-        self.runner.run_active(&self.projector).await
+    pub async fn run_once(
+        &self,
+        kind: OrganizationProjectionKind,
+    ) -> Result<ProjectionRun, CqrsSqlxError> {
+        match kind {
+            OrganizationProjectionKind::Nodes => self.runner.run_active(&self.nodes).await,
+            OrganizationProjectionKind::SharingAgreements => {
+                self.runner.run_active(&self.sharing).await
+            }
+        }
     }
 
-    pub async fn begin_rebuild(&self) -> Result<RebuildHandle, CqrsSqlxError> {
-        self.store.begin_rebuild(&self.projector).await
+    pub async fn begin_rebuild(
+        &self,
+        kind: OrganizationProjectionKind,
+    ) -> Result<RebuildHandle, CqrsSqlxError> {
+        match kind {
+            OrganizationProjectionKind::Nodes => self.store.begin_rebuild(&self.nodes).await,
+            OrganizationProjectionKind::SharingAgreements => {
+                self.store.begin_rebuild(&self.sharing).await
+            }
+        }
     }
 
     pub async fn run_rebuild_page(
         &self,
+        kind: OrganizationProjectionKind,
         handle: &RebuildHandle,
         after_sequence: u64,
     ) -> Result<ProjectionRun, CqrsSqlxError> {
-        self.runner
-            .run_rebuild(&self.projector, handle, after_sequence)
-            .await
+        match kind {
+            OrganizationProjectionKind::Nodes => {
+                self.runner
+                    .run_rebuild(&self.nodes, handle, after_sequence)
+                    .await
+            }
+            OrganizationProjectionKind::SharingAgreements => {
+                self.runner
+                    .run_rebuild(&self.sharing, handle, after_sequence)
+                    .await
+            }
+        }
     }
 
-    pub async fn activate_rebuild(&self, handle: &RebuildHandle) -> Result<(), CqrsSqlxError> {
+    pub async fn activate_rebuild(
+        &self,
+        kind: OrganizationProjectionKind,
+        handle: &RebuildHandle,
+    ) -> Result<(), CqrsSqlxError> {
+        let expected = match kind {
+            OrganizationProjectionKind::Nodes => self.nodes.name(),
+            OrganizationProjectionKind::SharingAgreements => self.sharing.name(),
+        };
+        if handle.projection != expected {
+            return Err(CqrsSqlxError::InvalidInput(
+                "rebuild handle belongs to another projector",
+            ));
+        }
         self.store.activate_rebuild(handle).await
+    }
+}
+
+fn registration(projector: &impl Projector) -> OrganizationProjectionRegistration {
+    OrganizationProjectionRegistration {
+        name: projector.name().into(),
+        event_types: projector.event_types().to_vec(),
     }
 }
 
@@ -85,23 +137,31 @@ mod tests {
     use std::time::Duration;
 
     use erpx_cqrs_sqlx::RetryPolicy;
-    use erpx_organization_sqlx::{PROJECTION_NAME, SNAPSHOT_EVENT_TYPE};
+    use erpx_organization_sqlx::{
+        PROJECTION_NAME, SHARING_PROJECTION_NAME, SHARING_SNAPSHOT_EVENT_TYPE, SNAPSHOT_EVENT_TYPE,
+    };
     use uuid::Uuid;
 
     use super::*;
 
     #[test]
-    fn registration_is_typed_and_snapshot_only() {
-        let registration = OrganizationProjectionFactory.registration();
-        assert_eq!(registration.name, PROJECTION_NAME);
-        assert_eq!(registration.event_types, vec![SNAPSHOT_EVENT_TYPE]);
+    fn registrations_are_typed_and_snapshot_only() {
+        let registrations = OrganizationProjectionFactory.registrations();
+        assert_eq!(registrations.len(), 2);
+        assert_eq!(registrations[0].name, PROJECTION_NAME);
+        assert_eq!(registrations[0].event_types, vec![SNAPSHOT_EVENT_TYPE]);
+        assert_eq!(registrations[1].name, SHARING_PROJECTION_NAME);
+        assert_eq!(
+            registrations[1].event_types,
+            vec![SHARING_SNAPSHOT_EVENT_TYPE]
+        );
     }
 
     fn lazy_pools() -> (WritePool, ProjectionPool) {
-        let write = WritePool::from_pg_pool(
+        let write = WritePool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/organization_write").unwrap(),
         );
-        let projection = ProjectionPool::from_pg_pool(
+        let projection = ProjectionPool::from_control_pg_pool(
             sqlx::PgPool::connect_lazy("postgres://localhost/organization_read").unwrap(),
         );
         (write, projection)
@@ -114,8 +174,8 @@ mod tests {
             .build(write, projection, ProjectionRunnerConfig::default())
             .expect("valid runner configuration");
         assert_eq!(
-            runtime.registration(),
-            OrganizationProjectionFactory.registration()
+            runtime.registrations(),
+            OrganizationProjectionFactory.registrations()
         );
     }
 
@@ -148,7 +208,10 @@ mod tests {
             generation: Uuid::new_v4(),
             replaces: None,
         };
-        let error = runtime.run_rebuild_page(&wrong, 0).await.unwrap_err();
+        let error = runtime
+            .run_rebuild_page(OrganizationProjectionKind::Nodes, &wrong, 0)
+            .await
+            .unwrap_err();
         assert!(matches!(
             error,
             CqrsSqlxError::InvalidInput("rebuild handle belongs to another projector")

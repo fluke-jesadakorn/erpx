@@ -98,6 +98,8 @@ const CONSOLE_ASSETS_TRANSPORT: &str =
     include_str!("../../console/src/transport/wave6_7/assets.rs");
 const CONSOLE_MAINTENANCE_TRANSPORT: &str =
     include_str!("../../console/src/transport/wave6_7/maintenance.rs");
+const CONSOLE_ASSET_MAINTENANCE_WORKSPACE: &str =
+    include_str!("../../console/src/transport/asset_maintenance_workspace.rs");
 const CONSOLE_QUALITY_TRANSPORT: &str =
     include_str!("../../console/src/transport/quality/transport.rs");
 const CONSOLE_PEOPLE_PAYROLL_TRANSPORT: &str =
@@ -178,15 +180,17 @@ const CONSOLE_PRODUCT_COMPLETION: &str = include_str!("../../console/src/product
 const UI_PRODUCT_CONTEXTS: &str =
     include_str!("../../../crates/ui-domains/platform/src/product_contexts.rs");
 const PRODUCT_PROTOS: &[&str] = &[
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/sales.proto"),
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/supply_chain.proto"),
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/asset_maintenance.proto"),
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/quality.proto"),
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/people_payroll.proto"),
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/legal.proto"),
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/pos.proto"),
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/marketing.proto"),
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/crm.proto"),
+    include_str!("../../../crates/proto/proto/erpx/sales/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/procurement/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/inventory/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/assets/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/maintenance/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/quality/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/people_payroll/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/legal/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/pos/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/marketing/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/crm/v1/service.proto"),
 ];
 
 const ERPX_MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../Cargo.toml");
@@ -257,6 +261,7 @@ fn product_console_sources() -> String {
         CONSOLE_INVENTORY_TRANSPORT,
         CONSOLE_ASSETS_TRANSPORT,
         CONSOLE_MAINTENANCE_TRANSPORT,
+        CONSOLE_ASSET_MAINTENANCE_WORKSPACE,
         CONSOLE_QUALITY_TRANSPORT,
         CONSOLE_PEOPLE_PAYROLL_TRANSPORT,
         CONSOLE_LEGAL_TRANSPORT,
@@ -605,8 +610,11 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
     let checks = [
         SurfaceCheck {
             name: "Sales",
-            proto_markers: &["service SalesService"],
-            server_markers: &["impl SalesService"],
+            proto_markers: &["service SalesCommandService", "service SalesQueryService"],
+            server_markers: &[
+                "SalesCommandServiceServer::new",
+                "SalesQueryServiceServer::new",
+            ],
             console_markers: &[
                 "ProductContext::Sales",
                 "product_context_projection_name",
@@ -617,8 +625,18 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
         },
         SurfaceCheck {
             name: "Procurement/Inventory",
-            proto_markers: &["service ScmService", "ListScmAggregatesRequest"],
-            server_markers: &["impl ScmService", "list_scm_aggregates"],
+            proto_markers: &[
+                "service ProcurementCommandService",
+                "service ProcurementQueryService",
+                "service InventoryCommandService",
+                "service InventoryQueryService",
+            ],
+            server_markers: &[
+                "ProcurementCommandServiceServer::new",
+                "ProcurementQueryServiceServer::new",
+                "InventoryCommandServiceServer::new",
+                "InventoryQueryServiceServer::new",
+            ],
             console_markers: &[
                 "ProductContext::Procurement",
                 "ProductContext::Inventory",
@@ -637,22 +655,30 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
         SurfaceCheck {
             name: "Asset/Maintenance",
             proto_markers: &[
-                "service AssetMaintenanceService",
-                "ListAssetMaintenanceAggregatesRequest",
+                "service AssetsCommandService",
+                "service AssetsQueryService",
+                "service MaintenanceCommandService",
+                "service MaintenanceQueryService",
             ],
             server_markers: &[
-                "impl AssetMaintenanceService",
-                "list_asset_maintenance_aggregates",
+                "AssetsCommandServiceServer::new",
+                "AssetsQueryServiceServer::new",
+                "MaintenanceCommandServiceServer::new",
+                "MaintenanceQueryServiceServer::new",
             ],
             console_markers: &[
+                "ProductContext::Assets",
                 "ProductContext::Maintenance",
-                "AssetMaintenanceAggregateListRouteSurface",
-                "fetch_asset_maintenance_list_read",
-                "product_context_projection_name",
-                "ProductContextRouteSurface",
-                "product_context_route",
+                "WorkspaceRows::Assets",
+                "WorkspaceRows::WorkOrders",
+                "execute_asset",
+                "execute_maintenance",
             ],
-            product_surface_markers: &["ProductContext::Maintenance", "ProductSurfaceState"],
+            product_surface_markers: &[
+                "ProductContext::Assets",
+                "ProductContext::Maintenance",
+                "ProductSurfaceState",
+            ],
         },
         SurfaceCheck {
             name: "Quality",
@@ -663,12 +689,8 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
                 "ListQualityInspectionsRequest",
             ],
             server_markers: &[
-                "impl QualityCommandApplication",
-                "quality.write",
-                "impl QualityQueryApplication",
-                "QualityCommandServiceServer",
-                "QualityQueryServiceServer",
-                "RoutedDatabaseSide::Read",
+                "QualityCommandServiceServer::new",
+                "QualityQueryServiceServer::new",
             ],
             console_markers: &[
                 "ProductContext::Quality",
@@ -682,14 +704,12 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
         SurfaceCheck {
             name: "HR/Payroll",
             proto_markers: &[
-                "service HrService",
-                "SaveHrPayrollRequest",
-                "ListHrPayrollRuns",
+                "service PeoplePayrollCommandService",
+                "service PeoplePayrollQueryService",
             ],
             server_markers: &[
-                "impl HrService",
-                "authorize_entitled_command",
-                "RoutedDatabaseSide::Read",
+                "PeoplePayrollCommandServiceServer::new",
+                "PeoplePayrollQueryServiceServer::new",
             ],
             console_markers: &[
                 "ProductContext::HrPayroll",
@@ -700,15 +720,10 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
         },
         SurfaceCheck {
             name: "Legal/Documents",
-            proto_markers: &[
-                "service LegalService",
-                "SaveLegalDocumentRequest",
-                "ListLegalDocuments",
-            ],
+            proto_markers: &["service LegalCommandService", "service LegalQueryService"],
             server_markers: &[
-                "impl LegalService",
-                "legal.write",
-                "RoutedDatabaseSide::Read",
+                "LegalCommandServiceServer::new",
+                "LegalQueryServiceServer::new",
             ],
             console_markers: &[
                 "ProductContext::Legal",
@@ -719,8 +734,14 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
         },
         SurfaceCheck {
             name: "POS",
-            proto_markers: &["service PosService", "SavePosSaleRequest", "ListPosSales"],
-            server_markers: &["impl PosService", "pos.write", "RoutedDatabaseSide::Read"],
+            proto_markers: &[
+                "service PointOfSaleCommandService",
+                "service PointOfSaleQueryService",
+            ],
+            server_markers: &[
+                "PointOfSaleCommandServiceServer::new",
+                "PointOfSaleQueryServiceServer::new",
+            ],
             console_markers: &[
                 "ProductContext::Pos",
                 "ProductContextRouteSurface",
@@ -731,14 +752,16 @@ fn g11_transport_and_ui_handoff_is_measured_without_fabricating_missing_surfaces
         SurfaceCheck {
             name: "Marketing/CRM",
             proto_markers: &[
-                "service CrmService",
-                "ListCrmReadRows",
-                "service MarketingContentService",
+                "service CrmCommandService",
+                "service CrmQueryService",
+                "service MarketingCommandService",
+                "service MarketingQueryService",
             ],
             server_markers: &[
-                "impl CrmService",
-                "crm.write",
-                "impl MarketingContentService",
+                "CrmCommandServiceServer::new",
+                "CrmQueryServiceServer::new",
+                "MarketingCommandServiceServer::new",
+                "MarketingQueryServiceServer::new",
             ],
             console_markers: &[
                 "ProductContext::MarketingCrm",

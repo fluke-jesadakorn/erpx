@@ -3,7 +3,7 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
-use erpx_crm_sqlx::{CrmLeadProjector, CrmOpportunityProjector};
+use erpx_crm_sqlx::{CrmLeadProjector, CrmOpportunityProjector, CrmRecordProjector};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CrmProjectionRegistration {
@@ -14,6 +14,7 @@ pub struct CrmProjectionRegistration {
 pub enum CrmProjectionKind {
     Leads,
     Opportunities,
+    BusinessRecords,
 }
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CrmProjectionFactory;
@@ -22,6 +23,7 @@ impl CrmProjectionFactory {
         [
             registration(&CrmLeadProjector::new()),
             registration(&CrmOpportunityProjector::new()),
+            registration(&CrmRecordProjector::new()),
         ]
         .into()
     }
@@ -36,6 +38,7 @@ impl CrmProjectionFactory {
         Ok(CrmProjectionRuntime {
             leads: CrmLeadProjector::new(),
             opportunities: CrmOpportunityProjector::new(),
+            records: CrmRecordProjector::new(),
             runner,
             store,
         })
@@ -45,6 +48,7 @@ impl CrmProjectionFactory {
 pub struct CrmProjectionRuntime {
     leads: CrmLeadProjector,
     opportunities: CrmOpportunityProjector,
+    records: CrmRecordProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
 }
@@ -56,6 +60,7 @@ impl CrmProjectionRuntime {
         match kind {
             CrmProjectionKind::Leads => self.runner.run_active(&self.leads).await,
             CrmProjectionKind::Opportunities => self.runner.run_active(&self.opportunities).await,
+            CrmProjectionKind::BusinessRecords => self.runner.run_active(&self.records).await,
         }
     }
     pub async fn begin_rebuild(
@@ -65,6 +70,7 @@ impl CrmProjectionRuntime {
         match kind {
             CrmProjectionKind::Leads => self.store.begin_rebuild(&self.leads).await,
             CrmProjectionKind::Opportunities => self.store.begin_rebuild(&self.opportunities).await,
+            CrmProjectionKind::BusinessRecords => self.store.begin_rebuild(&self.records).await,
         }
     }
     pub async fn run_rebuild_page(
@@ -84,6 +90,11 @@ impl CrmProjectionRuntime {
                     .run_rebuild(&self.opportunities, handle, after_sequence)
                     .await
             }
+            CrmProjectionKind::BusinessRecords => {
+                self.runner
+                    .run_rebuild(&self.records, handle, after_sequence)
+                    .await
+            }
         }
     }
     pub async fn activate_rebuild(
@@ -94,6 +105,7 @@ impl CrmProjectionRuntime {
         let expected = match kind {
             CrmProjectionKind::Leads => self.leads.name(),
             CrmProjectionKind::Opportunities => self.opportunities.name(),
+            CrmProjectionKind::BusinessRecords => self.records.name(),
         };
         if handle.projection != expected {
             return Err(CqrsSqlxError::InvalidInput(
@@ -115,6 +127,7 @@ mod tests {
     use super::*;
     use erpx_crm_sqlx::{
         LEAD_PROJECTION, LEAD_SNAPSHOT_EVENT, OPPORTUNITY_PROJECTION, OPPORTUNITY_SNAPSHOT_EVENT,
+        RECORD_PROJECTION_NAME, RECORD_SNAPSHOT_EVENT_TYPE,
     };
     #[test]
     fn registrations_are_snapshot_specific() {
@@ -128,7 +141,11 @@ mod tests {
                 CrmProjectionRegistration {
                     name: OPPORTUNITY_PROJECTION.into(),
                     event_types: vec![OPPORTUNITY_SNAPSHOT_EVENT.into()]
-                }
+                },
+                CrmProjectionRegistration {
+                    name: RECORD_PROJECTION_NAME.into(),
+                    event_types: vec![RECORD_SNAPSHOT_EVENT_TYPE.into()]
+                },
             ]
         );
     }

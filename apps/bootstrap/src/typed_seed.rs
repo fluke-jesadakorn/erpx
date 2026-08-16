@@ -56,7 +56,7 @@ impl EntitlementPort for BootstrapBrandAccess {
 }
 
 pub(crate) async fn seed_typed_neutral_brand(pool: &PgPool, root_principal: &str) -> Result<()> {
-    let write = WritePool::from_pg_pool(pool.clone());
+    let write = WritePool::from_control_pg_pool(pool.clone());
     let access = BootstrapBrandAccess {
         root_principal: root_principal.to_owned(),
     };

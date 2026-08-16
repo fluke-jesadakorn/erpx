@@ -10,8 +10,7 @@ use std::{env, net::TcpStream, time::Duration};
 const SALES_DOMAIN: &str = include_str!("../../../crates/domain/src/sales.rs");
 const SALES_PERSISTENCE: &str =
     include_str!("../../../crates/infrastructure/src/sales_persistence.rs");
-const PLATFORM_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform/v1/sales.proto");
+const SALES_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/sales/v1/service.proto");
 const SERVER_TRANSPORTS: &str = include_str!("../../server/src/lib.rs");
 const SERVER_COMPOSITION: &str = include_str!("../../server/src/lib.rs");
 
@@ -32,17 +31,6 @@ fn require_markers(surface: &str, name: &str, markers: &[&str]) {
             "Sales acceptance marker missing from {name}: {marker}"
         );
     }
-}
-
-fn section<'a>(surface: &'a str, start: &str, end: &str, name: &str) -> &'a str {
-    let start_index = surface
-        .find(start)
-        .unwrap_or_else(|| panic!("Sales acceptance section missing from {name}: {start}"));
-    let body = &surface[start_index..];
-    let end_index = body.find(end).unwrap_or_else(|| {
-        panic!("Sales acceptance section terminator missing from {name}: {end}")
-    });
-    &body[..end_index]
 }
 
 fn filter_value() -> &'static str {
@@ -121,73 +109,34 @@ fn sales_source_replay_filter_and_read_model_safety_are_closed() {
 }
 
 #[test]
-fn sales_proto_and_server_transport_surfaces_have_save_read_parity() {
-    let proto = section(
-        PLATFORM_PROTO,
-        "service SalesService {",
-        "\n}\n",
-        "sales.proto SalesService",
-    );
+fn sales_proto_and_server_transport_surfaces_have_owner_command_query_parity() {
     require_markers(
-        proto,
-        "sales.proto SalesService",
+        SALES_PROTO,
+        "sales/v1/service.proto",
         &[
-            "rpc SaveSalesAggregate(SaveSalesAggregateRequest)",
-            "returns (SaveSalesAggregateResponse);",
-            "rpc GetSalesAggregate(GetSalesAggregateRequest)",
-            "returns (GetSalesAggregateResponse);",
-        ],
-    );
-    require_markers(
-        PLATFORM_PROTO,
-        "sales.proto Sales messages",
-        &[
-            "message SaveSalesAggregateRequest",
-            "message SaveSalesAggregateResponse",
-            "message GetSalesAggregateRequest",
-            "message GetSalesAggregateResponse",
-            "message SalesWriteReceipt",
-        ],
-    );
-
-    let server_impl = section(
-        SERVER_TRANSPORTS,
-        "impl SalesService for SalesRpcImpl",
-        "#[derive(Clone)]\nstruct ScmRpcImpl",
-        "server SalesService implementation",
-    );
-    require_markers(
-        server_impl,
-        "server SalesService implementation",
-        &[
-            "async fn save_sales_aggregate",
-            "async fn get_sales_aggregate",
-            "command_domain(&request, Some(proto_context))?",
-            "query_context(&request, Some(proto_context))?",
-            "authorize_entitled_command",
-            "\"sales.write\"",
-            "\"sales.read\"",
-            "RoutedDatabaseSide::Write",
-            "RoutedDatabaseSide::Read",
-            "SqlxSalesStore::from_pools",
-            "save(&aggregate, expected_version)",
-            "get(aggregate_type, aggregate_id)",
-            "sales.aggregate.saved",
-            "sales.aggregate.read",
+            "package erpx.sales.v1;",
+            "service SalesCommandService",
+            "rpc CreateQuote",
+            "rpc CreateSalesOrder",
+            "service SalesQueryService",
+            "rpc GetQuote",
+            "rpc GetSalesOrder",
+            "rpc ListSalesOrders",
         ],
     );
     require_markers(
         SERVER_COMPOSITION,
-        "server SalesService registration",
+        "server target Sales registration",
         &[
-            "SalesServiceServer::new(SalesRpcImpl {",
-            ".add_optional_service(",
-            "v1_service_authority",
-            ".is_legacy()",
+            "SalesCommandServiceServer::new",
+            "SalesQueryServiceServer::new",
+            "SalesCommandRpc::new",
+            "SalesQueryRpc::new",
         ],
     );
+    assert!(!SERVER_TRANSPORTS.contains(concat!("impl Sales", "Service for")));
     eprintln!(
-        "G11 Sales transport evidence: protobuf save/get RPC parity, authenticated command/query contexts, write/read database routing, SQLx store handoff, audit events, and server registration are present"
+        "G11 Sales transport evidence: typed owner command/query RPCs and target-only server registration are present"
     );
 }
 
