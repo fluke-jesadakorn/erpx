@@ -146,13 +146,13 @@ topology without printing credentials. A first transition uses
 instances.
 
 Start the stack once and leave Dioxus hot reload running. Web development uses
-Rust hot-patch with debug symbols disabled by default and keeps its persistent
-session cache in `target/dx-hotpatch`. Source, RSX, CSS, and asset edits are left
-to the running Dioxus watcher; `xtask` restarts Web only when its environment,
-workspace manifests/toolchain, DX version, or launch mode changes. Use
-`--no-hot-patch` for the stable fallback and `--web-debug` when runtime line
-tables are needed. Optional flags may appear in any order and duplicates or
-unknown flags fail closed.
+one monolithic WASM with Rust hot-patch and debug symbols disabled by default,
+and keeps its persistent session cache in `target/dx-hotpatch`. Source, RSX,
+CSS, and asset edits are left to the running Dioxus watcher; `xtask` restarts
+Web only when its environment, workspace manifests/toolchain, DX version, or
+launch mode changes. Use `--no-hot-patch` for a stable monolithic rebuild and
+`--web-debug` when runtime line tables are needed. Optional flags may appear in
+any order and duplicates or unknown flags fail closed.
 
 After backend edits, run `cargo xtask dev --detach` again: healthy
 infrastructure and Web are reused, current fixtures are skipped, and only
@@ -160,6 +160,7 @@ changed or missing backend service groups restart. Use `--fresh` when local
 runtime configuration must be fully reconciled; it does not drop databases or
 buckets and never touches `.runtime/n8n/`. `cargo xtask status` includes the
 active Web launch mode (`hot-patch`/`stable`, `debug-on`/`debug-off`).
+The status line always identifies the Web layout as `monolithic`.
 
 For the daily feedback loop, keep `cargo xtask dev --detach` running and let
 Dioxus hot reload handle each Rust/RSX/CSS/asset edit. Do not run Cargo tests
@@ -250,7 +251,7 @@ dedicated Cargo target directories below `.runtime/erpx/`; runtime data,
 databases, MinIO state, logs, and `.runtime/n8n/` are never candidates. Direct
 Cargo commands do not run the janitor themselves, but their target groups are
 included the next time an ERPX-managed build command runs. Manual pruning also
-removes superseded split fast-lane targets and regenerable deferred iOS/Android
+removes superseded fast-lane target groups and regenerable deferred iOS/Android
 target groups. Incremental pruning is separately opt-in and refuses to run while
 Dioxus or a workspace compiler is active. `prune-debug` is the narrower
 migration cleanup: it selects only root `target/debug` and refuses to run while
@@ -272,6 +273,12 @@ Development builds keep Cargo incremental compilation with debug information
 disabled by default. `--web-debug` enables line tables only for the Dioxus Web
 profiles. The test profile remains unchanged and disables incremental state,
 preventing full test lanes from accumulating another large incremental cache.
+Release WASM uses the dedicated `wasm-release` Cargo profile with optimization
+level 3, fat LTO, one codegen unit, and no debug information, followed by
+`wasm-opt -O4`. `cargo xtask wasm-size --dev|--release` Brotli-compresses and
+reports the main module size as informational evidence while failing any layout
+that is not exactly one WASM or that retains split glue, chunks, or lazy module
+files.
 
 ## Workspace
 
@@ -304,7 +311,8 @@ cargo xtask verify
 `cargo xtask verify` is the single pre-handoff entry point. It serializes
 `cargo xtask verify-core` (formatting, warnings-denied workspace Clippy, the
 full workspace test suite, architecture/repository scans, explicit Console
-`web` and `server` checks, and a locked offline Dioxus Web release build), then
+`web` and `server` checks, a locked offline Dioxus Web release build, and its
+single-WASM layout check), then
 local SQLx acceptance, strict process/heartbeat/projection readiness, and
 runtime HTTP/SSR/BFF smoke checks. A successful full gate refreshes the affected
 baseline even for a dirty worktree. CI fetches locked dependencies first, runs
