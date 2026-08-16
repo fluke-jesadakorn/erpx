@@ -15777,6 +15777,122 @@ async fn fetch_platform_integrations(
         .collect::<Result<Vec<_>, _>>()
 }
 
+fn platform_provider_query<Q>(
+    principal_ref: &str,
+    session_id: &str,
+    query: Q,
+) -> Result<erpx_cqrs::QueryEnvelope<Q>, String> {
+    let session_id = Uuid::parse_str(session_id)
+        .map_err(|_| "The authenticated platform session identifier is invalid.".to_owned())?;
+    Ok(erpx_cqrs::QueryEnvelope {
+        contract_version: erpx_cqrs::CONTRACT_VERSION,
+        query_id: erpx_kernel::QueryId::try_from_uuid(Uuid::new_v4())
+            .map_err(|_| "Unable to create a provider query identifier.".to_owned())?,
+        correlation_id: erpx_kernel::CorrelationId::try_from_uuid(Uuid::new_v4())
+            .map_err(|_| "Unable to create a provider correlation identifier.".to_owned())?,
+        actor: erpx_kernel::ActorAttribution {
+            principal_ref: principal_ref.to_owned(),
+            kind: erpx_kernel::ActorKind::PlatformUser,
+            session_id: Some(
+                erpx_kernel::SessionId::try_from_uuid(session_id)
+                    .map_err(|_| "The authenticated platform session is invalid.".to_owned())?,
+            ),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        tenant_scope: erpx_kernel::TenantScope::Platform,
+        audit: erpx_kernel::AuditContext {
+            purpose: "platform_provider_console_read".to_owned(),
+            customer_visible: false,
+            module: Some("platform_administration".to_owned()),
+        },
+        consistency: erpx_cqrs::QueryConsistency::Eventual,
+        query,
+    })
+}
+
+async fn platform_provider_transport(
+    access_token: &str,
+) -> Result<crate::transport::wave4_5::PlatformAdministrationGrpcTransport, String> {
+    #[cfg(target_arch = "wasm32")]
+    let channel = tonic_web_wasm_client::Client::new(grpc_endpoint());
+    #[cfg(not(target_arch = "wasm32"))]
+    let channel = tonic::transport::Endpoint::from_static(GRPC_ENDPOINT)
+        .connect()
+        .await
+        .map_err(|_| "platform provider service is offline".to_owned())?;
+    crate::transport::wave4_5::PlatformAdministrationGrpcTransport::try_new(channel, access_token)
+        .map_err(|error| error.message().to_owned())
+}
+
+async fn fetch_platform_providers(
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+) -> Result<Vec<erpx_console_feature_platform_administration::ConnectorItem>, String> {
+    use erpx_ui_foundation::QueryGateway;
+
+    let transport = platform_provider_transport(&access_token).await?;
+    let gateway =
+        erpx_console_feature_platform_administration::PlatformAdministrationGateway::new(transport);
+    let query = platform_provider_query(
+        &principal_ref,
+        &session_id,
+        erpx_platform_administration::ListConnectors {
+            filter: erpx_platform_administration::PageFilter {
+                page_size: 100,
+                cursor: None,
+            },
+        },
+    )?;
+    let result =
+        QueryGateway::<erpx_platform_administration::ListConnectors>::execute(&gateway, query)
+            .await
+            .map_err(|error| error.message().to_owned())?;
+    if result.value.next_cursor.is_some() {
+        return Err("platform provider page exceeded the supported display bound".to_owned());
+    }
+    Ok(result
+        .value
+        .records
+        .iter()
+        .map(erpx_console_feature_platform_administration::connector_item)
+        .collect())
+}
+
+async fn fetch_platform_provider(
+    connector_id: String,
+    access_token: String,
+    principal_ref: String,
+    session_id: String,
+) -> Result<Option<erpx_console_feature_platform_administration::ConnectorItem>, String> {
+    use erpx_ui_foundation::QueryGateway;
+
+    let connector_id = Uuid::parse_str(&connector_id)
+        .map_err(|_| "The provider connector identifier is invalid.".to_owned())?;
+    let connector_id =
+        erpx_platform_administration::ConnectorBindingId::try_from_uuid(connector_id)
+            .map_err(|_| "The provider connector identifier is invalid.".to_owned())?;
+    let transport = platform_provider_transport(&access_token).await?;
+    let gateway =
+        erpx_console_feature_platform_administration::PlatformAdministrationGateway::new(transport);
+    let query = platform_provider_query(
+        &principal_ref,
+        &session_id,
+        erpx_platform_administration::GetConnector { connector_id },
+    )?;
+    QueryGateway::<erpx_platform_administration::GetConnector>::execute(&gateway, query)
+        .await
+        .map_err(|error| error.message().to_owned())
+        .map(|result| {
+            result
+                .value
+                .connector
+                .as_ref()
+                .map(erpx_console_feature_platform_administration::connector_item)
+        })
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 async fn fetch_platform_integrations(
     access_token: String,
@@ -23610,6 +23726,7 @@ fn navigation_route_id_for_path(path: &str) -> Option<&'static str> {
             PlatformOperationsRouteId::TenantWorkspace => return None,
             PlatformOperationsRouteId::Projections => "projections",
             PlatformOperationsRouteId::Backups => "backups",
+            PlatformOperationsRouteId::Providers => "providers",
             PlatformOperationsRouteId::Integrations => "integrations",
             PlatformOperationsRouteId::Audit => "audit",
             PlatformOperationsRouteId::Settings => "settings",
@@ -24051,6 +24168,7 @@ fn platform_operations_route_for_id(
         PlatformOperationsRouteId::TenantWorkspace => None,
         PlatformOperationsRouteId::Projections => Some(PlatformOperationsRoute::Projections),
         PlatformOperationsRouteId::Backups => Some(PlatformOperationsRoute::Backups),
+        PlatformOperationsRouteId::Providers => Some(PlatformOperationsRoute::Providers),
         PlatformOperationsRouteId::Integrations => Some(PlatformOperationsRoute::Integrations),
         PlatformOperationsRouteId::Audit => Some(PlatformOperationsRoute::Audit),
         PlatformOperationsRouteId::Settings => Some(PlatformOperationsRoute::Settings),
@@ -24079,6 +24197,10 @@ fn platform_operations_route_description(id: PlatformOperationsRouteId) -> &'sta
         PlatformOperationsRouteId::Backups => localized_copy(
             "Authorized backup and restore history from the server-owned read model; backup credentials and restore commands are never rendered.",
             "ประวัติสำรองและการคืนค่าที่ได้รับอนุมัติจากโมเดลอ่านของเซิร์ฟเวอร์; ข้อมูลประจำตัวสำรองและคำสั่งการคืนค่าจะไม่มีการแสดงผล",
+        ),
+        PlatformOperationsRouteId::Providers => localized_copy(
+            "Authorized provider connectors from the Platform Administration projection; credentials, configuration digests, endpoints, and raw provider responses are excluded.",
+            "ตัวเชื่อมต่อผู้ให้บริการที่ได้รับอนุญาตจากโพรเจกชันการดูแลแพลตฟอร์ม โดยไม่แสดงข้อมูลประจำตัว ไดเจสต์การกำหนดค่า ปลายทาง และคำตอบดิบจากผู้ให้บริการ",
         ),
         PlatformOperationsRouteId::Integrations => localized_copy(
             "Authorized categorical integration health from the server-owned read model; endpoints, credentials, and provider payloads are never rendered.",
@@ -24179,6 +24301,7 @@ fn platform_operations_area_for_route(route: PlatformOperationsRouteId) -> Platf
         | PlatformOperationsRouteId::TenantWorkspace => PlatformOperationsArea::Tenants,
         PlatformOperationsRouteId::Projections => PlatformOperationsArea::Projections,
         PlatformOperationsRouteId::Backups => PlatformOperationsArea::Backups,
+        PlatformOperationsRouteId::Providers => PlatformOperationsArea::Providers,
         PlatformOperationsRouteId::Integrations => PlatformOperationsArea::Integrations,
         PlatformOperationsRouteId::Audit => PlatformOperationsArea::Audit,
         PlatformOperationsRouteId::Settings => PlatformOperationsArea::Settings,
@@ -27166,6 +27289,79 @@ fn ConsoleApp(initial_path: String) -> Element {
         }
     });
 
+    let mut platform_providers = use_resource(move || {
+        let should_fetch = matches!(
+            platform_operations_route.read().as_ref(),
+            Some(PlatformOperationsRoute::Providers)
+        );
+        let (access_token, principal_ref, session_id) = {
+            let controller = auth.read();
+            (
+                controller
+                    .request_credential()
+                    .map(|token| token.as_str().to_owned()),
+                controller
+                    .metadata()
+                    .and_then(|metadata| metadata.principal_label.clone()),
+                controller
+                    .session_id()
+                    .map(|session| session.as_str().to_owned()),
+            )
+        };
+        async move {
+            if !should_fetch {
+                return Ok(None);
+            }
+            match (access_token, principal_ref, session_id) {
+                (Some(access_token), Some(principal_ref), Some(session_id)) => {
+                    fetch_platform_providers(access_token, principal_ref, session_id)
+                        .await
+                        .map(Some)
+                }
+                _ => Err("authentication_required".to_string()),
+            }
+        }
+    });
+
+    let mut platform_provider_detail = use_resource(move || {
+        let connector_id =
+            platform_operations_route
+                .read()
+                .as_ref()
+                .and_then(|route| match route {
+                    PlatformOperationsRoute::Provider { connector_id } => {
+                        Some(connector_id.as_str().to_owned())
+                    }
+                    _ => None,
+                });
+        let (access_token, principal_ref, session_id) = {
+            let controller = auth.read();
+            (
+                controller
+                    .request_credential()
+                    .map(|token| token.as_str().to_owned()),
+                controller
+                    .metadata()
+                    .and_then(|metadata| metadata.principal_label.clone()),
+                controller
+                    .session_id()
+                    .map(|session| session.as_str().to_owned()),
+            )
+        };
+        async move {
+            let Some(connector_id) = connector_id else {
+                return Ok(None);
+            };
+            match (access_token, principal_ref, session_id) {
+                (Some(access_token), Some(principal_ref), Some(session_id)) => {
+                    fetch_platform_provider(connector_id, access_token, principal_ref, session_id)
+                        .await
+                }
+                _ => Err("authentication_required".to_string()),
+            }
+        }
+    });
+
     let platform_audit = use_resource(move || {
         let should_fetch = matches!(
             platform_operations_route.read().as_ref(),
@@ -30039,6 +30235,31 @@ fn ConsoleApp(initial_path: String) -> Element {
         &platform_operations_route_snapshot,
         Some(PlatformOperationsRoute::Backups)
     ) && platform_backup_jobs_snapshot.is_none();
+    let platform_providers_snapshot = platform_providers.read().clone();
+    let platform_providers_result = platform_providers_snapshot
+        .as_ref()
+        .and_then(|result| result.clone().ok().flatten());
+    let platform_providers_error = platform_providers_snapshot
+        .as_ref()
+        .and_then(|result| result.as_ref().err().cloned());
+    let platform_providers_loading = matches!(
+        &platform_operations_route_snapshot,
+        Some(PlatformOperationsRoute::Providers)
+    ) && platform_providers_snapshot.is_none();
+    let platform_provider_detail_snapshot = platform_provider_detail.read().clone();
+    let platform_provider_detail_result = platform_provider_detail_snapshot
+        .as_ref()
+        .and_then(|result| result.clone().ok().flatten());
+    let platform_provider_detail_error = platform_provider_detail_snapshot
+        .as_ref()
+        .and_then(|result| result.as_ref().err().cloned());
+    let platform_provider_detail_loading = matches!(
+        &platform_operations_route_snapshot,
+        Some(PlatformOperationsRoute::Provider { .. })
+    ) && platform_provider_detail_snapshot.is_none();
+    let platform_provider_detail_loaded = platform_provider_detail_snapshot
+        .as_ref()
+        .is_some_and(Result::is_ok);
     let platform_audit_snapshot = platform_audit.read().clone();
     let platform_audit_result = platform_audit_snapshot
         .as_ref()
@@ -30690,6 +30911,16 @@ fn ConsoleApp(initial_path: String) -> Element {
                             && platform_backup_jobs_error.is_none()
                             && platform_backup_jobs_result.is_some()
                     }
+                    PlatformOperationsRoute::Providers => {
+                        !platform_providers_loading
+                            && platform_providers_error.is_none()
+                            && platform_providers_result.is_some()
+                    }
+                    PlatformOperationsRoute::Provider { .. } => {
+                        !platform_provider_detail_loading
+                            && platform_provider_detail_error.is_none()
+                            && platform_provider_detail_loaded
+                    }
                     PlatformOperationsRoute::Audit => {
                         !platform_audit_loading
                             && platform_audit_error.is_none()
@@ -30980,7 +31211,10 @@ fn ConsoleApp(initial_path: String) -> Element {
                 active_route: route.clone(),
                 on_navigate: move |next| {
                     if platform_operations_route_allowed(&next) {
+                        let path = next.path();
                         platform_operations_route.set(Some(next));
+                        let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
+                        let _ = eval.send(path);
                     }
                 },
             }
@@ -30988,13 +31222,20 @@ fn ConsoleApp(initial_path: String) -> Element {
                 route: route.clone(),
                 on_navigate: move |next| {
                     if platform_operations_route_allowed(&next) {
+                        let path = next.path();
                         platform_operations_route.set(Some(next));
+                        let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
+                        let _ = eval.send(path);
                     }
                 },
                 on_tenants_retry: move |_| platform_tenants.restart(),
                 on_tenant_retry: move |_| platform_tenant_detail.restart(),
                 on_tenant_session_refresh: on_refresh,
                 on_projection_statuses_retry: move |_| platform_projection_statuses.restart(),
+                on_providers_retry: move |_| {
+                    platform_providers.restart();
+                    platform_provider_detail.restart();
+                },
                 on_integrations_retry: move |_| platform_integrations.restart(),
                 on_tenant_infrastructure_changed: move |_| {
                     tenant_infrastructure.restart();
@@ -31018,6 +31259,13 @@ fn ConsoleApp(initial_path: String) -> Element {
                 backup_jobs: platform_backup_jobs_result,
                 backup_jobs_loading: platform_backup_jobs_loading,
                 backup_jobs_error: platform_backup_jobs_error,
+                providers: platform_providers_result,
+                provider: platform_provider_detail_result,
+                provider_detail_loaded: platform_provider_detail_loaded,
+                providers_loading: platform_providers_loading,
+                providers_error: platform_providers_error,
+                provider_loading: platform_provider_detail_loading,
+                provider_error: platform_provider_detail_error,
                 audit_entries: platform_audit_result,
                 audit_loading: platform_audit_loading,
                 audit_error: platform_audit_error,
@@ -41138,7 +41386,7 @@ fn PlatformOperationsNavigationItem(
 ) -> Element {
     let locale = use_locale().current();
     let target = platform_operations_route_for_id(definition.id, None);
-    let is_active = target.as_ref().is_some_and(|route| *route == active_route);
+    let is_active = active_route.id() == definition.id;
     let is_disabled = target.is_none();
     let title = if is_disabled {
         "An authorized opaque tenant identifier is required to open this route."
@@ -41171,6 +41419,7 @@ fn PlatformOperationsSurface(
     on_tenant_retry: EventHandler<MouseEvent>,
     on_tenant_session_refresh: EventHandler<()>,
     on_projection_statuses_retry: EventHandler<MouseEvent>,
+    on_providers_retry: EventHandler<MouseEvent>,
     on_integrations_retry: EventHandler<MouseEvent>,
     on_tenant_infrastructure_changed: EventHandler<()>,
     evidence_model: Option<PlatformOperationsModel>,
@@ -41190,6 +41439,13 @@ fn PlatformOperationsSurface(
     backup_jobs: Option<Vec<PlatformBackupJobRecord>>,
     backup_jobs_loading: bool,
     backup_jobs_error: Option<String>,
+    providers: Option<Vec<erpx_console_feature_platform_administration::ConnectorItem>>,
+    provider: Option<erpx_console_feature_platform_administration::ConnectorItem>,
+    provider_detail_loaded: bool,
+    providers_loading: bool,
+    providers_error: Option<String>,
+    provider_loading: bool,
+    provider_error: Option<String>,
     audit_entries: Option<Vec<PlatformAuditRecord>>,
     audit_loading: bool,
     audit_error: Option<String>,
@@ -41258,6 +41514,12 @@ fn PlatformOperationsSurface(
         PlatformOperationsRoute::Backups => {
             !backup_jobs_loading && backup_jobs_error.is_none() && backup_jobs.is_some()
         }
+        PlatformOperationsRoute::Providers => {
+            !providers_loading && providers_error.is_none() && providers.is_some()
+        }
+        PlatformOperationsRoute::Provider { .. } => {
+            !provider_loading && provider_error.is_none() && provider_detail_loaded
+        }
         PlatformOperationsRoute::Audit => {
             !audit_loading && audit_error.is_none() && audit_entries.is_some()
         }
@@ -41283,6 +41545,8 @@ fn PlatformOperationsSurface(
             projection_statuses_error.as_deref(),
         ),
         PlatformOperationsRoute::Backups => (backup_jobs_loading, backup_jobs_error.as_deref()),
+        PlatformOperationsRoute::Providers => (providers_loading, providers_error.as_deref()),
+        PlatformOperationsRoute::Provider { .. } => (provider_loading, provider_error.as_deref()),
         PlatformOperationsRoute::Audit => (audit_loading, audit_error.as_deref()),
         PlatformOperationsRoute::Integrations => {
             (integrations_loading, integrations_error.as_deref())
@@ -41437,6 +41701,26 @@ fn PlatformOperationsSurface(
                     jobs: backup_jobs,
                     loading: backup_jobs_loading,
                     error: backup_jobs_error,
+                }
+            }
+            if matches!(&route, PlatformOperationsRoute::Providers) {
+                PlatformProviderList {
+                    providers,
+                    loading: providers_loading,
+                    error: providers_error,
+                    on_navigate,
+                    on_retry: on_providers_retry,
+                }
+            }
+            if let PlatformOperationsRoute::Provider { connector_id } = &route {
+                PlatformProviderDetail {
+                    connector_id: connector_id.as_str().to_owned(),
+                    provider,
+                    loaded: provider_detail_loaded,
+                    loading: provider_loading,
+                    error: provider_error,
+                    on_navigate,
+                    on_retry: on_providers_retry,
                 }
             }
             if matches!(&route, PlatformOperationsRoute::Audit) {
@@ -41743,6 +42027,146 @@ fn PlatformAuditList(
             }
             div { class: "audit-banner", {localized_copy("Payload JSON and customer identifiers are excluded. Reads are themselves recorded by the authoritative server and surfaced to customer security administrators through the existing Customer Access Audit route.", "ข้อมูล JSON ของโหลดและตัวระบุลูกค้าถูกลบ. การอ่านจะถูกบันทึกโดยเซิร์ฟเวอร์ที่มีอำนาจและแสดงให้ผู้ดูแลความปลอดภัยลูกค้าผ่านเส้นทาง Customer Access Audit อยู่แล้ว")} }
         }
+    }
+}
+
+#[component]
+fn PlatformProviderList(
+    providers: Option<Vec<erpx_console_feature_platform_administration::ConnectorItem>>,
+    loading: bool,
+    error: Option<String>,
+    on_navigate: EventHandler<PlatformOperationsRoute>,
+    on_retry: EventHandler<MouseEvent>,
+) -> Element {
+    if loading {
+        return rsx! {
+            StatePanel {
+                state: UiStateKind::Loading,
+                title: localized_copy("Loading providers", "กำลังโหลดผู้ให้บริการ").to_owned(),
+                message: localized_copy("Reading the authorized provider connector projection.", "กำลังอ่านโพรเจกชันตัวเชื่อมต่อผู้ให้บริการที่ได้รับอนุญาต").to_owned(),
+                action_label: None,
+                on_action: None,
+            }
+        };
+    }
+    if error.is_some() {
+        return rsx! {
+            StatePanel {
+                state: UiStateKind::Error,
+                title: localized_copy("Providers unavailable", "ผู้ให้บริการไม่พร้อมใช้งาน").to_owned(),
+                message: localized_copy("The authorized provider read could not be completed. No connector details were inferred.", "ไม่สามารถอ่านข้อมูลผู้ให้บริการที่ได้รับอนุญาตได้ ระบบไม่ได้คาดเดารายละเอียดตัวเชื่อมต่อ").to_owned(),
+                action_label: Some(localized_copy("Retry", "ลองอีกครั้ง").to_owned()),
+                on_action: Some(on_retry),
+            }
+        };
+    }
+    let providers = providers.unwrap_or_default();
+    if providers.is_empty() {
+        return rsx! {
+            StatePanel {
+                state: UiStateKind::Empty,
+                title: localized_copy("No providers registered", "ยังไม่มีผู้ให้บริการที่ลงทะเบียน").to_owned(),
+                message: localized_copy("The authoritative provider projection returned no connector records.", "โพรเจกชันผู้ให้บริการที่เป็นแหล่งข้อมูลหลักไม่พบระเบียนตัวเชื่อมต่อ").to_owned(),
+                action_label: Some(localized_copy("Refresh", "รีเฟรช").to_owned()),
+                on_action: Some(on_retry),
+            }
+        };
+    }
+    rsx! {
+        section { class: "detail-section platform-provider-list", aria_label: localized_copy("Provider connectors", "ตัวเชื่อมต่อผู้ให้บริการ"),
+            div { class: "projection-meta", {localized_copy("Server-authorized provider projection · configuration digests and credentials are excluded", "โพรเจกชันผู้ให้บริการที่เซิร์ฟเวอร์อนุญาต · ไม่รวมไดเจสต์การกำหนดค่าและข้อมูลประจำตัว")} }
+            KitTable { class: "read-model-table",
+                thead { tr {
+                    th { {localized_copy("Provider", "ผู้ให้บริการ")} }
+                    th { {localized_copy("Kind", "ประเภท")} }
+                    th { {localized_copy("State", "สถานะ")} }
+                    th { {localized_copy("Capabilities", "ความสามารถ")} }
+                    th { {localized_copy("Version", "เวอร์ชัน")} }
+                }}
+                tbody {
+                    for item in providers {
+                        {
+                            let connector_id = item.id.clone();
+                            let capabilities = item.capabilities.join(", ");
+                            rsx! { tr {
+                                td { KitButton {
+                                    variant: ButtonVariant::Ghost,
+                                    size: ButtonSize::Default,
+                                    r#type: "button",
+                                    onclick: move |_| {
+                                        if let Ok(connector_id) = PlatformTenantId::new(connector_id.clone()) {
+                                            on_navigate.call(PlatformOperationsRoute::Provider { connector_id });
+                                        }
+                                    },
+                                    "{item.key}"
+                                }}
+                                td { "{display_status(&item.kind)}" }
+                                td { StatusBadge { label: display_status(&item.state), tone: platform_provider_status_tone(&item.state) } }
+                                td { "{capabilities}" }
+                                td { "{item.version}" }
+                            }}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn PlatformProviderDetail(
+    connector_id: String,
+    provider: Option<erpx_console_feature_platform_administration::ConnectorItem>,
+    loaded: bool,
+    loading: bool,
+    error: Option<String>,
+    on_navigate: EventHandler<PlatformOperationsRoute>,
+    on_retry: EventHandler<MouseEvent>,
+) -> Element {
+    if loading {
+        return rsx! {
+            StatePanel { state: UiStateKind::Loading, title: localized_copy("Loading provider", "กำลังโหลดผู้ให้บริการ").to_owned(), message: localized_copy("Reading the authorized provider connector detail.", "กำลังอ่านรายละเอียดตัวเชื่อมต่อผู้ให้บริการที่ได้รับอนุญาต").to_owned(), action_label: None, on_action: None }
+        };
+    }
+    if error.is_some() {
+        return rsx! {
+            StatePanel { state: UiStateKind::Error, title: localized_copy("Provider unavailable", "ผู้ให้บริการไม่พร้อมใช้งาน").to_owned(), message: localized_copy("The provider detail read failed without exposing backend or credential data.", "การอ่านรายละเอียดผู้ให้บริการล้มเหลวโดยไม่เปิดเผยข้อมูล backend หรือข้อมูลประจำตัว").to_owned(), action_label: Some(localized_copy("Retry", "ลองอีกครั้ง").to_owned()), on_action: Some(on_retry) }
+        };
+    }
+    let Some(provider) = provider else {
+        return rsx! {
+            StatePanel { state: if loaded { UiStateKind::Empty } else { UiStateKind::Loading }, title: localized_copy("Provider not found", "ไม่พบผู้ให้บริการ").to_owned(), message: localized_copy("No authorized provider connector matches this identifier.", "ไม่มีตัวเชื่อมต่อผู้ให้บริการที่ได้รับอนุญาตตรงกับตัวระบุนี้").to_owned(), action_label: None, on_action: None }
+        };
+    };
+    if provider.id != connector_id {
+        return rsx! {
+            StatePanel { state: UiStateKind::Error, title: localized_copy("Provider scope mismatch", "ขอบเขตผู้ให้บริการไม่ตรงกัน").to_owned(), message: localized_copy("The returned provider record did not match the requested route and was not rendered.", "ระเบียนผู้ให้บริการที่ส่งกลับมาไม่ตรงกับเส้นทางที่ขอ จึงไม่ถูกแสดงผล").to_owned(), action_label: None, on_action: None }
+        };
+    }
+    let capabilities = provider.capabilities.join(", ");
+    rsx! {
+        section { class: "detail-section platform-provider-detail", aria_label: localized_copy("Provider connector detail", "รายละเอียดตัวเชื่อมต่อผู้ให้บริการ"),
+            div { class: "surface-header",
+                div { div { class: "eyebrow", {localized_copy("PROVIDER CONNECTOR", "ตัวเชื่อมต่อผู้ให้บริการ")} } h3 { "{provider.key}" } p { "{provider.id}" } }
+                KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, r#type: "button", onclick: move |_| on_navigate.call(PlatformOperationsRoute::Providers), {localized_copy("Back to providers", "กลับไปยังผู้ให้บริการ")} }
+            }
+            dl { class: "detail-grid",
+                dt { {localized_copy("Kind", "ประเภท")} } dd { "{display_status(&provider.kind)}" }
+                dt { {localized_copy("State", "สถานะ")} } dd { StatusBadge { label: display_status(&provider.state), tone: platform_provider_status_tone(&provider.state) } }
+                dt { {localized_copy("Capabilities", "ความสามารถ")} } dd { "{capabilities}" }
+                dt { {localized_copy("Aggregate version", "เวอร์ชัน aggregate")} } dd { "{provider.version}" }
+            }
+            div { class: "audit-banner", {localized_copy("Credential material, endpoints, configuration digests, and raw provider responses are intentionally excluded.", "ข้อมูลประจำตัว ปลายทาง ไดเจสต์การกำหนดค่า และคำตอบดิบจากผู้ให้บริการถูกตัดออกโดยตั้งใจ")} }
+        }
+    }
+}
+
+fn platform_provider_status_tone(state: &str) -> StatusTone {
+    match state {
+        "active" => StatusTone::Success,
+        "pending" => StatusTone::Warning,
+        "suspended" => StatusTone::Danger,
+        _ => StatusTone::Neutral,
     }
 }
 
@@ -47680,6 +48104,8 @@ mod tests {
             "/platform/billing",
             "/platform/tenants",
             "/platform/projections",
+            "/platform/provider",
+            "/platform/provider/00000000-0000-0000-0000-000000000001",
             "/tenant/identity-access",
             "/tenant/infrastructure",
             "/platform/incidents",
@@ -47880,6 +48306,8 @@ mod tests {
             "/platform/tenants/demo-tenant/workspace/finance",
             "/platform/projections",
             "/platform/backups",
+            "/platform/provider",
+            "/platform/provider/00000000-0000-0000-0000-000000000001",
             "/platform/integrations",
             "/platform/audit",
             "/platform/settings",
@@ -48650,6 +49078,7 @@ mod tests {
             "/platform/tenants/:id/workspace/:module",
             "/platform/projections",
             "/platform/backups",
+            "/platform/provider",
             "/platform/integrations",
             "/platform/audit",
             "/platform/settings",

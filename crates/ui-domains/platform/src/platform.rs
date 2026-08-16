@@ -36,6 +36,8 @@ pub enum PlatformOperationsRouteId {
     Projections,
     /// Backup and restore history.
     Backups,
+    /// Provider connector registry and connector detail.
+    Providers,
     /// Integration health and configuration metadata.
     Integrations,
     /// Platform audit records.
@@ -116,6 +118,14 @@ pub const PLATFORM_OPERATIONS_ROUTES: &[PlatformOperationsRouteDefinition] = &[
         audience: PlatformOperationsAudience::Platform,
         auth: RouteAuthRequirement::Authenticated,
         icon: "⬡",
+    },
+    PlatformOperationsRouteDefinition {
+        id: PlatformOperationsRouteId::Providers,
+        template: "/platform/provider",
+        label: TranslationKey::PlatformProviders,
+        audience: PlatformOperationsAudience::Platform,
+        auth: RouteAuthRequirement::Authenticated,
+        icon: "⌁",
     },
     PlatformOperationsRouteDefinition {
         id: PlatformOperationsRouteId::Integrations,
@@ -516,6 +526,10 @@ pub enum PlatformOperationsRoute {
     Projections,
     /// Backup and restore history.
     Backups,
+    /// Provider connector registry.
+    Providers,
+    /// One provider connector identified by an opaque, validated segment.
+    Provider { connector_id: PlatformTenantId },
     /// Integration health and configuration metadata.
     Integrations,
     /// Platform audit records.
@@ -539,6 +553,7 @@ impl PlatformOperationsRoute {
             Self::TenantWorkspace { .. } => PlatformOperationsRouteId::TenantWorkspace,
             Self::Projections => PlatformOperationsRouteId::Projections,
             Self::Backups => PlatformOperationsRouteId::Backups,
+            Self::Providers | Self::Provider { .. } => PlatformOperationsRouteId::Providers,
             Self::Integrations => PlatformOperationsRouteId::Integrations,
             Self::Audit => PlatformOperationsRouteId::Audit,
             Self::Settings | Self::CorporateIdentity | Self::AccessSimulation => {
@@ -562,6 +577,10 @@ impl PlatformOperationsRoute {
             ),
             Self::Projections => "/platform/projections".to_string(),
             Self::Backups => "/platform/backups".to_string(),
+            Self::Providers => "/platform/provider".to_string(),
+            Self::Provider { connector_id } => {
+                format!("/platform/provider/{}", connector_id.as_str())
+            }
             Self::Integrations => "/platform/integrations".to_string(),
             Self::Audit => "/platform/audit".to_string(),
             Self::Settings => "/platform/settings".to_string(),
@@ -619,6 +638,10 @@ impl PlatformOperationsRouteRegistry {
             }
             ["platform", "projections"] => Ok(PlatformOperationsRoute::Projections),
             ["platform", "backups"] => Ok(PlatformOperationsRoute::Backups),
+            ["platform", "provider"] => Ok(PlatformOperationsRoute::Providers),
+            ["platform", "provider", connector_id] => PlatformTenantId::new(*connector_id)
+                .map(|connector_id| PlatformOperationsRoute::Provider { connector_id })
+                .map_err(|_| PlatformOperationsRouteError::new(normalized)),
             ["platform", "integrations"] => Ok(PlatformOperationsRoute::Integrations),
             ["platform", "audit"] => Ok(PlatformOperationsRoute::Audit),
             ["platform", "settings"] => Ok(PlatformOperationsRoute::Settings),
@@ -728,6 +751,7 @@ mod tests {
                 "/platform/projections",
             ),
             (PlatformOperationsRouteId::Backups, "/platform/backups"),
+            (PlatformOperationsRouteId::Providers, "/platform/provider"),
             (
                 PlatformOperationsRouteId::Integrations,
                 "/platform/integrations",
@@ -770,6 +794,14 @@ mod tests {
             Ok(PlatformOperationsRoute::Projections)
         ));
         assert!(matches!(
+            registry.resolve("/platform/provider"),
+            Ok(PlatformOperationsRoute::Providers)
+        ));
+        assert!(matches!(
+            registry.resolve("/platform/provider/connector_123"),
+            Ok(PlatformOperationsRoute::Provider { .. })
+        ));
+        assert!(matches!(
             registry.resolve("/platform/tenants/tenant_123/workspace/finance"),
             Ok(PlatformOperationsRoute::TenantWorkspace {
                 module: TenantWorkspaceModule::Finance,
@@ -795,6 +827,7 @@ mod tests {
             "/platform/tenants/tenant_123/workspace/finance/extra",
             "/platform/projections-extra",
             "/platform/backups-old",
+            "/platform/provider/connector_123/extra",
             "/platform/settings/child",
             "/platform/settings/access-simulation/child",
             "/platform/role-review/child",

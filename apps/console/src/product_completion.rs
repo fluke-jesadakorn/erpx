@@ -1016,6 +1016,8 @@ pub enum PlatformOperationsArea {
     Projections,
     /// Backup history metadata.
     Backups,
+    /// Provider connector registry.
+    Providers,
     /// Categorical integration health.
     Integrations,
     /// Customer-visible platform audit.
@@ -1031,6 +1033,7 @@ pub const PLATFORM_OPERATIONS_AREAS: &[PlatformOperationsArea] = &[
     PlatformOperationsArea::Tenants,
     PlatformOperationsArea::Projections,
     PlatformOperationsArea::Backups,
+    PlatformOperationsArea::Providers,
     PlatformOperationsArea::Integrations,
     PlatformOperationsArea::Audit,
     PlatformOperationsArea::Settings,
@@ -1049,6 +1052,7 @@ impl PlatformOperationsArea {
             Self::Tenants => "Tenants",
             Self::Projections => "Projections",
             Self::Backups => "Backups",
+            Self::Providers => "Providers",
             Self::Integrations => "Integrations",
             Self::Audit => "Audit",
             Self::Settings => "Settings",
@@ -1062,6 +1066,7 @@ impl PlatformOperationsArea {
             (Self::Tenants, Locale::Th) => "ผู้เช่า",
             (Self::Projections, Locale::Th) => "โพรเจกชัน",
             (Self::Backups, Locale::Th) => "ข้อมูลสำรอง",
+            (Self::Providers, Locale::Th) => "ผู้ให้บริการ",
             (Self::Integrations, Locale::Th) => "การเชื่อมต่อระบบ",
             (Self::Audit, Locale::Th) => "การตรวจสอบ",
             (Self::Settings, Locale::Th) => "การตั้งค่า",
@@ -1076,6 +1081,7 @@ impl PlatformOperationsArea {
             Self::Tenants => "/platform/tenants",
             Self::Projections => "/platform/projections",
             Self::Backups => "/platform/backups",
+            Self::Providers => "/platform/provider",
             Self::Integrations => "/platform/integrations",
             Self::Audit => "/platform/audit",
             Self::Settings => "/platform/settings",
@@ -1097,6 +1103,8 @@ pub enum PlatformOperationsAdapter {
     ListProjectionStatuses,
     /// `PlatformOperationsService::ListTenantBackupJobs`.
     ListTenantBackupJobs,
+    /// `PlatformAdministrationQueryService::ListConnectors`.
+    ListPlatformConnectors,
     /// `PlatformOperationsService::ListPlatformIntegrations`.
     ListPlatformIntegrations,
     /// `PlatformOperationsService::ListPlatformAudit`.
@@ -1114,6 +1122,7 @@ impl PlatformOperationsAdapter {
             Self::ListPlatformTenants => "platform.list_tenants",
             Self::ListProjectionStatuses => "platform.list_projection_statuses",
             Self::ListTenantBackupJobs => "platform.list_tenant_backup_jobs",
+            Self::ListPlatformConnectors => "platform.list_connectors",
             Self::ListPlatformIntegrations => "platform.list_integrations",
             Self::ListPlatformAudit => "platform.list_audit",
             Self::GetPlatformSettings => "platform.get_settings",
@@ -1127,6 +1136,7 @@ impl PlatformOperationsAdapter {
             PlatformOperationsArea::Tenants => Self::ListPlatformTenants,
             PlatformOperationsArea::Projections => Self::ListProjectionStatuses,
             PlatformOperationsArea::Backups => Self::ListTenantBackupJobs,
+            PlatformOperationsArea::Providers => Self::ListPlatformConnectors,
             PlatformOperationsArea::Integrations => Self::ListPlatformIntegrations,
             PlatformOperationsArea::Audit => Self::ListPlatformAudit,
             PlatformOperationsArea::Settings => Self::GetPlatformSettings,

@@ -2968,6 +2968,14 @@ async fn navigation_manifest_groups(
                     permissions: vec!["platform.tenant.read".into()],
                 },
                 Candidate {
+                    route_id: "providers",
+                    label: "Providers",
+                    label_key: "nav.route.providers",
+                    path: "/platform/provider",
+                    icon: "integrations",
+                    permissions: vec!["platform.provider.read".into()],
+                },
+                Candidate {
                     route_id: "audit",
                     label: "Audit",
                     label_key: "nav.route.audit",
@@ -3337,6 +3345,7 @@ fn navigation_action_capabilities(route_id: &str) -> &'static [&'static str] {
             "GetClusterRestoreRehearsal",
         ],
         "integrations" => &["ListPlatformIntegrations"],
+        "providers" => &["ListConnectors", "GetConnector"],
         "audit" => &["ListPlatformAudit", "ReplayDeadLetterOutbox"],
         "role_review" => &[
             "ListExpiringRoles",
