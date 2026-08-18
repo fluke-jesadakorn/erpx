@@ -51,14 +51,14 @@ mod tests {
     }
 
     #[test]
-    fn learning_surface_is_adaptive_and_covers_e2e_38() {
+    fn learning_surface_covers_web_desktop_and_e2e_38() {
         use erpx_ui_enterprise_workspaces::{ChannelPolicy, ClientChannel};
         assert_eq!(WORKSPACE.record_families().len(), 4);
         assert_eq!(WORKSPACE.e2e_scenarios(), &["E2E-38"]);
-        assert_eq!(
-            WORKSPACE.channel_policy(),
-            ChannelPolicy::FourChannelAdaptive
-        );
-        assert!(WORKSPACE.channel_policy().supports(ClientChannel::Android));
+        assert_eq!(WORKSPACE.channel_policy(), ChannelPolicy::WebMacOs);
+        assert!(WORKSPACE.channel_policy().supports(ClientChannel::Web));
+        assert!(WORKSPACE.channel_policy().supports(ClientChannel::Desktop));
+        const { assert!(erpx_ui_enterprise_workspaces::ACCESSIBILITY.focus_heading_after_navigation) };
+        const { assert!(erpx_ui_enterprise_workspaces::ACCESSIBILITY.keyboard_reachable_actions) };
     }
 }

@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "inspected_revision": "47b0f55bc06caff701d9a0581c2f902ce31749c0",
+  "inspected_on": "2026-08-17",
+  "release_status": {
+    "macos_native": "blocked",
+    "web": "unaffected_by_this_blocker"
+  },
+  "dependency_chain": {
+    "dioxus": "0.8.0-alpha.1",
+    "dioxus_native": "0.8.0-alpha.1",
+    "blitz_shell": "0.3.0-beta.1",
+    "blitz_dom": "0.3.0-beta.1",
+    "accesskit": "0.24.1",
+    "accesskit_xplat": "0.1.1"
+  },
+  "source_evidence": [
+    {
+      "crate_path": "blitz-shell-0.3.0-beta.1/src/application.rs",
+      "sha256": "7d45266958af1521e925287524e4cf41d0cb7d9e22c701244f8ec3a3cd053771",
+      "finding": "ActionRequested is matched but discarded by an empty TODO arm"
+    },
+    {
+      "crate_path": "blitz-dom-0.3.0-beta.1/src/accessibility.rs",
+      "sha256": "a3ffd1408195ecc1fe87f78f92c732920440610e40f90ab1dd29a9e5f803b9eb",
+      "finding": "tree builder omits actions, rich roles, editable metadata, and selected/expanded/disabled states"
+    }
+  ],
+  "acceptance_matrix": {
+    "button_action": "blocked",
+    "focus_action": "blocked",
+    "edit_action": "blocked",
+    "dialog_focus_restoration": "blocked",
+    "selected_expanded_disabled_states": "blocked",
+    "thai_labels": "blocked_pending_tree_mapping_and_voiceover_smoke"
+  },
+  "patch": {
+    "applied": false,
+    "reason": "Blitz is not vendored in ERPX, manifest and lockfile are outside this audit's ownership, and complete action plus semantic-state support is not a bounded one-arm fix"
+  },
+  "exit_criteria": [
+    "ActionRequested dispatch has injection-level regression tests",
+    "AccessKit tree exposes all states and editable metadata in the acceptance matrix",
+    "dialog focus restoration passes automated coverage",
+    "manual VoiceOver smoke passes on the release bundle including exact Thai labels",
+    "no WebView overlay or fallback is introduced"
+  ]
+}

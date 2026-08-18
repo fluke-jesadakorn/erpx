@@ -10,6 +10,15 @@ type TaskResult<T = ()> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
 const REPORT_SCHEMA_VERSION: u32 = 2;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ArtifactReadiness {
+    pub public: PathBuf,
+    pub stylesheets: Vec<PathBuf>,
+    pub javascript: Vec<PathBuf>,
+    pub wasm: PathBuf,
+    pub wasm_files: Vec<PathBuf>,
+}
+
 #[allow(dead_code)] // Each xtask binary uses a different subset of profiles.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum WasmProfile {
@@ -56,6 +65,96 @@ pub(crate) fn public_directory(root: &Path, profile: WasmProfile) -> PathBuf {
         .join("web/public")
 }
 
+/// Validate the generated Dioxus Web bundle before a running `dx serve`
+/// process is treated as healthy. The directory is generated output, so it
+/// must remain entirely below `target/dx` and contain a complete monolithic
+/// hydration bundle.
+pub(crate) fn artifact_readiness(
+    root: &Path,
+    profile: WasmProfile,
+) -> TaskResult<ArtifactReadiness> {
+    let dx_root = root.join("target/dx");
+    let public = public_directory(root, profile);
+    if !public.starts_with(&dx_root) {
+        return Err(format!("Dioxus public path escaped target/dx: {}", public.display()).into());
+    }
+    if !public.is_dir() {
+        return Err(format!(
+            "Dioxus {} Web public directory is missing: {}",
+            profile.label(),
+            public.display()
+        )
+        .into());
+    }
+    reject_symlink_components(&dx_root, &public)?;
+
+    let canonical_dx = dx_root.canonicalize()?;
+    let canonical_public = public.canonicalize()?;
+    if !canonical_public.starts_with(&canonical_dx) {
+        return Err(format!(
+            "Dioxus {} Web public directory resolved outside target/dx: {}",
+            profile.label(),
+            canonical_public.display()
+        )
+        .into());
+    }
+
+    let mut files = Vec::new();
+    collect_files(&public, &mut files, &|_| true)?;
+    let wasm = validate_monolithic_layout(&files)?;
+    let stylesheets = files
+        .iter()
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("css"))
+        .cloned()
+        .collect::<Vec<_>>();
+    let javascript = files
+        .iter()
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("js"))
+        .cloned()
+        .collect::<Vec<_>>();
+    if stylesheets.is_empty() {
+        return Err("Dioxus Web artifact contains no CSS files".into());
+    }
+    if javascript.is_empty() {
+        return Err("Dioxus Web artifact contains no JavaScript files".into());
+    }
+    let wasm_files = files
+        .iter()
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("wasm"))
+        .cloned()
+        .collect::<Vec<_>>();
+    for path in stylesheets.iter().chain(&javascript).chain(&wasm_files) {
+        if fs::metadata(path)?.len() == 0 {
+            return Err(format!("Dioxus Web artifact is empty: {}", path.display()).into());
+        }
+    }
+
+    Ok(ArtifactReadiness {
+        public,
+        stylesheets,
+        javascript,
+        wasm,
+        wasm_files,
+    })
+}
+
+fn reject_symlink_components(dx_root: &Path, public: &Path) -> TaskResult {
+    let mut current = dx_root.to_path_buf();
+    if fs::symlink_metadata(&current)?.file_type().is_symlink() {
+        return Err(format!("refusing Dioxus artifact symlink: {}", current.display()).into());
+    }
+    let relative = public
+        .strip_prefix(dx_root)
+        .map_err(|_| "Dioxus public path escaped target/dx")?;
+    for component in relative.components() {
+        current.push(component.as_os_str());
+        if fs::symlink_metadata(&current)?.file_type().is_symlink() {
+            return Err(format!("refusing Dioxus artifact symlink: {}", current.display()).into());
+        }
+    }
+    Ok(())
+}
+
 #[allow(dead_code)] // Called by xtask-heavy; the lightweight binary shares this module.
 pub(crate) fn reconcile_release_generated_assets(root: &Path) -> TaskResult {
     let public = public_directory(root, WasmProfile::Release);
@@ -100,9 +199,10 @@ pub(crate) fn compress_and_measure(
         .into());
     }
 
+    let readiness = artifact_readiness(root, profile)?;
     let mut artifact_files = Vec::new();
     collect_files(&public, &mut artifact_files, &|_| true)?;
-    let wasm = validate_monolithic_layout(&artifact_files)?;
+    let wasm = readiness.wasm;
 
     let compressible = artifact_files
         .iter()
@@ -147,7 +247,10 @@ fn validate_monolithic_layout(files: &[PathBuf]) -> TaskResult<PathBuf> {
 
     let wasm_files = files
         .iter()
-        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("wasm"))
+        .filter(|path| {
+            path.extension().and_then(|value| value.to_str()) == Some("wasm")
+                && !is_hot_patch_artifact(path)
+        })
         .collect::<Vec<_>>();
     match wasm_files.as_slice() {
         [wasm] => Ok((*wasm).clone()),
@@ -158,6 +261,14 @@ fn validate_monolithic_layout(files: &[PathBuf]) -> TaskResult<PathBuf> {
         )
         .into()),
     }
+}
+
+fn is_hot_patch_artifact(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|value| value.to_str())
+        .is_some_and(|name| {
+            name.starts_with("lib") && name.contains("-patch-") && name.ends_with(".wasm")
+        })
 }
 
 fn is_split_artifact(path: &Path) -> bool {
@@ -300,6 +411,7 @@ mod tests {
         let files = vec![
             PathBuf::from("public/assets/erpx-console.js"),
             PathBuf::from("public/assets/erpx-console_bg.wasm"),
+            PathBuf::from("public/wasm/liberpx-console-patch-123.wasm"),
         ];
         assert_eq!(
             validate_monolithic_layout(&files).expect("single WASM layout"),
@@ -348,6 +460,11 @@ mod tests {
             b"export const ready = true;",
         )
         .expect("write fixture JS");
+        fs::write(
+            public.join("assets/erpx-console.css"),
+            b"body { color: black; }",
+        )
+        .expect("write fixture CSS");
         fs::write(public.join("assets/erpx-console_bg.wasm"), b"wasm-fixture")
             .expect("write fixture WASM");
 
@@ -358,5 +475,47 @@ mod tests {
         assert!(latest_report(&root, WasmProfile::Dev).unwrap().is_some());
 
         fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn readiness_rejects_missing_and_partial_artifact_layouts() {
+        let root = fixture_root("partial");
+        let error = artifact_readiness(&root, WasmProfile::Dev)
+            .expect_err("missing public directory must fail")
+            .to_string();
+        assert!(error.contains("public directory is missing"));
+
+        let public = public_directory(&root, WasmProfile::Dev);
+        fs::create_dir_all(public.join("assets")).expect("create fixture assets");
+        fs::write(public.join("assets/erpx-console.js"), b"export {};").expect("write fixture JS");
+        fs::write(public.join("assets/erpx-console_bg.wasm"), b"wasm").expect("write fixture WASM");
+        let error = artifact_readiness(&root, WasmProfile::Dev)
+            .expect_err("missing CSS must fail")
+            .to_string();
+        assert!(error.contains("no CSS"));
+
+        fs::write(public.join("assets/erpx-console.css"), b"body {}").expect("write fixture CSS");
+        assert!(artifact_readiness(&root, WasmProfile::Dev).is_ok());
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn readiness_rejects_symlinked_artifact_layouts() {
+        use std::os::unix::fs::symlink;
+
+        let root = fixture_root("symlink");
+        let outside = fixture_root("outside");
+        fs::create_dir_all(&outside).expect("create outside directory");
+        let public = public_directory(&root, WasmProfile::Dev);
+        fs::create_dir_all(public.parent().expect("public parent"))
+            .expect("create generated parent");
+        symlink(&outside, &public).expect("symlink public directory");
+        let error = artifact_readiness(&root, WasmProfile::Dev)
+            .expect_err("symlinked public directory must fail")
+            .to_string();
+        assert!(error.contains("symlink"));
+        fs::remove_dir_all(root).expect("remove fixture");
+        fs::remove_dir_all(outside).expect("remove outside fixture");
     }
 }

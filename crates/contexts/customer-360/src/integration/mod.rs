@@ -34,7 +34,8 @@ impl Customer360SourceEvent {
                 sales::Event::SalesOrderChanged(fact) => {
                     Some(customer::Customer360SourceFact::Sales(fact))
                 }
-                sales::Event::RevenueArrangementActivated(_)
+                sales::Event::QuoteApprovalRequested(_)
+                | sales::Event::RevenueArrangementActivated(_)
                 | sales::Event::FulfillmentAccepted(_)
                 | sales::Event::BillingEligible(_) => None,
             },

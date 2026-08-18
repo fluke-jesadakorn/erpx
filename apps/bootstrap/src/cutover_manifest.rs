@@ -37,7 +37,6 @@ pub(crate) struct RuntimeCutoverManifest {
     tenant_write_database: String,
     tenant_read_database: String,
     object_namespace: String,
-    n8n_config_sha256: String,
     rollback: Value,
 }
 
@@ -45,15 +44,14 @@ impl RuntimeCutoverManifest {
     pub(crate) fn new(
         resources: &FreshResourcePlan,
         prepared_at: DateTime<Utc>,
-        n8n_config_sha256: String,
         rollback: &RollbackMetadata,
     ) -> Result<Self> {
         let rollback = serde_json::to_value(rollback)
             .map_err(|_| BootstrapError("rollback metadata could not be serialized"))?;
         Ok(Self {
-            version: 2,
+            version: 3,
             schema_generation: erpx_migration::SCHEMA_GENERATION,
-            service_catalog_generation: 2,
+            service_catalog_generation: 3,
             service_id_range: "IFC-SVC-101..165",
             state: "prepared",
             prepared_at,
@@ -66,7 +64,6 @@ impl RuntimeCutoverManifest {
             tenant_write_database: resources.databases[2].name.clone(),
             tenant_read_database: resources.databases[3].name.clone(),
             object_namespace: resources.storage_namespace.clone(),
-            n8n_config_sha256,
             rollback,
         })
     }
@@ -133,7 +130,7 @@ fn prepare_manifest_directory(workspace_root: &Path) -> Result<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::resource_guard::{N8nConfigFingerprint, OldResourceInventory};
+    use crate::resource_guard::OldResourceInventory;
 
     #[test]
     fn manifest_is_prepared_typed_and_contains_no_connection_secrets() {
@@ -150,17 +147,15 @@ mod tests {
                 "source-env".into(),
             )
             .expect("inventory"),
-            N8nConfigFingerprint::from_digest_for_test([7; 32]),
         )
         .expect("rollback");
         let manifest =
-            RuntimeCutoverManifest::new(&resources, Utc::now(), "07".repeat(32), &rollback)
-                .expect("manifest");
+            RuntimeCutoverManifest::new(&resources, Utc::now(), &rollback).expect("manifest");
         let encoded = serde_json::to_string(&manifest).expect("serialize");
         assert!(encoded.contains("\"state\":\"prepared\""));
-        assert!(encoded.contains("\"version\":2"));
+        assert!(encoded.contains("\"version\":3"));
         assert!(encoded.contains("\"schema_generation\":2"));
-        assert!(encoded.contains("\"service_catalog_generation\":2"));
+        assert!(encoded.contains("\"service_catalog_generation\":3"));
         assert!(encoded.contains("\"service_id_range\":\"IFC-SVC-101..165\""));
         assert!(!encoded.contains("v1_service_authority"));
         for forbidden in ["password", "access_key", "secret_key", "postgres://"] {

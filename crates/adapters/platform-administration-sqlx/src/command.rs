@@ -822,7 +822,6 @@ fn connector_kind_parts(kind: &ConnectorKind) -> (&'static str, Option<&str>) {
     match kind {
         ConnectorKind::Stripe => ("stripe", None),
         ConnectorKind::Minio => ("minio", None),
-        ConnectorKind::N8n => ("n8n", None),
         ConnectorKind::Ollama => ("ollama", None),
         ConnectorKind::Other(value) => ("other", Some(value)),
     }
@@ -859,7 +858,6 @@ fn parse_connector_kind(kind: String, other: Option<String>) -> Result<Connector
     match (kind.as_str(), other) {
         ("stripe", None) => Ok(ConnectorKind::Stripe),
         ("minio", None) => Ok(ConnectorKind::Minio),
-        ("n8n", None) => Ok(ConnectorKind::N8n),
         ("ollama", None) => Ok(ConnectorKind::Ollama),
         ("other", Some(value)) => Ok(ConnectorKind::Other(value)),
         _ => Err(PortError::Internal),

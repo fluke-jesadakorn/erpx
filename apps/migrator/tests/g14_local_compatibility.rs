@@ -37,6 +37,9 @@ const MOBILE_SESSION_TARGET: &str = include_str!("../../../crates/ui/src/session
 const ANDROID_BRIDGE: &str = include_str!("../../../crates/android-bridge/src/lib.rs");
 const CONSOLE_COMPOSITION: &str = include_str!("../../console/src/composition.rs");
 const CONSOLE_TRANSPORT: &str = include_str!("../../console/src/transport/mod.rs");
+const CONSOLE_PLATFORM: &str = include_str!("../../console/src/platform.rs");
+const CONSOLE_HTTP: &str = include_str!("../../console/src/platform/http.rs");
+const CONSOLE_PREFERENCES: &str = include_str!("../../console/src/platform/preferences.rs");
 const PITR: &str = include_str!("../../../crates/infrastructure/src/pitr.rs");
 const BACKUP_RUNTIME: &str = include_str!("../../worker/src/backup_runtime.rs");
 const WORKER_APP: &str = include_str!("../../worker/src/app.rs");
@@ -582,14 +585,17 @@ fn collect_enum_name(
         let end = reserved
             .end
             .ok_or_else(|| format!("descriptor enum reserved range end is missing: {full_name}"))?;
-        if start >= end {
+        // EnumDescriptorProto uses inclusive range endpoints, unlike message
+        // reserved ranges whose end is exclusive. A single reserved enum value
+        // is therefore encoded as start == end.
+        if start > end {
             return Err(format!(
                 "descriptor enum reserved range is invalid: {full_name}"
             ));
         }
         if value_numbers
             .iter()
-            .any(|number| start <= *number && *number < end)
+            .any(|number| start <= *number && *number <= end)
         {
             return Err(format!(
                 "descriptor reuses a reserved enum value: {full_name}"
@@ -1353,8 +1359,27 @@ fn g14_console_deployment_inputs_are_source_bound_and_tls_when_configured() {
         &[
             "use crate::transport::GRPC_ENDPOINT",
             "Endpoint::from_static(GRPC_ENDPOINT)",
-            "cache: \"no-store\"",
-            "credentials: \"omit\"",
+            "execute_web_http",
+            "execute_native_http",
+        ],
+    );
+    require_markers(
+        CONSOLE_HTTP,
+        "apps/console/src/platform/http.rs",
+        &[
+            "NativeHttpPolicy::from_config",
+            "RequestMode::SameOrigin",
+            "RequestCredentials::Include",
+            "RequestRedirect::Error",
+        ],
+    );
+    require_markers(
+        CONSOLE_PLATFORM,
+        "apps/console/src/platform.rs",
+        &[
+            "std::env::var(\"ERPX_NATIVE_HTTP_ORIGIN\")",
+            "std::env::var(\"ERPX_NATIVE_GRPC_ENDPOINT\")",
+            "RuntimeCredentialSlot::new()",
         ],
     );
 
@@ -1395,12 +1420,11 @@ fn g14_console_startup_deep_link_contract_is_bound_and_hash_restore_is_queued_if
         CONSOLE_COMPOSITION,
         "apps/console/src/composition.rs",
         &[
-            "let initial_resolution = console_route_resolution_for(&initial_path",
+            "let initial_resolution = console_route_resolution_for(&initial_path)",
             "let initial_destination = match initial_resolution.clone()",
             "let mut route_failure = use_signal",
             "let mut active_route = use_signal",
-            "while let Ok(path) = eval.recv::<String>().await",
-            "let _ = route_signals.activate(&path)",
+            "route_signals.activate(&path)",
         ],
     );
     require_markers(
@@ -1412,17 +1436,14 @@ fn g14_console_startup_deep_link_contract_is_bound_and_hash_restore_is_queued_if
             "ConsoleRouteFailureKind::NotFound",
             "let resolution = console_route_resolution_for(path",
             "ConsoleDeepLink::Customer(route) => self.active_route.set(route)",
-            "window.location.hash.startsWith",
-            "window.addEventListener('popstate', emitPath)",
-            "window.addEventListener('hashchange', emitPath)",
-            "emitPath();",
+            "crate::platform::preferences::web_location_path()",
         ],
     );
-    if !CONSOLE_COMPOSITION.contains("window.location.hash") {
-        eprintln!(
-            "G14 blocker queued: console startup restores pathname deep links, but hash-style web deep-link restoration is not source-proven"
-        );
-    }
+    require_markers(
+        CONSOLE_PREFERENCES,
+        "apps/console/src/platform/preferences.rs",
+        &["location.hash().ok()?", "hash.strip_prefix(\"#/\")"],
+    );
 }
 
 #[test]

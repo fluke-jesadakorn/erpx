@@ -588,6 +588,16 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
         {
             return Err(EnterpriseGatewayError::Unavailable);
         }
+        if query.page_size == 0
+            || query.page_size > erpx_ui_enterprise_workspaces::MAX_COLLECTION_PAGE_SIZE
+            || query.cursor.as_deref().is_some_and(|cursor| {
+                cursor.is_empty() || cursor.len() > 512 || cursor.chars().any(char::is_control)
+            })
+        {
+            return Err(EnterpriseGatewayError::Unavailable);
+        }
+        let page_size = query.page_size;
+        let cursor = query.cursor.clone();
         let CanonicalRecordRoute::Collection { workspace, family } = query.route else {
             return Err(EnterpriseGatewayError::Unavailable);
         };
@@ -598,13 +608,21 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
                 authority_scope: Some(requested_scope.clone()),
                 purpose: "future_workspace_collection".into(),
                 query: family.segment.into(),
-                page_size: 50,
-                cursor: None,
+                page_size,
+                cursor,
             })?)
             .await
             .map_err(map_status)?
             .into_inner();
         let freshness = directory_freshness(response.freshness)?;
+        let next_cursor = response.next_cursor;
+        if response.items.len() > page_size as usize
+            || next_cursor.as_deref().is_some_and(|cursor| {
+                cursor.is_empty() || cursor.len() > 512 || cursor.chars().any(char::is_control)
+            })
+        {
+            return Err(EnterpriseGatewayError::Unavailable);
+        }
         if response.authorized_count < response.items.len() as u64 {
             return Err(EnterpriseGatewayError::Unavailable);
         }
@@ -659,6 +677,7 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
                 lag_seconds: freshness_lag(freshness),
                 observed_at: Utc::now().to_rfc3339(),
             },
+            next_cursor,
         })
     }
 
@@ -745,6 +764,8 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
             consistency: QueryConsistency::ReadYourWrites {
                 minimum_source_version: request.expected_version,
             },
+            page_size: erpx_ui_enterprise_workspaces::DEFAULT_COLLECTION_PAGE_SIZE,
+            cursor: None,
         };
         let descriptor = self.resolve(&query).await?;
         let owner = self

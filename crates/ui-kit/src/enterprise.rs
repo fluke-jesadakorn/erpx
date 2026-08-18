@@ -4,6 +4,8 @@ use erpx_ui_core::{
     use_locale,
 };
 
+use crate::kit::button::{Button as KitButton, ButtonSize, ButtonVariant};
+
 fn state_key(value: EnterpriseStateKind) -> &'static str {
     match value {
         EnterpriseStateKind::Loading => "loading",
@@ -62,7 +64,9 @@ pub fn EnterpriseStatePanel(
             p { {state.detail} }
             if state.retryable {
                 if let Some(handler) = on_retry {
-                    button {
+                    KitButton {
+                        variant: ButtonVariant::Primary,
+                        size: ButtonSize::Sm,
                         r#type: "button",
                         class: "ui-enterprise-retry",
                         onclick: move |_| handler.call(()),

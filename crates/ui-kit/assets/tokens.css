@@ -35,13 +35,17 @@
   --erpx-light-focus: #075985;
 
   --erpx-success: #2fb67c;
-  --erpx-success-surface: color-mix(in srgb, var(--erpx-success) 12%, var(--erpx-surface));
+  --erpx-success-surface: #132d27;
   --erpx-warning: #e8a23a;
-  --erpx-warning-surface: color-mix(in srgb, var(--erpx-warning) 12%, var(--erpx-surface));
+  --erpx-warning-surface: #302719;
   --erpx-danger: #e05767;
+  --erpx-danger-surface: #301d25;
   --erpx-on-danger: #ffffff;
   --erpx-security: #3182ce;
-  --erpx-border-strong: color-mix(in srgb, var(--erpx-text-muted) 58%, var(--erpx-border));
+  --erpx-security-surface: #17283a;
+  --erpx-primary-surface: #172b34;
+  --erpx-focus-ring: #294751;
+  --erpx-border-strong: #526674;
 
   --erpx-space-1: 4px;
   --erpx-space-2: 8px;

@@ -1,5 +1,14 @@
+mod quote_workflow;
 mod records;
 
+pub use quote_workflow::{
+    AppliedQuoteSuggestion, AuthoritativeTaxProfile, ExternalQuoteDecision,
+    ExternalQuoteDecisionKind, MAX_QUOTE_WORKFLOW_LINES, QuoteAccountingPlanEvidence,
+    QuoteApprovalEvidence, QuoteApprovalRejectionEvidence, QuoteDocumentLanguage, QuoteDraftLine,
+    QuoteDraftLineSource, QuoteDraftPayload, QuotePdfArtifact, QuoteWorkflow, QuoteWorkflowError,
+    QuoteWorkflowStatus, RevenueArrangementSuggestionPayload, RevenueObligationSuggestion,
+    SupersededQuoteVersionEvidence, THAI_VAT_RATE_BPS, TaxClassification,
+};
 pub use records::{
     SalesLifecycleRecord, SalesLifecycleRecordError, SalesLifecycleRecordKind,
     SalesLifecycleRecordStatus,

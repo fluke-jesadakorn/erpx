@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::{BootstrapError, Result, fresh_state::FreshResourcePlan};
 
-const PROGRESS_VERSION: u32 = 1;
+const PROGRESS_VERSION: u32 = 2;
 const MAX_PROGRESS_BYTES: u64 = 64 * 1024;
 const PROGRESS_DIRECTORY_COMPONENTS: [&str; 3] = [".runtime", "erpx", "bootstrap"];
 const PROGRESS_FILE: &str = "progress.json";
@@ -35,7 +35,6 @@ pub(crate) enum BootstrapPhase {
     BusinessSeed,
     OrganizationSeed,
     TenantActivation,
-    N8nVerification,
     ManifestPublication,
     ReceiptCompletion,
     Complete,
@@ -62,7 +61,6 @@ pub(crate) enum BootstrapFailureCategory {
     BusinessSeed,
     OrganizationSeed,
     TenantActivation,
-    N8nVerification,
     ManifestPublication,
     ReceiptCompletion,
 }
@@ -78,7 +76,6 @@ impl BootstrapFailureCategory {
             BootstrapPhase::BusinessSeed => Some(Self::BusinessSeed),
             BootstrapPhase::OrganizationSeed => Some(Self::OrganizationSeed),
             BootstrapPhase::TenantActivation => Some(Self::TenantActivation),
-            BootstrapPhase::N8nVerification => Some(Self::N8nVerification),
             BootstrapPhase::ManifestPublication => Some(Self::ManifestPublication),
             BootstrapPhase::ReceiptCompletion => Some(Self::ReceiptCompletion),
             BootstrapPhase::Complete => None,
@@ -95,7 +92,6 @@ impl BootstrapFailureCategory {
             Self::BusinessSeed => BootstrapPhase::BusinessSeed,
             Self::OrganizationSeed => BootstrapPhase::OrganizationSeed,
             Self::TenantActivation => BootstrapPhase::TenantActivation,
-            Self::N8nVerification => BootstrapPhase::N8nVerification,
             Self::ManifestPublication => BootstrapPhase::ManifestPublication,
             Self::ReceiptCompletion => BootstrapPhase::ReceiptCompletion,
         }
@@ -262,7 +258,6 @@ impl BootstrapPhase {
             Self::BusinessSeed => "business_seed",
             Self::OrganizationSeed => "organization_seed",
             Self::TenantActivation => "tenant_activation",
-            Self::N8nVerification => "n8n_verification",
             Self::ManifestPublication => "manifest_publication",
             Self::ReceiptCompletion => "receipt_completion",
             Self::Complete => "complete",
@@ -291,7 +286,6 @@ impl BootstrapFailureCategory {
             Self::BusinessSeed => "business_seed",
             Self::OrganizationSeed => "organization_seed",
             Self::TenantActivation => "tenant_activation",
-            Self::N8nVerification => "n8n_verification",
             Self::ManifestPublication => "manifest_publication",
             Self::ReceiptCompletion => "receipt_completion",
         }

@@ -8,13 +8,13 @@
 .ui-chart [data-series="5"] { --series-color: var(--erpx-chart-6); }
 
 .ui-sparkline { width: 100%; height: 38px; overflow: visible; }
-.ui-sparkline polyline { fill: none; stroke: var(--erpx-primary); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 3px 7px color-mix(in srgb, var(--erpx-primary) 28%, transparent)); stroke-dasharray: 280; animation: ui-chart-draw var(--erpx-chart-motion) ease-out both; }
+.ui-sparkline polyline { fill: none; stroke: var(--erpx-primary); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 3px 7px var(--erpx-primary-surface)); stroke-dasharray: 280; animation: ui-chart-draw var(--erpx-chart-motion) ease-out both; }
 @keyframes ui-chart-draw { from { stroke-dashoffset: 280; opacity: .2; } to { stroke-dashoffset: 0; opacity: 1; } }
 
 .ui-line-area-chart { display: grid; gap: 14px; margin: 0; }
 .ui-line-area-chart svg { width: 100%; height: 260px; overflow: visible; }
 .ui-line-area-chart .axis { stroke: var(--erpx-border-subtle); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.ui-line-area-chart .area { fill: color-mix(in srgb, var(--series-color) 10%, transparent); stroke: none; }
+.ui-line-area-chart .area { fill: var(--series-color); stroke: none; }
 .ui-line-area-chart .line { fill: none; stroke: var(--series-color); stroke-width: 2.25; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; animation: ui-chart-draw var(--erpx-chart-motion) ease-out both; }
 .ui-line-area-chart circle { fill: transparent; stroke: transparent; vector-effect: non-scaling-stroke; cursor: pointer; }
 .ui-line-area-chart circle:hover, .ui-line-area-chart circle:focus-visible { fill: var(--series-color); stroke: var(--erpx-surface); stroke-width: 3; outline: none; filter: drop-shadow(0 0 6px var(--series-color)); }
@@ -27,7 +27,7 @@
 .ui-bar-chart { display: grid; min-height: 220px; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: end; gap: 14px; border-bottom: 1px solid var(--erpx-border-subtle); padding: 20px 10px 0; }
 .ui-bar-series { display: flex; height: 190px; align-items: end; justify-content: center; gap: 4px; }
 .ui-bar-column { display: grid; height: 100%; min-width: 22px; grid-template-rows: 1fr 24px; align-items: end; gap: 5px; text-align: center; }
-.ui-bar-column span { display: block; width: 100%; height: var(--bar-size); min-height: 2px; border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, var(--series-color), color-mix(in srgb, var(--series-color) 54%, transparent)); transform-origin: bottom; animation: ui-bar-rise var(--erpx-chart-motion) ease-out both; }
+.ui-bar-column span { display: block; width: 100%; height: var(--bar-size); min-height: 2px; border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, var(--series-color), var(--series-color)); transform-origin: bottom; animation: ui-bar-rise var(--erpx-chart-motion) ease-out both; }
 .ui-bar-column span:hover, .ui-bar-column span:focus-visible { filter: brightness(1.15); outline: 2px solid var(--erpx-focus); outline-offset: 2px; }
 .ui-bar-column small { overflow: hidden; color: var(--erpx-text-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes ui-bar-rise { from { transform: scaleY(0); opacity: .3; } }
@@ -54,7 +54,7 @@
 @keyframes ui-donut-in { from { opacity: 0; stroke-dashoffset: 100; } }
 
 .ui-heatmap { display: grid; grid-template-columns: repeat(12, minmax(18px, 1fr)); gap: 5px; }
-.ui-heatmap span { aspect-ratio: 1; border: 1px solid color-mix(in srgb, var(--erpx-primary) calc(var(--heat) * 35%), var(--erpx-border-subtle)); border-radius: 5px; background: color-mix(in srgb, var(--erpx-primary) calc(var(--heat) * 88%), var(--erpx-surface-raised)); }
+.ui-heatmap span { aspect-ratio: 1; border: 1px solid var(--erpx-primary-surface); border-radius: 5px; background: var(--erpx-primary-surface); }
 .ui-heatmap span:hover, .ui-heatmap span:focus-visible { outline: 2px solid var(--erpx-focus); outline-offset: 2px; transform: scale(1.08); }
 
 .ui-progress-ring { display: grid; width: 96px; aspect-ratio: 1; place-items: center; border-radius: 50%; background: conic-gradient(var(--erpx-primary) var(--progress), var(--erpx-surface-raised) 0); box-shadow: inset 0 0 0 1px var(--erpx-border-subtle); }

@@ -1,19 +1,8 @@
-use std::{
-    fmt,
-    fs::{self, File},
-    io::{self, Read},
-    net::IpAddr,
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{fmt, net::IpAddr, time::Duration};
 
 use chrono::{DateTime, Utc};
 use erpx_infrastructure::{MinioObjectStore, MinioObjectStoreConfig};
-use serde::{Serialize, Serializer};
-use sha2::{Digest, Sha256};
-
-const N8N_CONFIG_COMPONENTS: [&str; 4] = [".runtime", "n8n", ".n8n", "config"];
-const MAX_N8N_CONFIG_BYTES: u64 = 1024 * 1024;
+use serde::Serialize;
 const MAX_NAMESPACE_OPERATION_SECONDS: u64 = 60;
 
 type GuardResult<T> = std::result::Result<T, ResourceGuardError>;
@@ -33,10 +22,6 @@ pub(crate) enum ResourceGuardError {
     ObjectStoreEndpointMismatch,
     ObjectNamespaceOperationFailed,
     ObjectNamespaceOperationTimedOut,
-    N8nConfigPathInvalid,
-    N8nConfigReadFailed,
-    N8nConfigTooLarge,
-    N8nConfigChanged,
 }
 
 impl fmt::Display for ResourceGuardError {
@@ -65,10 +50,6 @@ impl fmt::Display for ResourceGuardError {
             Self::ObjectNamespaceOperationTimedOut => {
                 "MinIO namespace creation or verification timed out"
             }
-            Self::N8nConfigPathInvalid => "n8n configuration path is not an exact regular file",
-            Self::N8nConfigReadFailed => "n8n configuration fingerprint could not be read",
-            Self::N8nConfigTooLarge => "n8n configuration exceeds the fingerprint size bound",
-            Self::N8nConfigChanged => "n8n configuration fingerprint changed during cutover",
         })
     }
 }
@@ -498,124 +479,6 @@ pub(crate) async fn verify_new_namespace_absent<A: BucketNamespaceAdmin>(
     }
 }
 
-/// SHA-256 fingerprint of the exact n8n config file. Debug output is redacted;
-/// serialization is the conventional lowercase hexadecimal digest.
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct N8nConfigFingerprint([u8; 32]);
-
-impl N8nConfigFingerprint {
-    pub(crate) fn as_hex(&self) -> String {
-        let mut encoded = String::with_capacity(64);
-        for byte in self.0 {
-            use fmt::Write as _;
-            let _ = write!(&mut encoded, "{byte:02x}");
-        }
-        encoded
-    }
-
-    #[cfg(test)]
-    pub(crate) fn from_digest_for_test(digest: [u8; 32]) -> Self {
-        Self(digest)
-    }
-}
-
-impl fmt::Debug for N8nConfigFingerprint {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_tuple("N8nConfigFingerprint")
-            .field(&"<sha256>")
-            .finish()
-    }
-}
-
-impl Serialize for N8nConfigFingerprint {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.as_hex())
-    }
-}
-
-/// Resolve only `<workspace>/.runtime/n8n/.n8n/config`, reject symlinked path
-/// components, and hash a bounded regular file without modifying it.
-pub(crate) fn capture_n8n_config_fingerprint(
-    workspace_root: &Path,
-) -> GuardResult<N8nConfigFingerprint> {
-    let path = checked_n8n_config_path(workspace_root)?;
-    let file = File::open(path).map_err(|_| ResourceGuardError::N8nConfigReadFailed)?;
-    fingerprint_reader(file)
-}
-
-pub(crate) fn verify_n8n_config_fingerprint(
-    workspace_root: &Path,
-    expected: &N8nConfigFingerprint,
-) -> GuardResult<()> {
-    let actual = capture_n8n_config_fingerprint(workspace_root)?;
-    if constant_time_fingerprint_eq(expected, &actual) {
-        Ok(())
-    } else {
-        Err(ResourceGuardError::N8nConfigChanged)
-    }
-}
-
-fn checked_n8n_config_path(workspace_root: &Path) -> GuardResult<PathBuf> {
-    if !workspace_root.is_absolute() {
-        return Err(ResourceGuardError::N8nConfigPathInvalid);
-    }
-    let mut path = workspace_root.to_path_buf();
-    for (index, component) in N8N_CONFIG_COMPONENTS.iter().enumerate() {
-        path.push(component);
-        let metadata =
-            fs::symlink_metadata(&path).map_err(|_| ResourceGuardError::N8nConfigPathInvalid)?;
-        if metadata.file_type().is_symlink()
-            || (index + 1 == N8N_CONFIG_COMPONENTS.len() && !metadata.is_file())
-            || (index + 1 != N8N_CONFIG_COMPONENTS.len() && !metadata.is_dir())
-        {
-            return Err(ResourceGuardError::N8nConfigPathInvalid);
-        }
-    }
-    Ok(path)
-}
-
-fn fingerprint_reader(mut reader: impl Read) -> GuardResult<N8nConfigFingerprint> {
-    let mut hasher = Sha256::new();
-    let mut total = 0_u64;
-    let mut buffer = [0_u8; 8 * 1024];
-    loop {
-        let count = match reader.read(&mut buffer) {
-            Ok(count) => count,
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-            Err(_) => return Err(ResourceGuardError::N8nConfigReadFailed),
-        };
-        if count == 0 {
-            break;
-        }
-        total = total
-            .checked_add(count as u64)
-            .ok_or(ResourceGuardError::N8nConfigTooLarge)?;
-        if total > MAX_N8N_CONFIG_BYTES {
-            return Err(ResourceGuardError::N8nConfigTooLarge);
-        }
-        hasher.update(&buffer[..count]);
-    }
-    Ok(N8nConfigFingerprint(hasher.finalize().into()))
-}
-
-fn constant_time_fingerprint_eq(
-    expected: &N8nConfigFingerprint,
-    actual: &N8nConfigFingerprint,
-) -> bool {
-    expected
-        .0
-        .iter()
-        .zip(actual.0.iter())
-        .fold(0_u8, |difference, (left, right)| {
-            difference | (left ^ right)
-        })
-        == 0
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum RetainedResourceAuthority {
@@ -635,7 +498,6 @@ pub(crate) enum RollbackWritePolicy {
 pub(crate) struct RollbackMetadata {
     recorded_at: DateTime<Utc>,
     old_resources: OldResourceInventory,
-    n8n_config_sha256: N8nConfigFingerprint,
     retained_resource_authority: RetainedResourceAuthority,
     write_policy: RollbackWritePolicy,
 }
@@ -644,7 +506,6 @@ impl RollbackMetadata {
     pub(crate) fn new(
         recorded_at: DateTime<Utc>,
         old_resources: OldResourceInventory,
-        n8n_config_sha256: N8nConfigFingerprint,
     ) -> GuardResult<Self> {
         if recorded_at < old_resources.captured_at() {
             return Err(ResourceGuardError::InvalidRollbackMetadata);
@@ -652,7 +513,6 @@ impl RollbackMetadata {
         Ok(Self {
             recorded_at,
             old_resources,
-            n8n_config_sha256,
             retained_resource_authority: RetainedResourceAuthority::OfflineNonAuthoritative,
             write_policy: RollbackWritePolicy::IsolatedNoMerge,
         })
@@ -670,7 +530,6 @@ impl fmt::Debug for RollbackMetadata {
             .debug_struct("RollbackMetadata")
             .field("recorded_at", &self.recorded_at)
             .field("old_resources", &self.old_resources)
-            .field("n8n_config_sha256", &self.n8n_config_sha256)
             .field(
                 "retained_resource_authority",
                 &self.retained_resource_authority,
@@ -682,10 +541,7 @@ impl fmt::Debug for RollbackMetadata {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        io::Cursor,
-        sync::{Arc, Mutex},
-    };
+    use std::sync::{Arc, Mutex};
 
     use chrono::TimeZone;
 
@@ -918,24 +774,9 @@ mod tests {
     }
 
     #[test]
-    fn sha256_fingerprint_matches_known_vector_and_debug_is_redacted() {
-        let fingerprint = fingerprint_reader(Cursor::new(b"abc")).expect("fingerprint");
-        assert_eq!(
-            fingerprint.as_hex(),
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-        );
-        assert!(!format!("{fingerprint:?}").contains(&fingerprint.as_hex()));
-        assert!(constant_time_fingerprint_eq(&fingerprint, &fingerprint));
-        let other = fingerprint_reader(Cursor::new(b"abd")).expect("other fingerprint");
-        assert!(!constant_time_fingerprint_eq(&fingerprint, &other));
-    }
-
-    #[test]
     fn rollback_metadata_is_fixed_to_offline_no_merge_policy() {
         let inventory = retained_inventory();
-        let fingerprint = fingerprint_reader(Cursor::new(b"n8n-config")).expect("fingerprint");
-        let metadata =
-            RollbackMetadata::new(at(9), inventory.clone(), fingerprint).expect("metadata");
+        let metadata = RollbackMetadata::new(at(9), inventory.clone()).expect("metadata");
         assert_eq!(metadata.old_resources(), &inventory);
         let encoded = serde_json::to_value(&metadata).expect("serialized metadata");
         assert_eq!(
@@ -943,14 +784,7 @@ mod tests {
             "offline_non_authoritative"
         );
         assert_eq!(encoded["write_policy"], "isolated_no_merge");
-        assert!(
-            RollbackMetadata::new(
-                at(7),
-                inventory,
-                fingerprint_reader(Cursor::new(b"n8n-config")).expect("fingerprint")
-            )
-            .is_err()
-        );
+        assert!(RollbackMetadata::new(at(7), inventory).is_err());
     }
 
     #[test]

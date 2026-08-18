@@ -107,8 +107,15 @@ pub struct BillingEligibilityFact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuoteApprovalRequestedFact {
+    pub quote: QuoteRef,
+    pub approval: crate::operations::ApprovalSessionRequestFact,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "fact", rename_all = "snake_case")]
 pub enum Event {
+    QuoteApprovalRequested(QuoteApprovalRequestedFact),
     SalesOrderChanged(SalesOrderFact),
     RevenueArrangementActivated(RevenueArrangementFact),
     FulfillmentAccepted(FulfillmentAcceptedFact),
@@ -122,6 +129,7 @@ impl crate::IntegrationEvent for Event {
 
     fn event_type(&self) -> &'static str {
         match self {
+            Self::QuoteApprovalRequested(_) => "sales.quote_approval_requested",
             Self::SalesOrderChanged(_) => "sales.order_changed",
             Self::RevenueArrangementActivated(_) => "sales.revenue_arrangement_activated",
             Self::FulfillmentAccepted(_) => "sales.fulfillment_accepted",
@@ -135,6 +143,22 @@ impl crate::IntegrationEvent for Event {
 
     fn validate(&self) -> Result<(), crate::ContractValidationError> {
         match self {
+            Self::QuoteApprovalRequested(fact) => {
+                fact.approval.validate()?;
+                if fact.approval.subject.context != BoundedContext::Sales
+                    || fact.approval.subject.aggregate_kind.as_str() != "quote"
+                    || fact.approval.subject.aggregate_id != fact.quote.as_uuid()
+                    || fact.approval.required_gates
+                        != [
+                            crate::operations::ApprovalGateKind::SalesCommercial,
+                            crate::operations::ApprovalGateKind::FinanceAccountingPlan,
+                        ]
+                {
+                    return Err(crate::ContractValidationError::OutOfRange(
+                        "sales.quote_approval_request",
+                    ));
+                }
+            }
             Self::SalesOrderChanged(fact) if fact.lines.is_empty() => {
                 return Err(crate::ContractValidationError::Empty("sales_order.lines"));
             }

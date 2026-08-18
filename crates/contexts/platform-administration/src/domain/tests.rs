@@ -62,7 +62,7 @@ fn connector_requires_sha256_digest_and_nonempty_capabilities() {
     let result = ConnectorBinding::register(
         ConnectorBindingId::try_from_uuid(id(10)).unwrap(),
         ConnectorScope::Platform,
-        ConnectorKind::N8n,
+        ConnectorKind::Ollama,
         "workflow".into(),
         "not-a-digest".into(),
         BTreeSet::new(),
@@ -75,11 +75,28 @@ fn connector_requires_sha256_digest_and_nonempty_capabilities() {
 }
 
 #[test]
+fn retired_n8n_kind_cannot_reenter_through_other() {
+    let result = ConnectorBinding::register(
+        ConnectorBindingId::try_from_uuid(id(12)).unwrap(),
+        ConnectorScope::Platform,
+        ConnectorKind::Other(" N8N ".into()),
+        "retired-workflow".into(),
+        "a".repeat(64),
+        BTreeSet::from(["workflow.execute".into()]),
+        at(),
+    );
+    assert_eq!(
+        result.unwrap_err(),
+        PlatformAdministrationDomainError::InvalidConnectorKind
+    );
+}
+
+#[test]
 fn connector_cannot_reactivate_after_retirement() {
     let mut connector = ConnectorBinding::register(
         ConnectorBindingId::try_from_uuid(id(10)).unwrap(),
         ConnectorScope::Platform,
-        ConnectorKind::N8n,
+        ConnectorKind::Ollama,
         "workflow".into(),
         "a".repeat(64),
         BTreeSet::from(["workflow.execute".into()]),
@@ -102,7 +119,7 @@ fn connector_activation_requires_matching_successful_preflight_evidence() {
     let mut connector = ConnectorBinding::register(
         ConnectorBindingId::try_from_uuid(id(11)).unwrap(),
         ConnectorScope::Platform,
-        ConnectorKind::N8n,
+        ConnectorKind::Ollama,
         "workflow".into(),
         digest.clone(),
         capabilities.clone(),

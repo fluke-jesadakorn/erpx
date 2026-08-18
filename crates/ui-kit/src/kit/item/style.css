@@ -28,7 +28,7 @@
 .dx-item:focus-visible {
   border-color: var(--erpx-focus);
   box-shadow: 0 0 0 3px
-    color-mix(in srgb, var(--erpx-focus) 50%, transparent);
+    var(--erpx-focus-ring);
 }
 
 a.dx-item {
@@ -52,7 +52,7 @@ a.dx-item:hover {
 
 .dx-item[data-variant="muted"] {
   border-color: transparent;
-  background-color: color-mix(in srgb, var(--erpx-surface-raised) 50%, transparent);
+  background-color: var(--erpx-surface-raised);
 }
 
 /* Item Sizes */
@@ -75,7 +75,7 @@ a.dx-item:hover {
   gap: 0.5rem;
 }
 
-.dx-item:has([data-slot="item-description"]) .dx-item-media {
+.dx-item-media {
   align-self: flex-start;
   transform: translateY(0.125rem);
 }
@@ -175,5 +175,4 @@ a.dx-item:hover {
   justify-content: space-between;
   gap: 0.5rem;
 }
-
 

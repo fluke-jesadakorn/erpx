@@ -24,16 +24,6 @@
   min-height: 100svh;
 }
 
-@media (width >=768px) {
-  .dx-sidebar-wrapper:has(.dx-sidebar-desktop[data-side="right"]) {
-    flex-direction: row-reverse;
-  }
-
-  .dx-sidebar-wrapper:has(.dx-sidebar-desktop[data-variant="inset"]) {
-    background: var(--dx-sidebar-background);
-  }
-}
-
 .dx-sidebar-desktop {
   display: none;
   color: var(--dx-sidebar-foreground);
@@ -434,7 +424,7 @@
   position: relative;
 }
 
-.dx-sidebar-menu-item > .dx-sidebar-dropdown-menu:has(.dx-sidebar-menu-action) {
+.dx-sidebar-menu-item > .dx-sidebar-dropdown-menu {
   position: static;
 }
 
@@ -461,7 +451,7 @@
 }
 
 @media (width >= 768px) {
-  .dx-sidebar-desktop[data-side="left"] :is(.dx-sidebar-header, .dx-sidebar-menu-item:has(.dx-sidebar-menu-action)) .dx-sidebar-dropdown-menu-content {
+  .dx-sidebar-desktop[data-side="left"] :is(.dx-sidebar-header, .dx-sidebar-menu-item) .dx-sidebar-dropdown-menu-content {
     top: 0;
     left: 100%;
     margin-top: 0;
@@ -476,7 +466,7 @@
     margin-left: 0.5rem;
   }
 
-  .dx-sidebar-desktop[data-side="right"] :is(.dx-sidebar-header, .dx-sidebar-menu-item:has(.dx-sidebar-menu-action)) .dx-sidebar-dropdown-menu-content {
+  .dx-sidebar-desktop[data-side="right"] :is(.dx-sidebar-header, .dx-sidebar-menu-item) .dx-sidebar-dropdown-menu-content {
     top: 0;
     right: 100%;
     left: auto;
@@ -590,14 +580,12 @@
   padding: 0;
 }
 
-.dx-sidebar-desktop[data-collapsible="icon"] .dx-sidebar-menu-button[data-sidebar="menu-button"]:has(> :first-child:is(svg, img)),
-.dx-sidebar-desktop[data-collapsible="icon"] .dx-sidebar-menu-button[data-sidebar="menu-button"]:has(> :first-child:has(svg, img)) {
+.dx-sidebar-desktop[data-collapsible="icon"] .dx-sidebar-menu-button[data-sidebar="menu-button"] {
   justify-content: center;
   gap: 0;
 }
 
-.dx-sidebar-desktop[data-collapsible="icon"] .dx-sidebar-menu-button[data-sidebar="menu-button"]:has(> :first-child:is(svg, img))> :not(:first-child),
-.dx-sidebar-desktop[data-collapsible="icon"] .dx-sidebar-menu-button[data-sidebar="menu-button"]:has(> :first-child:has(svg, img))> :not(:first-child) {
+.dx-sidebar-desktop[data-collapsible="icon"] .dx-sidebar-menu-button[data-sidebar="menu-button"] > :not(:first-child) {
   position: absolute;
   overflow: hidden;
   width: 1px;
@@ -613,7 +601,7 @@
   display: block;
 }
 
-.dx-sidebar-menu-item:has(.dx-sidebar-menu-action[data-sidebar="menu-action"]) .dx-sidebar-menu-button[data-sidebar="menu-button"] {
+.dx-sidebar-menu-item .dx-sidebar-menu-button[data-sidebar="menu-button"] {
   padding-right: 2rem;
 }
 
@@ -715,15 +703,15 @@
 }
 
 .dx-sidebar-menu-item:hover .dx-sidebar-menu-badge,
-.dx-sidebar-menu-item:has(.dx-sidebar-menu-button[data-active="true"]) .dx-sidebar-menu-badge {
+.dx-sidebar-menu-button[data-active="true"] ~ .dx-sidebar-menu-badge {
   color: var(--dx-sidebar-accent-foreground);
 }
 
-.dx-sidebar-menu-item:has(.dx-sidebar-menu-button[data-size="sm"]) .dx-sidebar-menu-badge {
+.dx-sidebar-menu-button[data-size="sm"] ~ .dx-sidebar-menu-badge {
   top: 0.25rem;
 }
 
-.dx-sidebar-menu-item:has(.dx-sidebar-menu-button[data-size="lg"]) .dx-sidebar-menu-badge {
+.dx-sidebar-menu-button[data-size="lg"] ~ .dx-sidebar-menu-badge {
   top: 0.625rem;
 }
 

@@ -2685,9 +2685,7 @@ pub(crate) async fn reset(
         fs::remove_file(path)?;
     }
     write.close().await;
-    println!(
-        "Development access secret reset; {revoked} controller session(s) revoked; .runtime/n8n was not touched."
-    );
+    println!("Development access secret reset; {revoked} controller session(s) revoked.");
     Ok(())
 }
 

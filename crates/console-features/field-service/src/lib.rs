@@ -51,14 +51,12 @@ mod tests {
     }
 
     #[test]
-    fn field_service_surface_is_adaptive_and_covers_e2e_40() {
+    fn field_service_surface_supports_release_channels_and_covers_e2e_40() {
         use erpx_ui_enterprise_workspaces::{ChannelPolicy, ClientChannel};
         assert_eq!(WORKSPACE.record_families().len(), 5);
         assert_eq!(WORKSPACE.e2e_scenarios(), &["E2E-40"]);
-        assert_eq!(
-            WORKSPACE.channel_policy(),
-            ChannelPolicy::FourChannelAdaptive
-        );
-        assert!(WORKSPACE.channel_policy().supports(ClientChannel::Ios));
+        assert_eq!(WORKSPACE.channel_policy(), ChannelPolicy::WebMacOs);
+        assert!(WORKSPACE.channel_policy().supports(ClientChannel::Desktop));
+        assert!(!WORKSPACE.channel_policy().supports(ClientChannel::Ios));
     }
 }

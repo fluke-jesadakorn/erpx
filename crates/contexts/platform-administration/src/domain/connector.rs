@@ -71,7 +71,6 @@ impl ConnectorScope {
 pub enum ConnectorKind {
     Stripe,
     Minio,
-    N8n,
     Ollama,
     Other(String),
 }
@@ -80,6 +79,9 @@ impl ConnectorKind {
     fn validate(&mut self) -> Result<(), PlatformAdministrationDomainError> {
         if let Self::Other(value) = self {
             *value = bounded(value, "connector_kind", MAX_KEY_BYTES)?;
+            if value.eq_ignore_ascii_case("n8n") {
+                return Err(PlatformAdministrationDomainError::InvalidConnectorKind);
+            }
         }
         Ok(())
     }

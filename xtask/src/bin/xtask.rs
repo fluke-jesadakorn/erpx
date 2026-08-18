@@ -17,6 +17,10 @@ mod affected;
 mod architecture;
 #[path = "../cache.rs"]
 mod cache;
+#[path = "../native_macos.rs"]
+mod native_macos;
+#[path = "../platform_verification.rs"]
+mod platform_verification;
 #[path = "../wasm.rs"]
 mod wasm;
 #[path = "../web_toolchain.rs"]
@@ -545,6 +549,11 @@ enum Route<'a> {
         dry_run: bool,
     },
     Architecture,
+    NativeMacOsDetach,
+    NativeMacOsStatus,
+    NativeMacOsStop,
+    VerifyMacOs,
+    VerifyFutureContracts,
     CacheStatus,
     CachePrune {
         dry_run: bool,
@@ -645,6 +654,11 @@ fn run() -> TaskResult {
         Route::CheckAffected { dry_run } => run_affected_check(&root, dry_run),
         Route::TestAffected { dry_run } => run_affected(&root, dry_run),
         Route::Architecture => architecture::scan(&root),
+        Route::NativeMacOsDetach => native_macos::start_detached(&root),
+        Route::NativeMacOsStatus => native_macos::status(&root),
+        Route::NativeMacOsStop => native_macos::stop(&root),
+        Route::VerifyMacOs => platform_verification::verify_macos(&root),
+        Route::VerifyFutureContracts => platform_verification::verify_future_contracts(&root),
         Route::CacheStatus => cache::status(&root),
         Route::CachePrune {
             dry_run,
@@ -692,6 +706,15 @@ fn route(args: &[String]) -> Route<'_> {
             Route::TestAffected { dry_run: true }
         }
         [command] if command == "architecture" => Route::Architecture,
+        [command, flag] if command == "native-macos" && flag == "--detach" => {
+            Route::NativeMacOsDetach
+        }
+        [command] if command == "native-macos-status" => Route::NativeMacOsStatus,
+        [command] if command == "native-macos-stop" => Route::NativeMacOsStop,
+        [command, flag] if command == "verify-platforms" && flag == "--macos" => Route::VerifyMacOs,
+        [command, flag] if command == "verify-platforms" && flag == "--future-contracts" => {
+            Route::VerifyFutureContracts
+        }
         [command] if command == "web-toolchain" => Route::WebToolchain,
         [command, flag] if command == "wasm-size" && flag == "--dev" => Route::WasmSize {
             profile: wasm::WasmProfile::Dev,
@@ -772,14 +795,19 @@ fn print_help() {
          cargo check-fast\n\
          cargo test-fast\n\
          cargo xtask architecture\n\
+         cargo xtask native-macos --detach\n\
+         cargo xtask native-macos-status\n\
+         cargo xtask native-macos-stop\n\
          cargo xtask wasm-size --dev|--release\n\
          cargo xtask web-toolchain\n\
          cargo xtask cache status\n\
          cargo xtask cache prune [--dry-run] [--incremental]\n\
          cargo xtask cache prune-debug [--dry-run]\n\
          cargo xtask verify\n\
+         cargo xtask web-e2e\n\
          cargo xtask verify-web-production\n\
-         cargo xtask verify-platforms\n\n\
+         cargo xtask verify-platforms --macos\n\
+         cargo xtask verify-platforms --future-contracts\n\n\
          integration harnesses:\n  {}",
         HARNESSES
             .iter()
@@ -967,13 +995,11 @@ fn run_heavy(root: &Path, args: &[String]) -> TaskResult {
     let label = format!("cargo xtask {}", args.join(" "));
     let _guard = CommandGuard::acquire(root, &label)?;
     let workspace_target = root.join("target/debug");
-    let heavy_target = runtime_dir(root).join("heavy-xtask-target");
-    let pins = [workspace_target, heavy_target.clone()];
+    let pins = [workspace_target];
     cache_preflight(root, &pins);
     let started = SystemTime::now();
     let status = cargo_command(root)
-        .args(["run", "--locked", "--offline", "--target-dir"])
-        .arg(&heavy_target)
+        .args(["run", "--locked", "--offline"])
         .args([
             "-p",
             "xtask",
@@ -1048,6 +1074,7 @@ fn runtime_dir(root: &Path) -> PathBuf {
 
 fn status(root: &Path) -> TaskResult {
     let runtime = runtime_dir(root);
+    let dev_artifacts = wasm::artifact_readiness(root, wasm::WasmProfile::Dev);
     let toolchain = web_toolchain::status(root)?;
     println!(
         "web-toolchain: {} (version={}, standard-contract=v{}, path={})",
@@ -1071,7 +1098,16 @@ fn status(root: &Path) -> TaskResult {
                 if service.name == "web" {
                     let command = process_command(pid).unwrap_or_default();
                     let (mode, debug) = web_process_mode(&command);
-                    println!("web: running (pid {pid}, monolithic, {mode}, {debug})");
+                    match &dev_artifacts {
+                        Ok(_) => println!(
+                            "web: {} (pid {pid}, monolithic, {mode}, {debug}, artifacts-ready)",
+                            web_runtime_health(true, true)
+                        ),
+                        Err(error) => println!(
+                            "web: {} (pid {pid}, monolithic, {mode}, {debug}, artifacts-not-ready: {error})",
+                            web_runtime_health(true, false),
+                        ),
+                    }
                 } else {
                     println!("{}: running (pid {pid})", service.name);
                 }
@@ -1081,7 +1117,10 @@ fn status(root: &Path) -> TaskResult {
         }
     }
     for profile in [wasm::WasmProfile::Dev, wasm::WasmProfile::Release] {
-        if let Some(report) = wasm::latest_report(root, profile)? {
+        if wasm::artifact_readiness(root, profile).is_ok()
+            && let Some(report) = wasm::latest_report(root, profile)?
+            && root.join(&report.base_path).is_file()
+        {
             println!(
                 "web-wasm-{}: monolithic={}, raw={}, Brotli={}",
                 profile.label(),
@@ -1143,6 +1182,14 @@ fn status(root: &Path) -> TaskResult {
         );
     }
     Ok(())
+}
+
+fn web_runtime_health(process_running: bool, artifacts_ready: bool) -> &'static str {
+    match (process_running, artifacts_ready) {
+        (true, true) => "running",
+        (true, false) => "degraded",
+        (false, _) => "stopped",
+    }
 }
 
 fn web_process_mode(command: &str) -> (&'static str, &'static str) {
@@ -1463,6 +1510,23 @@ mod tests {
             Route::TestAffected { dry_run: true }
         );
         assert_eq!(route(&["architecture".into()]), Route::Architecture);
+        assert_eq!(
+            route(&["native-macos".into(), "--detach".into()]),
+            Route::NativeMacOsDetach
+        );
+        assert_eq!(
+            route(&["native-macos-status".into()]),
+            Route::NativeMacOsStatus
+        );
+        assert_eq!(route(&["native-macos-stop".into()]), Route::NativeMacOsStop);
+        assert_eq!(
+            route(&["verify-platforms".into(), "--macos".into()]),
+            Route::VerifyMacOs
+        );
+        assert_eq!(
+            route(&["verify-platforms".into(), "--future-contracts".into()]),
+            Route::VerifyFutureContracts
+        );
         assert_eq!(route(&["web-toolchain".into()]), Route::WebToolchain);
         assert_eq!(
             route(&["wasm-size".into(), "--dev".into()]),
@@ -1520,17 +1584,33 @@ mod tests {
             .expect("manual platform verifier")
             .0;
         let workflow = include_str!("../../../.github/workflows/erpx-targets.yml");
-        for forbidden in [
-            "\"desktop\"",
-            "\"mobile\"",
-            "aarch64-apple-ios",
-            "aarch64-linux-android",
-        ] {
+        for forbidden in ["\"native\"", "aarch64-apple-ios", "aarch64-linux-android"] {
             assert!(
                 !default_verify.contains(forbidden),
                 "default verify contains {forbidden}"
             );
             assert!(!workflow.contains(forbidden), "CI contains {forbidden}");
+        }
+    }
+
+    #[test]
+    fn console_native_renderer_is_pinned_and_webview_free() {
+        let workspace = include_str!("../../../Cargo.toml");
+        let console = include_str!("../../../apps/console/Cargo.toml");
+        assert!(workspace.contains("dioxus = { version = \"=0.8.0-alpha.1\""));
+        assert!(console.contains("native = ["));
+        assert!(console.contains("\"dioxus/native\""));
+        for forbidden in [
+            "dioxus/desktop",
+            "dioxus/mobile",
+            "dioxus-desktop",
+            "wry",
+            "webview",
+        ] {
+            assert!(
+                !console.to_ascii_lowercase().contains(forbidden),
+                "console manifest contains forbidden WebView renderer dependency {forbidden}"
+            );
         }
     }
 
@@ -1602,5 +1682,8 @@ mod tests {
             web_process_mode("dx serve --hot-patch false --debug-symbols true"),
             ("stable", "debug-on")
         );
+        assert_eq!(web_runtime_health(true, true), "running");
+        assert_eq!(web_runtime_health(true, false), "degraded");
+        assert_eq!(web_runtime_health(false, true), "stopped");
     }
 }

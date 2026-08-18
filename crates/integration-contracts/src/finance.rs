@@ -13,6 +13,8 @@ owned_uuid_reference!(CustomerInvoiceRef);
 owned_uuid_reference!(RevenueScheduleRef);
 owned_uuid_reference!(CashReceiptRef);
 owned_uuid_reference!(MarketingSpendRef);
+owned_uuid_reference!(AccountingPlanRef);
+owned_uuid_reference!(PostingPacketRef);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JournalPostingFact {
@@ -90,8 +92,24 @@ pub struct MarketingSpendFact {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AccountingPlanApprovalRequestedFact {
+    pub plan: AccountingPlanRef,
+    pub quote: sales::QuoteRef,
+    pub approval: crate::operations::ApprovalSessionRequestFact,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PostingApprovalRequestedFact {
+    pub packet: PostingPacketRef,
+    pub plan: AccountingPlanRef,
+    pub approval: crate::operations::ApprovalSessionRequestFact,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", content = "fact", rename_all = "snake_case")]
 pub enum Event {
+    AccountingPlanApprovalRequested(AccountingPlanApprovalRequestedFact),
+    PostingApprovalRequested(PostingApprovalRequestedFact),
     JournalPosted(JournalPostingFact),
     ReceivableChanged(ReceivableFact),
     CustomerInvoicePosted(CustomerInvoicePostedFact),
@@ -100,11 +118,60 @@ pub enum Event {
     MarketingSpendPosted(MarketingSpendFact),
 }
 
-impl_integration_event!(Event, BoundedContext::Finance, {
-    Self::JournalPosted(_) => "finance.journal_posted",
-    Self::ReceivableChanged(_) => "finance.receivable_changed",
-    Self::CustomerInvoicePosted(_) => "finance.customer_invoice_posted",
-    Self::RevenueRecognized(_) => "finance.revenue_recognized",
-    Self::CashApplied(_) => "finance.cash_applied",
-    Self::MarketingSpendPosted(_) => "finance.marketing_spend_posted",
-});
+impl crate::IntegrationEvent for Event {
+    fn owner(&self) -> BoundedContext {
+        BoundedContext::Finance
+    }
+
+    fn event_type(&self) -> &'static str {
+        match self {
+            Self::AccountingPlanApprovalRequested(_) => {
+                "finance.accounting_plan_approval_requested"
+            }
+            Self::PostingApprovalRequested(_) => "finance.posting_approval_requested",
+            Self::JournalPosted(_) => "finance.journal_posted",
+            Self::ReceivableChanged(_) => "finance.receivable_changed",
+            Self::CustomerInvoicePosted(_) => "finance.customer_invoice_posted",
+            Self::RevenueRecognized(_) => "finance.revenue_recognized",
+            Self::CashApplied(_) => "finance.cash_applied",
+            Self::MarketingSpendPosted(_) => "finance.marketing_spend_posted",
+        }
+    }
+
+    fn schema_version(&self) -> u16 {
+        1
+    }
+
+    fn validate(&self) -> Result<(), crate::ContractValidationError> {
+        match self {
+            Self::AccountingPlanApprovalRequested(fact) => {
+                fact.approval.validate()?;
+                if fact.approval.subject.context != BoundedContext::Finance
+                    || fact.approval.subject.aggregate_kind.as_str() != "accounting_plan"
+                    || fact.approval.subject.aggregate_id != fact.plan.as_uuid()
+                    || fact.approval.required_gates
+                        != [crate::operations::ApprovalGateKind::FinanceAccountingPlan]
+                {
+                    return Err(crate::ContractValidationError::OutOfRange(
+                        "finance.accounting_plan_approval_request",
+                    ));
+                }
+            }
+            Self::PostingApprovalRequested(fact) => {
+                fact.approval.validate()?;
+                if fact.approval.subject.context != BoundedContext::Finance
+                    || fact.approval.subject.aggregate_kind.as_str() != "posting_packet"
+                    || fact.approval.subject.aggregate_id != fact.packet.as_uuid()
+                    || fact.approval.required_gates
+                        != [crate::operations::ApprovalGateKind::FinancePosting]
+                {
+                    return Err(crate::ContractValidationError::OutOfRange(
+                        "finance.posting_approval_request",
+                    ));
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}

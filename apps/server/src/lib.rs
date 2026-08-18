@@ -290,6 +290,7 @@ mod errors;
 mod identity_http;
 mod migration;
 mod platform_completion;
+pub mod quote_pdf;
 mod storage;
 use boundary::{command_domain, query as query_context, transport};
 use platform_completion::{

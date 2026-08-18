@@ -18,3 +18,23 @@ erpx_ui_kit::declare_current_workspace_feature!(
     [("platform-administration.workspace", "/platform", "platform")],
     "erpx-feature-platform-administration-v2"
 );
+
+#[cfg(test)]
+mod registration_contract_tests {
+    use super::*;
+
+    #[test]
+    fn web_and_native_share_the_authenticated_canonical_route() {
+        assert_eq!(REGISTRATION.id, "platform-administration");
+        assert_eq!(
+            REGISTRATION.artifact_key,
+            "erpx-feature-platform-administration-v2"
+        );
+        assert!(REGISTRATION.routes.iter().all(|route| {
+            route.authorization == "authenticated"
+                && route.canonical_path.starts_with('/')
+                && REGISTRATION.matches_path(route.canonical_path)
+        }));
+        assert!(REGISTRATION.matches_path("/platform/tenant/record-001"));
+    }
+}

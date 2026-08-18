@@ -8,9 +8,8 @@ compatibility, but their builds and certification are deferred.
 
 ## Local development
 
-PostgreSQL, MinIO, Ollama, and n8n are host-native services. Keep `.env`,
-`.env.local`, and `.runtime/` outside Git. In particular, never delete or
-replace `.runtime/n8n/`: it contains the n8n state and encryption key.
+PostgreSQL, MinIO, and Ollama are host-native services. Keep `.env`,
+`.env.local`, and `.runtime/` outside Git.
 
 The local database credentials are read from `.env.local`:
 
@@ -59,8 +58,9 @@ cargo xtask verify-core   # offline CI-parity core gate (after cargo fetch)
 cargo xtask verify-runtime # strict process, heartbeat, and projection evidence
 cargo xtask verify-sqlx   # disposable PostgreSQL acceptance lane
 cargo xtask verify        # serialized full Web gate
+cargo xtask web-e2e       # Chromium CDP WebAuthn, responsive, locale/theme evidence
 cargo xtask verify-web-production # additive release-only production gate
-cargo xtask verify-platforms # manual deferred Desktop/Mobile checks
+cargo xtask verify-platforms # manual deferred Dioxus Native checks
 ```
 
 Runtime logs and PID records are under ignored `.runtime/erpx/`. By default the
@@ -78,26 +78,26 @@ exit. `cargo xtask status` reports the lease and retained spool/MinIO usage;
 the literal-confirmation cleanup command is the only manual purge entry point.
 
 For dev-only access over Tailscale, keep ERPX loopback-only and let Tailscale
-Serve forward the three development ports. Enable the development persona mode
-and set the machine's exact Tailscale IPv4 address; wildcard, LAN, public, and
-addresses outside Tailscale's `100.64.0.0/10` range are rejected:
+Serve terminate HTTPS for the Web console. Enable the development persona mode
+and set the machine's exact Tailscale FQDN; schemes, ports, paths, wildcards,
+and hostnames outside `.ts.net` are rejected:
 
 ```dotenv
 ERPX_DEV_PERSONA_MODE=enabled
-ERPX_DEV_TAILSCALE_IP=100.97.9.56
+ERPX_DEV_TAILSCALE_FQDN=fluke-macbook16.tailb48369.ts.net
 ```
 
-Configure tailnet-only TCP forwarding once, then start ERPX:
+Enable MagicDNS and HTTPS certificates for the tailnet, configure the
+tailnet-only HTTPS reverse proxy once, then start ERPX:
 
 ```bash
-tailscale serve --bg --tcp=3004 tcp://127.0.0.1:3004
-tailscale serve --bg --tcp=50051 tcp://127.0.0.1:50051
-tailscale serve --bg --tcp=50052 tcp://127.0.0.1:50052
+tailscale serve --bg --https=443 http://127.0.0.1:3004
 cargo xtask dev --detach
 ```
 
-ERPX itself remains bound to loopback; Tailscale owns the tailnet listeners and
-the console uses the configured address for browser auth and gRPC-Web traffic.
+Open `https://fluke-macbook16.tailb48369.ts.net`. ERPX, its auth service, and
+gRPC remain bound to loopback; browser auth and gRPC-Web use the same-origin
+Web BFF, so ports `3004`, `50051`, and `50052` must not be exposed separately.
 
 ### Fresh-state CQRS cutover
 
@@ -112,9 +112,9 @@ The complete environment contract is documented in `.env.example`. Run
 `erpx-bootstrap bootstrap`. A successful bootstrap writes the non-secret,
 write-once `.runtime/erpx/cutover/fresh-state.json` manifest. `cargo xtask dev
 --detach` accepts that manifest only when the matching database bootstrap
-receipt is complete, the tenant registry row is active, the schema and service
-catalog generations are both `2`, the service range is `IFC-SVC-101..165`,
-rollback is offline/no-merge, and the exact n8n config hash is unchanged. Fresh
+receipt is complete, the tenant registry row is active, schema generation is
+`2`, service-catalog generation is `3`, the service range is
+`IFC-SVC-101..165`, and rollback is offline/no-merge. Fresh
 mode skips legacy database reconciliation and business-data demo
 fixtures. When `ERPX_DEV_PERSONA_MODE=enabled` is explicitly configured, the
 development runtime generates the gated controller, secret-free QA persona catalog,
@@ -126,8 +126,7 @@ control database.
 
 Rollback uses the retained binaries, environment snapshot, databases, and
 object namespaces as an isolated system. Old and new writes are never merged.
-Neither bootstrap nor the runtime handoff deletes retained resources or
-modifies `.runtime/n8n/`.
+Neither bootstrap nor the runtime handoff deletes retained resources.
 
 The default local data plane is host-native and shared: one PostgreSQL 18
 cluster on `55432`, one HTTPS MinIO instance on `9000/9001`, and one UCS lab
@@ -159,7 +158,7 @@ After backend edits, run `cargo xtask dev --detach` again: healthy
 infrastructure and Web are reused, current fixtures are skipped, and only
 changed or missing backend service groups restart. Use `--fresh` when local
 runtime configuration must be fully reconciled; it does not drop databases or
-buckets and never touches `.runtime/n8n/`. `cargo xtask status` includes the
+buckets. `cargo xtask status` includes the
 active Web launch mode (`hot-patch`/`stable`, `debug-on`/`debug-off`).
 The status line always identifies the Web layout as `monolithic`.
 
@@ -221,12 +220,9 @@ fail with the owning PID/command instead of starting a competing build. Direct
 Cargo commands remain available for focused, uncoordinated diagnosis.
 
 ERPX keeps allowlisted Cargo build caches under a 128 GiB budget while preserving
-at least 64 GiB of filesystem free space. The lightweight
-`xtask`, `check-fast`, and `test-fast` launchers share
-`.runtime/erpx/xtask-target`; heavy orchestration builds in
-`.runtime/erpx/heavy-xtask-target`, native development services build and run
-from `.runtime/erpx/runtime-dev-target`, and normal workspace checks use root
-`target/`. Managed build
+at least 64 GiB of filesystem free space. Every Cargo workflow, including
+xtask, heavy orchestration, validation, and native development services, uses
+the workspace `target/`; native binaries run from `target/debug`. Managed build
 commands update each cache group's last-used marker and automatically remove
 the least recently used complete target groups when the effective budget is
 exceeded. Active process pins are separate from warm validation pins, so a
@@ -247,17 +243,25 @@ cargo xtask cache prune-debug --dry-run
 cargo xtask cache prune-debug
 ```
 
-The cache allowlist contains only immediate groups below `target/` and the
-dedicated Cargo target directories below `.runtime/erpx/`; runtime data,
-databases, MinIO state, logs, and `.runtime/n8n/` are never candidates. Direct
+The cache allowlist contains only immediate groups below `target/`; runtime data,
+databases, MinIO state, and logs are never candidates. Direct
 Cargo commands do not run the janitor themselves, but their target groups are
 included the next time an ERPX-managed build command runs. Manual pruning also
 removes superseded fast-lane target groups and regenerable deferred iOS/Android
 target groups. Incremental pruning is separately opt-in and refuses to run while
 Dioxus or a workspace compiler is active. `prune-debug` is the narrower
 migration cleanup: it selects only root `target/debug` and refuses to run while
-a recorded native ERPX process still uses that legacy path. Active Web,
-isolated native runtime, and heavy-xtask target groups are pinned independently.
+a recorded native ERPX process still uses that path. Active Web and native
+runtime target groups are pinned independently.
+
+Rotate all managed local PostgreSQL/MinIO credentials and TLS without dropping
+databases, buckets, or objects by inspecting and then confirming the bounded
+operation:
+
+```bash
+cargo xtask reconfigure-local --dry-run
+cargo xtask reconfigure-local --confirm RECONFIGURE_ERPX_LOCAL
+```
 
 The 19 integration harnesses are grouped by domain:
 
@@ -346,11 +350,11 @@ the runbooks under `ops/runbooks/`; the example is a template, never release
 evidence.
 
 Run `cargo xtask verify-platforms` only when manually assessing the deferred
-Desktop, generic Mobile, iOS, Android, and Android bridge targets. It is not
+Dioxus Native host, iOS, Android, and Android bridge targets. It is not
 called by the daily loop, normal CI, or the final Web gate. Those platforms are
 not certified in this phase.
 
 Non-loopback database, object-store, provider, and directory endpoints must use
 certificate-validating TLS. External directory certification remains required
-only when that integration is enabled for the launch tenant. Desktop/Mobile
+only when that integration is enabled for the launch tenant. Dioxus Native
 certification remains outside the Web production target.

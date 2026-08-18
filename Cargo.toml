@@ -303,9 +303,11 @@ security-framework-sys = "2.17.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json", "macros", "migrate"] }
+svg2pdf = { version = "0.13.0", default-features = false, features = ["text"] }
 thiserror = "2.0.17"
 tokio = { version = "1.48.0", features = ["io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
 tokio-stream = "0.1.17"
+tungstenite = "=0.29.0"
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["ring"] }
 tonic = { version = "0.14.6", default-features = false, features = ["codegen"] }
 tonic-prost = "0.14.6"
@@ -320,8 +322,12 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "json"] }
 url = "2.5.8"
 uuid = { version = "1.18.1", features = ["v4", "v5", "serde"] }
+js-sys = "0.3.103"
+wasm-bindgen = "0.2.126"
+wasm-bindgen-futures = "0.4.76"
 web-sys = "0.3.103"
 webauthn-rs = "=0.5.5"
+webauthn-rs-proto = "=0.5.5"
 zeroize = "1.9.0"
 
 [workspace.lints.rust]

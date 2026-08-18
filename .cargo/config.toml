@@ -1,4 +1,7 @@
 [alias]
-xtask = "run --offline -p xtask --no-default-features --bin xtask --target-dir .runtime/erpx/xtask-target --"
-check-fast = "run --offline -p xtask --no-default-features --bin xtask --target-dir .runtime/erpx/xtask-target -- check-fast"
-test-fast = "run --offline -p xtask --no-default-features --bin xtask --target-dir .runtime/erpx/xtask-target -- test-fast"
+xtask = "run --offline -p xtask --no-default-features --bin xtask --"
+check-fast = "run --offline -p xtask --no-default-features --bin xtask -- check-fast"
+test-fast = "run --offline -p xtask --no-default-features --bin xtask -- test-fast"
+
+[build]
+target-dir = "target"

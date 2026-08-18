@@ -1,0 +1,13 @@
+{
+  "currency": "THB",
+  "quote_net_minor": 10000000,
+  "obligations": [
+    {
+      "obligation_id": "00000000-0000-0000-0000-000000000501",
+      "description": "Implementation package delivered and accepted",
+      "allocated_minor": 10000000,
+      "recognition_method": "accepted_fulfillment"
+    }
+  ],
+  "rationale": "Allocate the full standalone selling price to the single accepted-delivery obligation."
+}

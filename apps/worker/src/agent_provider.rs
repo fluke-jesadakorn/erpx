@@ -516,7 +516,7 @@ fn read_only_tool_ref(value: &str) -> bool {
         || value.ends_with(".describe")
 }
 
-fn validate_invocation(
+pub(crate) fn validate_invocation(
     approval: &AgentProviderApproval,
     limits: &AgentProviderLimits,
     request: &ProviderInvocationRequest,
@@ -797,7 +797,11 @@ fn priced_cost(
     u64::try_from(rounded).map_err(|_| PortError::ProviderPermanent)
 }
 
-fn provider_response(output_material: String, units: u64, cost: u64) -> ProviderInvocationResponse {
+pub(crate) fn provider_response(
+    output_material: String,
+    units: u64,
+    cost: u64,
+) -> ProviderInvocationResponse {
     let output_digest = format!("{:x}", Sha256::digest(output_material.as_bytes()));
     ProviderInvocationResponse {
         output_material,

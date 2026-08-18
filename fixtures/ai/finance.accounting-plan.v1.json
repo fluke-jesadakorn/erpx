@@ -1,0 +1,26 @@
+{
+  "currency": "THB",
+  "quote_net_minor": 10000000,
+  "quote_tax_minor": 700000,
+  "tax_profile": {
+    "profile_id": "00000000-0000-0000-0000-000000000401",
+    "version": 1,
+    "classification": "standard_vat",
+    "rate_basis_points": 700,
+    "authority_ref": "company-customer-item:th-vat-7"
+  },
+  "account_roles": {
+    "accounts_receivable": "00000000-0000-0000-0000-000000000601",
+    "output_vat": "00000000-0000-0000-0000-000000000602",
+    "contract_liability": "00000000-0000-0000-0000-000000000603",
+    "revenue": "00000000-0000-0000-0000-000000000604"
+  },
+  "obligations": [
+    {
+      "obligation_id": "00000000-0000-0000-0000-000000000501",
+      "allocated_minor": 10000000,
+      "template_code": "BILLING_TH_VAT7_ACCEPTED_FULFILLMENT"
+    }
+  ],
+  "rationale": "Bill gross to AR, split output VAT, defer net to contract liability, then recognize on accepted fulfillment."
+}

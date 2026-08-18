@@ -51,11 +51,11 @@ mod tests {
     }
 
     #[test]
-    fn commerce_surface_is_web_only_and_covers_e2e_36() {
+    fn commerce_surface_supports_web_and_macos_and_covers_e2e_36() {
         use erpx_ui_enterprise_workspaces::{ChannelPolicy, ClientChannel};
         assert_eq!(WORKSPACE.record_families().len(), 5);
         assert_eq!(WORKSPACE.e2e_scenarios(), &["E2E-36"]);
-        assert_eq!(WORKSPACE.channel_policy(), ChannelPolicy::WebOnly);
-        assert!(!WORKSPACE.channel_policy().supports(ClientChannel::Desktop));
+        assert_eq!(WORKSPACE.channel_policy(), ChannelPolicy::WebMacOs);
+        assert!(WORKSPACE.channel_policy().supports(ClientChannel::Desktop));
     }
 }

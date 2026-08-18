@@ -6,6 +6,8 @@ pub mod domain;
 pub mod experience_application;
 pub mod governance;
 pub mod ports;
+pub mod suggestion;
+pub mod suggestion_application;
 
 pub use application::{
     AddAgentVersion, AgentOrchestrationError, AgentOrchestrationService, ApproveAgentVersion,
@@ -41,4 +43,14 @@ pub use ports::{
     OrchestrationUnitOfWork, PoolCandidatePort, PoolCommit, PoolRoutingCommit, PoolRoutingSummary,
     PortError, ProviderInvocationPort, ProviderInvocationRequest, ProviderInvocationResponse,
     ProviderPolicyPort, RootAssignmentCommit, SessionCommit, WorkerAssignmentPort,
+};
+pub use suggestion::{
+    SUGGESTION_SCHEMA_VERSION, SuggestionCapability, SuggestionEnvelope, SuggestionError,
+    SuggestionId, SuggestionOwner, SuggestionProvenance, SuggestionProviderKind, SuggestionSource,
+    SuggestionStatus,
+};
+pub use suggestion_application::{
+    SuggestionApplicationError, SuggestionAuthorizationPort, SuggestionCommand,
+    SuggestionCommandRequest, SuggestionCommit, SuggestionReceipt, SuggestionRepository,
+    SuggestionService,
 };

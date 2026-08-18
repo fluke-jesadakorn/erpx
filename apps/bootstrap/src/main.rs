@@ -39,8 +39,8 @@ use fresh_state::{
 };
 use resource_guard::{
     FreshNamespacePlan, LoopbackMinioNamespaceAdmin, NamespaceVerificationReceipt,
-    OldResourceInventory, RollbackMetadata, capture_n8n_config_fingerprint,
-    create_and_verify_new_namespace, verify_n8n_config_fingerprint, verify_new_namespace_absent,
+    OldResourceInventory, RollbackMetadata, create_and_verify_new_namespace,
+    verify_new_namespace_absent,
 };
 
 const HELP: &str = "ERPX first-install bootstrap\n\n\
@@ -164,7 +164,6 @@ struct CheckReport<'a> {
     databases: &'a [DatabaseInventoryEntry],
     unexpected_prefix_databases: &'a [String],
     object_namespace_fresh: bool,
-    n8n_config_sha256: String,
     retained_database_count: usize,
 }
 
@@ -182,7 +181,6 @@ struct BootstrapCompleteReport<'a> {
     rollback: &'a RollbackMetadata,
     runtime_manifest: String,
     seed_policy: [&'static str; 5],
-    n8n_config_preserved: bool,
     copied_previous_application_state: bool,
     mutated_previous_resources: bool,
 }
@@ -243,8 +241,6 @@ async fn check() -> Result<()> {
         &object_setup.old_resources,
     )
     .map_err(|_| BootstrapError("fresh object namespace validation failed"))?;
-    let n8n_fingerprint = capture_n8n_config_fingerprint(&object_setup.workspace_root)
-        .map_err(|_| BootstrapError("n8n configuration fingerprint could not be captured"))?;
     let namespace_admin = LoopbackMinioNamespaceAdmin::new(
         namespace_plan.endpoint(),
         MinioObjectStoreConfig {
@@ -308,7 +304,6 @@ async fn check() -> Result<()> {
         databases: &inventory,
         unexpected_prefix_databases: &prefix_collisions,
         object_namespace_fresh,
-        n8n_config_sha256: n8n_fingerprint.as_hex(),
         retained_database_count: object_setup.old_resources.database_names().len(),
     })?;
     require_valid_preflight(valid)
@@ -325,8 +320,6 @@ async fn bootstrap() -> Result<()> {
         &object_setup.old_resources,
     )
     .map_err(|_| BootstrapError("fresh object namespace validation failed"))?;
-    let n8n_fingerprint = capture_n8n_config_fingerprint(&object_setup.workspace_root)
-        .map_err(|_| BootstrapError("n8n configuration fingerprint could not be captured"))?;
     let mut admin = PgConnection::connect_with(&config.admin_options)
         .await
         .map_err(|_| BootstrapError("database connectivity validation failed"))?;
@@ -508,16 +501,10 @@ async fn bootstrap() -> Result<()> {
     schedule_initial_projection_jobs(&config, control.clone()).await?;
     upsert_receipt(&config, &control_write, "initial_projection_jobs_scheduled").await?;
 
-    progress.update_phase(BootstrapPhase::N8nVerification, Utc::now())?;
-
-    verify_n8n_config_fingerprint(&object_setup.workspace_root, &n8n_fingerprint)
-        .map_err(|_| BootstrapError("n8n configuration changed during fresh-state bootstrap"))?;
-    let n8n_config_sha256 = n8n_fingerprint.as_hex();
-    let rollback = RollbackMetadata::new(Utc::now(), object_setup.old_resources, n8n_fingerprint)
+    let rollback = RollbackMetadata::new(Utc::now(), object_setup.old_resources)
         .map_err(|_| BootstrapError("rollback metadata could not be created"))?;
     progress.update_phase(BootstrapPhase::ManifestPublication, Utc::now())?;
-    let runtime_manifest =
-        RuntimeCutoverManifest::new(&config.resources, Utc::now(), n8n_config_sha256, &rollback)?;
+    let runtime_manifest = RuntimeCutoverManifest::new(&config.resources, Utc::now(), &rollback)?;
     // Publish the non-secret runtime handoff before committing the database
     // receipt. Consumers require both artifacts, so an interrupted bootstrap
     // can never make a prepared manifest authoritative on its own.
@@ -539,7 +526,7 @@ async fn bootstrap() -> Result<()> {
     emit(&BootstrapCompleteReport {
         state: "complete",
         schema_generation: erpx_migration::SCHEMA_GENERATION,
-        service_catalog_generation: 2,
+        service_catalog_generation: 3,
         service_id_range: "IFC-SVC-101..165",
         installation_generation: config.resources.installation_generation,
         tenant_id: &config.tenant_id,
@@ -555,7 +542,6 @@ async fn bootstrap() -> Result<()> {
             "canonical_business_units",
             "neutral_brand",
         ],
-        n8n_config_preserved: true,
         copied_previous_application_state: false,
         mutated_previous_resources: false,
     })?;

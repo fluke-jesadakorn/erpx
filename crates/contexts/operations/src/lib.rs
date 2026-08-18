@@ -2,9 +2,21 @@
 #![forbid(unsafe_code)]
 
 pub mod application;
+pub mod approval_application;
+pub mod approval_session;
 pub mod domain;
 pub mod integration;
 pub mod ports;
+
+pub use approval_application::{
+    ApprovalSessionApplicationError, ApprovalSessionAuthorizationPort, ApprovalSessionCommand,
+    ApprovalSessionCommandRequest, ApprovalSessionCommit, ApprovalSessionReceipt,
+    ApprovalSessionRepository, ApprovalSessionService,
+};
+pub use approval_session::{
+    ApprovalGate, ApprovalGateKind, ApprovalGateSpec, ApprovalGateStatus, ApprovalSession,
+    ApprovalSessionError, ApprovalSessionId, ApprovalSessionStatus, my_approval_work,
+};
 
 pub use application::{
     AcknowledgeException, CloseException, DecideApproval, EscalateException, GetException,

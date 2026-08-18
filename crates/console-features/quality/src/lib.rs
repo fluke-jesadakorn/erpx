@@ -17,3 +17,20 @@ erpx_ui_kit::declare_current_workspace_feature!(
     [("quality.workspace", "/quality", "operations")],
     "erpx-feature-quality-v2"
 );
+
+#[cfg(test)]
+mod registration_contract_tests {
+    use super::*;
+
+    #[test]
+    fn web_and_native_share_the_authenticated_canonical_route() {
+        assert_eq!(REGISTRATION.id, "quality");
+        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-quality-v2");
+        assert!(REGISTRATION.routes.iter().all(|route| {
+            route.authorization == "authenticated"
+                && route.canonical_path.starts_with('/')
+                && REGISTRATION.matches_path(route.canonical_path)
+        }));
+        assert!(REGISTRATION.matches_path("/quality/inspection/record-001"));
+    }
+}

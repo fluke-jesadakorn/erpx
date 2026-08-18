@@ -16,6 +16,7 @@ web = [
     "dioxus/devtools",
     "erpx-ui-core/web",
     "erpx-ui-kit/web",
+    "dep:reqwest",
 ]
 server = [
     "dioxus/server",
@@ -33,8 +34,14 @@ server = [
     "dep:tracing",
     "dep:erpx-console-bff",
 ]
-desktop = ["dioxus/desktop", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
-mobile = ["dioxus/mobile", "dioxus/lib", "dioxus/launch", "dioxus/devtools"]
+native = [
+    "dioxus/native",
+    "dioxus/router",
+    "dioxus/lib",
+    "dioxus/launch",
+    "dioxus/devtools",
+    "dep:reqwest",
+]
 
 [dependencies]
 async-trait.workspace = true
@@ -124,12 +131,39 @@ sqlx = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 tower-http = { workspace = true, optional = true }
+url.workspace = true
+webauthn-rs-proto.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys.workspace = true
 tonic.workspace = true
 tonic-web-wasm-client.workspace = true
 uuid = { workspace = true, features = ["js"] }
-web-sys = { workspace = true, features = ["Location", "Window"] }
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+web-sys = { workspace = true, features = [
+    "AbortSignal",
+    "Document",
+    "Element",
+    "Credential",
+    "CredentialCreationOptions",
+    "CredentialRequestOptions",
+    "CredentialsContainer",
+    "Headers",
+    "HtmlDocument",
+    "Location",
+    "Navigator",
+    "PublicKeyCredential",
+    "Request",
+    "RequestCredentials",
+    "RequestInit",
+    "RequestMode",
+    "RequestRedirect",
+    "Response",
+    "Storage",
+    "Window",
+] }
+webauthn-rs-proto = { workspace = true, features = ["wasm"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tonic = { workspace = true, features = ["transport"] }

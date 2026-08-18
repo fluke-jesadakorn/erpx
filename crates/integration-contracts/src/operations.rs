@@ -8,6 +8,7 @@ use crate::{
 owned_uuid_reference!(OperationalProcessRef);
 owned_uuid_reference!(WorkQueuePolicyRef);
 owned_uuid_reference!(ApprovalRequestRef);
+owned_uuid_reference!(ApprovalSessionRef);
 
 /// Typed source facts accepted by the Operations projector. Adding a source is
 /// an explicit contract change, so source ownership cannot be hidden in JSON.
@@ -100,6 +101,46 @@ pub struct ApprovalDecisionFact {
     pub decided_by: ReferenceCode,
     pub reason_code: ReferenceCode,
     pub decided_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApprovalGateKind {
+    SalesCommercial,
+    FinanceAccountingPlan,
+    FinancePosting,
+}
+
+/// Owner-authored, exact-version request for parallel Operations gates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ApprovalSessionRequestFact {
+    pub session: ApprovalSessionRef,
+    pub subject: RecordRef,
+    pub policy_version: u32,
+    pub required_gates: Vec<ApprovalGateKind>,
+    pub requested_by: ReferenceCode,
+    pub requested_at: DateTime<Utc>,
+}
+
+impl ApprovalSessionRequestFact {
+    pub fn validate(&self) -> Result<(), ContractValidationError> {
+        self.subject.validate()?;
+        if self.policy_version == 0
+            || self.required_gates.is_empty()
+            || self.required_gates.len() > 3
+            || self
+                .required_gates
+                .iter()
+                .enumerate()
+                .any(|(index, gate)| self.required_gates[..index].contains(gate))
+            || self.requested_at.timestamp() < 0
+        {
+            return Err(ContractValidationError::OutOfRange(
+                "operations.approval_session_request",
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -13,15 +13,6 @@ pub(crate) type CacheResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
 pub(crate) const CACHE_BUDGET_BYTES: u64 = 128 * 1024 * 1024 * 1024;
 pub(crate) const MINIMUM_FREE_BYTES: u64 = 64 * 1024 * 1024 * 1024;
-const RUNTIME_TARGET_NAMES: [&str; 6] = [
-    "fast-lane-target",
-    "heavy-xtask-target",
-    "runtime-dev-target",
-    "xtask-target",
-    "check-fast-target",
-    "test-fast-target",
-];
-
 #[derive(Debug, Clone)]
 pub(crate) struct CacheGroup {
     pub(crate) id: String,
@@ -284,29 +275,10 @@ pub(crate) fn inventory(root: &Path) -> CacheResult<Vec<CacheGroup>> {
             }
         }
     }
-    let runtime = runtime_dir(root);
-    for name in RUNTIME_TARGET_NAMES {
-        let path = runtime.join(name);
-        if path.exists() {
-            let metadata = fs::symlink_metadata(&path)?;
-            if metadata.file_type().is_symlink() {
-                return Err(
-                    format!("refusing symlinked Cargo cache group {}", path.display()).into(),
-                );
-            }
-            if metadata.is_dir() {
-                paths.push(path);
-            }
-        }
-    }
-
     let web_active = recorded_web_process_active(root);
-    let legacy_prefix = root.join("target/debug/erpx-");
-    let isolated_prefix = runtime.join("runtime-dev-target/debug/erpx-");
-    let legacy_native_runtime_active =
-        recorded_native_runtime_uses(root, &legacy_prefix.to_string_lossy());
-    let isolated_native_runtime_active =
-        recorded_native_runtime_uses(root, &isolated_prefix.to_string_lossy());
+    let native_prefix = root.join("target/debug/erpx-");
+    let native_runtime_active =
+        recorded_native_runtime_uses(root, &native_prefix.to_string_lossy());
     let current_exe = std::env::current_exe().ok();
     let mut groups = Vec::new();
     for path in paths {
@@ -322,11 +294,9 @@ pub(crate) fn inventory(root: &Path) -> CacheResult<Vec<CacheGroup>> {
             .max()
             .unwrap_or(UNIX_EPOCH);
         let web_group = is_live_web_cache_group(&workspace_target, &path);
-        let legacy_native_group = path == workspace_target.join("debug");
-        let isolated_native_group = path == runtime.join("runtime-dev-target");
+        let native_group = path == workspace_target.join("debug");
         let pinned = (web_active && web_group)
-            || (legacy_native_runtime_active && legacy_native_group)
-            || (isolated_native_runtime_active && isolated_native_group)
+            || (native_runtime_active && native_group)
             || current_exe
                 .as_ref()
                 .is_some_and(|executable| executable.starts_with(&path));
@@ -367,10 +337,8 @@ fn is_live_web_cache_group(workspace_target: &Path, path: &Path) -> bool {
 }
 
 fn is_legacy_runtime_group(id: &str) -> bool {
-    matches!(
-        id,
-        "runtime--fast-lane-target" | "runtime--check-fast-target" | "runtime--test-fast-target"
-    )
+    let _ = id;
+    false
 }
 
 fn is_deferred_platform_group(id: &str) -> bool {
@@ -381,7 +349,7 @@ fn is_deferred_platform_group(id: &str) -> bool {
 }
 
 fn is_warm_validation_group(id: &str) -> bool {
-    matches!(id, "workspace--debug" | "runtime--heavy-xtask-target")
+    id == "workspace--debug"
 }
 
 fn cache_target_budget(cache_size: u64, available: u64) -> u64 {
@@ -459,7 +427,7 @@ fn scan_directory(path: &Path) -> CacheResult<(u64, Option<SystemTime>)> {
 
 fn validate_cache_roots(root: &Path) -> CacheResult {
     let canonical_root = root.canonicalize()?;
-    for path in [root.join("target"), runtime_dir(root)] {
+    for path in [root.join("target")] {
         if !path.exists() {
             continue;
         }
@@ -526,9 +494,7 @@ fn validate_incremental_directory(root: &Path, path: &Path) -> CacheResult {
     }
     let canonical_root = root.canonicalize()?;
     let canonical_path = path.canonicalize()?;
-    if !canonical_path.starts_with(canonical_root.join("target"))
-        && !canonical_path.starts_with(runtime_dir(root))
-    {
+    if !canonical_path.starts_with(canonical_root.join("target")) {
         return Err(format!("incremental cache escapes workspace: {}", path.display()).into());
     }
     Ok(())
@@ -540,13 +506,6 @@ fn group_id(root: &Path, path: &Path) -> Option<String> {
         return path
             .file_name()
             .map(|name| format!("workspace--{}", name.to_string_lossy()));
-    }
-    let runtime = runtime_dir(root);
-    if path.parent() == Some(runtime.as_path()) {
-        let name = path.file_name()?.to_str()?;
-        if RUNTIME_TARGET_NAMES.contains(&name) {
-            return Some(format!("runtime--{name}"));
-        }
     }
     None
 }
@@ -833,14 +792,8 @@ mod tests {
     }
 
     #[test]
-    fn only_superseded_fast_lane_targets_are_legacy() {
-        for id in [
-            "runtime--fast-lane-target",
-            "runtime--check-fast-target",
-            "runtime--test-fast-target",
-        ] {
-            assert!(is_legacy_runtime_group(id));
-        }
+    fn no_runtime_target_is_a_cache_group() {
+        assert!(!is_legacy_runtime_group("runtime--fast-lane-target"));
         assert!(!is_legacy_runtime_group("runtime--xtask-target"));
         assert!(!is_legacy_runtime_group("workspace--debug"));
     }
@@ -879,19 +832,10 @@ mod tests {
             group_id(root, &root.join("target/debug")).as_deref(),
             Some("workspace--debug")
         );
-        assert_eq!(
-            group_id(root, &root.join(".runtime/erpx/fast-lane-target")).as_deref(),
-            Some("runtime--fast-lane-target")
-        );
-        assert_eq!(
-            group_id(root, &root.join(".runtime/erpx/heavy-xtask-target")).as_deref(),
-            Some("runtime--heavy-xtask-target")
-        );
-        assert_eq!(
-            group_id(root, &root.join(".runtime/erpx/runtime-dev-target")).as_deref(),
-            Some("runtime--runtime-dev-target")
-        );
-        assert!(group_id(root, &root.join(".runtime/n8n")).is_none());
+        assert!(group_id(root, &root.join(".runtime/erpx/fast-lane-target")).is_none());
+        assert!(group_id(root, &root.join(".runtime/erpx/heavy-xtask-target")).is_none());
+        assert!(group_id(root, &root.join(".runtime/erpx/runtime-dev-target")).is_none());
+        assert!(group_id(root, &root.join(".runtime/unmanaged")).is_none());
     }
 
     #[test]
@@ -928,8 +872,8 @@ mod tests {
     #[test]
     fn warm_validation_pins_are_separate_from_active_dioxus_groups() {
         assert!(is_warm_validation_group("workspace--debug"));
-        assert!(is_warm_validation_group("runtime--heavy-xtask-target"));
         assert!(!is_warm_validation_group("workspace--dx-hotpatch"));
+        assert!(!is_warm_validation_group("runtime--heavy-xtask-target"));
         assert!(!is_warm_validation_group("runtime--runtime-dev-target"));
     }
 

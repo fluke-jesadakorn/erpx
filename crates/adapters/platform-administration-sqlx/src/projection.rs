@@ -284,7 +284,6 @@ pub(crate) fn connector_kind(value: &ConnectorKind) -> &str {
     match value {
         ConnectorKind::Stripe => "stripe",
         ConnectorKind::Minio => "minio",
-        ConnectorKind::N8n => "n8n",
         ConnectorKind::Ollama => "ollama",
         ConnectorKind::Other(value) => value,
     }

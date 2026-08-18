@@ -2,10 +2,15 @@
 pub mod gateway;
 pub mod models;
 pub mod presenter;
+pub mod sales_workspace;
 pub mod view;
 pub use gateway::{FinanceGateway, FinanceProtoTransport};
 pub use models::{FinanceItem, FinanceItems};
 pub use presenter::{FinanceContent, FinancePresenter};
+pub use sales_workspace::{
+    FinanceApprovalWorkItem, FinanceSalesApprovalWorkspace, FinanceSalesProjectionState,
+    FinanceSalesWorkspaceModel, SalesFinanceReconciliationRow,
+};
 pub use view::{FinanceRenderedState, render_finance_state};
 erpx_ui_kit::declare_current_workspace_feature!(
     FinanceFeatureSurface,

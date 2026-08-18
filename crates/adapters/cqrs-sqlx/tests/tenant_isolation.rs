@@ -4,8 +4,8 @@ use erpx_cqrs_sqlx::{ProjectionPool, WritePool};
 use sqlx::{PgPool, Row, postgres::PgPoolOptions};
 use uuid::Uuid;
 
-const WRITE_DATABASE_URL: &str = "ERPX_TEST_TENANT_WRITE_DATABASE_URL";
-const READ_DATABASE_URL: &str = "ERPX_TEST_TENANT_READ_DATABASE_URL";
+const WRITE_DATABASE_URL: &str = "ERPX_TEST_RLS_TENANT_WRITE_DATABASE_URL";
+const READ_DATABASE_URL: &str = "ERPX_TEST_RLS_TENANT_READ_DATABASE_URL";
 
 #[test]
 #[ignore = "requires disposable generation-v2 tenant write/read PostgreSQL URLs"]
@@ -15,8 +15,8 @@ fn tenant_cqrs_rls_acceptance() {
         configured_url(READ_DATABASE_URL),
     ) else {
         panic!(
-            "set ERPX_TEST_TENANT_WRITE_DATABASE_URL and \
-             ERPX_TEST_TENANT_READ_DATABASE_URL to certify tenant RLS"
+            "set ERPX_TEST_RLS_TENANT_WRITE_DATABASE_URL and \
+             ERPX_TEST_RLS_TENANT_READ_DATABASE_URL to certify tenant RLS"
         );
     };
 

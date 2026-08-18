@@ -49,6 +49,7 @@ mod agent_material;
 mod agent_orchestration_runtime;
 mod agent_provider;
 mod agent_tenant_runtime;
+mod approval_session_integration;
 mod backup_retention;
 mod backup_runtime;
 mod branch_provisioning_runtime;
@@ -65,9 +66,11 @@ mod finance_banking_provider;
 mod finance_chart_projection;
 mod finance_close_projection;
 mod finance_completion_runtime;
+mod finance_final_posting;
 mod finance_projection;
 mod finance_subledger_projection;
 mod finance_tax_projection;
+mod fixture_suggestion_provider;
 mod future_enterprise_projection;
 mod g13_target_runtime;
 mod hr_completion_runtime;
@@ -93,11 +96,16 @@ mod pos_projection;
 mod quality_projection;
 mod role_review_notifications;
 mod role_review_runtime;
+mod sales_finance_inbox_sqlx;
+mod sales_finance_integration;
 mod scm_projection;
 mod support_attachments;
 mod support_workflow;
 mod tenant_projection_scheduler;
 mod tenant_projection_status_projection;
+
+#[cfg(test)]
+mod vertical_slice_tests;
 
 pub use agent_material::{
     AgentEncryptedObjectPort, AgentEnvelopeCiphertext, AgentEnvelopeKeyManagerPort,
@@ -123,6 +131,10 @@ pub use agent_tenant_runtime::{
     TrustedAgentTenantOperationsConfig, TrustedAgentTenantRuntimeConfig,
     TrustedTenantAgentAssignmentPass, compose_trusted_tenant_agent_operations,
     compose_trusted_tenant_agent_runner,
+};
+pub use approval_session_integration::{
+    ApprovalIngressOutcome, ApprovalIntegrationError, ApprovalOwnerCommand, ApprovalOwnerHandoff,
+    ApprovalSessionIngressState, owner_handoff,
 };
 pub use backup_retention::{
     TENANT_BACKUP_RETENTION_HANDLER_NAME, TenantBackupRetentionRuntimeHandler,
@@ -202,6 +214,9 @@ pub use finance_completion_runtime::{
     FinanceCompletionRollbackMetrics, FinanceCompletionRuntimeAdapter,
     FinanceCompletionRuntimeError,
 };
+pub use finance_final_posting::{
+    FinalPostingCoordinator, FinalPostingError, FinancePostingOwnerPort,
+};
 pub use finance_projection::{
     FINANCE_PROJECTION_HANDLER_NAME, FINANCE_PROJECTION_MAX_PAGE_SIZE,
     FinanceProjectionRebuildReport, FinanceProjectionRequest, FinanceProjectionRunReport,
@@ -217,6 +232,9 @@ pub use finance_subledger_projection::{
 pub use finance_tax_projection::{
     FINANCE_THAI_TAX_PROJECTION_HANDLER_NAME, FINANCE_THAI_TAX_PROJECTION_MAX_PAGE_SIZE,
     FinanceThaiTaxProjectionWorkerError, FinanceThaiTaxTenantProjectionExecutor,
+};
+pub use fixture_suggestion_provider::{
+    FixtureAgentProvider, FixtureEnvironment, FixtureSuggestionProviderError,
 };
 pub use future_enterprise_projection::{
     FutureEnterpriseProjectionKind, FutureEnterpriseProjectionRegistration,
@@ -325,6 +343,14 @@ pub use marketing_public_abuse::{
     MARKETING_PUBLIC_ABUSE_CLEANUP_RETENTION_SECONDS, MarketingPublicAbuseCleanupError,
     MarketingPublicAbuseCleanupReport, MarketingPublicAbuseCleanupRunner,
     MarketingPublicAbusePurgePort,
+};
+pub use sales_finance_inbox_sqlx::{
+    DurableSalesFinanceOutcome, SALES_FINANCE_CONSUMER_NAME, SalesFinanceInboxError,
+    SqlxSalesFinanceInbox,
+};
+pub use sales_finance_integration::{
+    SalesFinanceConsumeOutcome, SalesFinanceConsumerError, SalesFinanceConsumerState,
+    SalesFinanceFailure, SalesFinanceHandoff, SalesFinanceHandoffKind,
 };
 pub const PLATFORM_COMPLETION_HANDLER_NAME: &str = "platform_completion";
 pub use platform_completion_runtime::{

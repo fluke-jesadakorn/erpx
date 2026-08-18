@@ -77,6 +77,9 @@ mod bff;
 mod composition;
 mod future_enterprise_gateway;
 mod localization;
+#[cfg(feature = "native")]
+mod native_spike;
+pub mod platform;
 #[allow(dead_code)]
 mod product_completion;
 #[cfg(test)]

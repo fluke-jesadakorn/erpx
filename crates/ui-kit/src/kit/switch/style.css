@@ -22,7 +22,7 @@
 
 .dx-switch:focus-visible {
   box-shadow: 0 0 0 3px
-    color-mix(in oklab, var(--erpx-focus) 50%, transparent);
+    var(--erpx-focus-ring);
 }
 
 .dx-switch-thumb {

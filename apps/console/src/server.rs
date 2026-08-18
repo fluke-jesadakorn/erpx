@@ -112,3 +112,24 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
         .layer(middleware::from_fn(session_middleware))
         .layer(Extension(state)))
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn axum_extends_the_single_dioxus_renderer_with_bff_routes_only() {
+        let source = include_str!("server.rs");
+        assert!(source.contains("Ok(dioxus_router(crate::App)"));
+        for forbidden in [
+            concat!(".fall", "back("),
+            concat!("routing::get", "_service"),
+            concat!("Serve", "Dir"),
+            concat!("Html", "("),
+            concat!("include_str!(\"../", "index.html\")"),
+        ] {
+            assert!(
+                !source.contains(forbidden),
+                "Axum must not own an HTML UI fallback: {forbidden}"
+            );
+        }
+    }
+}

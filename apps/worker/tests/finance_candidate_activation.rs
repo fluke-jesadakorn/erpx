@@ -267,7 +267,7 @@ async fn run_candidate_activation(
         .map_err(|_| test_error("migrate disposable control read database"))?;
     let control = Arc::new(SqlxControlPlane::new(pools));
 
-    let tenant_id = format!("tenant-fin045-{}", Uuid::new_v4().simple());
+    let tenant_id = Uuid::new_v4().to_string();
     let holding_ref = format!("holding-fin045-{}", Uuid::new_v4().simple());
     SqlxTenantStoreRegistry::new(Arc::clone(&control))
         .register(TenantStoreRegistration {

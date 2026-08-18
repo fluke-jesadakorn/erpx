@@ -171,7 +171,10 @@ mod tests {
     const CONSOLE_MAIN_SOURCE: &str = concat!(
         include_str!("lib.rs"),
         include_str!("transport/mod.rs"),
-        include_str!("composition.rs")
+        include_str!("composition.rs"),
+        include_str!("platform.rs"),
+        include_str!("platform/http.rs"),
+        include_str!("platform/preferences.rs")
     );
 
     #[test]
@@ -1474,13 +1477,13 @@ mod tests {
     #[test]
     fn g14_console_deployment_inputs_are_explicit_and_non_secret() {
         for marker in [
-            "const GRPC_ENDPOINT",
-            "option_env!(\"ERPX_CONSOLE_GRPC_ENDPOINT\")",
-            "const AUTH_HTTP_ORIGIN",
-            "option_env!(\"ERPX_CONSOLE_AUTH_HTTP_ORIGIN\")",
-            "Endpoint::from_static(GRPC_ENDPOINT)",
-            "credentials: \"omit\"",
-            "cache: \"no-store\"",
+            "pub struct NativeEndpointConfig",
+            "std::env::var(\"ERPX_NATIVE_GRPC_ENDPOINT\")",
+            "std::env::var(\"ERPX_NATIVE_HTTP_ORIGIN\")",
+            "NativeHttpPolicy::from_config",
+            "RequestCredentials::Include",
+            "RequestRedirect::Error",
+            "RuntimeCredentialSlot::new()",
         ] {
             assert!(
                 CONSOLE_MAIN_SOURCE.contains(marker),
@@ -1518,14 +1521,12 @@ mod tests {
     #[test]
     fn g14_console_startup_hash_deep_links_restore_and_delegate_redaction() {
         for marker in [
-            "let initial_resolution = console_route_resolution_for(&initial_path",
+            "let initial_resolution = console_route_resolution_for(&initial_path)",
             "typed_console_destination_allowed",
             "let mut active_route = use_signal",
-            "window.location.pathname",
-            "window.location.hash.startsWith('#/')",
-            "window.location.hash.slice(1)",
-            "emitPath();",
-            "while let Ok(path) = eval.recv::<String>().await",
+            "crate::platform::preferences::web_location_path()",
+            "location.hash().ok()?",
+            "hash.strip_prefix(\"#/\")",
             "route_signals.activate(&path)",
         ] {
             assert!(

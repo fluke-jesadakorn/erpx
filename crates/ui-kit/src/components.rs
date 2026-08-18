@@ -32,9 +32,6 @@ use erpx_ui_core::{
     localized_navigation_label, redact_deep_link, use_corporate_identity, use_locale, use_theme,
 };
 
-#[cfg(target_arch = "wasm32")]
-const NAVIGATION_DISCLOSURE_STORAGE_KEY: &str = "erpx.navigation.disclosure.v1";
-
 const fn shared_text(locale: Locale, en: &'static str, th: &'static str) -> &'static str {
     LocalizedText::new(en, th).text(locale)
 }
@@ -49,21 +46,25 @@ fn current_locale() -> Locale {
 struct AccountSessionFocusTarget(ReadSignal<Option<Rc<MountedData>>>);
 
 #[derive(Clone, Copy)]
-pub struct NavigationDisclosureState(Signal<BTreeSet<String>>);
+pub struct NavigationDisclosureState {
+    expanded: Signal<BTreeSet<String>>,
+    on_change: Callback<Vec<String>>,
+}
 
 impl NavigationDisclosureState {
     pub fn is_expanded(self, group_id: &str) -> bool {
-        self.0.read().contains(group_id)
+        self.expanded.read().contains(group_id)
     }
 
     pub fn toggle(self, group_id: &str) {
-        let mut expanded = self.0;
+        let mut expanded = self.expanded;
         if expanded.read().contains(group_id) {
             expanded.write().remove(group_id);
         } else {
             expanded.write().insert(group_id.to_owned());
         }
-        persist_navigation_disclosures(&expanded.read());
+        self.on_change
+            .call(expanded.read().iter().cloned().collect::<Vec<_>>());
     }
 }
 
@@ -105,20 +106,6 @@ pub fn LockedTooltipButton(
             }
         }
     }
-}
-
-fn persist_navigation_disclosures(expanded: &BTreeSet<String>) {
-    #[cfg(target_arch = "wasm32")]
-    {
-        let value = expanded.iter().cloned().collect::<Vec<_>>().join(",");
-        let eval = document::eval(&format!(
-            r#"const value = await dioxus.recv();
-try {{ window.localStorage.setItem('{NAVIGATION_DISCLOSURE_STORAGE_KEY}', value); }} catch (_) {{}}"#
-        ));
-        let _ = eval.send(value);
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    let _ = expanded;
 }
 
 /// Return the mounted account/session trigger owned by the nearest [`AppShell`]. Dialogs
@@ -243,6 +230,12 @@ pub fn AppShell(
     /// preserves the in-memory session on web targets that intentionally have no browser token
     /// storage fallback.
     on_navigate: EventHandler<String>,
+    /// Disclosure state restored by the renderer-specific preference adapter.
+    #[props(default)]
+    expanded_navigation_groups: Vec<String>,
+    /// Persists disclosure changes without coupling shared RSX to a browser or native backend.
+    #[props(default)]
+    on_navigation_disclosure_change: Option<EventHandler<Vec<String>>>,
     /// Page content.
     children: Element,
 ) -> Element {
@@ -304,40 +297,24 @@ pub fn AppShell(
                 .collect(),
         })
         .collect::<Vec<_>>();
-    #[cfg(target_arch = "wasm32")]
     let known_navigation_groups = nav_groups
         .iter()
         .map(|group| group.group_id.clone())
         .collect::<BTreeSet<_>>();
-    let expanded_navigation_groups = use_signal(BTreeSet::<String>::new);
-    use_context_provider(|| NavigationDisclosureState(expanded_navigation_groups));
-    #[cfg(target_arch = "wasm32")]
-    {
-        let mut disclosure_loaded = use_signal(|| false);
-        use_effect(move || {
-            if *disclosure_loaded.read() {
-                return;
-            }
-            disclosure_loaded.set(true);
-            let known_navigation_groups = known_navigation_groups.clone();
-            let mut expanded_navigation_groups = expanded_navigation_groups;
-            spawn(async move {
-                let mut eval = document::eval(&format!(
-                    r#"let value = '';
-try {{ value = window.localStorage.getItem('{NAVIGATION_DISCLOSURE_STORAGE_KEY}') || ''; }} catch (_) {{}}
-dioxus.send(value);"#
-                ));
-                if let Ok(value) = eval.recv::<String>().await {
-                    let restored = value
-                        .split(',')
-                        .filter(|group_id| known_navigation_groups.contains(*group_id))
-                        .map(str::to_owned)
-                        .collect::<BTreeSet<_>>();
-                    expanded_navigation_groups.set(restored);
-                }
-            });
-        });
-    }
+    let initial_expanded = expanded_navigation_groups
+        .into_iter()
+        .filter(|group_id| known_navigation_groups.contains(group_id))
+        .collect::<BTreeSet<_>>();
+    let expanded_navigation_groups = use_signal(|| initial_expanded);
+    let disclosure_change = Callback::new(move |groups: Vec<String>| {
+        if let Some(handler) = &on_navigation_disclosure_change {
+            handler.call(groups);
+        }
+    });
+    use_context_provider(|| NavigationDisclosureState {
+        expanded: expanded_navigation_groups,
+        on_change: disclosure_change,
+    });
     let primary_items = [
         NavItem::new(
             shared_text(current_locale, "My Work", "งานของฉัน"),
@@ -612,7 +589,7 @@ dioxus.send(value);"#
                             {
                                 let authorized_items = authorized_group_items(group);
                                 let group_id = group.group_id.clone();
-                                let disclosure = NavigationDisclosureState(expanded_navigation_groups);
+                                let disclosure = NavigationDisclosureState { expanded: expanded_navigation_groups, on_change: disclosure_change };
                                 let expanded = disclosure.is_expanded(&group_id);
                                 let visible_items = visible_sidebar_items(
                                     &authorized_items,
@@ -707,7 +684,7 @@ dioxus.send(value);"#
                             {
                                 let authorized_items = authorized_group_items(group);
                                 let group_id = group.group_id.clone();
-                                let disclosure = NavigationDisclosureState(expanded_navigation_groups);
+                                let disclosure = NavigationDisclosureState { expanded: expanded_navigation_groups, on_change: disclosure_change };
                                 let expanded = disclosure.is_expanded(&group_id);
                                 let visible_items = visible_sidebar_items(&authorized_items, &active_path, expanded);
                                 let hidden_count = authorized_items.len().saturating_sub(visible_items.len());

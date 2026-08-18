@@ -299,7 +299,7 @@ async fn backup_jobs_project_all_pages_and_link_claim_attempts_durably() {
     .fetch_one(&store.pools().write)
     .await
     .expect("read typed backup job authority version");
-    assert_eq!(authority_version, 3);
+    assert_eq!(authority_version, 4);
     let leaked_reference: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM erpx_control.outbox_events
          WHERE aggregate_type = $1 AND tenant_scope->>'tenant_id' = $2

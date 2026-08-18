@@ -248,7 +248,7 @@ unknown authority-bearing values, and preserves correlation/provenance.
 | IFC-PRV-003 | Ollama/local and approved external AI providers | Platform Administration/Agent Orchestration | Model registry, classification, residency, DPA, payload provenance |
 | IFC-PRV-004 | Email, SMS, Push, Webhook adapters | Notifications | Optional delivery, retry, dedupe, callback reconciliation |
 | IFC-PRV-005 | E-signature providers | E-signature/source owner | Envelope digest, signer order, callback verification, evidence export |
-| IFC-PRV-006 | n8n integration adapter | Platform Administration | Allow-listed workflows, signed typed commands, no direct business writes |
+| IFC-PRV-006 | Reserved (retired workflow adapter) | Platform Administration | Wire/catalog identifier is not reusable |
 | IFC-PRV-007 | Object-storage providers | Source contexts | Tenant-scoped keys, digest, encryption, quarantine, short-lived authorization |
 | IFC-PRV-008 | Thailand tax/regulatory adapters | Finance/People & Payroll | Versioned pack, official source, external certification, reconciliation |
 | IFC-DP-001 | Provision, migrate, suspend, resume, rotate, backup, restore, PITR, exit | Platform/Data Plane agents | Receipt-bound, resumable, scoped, audited, rollback-safe operations |

@@ -55,10 +55,7 @@ mod tests {
         use erpx_ui_enterprise_workspaces::{ChannelPolicy, ClientChannel};
         assert_eq!(WORKSPACE.record_families().len(), 4);
         assert_eq!(WORKSPACE.e2e_scenarios(), &["E2E-39"]);
-        assert_eq!(
-            WORKSPACE.channel_policy(),
-            ChannelPolicy::FourChannelAdaptive
-        );
+        assert_eq!(WORKSPACE.channel_policy(), ChannelPolicy::WebMacOs);
         assert!(WORKSPACE.channel_policy().supports(ClientChannel::Desktop));
     }
 }

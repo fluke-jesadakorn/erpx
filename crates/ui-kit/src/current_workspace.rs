@@ -6,7 +6,10 @@ use erpx_ui_core::{
     ReadModelFreshness, SafeUiText, normalize_deep_link,
 };
 
-use crate::kit::Link as KitLink;
+use crate::kit::{
+    Link as KitLink,
+    button::{Button as KitButton, ButtonSize, ButtonVariant},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CurrentFeatureKind {
@@ -1321,18 +1324,30 @@ pub fn render_current_workspace_surface(
                 )} }
             }
             nav {
+                class: "current-workspace-v2__navigation",
                 "aria-label": localized(locale, "Record collections", "คอลเลกชันรายการ"),
                 ul {
                     for item in feature.record_families() {
-                        li {
-                            KitLink {
-                                href: item.collection_path(),
-                                "aria-current": if item.record_type == family.record_type { "page" } else { "false" },
-                                "data-publication": match item.publication {
-                                    RecordPublicationState::Live => "live",
-                                    RecordPublicationState::TargetPending => "target-pending",
-                                },
-                                {item.label.text(locale)}
+                        {
+                            let collection_path = item.collection_path();
+                            let path_for_click = collection_path.clone();
+                            let navigate = context.navigate.clone();
+                            rsx! {
+                                li {
+                                    KitLink {
+                                        href: collection_path,
+                                        onclick: move |event: MouseEvent| {
+                                            event.prevent_default();
+                                            navigate(path_for_click.clone());
+                                        },
+                                        "aria-current": if item.record_type == family.record_type { "page" } else { "false" },
+                                        "data-publication": match item.publication {
+                                            RecordPublicationState::Live => "live",
+                                            RecordPublicationState::TargetPending => "target-pending",
+                                        },
+                                        {item.label.text(locale)}
+                                    }
+                                }
                             }
                         }
                     }
@@ -1348,7 +1363,9 @@ pub fn render_current_workspace_surface(
                 h3 { {state.title} }
                 p { {state.detail} }
                 if state.retryable {
-                    button {
+                    KitButton {
+                        variant: ButtonVariant::Outline,
+                        size: ButtonSize::Sm,
                         r#type: "button",
                         disabled: true,
                         "aria-disabled": "true",
@@ -1357,6 +1374,7 @@ pub fn render_current_workspace_surface(
                 }
             }
             section {
+                class: "current-workspace-v2__record",
                 "aria-labelledby": "current-record-title",
                 "data-record-type": family.record_type,
                 "data-publication": publication_key,
@@ -1373,12 +1391,14 @@ pub fn render_current_workspace_surface(
                 }
             }
             section {
+                class: "current-workspace-v2__actions",
                 "aria-labelledby": "current-actions-title",
                 h3 { id: "current-actions-title", {localized(locale, "Governed action cards", "การดำเนินการที่กำกับดูแล")} }
                 ul {
                     for command in commands {
                         li {
                             article {
+                                class: "current-workspace-v2__action-card",
                                 "data-command-id": command.command_id,
                                 h4 { {command.label} }
                                 p { {localized(
@@ -1386,7 +1406,9 @@ pub fn render_current_workspace_surface(
                                     "Requires current version, idempotency key and explicit confirmation.",
                                     "ต้องใช้เวอร์ชันปัจจุบัน คีย์ป้องกันการทำซ้ำ และการยืนยันอย่างชัดเจน",
                                 )} }
-                                button {
+                                KitButton {
+                                    variant: ButtonVariant::Secondary,
+                                    size: ButtonSize::Sm,
                                     r#type: "button",
                                     disabled: true,
                                     "aria-disabled": "true",
@@ -1401,6 +1423,7 @@ pub fn render_current_workspace_surface(
                 }
             }
             aside {
+                class: "current-workspace-v2__collaboration",
                 "aria-label": localized(locale, "Record collaboration hooks", "จุดเชื่อมการทำงานร่วมกันของรายการ"),
                 section {
                     h3 { {localized(locale, "Approvals", "การอนุมัติ")} }
@@ -1416,6 +1439,7 @@ pub fn render_current_workspace_surface(
                 }
             }
             footer {
+                class: "current-workspace-v2__footer",
                 p { {localized(
                     locale,
                     "Adaptive on Web, Desktop, iOS and Android. Offline is read-only and changes are not queued.",
@@ -1727,6 +1751,8 @@ mod tests {
     fn navigation_uses_governed_link_and_no_raw_anchor() {
         let source = include_str!("current_workspace.rs");
         assert!(source.contains("KitLink {"));
+        assert!(source.contains("event.prevent_default();"));
+        assert!(source.contains("context.navigate.clone()"));
         let raw_anchor = ["\n", "                            ", "a", " {"].concat();
         assert!(!source.contains(&raw_anchor));
     }

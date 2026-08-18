@@ -32,7 +32,10 @@ mod tests {
     #[test]
     fn registration_and_record_routes_are_canonical() {
         assert_eq!(REGISTRATION.routes[0].canonical_path, WORKSPACE.root());
+        assert_eq!(REGISTRATION.routes[0].authorization, "authenticated");
+        assert_eq!(REGISTRATION.artifact_key, "erpx-feature-projects-v2");
         assert!(!REGISTRATION.routes[0].canonical_path.contains("workspaces"));
+        assert!(REGISTRATION.matches_path(WORKSPACE.root()));
         assert!(resolve_route(WORKSPACE.root()).is_some());
         assert!(resolve_route(&WORKSPACE.collection_path()).is_some());
         let detail = WORKSPACE.detail_path("record-001").expect("detail route");
@@ -63,5 +66,17 @@ mod tests {
         let source = include_str!("../../../ui-domains/enterprise-workspaces/src/lib.rs");
         assert!(source.contains("Project → Phase or Epic → Item → Sub-item"));
         assert!(source.contains("Cross-owner dependencies require acceptance by both owners"));
+    }
+
+    #[test]
+    fn projects_surface_contract_is_localized_and_desktop_accessible() {
+        use erpx_ui_core::Locale;
+        use erpx_ui_enterprise_workspaces::{ACCESSIBILITY, ClientChannel};
+
+        assert_ne!(WORKSPACE.label(Locale::En), WORKSPACE.label(Locale::Th));
+        assert!(WORKSPACE.channel_policy().supports(ClientChannel::Web));
+        assert!(WORKSPACE.channel_policy().supports(ClientChannel::Desktop));
+        const { assert!(ACCESSIBILITY.focus_heading_after_navigation) };
+        const { assert!(ACCESSIBILITY.keyboard_reachable_actions) };
     }
 }

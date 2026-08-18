@@ -209,22 +209,20 @@ certification complete.
 [platform completion](../../crates/domain/src/platform_completion.rs),
 [marketing provider](../../apps/worker/src/marketing_provider.rs).
 
-### REQ-INT-003 — Governed n8n commands
+### REQ-INT-003 — Retired workflow adapter fence
 
-**Requirement.** ERPX shall permit n8n to invoke only approved, typed,
-scope-authorized integration commands and shall never grant arbitrary database,
-shell, or secret access.
+**Requirement.** ERPX shall reject the retired workflow-adapter kind at domain,
+transport, persistence, and migration boundaries. Its former wire value and
+catalog identity shall not be reused.
 
-**Rationale.** Workflow automation must remain inside ERPX business and
-security boundaries.
+**Rationale.** Removing an adapter must not silently reinterpret durable facts
+or make its identifiers available to an unrelated provider.
 
-**Acceptance criteria.** Each action is allow-listed and versioned; command
-authorization and idempotency apply normally; unsupported action is rejected;
-n8n state and encryption key are never replaced by bootstrap, migration, or
-runtime reconciliation.
+**Acceptance criteria.** The retired enum value and name are reserved; legacy
+guard, projection, receipt, audit, or outbox evidence stops forward migration;
+the generic `other` kind cannot spell the retired adapter name.
 
-**Sources.** [Marketing boundaries](../../adr/ADR-009-marketing-crm-boundaries.md),
-[customer data plane](../../adr/ADR-011-customer-data-plane-agent.md),
+**Sources.** [Adapter retirement decision](../../adr/ADR-015-retire-n8n-and-unify-local-runtime.md),
 [project safety](../../README.md).
 
 ### REQ-INT-004 — Stripe webhook integrity

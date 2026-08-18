@@ -1,107 +1,54 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "release_revision": "replace-with-immutable-revision",
-  "captured_at": "2026-08-09T00:00:00Z",
+  "captured_at": "2026-08-17T00:00:00Z",
   "browser": {
     "passed": true,
-    "modules": [
-      "finance", "sales", "procurement", "inventory", "operations", "assets",
-      "maintenance", "quality", "marketing-crm", "hr-payroll", "point-of-sale", "legal"
+    "features": [
+      "ai-collaboration", "assets", "benefits", "brand", "commercial", "crm",
+      "customer-360", "customer-authority", "ecommerce", "field-service", "finance",
+      "identity-access", "inventory", "legal", "learning", "maintenance", "marketing",
+      "manufacturing", "operations", "organization", "people-payroll", "planning",
+      "platform-administration", "pos", "procurement", "projects", "quality", "sales",
+      "support", "talent"
     ],
     "locales": ["en", "th"],
     "viewports": ["desktop", "390px"],
     "negative_cases": ["403", "404", "validation", "conflict", "duplicate", "retry"],
-    "module_journeys": [
-      {
-        "module": "finance", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "sales", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "procurement", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "inventory", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "operations", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "assets", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "maintenance", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "quality", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "marketing-crm", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "hr-payroll", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "point-of-sale", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      },
-      {
-        "module": "legal", "passed": true,
-        "positive_cases": ["login", "scope", "list", "detail", "create", "transition", "read_your_writes", "audit", "session_recovery"],
-        "negative_cases": ["authorization", "validation", "conflict", "duplicate", "recovery"],
-        "locales": ["en", "th"], "viewports": ["desktop", "390px"], "unexplained_console_errors": 0
-      }
+    "feature_journeys": [
+      {"feature":"ai-collaboration","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"assets","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"benefits","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"brand","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"commercial","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"crm","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"customer-360","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"customer-authority","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"ecommerce","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"field-service","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"finance","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"identity-access","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"inventory","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"legal","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"learning","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"maintenance","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"marketing","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"manufacturing","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"operations","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"organization","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"people-payroll","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"planning","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"platform-administration","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"pos","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"procurement","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"projects","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"quality","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"sales","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"support","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0},
+      {"feature":"talent","passed":true,"positive_cases":["login","scope","list","detail","create","transition","read_your_writes","audit","session_recovery"],"negative_cases":["authorization","validation","conflict","duplicate","recovery"],"locales":["en","th"],"viewports":["desktop","390px"],"unexplained_console_errors":0}
     ]
   },
-  "security": {
-    "passed": true,
-    "critical_findings": 0,
-    "high_findings": 0
-  },
-  "recovery": {
-    "backup_restore_passed": true,
-    "object_recovery_passed": true,
-    "pitr_passed": true,
-    "measured_rpo_seconds": 0,
-    "measured_rto_seconds": 0
-  },
-  "operations": {
-    "alerts_loaded": true,
-    "runbooks_verified": true,
-    "projection_lag_seconds": 0,
-    "unexplained_console_errors": 0
-  }
+  "security": {"passed": true, "critical_findings": 0, "high_findings": 0},
+  "recovery": {"backup_restore_passed": true, "object_recovery_passed": true, "pitr_passed": true, "measured_rpo_seconds": 0, "measured_rto_seconds": 0},
+  "operations": {"alerts_loaded": true, "runbooks_verified": true, "projection_lag_seconds": 0, "unexplained_console_errors": 0}
 }

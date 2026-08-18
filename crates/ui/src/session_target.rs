@@ -254,10 +254,119 @@ fn base64_sextet(byte: u8) -> Option<u8> {
     }
 }
 
+/// Minimal boundary around a single protected credential item.
+///
+/// `replace` must commit the complete value atomically: on error the previously readable value
+/// remains unchanged. Apple Keychain's add/update operation provides that contract, while tests
+/// use an in-memory backend so they never read or mutate a developer's Keychain.
+#[cfg(any(test, target_os = "ios", target_os = "macos"))]
+trait ProtectedBundleBackend {
+    fn read(&self) -> Result<Option<Vec<u8>>, SecureSessionError>;
+    fn replace(&self, value: &[u8]) -> Result<(), SecureSessionError>;
+    fn delete(&self) -> Result<(), SecureSessionError>;
+}
+
+#[cfg(any(test, target_os = "ios", target_os = "macos"))]
+fn load_protected_bundle(
+    backend: &impl ProtectedBundleBackend,
+) -> Result<Option<StoredSessionBundle>, SecureSessionError> {
+    let Some(bytes) = backend.read()? else {
+        return Ok(None);
+    };
+    if bytes.len() > StoredSessionBundle::MAX_SECURE_STORE_BYTES {
+        return Err(SecureSessionError::Corrupt);
+    }
+    StoredSessionBundle::decode_secure_store(&bytes).map(Some)
+}
+
+#[cfg(any(test, target_os = "ios", target_os = "macos"))]
+fn replace_protected_bundle(
+    backend: &impl ProtectedBundleBackend,
+    bundle: &StoredSessionBundle,
+) -> Result<(), SecureSessionError> {
+    let bytes = bundle.encode_secure_store()?;
+    if bytes.len() > StoredSessionBundle::MAX_SECURE_STORE_BYTES {
+        return Err(SecureSessionError::Failed);
+    }
+    backend.replace(&bytes)
+}
+
+#[cfg(any(test, target_os = "ios", target_os = "macos"))]
+fn save_protected_session(
+    backend: &impl ProtectedBundleBackend,
+    session: &StoredSession,
+) -> Result<(), SecureSessionError> {
+    let mut bundle = load_protected_bundle(backend)?
+        .unwrap_or_else(|| StoredSessionBundle::new(session.clone()));
+    bundle.upsert(session.clone());
+    replace_protected_bundle(backend, &bundle)
+}
+
+#[cfg(any(test, target_os = "ios", target_os = "macos"))]
+fn clear_active_protected_session(
+    backend: &impl ProtectedBundleBackend,
+) -> Result<(), SecureSessionError> {
+    let Some(bundle) = load_protected_bundle(backend)? else {
+        return backend.delete();
+    };
+    let active_id = bundle.active().session_id().clone();
+    remove_protected_account(backend, &active_id).map(|_| ())
+}
+
+#[cfg(any(test, target_os = "ios", target_os = "macos"))]
+fn protected_accounts(
+    backend: &impl ProtectedBundleBackend,
+) -> Result<Vec<StoredAccountSummary>, SecureSessionError> {
+    Ok(load_protected_bundle(backend)?
+        .map(|bundle| bundle.account_summaries())
+        .unwrap_or_default())
+}
+
+#[cfg(any(test, target_os = "ios", target_os = "macos"))]
+fn protected_replacement_candidates(
+    backend: &impl ProtectedBundleBackend,
+    session: &StoredSession,
+) -> Result<Vec<StoredSession>, SecureSessionError> {
+    let Some(mut bundle) = load_protected_bundle(backend)? else {
+        return Ok(Vec::new());
+    };
+    Ok(bundle.upsert(session.clone()))
+}
+
+#[cfg(any(test, target_os = "ios", target_os = "macos"))]
+fn load_protected_account(
+    backend: &impl ProtectedBundleBackend,
+    session_id: &SessionId,
+) -> Result<Option<StoredSession>, SecureSessionError> {
+    Ok(load_protected_bundle(backend)?.and_then(|bundle| bundle.session(session_id).cloned()))
+}
+
+#[cfg(any(test, target_os = "ios", target_os = "macos"))]
+fn remove_protected_account(
+    backend: &impl ProtectedBundleBackend,
+    session_id: &SessionId,
+) -> Result<bool, SecureSessionError> {
+    let Some(mut bundle) = load_protected_bundle(backend)? else {
+        return Ok(false);
+    };
+    if bundle.remove(session_id).is_none() {
+        return Ok(false);
+    }
+    if bundle.is_empty() {
+        backend.delete()?;
+    } else {
+        replace_protected_bundle(backend, &bundle)?;
+    }
+    Ok(true)
+}
+
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 mod apple_keychain {
     use super::{
-        SecureSessionError, SessionId, StoredAccountSummary, StoredSession, StoredSessionBundle,
+        ProtectedBundleBackend, SecureSessionError, SessionId, StoredAccountSummary, StoredSession,
+        clear_active_protected_session, load_protected_account, load_protected_bundle,
+        protected_accounts, protected_replacement_candidates, remove_protected_account,
+        save_protected_session,
     };
     use security_framework::passwords::{
         PasswordOptions, delete_generic_password_options, generic_password,
@@ -268,11 +377,16 @@ mod apple_keychain {
     const SERVICE: &str = "com.legacy.erpx.session";
     const ACCOUNT: &str = "current";
 
+    #[derive(Debug, Clone, Copy)]
+    struct KeychainBackend;
+
     fn keychain_options() -> PasswordOptions {
         let mut options = PasswordOptions::new_generic_password(SERVICE, ACCOUNT);
         // Session credentials are device-local identity material. Explicitly selecting the
-        // non-synchronizable keychain prevents an iCloud copy and keeps reads, writes, and
-        // deletes scoped to the same local item.
+        // non-synchronizable store prevents an iCloud copy and keeps reads, writes, and deletes
+        // scoped to the same local item. On iOS the data-protection Keychain is selected too;
+        // macOS uses the login Keychain because this dependency is built without the optional
+        // macOS 10.15 data-protection API feature.
         options.set_access_synchronized(Some(false));
         #[cfg(target_os = "ios")]
         options.use_protected_keychain();
@@ -287,81 +401,60 @@ mod apple_keychain {
         }
     }
 
-    fn load_bundle() -> Result<Option<StoredSessionBundle>, SecureSessionError> {
-        match generic_password(keychain_options()) {
-            Ok(bytes) => StoredSessionBundle::decode_secure_store(&bytes).map(Some),
-            Err(error) if error.code() == errSecItemNotFound => Ok(None),
-            Err(error) => Err(map_error(error)),
+    impl ProtectedBundleBackend for KeychainBackend {
+        fn read(&self) -> Result<Option<Vec<u8>>, SecureSessionError> {
+            match generic_password(keychain_options()) {
+                Ok(bytes) => Ok(Some(bytes)),
+                Err(error) if error.code() == errSecItemNotFound => Ok(None),
+                Err(error) => Err(map_error(error)),
+            }
         }
-    }
 
-    fn save_bundle(bundle: &StoredSessionBundle) -> Result<(), SecureSessionError> {
-        let bytes = bundle.encode_secure_store()?;
-        set_generic_password_options(&bytes, keychain_options()).map_err(map_error)
-    }
+        fn replace(&self, value: &[u8]) -> Result<(), SecureSessionError> {
+            // SecItemAdd/SecItemUpdate replaces the value of this single generic-password item;
+            // no intermediate plaintext file or second Keychain record is created.
+            set_generic_password_options(value, keychain_options()).map_err(map_error)
+        }
 
-    fn delete_bundle() -> Result<(), SecureSessionError> {
-        match delete_generic_password_options(keychain_options()) {
-            Ok(()) => Ok(()),
-            Err(error) if error.code() == errSecItemNotFound => Ok(()),
-            Err(error) => Err(map_error(error)),
+        fn delete(&self) -> Result<(), SecureSessionError> {
+            match delete_generic_password_options(keychain_options()) {
+                Ok(()) => Ok(()),
+                Err(error) if error.code() == errSecItemNotFound => Ok(()),
+                Err(error) => Err(map_error(error)),
+            }
         }
     }
 
     pub fn load() -> Result<Option<StoredSession>, SecureSessionError> {
-        Ok(load_bundle()?.map(|bundle| bundle.active().clone()))
+        Ok(load_protected_bundle(&KeychainBackend)?.map(|bundle| bundle.active().clone()))
     }
 
     pub fn save(session: &StoredSession) -> Result<(), SecureSessionError> {
-        let mut bundle =
-            load_bundle()?.unwrap_or_else(|| StoredSessionBundle::new(session.clone()));
-        bundle.upsert(session.clone());
-        save_bundle(&bundle)
+        save_protected_session(&KeychainBackend, session)
     }
 
     pub fn clear() -> Result<(), SecureSessionError> {
-        let Some(bundle) = load_bundle()? else {
-            return delete_bundle();
-        };
-        let active_id = bundle.active().session_id().clone();
-        remove_account(&active_id).map(|_| ())
+        clear_active_protected_session(&KeychainBackend)
     }
 
     pub(super) fn accounts() -> Result<Vec<StoredAccountSummary>, SecureSessionError> {
-        Ok(load_bundle()?
-            .map(|bundle| bundle.account_summaries())
-            .unwrap_or_default())
+        protected_accounts(&KeychainBackend)
     }
 
     pub(super) fn replacement_candidates(
         session: &StoredSession,
     ) -> Result<Vec<StoredSession>, SecureSessionError> {
-        let Some(mut bundle) = load_bundle()? else {
-            return Ok(Vec::new());
-        };
-        Ok(bundle.upsert(session.clone()))
+        protected_replacement_candidates(&KeychainBackend, session)
     }
 
     pub(super) fn load_account(
         session_id: &SessionId,
     ) -> Result<Option<StoredSession>, SecureSessionError> {
-        Ok(load_bundle()?.and_then(|bundle| bundle.session(session_id).cloned()))
+        load_protected_account(&KeychainBackend, session_id)
     }
 
     pub(super) fn remove_account(session_id: &SessionId) -> Result<bool, SecureSessionError> {
-        let Some(mut bundle) = load_bundle()? else {
-            return Ok(false);
-        };
-        let removed = bundle.remove(session_id).is_some();
-        if !removed {
-            return Ok(false);
-        }
-        if bundle.is_empty() {
-            delete_bundle()?;
-        } else {
-            save_bundle(&bundle)?;
-        }
-        Ok(true)
+        remove_protected_account(&KeychainBackend, session_id)
     }
 }
 
@@ -1036,12 +1129,70 @@ impl SecureSessionBundleStore for TargetSecureSessionAdapter {
 mod tests {
     use super::{
         ANDROID_BASE64_ENCODE_SIGNATURE, ClientTarget, MAX_ANDROID_ENCODED_BYTES,
-        SecureSessionSupport, TargetSecureSessionAdapter, is_valid_android_base64,
+        ProtectedBundleBackend, SecureSessionSupport, TargetSecureSessionAdapter,
+        is_valid_android_base64, load_protected_bundle, protected_replacement_candidates,
+        remove_protected_account, save_protected_session,
     };
     use crate::{
-        SafeUiText, SecureSessionError, SecureSessionStore, StoredSession, redact_deep_link,
+        SafeUiText, SecureSessionError, SecureSessionStore, StoredSession, StoredSessionBundle,
+        redact_deep_link,
     };
+    use std::cell::{Cell, RefCell};
     use std::future::Future;
+
+    #[derive(Debug, Default)]
+    struct FakeProtectedBackend {
+        value: RefCell<Option<Vec<u8>>>,
+        fail_replace: Cell<bool>,
+        fail_delete: Cell<bool>,
+    }
+
+    impl FakeProtectedBackend {
+        fn with_value(value: Vec<u8>) -> Self {
+            Self {
+                value: RefCell::new(Some(value)),
+                ..Self::default()
+            }
+        }
+
+        fn raw_value(&self) -> Option<Vec<u8>> {
+            self.value.borrow().clone()
+        }
+    }
+
+    impl ProtectedBundleBackend for FakeProtectedBackend {
+        fn read(&self) -> Result<Option<Vec<u8>>, SecureSessionError> {
+            Ok(self.raw_value())
+        }
+
+        fn replace(&self, value: &[u8]) -> Result<(), SecureSessionError> {
+            if self.fail_replace.get() {
+                return Err(SecureSessionError::Failed);
+            }
+            self.value.replace(Some(value.to_vec()));
+            Ok(())
+        }
+
+        fn delete(&self) -> Result<(), SecureSessionError> {
+            if self.fail_delete.get() {
+                return Err(SecureSessionError::Failed);
+            }
+            self.value.replace(None);
+            Ok(())
+        }
+    }
+
+    fn stored_session(principal: &str, session_id: &str, token_suffix: &str) -> StoredSession {
+        StoredSession::new(
+            principal,
+            session_id,
+            format!("access-{token_suffix}"),
+            format!("refresh-{token_suffix}"),
+            "access-expiry",
+            "refresh-expiry",
+        )
+        .expect("valid test session")
+    }
 
     fn block_on<F: Future>(future: F) -> F::Output {
         let waker = std::task::Waker::noop();
@@ -1178,6 +1329,114 @@ mod tests {
         assert_eq!(
             StoredSession::decode_secure_store(&corrupt),
             Err(SecureSessionError::Corrupt)
+        );
+    }
+
+    #[test]
+    fn protected_bundle_save_is_atomic_and_switches_the_active_account() {
+        let backend = FakeProtectedBackend::default();
+        let first = stored_session("principal-1", "session-1", "one");
+        let second = stored_session("principal-2", "session-2", "two");
+
+        save_protected_session(&backend, &first).expect("save first account");
+        save_protected_session(&backend, &second).expect("save and activate second account");
+        let bundle = load_protected_bundle(&backend)
+            .expect("load bundle")
+            .expect("stored bundle");
+        assert_eq!(bundle.active(), &second);
+        assert_eq!(bundle.sessions_mru(), &[second.clone(), first.clone()]);
+
+        let before_failure = backend.raw_value();
+        backend.fail_replace.set(true);
+        let rotated_first = stored_session("principal-1", "session-1", "rotated");
+        assert_eq!(
+            save_protected_session(&backend, &rotated_first),
+            Err(SecureSessionError::Failed)
+        );
+        assert_eq!(
+            backend.raw_value(),
+            before_failure,
+            "a failed atomic replace must retain the complete previous protected item"
+        );
+        assert_eq!(
+            load_protected_bundle(&backend)
+                .expect("load retained bundle")
+                .expect("retained bundle")
+                .active(),
+            &second
+        );
+    }
+
+    #[test]
+    fn protected_bundle_remove_is_atomic_when_rewrite_or_delete_fails() {
+        let backend = FakeProtectedBackend::default();
+        let first = stored_session("principal-1", "session-1", "one");
+        let second = stored_session("principal-2", "session-2", "two");
+        save_protected_session(&backend, &first).expect("save first account");
+        save_protected_session(&backend, &second).expect("save second account");
+
+        let before_rewrite_failure = backend.raw_value();
+        backend.fail_replace.set(true);
+        assert_eq!(
+            remove_protected_account(&backend, first.session_id()),
+            Err(SecureSessionError::Failed)
+        );
+        assert_eq!(backend.raw_value(), before_rewrite_failure);
+
+        backend.fail_replace.set(false);
+        assert!(
+            remove_protected_account(&backend, first.session_id()).expect("remove first account")
+        );
+        let before_delete_failure = backend.raw_value();
+        backend.fail_delete.set(true);
+        assert_eq!(
+            remove_protected_account(&backend, second.session_id()),
+            Err(SecureSessionError::Failed)
+        );
+        assert_eq!(backend.raw_value(), before_delete_failure);
+    }
+
+    #[test]
+    fn protected_bundle_rejects_oversize_corrupt_and_duplicate_principal_data() {
+        let oversized = FakeProtectedBackend::with_value(vec![
+            0;
+            StoredSessionBundle::MAX_SECURE_STORE_BYTES
+                + 1
+        ]);
+        assert_eq!(
+            load_protected_bundle(&oversized),
+            Err(SecureSessionError::Corrupt)
+        );
+
+        let corrupt = FakeProtectedBackend::with_value(b"not-a-session-bundle".to_vec());
+        assert_eq!(
+            load_protected_bundle(&corrupt),
+            Err(SecureSessionError::Corrupt)
+        );
+
+        let first = stored_session("principal-1", "session-1", "one");
+        let second = stored_session("principal-2", "session-2", "two");
+        let mut bundle = StoredSessionBundle::new(first);
+        bundle.upsert(second.clone());
+        let mut duplicate_principal = bundle.encode_secure_store().expect("encode bundle");
+        let needle = b"principal-2";
+        let offset = duplicate_principal
+            .windows(needle.len())
+            .position(|window| window == needle)
+            .expect("second principal in encoded bundle");
+        duplicate_principal[offset..offset + needle.len()].copy_from_slice(b"principal-1");
+        let duplicate = FakeProtectedBackend::with_value(duplicate_principal);
+        assert_eq!(
+            load_protected_bundle(&duplicate),
+            Err(SecureSessionError::Corrupt)
+        );
+
+        let replacement = stored_session("principal-2", "session-3", "replacement");
+        let valid = FakeProtectedBackend::default();
+        save_protected_session(&valid, &second).expect("save original principal");
+        assert_eq!(
+            protected_replacement_candidates(&valid, &replacement).expect("replacement candidates"),
+            vec![second]
         );
     }
 

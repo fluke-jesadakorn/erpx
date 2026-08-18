@@ -12,7 +12,7 @@
   border-radius: 0.5rem;
   border-radius: calc(0.5rem);
   background: none;
-  background-color: var(--light, var(--erpx-bg)) var(--dark, color-mix(in oklab, #FFFFFF26 30%, transparent));
+  background-color: var(--light, var(--erpx-bg)) var(--dark, transparent);
   box-shadow: inset 0 0 0 1px var(--light, var(--erpx-border))
     var(--dark, var(--erpx-border-strong));
   color: var(--erpx-text);
@@ -32,7 +32,7 @@
 .dx-input:hover:not(:disabled),
 .dx-input:focus-visible {
   background: var(--light, var(--erpx-surface-raised))
-    var(--dark, color-mix(in oklab, #FFFFFF26 50%, transparent));
+    var(--dark, transparent);
   color: var(--erpx-text);
   outline: none;
 }

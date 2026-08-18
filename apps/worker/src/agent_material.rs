@@ -535,12 +535,18 @@ mod tests {
             .expect("ERPX_TEST_AGENT_MINIO_REGION is required");
         let namespace = std::env::var("ERPX_TEST_AGENT_MINIO_NAMESPACE")
             .expect("ERPX_TEST_AGENT_MINIO_NAMESPACE is required");
-        let objects = MinioObjectStore::new(erpx_infrastructure::MinioObjectStoreConfig {
-            endpoint,
-            access_key,
-            secret_key,
-            region,
-        })
+        let ca_certificate_path = std::env::var("ERPX_TEST_AGENT_MINIO_CA_CERTIFICATE_PATH")
+            .expect("ERPX_TEST_AGENT_MINIO_CA_CERTIFICATE_PATH is required");
+        let ca_certificate = std::fs::read(ca_certificate_path).expect("read MinIO test CA");
+        let objects = MinioObjectStore::new_with_ca_certificate(
+            erpx_infrastructure::MinioObjectStoreConfig {
+                endpoint,
+                access_key,
+                secret_key,
+                region,
+            },
+            Some(&ca_certificate),
+        )
         .expect("governed MinIO configuration");
         objects
             .ensure_namespace(&namespace)

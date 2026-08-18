@@ -179,6 +179,52 @@ fn billing_eligibility_is_not_a_receivable_and_carries_accounting_dimensions() {
 }
 
 #[test]
+fn quote_and_finance_approval_requests_pin_subject_versions_and_typed_gates() {
+    let requested_at = Utc.with_ymd_and_hms(2026, 8, 10, 8, 0, 0).unwrap();
+    let quote = sales::QuoteRef::try_from_uuid(uuid(70)).unwrap();
+    let request = operations::ApprovalSessionRequestFact {
+        session: operations::ApprovalSessionRef::try_from_uuid(uuid(71)).unwrap(),
+        subject: RecordRef::try_new(BoundedContext::Sales, "quote", quote.as_uuid(), 4).unwrap(),
+        policy_version: 2,
+        required_gates: vec![
+            operations::ApprovalGateKind::SalesCommercial,
+            operations::ApprovalGateKind::FinanceAccountingPlan,
+        ],
+        requested_by: ReferenceCode::try_new("sales-maker").unwrap(),
+        requested_at,
+    };
+    sales::Event::QuoteApprovalRequested(sales::QuoteApprovalRequestedFact {
+        quote,
+        approval: request,
+    })
+    .validate()
+    .unwrap();
+
+    let plan = finance::AccountingPlanRef::try_from_uuid(uuid(72)).unwrap();
+    let finance_request = operations::ApprovalSessionRequestFact {
+        session: operations::ApprovalSessionRef::try_from_uuid(uuid(73)).unwrap(),
+        subject: RecordRef::try_new(
+            BoundedContext::Finance,
+            "accounting_plan",
+            plan.as_uuid(),
+            3,
+        )
+        .unwrap(),
+        policy_version: 2,
+        required_gates: vec![operations::ApprovalGateKind::FinanceAccountingPlan],
+        requested_by: ReferenceCode::try_new("finance-preparer").unwrap(),
+        requested_at,
+    };
+    finance::Event::AccountingPlanApprovalRequested(finance::AccountingPlanApprovalRequestedFact {
+        plan,
+        quote,
+        approval: finance_request,
+    })
+    .validate()
+    .unwrap();
+}
+
+#[test]
 fn attribution_revision_must_reconcile_exactly_to_its_finance_source() {
     let currency = CurrencyCode::try_new("THB").unwrap();
     let source =

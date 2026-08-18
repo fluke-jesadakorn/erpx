@@ -37,7 +37,6 @@ pub fn connector_item(value: &ConnectorView) -> ConnectorItem {
         kind: match &value.kind {
             ConnectorKind::Stripe => "stripe",
             ConnectorKind::Minio => "minio",
-            ConnectorKind::N8n => "n8n",
             ConnectorKind::Ollama => "ollama",
             ConnectorKind::Other(value) => value,
         }

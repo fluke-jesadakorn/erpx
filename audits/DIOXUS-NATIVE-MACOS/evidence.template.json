@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "release_revision": "REPLACE_WITH_GIT_REVISION",
+  "captured_at_utc": null,
+  "host": {
+    "mac_model": "REDACTED_OR_MODEL_ONLY",
+    "macos_version": "NOT_CAPTURED",
+    "display_refresh_hz": null
+  },
+  "screenshots": {
+    "status": "not_captured",
+    "artifacts": []
+  },
+  "startup": {
+    "status": "not_captured",
+    "cold_start_ms": null,
+    "sample_count": 0,
+    "artifact": null,
+    "sha256": null
+  },
+  "rendering": {
+    "status": "not_captured",
+    "p95_frame_ms": null,
+    "observed_refresh_hz": null,
+    "input_to_paint_ms": null,
+    "sample_count": 0,
+    "artifact": null,
+    "sha256": null
+  },
+  "memory": {
+    "status": "not_captured",
+    "native_working_set_mib": null,
+    "webview_baseline_working_set_mib": null,
+    "reduction_percent": null,
+    "sample_count": 0,
+    "artifact": null,
+    "sha256": null
+  },
+  "accessibility": {
+    "status": "not_captured",
+    "voiceover": null,
+    "button_actions": null,
+    "focus": null,
+    "text_edit_actions": null,
+    "dialog_focus_restoration": null,
+    "selected_expanded_disabled_states": null,
+    "thai_labels": null,
+    "artifact": null,
+    "sha256": null
+  },
+  "notes": []
+}

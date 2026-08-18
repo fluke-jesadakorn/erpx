@@ -44,7 +44,8 @@ fn source_message() -> SourceFactMessage {
     .unwrap();
     let fact = match envelope.payload() {
         sales::Event::SalesOrderChanged(fact) => operations::SourceFact::Sales(fact.clone()),
-        sales::Event::RevenueArrangementActivated(_)
+        sales::Event::QuoteApprovalRequested(_)
+        | sales::Event::RevenueArrangementActivated(_)
         | sales::Event::FulfillmentAccepted(_)
         | sales::Event::BillingEligible(_) => unreachable!("fixture carries a sales order fact"),
     };

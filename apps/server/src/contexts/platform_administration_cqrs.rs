@@ -671,7 +671,6 @@ fn decode_connector_kind(value: i32, other: Option<String>) -> Result<ConnectorK
     match platform::PlatformConnectorKind::try_from(value).ok() {
         Some(platform::PlatformConnectorKind::Stripe) => Ok(ConnectorKind::Stripe),
         Some(platform::PlatformConnectorKind::Minio) => Ok(ConnectorKind::Minio),
-        Some(platform::PlatformConnectorKind::N8n) => Ok(ConnectorKind::N8n),
         Some(platform::PlatformConnectorKind::Ollama) => Ok(ConnectorKind::Ollama),
         Some(platform::PlatformConnectorKind::Other) => Ok(ConnectorKind::Other(
             other
@@ -734,7 +733,6 @@ fn encode_connector(v: &ConnectorView) -> platform::PlatformAdministrationConnec
     let (kind, other_kind) = match &v.kind {
         ConnectorKind::Stripe => (platform::PlatformConnectorKind::Stripe, None),
         ConnectorKind::Minio => (platform::PlatformConnectorKind::Minio, None),
-        ConnectorKind::N8n => (platform::PlatformConnectorKind::N8n, None),
         ConnectorKind::Ollama => (platform::PlatformConnectorKind::Ollama, None),
         ConnectorKind::Other(value) => {
             (platform::PlatformConnectorKind::Other, Some(value.clone()))

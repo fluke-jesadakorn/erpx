@@ -125,7 +125,8 @@ impl PublishedSourceEvent {
                     operations::SourceFact::Sales(fact.clone()),
                 )
                 .map(Some),
-                sales::Event::RevenueArrangementActivated(_)
+                sales::Event::QuoteApprovalRequested(_)
+                | sales::Event::RevenueArrangementActivated(_)
                 | sales::Event::FulfillmentAccepted(_)
                 | sales::Event::BillingEligible(_) => Ok(None),
             },
@@ -156,7 +157,9 @@ impl PublishedSourceEvent {
                     operations::SourceFact::Finance(fact.clone()),
                 )
                 .map(Some),
-                finance::Event::ReceivableChanged(_)
+                finance::Event::AccountingPlanApprovalRequested(_)
+                | finance::Event::PostingApprovalRequested(_)
+                | finance::Event::ReceivableChanged(_)
                 | finance::Event::CustomerInvoicePosted(_)
                 | finance::Event::RevenueRecognized(_)
                 | finance::Event::CashApplied(_)

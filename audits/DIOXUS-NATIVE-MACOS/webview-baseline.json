@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "revision": "47b0f55",
+  "renderer": "dioxus-desktop WebView baseline",
+  "build": {
+    "command": "cargo check -p erpx-console --no-default-features --features desktop",
+    "status": "passed",
+    "observed_dependencies": [
+      "dioxus-desktop",
+      "wry 0.55.1",
+      "objc2-web-kit 0.3.2"
+    ]
+  },
+  "launch": {
+    "configuration": "debug",
+    "observation_seconds_approximate": 12,
+    "remained_alive": true
+  },
+  "memory": {
+    "observed_rss_kib": 121264,
+    "time_l_maximum_resident_set_bytes": 124272640,
+    "time_l_peak_memory_footprint_bytes": 29312080
+  },
+  "cold_start_ms": null,
+  "p95_frame_ms": null,
+  "input_to_paint_ms": null,
+  "notes": [
+    "Cold start, frame time, and input-to-paint were not captured because deterministic instrumentation was unavailable.",
+    "This retained record is a historical baseline, not evidence that the current native renderer passed its release gates."
+  ]
+}

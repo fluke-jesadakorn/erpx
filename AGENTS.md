@@ -56,8 +56,9 @@ only recorded ERPX child processes.
 ## Runtime safety
 
 Keep `.env`, `.env.local`, `.sqlx/`, `target/`, and `.runtime/` outside Git.
-PostgreSQL, MinIO, Ollama, and n8n are host-native. The n8n state and encryption
-key under `.runtime/n8n/` must never be deleted or replaced.
+PostgreSQL, MinIO, and Ollama are host-native. Local credentials and TLS are
+managed by `cargo xtask reconfigure-local`; retained databases and objects must
+not be deleted during reconfiguration.
 
 `cargo xtask reset-dev` is destructive and must retain its loopback endpoint,
 schema/bucket allowlist, target printout, and literal confirmation fences.

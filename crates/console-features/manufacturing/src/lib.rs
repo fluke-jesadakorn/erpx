@@ -52,8 +52,15 @@ mod tests {
 
     #[test]
     fn manufacturing_surface_covers_all_lifecycle_families_and_e2e_32() {
+        use erpx_ui_enterprise_workspaces::{ChannelPolicy, ClientChannel};
+
         assert_eq!(WORKSPACE.record_families().len(), 5);
         assert_eq!(WORKSPACE.e2e_scenarios(), &["E2E-32"]);
+        assert_eq!(WORKSPACE.channel_policy(), ChannelPolicy::WebMacOs);
+        assert!(WORKSPACE.channel_policy().supports(ClientChannel::Web));
+        assert!(WORKSPACE.channel_policy().supports(ClientChannel::Desktop));
+        const { assert!(erpx_ui_enterprise_workspaces::ACCESSIBILITY.focus_heading_after_navigation) };
+        const { assert!(erpx_ui_enterprise_workspaces::ACCESSIBILITY.keyboard_reachable_actions) };
         for family in WORKSPACE.record_families() {
             assert!(resolve_record_route(&family.collection_path(WORKSPACE)).is_some());
         }

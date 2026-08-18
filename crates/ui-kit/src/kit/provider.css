@@ -35,6 +35,13 @@
   --erpx-danger: #c72c41;
   --erpx-on-danger: #fff;
   --erpx-security: #075985;
+  --erpx-success-surface: #e7f5ee;
+  --erpx-warning-surface: #fff3dc;
+  --erpx-danger-surface: #fdecef;
+  --erpx-security-surface: #e7f2f8;
+  --erpx-primary-surface: #e5f2f5;
+  --erpx-focus-ring: #b9d8e2;
+  --erpx-border-strong: #8798a4;
   --erpx-primary: var(--erpx-light-primary);
   --erpx-on-primary: var(--erpx-light-on-primary);
   --erpx-accent: var(--erpx-light-accent);
@@ -59,6 +66,13 @@
     --erpx-danger: #c72c41;
     --erpx-on-danger: #fff;
     --erpx-security: #075985;
+    --erpx-success-surface: #e7f5ee;
+    --erpx-warning-surface: #fff3dc;
+    --erpx-danger-surface: #fdecef;
+    --erpx-security-surface: #e7f2f8;
+    --erpx-primary-surface: #e5f2f5;
+    --erpx-focus-ring: #b9d8e2;
+    --erpx-border-strong: #8798a4;
     --erpx-primary: var(--erpx-light-primary);
     --erpx-on-primary: var(--erpx-light-on-primary);
     --erpx-accent: var(--erpx-light-accent);

@@ -198,12 +198,19 @@ pub(crate) async fn session_middleware(
                     bundle: Some(bundle),
                 }
             }
-            Ok(None) => BffSessionContext::signed_out(),
+            Ok(None) => {
+                clear_stale_cookie = true;
+                BffSessionContext::signed_out()
+            }
             Err(SessionLoadError::Unauthorized) if page_request => {
                 clear_stale_cookie = true;
                 BffSessionContext::signed_out()
             }
-            Err(SessionLoadError::Unauthorized) => return unauthorized_session(),
+            Err(SessionLoadError::Unauthorized) => {
+                return unauthorized_session_with_cleared_cookie(request_is_https(
+                    request.headers(),
+                ));
+            }
             Err(SessionLoadError::Unavailable) => return unavailable(),
         },
     };
@@ -386,10 +393,29 @@ fn see_other(location: &str) -> Response {
         .unwrap_or_else(|_| unavailable())
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SessionLoadError {
     Unauthorized,
     Unavailable,
+}
+
+fn classify_session_load_error(error: WebSessionError) -> SessionLoadError {
+    match error {
+        WebSessionError::Invalid | WebSessionError::Protection => {
+            tracing::warn!(
+                error = %error,
+                "rejecting an unreadable stored Web session"
+            );
+            SessionLoadError::Unauthorized
+        }
+        WebSessionError::Entropy | WebSessionError::Conflict | WebSessionError::Unavailable => {
+            tracing::warn!(
+                error = %error,
+                "Web session persistence is unavailable"
+            );
+            SessionLoadError::Unavailable
+        }
+    }
 }
 
 async fn load_and_refresh_bundle(
@@ -401,7 +427,7 @@ async fn load_and_refresh_bundle(
         .sessions
         .load(selector.digest(), now)
         .await
-        .map_err(|_| SessionLoadError::Unavailable)?
+        .map_err(classify_session_load_error)?
     else {
         return Ok(None);
     };
@@ -420,7 +446,7 @@ async fn load_and_refresh_bundle(
         .sessions
         .load(selector.digest(), now)
         .await
-        .map_err(|_| SessionLoadError::Unavailable)?
+        .map_err(classify_session_load_error)?
     else {
         return Ok(None);
     };
@@ -495,7 +521,7 @@ async fn load_and_refresh_bundle(
                 .sessions
                 .load(selector.digest(), Utc::now())
                 .await
-                .map_err(|_| SessionLoadError::Unavailable)?
+                .map_err(classify_session_load_error)?
                 .ok_or(SessionLoadError::Unauthorized)?;
             let active = winner
                 .active_account()
@@ -2912,6 +2938,12 @@ fn unauthorized_session() -> Response {
         .unwrap_or_else(|_| StatusCode::UNAUTHORIZED.into_response())
 }
 
+fn unauthorized_session_with_cleared_cookie(secure: bool) -> Response {
+    let mut response = unauthorized_session();
+    clear_session_cookie(&mut response, secure);
+    response
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2938,6 +2970,33 @@ mod tests {
             HeaderValue::from_static("erpx_web_session_v1=short"),
         );
         assert!(selector_from_headers(&headers).is_none());
+    }
+
+    #[test]
+    fn unreadable_stored_session_requires_reauthentication_instead_of_reporting_an_outage() {
+        assert_eq!(
+            classify_session_load_error(WebSessionError::Protection),
+            SessionLoadError::Unauthorized
+        );
+        assert_eq!(
+            classify_session_load_error(WebSessionError::Invalid),
+            SessionLoadError::Unauthorized
+        );
+        assert_eq!(
+            classify_session_load_error(WebSessionError::Unavailable),
+            SessionLoadError::Unavailable
+        );
+    }
+
+    #[test]
+    fn stale_api_session_response_clears_the_browser_cookie() {
+        let response = unauthorized_session_with_cleared_cookie(false);
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(
+            response.headers().get(header::SET_COOKIE).unwrap(),
+            "erpx_web_session_v1=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict"
+        );
     }
 
     #[test]

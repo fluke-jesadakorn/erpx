@@ -92,6 +92,8 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 sqlx.workspace = true
+svg2pdf.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 tonic = { workspace = true, features = ["router", "transport", "tls-ring"] }
 tonic-web.workspace = true

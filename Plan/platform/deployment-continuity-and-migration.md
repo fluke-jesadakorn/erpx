@@ -34,7 +34,7 @@ receipts; creates new control-write, control-read, first holding write/read
 resources from migrations beginning at `0001`; refuses a conflicting or
 non-v2 manifest; seeds only Root, Holding Owner, registry, canonical units, and
 neutral brand; generated secrets are shown once and stored only as hashes;
-pre-cutover databases and `.runtime/n8n/` are not mutated or deleted.
+pre-cutover databases and object namespaces are not mutated or deleted.
 
 **Sources.** [Bootstrap application](../../apps/bootstrap/src/main.rs),
 [fresh-state bootstrap](../../apps/bootstrap/src/fresh_state.rs),
@@ -45,17 +45,15 @@ pre-cutover databases and `.runtime/n8n/` are not mutated or deleted.
 
 **Requirement.** ERPX shall start the clean-rebuild runtime only after
 validating a write-once non-secret manifest for baseline 2.0.0, schema
-generation v2, the 65-service catalog, singular routes, event namespaces,
-database receipts, active tenant registry, rollback boundary, and n8n
-configuration fingerprint.
+generation v2, service-catalog generation 3, singular routes, event namespaces,
+database receipts, active tenant registry, and rollback boundary.
 
 **Rationale.** A manifest file alone must not become authority.
 
 **Acceptance criteria.** Missing, retired, or mismatched catalog, generation,
-receipt, registry, resource, authority, or fingerprint fails startup;
-successful handoff skips legacy fixtures and data import; runtime
-reconciliation never changes the preserved databases, n8n state, or encryption
-key.
+receipt, registry, resource, or authority fails startup; successful handoff
+skips legacy fixtures and data import; runtime reconciliation never changes
+preserved databases or object namespaces.
 
 **Sources.** [Project runtime contract](../../README.md),
 [cutover manifest](../../apps/bootstrap/src/cutover_manifest.rs),
@@ -160,8 +158,7 @@ authority.
 
 **Acceptance criteria.** Migration and bootstrap do not drop prior resources;
 old resources remain offline and non-authoritative; expiry and deletion are
-separately approved and target-specific; `.runtime/n8n/` is never a rollback
-deletion target.
+separately approved and target-specific.
 
 **Sources.** [Bounded-context decision](../../adr/ADR-014-cqrs-bounded-context-modular-monolith.md),
 [cutover record](../../CUTOVER.md),
@@ -231,7 +228,7 @@ needed for recovery and investigation.
 **Acceptance criteria.** Provisioning resolves only allow-listed new targets;
 an existing or broad target is rejected; initialized pairs have separate write
 and read roles; no legacy identity/data mapping runs; operation receipts prove
-that old databases, objects, and n8n state were not changed.
+that old databases and objects were not changed.
 
 **Sources.** [FSD-006](../decisions/FSD-006-clean-rebuild-architecture-and-cutover.md),
 [project safety](../../README.md).
@@ -301,7 +298,7 @@ merging incompatible write histories.
 **Acceptance criteria.** Rehearsal proves fencing, route reversal, artifact and
 database selection, application access, and handling of any accepted v2 writes;
 live recovery records all decisions and verification; mismatch keeps the
-system fenced; rollback never deletes either generation or `.runtime/n8n/`.
+system fenced; rollback never deletes either database/object generation.
 
 **Sources.** [No dual writes](../../adr/ADR-003-no-long-term-dual-writes.md),
 [branch rollback](../../adr/ADR-013-holding-branch-database-and-directory-authority.md),
@@ -320,7 +317,7 @@ indefinite legacy availability recreates split authority.
 **Acceptance criteria.** New-runtime read/write attempts against old manifests
 fail; recovery access is purpose-, role-, and time-bounded; any later disposal
 is a separately approved destructive action with explicit targets;
-bootstrap/cutover never deletes databases, objects, or n8n state.
+bootstrap/cutover never deletes retained databases or objects.
 
 **Sources.** [No dual writes](../../adr/ADR-003-no-long-term-dual-writes.md),
 [cutover record](../../CUTOVER.md),

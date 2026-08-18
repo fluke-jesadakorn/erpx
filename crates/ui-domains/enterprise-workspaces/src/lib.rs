@@ -79,10 +79,7 @@ impl WorkspaceKind {
     }
 
     pub const fn channel_policy(self) -> ChannelPolicy {
-        match self {
-            Self::Ecommerce | Self::Talent => ChannelPolicy::WebOnly,
-            _ => ChannelPolicy::FourChannelAdaptive,
-        }
+        ChannelPolicy::WebMacOs
     }
 
     pub fn collection_path(self) -> String {
@@ -364,15 +361,13 @@ pub enum ClientChannel {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ChannelPolicy {
-    WebOnly,
-    FourChannelAdaptive,
+    WebMacOs,
 }
 
 impl ChannelPolicy {
     pub const fn supports(self, channel: ClientChannel) -> bool {
         match self {
-            Self::WebOnly => matches!(channel, ClientChannel::Web),
-            Self::FourChannelAdaptive => true,
+            Self::WebMacOs => matches!(channel, ClientChannel::Web | ClientChannel::Desktop),
         }
     }
 }
@@ -463,6 +458,9 @@ pub enum QueryConsistency {
     ReadYourWrites { minimum_source_version: u64 },
 }
 
+pub const DEFAULT_COLLECTION_PAGE_SIZE: u32 = 50;
+pub const MAX_COLLECTION_PAGE_SIZE: u32 = 100;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordQuery {
     pub route: CanonicalRecordRoute,
@@ -470,6 +468,8 @@ pub struct RecordQuery {
     pub channel: ClientChannel,
     pub connectivity: Connectivity,
     pub consistency: QueryConsistency,
+    pub page_size: u32,
+    pub cursor: Option<String>,
 }
 
 pub fn recovery_state(error: WorkspaceGatewayError) -> WorkspaceState {
@@ -762,6 +762,7 @@ pub struct CollectionModel {
     pub family: RecordFamilySpec,
     pub records: Vec<RecordSummary>,
     pub freshness: FreshnessEvidence,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1426,11 +1427,30 @@ pub fn render_enterprise_workspace_surface(
     let command_gateway = gateway.clone();
     let mut pending_confirmation = use_signal(|| Option::<String>::None);
     let mut command_feedback = use_signal(|| Option::<String>::None);
+    let mut page_cursor = use_signal(|| Option::<String>::None);
+    let mut minimum_source_version = use_signal(|| 0_u64);
+    let pagination_scope_key = format!(
+        "{}:{}:{}",
+        context.canonical_path,
+        context
+            .active_scope
+            .as_ref()
+            .map(|scope| scope.reference.as_str())
+            .unwrap_or_default(),
+        context.generation
+    );
+    use_effect(move || {
+        let _ = &pagination_scope_key;
+        page_cursor.set(None);
+        minimum_source_version.set(0);
+    });
     let query_route = route.clone();
     let channel = enterprise_client_channel();
     let read_model = use_resource(move || {
         let gateway = gateway.clone();
         let route = query_route.clone();
+        let cursor = page_cursor.read().clone();
+        let required_version = *minimum_source_version.read();
         async move {
             let gateway = gateway.ok_or(EnterpriseGatewayError::Unavailable)?;
             let route = route.ok_or(EnterpriseGatewayError::Unavailable)?;
@@ -1439,7 +1459,15 @@ pub fn render_enterprise_workspace_surface(
                 locale,
                 channel,
                 connectivity: Connectivity::Online,
-                consistency: QueryConsistency::Eventual,
+                consistency: if required_version == 0 {
+                    QueryConsistency::Eventual
+                } else {
+                    QueryConsistency::ReadYourWrites {
+                        minimum_source_version: required_version,
+                    }
+                },
+                page_size: DEFAULT_COLLECTION_PAGE_SIZE,
+                cursor,
             };
             match route {
                 CanonicalRecordRoute::Collection { .. } => gateway
@@ -1619,13 +1647,10 @@ pub fn render_enterprise_workspace_surface(
         transport_ready,
     });
     let channel_copy = match workspace.channel_policy() {
-        ChannelPolicy::WebOnly => {
-            localized(locale, "Responsive Web workspace", "พื้นที่ทำงานเว็บแบบตอบสนอง")
-        }
-        ChannelPolicy::FourChannelAdaptive => localized(
+        ChannelPolicy::WebMacOs => localized(
             locale,
-            "Adaptive Web, Desktop, iOS and Android workspace",
-            "พื้นที่ทำงานแบบปรับตาม Web, Desktop, iOS และ Android",
+            "Adaptive Web and macOS workspace",
+            "พื้นที่ทำงานแบบปรับตาม Web และ macOS",
         ),
     };
     let workspace_label = workspace.label(locale);
@@ -1638,8 +1663,7 @@ pub fn render_enterprise_workspace_surface(
             "aria-labelledby": "enterprise-workspace-title",
             "data-workspace": workspace.root(),
             "data-channel-policy": match workspace.channel_policy() {
-                ChannelPolicy::WebOnly => "web-only",
-                ChannelPolicy::FourChannelAdaptive => "four-channel-adaptive",
+                ChannelPolicy::WebMacOs => "web-macos",
             },
             "data-offline-policy": "read-only-no-queue",
             header { class: "feature-owned-surface__header enterprise-workspace__header",
@@ -1658,11 +1682,22 @@ pub fn render_enterprise_workspace_surface(
                 "aria-label": localized(locale, "Record collections", "คอลเลกชันรายการ"),
                 ul {
                     for family in workspace.record_families() {
-                        li {
-                            KitLink {
-                                href: family.collection_path(workspace),
-                                "aria-current": if family.segment == selected_family.segment { "page" } else { "false" },
-                                {family.label.text(locale)}
+                        {
+                            let collection_path = family.collection_path(workspace);
+                            let path_for_click = collection_path.clone();
+                            let navigate = context.navigate.clone();
+                            rsx! {
+                                li {
+                                    KitLink {
+                                        href: collection_path,
+                                        onclick: move |event: MouseEvent| {
+                                            event.prevent_default();
+                                            navigate(path_for_click.clone());
+                                        },
+                                        "aria-current": if family.segment == selected_family.segment { "page" } else { "false" },
+                                        {family.label.text(locale)}
+                                    }
+                                }
                             }
                         }
                     }
@@ -1689,6 +1724,11 @@ pub fn render_enterprise_workspace_surface(
                 "aria-labelledby": "enterprise-record-family-title",
                 h3 { id: "enterprise-record-family-title", {family_label} }
                 if let Some(EnterpriseReadModel::Collection(collection)) = loaded_model.clone() {
+                    h4 {
+                        tabindex: "-1",
+                        autofocus: page_cursor.read().is_some(),
+                        {localized(locale, "Authorized page", "หน้าที่ได้รับอนุญาต")}
+                    }
                     if collection.records.is_empty() {
                         p { {localized(locale, "No authorized records found.", "ไม่พบรายการที่ได้รับอนุญาต")} }
                     } else {
@@ -1696,14 +1736,32 @@ pub fn render_enterprise_workspace_surface(
                             for record in collection.records {
                                 li {
                                     if let Some(record_ref) = record.record_ref {
-                                        KitLink {
-                                            href: selected_family.detail_path(workspace, &record_ref).unwrap_or_default(),
-                                            {record.title}
+                                        {
+                                            let detail_path = selected_family.detail_path(workspace, &record_ref).unwrap_or_default();
+                                            let path_for_click = detail_path.clone();
+                                            let navigate = context.navigate.clone();
+                                            rsx! {
+                                                KitLink {
+                                                    href: detail_path,
+                                                    onclick: move |event: MouseEvent| {
+                                                        event.prevent_default();
+                                                        navigate(path_for_click.clone());
+                                                    },
+                                                    {record.title}
+                                                }
+                                            }
                                         }
                                         span { " · {record.status}" }
                                     }
                                 }
                             }
+                        }
+                    }
+                    if let Some(next_cursor) = collection.next_cursor {
+                        KitButton {
+                            r#type: "button",
+                            onclick: move |_| page_cursor.set(Some(next_cursor.clone())),
+                            {localized(locale, "Load next page", "โหลดหน้าถัดไป")}
                         }
                     }
                 } else if let Some(EnterpriseReadModel::Detail(detail)) = loaded_model.clone() {
@@ -1790,7 +1848,15 @@ pub fn render_enterprise_workspace_surface(
                                                     confirmation_token: Some(format!("confirmed:{command_id}")),
                                                 }).await;
                                                 command_feedback.set(Some(match result {
-                                                    Ok(receipt) => format!("{} {}", localized(locale, "Command accepted:", "รับคำสั่งแล้ว:"), receipt.correlation_ref),
+                                                    Ok(receipt) => {
+                                                        minimum_source_version.set(receipt.committed_version);
+                                                        page_cursor.set(None);
+                                                        format!("{} {}", if receipt.replayed {
+                                                            localized(locale, "Duplicate command safely replayed:", "คำสั่งซ้ำถูก replay อย่างปลอดภัย:")
+                                                        } else {
+                                                            localized(locale, "Command accepted:", "รับคำสั่งแล้ว:")
+                                                        }, receipt.correlation_ref)
+                                                    },
                                                     Err(_) => localized(locale, "Command was not accepted. Refresh before retrying.", "คำสั่งไม่ได้รับการยอมรับ โปรดรีเฟรชก่อนลองใหม่").into(),
                                                 }));
                                             });
@@ -1841,8 +1907,27 @@ fn localized(locale: Locale, en: &'static str, th: &'static str) -> &'static str
     LocalizedText::new(en, th).text(locale)
 }
 
+#[cfg(target_arch = "wasm32")]
 const fn enterprise_client_channel() -> ClientChannel {
     ClientChannel::Web
+}
+
+#[cfg(all(not(target_arch = "wasm32"), target_os = "ios"))]
+const fn enterprise_client_channel() -> ClientChannel {
+    ClientChannel::Ios
+}
+
+#[cfg(all(not(target_arch = "wasm32"), target_os = "android"))]
+const fn enterprise_client_channel() -> ClientChannel {
+    ClientChannel::Android
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    not(any(target_os = "ios", target_os = "android"))
+))]
+const fn enterprise_client_channel() -> ClientChannel {
+    ClientChannel::Desktop
 }
 
 fn restricted_item_copy(locale: Locale) -> &'static str {
@@ -2016,22 +2101,12 @@ mod tests {
     }
 
     #[test]
-    fn commerce_and_talent_are_web_only() {
+    fn release_channels_are_web_and_macos_only() {
         for workspace in WorkspaceKind::ALL {
             assert!(workspace.channel_policy().supports(ClientChannel::Web));
-            let web_only = matches!(workspace, WorkspaceKind::Ecommerce | WorkspaceKind::Talent);
-            assert_eq!(
-                workspace.channel_policy().supports(ClientChannel::Desktop),
-                !web_only
-            );
-            assert_eq!(
-                workspace.channel_policy().supports(ClientChannel::Ios),
-                !web_only
-            );
-            assert_eq!(
-                workspace.channel_policy().supports(ClientChannel::Android),
-                !web_only
-            );
+            assert!(workspace.channel_policy().supports(ClientChannel::Desktop));
+            assert!(!workspace.channel_policy().supports(ClientChannel::Ios));
+            assert!(!workspace.channel_policy().supports(ClientChannel::Android));
         }
     }
 
@@ -2367,6 +2442,8 @@ mod tests {
         let source = include_str!("lib.rs");
         assert!(source.contains("KitLink {"));
         assert!(source.contains("KitButton {"));
+        assert!(source.contains("event.prevent_default();"));
+        assert!(source.contains("context.navigate.clone()"));
         let raw_anchor = ["\n", "                            ", "a", " {"].concat();
         let raw_button = ["\n", "                    ", "button", " {"].concat();
         assert!(!source.contains(&raw_anchor));

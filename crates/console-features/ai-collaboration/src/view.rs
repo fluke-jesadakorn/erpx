@@ -1,10 +1,10 @@
 use dioxus::prelude::*;
 use erpx_ui_ai_collaboration::{
-    ActivityRailState, ActivityReferenceGate, AiWorkspaceState, AnchorFreshness, AutocompleteState,
-    CommentCard, CommentEditorDocument, CommentVisibility, ConnectivityState,
-    FloatingLauncherState, LAUNCHER_ACCESSIBILITY, LauncherPresentation, MutationAvailability,
-    PrivacyState, RealtimeState, ThreadCard, ThreadLifecycle, ThreadRealm, TypedActionProposal,
-    WorkspaceSection, activity_accessibility,
+    ActivityRailState, ActivityReferenceGate, AiWorkspaceState, AnchorFreshness,
+    AssignmentDisplayState, AutocompleteState, CommentCard, CommentEditorDocument,
+    CommentVisibility, ConnectivityState, FloatingLauncherState, LAUNCHER_ACCESSIBILITY,
+    LauncherPresentation, MutationAvailability, PrivacyState, RealtimeState, ThreadCard,
+    ThreadLifecycle, ThreadRealm, TypedActionProposal, WorkspaceSection, activity_accessibility,
 };
 use erpx_ui_core::Locale;
 use erpx_ui_kit::{
@@ -293,7 +293,11 @@ fn render_autocomplete(state: AutocompleteState, locale: Locale) -> Element {
 }
 
 #[component]
-pub fn AiWorkspaceView(state: AiWorkspaceState, locale: Locale) -> Element {
+pub fn AiWorkspaceView(
+    state: AiWorkspaceState,
+    locale: Locale,
+    #[props(default)] on_retry: Option<EventHandler<()>>,
+) -> Element {
     rsx! {
         main { class: "erpx-ai-workspace",
             header {
@@ -302,12 +306,16 @@ pub fn AiWorkspaceView(state: AiWorkspaceState, locale: Locale) -> Element {
                     for section in WorkspaceSection::ALL { KitButton { r#type: "button", {section.label(locale)} } }
                 }
             }
-            {render_workspace_state(state, locale)}
+            {render_workspace_state(state, locale, on_retry)}
         }
     }
 }
 
-fn render_workspace_state(state: AiWorkspaceState, locale: Locale) -> Element {
+fn render_workspace_state(
+    state: AiWorkspaceState,
+    locale: Locale,
+    on_retry: Option<EventHandler<()>>,
+) -> Element {
     match state {
         AiWorkspaceState::Loading => rsx! { Skeleton { lines: 6 } },
         AiWorkspaceState::Empty { section } => {
@@ -323,11 +331,28 @@ fn render_workspace_state(state: AiWorkspaceState, locale: Locale) -> Element {
             )
             .to_owned(),
         ),
-        AiWorkspaceState::Restricted => {
-            rsx! { p { class: "erpx-restricted", role: "status", "Restricted item" } }
-        }
+        AiWorkspaceState::Restricted => rsx! {
+            p { class: "erpx-restricted", role: "status",
+                {copy(locale, "Restricted item", "รายการที่ถูกจำกัด")}
+            }
+        },
         AiWorkspaceState::Stale { reason, .. } => state_notice(locale, "stale", reason),
-        AiWorkspaceState::Degraded { reason, .. } => state_notice(locale, "degraded", reason),
+        AiWorkspaceState::Degraded {
+            reason, retryable, ..
+        } => {
+            let retry_disabled = on_retry.is_none();
+            rsx! {
+                {state_notice(locale, "degraded", reason)}
+                if retryable {
+                    Button {
+                        label: copy(locale, "Retry", "ลองใหม่").to_owned(),
+                        tone: ButtonTone::Secondary,
+                        disabled: retry_disabled,
+                        on_press: on_retry,
+                    }
+                }
+            }
+        }
         AiWorkspaceState::Offline { .. } => state_notice(
             locale,
             "offline",
@@ -347,13 +372,24 @@ fn render_workspace_state(state: AiWorkspaceState, locale: Locale) -> Element {
             ..
         } => rsx! {
             section { aria_label: copy(locale, "Agent assignments", "งานของเอเจนต์"),
-                for item in assignments { article { h3 { {item.agent_label} } StatusBadge { label: format!("{:?}", item.assignment_state), tone: StatusTone::Info } small { {format!("v{}", item.pinned_agent_version)} } } }
+                for item in assignments { article { h3 { {item.agent_label} } StatusBadge { label: assignment_state_label(item.assignment_state, locale).to_owned(), tone: StatusTone::Info } small { {format!("v{}", item.pinned_agent_version)} } } }
             }
             section { aria_label: copy(locale, "Agent registry", "ทะเบียนเอเจนต์"), for agent in registry { article { strong { {agent.label} } small { {format!("v{}", agent.version)} } } } }
             section { aria_label: copy(locale, "Agent pools", "กลุ่มเอเจนต์"), for pool in pools { p { "{pool.label} · {pool.routing_summary}" } } }
             section { aria_label: copy(locale, "Budgets", "งบประมาณ"), for budget in budgets { p { "{budget.layer}: {budget.used_minor} / {budget.limit_minor} {budget.currency}" } } }
             section { aria_label: copy(locale, "Provenance", "ที่มาและหลักฐาน"), for row in provenance { p { "{row.initiating_principal_label} · {row.effective_agent_label} v{row.agent_version} · {row.model_label}" } } }
         },
+    }
+}
+
+const fn assignment_state_label(state: AssignmentDisplayState, locale: Locale) -> &'static str {
+    match state {
+        AssignmentDisplayState::Queued => copy(locale, "Queued", "อยู่ในคิว"),
+        AssignmentDisplayState::Running => copy(locale, "Running", "กำลังทำงาน"),
+        AssignmentDisplayState::WaitingForInput => copy(locale, "Waiting for input", "กำลังรอข้อมูล"),
+        AssignmentDisplayState::Completed => copy(locale, "Completed", "เสร็จสิ้น"),
+        AssignmentDisplayState::Failed => copy(locale, "Failed", "ล้มเหลว"),
+        AssignmentDisplayState::Cancelled => copy(locale, "Cancelled", "ยกเลิกแล้ว"),
     }
 }
 
@@ -372,7 +408,7 @@ pub fn FloatingAiLauncher(
     if !state.preference.open {
         return rsx! {
             div { class: "erpx-ai-launcher",
-                KitButton { r#type: "button", aria_label: LAUNCHER_ACCESSIBILITY.trigger_label,
+                KitButton { r#type: "button", aria_label: copy(locale, "Open AI assistants", "เปิดผู้ช่วย AI"),
                     onclick: move |_| if let Some(handler) = on_open.as_ref() { handler.call(()) },
                     "AI"
                     if total > 0 { span { class: "erpx-ai-badge", role: "status", aria_live: LAUNCHER_ACCESSIBILITY.badge_live, "{total}" } }
@@ -391,7 +427,7 @@ pub fn FloatingAiLauncher(
                 header { h2 { {copy(locale, "AI assistants", "ผู้ช่วย AI")} } KitButton { r#type: "button", aria_label: copy(locale, "Close AI panel", "ปิดแผง AI"), onclick: move |_| if let Some(handler) = on_close.as_ref() { handler.call(()) }, "×" } }
                 if state.connectivity == ConnectivityState::Offline { p { class: "erpx-offline-lock", role: "status", {copy(locale, "Offline: AI invocation is disabled and will not be queued.", "ออฟไลน์: ปิดการเรียกใช้ AI และระบบจะไม่เข้าคิว")} } }
                 if let Some(session) = state.active_session {
-                    article { h3 { {session.agent_label} } p { {format!("{} {}", copy(locale, "Pinned version", "รุ่นที่ตรึง"), session.pinned_agent_version)} } StatusBadge { label: match session.privacy { PrivacyState::Private => copy(locale, "Private", "ส่วนตัว"), PrivacyState::Published => copy(locale, "Published", "เผยแพร่แล้ว") }.to_owned(), tone: StatusTone::Info } p { {format!("{:?}", session.assignment_state)} } }
+                    article { h3 { {session.agent_label} } p { {format!("{} {}", copy(locale, "Pinned version", "รุ่นที่ตรึง"), session.pinned_agent_version)} } StatusBadge { label: match session.privacy { PrivacyState::Private => copy(locale, "Private", "ส่วนตัว"), PrivacyState::Published => copy(locale, "Published", "เผยแพร่แล้ว") }.to_owned(), tone: StatusTone::Info } p { {assignment_state_label(session.assignment_state, locale)} } }
                 }
                 if state.context_change_pending.is_some() {
                     div { role: "alertdialog", aria_label: copy(locale, "Confirm context boundary", "ยืนยันขอบเขตบริบท"),
@@ -440,6 +476,23 @@ mod tests {
         assert!(!source.contains(concat!("Natural", "Language")));
         assert!(source.contains("TypedActionCard"));
         assert!(source.contains("Offline: AI invocation is disabled"));
+    }
+
+    #[test]
+    fn workspace_recovery_and_assignment_states_are_localized() {
+        assert_eq!(
+            assignment_state_label(AssignmentDisplayState::WaitingForInput, Locale::En),
+            "Waiting for input"
+        );
+        assert_eq!(
+            assignment_state_label(AssignmentDisplayState::WaitingForInput, Locale::Th),
+            "กำลังรอข้อมูล"
+        );
+        let source = include_str!("view.rs");
+        assert!(source.contains("if retryable"));
+        assert!(source.contains("disabled: retry_disabled"));
+        assert!(source.contains("รายการที่ถูกจำกัด"));
+        assert!(source.contains("เปิดผู้ช่วย AI"));
     }
 
     #[test]

@@ -249,9 +249,150 @@ pub(crate) fn scan(root: &Path) -> ArchitectureResult {
     }
 
     enforce_ui_kit_boundary(root)?;
+    scan_native_boundaries(root)?;
 
     println!("DDD/Clean/Hexagonal/CQRS and ERPX UI kit architecture boundaries passed");
     Ok(())
+}
+
+/// Enforce the Web/macOS renderer boundary independently so platform release
+/// checks can run it without repeating every domain architecture rule.
+pub(crate) fn scan_native_boundaries(root: &Path) -> ArchitectureResult {
+    let mut violations = Vec::new();
+    for source_root in [root.join("apps"), root.join("crates")] {
+        if !source_root.is_dir() {
+            continue;
+        }
+        for file in rust_files(&source_root)? {
+            let source = fs::read_to_string(&file)?;
+            let web_adapter = is_web_adapter(&file, root);
+            for (index, line) in source.lines().enumerate() {
+                let trimmed = line.trim_start();
+                if trimmed.starts_with("//") {
+                    continue;
+                }
+                if line.contains("document::eval") {
+                    violations.push(format!(
+                        "document::eval is forbidden in first-party code: {}:{}",
+                        file.display(),
+                        index + 1
+                    ));
+                }
+                if is_javascript_bridge_constant(trimmed) {
+                    violations.push(format!(
+                        "JavaScript bridge constants are forbidden: {}:{}",
+                        file.display(),
+                        index + 1
+                    ));
+                }
+                if line.contains("web_sys") && !web_adapter {
+                    violations.push(format!(
+                        "web_sys is restricted to the Console Web adapter: {}:{}",
+                        file.display(),
+                        index + 1
+                    ));
+                }
+            }
+        }
+    }
+
+    for manifest in manifest_files(root)? {
+        let source = fs::read_to_string(&manifest)?;
+        let lower = source.to_ascii_lowercase();
+        for forbidden in [
+            "dioxus/desktop",
+            "dioxus/mobile",
+            "dioxus-desktop",
+            "dioxus-mobile",
+            "wry",
+            "webview",
+            "webkit",
+        ] {
+            if lower.lines().any(|line| {
+                let trimmed = line.trim_start();
+                !trimmed.starts_with('#') && contains_dependency_token(trimmed, forbidden)
+            }) {
+                violations.push(format!(
+                    "WebView renderer dependency `{forbidden}` is forbidden: {}",
+                    manifest.display()
+                ));
+            }
+        }
+    }
+
+    violations.sort();
+    violations.dedup();
+    if violations.is_empty() {
+        println!("Dioxus Web/macOS native renderer boundaries passed");
+        Ok(())
+    } else {
+        Err(format!(
+            "Web/macOS native architecture violations:\n- {}",
+            violations.join("\n- ")
+        )
+        .into())
+    }
+}
+
+fn is_javascript_bridge_constant(line: &str) -> bool {
+    let declaration = line
+        .strip_prefix("pub ")
+        .unwrap_or(line)
+        .strip_prefix("const ")
+        .or_else(|| line.strip_prefix("static "));
+    let Some(declaration) = declaration else {
+        return false;
+    };
+    let name = declaration
+        .split(|character: char| character == ':' || character.is_whitespace())
+        .next()
+        .unwrap_or_default();
+    name.ends_with("_SCRIPT") || name.contains("JAVASCRIPT") || name.contains("JS_BRIDGE")
+}
+
+fn is_web_adapter(file: &Path, root: &Path) -> bool {
+    let Ok(relative) = file.strip_prefix(root.join("apps/console/src")) else {
+        return false;
+    };
+    let components = relative
+        .components()
+        .filter_map(|component| component.as_os_str().to_str())
+        .collect::<Vec<_>>();
+    // Console platform/transport modules are adapters; their typed Web
+    // implementations are target-gated beside the native implementation.
+    // Composition, UI, and feature modules do not get this exemption.
+    components
+        .first()
+        .is_some_and(|component| matches!(*component, "platform" | "platform.rs" | "transport"))
+        || components.contains(&"web")
+        || relative.file_stem().is_some_and(|stem| stem == "web")
+}
+
+fn contains_dependency_token(line: &str, token: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    lower
+        .split(|character: char| !(character.is_ascii_alphanumeric() || "-_/".contains(character)))
+        .any(|word| word == token)
+}
+
+fn manifest_files(root: &Path) -> ArchitectureResult<Vec<PathBuf>> {
+    let mut pending = vec![root.join("apps"), root.join("crates")];
+    let mut manifests = Vec::new();
+    while let Some(directory) = pending.pop() {
+        if !directory.is_dir() {
+            continue;
+        }
+        for entry in fs::read_dir(directory)? {
+            let path = entry?.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path.file_name().is_some_and(|name| name == "Cargo.toml") {
+                manifests.push(path);
+            }
+        }
+    }
+    manifests.sort();
+    Ok(manifests)
 }
 
 fn enforce_foundation_dependencies(root: &Path) -> ArchitectureResult {
@@ -571,6 +712,44 @@ fn rust_files(path: &Path) -> ArchitectureResult<Vec<PathBuf>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn javascript_bridge_constant_names_are_rejected() {
+        assert!(is_javascript_bridge_constant(
+            "const AUTH_HTTP_SCRIPT: &str = r#\"fetch()\"#;"
+        ));
+        assert!(is_javascript_bridge_constant(
+            "pub const JS_BRIDGE_SOURCE: &str = \"\";"
+        ));
+        assert!(!is_javascript_bridge_constant(
+            "const MAX_RESPONSE_BYTES: usize = 1024;"
+        ));
+    }
+
+    #[test]
+    fn web_sys_is_limited_to_named_web_adapters() {
+        let root = Path::new("/workspace");
+        assert!(is_web_adapter(
+            Path::new("/workspace/apps/console/src/platform/web.rs"),
+            root
+        ));
+        assert!(is_web_adapter(
+            Path::new("/workspace/apps/console/src/platform/web/history.rs"),
+            root
+        ));
+        assert!(is_web_adapter(
+            Path::new("/workspace/apps/console/src/platform/http.rs"),
+            root
+        ));
+        assert!(is_web_adapter(
+            Path::new("/workspace/apps/console/src/transport/mod.rs"),
+            root
+        ));
+        assert!(!is_web_adapter(
+            Path::new("/workspace/apps/console/src/composition.rs"),
+            root
+        ));
+    }
 
     #[test]
     fn console_root_rejects_wire_imports() {

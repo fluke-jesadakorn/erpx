@@ -40,9 +40,11 @@ mod dev_access;
 mod directory_lab;
 mod infra;
 mod wasm;
+mod web_e2e;
 mod web_toolchain;
 
 const RESET_CONFIRMATION: &str = "RESET_ERPX_DEV";
+const RECONFIGURE_LOCAL_CONFIRMATION: &str = "RECONFIGURE_ERPX_LOCAL";
 const ROOT_PASSWORD_RESET_CONFIRMATION: &str = "RESET_ERPX_PLATFORM_ROOT";
 const LEGACY_DATABASE: &str = "folio_db";
 const LEGACY_BUCKET: &str = "folio-storage";
@@ -57,10 +59,10 @@ const DEV_STATE_VERSION: u32 = 3;
 const WEB_LAUNCH_CONTRACT_VERSION: u32 = 4;
 const WEB_SESSION_CACHE_CONTRACT_VERSION: u32 = 1;
 const DEV_STATE_FILE: &str = "dev-state.json";
-const RUNTIME_DEV_TARGET_DIR: &str = "runtime-dev-target";
 const FRESH_RUNTIME_MANIFEST_FILE: &str = "cutover/fresh-state.json";
 const DEV_WORKER_POLL_INTERVAL_MS: &str = "5000";
-const DEVELOPMENT_TAILSCALE_IP_ENV: &str = "ERPX_DEV_TAILSCALE_IP";
+const DEVELOPMENT_TAILSCALE_FQDN_ENV: &str = "ERPX_DEV_TAILSCALE_FQDN";
+const LEGACY_DEVELOPMENT_TAILSCALE_IP_ENV: &str = "ERPX_DEV_TAILSCALE_IP";
 const DATABASES: [&str; 6] = [
     "erpx_control_write",
     "erpx_control_read",
@@ -82,7 +84,7 @@ const LEGACY_SCHEMAS: [&str; 11] = [
     "perm",
     "platform",
 ];
-const PRESERVED_SCHEMAS: [&str; 2] = ["n8n", "public"];
+const PRESERVED_SCHEMAS: [&str; 1] = ["public"];
 const DEMO_CONTEXTS: [(&str, &str, &str, i64); 22] = [
     ("platform", "Platform control plane", "ready", 1),
     ("organization", "Holding, company, and branch", "ready", 3),
@@ -414,6 +416,7 @@ struct RuntimeSnapshot {
     all_ucs_labs: bool,
     any_ucs_labs: bool,
     web: bool,
+    web_artifacts_ready: bool,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -455,8 +458,33 @@ struct FreshRuntimeManifest {
     tenant_write_database: String,
     tenant_read_database: String,
     object_namespace: String,
-    n8n_config_sha256: String,
     rollback: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct LocalReconfigurationManifest {
+    version: u32,
+    service_catalog_generation: u16,
+    installation_generation: Uuid,
+    installation_prefix: String,
+    tenant_id: String,
+    holding_ref: String,
+    control_write_database: String,
+    control_read_database: String,
+    tenant_write_database: String,
+    tenant_read_database: String,
+    object_namespace: String,
+}
+
+impl LocalReconfigurationManifest {
+    fn database_names(&self) -> Vec<String> {
+        vec![
+            self.control_write_database.clone(),
+            self.control_read_database.clone(),
+            self.tenant_write_database.clone(),
+            self.tenant_read_database.clone(),
+        ]
+    }
 }
 
 impl FreshRuntimeManifest {
@@ -512,9 +540,7 @@ impl FreshRuntimeManifest {
                 "offline_non_authoritative".into(),
             ))
             && self.rollback.get("write_policy")
-                == Some(&serde_json::Value::String("isolated_no_merge".into()))
-            && self.rollback.get("n8n_config_sha256")
-                == Some(&serde_json::Value::String(self.n8n_config_sha256.clone()));
+                == Some(&serde_json::Value::String("isolated_no_merge".into()));
         let expected_object_namespace = format!(
             "{}-tenant-objects",
             self.installation_prefix.replace('_', "-")
@@ -535,14 +561,9 @@ impl FreshRuntimeManifest {
             == format!("{}_control_write", self.installation_prefix)
             && self.control_read_database == format!("{}_control_read", self.installation_prefix)
             && tenant_token_valid;
-        let n8n_hash_valid = self.n8n_config_sha256.len() == 64
-            && self
-                .n8n_config_sha256
-                .bytes()
-                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase());
-        if self.version != 2
+        if self.version != 3
             || self.schema_generation != 2
-            || self.service_catalog_generation != 2
+            || self.service_catalog_generation != 3
             || self.service_id_range != "IFC-SVC-101..165"
             || self.state != "prepared"
             || self.installation_generation.is_nil()
@@ -554,7 +575,6 @@ impl FreshRuntimeManifest {
             || chrono::DateTime::parse_from_rfc3339(&self.prepared_at).is_err()
             || self.object_namespace != expected_object_namespace
             || !names_match_prefix
-            || !n8n_hash_valid
             || !rollback_valid
         {
             return Err("fresh-state runtime manifest failed closed validation".into());
@@ -573,28 +593,9 @@ impl FreshRuntimeManifest {
 
     async fn complete_receipt_root_principal(
         &self,
-        root: &Path,
+        _root: &Path,
         config: &DevConfig,
     ) -> TaskResult<String> {
-        let n8n_path = root.join(".runtime/n8n/.n8n/config");
-        for component in [
-            root.join(".runtime"),
-            root.join(".runtime/n8n"),
-            root.join(".runtime/n8n/.n8n"),
-        ] {
-            let metadata = fs::symlink_metadata(component)?;
-            if metadata.file_type().is_symlink() || !metadata.is_dir() {
-                return Err("fresh-state runtime refused an unsafe n8n path".into());
-            }
-        }
-        let metadata = fs::symlink_metadata(&n8n_path)?;
-        if metadata.file_type().is_symlink()
-            || !metadata.is_file()
-            || metadata.len() > 1024 * 1024
-            || required_file_sha256(&n8n_path)? != self.n8n_config_sha256
-        {
-            return Err("fresh-state runtime refused a changed n8n configuration".into());
-        }
         let pool = pool(&config.database_url(&self.control_write_database)).await?;
         let root_principal: Option<String> = sqlx::query_scalar(
             "SELECT receipt.root_principal_ref
@@ -760,7 +761,11 @@ impl DevConfig {
             return Err("reset-dev refuses a non-loopback MinIO endpoint".into());
         }
         if self.legacy_database != LEGACY_DATABASE
-            && !(self.port == 55_432 && self.legacy_database == DATABASES[0])
+            && !(self.port == 55_432
+                && matches!(
+                    self.legacy_database.as_str(),
+                    "erpx_control_write" | "erpxv8_control_write"
+                ))
         {
             return Err("reset-dev refuses an unexpected legacy database".into());
         }
@@ -963,8 +968,17 @@ async fn run() -> TaskResult {
             let config = DevConfig::load(&root)?;
             reset_dev(&root, &config, confirmation).await
         }
+        [command, flag] if command == "reconfigure-local" && flag == "--dry-run" => {
+            reconfigure_local(&root, None).await
+        }
+        [command, confirm_flag, confirmation]
+            if command == "reconfigure-local" && confirm_flag == "--confirm" =>
+        {
+            reconfigure_local(&root, Some(confirmation)).await
+        }
         [command] if command == "verify" => verify(&root).await,
         [command] if command == "verify-web-production" => verify_web_production(&root).await,
+        [command] if command == "web-e2e" => web_e2e::run(&root).await,
         [command] if command == "verify-core" => verify_core(&root),
         [command] if command == "verify-runtime" => verify_runtime(&root).await,
         [command] if command == "verify-sqlx" => verify_sqlx(&root).await,
@@ -985,11 +999,14 @@ async fn run() -> TaskResult {
                  cargo xtask pitr cleanup-local --confirm PURGE_ERPX_LOCAL_PITR\n\
                  cargo xtask pitr promote --confirm PROMOTE_ERPX_PITR\n\
                  cargo xtask reset-dev --confirm {RESET_CONFIRMATION}\n\
+                 cargo xtask reconfigure-local --dry-run\n\
+                 cargo xtask reconfigure-local --confirm {RECONFIGURE_LOCAL_CONFIRMATION}\n\
                  cargo xtask reset-platform-root --confirm {ROOT_PASSWORD_RESET_CONFIRMATION}\n\
                  cargo xtask seed-demo\n\
                  cargo xtask web-toolchain\n\
                  cargo xtask verify\n\
                  cargo xtask verify-web-production\n\
+                 cargo xtask web-e2e\n\
                  cargo xtask verify-core\n\
                  cargo xtask verify-runtime\n\
                  cargo xtask verify-sqlx\n\
@@ -1133,6 +1150,167 @@ async fn pool(url: &str) -> Result<PgPool, sqlx::Error> {
     PgPoolOptions::new().max_connections(4).connect(url).await
 }
 
+fn load_reconfiguration_manifest(
+    root: &Path,
+) -> TaskResult<(LocalReconfigurationManifest, Vec<u8>)> {
+    let path = runtime_dir(root).join(FRESH_RUNTIME_MANIFEST_FILE);
+    let metadata = fs::symlink_metadata(&path)?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() > 128 * 1024 {
+        return Err("reconfigure-local manifest is not a bounded regular file".into());
+    }
+    let bytes = fs::read(&path)?;
+    let manifest: LocalReconfigurationManifest = serde_json::from_slice(&bytes)?;
+    if !matches!(manifest.version, 2 | 3)
+        || !matches!(manifest.service_catalog_generation, 2 | 3)
+        || manifest.installation_generation.is_nil()
+        || manifest.installation_prefix != "erpxv8"
+        || Uuid::parse_str(&manifest.tenant_id).is_err()
+        || Uuid::parse_str(&manifest.holding_ref).is_err()
+        || manifest.database_names().iter().any(|database| {
+            database.is_empty()
+                || database.len() > 63
+                || !database
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+        })
+        || manifest.object_namespace != "erpxv8-tenant-objects"
+    {
+        return Err("reconfigure-local manifest failed the active erpxv8 fence".into());
+    }
+    let mut value: serde_json::Value = serde_json::from_slice(&bytes)?;
+    let object = value
+        .as_object_mut()
+        .ok_or("reconfigure-local manifest is not an object")?;
+    object.insert("version".into(), serde_json::json!(3));
+    object.insert("service_catalog_generation".into(), serde_json::json!(3));
+    object.remove("n8n_config_sha256");
+    let rollback = object
+        .get_mut("rollback")
+        .and_then(serde_json::Value::as_object_mut)
+        .ok_or("reconfigure-local rollback inventory is missing")?;
+    rollback.remove("n8n_config_sha256");
+    let staged = serde_json::to_vec_pretty(&value)?;
+    Ok((manifest, staged))
+}
+
+async fn verify_reconfiguration_authority(
+    config: &DevConfig,
+    manifest: &LocalReconfigurationManifest,
+) -> TaskResult {
+    let control_write = pool(&config.database_url(&manifest.control_write_database)).await?;
+    let active: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM erpx_control.platform_bootstrap_receipts receipt
+            JOIN erpx_control.tenant_registry registry ON registry.tenant_id=receipt.tenant_id
+            WHERE receipt.installation_prefix=$1
+              AND receipt.tenant_id=$2 AND receipt.holding_ref=$3 AND receipt.state='complete'
+              AND registry.holding_ref=$3 AND registry.write_database_key=$4
+              AND registry.read_database_key=$5 AND registry.storage_namespace=$6
+              AND registry.state='active')",
+    )
+    .bind(&manifest.installation_prefix)
+    .bind(&manifest.tenant_id)
+    .bind(&manifest.holding_ref)
+    .bind(&manifest.tenant_write_database)
+    .bind(&manifest.tenant_read_database)
+    .bind(&manifest.object_namespace)
+    .fetch_one(&control_write)
+    .await?;
+    if !active {
+        return Err(
+            "reconfigure-local requires the active installation and complete receipt".into(),
+        );
+    }
+    let write_has_n8n: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM erpx_platform_administration_write.connector_guards
+            WHERE lower(connector_kind)='n8n' OR lower(connector_kind_type)='n8n'
+               OR lower(coalesce(connector_kind_other,''))='n8n'
+            UNION ALL SELECT 1 FROM erpx_cqrs_write.command_receipts
+            WHERE context_name='platform_administration' AND lower(coalesce(receipt::text,'')) LIKE '%n8n%'
+            UNION ALL SELECT 1 FROM erpx_cqrs_write.audit_log
+            WHERE context_name='platform_administration' AND lower(details::text) LIKE '%n8n%'
+            UNION ALL SELECT 1 FROM erpx_cqrs_write.outbox_events
+            WHERE context_name='platform_administration' AND lower(payload::text) LIKE '%n8n%')",
+    )
+    .fetch_one(&control_write)
+    .await?;
+    control_write.close().await;
+    let control_read = pool(&config.database_url(&manifest.control_read_database)).await?;
+    let read_has_n8n: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM erpx_platform_administration_read.connector_projection
+            WHERE lower(connector_kind)='n8n' OR lower(state::text) LIKE '%n8n%'
+            UNION ALL SELECT 1 FROM erpx_cqrs_read.projection_failures
+            WHERE projection_name='platform_administration.connectors' AND lower(last_error) LIKE '%n8n%')",
+    )
+    .fetch_one(&control_read)
+    .await?;
+    control_read.close().await;
+    if write_has_n8n || read_has_n8n {
+        return Err("reconfigure-local found legacy n8n authority or evidence".into());
+    }
+    Ok(())
+}
+
+async fn reconfigure_local(root: &Path, confirmation: Option<&String>) -> TaskResult {
+    let config = DevConfig::load(root)?;
+    config.validate_local()?;
+    if config.port != 55_432 {
+        return Err("reconfigure-local requires the fixed dedicated PostgreSQL port 55432".into());
+    }
+    infra::pitr_reconfiguration_fence(root)?;
+    let (manifest, staged_manifest) = load_reconfiguration_manifest(root)?;
+    verify_reconfiguration_authority(&config, &manifest).await?;
+    println!("ERPX local reconfiguration targets:");
+    println!("  Workspace runtime: {}", runtime_dir(root).display());
+    println!("  PostgreSQL root: /Users/fluke/erpx-postgres-data (retain all databases)");
+    println!("  PostgreSQL roles: erpx_admin, erpx_app, erpx_backup, erpx_restore");
+    println!("  Databases: {}", manifest.database_names().join(", "));
+    println!("  MinIO root: /Users/fluke/erpx-minio-data (retain all objects)");
+    println!("  MinIO namespace probe: {}", manifest.object_namespace);
+    println!("  Runtime manifest: v3, service catalog generation 3");
+    println!("  Retired runtime removal: .runtime/n8n");
+    println!("  PITR: inactive; active installation and receipt: verified");
+    let Some(confirmation) = confirmation else {
+        println!("Dry run complete; no credentials, certificates, configuration, or data changed.");
+        return Ok(());
+    };
+    if confirmation != RECONFIGURE_LOCAL_CONFIRMATION {
+        return Err(format!(
+            "reconfigure-local requires --confirm {RECONFIGURE_LOCAL_CONFIRMATION}; no changes were made"
+        )
+        .into());
+    }
+    stop(root)?;
+    infra::reconfigure_local(
+        root,
+        &manifest.control_write_database,
+        &manifest.database_names(),
+        &manifest.object_namespace,
+        &staged_manifest,
+    )
+    .await?;
+    let clean = Command::new("cargo")
+        .arg("clean")
+        .current_dir(root)
+        .status()?;
+    if !clean.success() {
+        return Err(format!("cargo clean failed with {clean}").into());
+    }
+    let refreshed = DevConfig::load(root)?;
+    dev(
+        root,
+        &refreshed,
+        DevOptions {
+            mode: DevMode::Fresh,
+            web_debug: false,
+            hot_patch: true,
+        },
+    )
+    .await
+}
+
 async fn reset_dev(root: &Path, config: &DevConfig, confirmation: &str) -> TaskResult {
     config.validate_local()?;
     if config.port == 55_432 {
@@ -1156,7 +1334,6 @@ async fn reset_dev(root: &Path, config: &DevConfig, confirmation: &str) -> TaskR
     println!("  MinIO endpoint: {}", config.minio_endpoint);
     println!("  Delete bucket: {LEGACY_BUCKET}");
     println!("  Preserve/create bucket: {ERPX_BUCKET}");
-    println!("  Preserve runtime: .runtime/n8n");
     if confirmation != RESET_CONFIRMATION {
         return Err(format!(
             "reset-dev requires --confirm {RESET_CONFIRMATION}; no changes were made"
@@ -1164,8 +1341,6 @@ async fn reset_dev(root: &Path, config: &DevConfig, confirmation: &str) -> TaskR
         .into());
     }
 
-    let n8n_config = root.join(".runtime/n8n/.n8n/config");
-    let n8n_hash_before = sha256_file_if_present(&n8n_config)?;
     for schema in LEGACY_SCHEMAS {
         legacy
             .execute(format!("DROP SCHEMA IF EXISTS \"{schema}\" CASCADE").as_str())
@@ -1175,11 +1350,7 @@ async fn reset_dev(root: &Path, config: &DevConfig, confirmation: &str) -> TaskR
     remove_legacy_bucket(config.minio_root.as_deref())?;
     cleanup_legacy_runtime(root)?;
     initialize_databases(config, true).await?;
-    let n8n_hash_after = sha256_file_if_present(&n8n_config)?;
-    if n8n_hash_before != n8n_hash_after {
-        return Err("n8n encryption configuration changed during reset".into());
-    }
-    println!("Reset complete; n8n state and encryption configuration were preserved.");
+    println!("Reset complete.");
     Ok(())
 }
 
@@ -2025,15 +2196,7 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
     if dedicated {
         build_arguments.extend(["-p", "erpx-wal-archive"]);
     }
-    run_command_with_env(
-        root,
-        "cargo",
-        build_arguments,
-        &[(
-            "CARGO_TARGET_DIR",
-            runtime_target_dir(root).to_string_lossy().into_owned(),
-        )],
-    )?;
+    run_command_with_env(root, "cargo", build_arguments, &[])?;
     println!("dev binaries: built ({:?})", phase.elapsed());
 
     let phase = Instant::now();
@@ -2153,32 +2316,23 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
                     .cloned()
             })
     };
-    let tailnet_ip = configured_development_tailnet_ip(root)?;
-    if tailnet_ip.is_some() && !development_access_enabled {
+    let tailnet_fqdn = configured_development_tailnet_fqdn(root)?;
+    if tailnet_fqdn.is_some() && !development_access_enabled {
         return Err(
-            "ERPX_DEV_TAILSCALE_IP requires ERPX_DEV_PERSONA_MODE=enabled for dev-only access"
+            "ERPX_DEV_TAILSCALE_FQDN requires ERPX_DEV_PERSONA_MODE=enabled for dev-only access"
                 .into(),
         );
     }
-    let advertised_host = tailnet_ip
-        .map(|address| address.to_string())
-        .unwrap_or_else(|| "localhost".to_owned());
+    let advertised_web_origin = tailnet_fqdn.as_ref().map_or_else(
+        || "http://localhost:3004".to_owned(),
+        |hostname| format!("https://{hostname}"),
+    );
     let trusted_web_origins =
-        format!("http://{advertised_host}:3004,http://127.0.0.1:3004,http://localhost:3004");
-    let auth_http_origin = tailnet_ip.map_or_else(
-        || {
-            configured_value("ERPX_CONSOLE_AUTH_HTTP_ORIGIN")
-                .unwrap_or_else(|| "http://localhost:50052".to_owned())
-        },
-        |address| format!("http://{address}:50052"),
-    );
-    let grpc_endpoint = tailnet_ip.map_or_else(
-        || {
-            configured_value("ERPX_CONSOLE_GRPC_ENDPOINT")
-                .unwrap_or_else(|| "http://127.0.0.1:50051".to_owned())
-        },
-        |address| format!("http://{address}:50051"),
-    );
+        format!("{advertised_web_origin},http://127.0.0.1:3004,http://localhost:3004");
+    let auth_http_origin = configured_value("ERPX_CONSOLE_AUTH_HTTP_ORIGIN")
+        .unwrap_or_else(|| "http://localhost:50052".to_owned());
+    let grpc_endpoint = configured_value("ERPX_CONSOLE_GRPC_ENDPOINT")
+        .unwrap_or_else(|| "http://127.0.0.1:50051".to_owned());
     let mut common = dev_common_environment(
         root,
         config,
@@ -2188,8 +2342,8 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
     )?;
     common.push(("ERPX_WORKER_ACTOR_REF", projection_actor_ref.clone()));
     let mut allowed_origins = configured_value("ERPX_HTTP_ALLOWED_ORIGINS");
-    if let Some(address) = tailnet_ip {
-        let origin = format!("http://{address}:3004");
+    if tailnet_fqdn.is_some() {
+        let origin = advertised_web_origin.clone();
         let values = allowed_origins.get_or_insert_with(String::new);
         if !values.split(',').any(|value| value.trim() == origin) {
             if !values.is_empty() {
@@ -2327,7 +2481,7 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
     let phase = Instant::now();
     wait_for_http("http://127.0.0.1:50052/health", 90).await?;
     wait_for_http("http://127.0.0.1:50052/ready", 90).await?;
-    wait_for_http("http://127.0.0.1:3004", 180).await?;
+    require_dioxus_web_ready(root, "http://127.0.0.1:3004", 180).await?;
     if let Some(manifest) = fresh_runtime.as_ref() {
         require_fresh_command_projection_smoke(&common, manifest).await?;
     }
@@ -2338,7 +2492,7 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
     write_dev_state(root, &desired_state)?;
     println!("dev health/state: ready ({:?})", phase.elapsed());
     println!(
-        "ERPX is running at http://{advertised_host}:3004 (dev ensure {:?})",
+        "ERPX is running at {advertised_web_origin} (dev ensure {:?})",
         total_started.elapsed()
     );
     Ok(())
@@ -3138,6 +3292,7 @@ fn runtime_snapshot(root: &Path, dedicated: bool) -> RuntimeSnapshot {
         all_ucs_labs: UCS_LABS.iter().all(|name| service_running(root, name)),
         any_ucs_labs: UCS_LABS.iter().any(|name| service_running(root, name)),
         web: service_running(root, "web"),
+        web_artifacts_ready: wasm::artifact_readiness(root, wasm::WasmProfile::Dev).is_ok(),
     }
 }
 
@@ -3171,7 +3326,7 @@ fn plan_dev_restart(
         ucs_labs: desired.development_access_enabled
             && (fresh || !runtime.all_ucs_labs || ucs_changed),
         stop_disabled_ucs_labs: !desired.development_access_enabled && runtime.any_ucs_labs,
-        web: fresh || !runtime.web || web_changed,
+        web: fresh || !runtime.web || !runtime.web_artifacts_ready || web_changed,
     }
 }
 
@@ -3792,17 +3947,17 @@ struct WebProductionEvidence {
 #[serde(deny_unknown_fields)]
 struct WebProductionBrowserEvidence {
     passed: bool,
-    modules: Vec<String>,
+    features: Vec<String>,
     locales: Vec<String>,
     viewports: Vec<String>,
     negative_cases: Vec<String>,
-    module_journeys: Vec<WebProductionModuleJourney>,
+    feature_journeys: Vec<WebProductionFeatureJourney>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct WebProductionModuleJourney {
-    module: String,
+struct WebProductionFeatureJourney {
+    feature: String,
     passed: bool,
     positive_cases: Vec<String>,
     negative_cases: Vec<String>,
@@ -3838,19 +3993,37 @@ struct WebProductionOperationsEvidence {
     unexplained_console_errors: u32,
 }
 
-const WEB_PRODUCTION_MODULES: [&str; 12] = [
-    "finance",
-    "sales",
-    "procurement",
-    "inventory",
-    "operations",
+const WEB_PRODUCTION_FEATURES: [&str; 30] = [
+    "ai-collaboration",
     "assets",
-    "maintenance",
-    "quality",
-    "marketing-crm",
-    "hr-payroll",
-    "point-of-sale",
+    "benefits",
+    "brand",
+    "commercial",
+    "crm",
+    "customer-360",
+    "customer-authority",
+    "ecommerce",
+    "field-service",
+    "finance",
+    "identity-access",
+    "inventory",
     "legal",
+    "learning",
+    "maintenance",
+    "marketing",
+    "manufacturing",
+    "operations",
+    "organization",
+    "people-payroll",
+    "planning",
+    "platform-administration",
+    "pos",
+    "procurement",
+    "projects",
+    "quality",
+    "sales",
+    "support",
+    "talent",
 ];
 
 fn require_secure_production_url(name: &str) -> TaskResult<reqwest::Url> {
@@ -3976,7 +4149,7 @@ fn load_web_production_evidence(
         );
     }
     let evidence: WebProductionEvidence = serde_json::from_slice(&fs::read(&evidence_path)?)?;
-    if evidence.schema_version != 2 || evidence.release_revision != expected_revision {
+    if evidence.schema_version != 3 || evidence.release_revision != expected_revision {
         return Err("Web production evidence schema or release revision does not match".into());
     }
     let captured_at = chrono::DateTime::parse_from_rfc3339(&evidence.captured_at)
@@ -3986,14 +4159,14 @@ fn load_web_production_evidence(
     if age < chrono::Duration::minutes(-5) || age > chrono::Duration::days(7) {
         return Err("Web production evidence must be current within seven days".into());
     }
-    let modules = evidence
+    let features = evidence
         .browser
-        .modules
+        .features
         .iter()
         .map(String::as_str)
         .collect::<BTreeSet<_>>();
-    if modules != WEB_PRODUCTION_MODULES.into_iter().collect() {
-        return Err("Browser evidence must cover exactly the 12 production modules".into());
+    if features != WEB_PRODUCTION_FEATURES.into_iter().collect() {
+        return Err("Browser evidence must cover exactly the 30 registered features".into());
     }
     let locales = evidence
         .browser
@@ -4031,16 +4204,18 @@ fn load_web_production_evidence(
     {
         return Err("Browser evidence is missing required negative cases".into());
     }
-    let journey_modules = evidence
+    let journey_features = evidence
         .browser
-        .module_journeys
+        .feature_journeys
         .iter()
-        .map(|journey| journey.module.as_str())
+        .map(|journey| journey.feature.as_str())
         .collect::<BTreeSet<_>>();
-    if journey_modules != WEB_PRODUCTION_MODULES.into_iter().collect()
-        || evidence.browser.module_journeys.len() != WEB_PRODUCTION_MODULES.len()
+    if journey_features != WEB_PRODUCTION_FEATURES.into_iter().collect()
+        || evidence.browser.feature_journeys.len() != WEB_PRODUCTION_FEATURES.len()
     {
-        return Err("Browser evidence must contain exactly one journey for every module".into());
+        return Err(
+            "Browser evidence must contain exactly one journey for every registered feature".into(),
+        );
     }
     let required_positive = [
         "login",
@@ -4060,7 +4235,7 @@ fn load_web_production_evidence(
         "duplicate",
         "recovery",
     ];
-    for journey in &evidence.browser.module_journeys {
+    for journey in &evidence.browser.feature_journeys {
         let positive = journey
             .positive_cases
             .iter()
@@ -4097,8 +4272,8 @@ fn load_web_production_evidence(
                 .all(|value| viewports.contains(value))
         {
             return Err(format!(
-                "Browser journey evidence is incomplete for module {}",
-                journey.module
+                "Browser journey evidence is incomplete for feature {}",
+                journey.feature
             )
             .into());
         }
@@ -4472,17 +4647,7 @@ fn verify_platforms(root: &Path) -> TaskResult {
             "erpx-console",
             "--no-default-features",
             "--features",
-            "desktop",
-            "--locked",
-            "--offline",
-        ],
-        vec![
-            "check",
-            "-p",
-            "erpx-console",
-            "--no-default-features",
-            "--features",
-            "mobile",
+            "native",
             "--locked",
             "--offline",
         ],
@@ -4494,7 +4659,7 @@ fn verify_platforms(root: &Path) -> TaskResult {
             "aarch64-apple-ios",
             "--no-default-features",
             "--features",
-            "mobile",
+            "native",
             "--locked",
             "--offline",
         ],
@@ -4506,7 +4671,7 @@ fn verify_platforms(root: &Path) -> TaskResult {
             "aarch64-linux-android",
             "--no-default-features",
             "--features",
-            "mobile",
+            "native",
             "--locked",
             "--offline",
         ],
@@ -4529,7 +4694,7 @@ fn verify_platforms(root: &Path) -> TaskResult {
     ] {
         run_command(root, "cargo", args)?;
     }
-    println!("Deferred Desktop/Mobile platform checks completed.");
+    println!("Deferred Dioxus Native platform checks completed.");
     Ok(())
 }
 
@@ -4768,6 +4933,9 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
     // the detached ERPX runtime continues to use the least-privilege app role.
     let verification_url =
         |database: &str| verification_database_template.replace("{database}", database);
+    let application_database_template = config.database_template();
+    let application_url =
+        |database: &str| application_database_template.replace("{database}", database);
     let control_write_url = verification_url(&database_keys[0]);
     let control_read_url = verification_url(&database_keys[1]);
     let tenant_write_url = verification_url(&database_keys[2]);
@@ -4776,6 +4944,28 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
     let commercial_url = verification_url(&database_keys[5]);
     let marketing_url = verification_url(&database_keys[6]);
     let support_url = verification_url(&database_keys[7]);
+    let application_control_write_url = application_url(&database_keys[0]);
+    let application_control_read_url = application_url(&database_keys[1]);
+    let application_tenant_write_url = application_url(&database_keys[2]);
+    let application_tenant_read_url = application_url(&database_keys[3]);
+    let control_write = pool(&application_control_write_url).await?;
+    let control_read = pool(&application_control_read_url).await?;
+    let tenant_write = pool(&application_tenant_write_url).await?;
+    let tenant_read = pool(&application_tenant_read_url).await?;
+    erpx_migration::migrate_control_plane(&control_write).await?;
+    erpx_migration::migrate_control_read(&control_read).await?;
+    erpx_migration::migrate_tenant_write(&tenant_write).await?;
+    erpx_migration::migrate_tenant_read(&tenant_read).await?;
+
+    let local_values = read_dotenv(&root.join(".env.local"))?;
+    let minio_endpoint = required_value(&local_values, "ERPX_MINIO_ENDPOINT")?;
+    let minio_access_key = required_value(&local_values, "ERPX_MINIO_ACCESS_KEY")?;
+    let minio_secret_key = required_value(&local_values, "ERPX_MINIO_SECRET_KEY")?;
+    let minio_region = required_value(&local_values, "ERPX_MINIO_REGION")?;
+    let minio_ca = required_value(&local_values, "ERPX_MINIO_CA_CERTIFICATE_PATH")?;
+    let object_namespace = FreshRuntimeManifest::load(root)?
+        .ok_or("fresh-state runtime manifest is required for SQLx verification")?
+        .object_namespace;
     let test_environment = vec![
         ("ERPX_TEST_CONTROL_WRITE_DATABASE_URL", control_write_url),
         ("ERPX_TEST_CONTROL_READ_DATABASE_URL", control_read_url),
@@ -4786,6 +4976,14 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
         (
             "ERPX_TEST_TENANT_READ_DATABASE_URL",
             tenant_read_url.clone(),
+        ),
+        (
+            "ERPX_TEST_RLS_TENANT_WRITE_DATABASE_URL",
+            application_tenant_write_url,
+        ),
+        (
+            "ERPX_TEST_RLS_TENANT_READ_DATABASE_URL",
+            application_tenant_read_url,
         ),
         (
             "ERPX_TEST_DIRECTORY_RBAC_DATABASE_URL",
@@ -4852,6 +5050,12 @@ async fn verify_local_sqlx(root: &Path, config: &DevConfig) -> TaskResult {
             "ERPX_TEST_CALLBACK_SECRET",
             "local-verification-callback-secret".into(),
         ),
+        ("ERPX_TEST_AGENT_MINIO_ENDPOINT", minio_endpoint),
+        ("ERPX_TEST_AGENT_MINIO_ACCESS_KEY", minio_access_key),
+        ("ERPX_TEST_AGENT_MINIO_SECRET_KEY", minio_secret_key),
+        ("ERPX_TEST_AGENT_MINIO_REGION", minio_region),
+        ("ERPX_TEST_AGENT_MINIO_NAMESPACE", object_namespace),
+        ("ERPX_TEST_AGENT_MINIO_CA_CERTIFICATE_PATH", minio_ca),
     ];
     let test_result = run_command_with_env(
         root,
@@ -5030,6 +5234,162 @@ async fn wait_for_http(url: &str, seconds: u64) -> TaskResult {
     Err(format!("timed out waiting for {url}").into())
 }
 
+fn html_asset_urls(
+    html: &str,
+    tag: &str,
+    required_attribute: (&str, &str),
+    url_attribute: &str,
+) -> Vec<String> {
+    let mut urls = Vec::new();
+    let needle = format!("<{tag}");
+    let mut remaining = html;
+    while let Some(start) = remaining.find(&needle) {
+        remaining = &remaining[start + needle.len()..];
+        let Some(end) = remaining.find('>') else {
+            break;
+        };
+        let attributes = &remaining[..end];
+        if html_attribute(attributes, required_attribute.0).as_deref() == Some(required_attribute.1)
+            && let Some(url) = html_attribute(attributes, url_attribute)
+        {
+            urls.push(url);
+        }
+        remaining = &remaining[end + 1..];
+    }
+    urls
+}
+
+fn html_attribute(attributes: &str, name: &str) -> Option<String> {
+    for quote in ['"', '\''] {
+        let prefix = format!("{name}={quote}");
+        if let Some(start) = attributes.find(&prefix) {
+            let value = &attributes[start + prefix.len()..];
+            return value.find(quote).map(|end| value[..end].to_owned());
+        }
+    }
+    None
+}
+
+fn public_asset_url(public: &Path, asset: &Path) -> TaskResult<String> {
+    let relative = asset
+        .strip_prefix(public)
+        .map_err(|_| format!("Dioxus asset escaped public directory: {}", asset.display()))?;
+    Ok(format!(
+        "/{}",
+        relative.to_string_lossy().replace('\\', "/")
+    ))
+}
+
+fn content_type_matches(path: &str, content_type: &str) -> bool {
+    let mime = content_type.split(';').next().unwrap_or_default().trim();
+    if path.ends_with(".css") {
+        mime == "text/css"
+    } else if path.ends_with(".wasm") {
+        mime == "application/wasm"
+    } else if path.ends_with(".js") {
+        matches!(mime, "text/javascript" | "application/javascript")
+    } else {
+        false
+    }
+}
+
+async fn dioxus_web_readiness_once(
+    root: &Path,
+    client: &reqwest::Client,
+    base_url: &str,
+) -> TaskResult {
+    let artifacts = wasm::artifact_readiness(root, wasm::WasmProfile::Dev)?;
+    let login_url = reqwest::Url::parse(base_url)?.join("/login")?;
+    let response = client.get(login_url.clone()).send().await?;
+    if !response.status().is_success() {
+        return Err(format!("Dioxus login SSR returned {}", response.status()).into());
+    }
+    let html_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    if !html_type.starts_with("text/html") {
+        return Err(format!("Dioxus login SSR returned invalid MIME {html_type:?}").into());
+    }
+    let html = response.text().await?;
+    if !html.contains("window.initial_dioxus_hydration_data=")
+        || !html.contains("window.hydrate_queue=")
+        || !html.contains("data-node-hydration=")
+    {
+        return Err("Dioxus login SSR omitted its hydration payload".into());
+    }
+
+    let stylesheet_urls = html_asset_urls(&html, "link", ("rel", "stylesheet"), "href");
+    let module_urls = html_asset_urls(&html, "script", ("type", "module"), "src");
+    if stylesheet_urls.is_empty() || module_urls.is_empty() {
+        return Err("Dioxus login SSR omitted stylesheet or module-script assets".into());
+    }
+
+    let generated_paths = artifacts
+        .stylesheets
+        .iter()
+        .chain(&artifacts.javascript)
+        .map(|asset| {
+            public_asset_url(&artifacts.public, asset)
+                .and_then(|url| Ok(reqwest::Url::parse(base_url)?.join(&url)?.path().to_owned()))
+        })
+        .collect::<TaskResult<BTreeSet<_>>>()?;
+    for asset_url in stylesheet_urls.iter().chain(&module_urls) {
+        let path = login_url.join(asset_url)?.path().to_owned();
+        if !generated_paths.contains(&path) {
+            return Err(format!("Dioxus SSR references missing generated asset {path}").into());
+        }
+    }
+
+    let mut urls = stylesheet_urls;
+    urls.extend(module_urls);
+    for wasm in &artifacts.wasm_files {
+        urls.push(public_asset_url(&artifacts.public, wasm)?);
+    }
+    for asset_url in urls {
+        let url = login_url.join(&asset_url)?;
+        let response = client.get(url.clone()).send().await?;
+        let status = response.status();
+        let content_type = response
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .to_owned();
+        if !status.is_success() {
+            return Err(format!("Dioxus asset {} returned {status}", url.path()).into());
+        }
+        if !content_type_matches(url.path(), &content_type) {
+            return Err(format!(
+                "Dioxus asset {} returned invalid MIME {content_type:?}",
+                url.path()
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+async fn require_dioxus_web_ready(root: &Path, base_url: &str, seconds: u64) -> TaskResult {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()?;
+    let deadline = Instant::now() + Duration::from_secs(seconds);
+    let mut last_error = "readiness probe has not completed".to_owned();
+    while Instant::now() < deadline {
+        match dioxus_web_readiness_once(root, &client, base_url).await {
+            Ok(()) => {
+                println!("dev web artifacts/hydration: ready");
+                return Ok(());
+            }
+            Err(error) => last_error = error.to_string(),
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+    Err(format!("Dioxus Web readiness timed out: {last_error}").into())
+}
+
 async fn wait_for_ucs_authorities(root: &Path, seconds: u64) -> TaskResult {
     let certificate = runtime_dir(root).join("ucs-lab/tls/ucs.crt");
     for _ in 0..seconds {
@@ -5070,7 +5430,7 @@ fn runtime_dir(root: &Path) -> PathBuf {
 }
 
 pub(crate) fn runtime_target_dir(root: &Path) -> PathBuf {
-    runtime_dir(root).join(RUNTIME_DEV_TARGET_DIR)
+    root.join("target")
 }
 
 pub(crate) fn runtime_binary(root: &Path, name: &str) -> PathBuf {
@@ -5132,35 +5492,71 @@ fn read_dotenv(path: &Path) -> TaskResult<BTreeMap<String, String>> {
     Ok(values)
 }
 
-fn configured_development_tailnet_ip(root: &Path) -> TaskResult<Option<IpAddr>> {
+fn configured_development_tailnet_fqdn(root: &Path) -> TaskResult<Option<String>> {
     let values = read_dotenv(&root.join(".env.local"))?;
-    let configured = env::var(DEVELOPMENT_TAILSCALE_IP_ENV)
+    let legacy_ip = env::var(LEGACY_DEVELOPMENT_TAILSCALE_IP_ENV)
         .ok()
         .filter(|value| !value.trim().is_empty())
         .or_else(|| {
             values
-                .get(DEVELOPMENT_TAILSCALE_IP_ENV)
+                .get(LEGACY_DEVELOPMENT_TAILSCALE_IP_ENV)
                 .filter(|value| !value.trim().is_empty())
                 .cloned()
         });
+    let configured = env::var(DEVELOPMENT_TAILSCALE_FQDN_ENV)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .or_else(|| {
+            values
+                .get(DEVELOPMENT_TAILSCALE_FQDN_ENV)
+                .filter(|value| !value.trim().is_empty())
+                .cloned()
+        });
+    if configured.is_none() && legacy_ip.is_some() {
+        return Err(
+            "ERPX_DEV_TAILSCALE_IP is no longer supported; configure ERPX_DEV_TAILSCALE_FQDN with the machine's exact .ts.net hostname"
+                .into(),
+        );
+    }
     configured
         .map(|value| {
-            parse_development_tailnet_ip(&value).ok_or_else(|| {
-                "ERPX_DEV_TAILSCALE_IP must be an IPv4 address in 100.64.0.0/10".into()
+            parse_development_tailnet_fqdn(&value).ok_or_else(|| {
+                "ERPX_DEV_TAILSCALE_FQDN must be an exact Tailscale hostname below .ts.net".into()
             })
         })
         .transpose()
 }
 
-fn parse_development_tailnet_ip(value: &str) -> Option<IpAddr> {
-    let address = IpAddr::from_str(value.trim()).ok()?;
-    match address {
-        IpAddr::V4(address) => {
-            let [first, second, _, _] = address.octets();
-            (first == 100 && (64..=127).contains(&second)).then_some(IpAddr::V4(address))
-        }
-        IpAddr::V6(_) => None,
+fn parse_development_tailnet_fqdn(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    let hostname = trimmed.strip_suffix('.').unwrap_or(trimmed);
+    if hostname.ends_with('.') {
+        return None;
     }
+    let hostname = hostname.to_ascii_lowercase();
+    let labels = hostname.split('.').collect::<Vec<_>>();
+    if hostname.len() > 253
+        || labels.len() < 4
+        || !hostname.ends_with(".ts.net")
+        || labels.iter().any(|label| {
+            label.is_empty()
+                || label.len() > 63
+                || !label
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+                || !label
+                    .as_bytes()
+                    .first()
+                    .is_some_and(u8::is_ascii_alphanumeric)
+                || !label
+                    .as_bytes()
+                    .last()
+                    .is_some_and(u8::is_ascii_alphanumeric)
+        })
+    {
+        return None;
+    }
+    Some(hostname)
 }
 
 fn value_or(values: &BTreeMap<String, String>, key: &str, default: &str) -> String {
@@ -5243,15 +5639,15 @@ mod tests {
             all_ucs_labs: true,
             any_ucs_labs: true,
             web: true,
+            web_artifacts_ready: true,
         }
     }
 
     fn sample_fresh_runtime_manifest() -> FreshRuntimeManifest {
-        let n8n_config_sha256 = "ab".repeat(32);
         FreshRuntimeManifest {
-            version: 2,
+            version: 3,
             schema_generation: 2,
-            service_catalog_generation: 2,
+            service_catalog_generation: 3,
             service_id_range: "IFC-SVC-101..165".into(),
             state: "prepared".into(),
             prepared_at: "2026-08-05T01:02:03Z".into(),
@@ -5266,16 +5662,14 @@ mod tests {
             tenant_read_database: "next_1234567890ab_tenant_read".into(),
             object_namespace: "next-tenant-objects".into(),
             rollback: serde_json::json!({
-                "n8n_config_sha256": n8n_config_sha256.clone(),
                 "retained_resource_authority": "offline_non_authoritative",
                 "write_policy": "isolated_no_merge"
             }),
-            n8n_config_sha256,
         }
     }
 
     #[test]
-    fn fresh_runtime_manifest_requires_exact_v2_catalog_and_no_merge_contract() {
+    fn fresh_runtime_manifest_requires_exact_v3_catalog_and_no_merge_contract() {
         let valid = sample_fresh_runtime_manifest();
         assert!(valid.validate().is_ok());
 
@@ -5567,10 +5961,30 @@ mod tests {
     }
 
     #[test]
-    fn native_runtime_binaries_use_the_isolated_target() {
+    fn dioxus_asset_parser_selects_stylesheets_and_module_scripts() {
+        let html = r#"<link rel="stylesheet" href="/assets/app.css"><link rel="icon" href="/favicon.ico"><script>inline()</script><script type="module" src="/wasm/app.js"></script>"#;
+        assert_eq!(
+            html_asset_urls(html, "link", ("rel", "stylesheet"), "href"),
+            ["/assets/app.css"]
+        );
+        assert_eq!(
+            html_asset_urls(html, "script", ("type", "module"), "src"),
+            ["/wasm/app.js"]
+        );
+        assert!(content_type_matches(
+            "/assets/app.css",
+            "text/css; charset=utf-8"
+        ));
+        assert!(content_type_matches("/wasm/app.js", "text/javascript"));
+        assert!(content_type_matches("/wasm/app.wasm", "application/wasm"));
+        assert!(!content_type_matches("/wasm/app.wasm", "text/plain"));
+    }
+
+    #[test]
+    fn native_runtime_binaries_use_the_workspace_target() {
         assert_eq!(
             runtime_binary(Path::new("/workspace/erpx"), "erpx-server"),
-            PathBuf::from("/workspace/erpx/.runtime/erpx/runtime-dev-target/debug/erpx-server")
+            PathBuf::from("/workspace/erpx/target/debug/erpx-server")
         );
     }
 
@@ -5649,6 +6063,7 @@ mod tests {
             all_ucs_labs: false,
             any_ucs_labs: false,
             web: false,
+            web_artifacts_ready: false,
         };
         assert_eq!(
             plan_dev_restart(DevMode::Warm, Some(&state), &state, runtime),
@@ -5656,6 +6071,22 @@ mod tests {
                 server: true,
                 workers: true,
                 ucs_labs: true,
+                web: true,
+                ..DevRestartPlan::default()
+            }
+        );
+    }
+
+    #[test]
+    fn running_web_with_missing_artifacts_restarts_only_web() {
+        let state = sample_dev_state();
+        let runtime = RuntimeSnapshot {
+            web_artifacts_ready: false,
+            ..healthy_runtime()
+        };
+        assert_eq!(
+            plan_dev_restart(DevMode::Warm, Some(&state), &state, runtime),
+            DevRestartPlan {
                 web: true,
                 ..DevRestartPlan::default()
             }
@@ -5735,23 +6166,25 @@ mod tests {
     }
 
     #[test]
-    fn tailscale_development_ip_accepts_only_the_cgnat_range() {
+    fn tailscale_development_fqdn_accepts_only_exact_ts_net_hostnames() {
         assert_eq!(
-            parse_development_tailnet_ip("100.97.9.56"),
-            Some(IpAddr::from_str("100.97.9.56").expect("address"))
+            parse_development_tailnet_fqdn("Fluke-MacBook16.tailb48369.ts.net."),
+            Some("fluke-macbook16.tailb48369.ts.net".into())
         );
-        for address in [
-            "100.63.255.255",
-            "100.128.0.1",
-            "0.0.0.0",
-            "192.168.1.10",
-            "fd7a:115c:a1e0::1",
+        for hostname in [
+            "100.97.9.56",
+            "https://fluke-macbook16.tailb48369.ts.net",
+            "*.tailb48369.ts.net",
+            "tailb48369.ts.net",
+            "fluke-macbook16.tailb48369.ts.net:443",
+            "fluke-macbook16.tailb48369.ts.net/login",
+            "fluke-macbook16.tailb48369.ts.net..",
             "tail.example.test",
         ] {
             assert_eq!(
-                parse_development_tailnet_ip(address),
+                parse_development_tailnet_fqdn(hostname),
                 None,
-                "accepted {address}"
+                "accepted {hostname}"
             );
         }
     }
@@ -5768,10 +6201,7 @@ mod tests {
 
     #[test]
     fn reset_schema_allowlist_rejects_unknown_names() {
-        let allowed = ["public", "n8n", "folio"]
-            .into_iter()
-            .map(str::to_owned)
-            .collect();
+        let allowed = ["public", "folio"].into_iter().map(str::to_owned).collect();
         assert!(validate_schemas(&allowed).is_ok());
         let unknown = ["public", "customer_data"]
             .into_iter()
@@ -5795,21 +6225,21 @@ mod tests {
     }
 
     #[test]
-    fn production_evidence_example_is_versioned_and_covers_every_module() {
+    fn production_evidence_example_is_versioned_and_covers_every_feature() {
         let evidence: WebProductionEvidence = serde_json::from_str(include_str!(
             "../../ops/web-production-evidence.example.json"
         ))
         .expect("versioned production evidence example");
-        assert_eq!(evidence.schema_version, 2);
+        assert_eq!(evidence.schema_version, 3);
         assert!(evidence.browser.passed);
         assert_eq!(
             evidence
                 .browser
-                .modules
+                .features
                 .iter()
                 .map(String::as_str)
                 .collect::<BTreeSet<_>>(),
-            WEB_PRODUCTION_MODULES.into_iter().collect()
+            WEB_PRODUCTION_FEATURES.into_iter().collect()
         );
         assert!(evidence.recovery.backup_restore_passed);
         assert!(evidence.recovery.object_recovery_passed);
@@ -5817,16 +6247,16 @@ mod tests {
         assert_eq!(
             evidence
                 .browser
-                .module_journeys
+                .feature_journeys
                 .iter()
-                .map(|journey| journey.module.as_str())
+                .map(|journey| journey.feature.as_str())
                 .collect::<BTreeSet<_>>(),
-            WEB_PRODUCTION_MODULES.into_iter().collect()
+            WEB_PRODUCTION_FEATURES.into_iter().collect()
         );
         assert!(
             evidence
                 .browser
-                .module_journeys
+                .feature_journeys
                 .iter()
                 .all(|journey| journey.passed && journey.unexplained_console_errors == 0)
         );

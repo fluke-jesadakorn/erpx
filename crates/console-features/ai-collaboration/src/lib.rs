@@ -25,7 +25,11 @@ const FEATURE_ROUTES: &[FeatureRouteDescriptor] = &[FeatureRouteDescriptor {
 
 #[component]
 pub fn AiCollaborationFeatureSurface(context: FeatureContext) -> Element {
-    let state = if context.session.authenticated {
+    let state = if !context.session.authenticated {
+        AiWorkspaceState::Denied
+    } else if context.active_scope.is_none() {
+        AiWorkspaceState::Restricted
+    } else {
         AiWorkspaceState::Degraded {
             section: WorkspaceSection::Inbox,
             reason: match context.locale {
@@ -37,8 +41,6 @@ pub fn AiCollaborationFeatureSurface(context: FeatureContext) -> Element {
             .to_owned(),
             retryable: true,
         }
-    } else {
-        AiWorkspaceState::Denied
     };
     rsx! { AiWorkspaceView { state, locale: context.locale } }
 }
@@ -63,6 +65,7 @@ mod registration_tests {
         assert_eq!(REGISTRATION.routes[0].canonical_path, "/ai");
         let source = include_str!("lib.rs");
         assert!(source.contains("AiWorkspaceView"));
+        assert!(source.contains("context.active_scope.is_none()"));
         assert!(!source.contains(concat!("/work", "spaces")));
     }
 }

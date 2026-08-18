@@ -58,11 +58,6 @@ impl ThemeContext {
     /// Set the active mode.
     pub fn set(mut self, mode: ThemeMode) {
         self.mode.set(mode);
-        #[cfg(target_arch = "wasm32")]
-        document::eval(&format!(
-            "document.documentElement.dataset.theme = '{}';",
-            mode.css_token()
-        ));
     }
 
     /// Toggle to the next mode.

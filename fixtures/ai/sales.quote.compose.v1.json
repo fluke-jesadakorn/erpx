@@ -1,0 +1,31 @@
+{
+  "customer_id": "00000000-0000-0000-0000-000000000101",
+  "customer_version": 1,
+  "currency": "THB",
+  "payment_terms_days": 30,
+  "valid_until": "2099-12-31T17:00:00Z",
+  "language": "thai",
+  "notes": "ข้อเสนอจาก Fixture AI สำหรับตรวจสอบและแก้ไขโดยผู้ใช้",
+  "lines": [
+    {
+      "line_id": "00000000-0000-0000-0000-000000000201",
+      "source": {
+        "source": "catalog",
+        "item_id": "00000000-0000-0000-0000-000000000301",
+        "item_version": 1
+      },
+      "item_code": "ERP-SUB-01",
+      "description": "ERP subscription implementation package",
+      "quantity": 1,
+      "unit_price_minor": 10000000,
+      "discount_basis_points": 0,
+      "tax_profile": {
+        "profile_id": "00000000-0000-0000-0000-000000000401",
+        "version": 1,
+        "classification": "standard_vat",
+        "rate_basis_points": 700,
+        "authority_ref": "company-customer-item:th-vat-7"
+      }
+    }
+  ]
+}

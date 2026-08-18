@@ -11,7 +11,7 @@ The rebuild is a clean, in-place replacement of the current application model.
 It replaces routes, internal HTTP interfaces, protobuf contracts, integration
 events, domain models, persistence schemas, migrations, server/worker
 composition, and user experience. It retains Rust, Dioxus, PostgreSQL, SQLx,
-MinIO, Ollama, n8n as an optional typed adapter, and the accepted holding/branch
+MinIO, Ollama, and the accepted holding/branch
 data-plane topology.
 
 ## Locked decisions
@@ -451,8 +451,7 @@ as comment blocks, provider manifests, audit details, and event envelopes; it
 is not the generic aggregate authority.
 
 The runtime rejects any database whose schema-generation manifest is not v2.
-Bootstrap creates new databases/profiles and never deletes old databases or
-`.runtime/n8n/`.
+Bootstrap creates new databases/profiles and never deletes old databases.
 
 ### Item Directory and search
 
@@ -512,8 +511,6 @@ reservations, actual usage, cancellation, and provenance.
 - Ollama is local-first; external calls use the internal OpenAI-compatible
   adapter after tenant allow-list, DPA, residency, classification, and use-case
   approval.
-- n8n is an optional typed tool adapter and never receives direct database
-  authority.
 - Business changes are proposals expressed as action cards. Agents never call
   write repositories or owner-context mutation adapters directly.
 

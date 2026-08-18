@@ -216,271 +216,6 @@ fn active_role_selection_required(required: bool, _principal_ref: Option<&str>) 
 const CUSTOMER_ACCESS_AUDIT_PAGE_SIZE: u32 = 25;
 #[cfg(not(target_arch = "wasm32"))]
 const MAX_AUTH_RESPONSE_BYTES: usize = 64 * 1024;
-#[cfg(not(target_arch = "wasm32"))]
-const AUTH_HTTP_SCRIPT: &str = r#"
-const url = await dioxus.recv();
-const body = await dioxus.recv();
-const accessToken = await dioxus.recv();
-try {
-    const headers = {"content-type": "application/json", "cache-control": "no-store"};
-    if (accessToken) headers["x-erpx-access-token"] = accessToken;
-    const execute = () => fetch(url, {
-            method: "POST",
-            headers,
-            body,
-            cache: "no-store",
-            credentials: "include"
-        });
-    const response = navigator.locks
-        ? await navigator.locks.request("erpx-session-bundle-v2", execute)
-        : await execute();
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > 65536) return [response.status, ""];
-    return [response.status, text];
-} catch (_) {
-    return [0, ""];
-}
-"#;
-#[cfg(target_arch = "wasm32")]
-const BFF_HTTP_SCRIPT: &str = r#"
-const method = await dioxus.recv();
-const path = await dioxus.recv();
-const body = await dioxus.recv();
-try {
-    const options = {
-        method,
-        headers: {"accept": "application/json", "cache-control": "no-store"},
-        cache: "no-store",
-        credentials: "same-origin",
-        redirect: "error"
-    };
-    if (method !== "GET" && method !== "DELETE") {
-        options.headers["content-type"] = "application/json";
-        options.body = body;
-    }
-    const response = await fetch(path, options);
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > 65536) return [502, ""];
-    return [response.status, text];
-} catch (_) {
-    return [0, ""];
-}
-"#;
-#[cfg(not(target_arch = "wasm32"))]
-const IDENTITY_HTTP_SCRIPT: &str = r#"
-const url = await dioxus.recv();
-const method = await dioxus.recv();
-const body = await dioxus.recv();
-const accessToken = await dioxus.recv();
-try {
-    const headers = {"accept": "application/json", "cache-control": "no-store"};
-    if (accessToken) headers["x-erpx-access-token"] = accessToken;
-    if (method === "POST") headers["content-type"] = "application/json";
-    const execute = () => fetch(url, {
-            method,
-            headers,
-            body: method === "POST" ? body : undefined,
-            cache: "no-store",
-            credentials: "include",
-            redirect: "error"
-        });
-    const response = method === "POST" && navigator.locks
-        ? await navigator.locks.request("erpx-session-bundle-v2", execute)
-        : await execute();
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > 65536) return [502, ""];
-    return [response.status, text];
-} catch (_) {
-    return [0, ""];
-}
-"#;
-#[cfg(target_arch = "wasm32")]
-const NAVIGATION_BFF_SCRIPT: &str = r#"
-const body = await dioxus.recv();
-try {
-    const response = await fetch("/api/v1/navigation", {
-        method: "POST",
-        headers: {"accept": "application/json", "content-type": "application/json", "cache-control": "no-store"},
-        body,
-        cache: "no-store",
-        credentials: "include",
-        redirect: "error"
-    });
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > 65536) return [502, ""];
-    return [response.status, text];
-} catch (_) {
-    return [0, ""];
-}
-"#;
-const PASSKEY_CREATE_SCRIPT: &str = r#"
-const optionsJson = await dioxus.recv();
-try {
-    if (!window.PublicKeyCredential || !navigator.credentials) return ["unsupported", "", []];
-    const envelope = JSON.parse(optionsJson);
-    const publicKey = envelope.publicKey ?? envelope;
-    const decode = value => {
-        const normalized = String(value).replace(/-/g, "+").replace(/_/g, "/");
-        const bytes = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="));
-        return Uint8Array.from(bytes, character => character.charCodeAt(0));
-    };
-    publicKey.challenge = decode(publicKey.challenge);
-    if (publicKey.user?.id) publicKey.user.id = decode(publicKey.user.id);
-    for (const credential of publicKey.excludeCredentials ?? []) credential.id = decode(credential.id);
-    const created = await navigator.credentials.create({publicKey});
-    if (!created) return ["canceled", "", []];
-    const encoded = created.toJSON ? created.toJSON() : {
-        id: created.id,
-        rawId: btoa(String.fromCharCode(...new Uint8Array(created.rawId))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
-        type: created.type,
-        response: {
-            clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(created.response.clientDataJSON))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
-            attestationObject: btoa(String.fromCharCode(...new Uint8Array(created.response.attestationObject))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
-            transports: created.response.getTransports ? created.response.getTransports() : []
-        },
-        clientExtensionResults: created.getClientExtensionResults()
-    };
-    return ["ok", JSON.stringify(encoded), Array.from(new Uint8Array(created.rawId))];
-} catch (_) {
-    return ["failed", "", []];
-}
-"#;
-const PASSKEY_GET_SCRIPT: &str = r#"
-const optionsJson = await dioxus.recv();
-try {
-    if (!window.PublicKeyCredential || !navigator.credentials) return ["unsupported", "", []];
-    const envelope = JSON.parse(optionsJson);
-    const publicKey = envelope.publicKey ?? envelope;
-    const decode = value => {
-        const normalized = String(value).replace(/-/g, "+").replace(/_/g, "/");
-        const bytes = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "="));
-        return Uint8Array.from(bytes, character => character.charCodeAt(0));
-    };
-    publicKey.challenge = decode(publicKey.challenge);
-    for (const credential of publicKey.allowCredentials ?? []) credential.id = decode(credential.id);
-    const assertion = await navigator.credentials.get({publicKey});
-    if (!assertion) return ["canceled", "", []];
-    const encoded = assertion.toJSON ? assertion.toJSON() : {
-        id: assertion.id,
-        rawId: btoa(String.fromCharCode(...new Uint8Array(assertion.rawId))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
-        type: assertion.type,
-        response: {
-            clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(assertion.response.clientDataJSON))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
-            authenticatorData: btoa(String.fromCharCode(...new Uint8Array(assertion.response.authenticatorData))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
-            signature: btoa(String.fromCharCode(...new Uint8Array(assertion.response.signature))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""),
-            userHandle: assertion.response.userHandle ? btoa(String.fromCharCode(...new Uint8Array(assertion.response.userHandle))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : null
-        },
-        clientExtensionResults: assertion.getClientExtensionResults()
-    };
-    return ["ok", JSON.stringify(encoded), Array.from(new Uint8Array(assertion.rawId))];
-} catch (_) {
-    return ["failed", "", []];
-}
-"#;
-#[cfg(not(target_arch = "wasm32"))]
-const DEV_ACCESS_HTTP_SCRIPT: &str = r#"
-const url = await dioxus.recv();
-const method = await dioxus.recv();
-const body = await dioxus.recv();
-const accessToken = await dioxus.recv();
-const actor = await dioxus.recv();
-const session = await dioxus.recv();
-const context = await dioxus.recv();
-try {
-    const headers = {"content-type": "application/json", "cache-control": "no-store"};
-    if (accessToken) headers["x-erpx-access-token"] = accessToken;
-    if (actor) headers["x-erpx-actor"] = actor;
-    if (session) headers["x-erpx-session"] = session;
-    if (context) headers["x-erpx-dev-persona-context"] = context;
-    const execute = () => fetch(url, {
-        method,
-        headers,
-        body: method === "GET" ? undefined : body,
-        cache: "no-store",
-        credentials: "include"
-    });
-    const response = method !== "GET" && navigator.locks
-        ? await navigator.locks.request("erpx-session-bundle-v2", execute)
-        : await execute();
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > 262144) return [response.status, ""];
-    return [response.status, text];
-} catch (_) {
-    return [0, ""];
-}
-"#;
-const PUBLIC_BRAND_HTTP_SCRIPT: &str = r#"
-const url = await dioxus.recv();
-try {
-    const response = await fetch(url, {
-        method: "GET",
-        headers: {"accept": "application/json"},
-        cache: "default",
-        credentials: "omit"
-    });
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > 32768) return [response.status, ""];
-    return [response.status, text];
-} catch (_) {
-    return [0, ""];
-}
-"#;
-const PUBLIC_MARKETING_HTTP_SCRIPT: &str = r#"
-const url = await dioxus.recv();
-const method = await dioxus.recv();
-const tenantId = await dioxus.recv();
-const body = await dioxus.recv();
-const idempotencyKey = await dioxus.recv();
-const previewToken = await dioxus.recv();
-try {
-    const headers = {"accept": "application/json", "cache-control": "no-store"};
-    if (tenantId) headers["x-erpx-tenant-id"] = tenantId;
-    if (idempotencyKey) headers["idempotency-key"] = idempotencyKey;
-    if (previewToken) headers["x-erpx-preview-token"] = previewToken;
-    if (method === "POST") headers["content-type"] = "application/json";
-    const response = await fetch(url, {
-        method,
-        headers,
-        body: method === "POST" ? body : undefined,
-        cache: "no-store",
-        credentials: "omit",
-        redirect: "error"
-    });
-    const text = await response.text();
-    if (new TextEncoder().encode(text).byteLength > 65536) return [502, ""];
-    return [response.status, text];
-} catch (_) {
-    return [0, ""];
-}
-"#;
-const LOCALE_PREFERENCE_KEY: &str = "erpx.ui.locale.v1";
-#[cfg(any(test, not(any(feature = "web", feature = "server"))))]
-const LOAD_LOCALE_PREFERENCE_SCRIPT: &str = r#"
-const key = await dioxus.recv();
-let stored = "";
-try {
-    stored = localStorage.getItem(key) ?? "";
-} catch (_) {
-    // A blocked preference store degrades to device detection and session-only state.
-}
-const languages = Array.isArray(navigator.languages) && navigator.languages.length
-    ? navigator.languages.map(String)
-    : [String(navigator.language ?? "")];
-return [stored, languages];
-"#;
-const STORE_LOCALE_PREFERENCE_SCRIPT: &str = r#"
-const key = await dioxus.recv();
-const tag = await dioxus.recv();
-document.documentElement.lang = tag;
-document.documentElement.dataset.locale = tag;
-try {
-    localStorage.setItem(key, tag);
-} catch (_) {
-    // Locale is presentation-only. Keep the reactive session value when persistence is blocked.
-}
-document.cookie = `erpx_locale=${tag}; Path=/; Max-Age=31536000; SameSite=Strict`;
-"#;
-
 const fn console_text(locale: Locale, en: &'static str, th: &'static str) -> &'static str {
     LocalizedText::new(en, th).text(locale)
 }
@@ -494,12 +229,64 @@ fn active_console_locale() -> Locale {
         .unwrap_or_default()
 }
 
+fn push_console_history(path: impl Into<String>) {
+    if Runtime::try_current().is_none() {
+        return;
+    }
+    if let Some(platform) = try_consume_context::<crate::platform::ConsolePlatform>() {
+        let path = path.into();
+        let _ = platform.navigation.push(&path);
+    }
+}
+
+fn restart_console() {
+    if let Some(platform) = try_consume_context::<crate::platform::ConsolePlatform>() {
+        let _ = platform.external_actions.restart();
+    }
+}
+
+fn open_console_external_url(url: &str) {
+    if let Some(platform) = try_consume_context::<crate::platform::ConsolePlatform>() {
+        let _ = platform.external_actions.open_external_url(url);
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn replace_console_location(path: String) {
+    if crate::platform::preferences::replace_web_location(&path) {
+        return;
+    }
+
+    if let Some(platform) = try_consume_context::<crate::platform::ConsolePlatform>() {
+        let _ = platform.navigation.replace(&path);
+    }
+}
+
 fn localized_copy(en: &'static str, th: &'static str) -> &'static str {
     console_text(active_console_locale(), en, th)
 }
 
 const fn browser_session_runtime() -> bool {
     cfg!(any(target_arch = "wasm32", feature = "server"))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn sync_runtime_credential_slot(
+    slot: &crate::platform::credentials::RuntimeCredentialSlot,
+    controller: &SessionController,
+) {
+    if let Some(access_token) = controller.access_token() {
+        slot.replace(access_token.as_str());
+    } else {
+        slot.clear();
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn runtime_credential_slot() -> crate::platform::credentials::RuntimeCredentialSlot {
+    try_consume_context::<crate::platform::ConsolePlatform>()
+        .map(|platform| platform.credentials)
+        .unwrap_or_default()
 }
 
 fn web_bootstrap_has_session() -> bool {
@@ -607,6 +394,99 @@ fn display_error_message(value: &str) -> String {
 struct AuthHttpResponse {
     status: u16,
     body: String,
+}
+
+fn typed_http_method(method: &str) -> Result<crate::platform::http::HttpMethod, String> {
+    use crate::platform::http::HttpMethod;
+    match method {
+        "GET" => Ok(HttpMethod::Get),
+        "POST" => Ok(HttpMethod::Post),
+        "PUT" => Ok(HttpMethod::Put),
+        "PATCH" => Ok(HttpMethod::Patch),
+        "DELETE" => Ok(HttpMethod::Delete),
+        _ => Err("identity_validation_failed".to_owned()),
+    }
+}
+
+fn decode_typed_http_response(
+    response: crate::platform::http::HttpResponse,
+) -> Result<AuthHttpResponse, String> {
+    let body =
+        String::from_utf8(response.body).map_err(|_| "identity_invalid_response".to_owned())?;
+    Ok(AuthHttpResponse {
+        status: response.status,
+        body,
+    })
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn execute_web_http(
+    endpoint: crate::platform::http::HttpEndpoint,
+    method: &str,
+    path: &str,
+    body: String,
+    headers: Vec<crate::platform::http::HttpHeader>,
+) -> Result<AuthHttpResponse, String> {
+    use crate::platform::http::{HttpHost, HttpRequest, WebFetchHttpHost};
+
+    let host: std::rc::Rc<dyn HttpHost> = if Runtime::try_current().is_some() {
+        try_consume_context::<crate::platform::ConsolePlatform>()
+            .map(|platform| platform.http)
+            .unwrap_or_else(|| std::rc::Rc::new(WebFetchHttpHost::default()))
+    } else {
+        std::rc::Rc::new(WebFetchHttpHost::default())
+    };
+    let mut request = HttpRequest::new(endpoint, typed_http_method(method)?, path);
+    request.headers = headers;
+    if !body.is_empty() {
+        request = request.json(body.into_bytes());
+    }
+    host.execute(request)
+        .await
+        .map_err(|_| "identity_offline".to_owned())
+        .and_then(decode_typed_http_response)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+async fn execute_native_http(
+    endpoint: crate::platform::http::HttpEndpoint,
+    method: &str,
+    path: &str,
+    body: String,
+    headers: Vec<crate::platform::http::HttpHeader>,
+) -> Result<AuthHttpResponse, String> {
+    use crate::platform::http::{HttpHost, HttpRequest};
+
+    let host: std::rc::Rc<dyn HttpHost> = if Runtime::try_current().is_some() {
+        if let Some(platform) = try_consume_context::<crate::platform::ConsolePlatform>() {
+            platform.http
+        } else {
+            native_http_host()?
+        }
+    } else {
+        native_http_host()?
+    };
+    let mut request = HttpRequest::new(endpoint, typed_http_method(method)?, path);
+    request.headers = headers;
+    if !body.is_empty() {
+        request = request.json(body.into_bytes());
+    }
+    host.execute(request)
+        .await
+        .map_err(|_| "identity_offline".to_owned())
+        .and_then(decode_typed_http_response)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn native_http_host() -> Result<std::rc::Rc<dyn crate::platform::http::HttpHost>, String> {
+    let config = crate::platform::NativeEndpointConfig {
+        auth_http: auth_http_origin(),
+        public_http: auth_http_origin(),
+        grpc: GRPC_ENDPOINT.to_owned(),
+    };
+    crate::platform::http::ReqwestHttpHost::new(&config)
+        .map(|host| std::rc::Rc::new(host) as std::rc::Rc<dyn crate::platform::http::HttpHost>)
+        .map_err(|_| "identity_validation_failed".to_owned())
 }
 
 impl std::fmt::Debug for AuthHttpResponse {
@@ -999,21 +879,22 @@ async fn identity_http(
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let eval = document::eval(IDENTITY_HTTP_SCRIPT);
-        for value in [
-            format!("{}{path}", auth_http_origin()),
-            method.to_owned(),
+        let headers = if access_token.is_empty() {
+            Vec::new()
+        } else {
+            vec![crate::platform::http::HttpHeader {
+                name: "authorization".to_owned(),
+                value: format!("Bearer {access_token}"),
+            }]
+        };
+        execute_native_http(
+            crate::platform::http::HttpEndpoint::Auth,
+            method,
+            &path,
             body,
-            access_token,
-        ] {
-            eval.send(value)
-                .map_err(|_| "identity_offline".to_owned())?;
-        }
-        let (status, body) = eval
-            .join::<(u16, String)>()
-            .await
-            .map_err(|_| "identity_offline".to_owned())?;
-        Ok(AuthHttpResponse { status, body })
+            headers,
+        )
+        .await
     }
 }
 
@@ -1023,16 +904,14 @@ async fn bff_http(
     path: &str,
     body: String,
 ) -> Result<AuthHttpResponse, String> {
-    let eval = document::eval(BFF_HTTP_SCRIPT);
-    for value in [method.to_owned(), path.to_owned(), body] {
-        eval.send(value)
-            .map_err(|_| "identity_offline".to_owned())?;
-    }
-    let (status, body) = eval
-        .join::<(u16, String)>()
-        .await
-        .map_err(|_| "identity_offline".to_owned())?;
-    Ok(AuthHttpResponse { status, body })
+    execute_web_http(
+        crate::platform::http::HttpEndpoint::Auth,
+        method,
+        path,
+        body,
+        Vec::new(),
+    )
+    .await
 }
 
 async fn identity_http_for_target(
@@ -1284,10 +1163,12 @@ async fn recover_identity_account(
 }
 
 async fn browser_origin() -> Result<String, String> {
-    document::eval("window.location.origin")
-        .join::<String>()
-        .await
-        .map_err(|_| "passkey_unavailable".to_owned())
+    #[cfg(target_arch = "wasm32")]
+    return crate::platform::preferences::web_origin()
+        .ok_or_else(|| "passkey_unavailable".to_owned());
+
+    #[cfg(not(target_arch = "wasm32"))]
+    Err("passkey_unconfigured".to_owned())
 }
 
 fn passkey_rp_id(options: &serde_json::Value, registration: bool) -> Result<String, String> {
@@ -1304,31 +1185,55 @@ fn passkey_rp_id(options: &serde_json::Value, registration: bool) -> Result<Stri
         .ok_or_else(|| "identity_invalid_response".to_owned())
 }
 
-async fn browser_passkey_ceremony(
-    script: &'static str,
-    options: &serde_json::Value,
-) -> Result<(serde_json::Value, Vec<u8>), String> {
-    let eval = document::eval(script);
-    eval.send(options.to_string())
-        .map_err(|_| "passkey_unavailable".to_owned())?;
-    let (state, response, credential_id) = eval
-        .join::<(String, String, Vec<u8>)>()
-        .await
-        .map_err(|_| "passkey_unavailable".to_owned())?;
-    if state != "ok" || credential_id.is_empty() || credential_id.len() > 1_024 {
-        return Err(if state == "unsupported" {
-            "passkey_unconfigured"
-        } else {
-            "passkey_canceled"
-        }
-        .to_owned());
+fn passkey_error_category(error: crate::platform::PasskeyError) -> String {
+    match error {
+        crate::platform::PasskeyError::Cancelled => "passkey_canceled",
+        crate::platform::PasskeyError::Unsupported => "passkey_unsupported",
+        crate::platform::PasskeyError::InvalidOrigin => "passkey_invalid_origin",
+        crate::platform::PasskeyError::Platform => "passkey_platform_failure",
     }
-    let response =
-        serde_json::from_str(&response).map_err(|_| "identity_invalid_response".to_owned())?;
-    Ok((response, credential_id))
+    .to_owned()
 }
 
-async fn register_identity_passkey(access_token: String) -> Result<(), String> {
+async fn browser_passkey_ceremony(
+    options: serde_json::Value,
+    registration: bool,
+    relying_party_id: String,
+    origin: String,
+    provider: std::rc::Rc<dyn crate::platform::PasskeyProvider>,
+) -> Result<(serde_json::Value, Vec<u8>), String> {
+    let request = if registration {
+        let server_options =
+            serde_json::from_value(options).map_err(|_| "identity_invalid_response".to_owned())?;
+        crate::platform::PasskeyRequest {
+            ceremony: crate::platform::PasskeyCeremony::Registration,
+            relying_party_id,
+            origin,
+            server_options: crate::platform::PasskeyServerOptions::Registration(server_options),
+        }
+    } else {
+        let server_options =
+            serde_json::from_value(options).map_err(|_| "identity_invalid_response".to_owned())?;
+        crate::platform::PasskeyRequest {
+            ceremony: crate::platform::PasskeyCeremony::Authentication,
+            relying_party_id,
+            origin,
+            server_options: crate::platform::PasskeyServerOptions::Authentication(server_options),
+        }
+    };
+    let response = if registration {
+        provider.register(request).await
+    } else {
+        provider.authenticate(request).await
+    }
+    .map_err(passkey_error_category)?;
+    Ok((response.response_json, response.credential_id))
+}
+
+async fn register_identity_passkey(
+    access_token: String,
+    passkeys: std::rc::Rc<dyn crate::platform::PasskeyProvider>,
+) -> Result<(), String> {
     let start: PasskeyChallengeModel = decode_identity_response(
         identity_http(
             "POST",
@@ -1349,7 +1254,8 @@ async fn register_identity_passkey(access_token: String) -> Result<(), String> {
     let rp_id = passkey_rp_id(&start.options, true)?;
     let origin = browser_origin().await?;
     let (browser_response, credential_id) =
-        browser_passkey_ceremony(PASSKEY_CREATE_SCRIPT, &start.options).await?;
+        browser_passkey_ceremony(start.options, true, rp_id.clone(), origin.clone(), passkeys)
+            .await?;
     let receipt: IdentityBooleanReceipt = decode_identity_response(
         identity_http(
             "POST",
@@ -1374,7 +1280,10 @@ async fn register_identity_passkey(access_token: String) -> Result<(), String> {
         .ok_or_else(|| "identity_invalid_response".to_owned())
 }
 
-async fn authenticate_identity_passkey(principal_ref: String) -> Result<IssuedSession, String> {
+async fn authenticate_identity_passkey(
+    principal_ref: String,
+    passkeys: std::rc::Rc<dyn crate::platform::PasskeyProvider>,
+) -> Result<IssuedSession, String> {
     let principal_ref = billing_response_text(&principal_ref, "principal", false, 256)?;
     let start: PasskeyChallengeModel = decode_identity_response(
         identity_http_for_target(
@@ -1398,8 +1307,14 @@ async fn authenticate_identity_passkey(principal_ref: String) -> Result<IssuedSe
     }
     let rp_id = passkey_rp_id(&start.options, false)?;
     let origin = browser_origin().await?;
-    let (browser_response, credential_id) =
-        browser_passkey_ceremony(PASSKEY_GET_SCRIPT, &start.options).await?;
+    let (browser_response, credential_id) = browser_passkey_ceremony(
+        start.options,
+        false,
+        rp_id.clone(),
+        origin.clone(),
+        passkeys,
+    )
+    .await?;
     #[cfg(target_arch = "wasm32")]
     let response = bff_http(
         "POST",
@@ -1567,17 +1482,24 @@ async fn post_auth_json(
     body: String,
     access_token: Option<String>,
 ) -> Result<AuthHttpResponse, AuthTransportError> {
-    let eval = document::eval(AUTH_HTTP_SCRIPT);
-    for value in [
-        format!("{}{path}", auth_http_origin()),
+    let headers = access_token
+        .filter(|token| !token.is_empty())
+        .map(|token| {
+            vec![crate::platform::http::HttpHeader {
+                name: "authorization".to_owned(),
+                value: format!("Bearer {token}"),
+            }]
+        })
+        .unwrap_or_default();
+    execute_native_http(
+        crate::platform::http::HttpEndpoint::Auth,
+        "POST",
+        path,
         body,
-        access_token.unwrap_or_default(),
-    ] {
-        eval.send(value).map_err(|_| AuthTransportError::Offline)?;
-    }
-    let (status, body): (u16, String) =
-        eval.join().await.map_err(|_| AuthTransportError::Offline)?;
-    Ok(AuthHttpResponse { status, body })
+        headers,
+    )
+    .await
+    .map_err(|_| AuthTransportError::Offline)
 }
 
 async fn dev_access_json(
@@ -1604,43 +1526,60 @@ async fn dev_access_json(
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let eval = document::eval(DEV_ACCESS_HTTP_SCRIPT);
-        for value in [
-            format!("{}{path}", auth_http_origin()),
-            method.to_owned(),
+        let headers = [
+            ("authorization", format!("Bearer {access_token}")),
+            ("x-erpx-actor", actor),
+            ("x-erpx-session", session),
+            ("x-erpx-authorization-context", context),
+        ]
+        .into_iter()
+        .map(|(name, value)| crate::platform::http::HttpHeader {
+            name: name.to_owned(),
+            value,
+        })
+        .collect();
+        execute_native_http(
+            crate::platform::http::HttpEndpoint::Auth,
+            method,
+            path,
             body,
-            access_token,
-            actor,
-            session,
-            context,
-        ] {
-            eval.send(value).map_err(|_| AuthTransportError::Offline)?;
-        }
-        let (status, body): (u16, String) =
-            eval.join().await.map_err(|_| AuthTransportError::Offline)?;
-        Ok(AuthHttpResponse { status, body })
+            headers,
+        )
+        .await
+        .map_err(|_| AuthTransportError::Offline)
     }
 }
 
 async fn fetch_public_corporate_identity()
 -> Result<erpx_domain::corporate_identity::ResolvedCorporateIdentity, String> {
-    let eval = document::eval(PUBLIC_BRAND_HTTP_SCRIPT);
     #[cfg(target_arch = "wasm32")]
-    let url = "/api/v1/public/branding".to_owned();
+    let response = execute_web_http(
+        crate::platform::http::HttpEndpoint::Public,
+        "GET",
+        "/api/v1/public/branding",
+        String::new(),
+        Vec::new(),
+    )
+    .await
+    .map_err(|_| "corporate identity bootstrap unavailable".to_owned())?;
     #[cfg(not(target_arch = "wasm32"))]
-    let url = format!("{}/branding/v1/bootstrap", auth_http_origin());
-    eval.send(url)
-        .map_err(|_| "corporate identity bootstrap unavailable".to_owned())?;
-    let (status, body): (u16, String) = eval
-        .join()
-        .await
-        .map_err(|_| "corporate identity bootstrap unavailable".to_owned())?;
-    if status != 200 || body.is_empty() {
+    let response = execute_native_http(
+        crate::platform::http::HttpEndpoint::Public,
+        "GET",
+        "/branding/v1/bootstrap",
+        String::new(),
+        Vec::new(),
+    )
+    .await
+    .map_err(|_| "corporate identity bootstrap unavailable".to_owned())?;
+    if response.status != 200 || response.body.is_empty() {
         return Err("corporate identity bootstrap unavailable".to_owned());
     }
     let identity =
-        serde_json::from_str::<erpx_domain::corporate_identity::ResolvedCorporateIdentity>(&body)
-            .map_err(|_| "corporate identity bootstrap was invalid".to_owned())?;
+        serde_json::from_str::<erpx_domain::corporate_identity::ResolvedCorporateIdentity>(
+            &response.body,
+        )
+        .map_err(|_| "corporate identity bootstrap was invalid".to_owned())?;
     identity
         .validate()
         .map_err(|_| "corporate identity bootstrap failed validation".to_owned())?;
@@ -16977,21 +16916,21 @@ pub(crate) async fn fetch_navigation_manifest(
     include_inaccessible: bool,
 ) -> Result<Vec<NavGroup>, String> {
     navigation_query_context("browser-bff", "browser-bff", &scope_key)?;
-    let eval = document::eval(NAVIGATION_BFF_SCRIPT);
-    eval.send(
+    let response = execute_web_http(
+        crate::platform::http::HttpEndpoint::Auth,
+        "POST",
+        "/api/v1/navigation",
         serde_json::json!({
             "scope_key": scope_key,
             "include_inaccessible": include_inaccessible,
         })
         .to_string(),
+        Vec::new(),
     )
+    .await
     .map_err(|_| "authorized navigation read failed: Unavailable".to_owned())?;
-    let (status, body) = eval
-        .join::<(u16, String)>()
-        .await
-        .map_err(|_| "authorized navigation read failed: Unavailable".to_owned())?;
-    match status {
-        200 => serde_json::from_str::<Vec<NavigationHttpGroup>>(&body)
+    match response.status {
+        200 => serde_json::from_str::<Vec<NavigationHttpGroup>>(&response.body)
             .map_err(|_| "authorized navigation response was invalid".to_owned())
             .and_then(decode_navigation_http_groups),
         400 => Err("authorized navigation read failed: InvalidArgument".to_owned()),
@@ -23019,7 +22958,16 @@ enum ConsoleDeepLink {
     Support(SupportRoute),
     Marketing(RouteId),
     ProductContext(ProductContext),
-    Workspace(WorkspaceId),
+    Workspace(RegisteredWorkspaceRoute),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RegisteredWorkspaceRoute {
+    workspace: Option<WorkspaceId>,
+    feature_id: &'static str,
+    route_root: &'static str,
+    navigation_route_id: &'static str,
+    canonical_path: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23315,31 +23263,47 @@ async fn public_marketing_http(
     idempotency_key: String,
     preview_token: String,
 ) -> Result<(u16, String), String> {
-    let eval = document::eval(PUBLIC_MARKETING_HTTP_SCRIPT);
+    let headers = [
+        ("x-erpx-tenant-id", tenant_id),
+        ("idempotency-key", idempotency_key),
+        ("x-erpx-preview-token", preview_token),
+    ]
+    .into_iter()
+    .filter(|(_, value)| !value.is_empty())
+    .map(|(name, value)| crate::platform::http::HttpHeader {
+        name: name.to_owned(),
+        value,
+    })
+    .collect::<Vec<_>>();
     #[cfg(target_arch = "wasm32")]
-    let url = path
+    let path = path
         .strip_prefix("/public/marketing/")
         .map(|relative| format!("/api/v1/public/marketing/{relative}"))
         .ok_or_else(|| "public_marketing_validation_failed".to_owned())?;
     #[cfg(not(target_arch = "wasm32"))]
-    let url = format!("{}{path}", auth_http_origin());
-    eval.send(url)
-        .map_err(|_| "public_marketing_offline".to_string())?;
-    eval.send(method)
-        .map_err(|_| "public_marketing_offline".to_string())?;
-    eval.send(tenant_id)
-        .map_err(|_| "public_marketing_offline".to_string())?;
-    eval.send(body)
-        .map_err(|_| "public_marketing_offline".to_string())?;
-    eval.send(idempotency_key)
-        .map_err(|_| "public_marketing_offline".to_string())?;
-    eval.send(preview_token)
-        .map_err(|_| "public_marketing_offline".to_string())?;
-    let (status, body) = eval
-        .join::<(u16, String)>()
+    let response = execute_native_http(
+        crate::platform::http::HttpEndpoint::Public,
+        method,
+        &path,
+        body,
+        headers,
+    )
+    .await
+    .map_err(|_| "public_marketing_offline".to_owned())?;
+    #[cfg(target_arch = "wasm32")]
+    let response = {
+        let _ = headers;
+        execute_web_http(
+            crate::platform::http::HttpEndpoint::Public,
+            method,
+            &path,
+            body,
+            headers,
+        )
         .await
-        .map_err(|_| "public_marketing_offline".to_string())?;
-    Ok((status, body))
+        .map_err(|_| "public_marketing_offline".to_owned())?
+    };
+    Ok((response.status, response.body))
 }
 
 async fn submit_public_marketing_form(
@@ -23711,7 +23675,7 @@ fn navigation_route_id_for_path(path: &str) -> Option<&'static str> {
         ConsoleDeepLink::Support(_) => Some("support"),
         ConsoleDeepLink::Marketing(_) => Some("marketing"),
         ConsoleDeepLink::ProductContext(context) => Some(context.path().trim_start_matches('/')),
-        ConsoleDeepLink::Workspace(workspace) => Some(workspace_descriptor(workspace).slug),
+        ConsoleDeepLink::Workspace(route) => Some(route.navigation_route_id),
         ConsoleDeepLink::Tenant(route) => Some(match route {
             TenantRoute::Organization => "tenant_organization",
             TenantRoute::Branches => "tenant_branches",
@@ -23744,6 +23708,10 @@ pub(crate) fn navigation_authorizes_console_path(path: &str, groups: &[NavGroup]
         .next()
         .unwrap_or(path)
         .trim_end_matches('/');
+    let registered_workspace_alias = matches!(
+        console_deep_link(target_path),
+        Some(ConsoleDeepLink::Workspace(_))
+    );
     groups
         .iter()
         .flat_map(|group| group.items.iter())
@@ -23755,6 +23723,7 @@ pub(crate) fn navigation_authorizes_console_path(path: &str, groups: &[NavGroup]
                     || target_path
                         .strip_prefix(item_path)
                         .is_some_and(|suffix| suffix.starts_with('/'))
+                    || registered_workspace_alias
                     || route_id == "marketing"
                         && item_path == "/marketing"
                         && (target_path == "/marketing"
@@ -23812,30 +23781,9 @@ struct ConsoleRouteSignals {
     directory_route: Signal<bool>,
     billing_route: Signal<Option<BillingRoute>>,
     product_context_route: Signal<Option<ProductContext>>,
-    workspace_route: Signal<Option<WorkspaceId>>,
+    workspace_route: Signal<Option<RegisteredWorkspaceRoute>>,
     route_failure: Signal<Option<ConsoleRouteFailure>>,
 }
-
-const BROWSER_ROUTE_HISTORY_SCRIPT: &str = r#"
-const currentPath = () => window.location.hash.startsWith('#/')
-    ? window.location.hash.slice(1)
-    : window.location.pathname + window.location.search;
-const emitPath = () => dioxus.send(currentPath());
-window.addEventListener('popstate', emitPath);
-window.addEventListener('hashchange', emitPath);
-emitPath();
-await dioxus.recv();
-window.removeEventListener('popstate', emitPath);
-window.removeEventListener('hashchange', emitPath);
-"#;
-
-#[cfg(target_arch = "wasm32")]
-const SAME_ORIGIN_LOCATION_REPLACE_SCRIPT: &str = r#"
-const path = await dioxus.recv();
-if (typeof path === 'string' && path.startsWith('/') && !path.startsWith('//')) {
-    window.location.replace(path);
-}
-"#;
 
 /// Resolve one initial browser/native path against the actual console route registries.
 ///
@@ -23916,19 +23864,53 @@ fn console_deep_link(path: &str) -> Option<ConsoleDeepLink> {
     if let Some(context) = product_context {
         return Some(ConsoleDeepLink::ProductContext(context));
     }
-    WORKSPACES
+    let registered_record_route = erpx_ui_kit::CurrentFeatureKind::ALL
+        .into_iter()
+        .any(|feature| erpx_ui_kit::CurrentRecordRoute::parse(feature, path).is_some())
+        || erpx_ui_enterprise_workspaces::WorkspaceKind::ALL
+            .into_iter()
+            .any(|workspace| {
+                erpx_ui_enterprise_workspaces::CanonicalRecordRoute::parse(workspace, path)
+                    .is_some()
+            })
+        || path == "/ai";
+    if !registered_record_route {
+        return None;
+    }
+    let registry = crate::feature_registry().ok()?;
+    let registration = registry.resolve(path)?;
+    let route = registration
+        .routes
         .iter()
-        .find(|workspace| workspace.route == path)
-        .map(|workspace| ConsoleDeepLink::Workspace(workspace.id))
+        .filter(|route| {
+            path == route.canonical_path
+                || path
+                    .strip_prefix(route.canonical_path)
+                    .is_some_and(|suffix| suffix.starts_with('/'))
+        })
+        .max_by_key(|route| route.canonical_path.len())?;
+    let workspace = WORKSPACES.iter().find(|workspace| {
+        registration
+            .routes
+            .iter()
+            .any(|route| workspace.route == route.canonical_path)
+    });
+    let navigation_route_id = workspace.map_or_else(
+        || route.canonical_path.trim_start_matches('/'),
+        |workspace| workspace.slug,
+    );
+    Some(ConsoleDeepLink::Workspace(RegisteredWorkspaceRoute {
+        workspace: workspace.map(|workspace| workspace.id),
+        feature_id: registration.id,
+        route_root: route.canonical_path,
+        navigation_route_id,
+        canonical_path: path.to_owned(),
+    }))
 }
 
-fn workspace_descriptor(
-    workspace: WorkspaceId,
-) -> &'static erpx_integration_contracts::catalog::WorkspaceDescriptor {
-    WORKSPACES
-        .iter()
-        .find(|descriptor| descriptor.id == workspace)
-        .expect("workspace catalog is exhaustive")
+#[cfg(all(feature = "native", target_os = "macos"))]
+pub(crate) fn is_registered_console_path(path: &str) -> bool {
+    console_deep_link(path).is_some()
 }
 
 impl ConsoleRouteSignals {
@@ -23951,8 +23933,8 @@ impl ConsoleRouteSignals {
         if let Some(context) = *self.product_context_route.read() {
             return context.path().to_owned();
         }
-        if let Some(workspace) = *self.workspace_route.read() {
-            return workspace_descriptor(workspace).route.to_owned();
+        if let Some(route) = self.workspace_route.read().as_ref() {
+            return route.canonical_path.clone();
         }
         if let Some(route) = *self.support_route.read() {
             return route.template().to_owned();
@@ -24023,7 +24005,7 @@ impl ConsoleRouteSignals {
             ConsoleDeepLink::ProductContext(context) => {
                 self.product_context_route.set(Some(context))
             }
-            ConsoleDeepLink::Workspace(workspace) => self.workspace_route.set(Some(workspace)),
+            ConsoleDeepLink::Workspace(route) => self.workspace_route.set(Some(route)),
         }
         true
     }
@@ -24364,14 +24346,10 @@ async fn load_web_bootstrap() -> Result<WebBootstrap, std::io::Error> {
         });
     }
 
-    #[cfg(all(feature = "web", not(feature = "server")))]
+    #[cfg(all(feature = "web", not(feature = "server"), target_arch = "wasm32"))]
     {
-        let initial_path = document::eval(
-            "return window.location.hash.startsWith('#/') ? window.location.hash.slice(1) : window.location.pathname + window.location.search;",
-        )
-        .join::<String>()
-        .await
-        .map_err(|_| std::io::Error::other("browser location unavailable"))?;
+        let initial_path = crate::platform::preferences::web_location_path()
+            .ok_or_else(|| std::io::Error::other("browser location unavailable"))?;
         return Ok(WebBootstrap {
             initial_path,
             locale: Locale::En.language_tag().to_owned(),
@@ -24380,6 +24358,15 @@ async fn load_web_bootstrap() -> Result<WebBootstrap, std::io::Error> {
             account_count: 0,
         });
     }
+
+    #[cfg(all(feature = "web", not(feature = "server"), not(target_arch = "wasm32")))]
+    return Ok(WebBootstrap {
+        initial_path: "/".to_owned(),
+        locale: Locale::En.language_tag().to_owned(),
+        authenticated: false,
+        principal_ref: None,
+        account_count: 0,
+    });
 
     #[allow(unreachable_code)]
     Err(std::io::Error::other("web bootstrap unavailable"))
@@ -24392,10 +24379,12 @@ pub(crate) fn App() -> Element {
     let bootstrap = bootstrap.read().clone();
     let locale = Locale::from_stored_tag(&bootstrap.locale).unwrap_or_default();
     provide_locale(locale);
-    provide_theme(ThemeMode::Light);
+    provide_theme(ThemeMode::System);
     provide_corporate_identity(
         erpx_domain::corporate_identity::ResolvedCorporateIdentity::neutral_erpx(),
     );
+    let platform = crate::platform::ConsolePlatform::with_history(dioxus::history::history());
+    use_context_provider(|| platform);
     use_context_provider(|| bootstrap.clone());
     rsx! { KitProvider { LocaleBootstrap { initial_path: bootstrap.initial_path } } }
 }
@@ -24403,11 +24392,26 @@ pub(crate) fn App() -> Element {
 #[component]
 #[cfg(not(any(feature = "web", feature = "server")))]
 pub(crate) fn App() -> Element {
-    provide_locale(Locale::En);
-    provide_theme(ThemeMode::Light);
+    let platform = crate::platform::ConsolePlatform::with_history(dioxus::history::history());
+    let locale = platform
+        .preferences
+        .load(crate::platform::PreferenceKey::Locale)
+        .as_deref()
+        .and_then(Locale::from_stored_tag)
+        .or_else(|| {
+            platform
+                .external_actions
+                .system_locale()
+                .as_deref()
+                .and_then(Locale::from_language_tag)
+        })
+        .unwrap_or(Locale::En);
+    provide_locale(locale);
+    provide_theme(ThemeMode::System);
     provide_corporate_identity(
         erpx_domain::corporate_identity::ResolvedCorporateIdentity::neutral_erpx(),
     );
+    use_context_provider(|| platform);
     rsx! { KitProvider { LocaleBootstrap {} } }
 }
 
@@ -24415,71 +24419,24 @@ pub(crate) fn App() -> Element {
 #[cfg(not(any(feature = "web", feature = "server")))]
 fn LocaleBootstrap() -> Element {
     let locale = use_locale();
-    let mut bootstrap_started = use_signal(|| false);
-    let mut bootstrapped = use_signal(|| false);
-    let mut initial_path = use_signal(|| None::<String>);
-
-    use_effect(move || {
-        if *bootstrap_started.read() {
-            return;
-        }
-        bootstrap_started.set(true);
-        spawn(async move {
-            let path_eval = document::eval(
-                "window.location.hash.startsWith('#/') ? window.location.hash.slice(1) : window.location.pathname + window.location.search",
-            );
-            if let Ok(path) = path_eval.join::<String>().await {
-                initial_path.set(Some(path));
-            } else {
-                initial_path.set(Some("/".to_owned()));
-            }
-            let eval = document::eval(LOAD_LOCALE_PREFERENCE_SCRIPT);
-            if eval.send(LOCALE_PREFERENCE_KEY).is_ok()
-                && let Ok((stored, languages)) = eval.join::<(String, Vec<String>)>().await
-            {
-                let resolved = Locale::resolve_preference(
-                    (!stored.trim().is_empty()).then_some(stored.as_str()),
-                    languages.iter().map(String::as_str),
-                );
-                locale.set(resolved);
-            }
-            bootstrapped.set(true);
-        });
-    });
+    let platform = use_context::<crate::platform::ConsolePlatform>();
+    let preferences = platform.preferences.clone();
 
     use_effect(move || {
         let current = locale.current();
-        if !*bootstrapped.read() {
-            return;
-        }
-        let eval = document::eval(STORE_LOCALE_PREFERENCE_SCRIPT);
-        let _ = eval.send(LOCALE_PREFERENCE_KEY);
-        let _ = eval.send(current.language_tag());
+        preferences.store(
+            crate::platform::PreferenceKey::Locale,
+            current.language_tag(),
+        );
     });
 
-    if !*bootstrapped.read() || initial_path.read().is_none() {
-        return rsx! {
-            document::Title { "ERPX" }
-            ConsoleStylesheets {}
-            main { class: "locale-bootstrap-surface", aria_label: "ERPX",
-                span { class: "session-restore-progress", aria_hidden: "true" }
-            }
-        };
-    }
+    let initial_path = platform.navigation.current_path();
 
-    if let Some(route) = initial_path
-        .read()
-        .as_deref()
-        .and_then(PublicMarketingRoute::parse)
-    {
+    if let Some(route) = PublicMarketingRoute::parse(&initial_path) {
         return rsx! { PublicMarketingSurface { route } };
     }
 
-    rsx! {
-        ConsoleApp {
-            initial_path: initial_path.read().clone().unwrap_or_else(|| "/".to_owned()),
-        }
-    }
+    rsx! { ConsoleApp { initial_path } }
 }
 
 #[component]
@@ -24487,11 +24444,17 @@ fn LocaleBootstrap() -> Element {
 fn LocaleBootstrap(initial_path: String) -> Element {
     let locale = use_locale();
     let bootstrap = use_context::<WebBootstrap>();
+    let preferences = use_context::<crate::platform::ConsolePlatform>()
+        .preferences
+        .clone();
     use_effect(move || {
         let current = locale.current();
-        let eval = document::eval(STORE_LOCALE_PREFERENCE_SCRIPT);
-        let _ = eval.send(LOCALE_PREFERENCE_KEY);
-        let _ = eval.send(current.language_tag());
+        preferences.store(
+            crate::platform::PreferenceKey::Locale,
+            current.language_tag(),
+        );
+        #[cfg(target_arch = "wasm32")]
+        let _ = crate::platform::preferences::apply_web_locale(current.language_tag());
     });
 
     if let Some(route) = PublicMarketingRoute::parse(&initial_path) {
@@ -24874,7 +24837,7 @@ fn WorkspaceErrorSurface(canonical_path: String, on_retry: EventHandler<()>) -> 
                         {console_text(locale, "Retry", "ลองอีกครั้ง")}
                     }
                     KitButton { variant: ButtonVariant::Primary, size: ButtonSize::Default, r#type: "button", onclick: move |_| {
-                        document::eval("window.location.reload();");
+                        restart_console();
                     },
                         {console_text(locale, "Reload page", "โหลดหน้าใหม่")}
                     }
@@ -25259,6 +25222,58 @@ fn assigned_role_can_open_module(
         .any(|role| assigned_role_keys.contains(role))
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ModuleRoleSwitchIntent {
+    destination: String,
+    required_role_keys: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RoleReconcilePending {
+    generation: u64,
+    destination: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RoleChangeNoticeKind {
+    Updated,
+    DestinationOpened,
+    DestinationDenied,
+    ManifestUnavailable,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum RoleReconcileAction {
+    Wait,
+    ReconcileCurrentRoute,
+    OpenDestination(String),
+    DestinationDenied,
+    ManifestUnavailable,
+}
+
+fn role_reconcile_action(
+    pending: &RoleReconcilePending,
+    active_scope: &str,
+    manifest_scope: &str,
+    manifest_generation: u64,
+    manifest: &Result<Vec<NavGroup>, String>,
+) -> RoleReconcileAction {
+    if pending.generation != manifest_generation || active_scope != manifest_scope {
+        return RoleReconcileAction::Wait;
+    }
+    let groups = match manifest {
+        Ok(groups) => groups,
+        Err(_) => return RoleReconcileAction::ManifestUnavailable,
+    };
+    match pending.destination.as_deref() {
+        Some(destination) if navigation_authorizes_console_path(destination, groups) => {
+            RoleReconcileAction::OpenDestination(destination.to_owned())
+        }
+        Some(_) => RoleReconcileAction::DestinationDenied,
+        None => RoleReconcileAction::ReconcileCurrentRoute,
+    }
+}
+
 fn module_matches_query(item: &NavItem, query: &str) -> bool {
     let query = query.trim().to_lowercase();
     query.is_empty()
@@ -25286,7 +25301,8 @@ fn ModuleHubSurface(
     nav_groups: Vec<NavGroup>,
     assigned_role_keys: Vec<String>,
     on_navigate: EventHandler<String>,
-    on_change_role: EventHandler<()>,
+    role_restore_focus_target: Signal<Option<std::rc::Rc<MountedData>>>,
+    on_change_role: EventHandler<ModuleRoleSwitchIntent>,
 ) -> Element {
     let locale = use_locale().current();
     let mut query = use_signal(String::new);
@@ -25390,6 +25406,7 @@ fn ModuleHubSurface(
                             );
                             let can_switch = assigned_role_can_open_module(item.required_role_keys(), &assigned_roles);
                             let requirement = module_requirement_copy(locale, item.required_role_keys());
+                            let required_role_keys = item.required_role_keys().to_vec();
                             if item.is_authorized() {
                                 rsx! {
                                     KitButton {
@@ -25418,13 +25435,12 @@ fn ModuleHubSurface(
                                             strong { "{display_label}" }
                                             small { "{requirement}" }
                                             if can_switch {
-                                                KitButton {
-                                                    size: ButtonSize::Default,
-                                                    variant: ButtonVariant::Ghost,
-                                                    class: "module-hub-role-action",
-                                                    r#type: "button",
-                                                    onclick: move |_| on_change_role.call(()),
-                                                    {console_text(locale, "Change work role", "เปลี่ยนบทบาทการทำงาน")}
+                                                ModuleRoleChangeButton {
+                                                    destination: path,
+                                                    module_label: display_label,
+                                                    required_role_keys,
+                                                    restore_focus_target: role_restore_focus_target,
+                                                    on_change_role,
                                                 }
                                             } else {
                                                 p { {console_text(locale, "Contact an administrator to request this work role.", "ติดต่อผู้ดูแลเพื่อขอบทบาทการทำงานนี้")} }
@@ -25437,6 +25453,42 @@ fn ModuleHubSurface(
                     }
                 }
             }
+        }
+    }
+}
+
+#[component]
+fn ModuleRoleChangeButton(
+    destination: String,
+    module_label: String,
+    required_role_keys: Vec<String>,
+    restore_focus_target: Signal<Option<std::rc::Rc<MountedData>>>,
+    on_change_role: EventHandler<ModuleRoleSwitchIntent>,
+) -> Element {
+    let locale = use_locale().current();
+    let mut trigger_focus = use_signal(|| None::<std::rc::Rc<MountedData>>);
+    let accessible_label = match locale {
+        Locale::En => format!("Change work role to open {module_label}"),
+        Locale::Th => format!("เปลี่ยนบทบาทการทำงานเพื่อเปิด {module_label}"),
+    };
+    rsx! {
+        KitButton {
+            size: ButtonSize::Default,
+            variant: ButtonVariant::Ghost,
+            class: "module-hub-role-action",
+            r#type: "button",
+            aria_label: accessible_label,
+            onmounted: move |event: MountedEvent| trigger_focus.set(Some(event.data())),
+            onclick: move |_| {
+                if let Some(target) = trigger_focus.read().clone() {
+                    restore_focus_target.set(Some(target));
+                }
+                on_change_role.call(ModuleRoleSwitchIntent {
+                    destination: destination.clone(),
+                    required_role_keys: required_role_keys.clone(),
+                });
+            },
+            {console_text(locale, "Change work role", "เปลี่ยนบทบาทการทำงาน")}
         }
     }
 }
@@ -25537,10 +25589,7 @@ fn RegisteredFeatureHost(
     let mut retry_generation = use_signal(|| 0_u64);
     let navigate = use_hook(|| {
         std::sync::Arc::new(|path: String| {
-            let eval = document::eval(
-                "const path = await dioxus.recv(); window.history.pushState({}, '', path); window.dispatchEvent(new PopStateEvent('popstate'));",
-            );
-            let _ = eval.send(path);
+            push_console_history(path);
         }) as FeatureNavigationCallback
     });
     let context = FeatureContext {
@@ -25629,6 +25678,9 @@ fn feature_transport_for_target() -> std::sync::Arc<FeatureTransportPrimitive> {
 #[component]
 fn ConsoleApp(initial_path: String) -> Element {
     let locale = use_locale().current();
+    let passkeys = use_context::<crate::platform::ConsolePlatform>()
+        .passkeys
+        .clone();
     let mut ai_launcher = use_signal(|| {
         FloatingLauncherState::new(
             "erpx-console-device",
@@ -25683,6 +25735,8 @@ fn ConsoleApp(initial_path: String) -> Element {
             let mut slot = auth_for_task.write();
             slot.begin_server_restore(authenticated_landing_path());
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        let restore_credentials = runtime_credential_slot();
         spawn(async move {
             let mut controller = {
                 let mut slot = auth_for_task.write();
@@ -25709,6 +25763,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                         authenticated_landing_path(),
                     );
                 }
+                sync_runtime_credential_slot(&restore_credentials, &controller);
             }
             {
                 let mut slot = auth_for_task.write();
@@ -25740,8 +25795,12 @@ fn ConsoleApp(initial_path: String) -> Element {
     let mut role_options_loading = use_signal(|| false);
     let mut role_selection_busy = use_signal(|| false);
     let mut role_selection_message = use_signal(|| None::<String>);
-    let mut role_reconcile_pending = use_signal(|| None::<u64>);
-    let mut role_change_notice = use_signal(|| false);
+    let mut pending_role_selection = use_signal(|| None::<String>);
+    let mut role_selection_auto_focus = use_signal(|| false);
+    let mut module_role_switch_intent = use_signal(|| None::<ModuleRoleSwitchIntent>);
+    let mut role_dialog_restore_focus = use_signal(|| None::<std::rc::Rc<MountedData>>);
+    let mut role_reconcile_pending = use_signal(|| None::<RoleReconcilePending>);
+    let mut role_change_notice = use_signal(|| None::<RoleChangeNoticeKind>);
     let mut development_onboarding_session = use_signal(String::new);
     let development_context = use_signal(|| None::<DevelopmentContextRecord>);
     let tenant_administrative_context = use_signal(|| None::<TenantAdminContextModel>);
@@ -25896,7 +25955,32 @@ fn ConsoleApp(initial_path: String) -> Element {
         });
     });
 
-    let on_select_role = move |selection_id: String| {
+    use_effect(move || {
+        if !*role_switcher_open.read() || pending_role_selection.read().is_some() {
+            return;
+        }
+        let Some(intent) = module_role_switch_intent.read().clone() else {
+            return;
+        };
+        let current_scope = auth
+            .read()
+            .metadata()
+            .and_then(|metadata| metadata.scope_label.clone())
+            .unwrap_or_default();
+        if let Some(selection_id) = preferred_module_role_selection(
+            &role_options.read(),
+            &intent.required_role_keys,
+            &current_scope,
+        ) {
+            pending_role_selection.set(Some(selection_id));
+            role_selection_auto_focus.set(true);
+        }
+    });
+
+    let mut on_submit_role = move |(selection_id, destination): (String, Option<String>)| {
+        if *role_selection_busy.read() {
+            return;
+        }
         let (session_id, access_token) = {
             let controller = auth.read();
             (
@@ -25922,6 +26006,10 @@ fn ConsoleApp(initial_path: String) -> Element {
         let mut epoch_for_task = authorization_epoch;
         let mut tenant_context_for_task = tenant_administrative_context;
         let mut reconcile_for_task = role_reconcile_pending;
+        let mut pending_selection_for_task = pending_role_selection;
+        let mut intent_for_task = module_role_switch_intent;
+        let mut auto_focus_for_task = role_selection_auto_focus;
+        let mut restore_focus_for_task = role_dialog_restore_focus;
         spawn(async move {
             let selected = select_active_role(session_id.clone(), selection_id, access_token).await;
             let result = match selected {
@@ -25956,8 +26044,15 @@ fn ConsoleApp(initial_path: String) -> Element {
                 tenant_context_for_task.set(None);
                 let next_generation = (*epoch_for_task.read()).wrapping_add(1);
                 epoch_for_task.set(next_generation);
-                reconcile_for_task.set(Some(next_generation));
+                reconcile_for_task.set(Some(RoleReconcilePending {
+                    generation: next_generation,
+                    destination,
+                }));
                 message_for_task.set(Some("role_selected".into()));
+                pending_selection_for_task.set(None);
+                intent_for_task.set(None);
+                auto_focus_for_task.set(false);
+                restore_focus_for_task.set(None);
                 role_switcher_open.set(false);
             } else if let Err(error) = result {
                 message_for_task.set(Some(error));
@@ -25990,6 +26085,8 @@ fn ConsoleApp(initial_path: String) -> Element {
         let mut add_account_for_task = add_account_open;
         let mut epoch_for_task = authorization_epoch;
         let mut accounts_key_for_task = accounts_loaded_key;
+        #[cfg(not(target_arch = "wasm32"))]
+        let credentials_for_task = runtime_credential_slot();
         let mut controller = {
             let mut slot = auth_for_task.write();
             std::mem::take(&mut *slot)
@@ -26016,6 +26113,8 @@ fn ConsoleApp(initial_path: String) -> Element {
                 }
                 result = persisted;
             }
+            #[cfg(not(target_arch = "wasm32"))]
+            sync_runtime_credential_slot(&credentials_for_task, &controller);
             let succeeded = result.is_ok();
             {
                 let mut slot = auth_for_task.write();
@@ -26059,6 +26158,8 @@ fn ConsoleApp(initial_path: String) -> Element {
         let mut add_account_for_task = add_account_open;
         let mut epoch_for_task = authorization_epoch;
         let mut accounts_key_for_task = accounts_loaded_key;
+        #[cfg(not(target_arch = "wasm32"))]
+        let credentials_for_task = runtime_credential_slot();
         spawn(async move {
             match authenticate_directory_account(hostname, username, password).await {
                 Ok((principal_ref, issued)) => {
@@ -26090,6 +26191,11 @@ fn ConsoleApp(initial_path: String) -> Element {
                         installed = persisted;
                         *auth_for_task.write() = controller;
                     }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    {
+                        let controller = auth_for_task.read();
+                        sync_runtime_credential_slot(&credentials_for_task, &controller);
+                    }
                     if installed.is_ok() {
                         add_account_for_task.set(false);
                         accounts_key_for_task.set(String::new());
@@ -26112,6 +26218,7 @@ fn ConsoleApp(initial_path: String) -> Element {
         });
     };
 
+    let passkeys_for_login = passkeys.clone();
     let on_passkey_login = move |principal_ref: String| {
         if billing_response_text(&principal_ref, "principal", false, 256).is_err() {
             auth_message.set(Some(
@@ -26133,12 +26240,16 @@ fn ConsoleApp(initial_path: String) -> Element {
         let mut epoch_for_task = authorization_epoch;
         let mut accounts_key_for_task = accounts_loaded_key;
         let principal_for_task = principal_ref.clone();
+        let passkeys_for_task = passkeys_for_login.clone();
+        #[cfg(not(target_arch = "wasm32"))]
+        let credentials_for_task = runtime_credential_slot();
         let mut controller = {
             let mut slot = auth_for_task.write();
             std::mem::take(&mut *slot)
         };
         spawn(async move {
-            let result = authenticate_identity_passkey(principal_for_task.clone()).await;
+            let result =
+                authenticate_identity_passkey(principal_for_task.clone(), passkeys_for_task).await;
             let result = match result {
                 Ok(issued) => {
                     let mut installed = controller.complete_server_restore(
@@ -26164,6 +26275,8 @@ fn ConsoleApp(initial_path: String) -> Element {
                         }
                         installed = persisted;
                     }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    sync_runtime_credential_slot(&credentials_for_task, &controller);
                     installed.map(|_| ())
                 }
                 Err(category) => {
@@ -26200,6 +26313,8 @@ fn ConsoleApp(initial_path: String) -> Element {
         let mut epoch_for_task = authorization_epoch;
         let mut accounts_key_for_task = accounts_loaded_key;
         let principal_for_task = principal_ref.clone();
+        #[cfg(not(target_arch = "wasm32"))]
+        let credentials_for_task = runtime_credential_slot();
         let mut controller = {
             let mut slot = auth_for_task.write();
             std::mem::take(&mut *slot)
@@ -26252,6 +26367,8 @@ fn ConsoleApp(initial_path: String) -> Element {
                             .into(),
                         ));
                     }
+                    #[cfg(not(target_arch = "wasm32"))]
+                    sync_runtime_credential_slot(&credentials_for_task, &controller);
                 }
                 Err(category) => {
                     message_for_task.set(Some(identity_error_message(&category, locale).into()));
@@ -26270,6 +26387,8 @@ fn ConsoleApp(initial_path: String) -> Element {
         let mut auth_for_task = auth;
         let mut busy_for_task = auth_busy;
         let mut message_for_task = auth_message;
+        #[cfg(not(target_arch = "wasm32"))]
+        let credentials_for_task = runtime_credential_slot();
         let mut controller = {
             let mut slot = auth_for_task.write();
             std::mem::take(&mut *slot)
@@ -26287,6 +26406,8 @@ fn ConsoleApp(initial_path: String) -> Element {
                     let _ = controller.clear_secure_session(&target_adapter).await;
                 }
             }
+            #[cfg(not(target_arch = "wasm32"))]
+            sync_runtime_credential_slot(&credentials_for_task, &controller);
             {
                 let mut slot = auth_for_task.write();
                 *slot = controller;
@@ -26308,6 +26429,8 @@ fn ConsoleApp(initial_path: String) -> Element {
         let mut message_for_task = auth_message;
         let mut epoch_for_task = authorization_epoch;
         let mut accounts_key_for_task = accounts_loaded_key;
+        #[cfg(not(target_arch = "wasm32"))]
+        let credentials_for_task = runtime_credential_slot();
         let mut controller = {
             let mut slot = auth_for_task.write();
             std::mem::take(&mut *slot)
@@ -26347,6 +26470,8 @@ fn ConsoleApp(initial_path: String) -> Element {
                         .map(|_| ());
                 }
             }
+            #[cfg(not(target_arch = "wasm32"))]
+            sync_runtime_credential_slot(&credentials_for_task, &controller);
             let succeeded = result.is_ok();
             {
                 let mut slot = auth_for_task.write();
@@ -26463,8 +26588,49 @@ fn ConsoleApp(initial_path: String) -> Element {
             return;
         }
         role_selection_message.set(None);
+        pending_role_selection.set(None);
+        role_selection_auto_focus.set(false);
+        module_role_switch_intent.set(None);
+        role_dialog_restore_focus.set(None);
+        role_change_notice.set(None);
         session_tools_open.set(false);
         role_switcher_open.set(true);
+    };
+
+    let on_change_module_role = move |intent: ModuleRoleSwitchIntent| {
+        if auth.read().session_id().is_none() {
+            accounts_message.set(Some("identity_authentication_required".into()));
+            return;
+        }
+        let current_scope = auth
+            .read()
+            .metadata()
+            .and_then(|metadata| metadata.scope_label.clone())
+            .unwrap_or_default();
+        let preselected = preferred_module_role_selection(
+            &role_options.read(),
+            &intent.required_role_keys,
+            &current_scope,
+        );
+        role_selection_message.set(None);
+        pending_role_selection.set(preselected.clone());
+        role_selection_auto_focus.set(preselected.is_some());
+        module_role_switch_intent.set(Some(intent));
+        role_change_notice.set(None);
+        session_tools_open.set(false);
+        role_switcher_open.set(true);
+    };
+
+    let on_cancel_role_selection = move |_| {
+        if *role_selection_busy.read() {
+            return;
+        }
+        role_switcher_open.set(false);
+        pending_role_selection.set(None);
+        role_selection_auto_focus.set(false);
+        module_role_switch_intent.set(None);
+        role_dialog_restore_focus.set(None);
+        role_selection_message.set(None);
     };
 
     let initial_resolution = console_route_resolution_for(&initial_path);
@@ -26523,7 +26689,7 @@ fn ConsoleApp(initial_path: String) -> Element {
         _ => None,
     });
     let mut workspace_route = use_signal(|| match initial_destination.as_ref() {
-        Some(ConsoleDeepLink::Workspace(workspace)) => Some(*workspace),
+        Some(ConsoleDeepLink::Workspace(route)) => Some(route.clone()),
         _ => None,
     });
 
@@ -26531,28 +26697,6 @@ fn ConsoleApp(initial_path: String) -> Element {
     // synchronous through `ConsoleRouteSignals::activate`. Back/forward and hash navigation do
     // fire these events and are bridged back into that same typed route boundary, keeping URL,
     // page content, breadcrumb, and active side-menu item aligned without reloading the session.
-    use_effect(move || {
-        let mut route_signals = ConsoleRouteSignals {
-            home_route,
-            auth_route,
-            tenant_route,
-            active_route,
-            support_route,
-            platform_operations_route,
-            marketing_crm_route,
-            directory_route,
-            billing_route,
-            product_context_route,
-            workspace_route,
-            route_failure,
-        };
-        spawn(async move {
-            let mut eval = document::eval(BROWSER_ROUTE_HISTORY_SCRIPT);
-            while let Ok(path) = eval.recv::<String>().await {
-                let _ = route_signals.activate(&path);
-            }
-        });
-    });
     let home_route_snapshot = *home_route.read();
     let auth_route_snapshot = *auth_route.read();
     let tenant_route_snapshot = *tenant_route.read();
@@ -26563,7 +26707,7 @@ fn ConsoleApp(initial_path: String) -> Element {
     let directory_route_snapshot = *directory_route.read();
     let billing_route_snapshot = *billing_route.read();
     let product_context_route_snapshot = *product_context_route.read();
-    let workspace_route_snapshot = *workspace_route.read();
+    let workspace_route_snapshot = workspace_route.read().clone();
     let route_failure_snapshot = route_failure.read().clone();
     let active_path = route_failure_snapshot
         .as_ref()
@@ -26583,7 +26727,8 @@ fn ConsoleApp(initial_path: String) -> Element {
                 })
                 .or_else(|| {
                     workspace_route_snapshot
-                        .map(|workspace| workspace_descriptor(workspace).route.to_owned())
+                        .as_ref()
+                        .map(|route| route.canonical_path.clone())
                 })
                 .or_else(|| support_route_snapshot.map(|route| route.template().to_string()))
                 .or_else(|| {
@@ -26689,8 +26834,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 return;
             };
             location_transition_started.set(true);
-            let eval = document::eval(SAME_ORIGIN_LOCATION_REPLACE_SCRIPT);
-            let _ = eval.send(destination);
+            replace_console_location(destination);
         });
     }
 
@@ -27458,7 +27602,7 @@ fn ConsoleApp(initial_path: String) -> Element {
             match (access_token, principal_ref, session_id, scope_key) {
                 (Some(access_token), Some(principal_ref), Some(session_id), Some(scope_key)) => {
                     let manifest_scope = scope_key.clone();
-                    fetch_navigation_manifest(
+                    let result = fetch_navigation_manifest(
                         access_token,
                         principal_ref,
                         session_id,
@@ -27466,17 +27610,21 @@ fn ConsoleApp(initial_path: String) -> Element {
                         None,
                         true,
                     )
-                    .await
-                    .map(|groups| Some((manifest_scope, authorization_generation, groups)))
+                    .await;
+                    Some((manifest_scope, authorization_generation, result))
                 }
-                (None, _, _, _) | (_, None, _, _) | (_, _, None, _) => Ok(None),
-                _ => Err("active_role_scope_required".to_owned()),
+                (None, _, _, _) | (_, None, _, _) | (_, _, None, _) => None,
+                _ => Some((
+                    String::new(),
+                    authorization_generation,
+                    Err("active_role_scope_required".to_owned()),
+                )),
             }
         }
     });
 
     use_effect(move || {
-        let Some(pending_generation) = *role_reconcile_pending.read() else {
+        let Some(pending) = role_reconcile_pending.read().clone() else {
             return;
         };
         let active_scope = auth
@@ -27485,14 +27633,9 @@ fn ConsoleApp(initial_path: String) -> Element {
             .and_then(|metadata| metadata.scope_label.clone())
             .unwrap_or_default();
         let snapshot = navigation_manifest.read();
-        let Some(Ok(Some((manifest_scope, manifest_generation, groups)))) = snapshot.as_ref()
-        else {
+        let Some(Some((manifest_scope, manifest_generation, manifest))) = snapshot.as_ref() else {
             return;
         };
-        if *manifest_generation != pending_generation || manifest_scope != &active_scope {
-            return;
-        }
-
         let mut route_signals = ConsoleRouteSignals {
             home_route,
             auth_route,
@@ -27507,17 +27650,56 @@ fn ConsoleApp(initial_path: String) -> Element {
             workspace_route,
             route_failure,
         };
-        let current_path = route_signals.current_path();
-        if !navigation_authorizes_console_path(&current_path, groups)
-            && route_signals.activate(EnterpriseHomeRoute::Work.path())
-        {
-            let eval = document::eval(
-                "const path = await dioxus.recv(); window.history.pushState({}, '', path);",
-            );
-            let _ = eval.send(EnterpriseHomeRoute::Work.path());
-        }
+        let action = role_reconcile_action(
+            &pending,
+            &active_scope,
+            manifest_scope,
+            *manifest_generation,
+            manifest,
+        );
+        let notice = match action {
+            RoleReconcileAction::Wait => return,
+            RoleReconcileAction::ReconcileCurrentRoute => {
+                let current_path = route_signals.current_path();
+                if let Ok(groups) = manifest
+                    && !navigation_authorizes_console_path(&current_path, groups)
+                    && route_signals.activate(EnterpriseHomeRoute::Work.path())
+                {
+                    push_console_history(EnterpriseHomeRoute::Work.path());
+                }
+                RoleChangeNoticeKind::Updated
+            }
+            RoleReconcileAction::OpenDestination(destination) => {
+                if route_signals.activate(&destination) {
+                    push_console_history(destination);
+                    RoleChangeNoticeKind::DestinationOpened
+                } else {
+                    if route_signals.activate(EnterpriseHomeRoute::Modules.path()) {
+                        push_console_history(EnterpriseHomeRoute::Modules.path());
+                    }
+                    RoleChangeNoticeKind::DestinationDenied
+                }
+            }
+            RoleReconcileAction::DestinationDenied => {
+                if route_signals.current_path() != EnterpriseHomeRoute::Modules.path()
+                    && route_signals.activate(EnterpriseHomeRoute::Modules.path())
+                {
+                    push_console_history(EnterpriseHomeRoute::Modules.path());
+                }
+                RoleChangeNoticeKind::DestinationDenied
+            }
+            RoleReconcileAction::ManifestUnavailable => {
+                if pending.destination.is_some()
+                    && route_signals.current_path() != EnterpriseHomeRoute::Modules.path()
+                    && route_signals.activate(EnterpriseHomeRoute::Modules.path())
+                {
+                    push_console_history(EnterpriseHomeRoute::Modules.path());
+                }
+                RoleChangeNoticeKind::ManifestUnavailable
+            }
+        };
         role_reconcile_pending.set(None);
-        role_change_notice.set(true);
+        role_change_notice.set(Some(notice));
     });
 
     let mut work_queue_read_model = use_resource(move || {
@@ -28440,10 +28622,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     workspace_for_task.restart();
                     message_for_task.set(Some(result.message));
                     if let Some(hosted_url) = result.hosted_url {
-                        let eval = document::eval(
-                            "const url = await dioxus.recv(); if (typeof url === 'string' && url.startsWith('https://')) window.location.assign(url);",
-                        );
-                        let _ = eval.send(hosted_url);
+                        open_console_external_url(&hosted_url);
                     }
                 }
                 Err(error) => {
@@ -30841,9 +31020,12 @@ fn ConsoleApp(initial_path: String) -> Element {
                 "อ่านสถานะข้อมูลที่ได้รับอนุญาต · อ่านอย่างเดียว",
             ),
         )
-    } else if let Some(workspace) = workspace_route_snapshot {
+    } else if let Some(route) = workspace_route_snapshot.as_ref() {
         (
-            workspace_label(workspace, locale),
+            route
+                .workspace
+                .map(|workspace| workspace_label(workspace, locale))
+                .unwrap_or_else(|| console_text(locale, "Workspace", "พื้นที่ทำงาน")),
             console_text(
                 locale,
                 "Authorized workspace surface for the active role and scope.",
@@ -30958,6 +31140,19 @@ fn ConsoleApp(initial_path: String) -> Element {
                 )
                 .ok()
             });
+    let business_workspace_scope_label = auth
+        .read()
+        .metadata()
+        .and_then(|metadata| metadata.scope_label.clone())
+        .map(|scope| work_scope_label(locale, &scope))
+        .unwrap_or_else(|| {
+            localized_copy("Authorized session scope", "ขอบเขตจากเซสชันที่ได้รับอนุญาต").to_owned()
+        });
+    // The business routes never render the retired identifier-driven forms.
+    // Keeping the old presenters reachable only on an explicit diagnostics
+    // suffix lets their ongoing extraction compile without exposing them in
+    // the normal Sales or Finance workspace DOM.
+    let show_legacy_technical_surface = active_path.ends_with("/__legacy-technical");
     let content = rsx! {
         nav { class: "ui-support-route-tabs ui-console-route-switcher", role: "tablist", aria_label: catalog_text(ConsoleCopyKey::ConsoleSurfaces, locale),
             KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default,
@@ -30976,8 +31171,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     directory_route.set(false);
                     billing_route.set(None);
                     product_context_route.set(None);
-                    let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                    let _ = eval.send(AuthRoute::Security.path().to_owned());
+                    push_console_history(AuthRoute::Security.path().to_owned());
                 },
                 {console_text(locale, "Account security", "ความปลอดภัยของบัญชี")}
             }
@@ -30997,8 +31191,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     directory_route.set(true);
                     billing_route.set(None);
                     product_context_route.set(None);
-                    let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                    let _ = eval.send("/platform/directories".to_owned());
+                    push_console_history("/platform/directories".to_owned());
                 },
                 {console_text(locale, "Directories", "ไดเรกทอรี")}
             }
@@ -31018,8 +31211,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     billing_route.set(None);
                     product_context_route.set(None);
                     platform_operations_route.set(Some(PlatformOperationsRoute::Tenants));
-                    let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                    let _ = eval.send(PlatformOperationsRoute::Tenants.path());
+                    push_console_history(PlatformOperationsRoute::Tenants.path());
                 },
                 {catalog_text(ConsoleCopyKey::PlatformOperations, locale)}
             }
@@ -31039,8 +31231,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     directory_route.set(false);
                     billing_route.set(Some(BillingRoute::Overview));
                     product_context_route.set(None);
-                    let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                    let _ = eval.send(BillingRoute::Overview.path().to_owned());
+                    push_console_history(BillingRoute::Overview.path().to_owned());
                 },
                 {catalog_text(ConsoleCopyKey::BillingEntitlements, locale)}
             }
@@ -31074,8 +31265,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                                 }
                                 product_context_route.set(Some(context));
                             }
-                            let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                            let _ = eval.send(context.path().to_owned());
+                            push_console_history(context.path().to_owned());
                         },
                         "{context.label_for(locale)}"
                     }
@@ -31096,8 +31286,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                         for route in [AuthRoute::Accounts, AuthRoute::Security, AuthRoute::Devices, AuthRoute::Recovery] {
                             KitButton { variant: ButtonVariant::Secondary, size: ButtonSize::Default, class: if auth_route_snapshot == route { "ui-route-tab active" } else { "ui-route-tab" }, r#type: "button", aria_current: if auth_route_snapshot == route { "page" } else { "false" }, onclick: move |_| {
                                 auth_route.set(Some(route));
-                                let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                                let _ = eval.send(route.path().to_owned());
+                                push_console_history(route.path().to_owned());
                             }, {match route { AuthRoute::Accounts => console_text(locale, "Accounts", "บัญชี"), AuthRoute::Security => console_text(locale, "Security", "ความปลอดภัย"), AuthRoute::Devices => console_text(locale, "Devices", "อุปกรณ์"), AuthRoute::Recovery => console_text(locale, "Recovery", "การกู้คืน"), AuthRoute::SignIn => console_text(locale, "Sign in", "เข้าสู่ระบบ") }} }
                         }
                     }
@@ -31127,7 +31316,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                             on_directory_password: move |value| directory_password.set(value),
                             on_login,
                             on_directory_login,
-                            on_passkey_login,
+                            on_passkey_login: on_passkey_login.clone(),
                             on_recover_account,
                             on_refresh,
                             on_revoke,
@@ -31148,8 +31337,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     session_id: replay_session_id.clone(),
                     on_route: move |route: TenantRoute| {
                         tenant_route.set(Some(route));
-                        let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                        let _ = eval.send(route.path().to_owned());
+                        push_console_history(route.path().to_owned());
                     },
                 }
             } else if let Some(billing_route_snapshot) = billing_route_snapshot {
@@ -31157,8 +31345,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 route: billing_route_snapshot,
                 on_route: move |route: BillingRoute| {
                     billing_route.set(Some(route));
-                    let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                    let _ = eval.send(route.path().to_string());
+                    push_console_history(route.path().to_string());
                 },
                 workspace_scope: billing_workspace_scope.read().clone(),
                 tenant_id: billing_tenant_input.read().clone(),
@@ -31213,8 +31400,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     if platform_operations_route_allowed(&next) {
                         let path = next.path();
                         platform_operations_route.set(Some(next));
-                        let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                        let _ = eval.send(path);
+                        push_console_history(path);
                     }
                 },
             }
@@ -31224,8 +31410,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     if platform_operations_route_allowed(&next) {
                         let path = next.path();
                         platform_operations_route.set(Some(next));
-                        let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                        let _ = eval.send(path);
+                        push_console_history(path);
                     }
                 },
                 on_tenants_retry: move |_| platform_tenants.restart(),
@@ -31378,11 +31563,12 @@ fn ConsoleApp(initial_path: String) -> Element {
                 },
                 on_command: on_crm_command,
             }
-        } else if let Some(workspace) = workspace_route_snapshot {
+        } else if let Some(route) = workspace_route_snapshot.as_ref() {
             section {
                 class: "registered-workspace-boundary",
-                "data-workspace": workspace_descriptor(workspace).slug,
-                "data-workspace-route": workspace_descriptor(workspace).route,
+                "data-workspace": route.feature_id,
+                "data-workspace-route": route.canonical_path.clone(),
+                "data-workspace-root": route.route_root,
             }
         } else if let Some(context) = product_context_route_snapshot {
             if context == ProductContext::Operations {
@@ -31403,7 +31589,28 @@ fn ConsoleApp(initial_path: String) -> Element {
                     on_publish_policy: on_publish_operations_policy,
                 }
             } else if context == ProductContext::Finance {
-                FinanceContextRouteSurface {
+                crate::features::finance::FinanceSalesApprovalWorkspace {
+                    model: crate::features::finance::FinanceSalesWorkspaceModel {
+                        scope_label: business_workspace_scope_label.clone(),
+                        projection: if finance_read_error.is_some() {
+                            crate::features::finance::FinanceSalesProjectionState::Failed
+                        } else if finance_read_loading {
+                            crate::features::finance::FinanceSalesProjectionState::Lagging
+                        } else {
+                            crate::features::finance::FinanceSalesProjectionState::Current
+                        },
+                        work_items: Vec::new(),
+                        reconciliation: Vec::new(),
+                        fixture_review_ready: false,
+                    },
+                    locale,
+                    on_refresh: move |_| {
+                        let current = finance_scope.read().clone();
+                        finance_scope.set(current);
+                    },
+                }
+                if show_legacy_technical_surface {
+                  FinanceContextRouteSurface {
                     scope: finance_scope_snapshot,
                     tenant_id: finance_tenant_input.read().clone(),
                     holding_ref: finance_holding_ref_input.read().clone(),
@@ -31438,9 +31645,72 @@ fn ConsoleApp(initial_path: String) -> Element {
                     on_save_chart: on_save_finance_chart,
                     on_save_period: on_save_finance_period,
                     on_post_journal: on_post_finance_journal,
+                  }
                 }
             } else if context == ProductContext::Sales {
-                SalesAggregateListRouteSurface {
+                crate::features::sales::SalesFinanceWorkspace {
+                    model: crate::features::sales::SalesWorkspaceModel {
+                        scope_label: business_workspace_scope_label.clone(),
+                        records: sales_list_read_result
+                            .as_ref()
+                            .map(|read| read.rows.iter().map(|row| crate::features::sales::SalesWorkspaceRecord {
+                                key: row.aggregate_id.clone(),
+                                reference: row.reference.clone(),
+                                record_kind: "order".into(),
+                                status: localized_copy("Sales order", "คำสั่งขาย").into(),
+                                amount: "—".into(),
+                                version: row.source_version,
+                                updated_at: row.projected_at.clone(),
+                            }).collect())
+                            .unwrap_or_default(),
+                        customers: Vec::new(),
+                        catalog: Vec::new(),
+                        projection: if sales_list_read_error.is_some() {
+                            crate::features::sales::SalesProjectionState::Failed
+                        } else if sales_list_read_loading {
+                            crate::features::sales::SalesProjectionState::Lagging
+                        } else {
+                            crate::features::sales::SalesProjectionState::Current
+                        },
+                        suggestion: crate::features::sales::SalesSuggestionState::None,
+                        selected_customer_key: None,
+                        selected_catalog_key: None,
+                        custom_line_reason: String::new(),
+                        language: match locale { Locale::Th => "th", Locale::En => "en" }.into(),
+                        quote_subtotal: "—".into(),
+                        quote_tax: "—".into(),
+                        quote_total: "—".into(),
+                        approval_status: localized_copy("Draft · not submitted", "ฉบับร่าง · ยังไม่ส่งอนุมัติ").into(),
+                    },
+                    locale,
+                    busy: *sales_command_busy.read(),
+                    on_new_quote: Some(EventHandler::new(move |_| {
+                        let path = "/sales/quote";
+                        let mut route_signals = ConsoleRouteSignals {
+                            home_route,
+                            auth_route,
+                            tenant_route,
+                            active_route,
+                            support_route,
+                            platform_operations_route,
+                            marketing_crm_route,
+                            directory_route,
+                            billing_route,
+                            product_context_route,
+                            workspace_route,
+                            route_failure,
+                        };
+                        if route_signals.activate(path) {
+                            push_console_history(path.to_owned());
+                        }
+                    })),
+                    on_refresh: move |_| {
+                        let current = sales_list_scope.read().clone();
+                        sales_list_scope.set(current);
+                    },
+                }
+                if show_legacy_technical_surface {
+                  SalesAggregateListRouteSurface {
                     tenant_id: sales_list_tenant_input.read().clone(),
                     holding_ref: sales_list_holding_ref_input.read().clone(),
                     holding_id: sales_list_holding_id_input.read().clone(),
@@ -31460,8 +31730,8 @@ fn ConsoleApp(initial_path: String) -> Element {
                         sales_list_scope.set(Some(scope));
                     },
                     on_next_page: move |cursor| sales_list_before_cursor.set(Some(cursor)),
-                }
-                SalesContextRouteSurface {
+                  }
+                  SalesContextRouteSurface {
                     scope: sales_scope_snapshot,
                     tenant_id: sales_tenant_input.read().clone(),
                     holding_ref: sales_holding_ref_input.read().clone(),
@@ -31481,6 +31751,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     on_scope: move |scope| sales_scope.set(Some(scope)),
                     on_transition: on_sales_transition,
                     on_create: on_create_sales,
+                  }
                 }
             } else if matches!(context, ProductContext::Procurement | ProductContext::Inventory) {
                 ScmAggregateListRouteSurface {
@@ -31642,8 +31913,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                     product_context_route.set(None);
                     let path = route.path();
                     active_route.set(route);
-                    let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                    let _ = eval.send(path);
+                    push_console_history(path);
                 },
             }
             FilterBar { aria_label: localized_copy("Filter customer accounts", "กรองบัญชีลูกค้า").to_string(),
@@ -31680,10 +31950,7 @@ fn ConsoleApp(initial_path: String) -> Element {
         if !route_signals.activate(&path) {
             return;
         }
-        let eval = document::eval(
-            "const path = await dioxus.recv(); window.history.pushState({}, '', path);",
-        );
-        let _ = eval.send(path);
+        push_console_history(path);
     };
 
     let show_authenticated_shell = matches!(
@@ -31735,7 +32002,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 loading: *role_options_loading.read(),
                 busy: *role_selection_busy.read(),
                 message: role_selection_message.read().clone(),
-                on_select: on_select_role,
+                on_select: move |selection_id| on_submit_role((selection_id, None)),
             }
         };
     }
@@ -31765,7 +32032,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                 on_directory_password: move |value| directory_password.set(value),
                 on_login,
                 on_directory_login,
-                on_passkey_login,
+                on_passkey_login: on_passkey_login.clone(),
                 on_recover_account,
                 on_refresh,
                 on_revoke,
@@ -31778,19 +32045,24 @@ fn ConsoleApp(initial_path: String) -> Element {
         .and_then(|metadata| metadata.scope_label.clone())
         .unwrap_or_default();
     let navigation_snapshot = navigation_manifest.read().clone();
-    let discovery_nav_groups = navigation_snapshot
-        .clone()
-        .and_then(Result::ok)
-        .flatten()
-        .filter(|(manifest_scope, _, _)| manifest_scope == &navigation_scope_key)
-        .map(|(_, _, groups)| groups)
-        .unwrap_or_default();
-    let manifest_route_failure = navigation_snapshot
+    let navigation_generation = *authorization_epoch.read();
+    let current_navigation_manifest =
+        navigation_snapshot
+            .clone()
+            .flatten()
+            .filter(|(manifest_scope, manifest_generation, _)| {
+                manifest_scope == &navigation_scope_key
+                    && *manifest_generation == navigation_generation
+            });
+    let discovery_nav_groups = current_navigation_manifest
         .as_ref()
-        .and_then(|result| result.as_ref().ok())
-        .and_then(Option::as_ref)
-        .filter(|(manifest_scope, _, _)| manifest_scope == &navigation_scope_key)
-        .and_then(|(_, _, groups)| {
+        .and_then(|(_, _, result)| result.as_ref().ok())
+        .cloned()
+        .unwrap_or_default();
+    let manifest_route_failure = current_navigation_manifest
+        .as_ref()
+        .and_then(|(_, _, result)| result.as_ref().ok())
+        .and_then(|groups| {
             (!navigation_authorizes_console_path(&active_path, groups)).then(|| {
                 ConsoleRouteFailure {
                     kind: ConsoleRouteFailureKind::Forbidden,
@@ -31815,7 +32087,10 @@ fn ConsoleApp(initial_path: String) -> Element {
         Some(Ok(model)) => (model, false, None),
         Some(Err(error)) => (None, false, Some(error)),
     };
-    let navigation_error = navigation_snapshot.and_then(Result::err);
+    let navigation_error = current_navigation_manifest
+        .as_ref()
+        .and_then(|(_, _, result)| result.as_ref().err())
+        .cloned();
     let navigation_error_is_empty = navigation_error
         .as_deref()
         .is_some_and(|error| error == "authorized navigation manifest is empty");
@@ -31846,11 +32121,13 @@ fn ConsoleApp(initial_path: String) -> Element {
         .unwrap_or_else(|| {
             console_text(locale, "Authenticated account", "บัญชีที่ยืนยันตัวตนแล้ว").to_owned()
         });
-    let profile_role = auth
+    let active_role_key = auth
         .read()
         .metadata()
-        .and_then(|metadata| metadata.role_label.clone())
-        .map(|role| work_role_label(locale, &role))
+        .and_then(|metadata| metadata.role_label.clone());
+    let profile_role = active_role_key
+        .as_deref()
+        .map(|role| work_role_label(locale, role))
         .unwrap_or_else(|| console_text(locale, "Active role", "บทบาทที่ใช้งาน").to_owned());
     let quick_principal = profile_principal.clone();
     let quick_role = profile_role.clone();
@@ -31885,8 +32162,7 @@ fn ConsoleApp(initial_path: String) -> Element {
                         billing_route, product_context_route, workspace_route, route_failure,
                     };
                     if route_signals.activate(&path) {
-                        let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                        let _ = eval.send(path);
+                        push_console_history(path);
                     }
                 },
             }
@@ -31898,6 +32174,7 @@ fn ConsoleApp(initial_path: String) -> Element {
             ModuleHubSurface {
                 nav_groups: module_hub_nav_groups,
                 assigned_role_keys,
+                role_restore_focus_target: role_dialog_restore_focus,
                 on_navigate: move |path: String| {
                     let mut route_signals = ConsoleRouteSignals {
                         home_route, auth_route, tenant_route, active_route, support_route,
@@ -31905,11 +32182,10 @@ fn ConsoleApp(initial_path: String) -> Element {
                         billing_route, product_context_route, workspace_route, route_failure,
                     };
                     if route_signals.activate(&path) {
-                        let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);");
-                        let _ = eval.send(path);
+                        push_console_history(path);
                     }
                 },
-                on_change_role: move |_| on_change_active_role(()),
+                on_change_role: on_change_module_role,
             }
         },
         EnterpriseHomeRoute::Insights => rsx! {
@@ -31980,17 +32256,36 @@ fn ConsoleApp(initial_path: String) -> Element {
                     class: "ui-page-family ui-page-family-{route_family}",
                     "data-page-family": route_family,
                     {content}
-                    RegisteredFeatureHost {
-                        key: "{active_path}:{authorization_epoch}:{navigation_scope_key}",
-                        canonical_path: active_path.clone(),
-                        generation: *authorization_epoch.read(),
-                        principal_ref: authenticated_principal_ref.clone(),
-                        session_id: future_session_id.clone(),
-                        scope_reference: navigation_scope_key.clone(),
+                    if workspace_route_snapshot.is_some()
+                        || product_context_route_snapshot != Some(ProductContext::Sales)
+                    {
+                        RegisteredFeatureHost {
+                            key: "{active_path}:{authorization_epoch}:{navigation_scope_key}",
+                            canonical_path: active_path.clone(),
+                            generation: *authorization_epoch.read(),
+                            principal_ref: authenticated_principal_ref.clone(),
+                            session_id: future_session_id.clone(),
+                            scope_reference: navigation_scope_key.clone(),
+                        }
                     }
                 }
             }
         })
+    };
+    let role_dialog_intent = module_role_switch_intent.read().clone();
+    let all_role_options = role_options.read().clone();
+    let role_dialog_options = if let Some(intent) = role_dialog_intent.as_ref() {
+        let required = intent
+            .required_role_keys
+            .iter()
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>();
+        all_role_options
+            .into_iter()
+            .filter(|option| required.contains(option.role_key.as_str()))
+            .collect()
+    } else {
+        all_role_options
     };
 
     rsx! {
@@ -32030,17 +32325,42 @@ fn ConsoleApp(initial_path: String) -> Element {
             },
             account_session_open: *session_tools_open.read(),
             on_navigate,
-            if *role_change_notice.read() {
+            if let Some(notice) = *role_change_notice.read() {
                 div {
-                    class: "status-banner success role-change-notice",
-                    role: "status",
-                    span { {console_text(locale, "Work role changed. Navigation now reflects the active role and scope.", "เปลี่ยนบทบาทการทำงานแล้ว เมนูจะแสดงตามบทบาทและขอบเขตปัจจุบัน")} }
+                    class: if matches!(notice, RoleChangeNoticeKind::DestinationDenied | RoleChangeNoticeKind::ManifestUnavailable) {
+                        "status-banner warn role-change-notice"
+                    } else {
+                        "status-banner success role-change-notice"
+                    },
+                    role: if matches!(notice, RoleChangeNoticeKind::DestinationDenied | RoleChangeNoticeKind::ManifestUnavailable) { "alert" } else { "status" },
+                    span { {match notice {
+                        RoleChangeNoticeKind::Updated => console_text(
+                            locale,
+                            "Work role changed. Navigation now reflects the active role and scope.",
+                            "เปลี่ยนบทบาทการทำงานแล้ว เมนูจะแสดงตามบทบาทและขอบเขตปัจจุบัน",
+                        ),
+                        RoleChangeNoticeKind::DestinationOpened => console_text(
+                            locale,
+                            "Work role changed and the requested module is now open.",
+                            "เปลี่ยนบทบาทการทำงานและเปิดโมดูลที่ขอแล้ว",
+                        ),
+                        RoleChangeNoticeKind::DestinationDenied => console_text(
+                            locale,
+                            "Work role changed, but the latest navigation does not authorize that module. You remain on Modules.",
+                            "เปลี่ยนบทบาทการทำงานแล้ว แต่เมนูล่าสุดไม่อนุญาตโมดูลนั้น คุณจึงยังอยู่ที่หน้าโมดูล",
+                        ),
+                        RoleChangeNoticeKind::ManifestUnavailable => console_text(
+                            locale,
+                            "Work role changed, but the latest navigation could not be loaded. The requested module was not opened.",
+                            "เปลี่ยนบทบาทการทำงานแล้ว แต่โหลดเมนูล่าสุดไม่ได้ จึงไม่ได้เปิดโมดูลที่ขอ",
+                        ),
+                    }} }
                     KitButton {
                         size: ButtonSize::IconSm,
                         variant: ButtonVariant::Ghost,
                         r#type: "button",
                         aria_label: console_text(locale, "Dismiss role change message", "ปิดข้อความการเปลี่ยนบทบาท"),
-                        onclick: move |_| role_change_notice.set(false),
+                        onclick: move |_| role_change_notice.set(None),
                         "×"
                     }
                 }
@@ -32121,12 +32441,12 @@ fn ConsoleApp(initial_path: String) -> Element {
                     on_manage_accounts: move |_| {
                         session_tools_open.set(false);
                         auth_route.set(Some(AuthRoute::Accounts)); tenant_route.set(None); support_route.set(None); platform_operations_route.set(None); marketing_crm_route.set(None); directory_route.set(false); billing_route.set(None); product_context_route.set(None);
-                        let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);"); let _ = eval.send(AuthRoute::Accounts.path().to_owned());
+                        push_console_history(AuthRoute::Accounts.path().to_owned());
                     },
                     on_security: move |_| {
                         session_tools_open.set(false);
                         auth_route.set(Some(AuthRoute::Security)); tenant_route.set(None); support_route.set(None); platform_operations_route.set(None); marketing_crm_route.set(None); directory_route.set(false); billing_route.set(None); product_context_route.set(None);
-                        let eval = document::eval("const path = await dioxus.recv(); window.history.pushState({}, '', path);"); let _ = eval.send(AuthRoute::Security.path().to_owned());
+                        push_console_history(AuthRoute::Security.path().to_owned());
                     },
                     on_sign_out: move |_| { session_tools_open.set(false); on_revoke(()); },
                     on_close: move |_| session_tools_open.set(false),
@@ -32183,29 +32503,57 @@ fn ConsoleApp(initial_path: String) -> Element {
             }
             if *role_switcher_open.read() {
                 RoleSelectionDialog {
-                    options: role_options.read().clone(),
+                    options: role_dialog_options,
                     loading: *role_options_loading.read(),
                     busy: *role_selection_busy.read(),
                     message: role_selection_message.read().clone(),
-                    on_select: on_select_role,
-                    on_close: move |_| { if !*role_selection_busy.read() { role_switcher_open.set(false); } },
+                    selected_selection_id: pending_role_selection.read().clone(),
+                    active_role_key: active_role_key.clone(),
+                    active_scope_key: Some(active_scope_key.clone()),
+                    focus_selected: *role_selection_auto_focus.read(),
+                    module_destination_pending: role_dialog_intent.is_some(),
+                    module_restore_focus_target: role_dialog_restore_focus,
+                    on_select: move |selection_id| {
+                        if !*role_selection_busy.read() {
+                            pending_role_selection.set(Some(selection_id));
+                            role_selection_auto_focus.set(false);
+                            role_selection_message.set(None);
+                        }
+                    },
+                    on_confirm: move |_| {
+                        if *role_selection_busy.read() {
+                            return;
+                        }
+                        let Some(selection_id) = pending_role_selection.read().clone() else {
+                            return;
+                        };
+                        let destination = module_role_switch_intent
+                            .read()
+                            .as_ref()
+                            .map(|intent| intent.destination.clone());
+                        on_submit_role((selection_id, destination));
+                    },
+                    on_close: on_cancel_role_selection,
                 }
             }
         }
     }
 }
 
-#[cfg(feature = "mobile")]
+#[cfg(all(feature = "native", any(target_os = "ios", target_os = "android")))]
 const fn console_launcher_channel() -> ClientChannel {
     ClientChannel::Ios
 }
 
-#[cfg(all(not(feature = "mobile"), feature = "desktop"))]
+#[cfg(all(
+    feature = "native",
+    any(target_os = "macos", target_os = "windows", target_os = "linux")
+))]
 const fn console_launcher_channel() -> ClientChannel {
     ClientChannel::Desktop
 }
 
-#[cfg(all(not(feature = "mobile"), not(feature = "desktop")))]
+#[cfg(not(feature = "native"))]
 const fn console_launcher_channel() -> ClientChannel {
     ClientChannel::Web
 }
@@ -33061,6 +33409,38 @@ fn work_role_level_rank(role_key: &str) -> u8 {
     .map_or(u8::MAX, |position| position as u8)
 }
 
+fn preferred_module_role_selection(
+    options: &[ActiveRoleOptionModel],
+    required_role_keys: &[String],
+    current_scope: &str,
+) -> Option<String> {
+    let required = required_role_keys
+        .iter()
+        .map(String::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+    let minimum_rank = options
+        .iter()
+        .filter(|option| required.contains(option.role_key.as_str()))
+        .map(|option| work_role_level_rank(&option.role_key))
+        .filter(|rank| *rank != u8::MAX)
+        .min()?;
+    let candidates = options
+        .iter()
+        .filter(|option| {
+            required.contains(option.role_key.as_str())
+                && work_role_level_rank(&option.role_key) == minimum_rank
+        })
+        .collect::<Vec<_>>();
+    if candidates.len() == 1 {
+        return Some(candidates[0].selection_id.clone());
+    }
+    let current_scope_candidates = candidates
+        .into_iter()
+        .filter(|option| option.scope_key == current_scope)
+        .collect::<Vec<_>>();
+    (current_scope_candidates.len() == 1).then(|| current_scope_candidates[0].selection_id.clone())
+}
+
 fn grouped_work_role_options(
     locale: Locale,
     options: &[ActiveRoleOptionModel],
@@ -33114,6 +33494,10 @@ fn grouped_work_role_options(
 fn WorkRolePicker(
     options: Vec<ActiveRoleOptionModel>,
     busy: bool,
+    #[props(default)] selected_selection_id: Option<String>,
+    #[props(default)] active_role_key: Option<String>,
+    #[props(default)] active_scope_key: Option<String>,
+    #[props(default)] focus_selected: bool,
     on_select: EventHandler<String>,
 ) -> Element {
     let locale = use_locale().current();
@@ -33148,7 +33532,10 @@ fn WorkRolePicker(
                     on_action: None,
                 }
             } else {
-                div { class: "work-role-groups",
+                div {
+                    class: "work-role-groups",
+                    role: "radiogroup",
+                    aria_label: console_text(locale, "Assigned work roles", "บทบาทการทำงานที่ได้รับมอบหมาย"),
                     for (group, group_options) in groups {
                         section { class: "work-role-group",
                             div { class: "work-role-group-heading",
@@ -33158,23 +33545,23 @@ fn WorkRolePicker(
                             div { class: "work-role-grid",
                                 for option in group_options {
                                     {
-                                        let selection_id = option.selection_id.clone();
+                                        let selected = selected_selection_id
+                                            .as_deref()
+                                            .is_some_and(|selection| selection == option.selection_id);
+                                        let active = active_role_key
+                                            .as_deref()
+                                            .zip(active_scope_key.as_deref())
+                                            .is_some_and(|(role, scope)| {
+                                                role == option.role_key && scope == option.scope_key
+                                            });
                                         rsx! {
-                                            KitButton { size: ButtonSize::Default,
-                                                class: "work-role-card",
-                                                variant: ButtonVariant::Ghost,
-                                                r#type: "button",
-                                                disabled: busy,
-                                                onclick: move |_| on_select.call(selection_id.clone()),
-                                                span { class: "work-role-icon", {option.role_key.chars().next().unwrap_or('R').to_ascii_uppercase().to_string()} }
-                                                span {
-                                                    strong { "{work_role_label(locale, &option.role_key)}" }
-                                                    small { "{work_scope_label(locale, &option.scope_key)}" }
-                                                    if option.requires_mfa {
-                                                        small { class: "work-role-mfa", {console_text(locale, "MFA required", "ต้องใช้ MFA")} }
-                                                    }
-                                                }
-                                                span { class: "work-role-arrow", "→" }
+                                            WorkRoleCard {
+                                                option,
+                                                selected,
+                                                active,
+                                                busy,
+                                                auto_focus: focus_selected && selected,
+                                                on_select,
                                             }
                                         }
                                     }
@@ -33183,6 +33570,78 @@ fn WorkRolePicker(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+#[component]
+fn WorkRoleCard(
+    option: ActiveRoleOptionModel,
+    selected: bool,
+    active: bool,
+    busy: bool,
+    auto_focus: bool,
+    on_select: EventHandler<String>,
+) -> Element {
+    let locale = use_locale().current();
+    let mut mounted = use_signal(|| None::<std::rc::Rc<MountedData>>);
+    let mut auto_focus_completed = use_signal(|| false);
+    use_effect(move || {
+        if !auto_focus {
+            auto_focus_completed.set(false);
+            return;
+        }
+        if *auto_focus_completed.read() {
+            return;
+        }
+        let Some(target) = mounted.read().clone() else {
+            return;
+        };
+        auto_focus_completed.set(true);
+        spawn(async move {
+            let _ = target.scroll_to(ScrollBehavior::Smooth).await;
+            let _ = target.set_focus(true).await;
+        });
+    });
+    let selection_id = option.selection_id.clone();
+    let class = if selected {
+        "work-role-card selected"
+    } else {
+        "work-role-card"
+    };
+    rsx! {
+        KitButton {
+            size: ButtonSize::Default,
+            class,
+            variant: ButtonVariant::Ghost,
+            r#type: "button",
+            role: "radio",
+            aria_checked: selected.to_string(),
+            aria_current: active.then_some("true"),
+            "data-selected": selected.to_string(),
+            "data-active": active.to_string(),
+            disabled: busy,
+            onmounted: move |event: MountedEvent| mounted.set(Some(event.data())),
+            onclick: move |_| on_select.call(selection_id.clone()),
+            span {
+                class: "work-role-icon",
+                {option.role_key.chars().next().unwrap_or('R').to_ascii_uppercase().to_string()}
+            }
+            span { class: "work-role-card-copy",
+                span { class: "work-role-card-title",
+                    strong { "{work_role_label(locale, &option.role_key)}" }
+                    if active {
+                        span { class: "work-role-active", {console_text(locale, "Active", "ใช้งานอยู่")} }
+                    }
+                }
+                small { "{work_scope_label(locale, &option.scope_key)}" }
+                if option.requires_mfa {
+                    small { class: "work-role-mfa", {console_text(locale, "MFA required", "ต้องใช้ MFA")} }
+                }
+            }
+            span { class: "work-role-check", aria_hidden: "true",
+                if selected { "✓" } else { "" }
             }
         }
     }
@@ -33230,11 +33689,25 @@ fn RoleSelectionDialog(
     loading: bool,
     busy: bool,
     message: Option<String>,
+    selected_selection_id: Option<String>,
+    active_role_key: Option<String>,
+    active_scope_key: Option<String>,
+    focus_selected: bool,
+    module_destination_pending: bool,
+    module_restore_focus_target: ReadSignal<Option<std::rc::Rc<MountedData>>>,
     on_select: EventHandler<String>,
+    on_confirm: EventHandler<()>,
     on_close: EventHandler<()>,
 ) -> Element {
     let locale = use_locale().current();
-    let restore_focus = use_account_session_focus_target();
+    let account_restore_focus = use_account_session_focus_target();
+    let restore_focus = use_signal(move || {
+        module_restore_focus_target
+            .read()
+            .clone()
+            .or_else(|| account_restore_focus.read().clone())
+    });
+    let confirm_disabled = selected_selection_id.is_none() || loading || busy;
     rsx! {
         Dialog {
             open: true,
@@ -33244,15 +33717,63 @@ fn RoleSelectionDialog(
             restore_focus,
             section { id: "erpx-role-selection-dialog", class: "account-dialog role-selection-dialog", aria_busy: busy.to_string(),
                 div { class: "eyebrow", {console_text(locale, "WORK ROLE", "บทบาทการทำงาน")} }
-                p { {console_text(locale, "Only roles assigned by HR or IT are available. Changing role keeps the current page open.", "แสดงเฉพาะบทบาทที่ HR หรือ IT มอบหมาย การเปลี่ยนบทบาทจะคงหน้าปัจจุบันไว้")} }
+                p {
+                    {if module_destination_pending {
+                        console_text(
+                            locale,
+                            "Choose an assigned role, then confirm. ERPX opens the requested module only after the new navigation is authorized.",
+                            "เลือกบทบาทที่ได้รับมอบหมายแล้วกดยืนยัน ERPX จะเปิดโมดูลที่ขอหลังจากเมนูใหม่ได้รับอนุญาตแล้วเท่านั้น",
+                        )
+                    } else {
+                        console_text(
+                            locale,
+                            "Only roles assigned by HR or IT are available. Confirming a role keeps the current page open.",
+                            "แสดงเฉพาะบทบาทที่ HR หรือ IT มอบหมาย การยืนยันบทบาทจะคงหน้าปัจจุบันไว้",
+                        )
+                    }}
+                }
                 if loading {
                     StatePanel { state: UiStateKind::Loading, title: console_text(locale, "Loading assigned roles", "กำลังโหลดบทบาทที่ได้รับ").to_owned(), message: console_text(locale, "Checking current assignments with the identity service.", "กำลังตรวจสอบการมอบหมายกับบริการอัตลักษณ์").to_owned(), action_label: None, on_action: None }
                 } else if options.is_empty() {
                     StatePanel { state: UiStateKind::Empty, title: console_text(locale, "No assigned roles", "ไม่มีบทบาทที่ได้รับมอบหมาย").to_owned(), message: console_text(locale, "Ask HR or IT to assign a work role to this account.", "ติดต่อ HR หรือ IT เพื่อมอบหมายบทบาทการทำงานให้บัญชีนี้").to_owned(), action_label: None, on_action: None }
                 } else {
-                    WorkRolePicker { options, busy, on_select }
+                    WorkRolePicker {
+                        options,
+                        busy,
+                        selected_selection_id,
+                        active_role_key,
+                        active_scope_key,
+                        focus_selected,
+                        on_select,
+                    }
                 }
-                if let Some(message) = message { p { class: "auth-message", role: "status", "{identity_error_message(&message, locale)}" } }
+                if let Some(message) = message {
+                    p { class: "auth-message", role: "alert", "{identity_error_message(&message, locale)}" }
+                }
+                footer { class: "role-selection-actions",
+                    KitButton {
+                        size: ButtonSize::Default,
+                        variant: ButtonVariant::Secondary,
+                        class: "button",
+                        r#type: "button",
+                        disabled: busy,
+                        onclick: move |_| on_close.call(()),
+                        {console_text(locale, "Cancel", "ยกเลิก")}
+                    }
+                    KitButton {
+                        size: ButtonSize::Default,
+                        variant: ButtonVariant::Primary,
+                        class: "button",
+                        r#type: "button",
+                        disabled: confirm_disabled,
+                        onclick: move |_| on_confirm.call(()),
+                        if busy {
+                            {console_text(locale, "Switching…", "กำลังเปลี่ยน…")}
+                        } else {
+                            {console_text(locale, "Confirm", "ยืนยัน")}
+                        }
+                    }
+                }
             }
         }
     }
@@ -39273,6 +39794,21 @@ fn identity_error_message(category: &str, locale: Locale) -> &'static str {
             "The passkey ceremony was canceled or rejected by the authenticator.",
             "พิธีการพาสคีย์ถูกยกเลิกหรือถูกตัวรับรองปฏิเสธ",
         ),
+        "passkey_unsupported" => console_text(
+            locale,
+            "This browser does not provide the required Credentials API. Use password or TOTP instead.",
+            "เบราว์เซอร์นี้ไม่มี Credentials API ที่จำเป็น โปรดใช้รหัสผ่านหรือ TOTP แทน",
+        ),
+        "passkey_invalid_origin" => console_text(
+            locale,
+            "The passkey request does not match this site's origin or relying party.",
+            "คำขอพาสคีย์ไม่ตรงกับต้นทางหรือ relying party ของไซต์นี้",
+        ),
+        "passkey_platform_failure" => console_text(
+            locale,
+            "The authenticator could not complete the passkey ceremony.",
+            "ตัวรับรองไม่สามารถดำเนินพิธีการพาสคีย์ให้เสร็จได้",
+        ),
         _ => console_text(
             locale,
             "The security request could not be completed safely.",
@@ -39513,6 +40049,9 @@ fn AuthSessionPanel(
 #[component]
 fn IdentitySecurityPanel(access_token: String, principal_ref: String, route: AuthRoute) -> Element {
     let locale = use_locale().current();
+    let passkeys = use_context::<crate::platform::ConsolePlatform>()
+        .passkeys
+        .clone();
     let devices_token = access_token.clone();
     let mut devices = use_resource(move || {
         let token = devices_token.clone();
@@ -39622,12 +40161,14 @@ fn IdentitySecurityPanel(access_token: String, principal_ref: String, route: Aut
     };
     let register_passkey = {
         let token = access_token.clone();
+        let passkeys = passkeys.clone();
         move |_| {
             busy.set(true);
             message.set(None);
             let token = token.clone();
+            let passkeys = passkeys.clone();
             spawn(async move {
-                match register_identity_passkey(token).await {
+                match register_identity_passkey(token, passkeys).await {
                     Ok(()) => {
                         message.set(Some(
                             console_text(
@@ -42811,7 +43352,7 @@ fn DeviceLanguagePreference() -> Element {
                 h3 { {console_text(locale, "Language", "ภาษา")} }
                 p { {console_text(
                     locale,
-                    "This non-sensitive preference is saved only in this browser or app webview and remains after sign-out.",
+                    "This non-sensitive preference is saved only in this browser or native app and remains after sign-out.",
                     "การตั้งค่าที่ไม่เป็นข้อมูลอ่อนไหวนี้จะบันทึกเฉพาะในเบราว์เซอร์หรือเว็บวิวของแอปนี้ และยังคงอยู่หลังออกจากระบบ",
                 )} }
             }
@@ -47448,26 +47989,24 @@ mod tests {
 
     use super::{
         AdvanceMigrationPhaseRequestFields, AuthHttpResponse, AuthRoute,
-        BROWSER_ROUTE_HISTORY_SCRIPT, BeginMigrationRunRequestFields, BillingRoute,
-        BranchProvisioningRecord, BusinessUnitConfigurationRecord,
-        CUSTOMER_360_DETAIL_SECTION_NAMES, CUSTOMER_ACCESS_AUDIT_PAGE_SIZE, ConsoleDeepLink,
-        ConsoleRouteFailure, ConsoleRouteFailureKind, ConsoleRouteResolution,
-        CrmAttributionCommandInput, CrmHandoffTypedInput, CrmOpportunityTypedInput, CrmReadError,
-        CrmReadScope, CrmRows, Customer360DetailRecord, Customer360View,
-        CustomerAccessAuditEntryView, CustomerAccessAuditPage, EnterpriseHomeRoute,
-        FinanceChartReadModel, FinanceChartScope, FinanceChartTypedInput, FinanceJournalTypedInput,
-        FinancePeriodCommandInput, FinanceReadModel, FinanceScope, FinanceTargetChartRequest,
-        IDENTITY_HTTP_SCRIPT, IncidentListState, IncidentReadPage, LOAD_LOCALE_PREFERENCE_SCRIPT,
-        LOCALE_PREFERENCE_KEY, LegalContractReadModel, LegalContractScope, MAX_AUTH_RESPONSE_BYTES,
+        BeginMigrationRunRequestFields, BillingRoute, BranchProvisioningRecord,
+        BusinessUnitConfigurationRecord, CUSTOMER_360_DETAIL_SECTION_NAMES,
+        CUSTOMER_ACCESS_AUDIT_PAGE_SIZE, ConsoleDeepLink, ConsoleRouteFailure,
+        ConsoleRouteFailureKind, ConsoleRouteResolution, CrmAttributionCommandInput,
+        CrmHandoffTypedInput, CrmOpportunityTypedInput, CrmReadError, CrmReadScope, CrmRows,
+        Customer360DetailRecord, Customer360View, CustomerAccessAuditEntryView,
+        CustomerAccessAuditPage, EnterpriseHomeRoute, FinanceChartReadModel, FinanceChartScope,
+        FinanceChartTypedInput, FinanceJournalTypedInput, FinancePeriodCommandInput,
+        FinanceReadModel, FinanceScope, FinanceTargetChartRequest, IncidentListState,
+        IncidentReadPage, LegalContractReadModel, LegalContractScope, MAX_AUTH_RESPONSE_BYTES,
         MarketingDomainCommandInput, MarketingErasureCommandInput, MarketingPreviewCommandInput,
         MarketingProviderConfigureInput, MarketingProviderVerificationInput, MigrationStatusRecord,
         MigrationWorkRequestFields, OperationsReadModel, OperationsScope,
-        OperationsTransitionResult, PASSKEY_CREATE_SCRIPT, PASSKEY_GET_SCRIPT, PRODUCT_CONTEXTS,
-        PUBLIC_MARKETING_HTTP_SCRIPT, PlatformAuditRecord, PlatformBackupJobRecord,
+        OperationsTransitionResult, PRODUCT_CONTEXTS, PlatformAuditRecord, PlatformBackupJobRecord,
         PlatformIntegrationRecord, PlatformProjectionStatusRecord, PlatformSettingsRecord,
         PlatformTenantLifecycleAction, PlatformTenantLifecycleReceipt, PlatformTenantRecord,
         ProductContext, ProjectionFreshness, ProtoCommandReceipt, PublicMarketingRoute,
-        RootAccessQueueRecord, RouteId, STORE_LOCALE_PREFERENCE_SCRIPT, SupportTicketListState,
+        RegisteredWorkspaceRoute, RootAccessQueueRecord, RouteId, SupportTicketListState,
         SupportTicketReadPage, TenantGovernanceReceipt, TenantGovernanceScope, TenantRoute,
         advance_migration_phase_request, assigned_role_can_open_module, audit_error_message,
         audit_error_state, auth_http_status, authenticated_landing_path,
@@ -47551,20 +48090,6 @@ mod tests {
         }
     }
     use uuid::Uuid;
-
-    #[test]
-    fn locale_storage_is_versioned_non_sensitive_and_failure_tolerant() {
-        assert_eq!(LOCALE_PREFERENCE_KEY, "erpx.ui.locale.v1");
-        assert!(LOAD_LOCALE_PREFERENCE_SCRIPT.contains("navigator.languages"));
-        assert!(LOAD_LOCALE_PREFERENCE_SCRIPT.contains("catch (_)"));
-        assert!(STORE_LOCALE_PREFERENCE_SCRIPT.contains("document.documentElement.lang"));
-        assert!(STORE_LOCALE_PREFERENCE_SCRIPT.contains("dataset.locale"));
-        assert!(STORE_LOCALE_PREFERENCE_SCRIPT.contains("catch (_)"));
-        for forbidden in ["access_token", "refresh_token", "password", "credential"] {
-            assert!(!LOAD_LOCALE_PREFERENCE_SCRIPT.contains(forbidden));
-            assert!(!STORE_LOCALE_PREFERENCE_SCRIPT.contains(forbidden));
-        }
-    }
 
     #[test]
     fn navigation_context_uses_the_exact_canonical_active_role_scope() {
@@ -47703,8 +48228,10 @@ mod tests {
             .and_then(|(_, rest)| rest.split_once('}'))
             .map(|(rule, _)| rule)
             .expect("work role group styles");
-        assert!(!role_groups.contains("overflow"));
-        assert!(!role_groups.contains("overscroll-behavior"));
+        assert!(role_groups.contains("overflow-y: auto"));
+        assert!(role_groups.contains("overscroll-behavior: contain"));
+        assert!(styles.contains(".work-role-card.selected"));
+        assert!(styles.contains(".role-selection-actions"));
     }
 
     #[test]
@@ -47788,17 +48315,6 @@ mod tests {
         }
         assert_eq!(console_deep_link("/auth/passkeys/opaque"), None);
         assert_eq!(console_deep_link("/auth/security?token=secret"), None);
-
-        assert!(IDENTITY_HTTP_SCRIPT.contains("cache: \"no-store\""));
-        assert!(IDENTITY_HTTP_SCRIPT.contains("redirect: \"error\""));
-        assert!(!IDENTITY_HTTP_SCRIPT.contains("localStorage"));
-        assert!(!IDENTITY_HTTP_SCRIPT.contains("sessionStorage"));
-        for script in [PASSKEY_CREATE_SCRIPT, PASSKEY_GET_SCRIPT] {
-            assert!(script.contains("navigator.credentials"));
-            assert!(!script.contains("localStorage"));
-            assert!(!script.contains("sessionStorage"));
-            assert!(!script.contains("window.location.assign"));
-        }
     }
 
     #[test]
@@ -47970,16 +48486,6 @@ mod tests {
     }
 
     #[test]
-    fn public_marketing_transport_omits_credentials_and_keeps_preview_codes_out_of_urls() {
-        assert!(PUBLIC_MARKETING_HTTP_SCRIPT.contains("credentials: \"omit\""));
-        assert!(PUBLIC_MARKETING_HTTP_SCRIPT.contains("x-erpx-preview-token"));
-        assert!(PUBLIC_MARKETING_HTTP_SCRIPT.contains("cache: \"no-store\""));
-        assert!(!PUBLIC_MARKETING_HTTP_SCRIPT.contains("localStorage"));
-        assert!(!PUBLIC_MARKETING_HTTP_SCRIPT.contains("sessionStorage"));
-        assert!(!PUBLIC_MARKETING_HTTP_SCRIPT.contains("?token="));
-    }
-
-    #[test]
     fn initial_deep_link_dispatch_covers_each_console_surface() {
         assert_eq!(
             console_deep_link("/work"),
@@ -47999,7 +48505,13 @@ mod tests {
         );
         assert_eq!(
             console_deep_link("/ai"),
-            Some(ConsoleDeepLink::Workspace(WorkspaceId::AiCollaboration))
+            Some(ConsoleDeepLink::Workspace(RegisteredWorkspaceRoute {
+                workspace: Some(WorkspaceId::AiCollaboration),
+                feature_id: "ai-collaboration",
+                route_root: "/ai",
+                navigation_route_id: "ai",
+                canonical_path: "/ai".to_owned(),
+            }))
         );
         for workspace in WORKSPACES {
             assert!(
@@ -48007,6 +48519,15 @@ mod tests {
                 "typed workspace route {} is not registered",
                 workspace.route
             );
+        }
+        for feature in erpx_ui_kit::CurrentFeatureKind::ALL {
+            for family in feature.record_families() {
+                let collection = family.collection_path();
+                assert!(
+                    console_deep_link(&collection).is_some(),
+                    "current workspace collection route {collection} is not registered",
+                );
+            }
         }
         assert_eq!(
             console_deep_link("/platform/directories?tab=connectors"),
@@ -48079,6 +48600,152 @@ mod tests {
         assert!(module_matches_query(&finance, "การเงิน"));
         assert!(module_matches_query(&finance, "ผู้ดูข้อมูล การเงิน"));
         assert!(!module_matches_query(&finance, "Sales"));
+    }
+
+    fn role_option(
+        selection_id: &str,
+        role_key: &str,
+        scope_key: &str,
+    ) -> super::ActiveRoleOptionModel {
+        super::ActiveRoleOptionModel {
+            selection_id: selection_id.to_owned(),
+            source: "local".into(),
+            role_key: role_key.to_owned(),
+            scope_key: scope_key.to_owned(),
+            expires_at: None,
+            requires_mfa: false,
+        }
+    }
+
+    #[test]
+    fn module_role_preselection_chooses_the_lowest_authorized_level() {
+        let options = vec![
+            role_option("operator", "finance_operator", "holding:one"),
+            role_option("approver", "finance_approver", "holding:one"),
+            role_option("viewer", "finance_viewer", "holding:one"),
+        ];
+        let required = vec![
+            "finance_approver".to_owned(),
+            "finance_operator".to_owned(),
+            "finance_viewer".to_owned(),
+        ];
+        assert_eq!(
+            super::preferred_module_role_selection(&options, &required, "holding:one"),
+            Some("viewer".to_owned())
+        );
+    }
+
+    #[test]
+    fn module_role_preselection_prefers_the_current_scope_at_the_same_level() {
+        let options = vec![
+            role_option("viewer-one", "finance_viewer", "holding:one"),
+            role_option("viewer-two", "finance_viewer", "holding:two"),
+            role_option("operator", "finance_operator", "holding:two"),
+        ];
+        let required = vec!["finance_viewer".to_owned(), "finance_operator".to_owned()];
+        assert_eq!(
+            super::preferred_module_role_selection(&options, &required, "holding:two"),
+            Some("viewer-two".to_owned())
+        );
+    }
+
+    #[test]
+    fn module_role_preselection_stays_unselected_when_scope_is_ambiguous() {
+        let options = vec![
+            role_option("viewer-one", "finance_viewer", "holding:one"),
+            role_option("viewer-two", "finance_viewer", "holding:two"),
+        ];
+        assert_eq!(
+            super::preferred_module_role_selection(
+                &options,
+                &["finance_viewer".to_owned()],
+                "holding:three",
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn module_role_preselection_fails_closed_without_an_eligible_assignment() {
+        let options = vec![
+            role_option("sales", "sales_viewer", "holding:one"),
+            role_option("custom", "finance_custom", "holding:one"),
+        ];
+        assert_eq!(
+            super::preferred_module_role_selection(
+                &options,
+                &["finance_viewer".to_owned(), "finance_custom".to_owned()],
+                "holding:one",
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn module_role_navigation_waits_for_the_new_manifest_and_fails_closed() {
+        let pending = super::RoleReconcilePending {
+            generation: 9,
+            destination: Some("/finance".into()),
+        };
+        let authorized = Ok(vec![erpx_ui_core::NavGroup::new(
+            "Business Modules",
+            vec![
+                erpx_ui_core::NavItem::new("Finance", "/finance", "finance")
+                    .with_manifest_metadata("finance", "nav.business_unit.finance"),
+            ],
+        )]);
+        assert_eq!(
+            super::role_reconcile_action(&pending, "holding:one", "holding:one", 8, &authorized,),
+            super::RoleReconcileAction::Wait
+        );
+        assert_eq!(
+            super::role_reconcile_action(&pending, "holding:one", "holding:one", 9, &authorized,),
+            super::RoleReconcileAction::OpenDestination("/finance".into())
+        );
+
+        let denied = Ok(vec![erpx_ui_core::NavGroup::new(
+            "Business Modules",
+            vec![
+                erpx_ui_core::NavItem::new("Sales", "/sales", "sales")
+                    .with_manifest_metadata("sales", "nav.business_unit.sales"),
+            ],
+        )]);
+        assert_eq!(
+            super::role_reconcile_action(&pending, "holding:one", "holding:one", 9, &denied,),
+            super::RoleReconcileAction::DestinationDenied
+        );
+        assert_eq!(
+            super::role_reconcile_action(
+                &pending,
+                "holding:one",
+                "holding:one",
+                9,
+                &Err("navigation unavailable".to_owned()),
+            ),
+            super::RoleReconcileAction::ManifestUnavailable
+        );
+    }
+
+    #[test]
+    fn authenticated_role_dialog_keeps_selection_and_submission_separate() {
+        let source = include_str!("composition.rs");
+        let card = source
+            .split_once("fn WorkRoleCard(")
+            .and_then(|(_, rest)| rest.split_once("fn ActiveRoleSelectionSurface("))
+            .map(|(body, _)| body)
+            .expect("work role card component");
+        assert!(card.contains("on_select.call(selection_id.clone())"));
+        assert!(!card.contains("select_active_role("));
+
+        let dialog = source
+            .split_once("fn RoleSelectionDialog(")
+            .and_then(|(_, rest)| rest.split_once("fn AddAccountDialog("))
+            .map(|(body, _)| body)
+            .expect("authenticated role dialog");
+        assert!(dialog.contains("role-selection-actions"));
+        assert!(dialog.contains("on_confirm.call(())"));
+        assert!(dialog.contains("on_close.call(())"));
+        assert!(!dialog.contains("select_active_role("));
     }
 
     #[test]
@@ -48224,6 +48891,20 @@ mod tests {
                 context.path()
             );
         }
+        for feature in erpx_ui_kit::CurrentFeatureKind::ALL {
+            if WORKSPACES
+                .iter()
+                .any(|workspace| workspace.route == feature.root())
+            {
+                for family in feature.record_families() {
+                    let collection = family.collection_path();
+                    assert!(
+                        super::navigation_authorizes_console_path(&collection, &all_groups),
+                        "manifest rejected registered collection {collection}",
+                    );
+                }
+            }
+        }
         assert!(super::navigation_authorizes_console_path(
             "/marketing/content",
             &all_groups
@@ -48320,26 +49001,6 @@ mod tests {
                 Some(ConsoleDeepLink::PlatformOperations(expected)),
                 "side-menu route selected a different page: {path}",
             );
-        }
-    }
-
-    #[test]
-    fn browser_history_bridge_keeps_route_state_in_app_without_session_reload() {
-        for event in ["popstate", "hashchange"] {
-            assert!(BROWSER_ROUTE_HISTORY_SCRIPT.contains(event));
-        }
-        assert!(BROWSER_ROUTE_HISTORY_SCRIPT.contains("dioxus.send(currentPath())"));
-        assert!(BROWSER_ROUTE_HISTORY_SCRIPT.contains("emitPath();"));
-        for forbidden in [
-            "location.reload",
-            "location.assign",
-            "localStorage",
-            "sessionStorage",
-            "access_token",
-            "password",
-            "credential",
-        ] {
-            assert!(!BROWSER_ROUTE_HISTORY_SCRIPT.contains(forbidden));
         }
     }
 

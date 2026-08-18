@@ -54,8 +54,8 @@ The clean persistence baseline is schema generation v2, beginning at migration
 `0001` for newly provisioned control-write, control-read, tenant-write, and
 tenant-read databases. Context-owned aggregate data is normalized. JSONB is
 limited to naturally document-shaped, versioned payloads. Bootstrap creates new
-databases and profiles, rejects non-v2 manifests, and never deletes or mutates
-the pre-cutover databases or `.runtime/n8n/`.
+databases and profiles, rejects unsupported manifests, and never deletes or
+mutates the pre-cutover databases or object namespaces.
 
 The release is an atomic hard cutover to one signed artifact and one coherent
 route/service/event/schema generation. Rollback switches to the preserved

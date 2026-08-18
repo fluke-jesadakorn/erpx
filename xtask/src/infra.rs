@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 use sqlx::{Connection, Executor, PgConnection, Row, postgres::PgPoolOptions};
 use uuid::Uuid;
 
-use crate::{TaskResult, runtime_binary, runtime_target_dir};
+use crate::{TaskResult, runtime_binary};
 
 const POSTGRES_DATA: &str = "/Users/fluke/erpx-postgres-data";
 const WAL_SPOOL: &str = "/Users/fluke/erpx-wal-spool";
@@ -809,7 +809,6 @@ pub(crate) async fn start(root: &Path) -> TaskResult {
     let secrets = read_secrets(root)?;
     let build = Command::new("cargo")
         .args(["build", "--offline", "-p", "erpx-wal-archive"])
-        .env("CARGO_TARGET_DIR", runtime_target_dir(root))
         .current_dir(root)
         .status()?;
     if !build.success() {
@@ -1298,26 +1297,18 @@ pub(crate) fn stop(root: &Path) -> TaskResult {
         let _ = Command::new("kill")
             .args(["-TERM", &pid.to_string()])
             .status();
-        for _ in 0..100 {
-            let alive = Command::new("kill")
-                .args(["-0", &pid.to_string()])
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()
-                .is_ok_and(|status| status.success());
-            if !alive {
+        for _ in 0..300 {
+            // `kill -0` remains successful for an exited child that has not
+            // yet been reaped by this long-running xtask. The command match
+            // distinguishes that zombie from a live MinIO server and also
+            // protects against PID reuse.
+            if !minio_running(root) {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
-        if Command::new("kill")
-            .args(["-0", &pid.to_string()])
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|status| status.success())
-        {
-            return Err("dedicated MinIO did not stop within ten seconds".into());
+        if minio_running(root) {
+            return Err("dedicated MinIO did not stop within thirty seconds".into());
         }
     }
     if pid_path.exists() {
@@ -1523,7 +1514,7 @@ pub(crate) async fn migrate_all_erpx_databases(
         migration_root.join("manifest.json"),
         serde_json::to_vec_pretty(&manifest)?,
     )?;
-    write_cutover_config(root, &secrets)?;
+    write_cutover_config(root, &secrets, "erpx_control_write")?;
     println!(
         "Migration complete: {} databases verified; source cluster was not modified.",
         names.len()
@@ -1531,7 +1522,11 @@ pub(crate) async fn migrate_all_erpx_databases(
     Ok(())
 }
 
-fn write_cutover_config(root: &Path, secrets: &InfraSecrets) -> TaskResult {
+fn write_cutover_config(
+    root: &Path,
+    secrets: &InfraSecrets,
+    control_write_database: &str,
+) -> TaskResult {
     let environment = root.join(".env.local");
     let cutover = runtime(root).join("cutover");
     create_private_directory(&cutover)?;
@@ -1549,7 +1544,7 @@ fn write_cutover_config(root: &Path, secrets: &InfraSecrets) -> TaskResult {
         ("POSTGRES_PORT", POSTGRES_PORT.to_string()),
         ("POSTGRES_USER", "erpx_app".to_owned()),
         ("POSTGRES_PASSWORD", secrets.postgres_app_password.clone()),
-        ("POSTGRES_DB", "erpx_control_write".to_owned()),
+        ("POSTGRES_DB", control_write_database.to_owned()),
         (
             "ERPX_POSTGRES_CA_CERTIFICATE_PATH",
             ca_path(root).display().to_string(),
@@ -1608,8 +1603,192 @@ fn write_cutover_config(root: &Path, secrets: &InfraSecrets) -> TaskResult {
 }
 
 pub(crate) fn activate_cutover_config(root: &Path) -> TaskResult {
-    write_cutover_config(root, &read_secrets(root)?)?;
+    write_cutover_config(root, &read_secrets(root)?, "erpx_control_write")?;
     println!("ERPX ignored local configuration now targets the dedicated TLS data plane.");
+    Ok(())
+}
+
+pub(crate) fn pitr_reconfiguration_fence(root: &Path) -> TaskResult {
+    match local_pitr_lease_state(root, Utc::now())? {
+        LocalPitrLeaseState::Disabled => Ok(()),
+        LocalPitrLeaseState::Active(_) => {
+            Err("reconfigure-local refuses an active PITR rehearsal lease".into())
+        }
+        LocalPitrLeaseState::Stale => {
+            Err("reconfigure-local requires stale PITR evidence to be reconciled first".into())
+        }
+    }
+}
+
+async fn alter_postgres_role_passwords(
+    connection: &mut PgConnection,
+    secrets: &InfraSecrets,
+) -> TaskResult {
+    for (role, password) in [
+        ("erpx_admin", &secrets.postgres_admin_password),
+        ("erpx_app", &secrets.postgres_app_password),
+        ("erpx_backup", &secrets.postgres_backup_password),
+        ("erpx_restore", &secrets.postgres_restore_password),
+    ] {
+        if !password.bytes().all(|byte| byte.is_ascii_alphanumeric()) {
+            return Err("generated PostgreSQL credential is outside the safe alphabet".into());
+        }
+        connection
+            .execute(format!("ALTER ROLE {role} PASSWORD '{password}'").as_str())
+            .await?;
+    }
+    Ok(())
+}
+
+fn validate_reconfiguration_path(root: &Path, path: &Path) -> TaskResult {
+    let runtime_parent = root.join(".runtime");
+    let parent = path.parent().ok_or("reconfiguration path has no parent")?;
+    if parent != runtime_parent || !path.starts_with(&runtime_parent) {
+        return Err("reconfiguration path escapes the fixed runtime parent".into());
+    }
+    if path.exists() {
+        let metadata = fs::symlink_metadata(path)?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err("reconfiguration path is not a bounded directory".into());
+        }
+    }
+    Ok(())
+}
+
+pub(crate) async fn reconfigure_local(
+    root: &Path,
+    control_write_database: &str,
+    database_names: &[String],
+    object_namespace: &str,
+    staged_manifest: &[u8],
+) -> TaskResult {
+    validate_fixed_roots()?;
+    pitr_reconfiguration_fence(root)?;
+    validate_database_name(control_write_database)?;
+    for database in database_names {
+        validate_database_name(database)?;
+    }
+    erpx_infrastructure::MinioObjectStore::validate_namespace_reference(object_namespace)
+        .map_err(|_| "reconfigure-local object namespace is invalid")?;
+
+    let runtime_parent = root.join(".runtime");
+    let nonce = Uuid::new_v4().simple().to_string();
+    let stage_root = runtime_parent.join(format!(".erpx-reconfigure-stage-root-{nonce}"));
+    let backup = runtime_parent.join(format!(".erpx-reconfigure-backup-{nonce}"));
+    validate_reconfiguration_path(root, &stage_root)?;
+    validate_reconfiguration_path(root, &backup)?;
+    create_private_directory(&stage_root)?;
+    init(&stage_root)?;
+    let staged_runtime = runtime(&stage_root);
+    let staged_manifest_path = staged_runtime.join("cutover/fresh-state.json");
+    create_private_directory(
+        staged_manifest_path
+            .parent()
+            .ok_or("staged manifest has no parent")?,
+    )?;
+    write_private(&staged_manifest_path, staged_manifest)?;
+
+    let old_secrets = read_secrets(root)?;
+    let new_secrets = read_secrets(&stage_root)?;
+    let environment = root.join(".env.local");
+    let environment_before = environment
+        .exists()
+        .then(|| fs::read(&environment))
+        .transpose()?;
+
+    // The outer reconfiguration fence stops the active local stack before
+    // staging. Bring the retained roots back with the old runtime material so
+    // the role rotation is performed against the verified installation.
+    start(root).await?;
+    let mut old_admin = PgConnection::connect(&admin_url(root, &old_secrets, "postgres")).await?;
+    alter_postgres_role_passwords(&mut old_admin, &new_secrets).await?;
+    drop(old_admin);
+
+    if let Err(error) = stop(root) {
+        let mut rollback_admin =
+            PgConnection::connect(&admin_url(root, &new_secrets, "postgres")).await?;
+        alter_postgres_role_passwords(&mut rollback_admin, &old_secrets).await?;
+        drop(rollback_admin);
+        start(root).await?;
+        if stage_root.exists() {
+            fs::remove_dir_all(&stage_root)?;
+        }
+        return Err(format!(
+            "reconfigure-local restored the original role credentials after shutdown failed: {error}"
+        )
+        .into());
+    }
+    let live_runtime = runtime(root);
+    fs::rename(&live_runtime, &backup)?;
+    fs::rename(&staged_runtime, &live_runtime)?;
+    let _ = fs::remove_dir_all(&stage_root);
+
+    let attempt = async {
+        write_cutover_config(root, &new_secrets, control_write_database)?;
+        start(root).await?;
+        let mut admin = PgConnection::connect(&admin_url(root, &new_secrets, "postgres")).await?;
+        let current_user: String = sqlx::query_scalar("SELECT current_user")
+            .fetch_one(&mut admin)
+            .await?;
+        if current_user != "erpx_admin" {
+            return Err("reconfigure-local PostgreSQL administrator probe failed".into());
+        }
+        for database in database_names {
+            let mut app = PgConnection::connect(&app_url(root, &new_secrets, database)).await?;
+            let _: i32 = sqlx::query_scalar("SELECT 1").fetch_one(&mut app).await?;
+        }
+        wait_minio(root, &new_secrets)?;
+        let status = Command::new("mc")
+            .args([
+                "--config-dir",
+                infra_runtime(root)
+                    .join("mc-config")
+                    .to_str()
+                    .ok_or("invalid MinIO client config path")?,
+                "ls",
+                &format!("erpx-dedicated/{object_namespace}"),
+            ])
+            .env("SSL_CERT_FILE", ca_path(root))
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()?;
+        if !status.success() {
+            return Err("reconfigure-local retained MinIO namespace probe failed".into());
+        }
+        Ok::<(), Box<dyn std::error::Error + Send + Sync>>(())
+    }
+    .await;
+
+    if let Err(error) = attempt {
+        let _ = stop(root);
+        if live_runtime.exists() {
+            fs::remove_dir_all(&live_runtime)?;
+        }
+        fs::rename(&backup, &live_runtime)?;
+        match environment_before {
+            Some(bytes) => {
+                fs::write(&environment, bytes)?;
+                fs::set_permissions(&environment, fs::Permissions::from_mode(0o600))?;
+            }
+            None if environment.exists() => fs::remove_file(&environment)?,
+            None => {}
+        }
+        start(root).await?;
+        let mut rollback_admin =
+            PgConnection::connect(&admin_url(root, &new_secrets, "postgres")).await?;
+        alter_postgres_role_passwords(&mut rollback_admin, &old_secrets).await?;
+        return Err(format!("reconfigure-local rolled back after probe failure: {error}").into());
+    }
+
+    fs::remove_dir_all(&backup)?;
+    let retired_runtime = runtime_parent.join("n8n");
+    if retired_runtime.exists() {
+        validate_reconfiguration_path(root, &retired_runtime)?;
+        fs::remove_dir_all(&retired_runtime)?;
+    }
+    println!(
+        "Local credentials and TLS were rotated; retained databases and MinIO objects passed probes."
+    );
     Ok(())
 }
 
@@ -1738,7 +1917,7 @@ fn quote_identifier(value: &str) -> String {
 }
 
 fn validate_database_name(value: &str) -> TaskResult {
-    if !value.starts_with("erpx_")
+    if !(value.starts_with("erpx_") || value.starts_with("erpxv8_"))
         || value.len() > 63
         || !value
             .bytes()

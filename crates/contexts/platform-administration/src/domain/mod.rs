@@ -39,6 +39,8 @@ pub enum PlatformAdministrationDomainError {
     InvalidTenantTransition,
     #[error("connector lifecycle transition is not allowed")]
     InvalidConnectorTransition,
+    #[error("connector kind is not supported")]
+    InvalidConnectorKind,
     #[error("connector configuration digest must be a SHA-256 hexadecimal digest")]
     InvalidConfigurationDigest,
     #[error("connector capability set is invalid")]

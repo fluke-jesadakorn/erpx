@@ -1,5 +1,14 @@
 mod records;
+mod sales_posting;
 pub use records::{FinanceRecord, FinanceRecordError, FinanceRecordKind, FinanceRecordStatus};
+pub use sales_posting::{
+    AccountingObligation, AccountingPlan, AccountingPlanId, AccountingPlanStatus,
+    AccountingPlanSuggestionPayload, AccountingPlanSuggestionProvenance, FinanceTaxClassification,
+    FinanceTaxProfileSnapshot, PostingActuals, PostingEntry, PostingInstructions, PostingPacket,
+    PostingPacketId, PostingPacketStatus, PostingReceipt, PostingReviewRecommendation,
+    PostingReviewSuggestionPayload, PostingSide, PostingValidationContext, SalesAccountRoles,
+    SalesPostingError,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 
