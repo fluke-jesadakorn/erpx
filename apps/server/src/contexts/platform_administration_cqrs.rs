@@ -19,7 +19,7 @@ use erpx_platform_administration::{
     RegisterConnector, RegisterPlatformTenant, RevokeTenantAdminContext, TenantLifecycleAction,
     TenantLifecycleState, TenantView, TransitionConnector, TransitionPlatformTenant,
 };
-use erpx_proto::{common, erpx::platform_administration::v1 as platform};
+use erpx_proto::{common, erpx::platform_administration::v2 as platform};
 use std::{collections::BTreeSet, sync::Arc};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;

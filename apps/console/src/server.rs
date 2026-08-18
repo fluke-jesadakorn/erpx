@@ -1,12 +1,10 @@
 //! Server-only composition root for the Web SSR/BFF process.
 
 use crate::bff::{
-    BffState, accounts, activate_account, activate_role, dashboard_read_model, delete_account,
-    delete_session, development_proxy, directory_login, grpc_proxy, identity_proxy,
-    navigation_manifest, passkey_authentication_begin, passkey_authentication_finish,
-    password_login, password_login_form, password_login_form_entry, public_brand_asset_proxy,
-    public_branding_proxy, public_marketing_proxy, recovery_login, role_options,
-    session_middleware, session_snapshot, upgrade_legacy_session, work_queue_read_model,
+    BffState, accounts, activate_account, activate_role, delete_account, directory_login,
+    passkey_authentication_begin, passkey_authentication_finish, password_login,
+    password_login_form, password_login_form_entry, recovery_login, role_options,
+    session_middleware,
 };
 use dioxus::server::{
     axum::{
@@ -61,53 +59,26 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
     )?;
 
     Ok(dioxus_router(crate::App)
-        .route(erpx_console_bff::SESSION_PATH, get(session_snapshot))
-        .route(erpx_console_bff::NAVIGATION_PATH, post(navigation_manifest))
-        .route(erpx_console_bff::DASHBOARD_PATH, get(dashboard_read_model))
+        .route("/api/v2/auth/password", post(password_login))
         .route(
-            erpx_console_bff::WORK_ITEMS_PATH,
-            get(work_queue_read_model),
-        )
-        .route("/api/v1/auth/password", post(password_login))
-        .route(
-            "/api/v1/auth/password/form",
+            "/api/v2/auth/password/form",
             get(password_login_form_entry).post(password_login_form),
         )
-        .route("/api/v1/auth/directory", post(directory_login))
+        .route("/api/v2/auth/directory", post(directory_login))
         .route(
-            "/api/v1/auth/passkeys/authentication/begin",
+            "/api/v2/auth/passkeys/authentication/begin",
             post(passkey_authentication_begin),
         )
         .route(
-            "/api/v1/auth/passkeys/authentication/finish",
+            "/api/v2/auth/passkeys/authentication/finish",
             post(passkey_authentication_finish),
         )
-        .route("/api/v1/auth/recovery", post(recovery_login))
-        .route("/api/v1/accounts", get(accounts))
-        .route("/api/v1/accounts/activate", post(activate_account))
-        .route("/api/v1/accounts/{session_id}", delete(delete_account))
-        .route("/api/v1/roles", get(role_options))
-        .route("/api/v1/roles/activate", post(activate_role))
-        .route(erpx_console_bff::SESSION_PATH, delete(delete_session))
-        .route(erpx_console_bff::GRPC_PROXY_PATH, post(grpc_proxy))
-        .route(
-            "/api/v1/identity/{*identity_path}",
-            post(identity_proxy).get(identity_proxy),
-        )
-        .route(
-            "/api/v1/dev-access/{*development_path}",
-            post(development_proxy).get(development_proxy),
-        )
-        .route("/api/v1/public/branding", get(public_branding_proxy))
-        .route(
-            "/api/v1/public/branding/assets/{kind}",
-            get(public_brand_asset_proxy),
-        )
-        .route(
-            "/api/v1/public/marketing/{*public_path}",
-            post(public_marketing_proxy).get(public_marketing_proxy),
-        )
-        .route("/auth/bff/upgrade", post(upgrade_legacy_session))
+        .route("/api/v2/auth/recovery", post(recovery_login))
+        .route("/api/v2/accounts", get(accounts))
+        .route("/api/v2/accounts/activate", post(activate_account))
+        .route("/api/v2/accounts/{session_id}", delete(delete_account))
+        .route("/api/v2/roles", get(role_options))
+        .route("/api/v2/roles/activate", post(activate_role))
         .layer(CompressionLayer::new())
         .layer(middleware::from_fn(session_middleware))
         .layer(Extension(state)))

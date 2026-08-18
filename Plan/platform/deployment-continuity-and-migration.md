@@ -94,7 +94,7 @@ and retains recovery evidence.
 
 **Sources.** [Customer data-plane decision](../../adr/ADR-011-customer-data-plane-agent.md),
 [data-plane agent](../../apps/data-plane-agent/src/lib.rs),
-[data-plane API](../../crates/proto/proto/erpx/platform_administration/v1/service.proto).
+[data-plane API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto).
 
 ## Continuity and recovery
 
@@ -111,7 +111,7 @@ object and database inventory is captured; failed or partial jobs are not
 reported complete; credentials remain out of job records; retention does not
 delete an active or held recovery point.
 
-**Sources.** [Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v1/service.proto),
+**Sources.** [Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
 [backup runtime](../../apps/worker/src/backup_runtime.rs),
 [backup tests](../../apps/worker/tests/backup_retention.rs).
 
@@ -355,7 +355,7 @@ failure, and replacement state by tenant and physical route.
 credentials; threshold breach alerts; dashboards and clients receive the same
 freshness classification; rebuild progress is distinguishable from failure.
 
-**Sources.** [Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v1/service.proto),
+**Sources.** [Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
 [production alerts](../../ops/observability/erpx-web-production-alerts.yml).
 
 ### REQ-OBS-003 — Worker heartbeat and queue state

@@ -11,7 +11,7 @@ use erpx_pos::{
     RefundList, RefundStatus, RefundView, RegisterId, SaleId, SaleLine, SaleLineId, SaleList,
     SaleStatus, SaleView,
 };
-use erpx_proto::erpx::pos::v1 as wire;
+use erpx_proto::erpx::pos::v2 as wire;
 use erpx_ui_foundation::UiError;
 
 type Commands =
@@ -314,7 +314,7 @@ impl PosProtoTransport for PosGrpcTransport {
 }
 
 fn sale_identity(
-    metadata: erpx_proto::common::v1::CommandRequestMetadata,
+    metadata: erpx_proto::common::v2::CommandRequestMetadata,
     id: SaleId,
 ) -> wire::PosSaleIdentityRequest {
     wire::PosSaleIdentityRequest {
@@ -323,7 +323,7 @@ fn sale_identity(
     }
 }
 fn refund_identity(
-    metadata: erpx_proto::common::v1::CommandRequestMetadata,
+    metadata: erpx_proto::common::v2::CommandRequestMetadata,
     id: RefundId,
 ) -> wire::PosRefundIdentityRequest {
     wire::PosRefundIdentityRequest {

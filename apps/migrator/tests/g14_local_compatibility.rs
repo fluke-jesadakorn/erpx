@@ -15,10 +15,10 @@ use std::{
 
 use erpx_proto::{
     FILE_DESCRIPTOR_SET,
-    common::v1::{ActorAttribution, CommandContext},
+    common::v2::{ActorAttribution, CommandContext},
     erpx::{
-        identity_access::v1::DirectoryConnectorSummary,
-        platform_administration::v1::{PitrRecoveryPoint, ScheduleTenantBackupRequest},
+        identity_access::v2::DirectoryConnectorSummary,
+        platform_administration::v2::{PitrRecoveryPoint, ScheduleTenantBackupRequest},
     },
 };
 use prost::Message;
@@ -29,15 +29,16 @@ use prost_types::{
 
 const PROTO_BUILD: &str = include_str!("../../../crates/proto/build.rs");
 const IDENTITY_ACCESS_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/identity_access/v1/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/identity_access/v2/service.proto");
 const PLATFORM_ADMINISTRATION_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform_administration/v1/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/platform_administration/v2/service.proto");
 const MOBILE_AUTH: &str = include_str!("../../../crates/ui/src/auth.rs");
 const MOBILE_SESSION_TARGET: &str = include_str!("../../../crates/ui/src/session_target.rs");
 const ANDROID_BRIDGE: &str = include_str!("../../../crates/android-bridge/src/lib.rs");
 const CONSOLE_COMPOSITION: &str = include_str!("../../console/src/composition.rs");
 const CONSOLE_TRANSPORT: &str = include_str!("../../console/src/transport/mod.rs");
 const CONSOLE_PLATFORM: &str = include_str!("../../console/src/platform.rs");
+const CONSOLE_NATIVE_DELIVERY: &str = include_str!("../../console/src/native_delivery.rs");
 const CONSOLE_HTTP: &str = include_str!("../../console/src/platform/http.rs");
 const CONSOLE_PREFERENCES: &str = include_str!("../../console/src/platform/preferences.rs");
 const PITR: &str = include_str!("../../../crates/infrastructure/src/pitr.rs");
@@ -835,15 +836,15 @@ fn g14_generated_descriptor_is_self_consistent_and_g14_fields_are_wire_stable() 
         .iter()
         .filter_map(|file| file.name.as_deref())
         .collect::<BTreeSet<_>>();
-    assert!(names.contains("erpx/interface/v1/reference.proto"));
+    assert!(names.contains("erpx/interface/v2/reference.proto"));
     assert!(names.contains("erpx/catalog/v2/active.proto"));
-    assert!(names.contains("erpx/common/v1/context.proto"));
-    assert!(!names.contains("erpx/platform/v1/platform.proto"));
+    assert!(names.contains("erpx/common/v2/context.proto"));
+    assert!(!names.contains("erpx/platform/v2/platform.proto"));
 
     let inventory = descriptor_inventory(&set);
     let resolve = inventory
         .messages
-        .get("erpx.interface.v1.ResolveReferenceRequest")
+        .get("erpx.interface.v2.ResolveReferenceRequest")
         .expect("stable reference request must be generated");
     for (number, name) in [(1, "record_id"), (2, "authority_scope"), (3, "purpose")] {
         assert_eq!(
@@ -855,14 +856,14 @@ fn g14_generated_descriptor_is_self_consistent_and_g14_fields_are_wire_stable() 
 
     let reference_service = inventory
         .services
-        .get("erpx.reference.v1.ReferenceQueryService")
+        .get("erpx.reference.v2.ReferenceQueryService")
         .expect("reference query service must be active");
     assert!(reference_service.contains_key("Resolve"));
     assert!(reference_service.contains_key("Search"));
     assert!(reference_service.contains_key("ListBacklinks"));
     let collaboration_service = inventory
         .services
-        .get("erpx.collaboration.v1.CollaborationCommandService")
+        .get("erpx.collaboration.v2.CollaborationCommandService")
         .expect("collaboration command service must be active");
     assert!(collaboration_service.contains_key("CreateThread"));
     assert!(collaboration_service.contains_key("AddComment"));
@@ -870,7 +871,7 @@ fn g14_generated_descriptor_is_self_consistent_and_g14_fields_are_wire_stable() 
         inventory
             .services
             .keys()
-            .all(|service| !service.starts_with("erpx.platform.v1."))
+            .all(|service| !service.starts_with("erpx.platform.v2."))
     );
 }
 
@@ -1051,7 +1052,7 @@ fn g14_descriptor_comparison_rejects_incompatible_field_changes() {
         .expect_err("an incompatible approved descriptor must fail closed");
     assert!(
         error.contains(
-            "approved field changed incompatibly: erpx.interface.v1.ResolveReferenceRequest.1"
+            "approved field changed incompatibly: erpx.interface.v2.ResolveReferenceRequest.1"
         ),
         "unexpected compatibility error: {error}"
     );
@@ -1121,7 +1122,7 @@ fn g14_descriptor_self_consistency_rejects_duplicate_declarations() {
     let duplicate_message = FileDescriptorSet {
         file: vec![FileDescriptorProto {
             name: Some("duplicate-message.proto".into()),
-            package: Some("erpx.test.v1".into()),
+            package: Some("erpx.test.v2".into()),
             message_type: vec![
                 DescriptorProto {
                     name: Some("Duplicate".into()),
@@ -1144,7 +1145,7 @@ fn g14_descriptor_self_consistency_rejects_duplicate_declarations() {
     let duplicate_field_name = FileDescriptorSet {
         file: vec![FileDescriptorProto {
             name: Some("duplicate-field.proto".into()),
-            package: Some("erpx.test.v1".into()),
+            package: Some("erpx.test.v2".into()),
             message_type: vec![DescriptorProto {
                 name: Some("Message".into()),
                 field: vec![
@@ -1176,7 +1177,7 @@ fn g14_descriptor_self_consistency_rejects_fields_in_reserved_ranges() {
     let reserved_field = FileDescriptorSet {
         file: vec![FileDescriptorProto {
             name: Some("reserved-field.proto".into()),
-            package: Some("erpx.test.v1".into()),
+            package: Some("erpx.test.v2".into()),
             message_type: vec![DescriptorProto {
                 name: Some("Message".into()),
                 field: vec![FieldDescriptorProto {
@@ -1377,9 +1378,20 @@ fn g14_console_deployment_inputs_are_source_bound_and_tls_when_configured() {
         CONSOLE_PLATFORM,
         "apps/console/src/platform.rs",
         &[
-            "std::env::var(\"ERPX_NATIVE_HTTP_ORIGIN\")",
-            "std::env::var(\"ERPX_NATIVE_GRPC_ENDPOINT\")",
-            "RuntimeCredentialSlot::new()",
+            "NativeCapability::Supported",
+            "NativeCapability::Degraded",
+            "NativeCapability::Unavailable",
+            "dioxus-native-blitz-wgpu",
+        ],
+    );
+    require_markers(
+        CONSOLE_NATIVE_DELIVERY,
+        "apps/console/src/native_delivery.rs",
+        &[
+            "ERPX_NATIVE_GRPC_ENDPOINT",
+            "Endpoint::from_shared",
+            "endpoint.uri().scheme_str() != Some(\"https\")",
+            "endpoint.connect_lazy()",
         ],
     );
 
@@ -1454,20 +1466,20 @@ fn g14_descriptor_build_is_bound_to_the_checked_in_inputs() {
         &[
             "file_descriptor_set_path",
             "erpx_descriptor_set.bin",
-            "proto/erpx/identity_access/v1/service.proto",
-            "proto/erpx/platform_administration/v1/service.proto",
+            "proto/erpx/identity_access/v2/service.proto",
+            "proto/erpx/platform_administration/v2/service.proto",
             "proto/erpx/catalog/v2/active.proto",
             "compile_protos(",
         ],
     );
     require_markers(
         PLATFORM_ADMINISTRATION_PROTO,
-        "proto/erpx/platform_administration/v1/service.proto",
+        "proto/erpx/platform_administration/v2/service.proto",
         &["message PitrRecoveryPoint", "rpc ScheduleTenantBackup"],
     );
     require_markers(
         IDENTITY_ACCESS_PROTO,
-        "proto/erpx/identity_access/v1/service.proto",
+        "proto/erpx/identity_access/v2/service.proto",
         &[
             "message DirectoryConnectorSummary",
             "service IdentityAccessQueryService",

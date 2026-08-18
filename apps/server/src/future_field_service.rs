@@ -12,7 +12,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
 };
 use erpx_kernel::{CommandId, CorrelationId, PrincipalId, RecordId};
-use erpx_proto::{common::v1 as common, erpx::field_service::v1 as wire};
+use erpx_proto::{common::v2 as common, erpx::field_service::v2 as wire};
 use prost::Message;
 use sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status};

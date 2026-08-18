@@ -23,7 +23,7 @@ use erpx_organization::{
     OrganizationPlacement, RenameOrganizationNode, ReparentOrganizationNode,
     SuspendOrganizationNode,
 };
-use erpx_proto::{common, erpx::organization::v1 as platform};
+use erpx_proto::{common, erpx::organization::v2 as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 

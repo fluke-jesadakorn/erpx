@@ -3,6 +3,10 @@
 //! This module may call application ports and native Tonic clients. Persistence
 //! adapters remain in the server composition root.
 
+// Historical G11/G14 source-bound acceptance tests still exercise the retired
+// façade helpers. The v2 server router does not register those handlers.
+#![allow(dead_code)]
+
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Duration, Utc};
 use dioxus::server::axum::{
@@ -39,8 +43,6 @@ use tokio::sync::Mutex;
 use uuid::Uuid;
 
 const PRIVATE_NO_STORE: &str = "private, no-store";
-const LEGACY_BUNDLE_COOKIE_NAME: &str = "erpx_session_bundle_v2";
-const MAX_LEGACY_COOKIE_BYTES: usize = 3_800;
 
 #[derive(Clone)]
 pub(crate) struct BffState {
@@ -1090,24 +1092,6 @@ fn unavailable_contribution(
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct LegacySessionEntry {
-    principal_ref: String,
-    session_id: String,
-    refresh_token: String,
-    refresh_expires_at: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct LegacySessionBundle {
-    version: u8,
-    active_session_id: String,
-    mru_session_ids: Vec<String>,
-    accounts: Vec<LegacySessionEntry>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct RotatedSession {
     principal_ref: String,
     session_id: String,
@@ -1716,88 +1700,6 @@ pub(crate) async fn delete_session(
     response
 }
 
-pub(crate) async fn grpc_proxy(
-    Extension(state): Extension<BffState>,
-    Extension(context): Extension<BffSessionContext>,
-    Path(grpc_path): Path<String>,
-    headers: HeaderMap,
-    request: Request,
-) -> Response {
-    let Some(credential) = context.credential else {
-        return (
-            StatusCode::UNAUTHORIZED,
-            "authenticated web session required",
-        )
-            .into_response();
-    };
-    if !same_origin_mutation(&headers, &state.trusted_public_origins)
-        || !grpc_route_allowed(&grpc_path)
-        || headers
-            .get(header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok())
-            .is_none_or(|value| !value.starts_with("application/grpc-web"))
-    {
-        return invalid_request();
-    }
-    let body = match to_bytes(request.into_body(), 16 * 1024 * 1024).await {
-        Ok(body) => body,
-        Err(_) => return invalid_request(),
-    };
-    let mut upstream = state
-        .auth_http
-        .post(format!("{}/{}", state.grpc_origin, grpc_path))
-        .header(
-            header::CONTENT_TYPE.as_str(),
-            headers
-                .get(header::CONTENT_TYPE)
-                .and_then(|value| value.to_str().ok())
-                .unwrap_or("application/grpc-web+proto"),
-        )
-        .header("x-erpx-access-token", credential.access_token.expose())
-        .header("x-erpx-actor", &credential.principal_ref)
-        .header("x-erpx-session", credential.session_id.to_string())
-        .body(body.to_vec());
-    if let Some(context_token) = context
-        .bundle
-        .as_ref()
-        .and_then(WebSessionBundle::active_account)
-        .and_then(|account| account.development_context_token.as_ref())
-    {
-        upstream = upstream.header("x-erpx-dev-persona-context", context_token.expose());
-    }
-    for name in ["x-grpc-web", "grpc-timeout", "te", "accept"] {
-        if let Some(value) = headers.get(name).and_then(|value| value.to_str().ok()) {
-            upstream = upstream.header(name, value);
-        }
-    }
-    let upstream = match upstream.send().await {
-        Ok(response) => response,
-        Err(_) => return unavailable(),
-    };
-    let status = upstream.status();
-    let response_headers = upstream.headers().clone();
-    let body = match upstream.bytes().await {
-        Ok(body) => body,
-        Err(_) => return unavailable(),
-    };
-    let mut response = Response::builder()
-        .status(status)
-        .header(header::CACHE_CONTROL, PRIVATE_NO_STORE);
-    for name in [
-        header::CONTENT_TYPE.as_str(),
-        "grpc-status",
-        "grpc-message",
-        "grpc-status-details-bin",
-    ] {
-        if let Some(value) = response_headers.get(name) {
-            response = response.header(name, value);
-        }
-    }
-    response
-        .body(Body::from(body))
-        .unwrap_or_else(|_| unavailable())
-}
-
 pub(crate) async fn identity_proxy(
     Extension(state): Extension<BffState>,
     Extension(context): Extension<BffSessionContext>,
@@ -2294,23 +2196,6 @@ async fn relay_public_response(request: reqwest::RequestBuilder, limit: usize) -
         .unwrap_or_else(|_| unavailable())
 }
 
-fn grpc_route_allowed(path: &str) -> bool {
-    let Some((service, method)) = path.split_once('/') else {
-        return false;
-    };
-    if method.is_empty()
-        || method.len() > 128
-        || !method
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-    {
-        return false;
-    }
-    erpx_integration_contracts::catalog::ACTIVE_SERVICES
-        .iter()
-        .any(|entry| service == format!("{}.{}", entry.package, entry.name))
-}
-
 async fn exchange_and_install(
     state: &BffState,
     context: BffSessionContext,
@@ -2670,145 +2555,6 @@ fn trusted_password_form_submission(
             .is_some_and(|destination| destination.eq_ignore_ascii_case("document"))
 }
 
-pub(crate) async fn upgrade_legacy_session(
-    Extension(state): Extension<BffState>,
-    headers: HeaderMap,
-) -> Response {
-    let Some(legacy) = legacy_bundle_from_headers(&headers) else {
-        return (StatusCode::UNAUTHORIZED, "legacy session unavailable").into_response();
-    };
-    let now = Utc::now();
-    let mut accounts = Vec::with_capacity(legacy.accounts.len());
-    for session_id in &legacy.mru_session_ids {
-        let Some(legacy_account) = legacy
-            .accounts
-            .iter()
-            .find(|account| &account.session_id == session_id)
-        else {
-            return (StatusCode::BAD_REQUEST, "legacy session invalid").into_response();
-        };
-        let response = match state
-            .auth_http
-            .post(format!("{}/auth/refresh", state.auth_http_origin))
-            .json(&serde_json::json!({
-                "session_id": legacy_account.session_id,
-                "refresh_token": legacy_account.refresh_token,
-            }))
-            .send()
-            .await
-        {
-            Ok(response) if response.status().is_success() => response,
-            Ok(_) => return (StatusCode::UNAUTHORIZED, "legacy session rejected").into_response(),
-            Err(_) => return unavailable(),
-        };
-        let rotated: RotatedSession = match response.json().await {
-            Ok(rotated) => rotated,
-            Err(_) => return unavailable(),
-        };
-        let account = match rotated_account(rotated, now) {
-            Ok(account) => account,
-            Err(()) => return unavailable(),
-        };
-        accounts.push(account);
-    }
-    let Some(active_session_id) = accounts
-        .iter()
-        .find(|account| account.session_id.to_string() == legacy.active_session_id)
-        .map(|account| account.session_id)
-    else {
-        return unavailable();
-    };
-    let Some(expires_at) = accounts
-        .iter()
-        .map(|account| account.refresh_expires_at)
-        .max()
-    else {
-        return unavailable();
-    };
-    let selector = match WebSessionSelector::generate() {
-        Ok(selector) => selector,
-        Err(_) => return unavailable(),
-    };
-    let bundle = WebSessionBundle {
-        id: Uuid::new_v4(),
-        selector_digest: selector.digest(),
-        active_session_id,
-        accounts,
-        version: 1,
-        created_at: now,
-        updated_at: now,
-        expires_at,
-    };
-    if state.sessions.insert(&bundle).await.is_err() {
-        return unavailable();
-    }
-    let snapshot = match SafeWebSessionSnapshot::from_bundle(&bundle) {
-        Ok(snapshot) => snapshot,
-        Err(_) => return unavailable(),
-    };
-    let mut response = Json(snapshot).into_response();
-    response.headers_mut().insert(
-        header::CACHE_CONTROL,
-        HeaderValue::from_static(PRIVATE_NO_STORE),
-    );
-    let secure = request_is_https(&headers);
-    append_cookie(
-        &mut response,
-        &format!(
-            "{WEB_SESSION_COOKIE_NAME}={}; Path=/; Max-Age={}; HttpOnly; SameSite=Strict{}",
-            URL_SAFE_NO_PAD.encode(selector.as_bytes()),
-            expires_at.signed_duration_since(now).num_seconds().max(0),
-            if secure { "; Secure" } else { "" }
-        ),
-    );
-    append_cookie(
-        &mut response,
-        &format!(
-            "{LEGACY_BUNDLE_COOKIE_NAME}=; Path=/auth; Max-Age=0; HttpOnly; SameSite=Strict{}",
-            if secure { "; Secure" } else { "" }
-        ),
-    );
-    response
-}
-
-fn legacy_bundle_from_headers(headers: &HeaderMap) -> Option<LegacySessionBundle> {
-    let encoded = cookie_value(headers, LEGACY_BUNDLE_COOKIE_NAME)?;
-    if encoded.is_empty() || encoded.len() > MAX_LEGACY_COOKIE_BYTES {
-        return None;
-    }
-    let decoded = URL_SAFE_NO_PAD.decode(encoded).ok()?;
-    let bundle: LegacySessionBundle = serde_json::from_slice(&decoded).ok()?;
-    if bundle.version != 2
-        || bundle.accounts.is_empty()
-        || bundle.accounts.len() > 5
-        || bundle.mru_session_ids.len() != bundle.accounts.len()
-        || bundle.accounts.iter().any(|account| {
-            account.principal_ref.trim().is_empty()
-                || account.principal_ref.len() > 256
-                || Uuid::parse_str(&account.session_id).is_err()
-                || account.refresh_token.is_empty()
-                || account.refresh_token.len() > 256
-                || DateTime::parse_from_rfc3339(&account.refresh_expires_at).is_err()
-        })
-    {
-        return None;
-    }
-    let sessions = bundle
-        .accounts
-        .iter()
-        .map(|account| account.session_id.as_str())
-        .collect::<std::collections::BTreeSet<_>>();
-    let mru = bundle
-        .mru_session_ids
-        .iter()
-        .map(String::as_str)
-        .collect::<std::collections::BTreeSet<_>>();
-    (sessions.len() == bundle.accounts.len()
-        && sessions == mru
-        && sessions.contains(bundle.active_session_id.as_str()))
-    .then_some(bundle)
-}
-
 fn rotated_account(rotated: RotatedSession, now: DateTime<Utc>) -> Result<WebSessionAccount, ()> {
     let active_role = match (rotated.active_role_source, rotated.active_role_selection_id) {
         (Some(source), Some(selection_id)) => Some(SafeActiveRole {
@@ -2967,7 +2713,7 @@ mod tests {
 
         headers.insert(
             header::COOKIE,
-            HeaderValue::from_static("erpx_web_session_v1=short"),
+            HeaderValue::from_static("erpx_web_session_v2=short"),
         );
         assert!(selector_from_headers(&headers).is_none());
     }
@@ -2995,7 +2741,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(
             response.headers().get(header::SET_COOKIE).unwrap(),
-            "erpx_web_session_v1=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict"
+            "erpx_web_session_v2=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict"
         );
     }
 
@@ -3061,27 +2807,28 @@ mod tests {
     #[test]
     fn console_pages_redirect_to_the_canonical_login_route() {
         let protected = Request::builder()
-            .uri("/platform/tenants?ignored=1")
+            .uri("/finance?ignored=1")
             .body(Body::empty())
             .unwrap();
         assert!(is_console_page_request(&protected));
         assert_eq!(
             console_page_redirect(&protected, &BffSessionContext::signed_out()),
-            Some("/login?return_to=/platform/tenants".to_owned())
+            Some("/auth/sign-in?return_to=%2Ffinance".to_owned())
         );
 
         let legacy = Request::builder()
-            .uri("/auth/sign-in")
+            .uri("/login")
             .body(Body::empty())
             .unwrap();
+        assert!(!is_console_page_request(&legacy));
         assert_eq!(
             console_page_redirect(&legacy, &BffSessionContext::signed_out()),
-            Some("/login".to_owned())
+            None
         );
     }
 
     #[test]
-    fn document_route_status_distinguishes_registered_forbidden_and_unknown_paths() {
+    fn document_route_status_distinguishes_registered_and_unknown_paths() {
         let registered = Request::builder()
             .uri("/finance")
             .body(Body::empty())
@@ -3091,13 +2838,13 @@ mod tests {
             Some(StatusCode::OK)
         );
 
-        let forbidden = Request::builder()
+        let legacy = Request::builder()
             .uri("/platform/tenants/demo-tenant/workspace/finance")
             .body(Body::empty())
             .unwrap();
         assert_eq!(
-            console_document_route_status(&forbidden),
-            Some(StatusCode::FORBIDDEN)
+            console_document_route_status(&legacy),
+            Some(StatusCode::NOT_FOUND)
         );
 
         let missing = Request::builder()
@@ -3119,14 +2866,14 @@ mod tests {
     #[test]
     fn authenticated_login_request_returns_to_a_validated_console_page() {
         let request = Request::builder()
-            .uri("/login?return_to=/platform/tenants")
+            .uri("/auth/sign-in?return_to=/finance")
             .body(Body::empty())
             .unwrap();
         let mut context = BffSessionContext::signed_out();
         context.snapshot.authenticated = true;
         assert_eq!(
             console_page_redirect(&request, &context),
-            Some("/platform/tenants".to_owned())
+            Some("/finance".to_owned())
         );
 
         context.snapshot.role_selection_required = true;
@@ -3138,12 +2885,12 @@ mod tests {
         let mut login_response = StatusCode::OK.into_response();
         append_cookie(
             &mut login_response,
-            "erpx_web_session_v1=opaque; Path=/; HttpOnly; SameSite=Strict",
+            "erpx_web_session_v2=opaque; Path=/; HttpOnly; SameSite=Strict",
         );
         let mut headers = HeaderMap::new();
         headers.insert(
             header::REFERER,
-            HeaderValue::from_static("https://console.example/login?return_to=/platform/tenants"),
+            HeaderValue::from_static("https://console.example/auth/sign-in?return_to=/finance"),
         );
 
         let response = password_form_response(login_response, &headers);
@@ -3151,29 +2898,34 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
             response.headers().get(header::LOCATION).unwrap(),
-            "/login?return_to=/platform/tenants"
+            "/auth/sign-in?return_to=%2Ffinance"
         );
         assert_eq!(
             response.headers().get(header::SET_COOKIE).unwrap(),
-            "erpx_web_session_v1=opaque; Path=/; HttpOnly; SameSite=Strict"
+            "erpx_web_session_v2=opaque; Path=/; HttpOnly; SameSite=Strict"
         );
 
         headers.insert(
             header::REFERER,
-            HeaderValue::from_static("https://console.example/login?return_to=//attacker.example"),
+            HeaderValue::from_static(
+                "https://console.example/auth/sign-in?return_to=//attacker.example",
+            ),
         );
         let response = password_form_response(StatusCode::OK.into_response(), &headers);
-        assert_eq!(response.headers().get(header::LOCATION).unwrap(), "/login");
+        assert_eq!(
+            response.headers().get(header::LOCATION).unwrap(),
+            "/auth/sign-in"
+        );
 
         headers.insert(
             header::REFERER,
-            HeaderValue::from_static("https://console.example/login?return_to=/platform/tenants"),
+            HeaderValue::from_static("https://console.example/auth/sign-in?return_to=/finance"),
         );
         let response = password_form_response(StatusCode::BAD_REQUEST.into_response(), &headers);
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
             response.headers().get(header::LOCATION).unwrap(),
-            "/login?return_to=/platform/tenants&auth_error=invalid_request"
+            "/auth/sign-in?return_to=%2Ffinance&auth_error=invalid_request"
         );
         assert!(response.headers().get(header::SET_COOKIE).is_none());
 
@@ -3182,7 +2934,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::SEE_OTHER);
         assert_eq!(
             response.headers().get(header::LOCATION).unwrap(),
-            "/login?auth_error=authentication_rejected"
+            "/auth/sign-in?auth_error=authentication_rejected"
         );
     }
 
@@ -3309,30 +3061,7 @@ mod tests {
     }
 
     #[test]
-    fn proxy_routes_are_closed_compile_time_allowlists() {
-        assert!(grpc_route_allowed(
-            "erpx.finance.v1.FinanceQueryService/GetChart"
-        ));
-        assert!(grpc_route_allowed(
-            "erpx.customer_360.v1.Customer360QueryService/GetCustomer360"
-        ));
-        assert!(grpc_route_allowed(
-            "erpx.quality.v1.QualityCommandService/Create"
-        ));
-        assert!(grpc_route_allowed(
-            "erpx.customer_360.v1.Customer360CommandService/AddCustomerNote"
-        ));
-        assert!(!grpc_route_allowed(concat!(
-            "erpx.",
-            "platform.v1.FinanceQuery",
-            "Service/ListFinanceCharts"
-        )));
-        assert!(!grpc_route_allowed(
-            "erpx.identity.v1.InternalTokenService/DumpTokens"
-        ));
-        assert!(!grpc_route_allowed(
-            "erpx.finance.v1.FinanceQueryService/List-Finance-Charts"
-        ));
+    fn retained_identity_and_public_routes_are_closed_compile_time_allowlists() {
         assert!(identity_route_allowed(&Method::GET, "devices"));
         assert!(identity_route_allowed(
             &Method::POST,
@@ -3367,7 +3096,7 @@ mod tests {
             .get(header::SET_COOKIE)
             .and_then(|value| value.to_str().ok())
             .unwrap();
-        assert!(cookie.starts_with("erpx_web_session_v1="));
+        assert!(cookie.starts_with("erpx_web_session_v2="));
         assert!(cookie.contains("Path=/"));
         assert!(cookie.contains("HttpOnly"));
         assert!(cookie.contains("SameSite=Strict"));

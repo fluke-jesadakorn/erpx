@@ -6,7 +6,7 @@ override this index.
 
 ## Current scope
 
-- Target: Web-first local-development certification.
+- Target: Dioxus Web v2 local-development certification.
 - Final gate: `cargo xtask verify` with a clear zero exit status.
 - CI parity: fetch locked dependencies, enforce dependency advisory/license/
   source policy, run `cargo xtask verify-core` offline, then run
@@ -20,20 +20,26 @@ override this index.
 
 ## Latest result
 
-Status: **PASS for the Web-first local-development scope** on 2026-08-09
+Status: **PASS for the Dioxus Web v2 local-development scope** on 2026-08-19
 (Asia/Bangkok).
 
-`cargo xtask verify` completed with exit status 0 after running the shared core
-gate, disposable PostgreSQL acceptance, strict runtime catalog/heartbeat and
-projection-state verification, and the HTTP/SSR/BFF smoke suite. The runtime
-evidence covered 53 required worker processes and fresh heartbeats. A
-still-running process or an HTTP 200 without this strict evidence is not a
-future pass.
+The complete serialized `cargo xtask verify` gate returned exit status 0. It
+passed warnings-denied Clippy, the complete workspace test and doc-test suite,
+Console feature checks, the 37-chunk Dioxus Web split release build,
+architecture checks, disposable PostgreSQL acceptance, strict runtime
+readiness for 95 required worker processes, and HTTP/SSR/BFF smoke checks.
+During certification, the verifier's readiness route and removed-endpoint
+method semantics were aligned with the locked typed-v2 router; a stale worker
+was warm-restarted without resetting retained databases or objects before the
+successful full rerun.
 
 ## Explicit exclusions
 
 - Credentialed external Generic LDAP, AD DS, and UCS certification.
-- Desktop/Mobile release certification.
+- macOS Native runtime release certification and iOS/Android runtime
+  certification. The shared Native/Blitz graph does cross-compile for macOS,
+  `aarch64-apple-ios`, and `aarch64-linux-android`; compile success is not
+  runtime certification.
 
 These exclusions fail closed: no excluded capability may be represented as
 ready by a synthetic local value.
@@ -46,3 +52,8 @@ schema are implemented. A release becomes certified only after the gate runs
 against its exact immutable HTTPS deployment with current browser, security,
 backup/restore, object-recovery, and PostgreSQL PITR evidence. The local
 development pass above is not accepted as production evidence.
+
+Typed command, authentication, and public-form Server Function adapters still
+fail closed, and Native operation-specific generated gRPC client adapters
+still return typed `Unavailable`. Those adapters plus the locked Web and macOS
+performance/accessibility evidence are explicit production-release blockers.

@@ -7,50 +7,50 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use erpx_proto::erpx::{
-    benefits::v1::{
+    benefits::v2::{
         GetBenefitsRecordRequest, benefits_query_service_client::BenefitsQueryServiceClient,
     },
-    common::v1::{
+    common::v2::{
         ActorAttribution, ActorKind, AggregateVersionConsistency, AuditContext, CommandContext,
         EventualConsistency, QueryConsistency as ProtoQueryConsistency, QueryContext, TenantScope,
         query_consistency::Requirement as ConsistencyRequirement,
         tenant_scope::Scope as ProtoTenantScope,
     },
-    ecommerce::v1::{
+    ecommerce::v2::{
         ApproveCommerceListingRequest, CartIdentityRequest, GetCommerceRecordRequest,
         ListingIdentityRequest, ecommerce_command_service_client::EcommerceCommandServiceClient,
         ecommerce_query_service_client::EcommerceQueryServiceClient,
     },
-    field_service::v1::{
+    field_service::v2::{
         GetFieldServiceRecordRequest,
         field_service_query_service_client::FieldServiceQueryServiceClient,
     },
-    interface::v1::{
+    interface::v2::{
         AuthorityScope, AuthorityScopeLevel, DirectoryFreshness, ResolveReferenceRequest,
         SearchItemsRequest,
     },
-    learning::v1::{
+    learning::v2::{
         GetLearningRecordRequest, RetireCourseRequest,
         learning_command_service_client::LearningCommandServiceClient,
         learning_query_service_client::LearningQueryServiceClient,
     },
-    manufacturing::v1::{
+    manufacturing::v2::{
         GetManufacturingRecordRequest, OrderCommandRequest,
         manufacturing_command_service_client::ManufacturingCommandServiceClient,
         manufacturing_query_service_client::ManufacturingQueryServiceClient,
     },
-    planning::v1::{
+    planning::v2::{
         GetPlanningRecordRequest, RecommendationCommandRequest, ScenarioCommandRequest,
         planning_command_service_client::PlanningCommandServiceClient,
         planning_query_service_client::PlanningQueryServiceClient,
     },
-    projects::v1::{
+    projects::v2::{
         GetProjectRecordRequest, GetProjectRequest, ProjectRecordKind, ProjectStatus,
         TransitionProjectRequest, projects_command_service_client::ProjectsCommandServiceClient,
         projects_query_service_client::ProjectsQueryServiceClient,
     },
-    reference::v1::reference_query_service_client::ReferenceQueryServiceClient,
-    talent::v1::{
+    reference::v2::reference_query_service_client::ReferenceQueryServiceClient,
+    talent::v2::{
         ApplicationIdentityRequest, ApproveOfferRequest, ApproveRequisitionRequest,
         ApproveTalentProposalRequest, GetTalentRecordRequest, OfferIdentityRequest,
         RequisitionStatus, TalentProposalIdentityRequest, TalentRealm,
@@ -130,7 +130,7 @@ impl OwnerRecord {
         title: String,
         lifecycle: String,
         version: u64,
-        projection: Option<erpx_proto::erpx::common::v1::ProjectionMetadata>,
+        projection: Option<erpx_proto::erpx::common::v2::ProjectionMetadata>,
         updated_at: String,
         consistency: QueryConsistency,
     ) -> Result<Self, EnterpriseGatewayError> {
@@ -140,7 +140,7 @@ impl OwnerRecord {
             .checkpoint
             .ok_or(EnterpriseGatewayError::Unavailable)?;
         let lag_seconds = projection.lag_millis.unwrap_or_default() / 1_000;
-        use erpx_proto::erpx::common::v1::ProjectionFreshnessState;
+        use erpx_proto::erpx::common::v2::ProjectionFreshnessState;
         let freshness = match ProjectionFreshnessState::try_from(projection.freshness) {
             Ok(ProjectionFreshnessState::Current) => SourceFreshness::Fresh { lag_seconds },
             Ok(ProjectionFreshnessState::Stale | ProjectionFreshnessState::Rebuilding) => {
@@ -1065,7 +1065,7 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
 }
 
 fn tenant_scope(authority: &AuthorityScope) -> Result<TenantScope, EnterpriseGatewayError> {
-    use erpx_proto::erpx::common::v1::{BranchScope, CompanyScope, HoldingScope};
+    use erpx_proto::erpx::common::v2::{BranchScope, CompanyScope, HoldingScope};
     let holding_id = authority
         .holding_id
         .clone()
@@ -1174,7 +1174,7 @@ fn command_context(
 }
 
 fn common_command_receipt(
-    receipt: Option<erpx_proto::erpx::common::v1::CommandReceipt>,
+    receipt: Option<erpx_proto::erpx::common::v2::CommandReceipt>,
 ) -> Result<GovernedCommandReceipt, EnterpriseGatewayError> {
     let receipt = receipt.ok_or(EnterpriseGatewayError::Unavailable)?;
     let aggregate = receipt
@@ -1195,7 +1195,7 @@ fn common_command_receipt(
 }
 
 fn manufacturing_command_receipt(
-    receipt: erpx_proto::erpx::manufacturing::v1::MutationReceipt,
+    receipt: erpx_proto::erpx::manufacturing::v2::MutationReceipt,
     expected_id: &str,
     command_id: String,
     correlation_ref: String,
@@ -1216,7 +1216,7 @@ fn manufacturing_command_receipt(
 }
 
 fn planning_command_receipt(
-    receipt: erpx_proto::erpx::planning::v1::MutationReceipt,
+    receipt: erpx_proto::erpx::planning::v2::MutationReceipt,
     expected_id: &str,
     command_id: String,
     correlation_ref: String,
@@ -1378,7 +1378,7 @@ fn scope_label(scope: &AuthorityScope) -> &'static str {
 }
 
 fn project_status(value: i32) -> String {
-    use erpx_proto::erpx::projects::v1::ProjectStatus;
+    use erpx_proto::erpx::projects::v2::ProjectStatus;
     match ProjectStatus::try_from(value) {
         Ok(ProjectStatus::Proposed) => "proposed",
         Ok(ProjectStatus::Approved) => "approved",
@@ -1517,7 +1517,7 @@ mod tests {
         let command_id = Uuid::new_v4().to_string();
         let correlation_id = Uuid::new_v4().to_string();
         let manufacturing = manufacturing_command_receipt(
-            erpx_proto::erpx::manufacturing::v1::MutationReceipt {
+            erpx_proto::erpx::manufacturing::v2::MutationReceipt {
                 aggregate_id: record_id.clone(),
                 aggregate_version: 7,
                 replayed: false,
@@ -1543,7 +1543,7 @@ mod tests {
         );
 
         let planning = planning_command_receipt(
-            erpx_proto::erpx::planning::v1::MutationReceipt {
+            erpx_proto::erpx::planning::v2::MutationReceipt {
                 aggregate_ids: vec![record_id.clone()],
                 replayed: true,
                 aggregate_versions: vec![11],
@@ -1562,7 +1562,7 @@ mod tests {
         let record_id = Uuid::new_v4().to_string();
         assert_eq!(
             planning_command_receipt(
-                erpx_proto::erpx::planning::v1::MutationReceipt {
+                erpx_proto::erpx::planning::v2::MutationReceipt {
                     aggregate_ids: vec![record_id],
                     replayed: false,
                     aggregate_versions: Vec::new(),

@@ -6,7 +6,7 @@ use erpx_inventory::{
     Reservation, ReservationId, ReservationStatus, ReserveInventory, StockItemId, StockItemList,
     StockItemView, WarehouseId,
 };
-use erpx_proto::erpx::inventory::v1 as wire;
+use erpx_proto::erpx::inventory::v2 as wire;
 use erpx_ui_foundation::UiError;
 
 use super::common::{

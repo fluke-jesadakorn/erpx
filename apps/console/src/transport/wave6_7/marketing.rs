@@ -5,7 +5,7 @@ use erpx_marketing::{
     LeadCandidateView, MarketingCommand, MarketingMutationResult, MarketingQuery,
     MarketingQueryResponse,
 };
-use erpx_proto::erpx::marketing::v1 as wire;
+use erpx_proto::erpx::marketing::v2 as wire;
 use erpx_ui_foundation::UiError;
 
 use crate::{features::marketing::MarketingProtoTransport, transport::typed_cqrs::GrpcChannel};

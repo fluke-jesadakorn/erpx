@@ -24,7 +24,7 @@ follow defined transitions; suspended tenants fail protected routing; responses
 contain opaque resource keys and redacted health rather than DSNs or secrets.
 
 **Sources.** [Platform Administration context](../../crates/contexts/platform-administration/src/lib.rs),
-[Platform Administration API](../../crates/proto/proto/erpx/platform_administration/v1/service.proto),
+[Platform Administration API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
 [tenant isolation](../../adr/ADR-001-tenant-isolation.md).
 
 ### REQ-PAD-002 — Bounded tenant administration context
@@ -41,7 +41,7 @@ business reads still require an audited gateway or customer-approved support
 capability.
 
 **Sources.** [Platform Administration context](../../crates/contexts/platform-administration/src/lib.rs),
-[admin-context API](../../crates/proto/proto/erpx/platform_administration/v1/service.proto),
+[admin-context API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
 [audited reads](../../adr/ADR-005-global-read-auditing.md).
 
 ### REQ-PAD-003 — Connector governance
@@ -75,7 +75,7 @@ freshness, and failure category; rebuild writes to a replacement target;
 activation is blocked until verification succeeds; queries never fall back to
 write tables during recovery.
 
-**Sources.** [Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v1/service.proto),
+**Sources.** [Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
 [CQRS decision](../../adr/ADR-002-cqrs.md),
 [tenant projection scheduler](../../apps/worker/src/tenant_projection_scheduler.rs).
 
@@ -91,7 +91,7 @@ do not bypass the original business boundary.
 filterable; replay requires exact event identity, authorization, reason, and
 idempotency; successful replay cannot duplicate an already applied projection.
 
-**Sources.** [Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v1/service.proto),
+**Sources.** [Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
 [worker application](../../apps/worker/src/app.rs),
 [CQRS decision](../../adr/ADR-002-cqrs.md).
 
@@ -109,7 +109,7 @@ watermarks, approvals, and recovery point; invalid phase advancement is
 rejected; owner switch is unavailable until the final reconciliation and
 approval pass.
 
-**Sources.** [Migration API](../../crates/proto/proto/erpx/platform_administration/v1/service.proto),
+**Sources.** [Migration API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
 [migration runtime](../../apps/worker/src/g13_migration_runtime.rs),
 [no dual writes](../../adr/ADR-003-no-long-term-dual-writes.md).
 
@@ -128,7 +128,7 @@ retain identity and history; archived nodes cannot receive new operational
 work.
 
 **Sources.** [Organization context](../../crates/contexts/organization/src/lib.rs),
-[Organization API](../../crates/proto/proto/erpx/organization/v1/service.proto).
+[Organization API](../../crates/proto/proto/erpx/organization/v2/service.proto).
 
 ### REQ-ORG-002 — Provisioned branch creation
 
@@ -198,7 +198,7 @@ revision or an explicit grandfathering decision; provider mappings are
 versioned and reconcilable.
 
 **Sources.** [Commercial context](../../crates/contexts/commercial/src/lib.rs),
-[Commercial API](../../crates/proto/proto/erpx/commercial/v1/service.proto),
+[Commercial API](../../crates/proto/proto/erpx/commercial/v2/service.proto),
 [Stripe authority](../../adr/ADR-007-stripe-authority.md).
 
 ### REQ-COM-002 — Provider-authoritative billing state
@@ -216,7 +216,7 @@ subscription paid.
 
 **Sources.** [Stripe authority](../../adr/ADR-007-stripe-authority.md),
 [Commercial context](../../crates/contexts/commercial/src/lib.rs),
-[SaaS billing API](../../crates/proto/proto/erpx/commercial/v1/service.proto).
+[SaaS billing API](../../crates/proto/proto/erpx/commercial/v2/service.proto).
 
 ### REQ-COM-003 — Entitlement allocation
 
@@ -232,7 +232,7 @@ suspended, or revoked entitlements deny new mutations; entitlement changes are
 audited and projected.
 
 **Sources.** [Commercial context](../../crates/contexts/commercial/src/lib.rs),
-[entitlement API](../../crates/proto/proto/erpx/identity_access/v1/service.proto).
+[entitlement API](../../crates/proto/proto/erpx/identity_access/v2/service.proto).
 
 ### REQ-COM-004 — Payment-failure protection
 
@@ -267,7 +267,7 @@ inherits the parent.
 
 **Sources.** [Corporate identity decision](../../adr/ADR-012-three-layer-corporate-identity.md),
 [Brand context](../../crates/contexts/brand/src/lib.rs),
-[Brand API](../../crates/proto/proto/erpx/brand/v1/service.proto).
+[Brand API](../../crates/proto/proto/erpx/brand/v2/service.proto).
 
 ### REQ-BRD-002 — Parent category locks
 

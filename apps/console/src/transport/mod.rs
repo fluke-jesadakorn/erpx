@@ -31,8 +31,8 @@ pub(crate) fn grpc_endpoint() -> String {
     web_sys::window()
         .and_then(|window| window.location().origin().ok())
         .filter(|origin| !origin.is_empty() && origin != "null")
-        .map(|origin| format!("{origin}/api/v1/internal/grpc"))
-        .unwrap_or_else(|| "/api/v1/internal/grpc".to_owned())
+        .map(|origin| format!("{origin}/api/v2/internal/grpc"))
+        .unwrap_or_else(|| "/api/v2/internal/grpc".to_owned())
 }
 
 #[cfg(not(target_arch = "wasm32"))]

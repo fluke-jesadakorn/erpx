@@ -17,7 +17,7 @@ authentication follows connector trust and scope policy.
 
 **Sources.** [Identity crate](../../crates/identity/src/lib.rs),
 [console authentication](../../apps/console/src/composition.rs),
-[identity API](../../crates/proto/proto/erpx/identity_access/v1/service.proto).
+[identity API](../../crates/proto/proto/erpx/identity_access/v2/service.proto).
 
 ### REQ-SEC-002 — Protected sessions and devices
 
@@ -209,7 +209,7 @@ semantics; bulk export and sensitive download require explicit approved
 authority.
 
 **Sources.** [Audited global reads](../../adr/ADR-005-global-read-auditing.md),
-[Customer access audit API](../../crates/proto/proto/erpx/customer_authority/v1/service.proto).
+[Customer access audit API](../../crates/proto/proto/erpx/customer_authority/v2/service.proto).
 
 ### REQ-AUD-003 — Customer-visible access history
 

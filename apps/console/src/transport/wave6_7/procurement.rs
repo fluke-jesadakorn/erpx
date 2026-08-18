@@ -6,7 +6,7 @@ use erpx_procurement::{
     PurchaseOrderLineId, PurchaseOrderList, PurchaseOrderMutationResult, PurchaseOrderStatus,
     PurchaseOrderView, ReleasePurchaseOrder, SupplierId,
 };
-use erpx_proto::erpx::procurement::v1 as wire;
+use erpx_proto::erpx::procurement::v2 as wire;
 use erpx_ui_foundation::UiError;
 
 use crate::{features::procurement::ProcurementProtoTransport, transport::typed_cqrs::GrpcChannel};

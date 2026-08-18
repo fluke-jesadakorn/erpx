@@ -10,8 +10,8 @@ use erpx_integration_contracts::{catalog::record_type, reference::RecordTypeId};
 use erpx_kernel::{IdentifierError, RecordId};
 use uuid::Uuid;
 
-pub const API_PREFIX: &str = "/api/v1";
-pub const COLLABORATION_STREAM_TEMPLATE: &str = "/api/v1/collaboration/thread/:id/stream";
+pub const API_PREFIX: &str = "/api/v2";
+pub const COLLABORATION_STREAM_TEMPLATE: &str = "/api/v2/collaboration/thread/:id/stream";
 pub const SSE_CONTENT_TYPE: &str = "text/event-stream";
 pub const SSE_CACHE_CONTROL: &str = "no-store";
 pub const SSE_RETRY_MILLISECONDS: u32 = 3_000;
@@ -49,7 +49,7 @@ impl CanonicalApiRoute {
         last_event_id: Option<&str>,
     ) -> Result<Self, CanonicalRouteError> {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
-        if !path.starts_with("/api/v1/")
+        if !path.starts_with("/api/v2/")
             || path.ends_with('/')
             || path.contains('#')
             || path.chars().any(char::is_whitespace)
@@ -191,13 +191,13 @@ mod tests {
     fn collection_detail_and_typed_commands_are_method_bound() {
         let id = Uuid::new_v4();
         assert!(matches!(
-            CanonicalApiRoute::parse(HttpMethod::Get, "/api/v1/finance/invoice", None),
+            CanonicalApiRoute::parse(HttpMethod::Get, "/api/v2/finance/invoice", None),
             Ok(CanonicalApiRoute::Collection { .. })
         ));
         assert!(matches!(
             CanonicalApiRoute::parse(
                 HttpMethod::Get,
-                &format!("/api/v1/finance/invoice/{id}"),
+                &format!("/api/v2/finance/invoice/{id}"),
                 None,
             ),
             Ok(CanonicalApiRoute::Detail { .. })
@@ -205,7 +205,7 @@ mod tests {
         assert!(matches!(
             CanonicalApiRoute::parse(
                 HttpMethod::Post,
-                &format!("/api/v1/finance/invoice/{id}/commands/post"),
+                &format!("/api/v2/finance/invoice/{id}/commands/post"),
                 None,
             ),
             Ok(CanonicalApiRoute::Command { .. })
@@ -213,7 +213,7 @@ mod tests {
         assert_eq!(
             CanonicalApiRoute::parse(
                 HttpMethod::Get,
-                &format!("/api/v1/finance/invoice/{id}/commands/post"),
+                &format!("/api/v2/finance/invoice/{id}/commands/post"),
                 None,
             ),
             Err(CanonicalRouteError::MethodNotAllowed)
@@ -225,8 +225,8 @@ mod tests {
         let id = Uuid::new_v4();
         for target in [
             "/api/bff/v1/finance/invoice",
-            "/api/v1/unknown/record",
-            &format!("/api/v1/finance/invoice/{id}/approve"),
+            "/api/v2/unknown/record",
+            &format!("/api/v2/finance/invoice/{id}/approve"),
         ] {
             assert!(CanonicalApiRoute::parse(HttpMethod::Post, target, None).is_err());
         }
@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn collaboration_stream_resume_is_exact_and_conflict_safe() {
         let id = Uuid::new_v4();
-        let path = format!("/api/v1/collaboration/thread/{id}/stream?cursor=42");
+        let path = format!("/api/v2/collaboration/thread/{id}/stream?cursor=42");
         assert_eq!(
             CanonicalApiRoute::parse(HttpMethod::Get, &path, Some("42")),
             Ok(CanonicalApiRoute::CollaborationStream {

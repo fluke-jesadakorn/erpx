@@ -8,8 +8,8 @@ use erpx_maintenance::{
     OpenWorkOrderResult, RecordDowntime, ResumeWorkOrder, ScheduleWorkOrder, StartWorkOrder,
     WorkOrderId, WorkOrderList, WorkOrderStatus, WorkOrderView,
 };
-use erpx_proto::erpx::assets::v1::AssetCondition as WireAssetCondition;
-use erpx_proto::erpx::maintenance::v1 as wire;
+use erpx_proto::erpx::assets::v2::AssetCondition as WireAssetCondition;
+use erpx_proto::erpx::maintenance::v2 as wire;
 use erpx_ui_foundation::UiError;
 
 use super::common::{
@@ -67,7 +67,7 @@ fn result<R>(
     command_result(response.receipt, build(work_order), command_id, correlation)
 }
 fn identity(
-    metadata: erpx_proto::common::v1::CommandRequestMetadata,
+    metadata: erpx_proto::common::v2::CommandRequestMetadata,
     value: WorkOrderId,
 ) -> wire::MaintenanceWorkOrderIdentityRequest {
     wire::MaintenanceWorkOrderIdentityRequest {

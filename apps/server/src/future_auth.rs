@@ -6,7 +6,7 @@
 
 use erpx_infrastructure::RoutedDatabaseSide;
 use erpx_kernel::{ActorAttribution, ActorKind, PrincipalId, SessionId, TenantId, TenantScope};
-use erpx_proto::common::v1;
+use erpx_proto::common::v2;
 use sqlx::PgPool;
 use tonic::{Request, Status, metadata::MetadataMap};
 use uuid::Uuid;
@@ -27,7 +27,7 @@ pub(crate) struct FutureInvocation {
 pub(crate) async fn command<T>(
     state: &AppState,
     request: &Request<T>,
-    context: Option<&v1::CommandContext>,
+    context: Option<&v2::CommandContext>,
     product: &'static str,
     permission: &'static str,
 ) -> Result<FutureInvocation, Status> {
@@ -61,7 +61,7 @@ pub(crate) async fn command<T>(
 pub(crate) async fn query<T>(
     state: &AppState,
     request: &Request<T>,
-    context: Option<&v1::QueryContext>,
+    context: Option<&v2::QueryContext>,
     product: &'static str,
     permission: &'static str,
 ) -> Result<FutureInvocation, Status> {
@@ -171,8 +171,8 @@ pub(crate) async fn pool(
         .map_err(|_| Status::unavailable("future-context storage is unavailable"))
 }
 
-fn decode_scope(scope: Option<&v1::TenantScope>) -> Result<TenantScope, Status> {
-    use v1::tenant_scope::Scope;
+fn decode_scope(scope: Option<&v2::TenantScope>) -> Result<TenantScope, Status> {
+    use v2::tenant_scope::Scope;
     let scope = scope
         .and_then(|scope| scope.scope.as_ref())
         .ok_or_else(|| Status::permission_denied("tenant scope is required"))?;
@@ -219,8 +219,8 @@ mod tests {
 
     #[test]
     fn tenant_scope_decoder_rejects_nil_and_malformed_identifiers() {
-        let nil = v1::TenantScope {
-            scope: Some(v1::tenant_scope::Scope::Holding(v1::HoldingScope {
+        let nil = v2::TenantScope {
+            scope: Some(v2::tenant_scope::Scope::Holding(v2::HoldingScope {
                 holding_id: Uuid::nil().to_string(),
             })),
         };
@@ -228,8 +228,8 @@ mod tests {
             decode_scope(Some(&nil)).unwrap_err().code(),
             tonic::Code::PermissionDenied
         );
-        let malformed = v1::TenantScope {
-            scope: Some(v1::tenant_scope::Scope::Holding(v1::HoldingScope {
+        let malformed = v2::TenantScope {
+            scope: Some(v2::tenant_scope::Scope::Holding(v2::HoldingScope {
                 holding_id: "holding-label".into(),
             })),
         };

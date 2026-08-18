@@ -23,10 +23,11 @@ read databases. Queries read only those projections. Read-your-writes waits on
 a read-side event receipt or checkpoint and returns an explicit not-ready
 result when its bounded wait expires; it never falls back to a write table.
 
-The protobuf package remains `erpx.platform.v1`, but its command/query APIs are
-allowed to change incompatibly during one coordinated Server, Worker, and
-Console cutover. The monolithic source is split by bounded context, and each
-context exposes separate typed command and query services.
+The original implementation used `erpx.platform.v1`. ADR-016 completes its
+retirement: active packages are now context-specific `erpx.<context>.v2`
+services in `IFC-SVC-201..265`, promoted through one coordinated Server,
+Worker, Web, and Native cutover. The monolithic source is split by bounded
+context, and each context exposes separate typed command and query services.
 
 The cutover creates new control-write, control-read, tenant-write, tenant-read,
 and object-storage resources and copies no ERPX application state. Bootstrap

@@ -22,7 +22,7 @@ use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId, TenantScope,
 };
-use erpx_proto::{common, erpx::finance::v1 as platform};
+use erpx_proto::{common, erpx::finance::v2 as platform};
 use platform::finance_command_service_server::FinanceCommandService;
 use platform::finance_query_service_server::FinanceQueryService;
 use std::sync::Arc;

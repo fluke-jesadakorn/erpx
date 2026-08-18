@@ -250,10 +250,10 @@ use erpx_organization::{
 };
 use erpx_organization_sqlx::OrganizationReadRepository;
 use erpx_proto::erpx::{
-    commercial::v1 as commercial_target, crm::v1 as crm_target,
-    customer_360::v1 as customer360_target, customer_authority::v1 as customer_authority_target,
-    identity_access::v1 as identity_target, marketing::v1 as marketing_target,
-    platform_administration::v1 as platform_admin_target,
+    commercial::v2 as commercial_target, crm::v2 as crm_target,
+    customer_360::v2 as customer360_target, customer_authority::v2 as customer_authority_target,
+    identity_access::v2 as identity_target, marketing::v2 as marketing_target,
+    platform_administration::v2 as platform_admin_target,
 };
 use erpx_quality::ports::AuthorizationRequest as QualityAuthorizationRequest;
 use erpx_quality::{
@@ -925,7 +925,7 @@ fn require_platform_scope(scope: &Scope) -> Result<(), Status> {
     }
 }
 
-fn command_mfa_code(context: Option<&erpx_proto::common::v1::CommandContext>) -> &str {
+fn command_mfa_code(context: Option<&erpx_proto::common::v2::CommandContext>) -> &str {
     context.map_or("", |context| context.mfa_code.as_str())
 }
 
@@ -2203,27 +2203,27 @@ fn finance_banking_read_tenant_scope(scope: &Scope) -> Result<TenantScope, Statu
         )),
     }
 }
-fn query_access_scope(context: &erpx_proto::common::v1::QueryContext) -> Result<Scope, Status> {
+fn query_access_scope(context: &erpx_proto::common::v2::QueryContext) -> Result<Scope, Status> {
     let scope = context
         .tenant_scope
         .as_ref()
         .and_then(|scope| scope.scope.as_ref())
         .ok_or_else(|| Status::permission_denied("query tenant scope is required"))?;
     match scope {
-        erpx_proto::common::v1::tenant_scope::Scope::Platform(_) => Ok(Scope::Platform),
-        erpx_proto::common::v1::tenant_scope::Scope::Holding(value) => Ok(Scope::Holding {
+        erpx_proto::common::v2::tenant_scope::Scope::Platform(_) => Ok(Scope::Platform),
+        erpx_proto::common::v2::tenant_scope::Scope::Holding(value) => Ok(Scope::Holding {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
         }),
-        erpx_proto::common::v1::tenant_scope::Scope::Company(value) => Ok(Scope::Company {
+        erpx_proto::common::v2::tenant_scope::Scope::Company(value) => Ok(Scope::Company {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
         }),
-        erpx_proto::common::v1::tenant_scope::Scope::Branch(value) => Ok(Scope::Branch {
+        erpx_proto::common::v2::tenant_scope::Scope::Branch(value) => Ok(Scope::Branch {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_id: parse_uuid(&value.company_id, "company_id")?,
             branch_id: parse_uuid(&value.branch_id, "branch_id")?,
         }),
-        erpx_proto::common::v1::tenant_scope::Scope::Subtree(value) => Ok(Scope::Subtree {
+        erpx_proto::common::v2::tenant_scope::Scope::Subtree(value) => Ok(Scope::Subtree {
             holding_id: parse_uuid(&value.holding_id, "holding_id")?,
             company_ids: value
                 .company_ids
@@ -3687,14 +3687,14 @@ where
 }
 
 #[tonic::async_trait]
-impl erpx_proto::erpx::customer_360::v1::customer360_command_service_server::Customer360CommandService
+impl erpx_proto::erpx::customer_360::v2::customer360_command_service_server::Customer360CommandService
     for CustomerRpcImpl
 {
     async fn add_customer_note(
         &self,
-        request: Request<erpx_proto::erpx::customer_360::v1::AddCustomerNoteRequest>,
+        request: Request<erpx_proto::erpx::customer_360::v2::AddCustomerNoteRequest>,
     ) -> Result<
-        Response<erpx_proto::erpx::customer_360::v1::AddCustomerNoteResponse>,
+        Response<erpx_proto::erpx::customer_360::v2::AddCustomerNoteResponse>,
         Status,
     > {
         grpc_handler!(request, {
@@ -3842,8 +3842,8 @@ impl erpx_proto::erpx::customer_360::v1::customer360_command_service_server::Cus
                     }
                 })?;
             Ok(Response::new(
-                erpx_proto::erpx::customer_360::v1::AddCustomerNoteResponse {
-                    note: Some(erpx_proto::erpx::customer_360::v1::CustomerNote {
+                erpx_proto::erpx::customer_360::v2::AddCustomerNoteResponse {
+                    note: Some(erpx_proto::erpx::customer_360::v2::CustomerNote {
                         id: receipt.record.id().to_string(),
                         author_ref: receipt.record.created_by().to_owned(),
                         created_at: receipt.record.created_at().to_rfc3339(),
@@ -3851,7 +3851,7 @@ impl erpx_proto::erpx::customer_360::v1::customer360_command_service_server::Cus
                         body: String::new(),
                     }),
                     receipt: Some(
-                        erpx_proto::erpx::customer_360::v1::CustomerNoteWriteReceipt {
+                        erpx_proto::erpx::customer_360::v2::CustomerNoteWriteReceipt {
                             aggregate_type: "customer_360_owned_record".into(),
                             aggregate_id: receipt.record.id().to_string(),
                             aggregate_version: receipt.record.version(),
@@ -15954,32 +15954,32 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .layer(grpc_web_cors_layer())
         .layer(tonic_web::GrpcWebLayer::new())
         .add_service(
-            erpx_proto::erpx::reference::v1::reference_query_service_server::ReferenceQueryServiceServer::new(
+            erpx_proto::erpx::reference::v2::reference_query_service_server::ReferenceQueryServiceServer::new(
                 ReferenceQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::collaboration::v1::collaboration_command_service_server::CollaborationCommandServiceServer::new(
+            erpx_proto::erpx::collaboration::v2::collaboration_command_service_server::CollaborationCommandServiceServer::new(
                 CollaborationCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::collaboration::v1::collaboration_query_service_server::CollaborationQueryServiceServer::new(
+            erpx_proto::erpx::collaboration::v2::collaboration_query_service_server::CollaborationQueryServiceServer::new(
                 CollaborationQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::collaboration::v1::collaboration_stream_service_server::CollaborationStreamServiceServer::new(
+            erpx_proto::erpx::collaboration::v2::collaboration_stream_service_server::CollaborationStreamServiceServer::new(
                 CollaborationStreamRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::platform_administration::v1::data_plane_stream_service_server::DataPlaneStreamServiceServer::new(
+            erpx_proto::erpx::platform_administration::v2::data_plane_stream_service_server::DataPlaneStreamServiceServer::new(
                 DataPlaneStreamRpc::new(state.clone(), readiness),
             ),
         )
         .add_service(
-            erpx_proto::erpx::operations::v1::operations_command_service_server::OperationsCommandServiceServer::new(
+            erpx_proto::erpx::operations::v2::operations_command_service_server::OperationsCommandServiceServer::new(
                 OperationsCommandRpc::new(
                     wave9_application.clone(),
                     wave9_authenticator.clone(),
@@ -15987,7 +15987,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::operations::v1::operations_query_service_server::OperationsQueryServiceServer::new(
+            erpx_proto::erpx::operations::v2::operations_query_service_server::OperationsQueryServiceServer::new(
                 OperationsQueryRpc::new(
                     wave9_application.clone(),
                     wave9_authenticator.clone(),
@@ -15995,14 +15995,14 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::customer_360::v1::customer360_command_service_server::Customer360CommandServiceServer::new(
+            erpx_proto::erpx::customer_360::v2::customer360_command_service_server::Customer360CommandServiceServer::new(
                 CustomerRpcImpl {
                     state: state.clone(),
                 },
             ),
         )
         .add_service(
-            erpx_proto::erpx::customer_360::v1::customer360_query_service_server::Customer360QueryServiceServer::new(
+            erpx_proto::erpx::customer_360::v2::customer360_query_service_server::Customer360QueryServiceServer::new(
                 Customer360QueryComposite::new(
                     Customer360QueryRpc::new(wave9_application, wave9_authenticator),
                     CustomerRpcImpl { state: state.clone() },
@@ -16010,17 +16010,17 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::quality::v1::quality_command_service_server::QualityCommandServiceServer::new(
+            erpx_proto::erpx::quality::v2::quality_command_service_server::QualityCommandServiceServer::new(
                 QualityCommandRpc::new(quality_application.clone(), quality_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::quality::v1::quality_query_service_server::QualityQueryServiceServer::new(
+            erpx_proto::erpx::quality::v2::quality_query_service_server::QualityQueryServiceServer::new(
                 QualityQueryRpc::new(quality_application, quality_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::erpx::commercial::v1::commercial_command_service_server::CommercialCommandServiceServer::new(
+            erpx_proto::erpx::commercial::v2::commercial_command_service_server::CommercialCommandServiceServer::new(
                 CommercialCommandComposite::new(
                     CommercialCommandRpc::new(
                         commercial_application.clone(),
@@ -16036,7 +16036,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::commercial::v1::commercial_query_service_server::CommercialQueryServiceServer::new(
+            erpx_proto::erpx::commercial::v2::commercial_query_service_server::CommercialQueryServiceServer::new(
                 CommercialQueryComposite::new(
                     CommercialQueryRpc::new(commercial_application, commercial_authenticator),
                     EntitlementRpcImpl {
@@ -16049,7 +16049,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::identity_access::v1::identity_access_command_service_server::IdentityAccessCommandServiceServer::new(
+            erpx_proto::erpx::identity_access::v2::identity_access_command_service_server::IdentityAccessCommandServiceServer::new(
                 IdentityAccessCommandComposite::new(
                     IdentityAccessCommandRpc::new(
                         identity_access_application.clone(),
@@ -16064,7 +16064,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::identity_access::v1::identity_access_query_service_server::IdentityAccessQueryServiceServer::new(
+            erpx_proto::erpx::identity_access::v2::identity_access_query_service_server::IdentityAccessQueryServiceServer::new(
                 IdentityAccessQueryComposite::new(
                     IdentityAccessQueryRpc::new(
                         identity_access_application,
@@ -16080,7 +16080,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::organization::v1::organization_command_service_server::OrganizationCommandServiceServer::new(
+            erpx_proto::erpx::organization::v2::organization_command_service_server::OrganizationCommandServiceServer::new(
                 OrganizationCommandRpc::new(
                     organization_application.clone(),
                     organization_authenticator.clone(),
@@ -16088,7 +16088,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::organization::v1::organization_query_service_server::OrganizationQueryServiceServer::new(
+            erpx_proto::erpx::organization::v2::organization_query_service_server::OrganizationQueryServiceServer::new(
                 OrganizationQueryRpc::new(
                     organization_application,
                     organization_authenticator,
@@ -16096,7 +16096,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::platform_administration::v1::platform_administration_command_service_server::PlatformAdministrationCommandServiceServer::new(
+            erpx_proto::erpx::platform_administration::v2::platform_administration_command_service_server::PlatformAdministrationCommandServiceServer::new(
                 PlatformAdministrationCommandComposite {
                     current: PlatformAdministrationCommandRpc::new(
                         platform_administration_application.clone(),
@@ -16112,7 +16112,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::platform_administration::v1::platform_administration_query_service_server::PlatformAdministrationQueryServiceServer::new(
+            erpx_proto::erpx::platform_administration::v2::platform_administration_query_service_server::PlatformAdministrationQueryServiceServer::new(
                 PlatformAdministrationQueryComposite {
                     current: PlatformAdministrationQueryRpc::new(
                         platform_administration_application,
@@ -16128,17 +16128,17 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::brand::v1::brand_command_service_server::BrandCommandServiceServer::new(
+            erpx_proto::erpx::brand::v2::brand_command_service_server::BrandCommandServiceServer::new(
                 BrandCommandRpc::new(brand_application.clone(), brand_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::brand::v1::brand_query_service_server::BrandQueryServiceServer::new(
+            erpx_proto::erpx::brand::v2::brand_query_service_server::BrandQueryServiceServer::new(
                 BrandQueryRpc::new(brand_application, brand_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::erpx::customer_authority::v1::customer_authority_command_service_server::CustomerAuthorityCommandServiceServer::new(
+            erpx_proto::erpx::customer_authority::v2::customer_authority_command_service_server::CustomerAuthorityCommandServiceServer::new(
                 CustomerAuthorityCommandRpc::new(
                     customer_authority_application.clone(),
                     customer_authority_authenticator.clone(),
@@ -16146,7 +16146,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::customer_authority::v1::customer_authority_query_service_server::CustomerAuthorityQueryServiceServer::new(
+            erpx_proto::erpx::customer_authority::v2::customer_authority_query_service_server::CustomerAuthorityQueryServiceServer::new(
                 CustomerAuthorityQueryComposite::new(
                     CustomerAuthorityQueryRpc::new(
                         customer_authority_application,
@@ -16157,7 +16157,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::marketing::v1::marketing_command_service_server::MarketingCommandServiceServer::new(
+            erpx_proto::erpx::marketing::v2::marketing_command_service_server::MarketingCommandServiceServer::new(
                 MarketingCommandComposite::new(
                     MarketingCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
                     MarketingContentRpcImpl { state: state.clone() },
@@ -16165,7 +16165,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::marketing::v1::marketing_query_service_server::MarketingQueryServiceServer::new(
+            erpx_proto::erpx::marketing::v2::marketing_query_service_server::MarketingQueryServiceServer::new(
                 MarketingQueryComposite::new(
                     MarketingQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
                     MarketingContentRpcImpl { state: state.clone() },
@@ -16173,7 +16173,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::crm::v1::crm_command_service_server::CrmCommandServiceServer::new(
+            erpx_proto::erpx::crm::v2::crm_command_service_server::CrmCommandServiceServer::new(
                 CrmCommandComposite::new(
                     CrmCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
                     CrmRpcImpl { state: state.clone() },
@@ -16181,7 +16181,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::crm::v1::crm_query_service_server::CrmQueryServiceServer::new(
+            erpx_proto::erpx::crm::v2::crm_query_service_server::CrmQueryServiceServer::new(
                 CrmQueryComposite::new(
                     CrmQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
                     CrmRpcImpl { state: state.clone() },
@@ -16189,57 +16189,57 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::procurement::v1::procurement_command_service_server::ProcurementCommandServiceServer::new(
+            erpx_proto::erpx::procurement::v2::procurement_command_service_server::ProcurementCommandServiceServer::new(
                 ProcurementCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::procurement::v1::procurement_query_service_server::ProcurementQueryServiceServer::new(
+            erpx_proto::erpx::procurement::v2::procurement_query_service_server::ProcurementQueryServiceServer::new(
                 ProcurementQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::inventory::v1::inventory_command_service_server::InventoryCommandServiceServer::new(
+            erpx_proto::erpx::inventory::v2::inventory_command_service_server::InventoryCommandServiceServer::new(
                 InventoryCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::inventory::v1::inventory_query_service_server::InventoryQueryServiceServer::new(
+            erpx_proto::erpx::inventory::v2::inventory_query_service_server::InventoryQueryServiceServer::new(
                 InventoryQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::assets::v1::assets_command_service_server::AssetsCommandServiceServer::new(
+            erpx_proto::erpx::assets::v2::assets_command_service_server::AssetsCommandServiceServer::new(
                 AssetsCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::assets::v1::assets_query_service_server::AssetsQueryServiceServer::new(
+            erpx_proto::erpx::assets::v2::assets_query_service_server::AssetsQueryServiceServer::new(
                 AssetsQueryRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::maintenance::v1::maintenance_command_service_server::MaintenanceCommandServiceServer::new(
+            erpx_proto::erpx::maintenance::v2::maintenance_command_service_server::MaintenanceCommandServiceServer::new(
                 MaintenanceCommandRpc::new(wave6_application.clone(), wave6_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::maintenance::v1::maintenance_query_service_server::MaintenanceQueryServiceServer::new(
+            erpx_proto::erpx::maintenance::v2::maintenance_query_service_server::MaintenanceQueryServiceServer::new(
                 MaintenanceQueryRpc::new(wave6_application, wave6_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::erpx::sales::v1::sales_command_service_server::SalesCommandServiceServer::new(
+            erpx_proto::erpx::sales::v2::sales_command_service_server::SalesCommandServiceServer::new(
                 SalesCommandRpc::new(wave7_application.clone(), wave7_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::sales::v1::sales_query_service_server::SalesQueryServiceServer::new(
+            erpx_proto::erpx::sales::v2::sales_query_service_server::SalesQueryServiceServer::new(
                 SalesQueryRpc::new(wave7_application.clone(), wave7_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::people_payroll::v1::people_payroll_command_service_server::PeoplePayrollCommandServiceServer::new(
+            erpx_proto::erpx::people_payroll::v2::people_payroll_command_service_server::PeoplePayrollCommandServiceServer::new(
                 PeoplePayrollCommandRpc::new(
                     wave7_application.clone(),
                     wave7_authenticator.clone(),
@@ -16247,7 +16247,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::people_payroll::v1::people_payroll_query_service_server::PeoplePayrollQueryServiceServer::new(
+            erpx_proto::erpx::people_payroll::v2::people_payroll_query_service_server::PeoplePayrollQueryServiceServer::new(
                 PeoplePayrollQueryRpc::new(
                     wave7_application.clone(),
                     wave7_authenticator.clone(),
@@ -16255,37 +16255,37 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::pos::v1::point_of_sale_command_service_server::PointOfSaleCommandServiceServer::new(
+            erpx_proto::erpx::pos::v2::point_of_sale_command_service_server::PointOfSaleCommandServiceServer::new(
                 PosCommandRpc::new(wave7_application.clone(), wave7_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::pos::v1::point_of_sale_query_service_server::PointOfSaleQueryServiceServer::new(
+            erpx_proto::erpx::pos::v2::point_of_sale_query_service_server::PointOfSaleQueryServiceServer::new(
                 PosQueryRpc::new(wave7_application, wave7_authenticator),
             ),
         )
         .add_service(
-            erpx_proto::erpx::finance::v1::finance_command_service_server::FinanceCommandServiceServer::new(
+            erpx_proto::erpx::finance::v2::finance_command_service_server::FinanceCommandServiceServer::new(
                 FinanceCommandRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::finance::v1::finance_query_service_server::FinanceQueryServiceServer::new(
+            erpx_proto::erpx::finance::v2::finance_query_service_server::FinanceQueryServiceServer::new(
                 FinanceQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::legal::v1::legal_command_service_server::LegalCommandServiceServer::new(
+            erpx_proto::erpx::legal::v2::legal_command_service_server::LegalCommandServiceServer::new(
                 LegalCommandRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::legal::v1::legal_query_service_server::LegalQueryServiceServer::new(
+            erpx_proto::erpx::legal::v2::legal_query_service_server::LegalQueryServiceServer::new(
                 LegalQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::support::v1::support_command_service_server::SupportCommandServiceServer::new(
+            erpx_proto::erpx::support::v2::support_command_service_server::SupportCommandServiceServer::new(
                 SupportCommandRpc::new(
                     wave8_application.clone(),
                     wave8_authenticator.clone(),
@@ -16295,7 +16295,7 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
             ),
         )
         .add_service(
-            erpx_proto::erpx::support::v1::support_query_service_server::SupportQueryServiceServer::new(
+            erpx_proto::erpx::support::v2::support_query_service_server::SupportQueryServiceServer::new(
                 SupportQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
             ),
         )
@@ -16304,72 +16304,72 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .add_service(future_agent_projects.projects_command)
         .add_service(future_agent_projects.projects_query)
         .add_service(
-            erpx_proto::erpx::manufacturing::v1::manufacturing_command_service_server::ManufacturingCommandServiceServer::new(
+            erpx_proto::erpx::manufacturing::v2::manufacturing_command_service_server::ManufacturingCommandServiceServer::new(
                 future_manufacturing_planning::ManufacturingCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::manufacturing::v1::manufacturing_query_service_server::ManufacturingQueryServiceServer::new(
+            erpx_proto::erpx::manufacturing::v2::manufacturing_query_service_server::ManufacturingQueryServiceServer::new(
                 future_manufacturing_planning::ManufacturingQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::planning::v1::planning_command_service_server::PlanningCommandServiceServer::new(
+            erpx_proto::erpx::planning::v2::planning_command_service_server::PlanningCommandServiceServer::new(
                 future_manufacturing_planning::PlanningCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::planning::v1::planning_query_service_server::PlanningQueryServiceServer::new(
+            erpx_proto::erpx::planning::v2::planning_query_service_server::PlanningQueryServiceServer::new(
                 future_manufacturing_planning::PlanningQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::benefits::v1::benefits_command_service_server::BenefitsCommandServiceServer::new(
+            erpx_proto::erpx::benefits::v2::benefits_command_service_server::BenefitsCommandServiceServer::new(
                 future_benefits::BenefitsCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::benefits::v1::benefits_query_service_server::BenefitsQueryServiceServer::new(
+            erpx_proto::erpx::benefits::v2::benefits_query_service_server::BenefitsQueryServiceServer::new(
                 future_benefits::BenefitsQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::learning::v1::learning_command_service_server::LearningCommandServiceServer::new(
+            erpx_proto::erpx::learning::v2::learning_command_service_server::LearningCommandServiceServer::new(
                 future_learning::LearningCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::learning::v1::learning_query_service_server::LearningQueryServiceServer::new(
+            erpx_proto::erpx::learning::v2::learning_query_service_server::LearningQueryServiceServer::new(
                 future_learning::LearningQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::field_service::v1::field_service_command_service_server::FieldServiceCommandServiceServer::new(
+            erpx_proto::erpx::field_service::v2::field_service_command_service_server::FieldServiceCommandServiceServer::new(
                 future_field_service::FieldServiceCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::field_service::v1::field_service_query_service_server::FieldServiceQueryServiceServer::new(
+            erpx_proto::erpx::field_service::v2::field_service_query_service_server::FieldServiceQueryServiceServer::new(
                 future_field_service::FieldServiceQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::ecommerce::v1::ecommerce_command_service_server::EcommerceCommandServiceServer::new(
+            erpx_proto::erpx::ecommerce::v2::ecommerce_command_service_server::EcommerceCommandServiceServer::new(
                 future_ecommerce::EcommerceCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::ecommerce::v1::ecommerce_query_service_server::EcommerceQueryServiceServer::new(
+            erpx_proto::erpx::ecommerce::v2::ecommerce_query_service_server::EcommerceQueryServiceServer::new(
                 future_ecommerce::EcommerceQueryRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::talent::v1::talent_command_service_server::TalentCommandServiceServer::new(
+            erpx_proto::erpx::talent::v2::talent_command_service_server::TalentCommandServiceServer::new(
                 future_talent::TalentCommandRpc::new(state.clone()),
             ),
         )
         .add_service(
-            erpx_proto::erpx::talent::v1::talent_query_service_server::TalentQueryServiceServer::new(
+            erpx_proto::erpx::talent::v2::talent_query_service_server::TalentQueryServiceServer::new(
                 future_talent::TalentQueryRpc::new(state.clone()),
             ),
         )
@@ -16409,7 +16409,7 @@ mod target_service_registration_tests {
         for (module, service) in current_services {
             for kind in ["command", "query"] {
                 let target =
-                    format!("erpx_proto::erpx::{module}::v1::{service}_{kind}_service_server::");
+                    format!("erpx_proto::erpx::{module}::v2::{service}_{kind}_service_server::");
                 assert!(
                     source.contains(&target),
                     "missing target {kind} service registration for {module}"

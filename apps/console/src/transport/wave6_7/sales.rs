@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_integration_contracts::{crm, customer};
-use erpx_proto::erpx::sales::v1 as wire;
+use erpx_proto::erpx::sales::v2 as wire;
 use erpx_sales::{
     QuoteId, QuoteStatus, QuoteView, SalesCommand, SalesMutationResult, SalesOrderId,
     SalesOrderLine, SalesOrderLineId, SalesOrderList, SalesOrderStatus, SalesOrderView, SalesQuery,
@@ -279,7 +279,7 @@ impl SalesProtoTransport for SalesGrpcTransport {
 }
 
 fn quote_identity(
-    metadata: erpx_proto::common::v1::CommandRequestMetadata,
+    metadata: erpx_proto::common::v2::CommandRequestMetadata,
     id: QuoteId,
 ) -> wire::SalesQuoteIdentityRequest {
     wire::SalesQuoteIdentityRequest {
@@ -288,7 +288,7 @@ fn quote_identity(
     }
 }
 fn order_identity(
-    metadata: erpx_proto::common::v1::CommandRequestMetadata,
+    metadata: erpx_proto::common::v2::CommandRequestMetadata,
     id: SalesOrderId,
 ) -> wire::SalesOrderIdentityRequest {
     wire::SalesOrderIdentityRequest {

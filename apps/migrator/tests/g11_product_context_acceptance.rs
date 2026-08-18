@@ -180,17 +180,17 @@ const CONSOLE_PRODUCT_COMPLETION: &str = include_str!("../../console/src/product
 const UI_PRODUCT_CONTEXTS: &str =
     include_str!("../../../crates/ui-domains/platform/src/product_contexts.rs");
 const PRODUCT_PROTOS: &[&str] = &[
-    include_str!("../../../crates/proto/proto/erpx/sales/v1/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/procurement/v1/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/inventory/v1/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/assets/v1/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/maintenance/v1/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/quality/v1/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/people_payroll/v1/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/legal/v1/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/pos/v1/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/marketing/v1/service.proto"),
-    include_str!("../../../crates/proto/proto/erpx/crm/v1/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/sales/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/procurement/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/inventory/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/assets/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/maintenance/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/quality/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/people_payroll/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/legal/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/pos/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/marketing/v2/service.proto"),
+    include_str!("../../../crates/proto/proto/erpx/crm/v2/service.proto"),
 ];
 
 const ERPX_MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../Cargo.toml");

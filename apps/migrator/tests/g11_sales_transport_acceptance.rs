@@ -10,7 +10,7 @@ use std::{env, net::TcpStream, time::Duration};
 const SALES_DOMAIN: &str = include_str!("../../../crates/domain/src/sales.rs");
 const SALES_PERSISTENCE: &str =
     include_str!("../../../crates/infrastructure/src/sales_persistence.rs");
-const SALES_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/sales/v1/service.proto");
+const SALES_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/sales/v2/service.proto");
 const SERVER_TRANSPORTS: &str = include_str!("../../server/src/lib.rs");
 const SERVER_COMPOSITION: &str = include_str!("../../server/src/lib.rs");
 
@@ -114,7 +114,7 @@ fn sales_proto_and_server_transport_surfaces_have_owner_command_query_parity() {
         SALES_PROTO,
         "sales/v1/service.proto",
         &[
-            "package erpx.sales.v1;",
+            "package erpx.sales.v2;",
             "service SalesCommandService",
             "rpc CreateQuote",
             "rpc CreateSalesOrder",

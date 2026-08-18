@@ -313,10 +313,10 @@ Collection:  /<module>/<record>
 Detail:      /<module>/<record>/:id
 Copied link: /reference/item/:id
 
-List/query:  GET  /api/v1/<module>/<record>
-Create:      POST /api/v1/<module>/<record>
-Detail:      GET  /api/v1/<module>/<record>/:id
-Command:     POST /api/v1/<module>/<record>/:id/commands/<command>
+List/query:  GET  /api/v2/<module>/<record>
+Create:      POST /api/v2/<module>/<record>
+Detail:      GET  /api/v2/<module>/<record>/:id
+Command:     POST /api/v2/<module>/<record>/:id/commands/<command>
 ```
 
 All route IDs are lowercase hyphenated UUID v4 values. Tenant, holding,
@@ -391,8 +391,8 @@ The 31 contexts each expose one internal `<Context>CommandService` and one
 is 65 active services.
 
 Legacy `IFC-SVC-001..065` entries become Retired and are never reused. New
-contracts use `IFC-SVC-101..165` and packages such as `erpx.finance.v1`,
-`erpx.collaboration.v1`, and `erpx.agent.v1`.
+contracts use `IFC-SVC-201..265` and packages such as `erpx.finance.v2`,
+`erpx.collaboration.v2`, and `erpx.agent.v2`.
 
 Integration events use `<context>.<record>.<event>.v1`. Event and command names
 come from an approved typed registry; arbitrary strings cannot carry business

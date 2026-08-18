@@ -20,7 +20,7 @@ use erpx_legal::{
     LegalQueryResponse, ListAccessHistory, ListContracts, ListDocuments, RecordDocumentAccess,
     TransitionContract,
 };
-use erpx_proto::{common, erpx::legal::v1 as platform};
+use erpx_proto::{common, erpx::legal::v2 as platform};
 use platform::{
     legal_command_service_server::LegalCommandService,
     legal_query_service_server::LegalQueryService,

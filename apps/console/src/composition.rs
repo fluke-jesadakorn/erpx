@@ -31,7 +31,7 @@ use erpx_integration_contracts::{
     catalog::{ContextId, RECORD_TYPES, WORKSPACES, WorkspaceId},
 };
 use erpx_kernel::{RecordId, TenantId};
-use erpx_proto::common::v1::{
+use erpx_proto::common::v2::{
     ActorAttribution, ActorKind, AuditContext, BranchScope, CommandContext,
     CommandReceipt as ProtoCommandReceipt, CommandRequestMetadata, CompanyScope,
     EventualConsistency, HoldingScope, PlatformScope, QueryConsistency, QueryContext,
@@ -39,11 +39,11 @@ use erpx_proto::common::v1::{
     query_consistency, tenant_scope,
 };
 use erpx_proto::erpx::{
-    collaboration::v1::{
+    collaboration::v2::{
         ListThreadsByRecordRequest,
         collaboration_query_service_client::CollaborationQueryServiceClient,
     },
-    commercial::v1::{
+    commercial::v2::{
         ActivateBranchEntitlementRequest, ActivateCompanyEntitlementRequest,
         AllocateCompanyEntitlementRequest, CheckEntitlementRequest, CreateCheckoutSessionRequest,
         CreateCustomerPortalSessionRequest, EntitlementCommandReceipt,
@@ -52,24 +52,24 @@ use erpx_proto::erpx::{
         commercial_command_service_client::CommercialCommandServiceClient,
         commercial_query_service_client::CommercialQueryServiceClient,
     },
-    crm::v1::{
+    crm::v2::{
         CrmReadRow, CrmWriteReceipt as CrmWriteReceiptMessage, ListCrmReadRowsRequest,
         ListCrmReadRowsResponse, RecordCrmAttributionRequest, RecordCrmAttributionResponse,
         SaveCrmHandoffRequest, SaveCrmHandoffResponse, SaveCrmOpportunityRequest,
         SaveCrmOpportunityResponse, crm_command_service_client::CrmCommandServiceClient,
         crm_query_service_client::CrmQueryServiceClient,
     },
-    customer_360::v1::{
+    customer_360::v2::{
         AddCustomerNoteRequest, GetCustomer360DetailRequest, GetCustomer360DetailResponse,
         customer360_command_service_client::Customer360CommandServiceClient,
         customer360_query_service_client::Customer360QueryServiceClient,
     },
-    customer_authority::v1::{
+    customer_authority::v2::{
         GetCustomerAccessAuditRequest, GetCustomerAccessAuditResponse,
         customer_authority_query_service_client::CustomerAuthorityQueryServiceClient,
     },
-    finance::v1 as finance_target,
-    identity_access::v1::{
+    finance::v2 as finance_target,
+    identity_access::v2::{
         ApproveDirectoryIdentityReplacementRequest, DirectoryConnectorSummary,
         DirectoryIdentityLinkSummary, DirectoryImportStatus, DirectoryRoleMappingMessage,
         GetDirectoryImportStatusRequest, LinkDirectoryPrincipalRequest,
@@ -83,13 +83,13 @@ use erpx_proto::erpx::{
         identity_access_command_service_client::IdentityAccessCommandServiceClient,
         identity_access_query_service_client::IdentityAccessQueryServiceClient,
     },
-    interface::v1::{
+    interface::v2::{
         AuthorityScope, AuthorityScopeLevel, DirectoryFreshness, RecordRef as ProtoStableRecordRef,
         ResolveReferenceRequest,
     },
-    inventory::v1 as inventory_target,
-    legal::v1 as legal_target,
-    marketing::v1::{
+    inventory::v2 as inventory_target,
+    legal::v2 as legal_target,
+    marketing::v2::{
         AcknowledgeMarketingProviderVerificationRequest, BindMarketingDomainRequest,
         ConfigureMarketingProviderAccountRequest, EraseMarketingProfileRequest,
         EraseMarketingProfileResponse, GetMarketingDeliveryReadRequest,
@@ -100,11 +100,11 @@ use erpx_proto::erpx::{
         marketing_command_service_client::MarketingCommandServiceClient,
         marketing_query_service_client::MarketingQueryServiceClient,
     },
-    operations::v1 as operations_target,
-    organization::v1 as organization_target,
-    platform_administration::v1 as platform_admin_target,
-    procurement::v1 as procurement_target,
-    quality::v1::{
+    operations::v2 as operations_target,
+    organization::v2 as organization_target,
+    platform_administration::v2 as platform_admin_target,
+    procurement::v2 as procurement_target,
+    quality::v2::{
         CancelQualityInspectionRequest, CreateQualityInspectionRequest,
         ListQualityInspectionsRequest, ListQualityInspectionsResponse, QualityInspection,
         QualityInspectionFilter, QualityInspectionKind, QualityInspectionStatus,
@@ -112,8 +112,8 @@ use erpx_proto::erpx::{
         StartQualityInspectionRequest, quality_command_service_client::QualityCommandServiceClient,
         quality_query_service_client::QualityQueryServiceClient,
     },
-    reference::v1::reference_query_service_client::ReferenceQueryServiceClient,
-    support::v1 as support_target,
+    reference::v2::reference_query_service_client::ReferenceQueryServiceClient,
+    support::v2 as support_target,
 };
 use erpx_ui_core::{
     AccessToken, ActiveRoleMetadata, AuthTransportError, CustomerView as Customer360View,
@@ -173,7 +173,7 @@ fn ConsoleStylesheets() -> Element {
         style { {AI_COLLABORATION_STYLES} }
         document::Link {
             rel: "icon",
-            href: "/api/v1/public/branding/assets/favicon",
+            href: "/api/v2/public/branding/assets/favicon",
         }
     }
 }
@@ -656,7 +656,7 @@ const BROWSER_BFF_SESSION_MARKER: &str = "erpx-browser-bff-session-v1";
 
 #[cfg(target_arch = "wasm32")]
 async fn load_browser_accounts() -> Result<Vec<AccountSummaryModel>, String> {
-    let response = bff_http("GET", "/api/v1/accounts", String::new()).await?;
+    let response = bff_http("GET", "/api/v2/accounts", String::new()).await?;
     let response = decode_identity_response::<AccountsResponse>(response)?;
     let active_count = response
         .accounts
@@ -699,7 +699,7 @@ async fn activate_browser_account(
     }
     let response = bff_http(
         "POST",
-        "/api/v1/accounts/activate",
+        "/api/v2/accounts/activate",
         serde_json::json!({ "session_id": session_id }).to_string(),
     )
     .await
@@ -746,7 +746,7 @@ async fn authenticate_directory_account(
     #[cfg(target_arch = "wasm32")]
     let response = bff_http(
         "POST",
-        "/api/v1/auth/directory",
+        "/api/v2/auth/directory",
         serde_json::json!({
             "hostname": hostname.trim(),
             "username": username,
@@ -793,7 +793,7 @@ async fn load_active_role_options(
     #[cfg(target_arch = "wasm32")]
     let response = {
         let _ = access_token;
-        bff_http("GET", "/api/v1/roles", String::new()).await?
+        bff_http("GET", "/api/v2/roles", String::new()).await?
     };
     #[cfg(not(target_arch = "wasm32"))]
     let response = identity_http(
@@ -827,7 +827,7 @@ async fn select_active_role(
         let _ = (session_id, access_token);
         bff_http(
             "POST",
-            "/api/v1/roles/activate",
+            "/api/v2/roles/activate",
             serde_json::json!({ "selection_id": selection_id }).to_string(),
         )
         .await?
@@ -873,7 +873,7 @@ async fn identity_http(
         let relative = path
             .strip_prefix("/auth/")
             .ok_or_else(|| "identity_validation_failed".to_owned())?;
-        let bff_path = format!("/api/v1/identity/{relative}");
+        let bff_path = format!("/api/v2/identity/{relative}");
         return bff_http(method, &bff_path, body).await;
     }
 
@@ -922,7 +922,7 @@ async fn identity_http_for_target(
     #[cfg(target_arch = "wasm32")]
     {
         let bff_path = match path {
-            "/auth/passkeys/authentication/begin" => "/api/v1/auth/passkeys/authentication/begin",
+            "/auth/passkeys/authentication/begin" => "/api/v2/auth/passkeys/authentication/begin",
             _ => return Err("identity_validation_failed".to_owned()),
         };
         return bff_http(method, bff_path, body).await;
@@ -1100,7 +1100,7 @@ async fn recover_identity_account(
     {
         let response = bff_http(
             "POST",
-            "/api/v1/auth/recovery",
+            "/api/v2/auth/recovery",
             serde_json::json!({
                 "principal_ref": principal_ref,
                 "recovery_code": recovery_code,
@@ -1318,7 +1318,7 @@ async fn authenticate_identity_passkey(
     #[cfg(target_arch = "wasm32")]
     let response = bff_http(
         "POST",
-        "/api/v1/auth/passkeys/authentication/finish",
+        "/api/v2/auth/passkeys/authentication/finish",
         serde_json::json!({
             "principal_ref": principal_ref,
             "challenge_id": start.challenge_id,
@@ -1390,7 +1390,7 @@ impl SessionTransport for HttpSessionTransport {
                     "device_label": request.device_label,
                 })
                 .to_string();
-                let response = bff_http("POST", "/api/v1/auth/password", body)
+                let response = bff_http("POST", "/api/v2/auth/password", body)
                     .await
                     .map_err(|_| AuthTransportError::Offline)?;
                 return decode_bff_principal_issued_session(response).map(|(_, issued)| issued);
@@ -1432,7 +1432,7 @@ impl SessionTransport for HttpSessionTransport {
             #[cfg(target_arch = "wasm32")]
             {
                 let _ = body;
-                let response = bff_http("GET", "/api/v1/session", String::new())
+                let response = bff_http("GET", "/api/v2/session", String::new())
                     .await
                     .map_err(|_| AuthTransportError::Offline)?;
                 return decode_bff_principal_issued_session(response).map(|(_, issued)| issued);
@@ -1449,7 +1449,7 @@ impl SessionTransport for HttpSessionTransport {
             #[cfg(target_arch = "wasm32")]
             {
                 let _ = (body, access_token);
-                let response = bff_http("DELETE", "/api/v1/session", String::new())
+                let response = bff_http("DELETE", "/api/v2/session", String::new())
                     .await
                     .map_err(|_| AuthTransportError::Offline)?;
                 return if response.status == 200 {
@@ -1519,7 +1519,7 @@ async fn dev_access_json(
                 .ok_or_else(|| AuthTransportError::Server {
                     code: "invalid_development_path".into(),
                 })?;
-        return bff_http(method, &format!("/api/v1/dev-access/{relative}"), body)
+        return bff_http(method, &format!("/api/v2/dev-access/{relative}"), body)
             .await
             .map_err(|_| AuthTransportError::Offline);
     }
@@ -1556,7 +1556,7 @@ async fn fetch_public_corporate_identity()
     let response = execute_web_http(
         crate::platform::http::HttpEndpoint::Public,
         "GET",
-        "/api/v1/public/branding",
+        "/api/v2/public/branding",
         String::new(),
         Vec::new(),
     )
@@ -1767,7 +1767,7 @@ fn decode_bff_role_selection(
 
 #[cfg(target_arch = "wasm32")]
 async fn restore_http_session() -> Result<(String, IssuedSession), AuthTransportError> {
-    let response = bff_http("GET", "/api/v1/session", String::new())
+    let response = bff_http("GET", "/api/v2/session", String::new())
         .await
         .map_err(|_| AuthTransportError::Offline)?;
     decode_bff_principal_issued_session(response)
@@ -6259,7 +6259,7 @@ struct ScmListReadModel {
 
 impl ScmListReadModel {
     fn correlation_id(
-        metadata: Option<erpx_proto::common::v1::QueryMetadata>,
+        metadata: Option<erpx_proto::common::v2::QueryMetadata>,
     ) -> Result<String, String> {
         let correlation_id = metadata
             .ok_or_else(|| "SCM read response omitted query metadata".to_owned())?
@@ -8928,7 +8928,7 @@ fn customer_note_error_message(category: &str) -> &'static str {
 }
 
 fn customer_360_section_summaries(
-    section_states: &[erpx_proto::erpx::customer_360::v1::Customer360SectionState],
+    section_states: &[erpx_proto::erpx::customer_360::v2::Customer360SectionState],
     supported: bool,
     present: bool,
 ) -> Result<Vec<Customer360SectionSummary>, String> {
@@ -8970,7 +8970,7 @@ fn customer_360_section_summaries(
 }
 
 fn customer_360_section_facts(
-    facts: &[erpx_proto::erpx::customer_360::v1::Customer360SectionFact],
+    facts: &[erpx_proto::erpx::customer_360::v2::Customer360SectionFact],
 ) -> Result<Vec<Customer360SectionFactView>, String> {
     if facts.len() > 100 {
         return Err("Customer 360 detail fact count exceeded its display bound".into());
@@ -9093,10 +9093,10 @@ fn bounded_customer360_value(
     Ok(value.to_string())
 }
 
-impl From<erpx_proto::erpx::customer_authority::v1::CustomerAccessAuditEntry>
+impl From<erpx_proto::erpx::customer_authority::v2::CustomerAccessAuditEntry>
     for CustomerAccessAuditEntryView
 {
-    fn from(value: erpx_proto::erpx::customer_authority::v1::CustomerAccessAuditEntry) -> Self {
+    fn from(value: erpx_proto::erpx::customer_authority::v2::CustomerAccessAuditEntry) -> Self {
         Self {
             audit_id: value.audit_id,
             actor: value.actor_ref,
@@ -9926,7 +9926,7 @@ fn marketing_delivery_read_request(
 
 fn decode_marketing_delivery_read(
     delivery_id: &str,
-    response: erpx_proto::erpx::marketing::v1::GetMarketingDeliveryReadResponse,
+    response: erpx_proto::erpx::marketing::v2::GetMarketingDeliveryReadResponse,
 ) -> Result<MarketingDeliveryReadModel, CrmReadError> {
     let delivery = response.delivery.ok_or(CrmReadError::MalformedProjection)?;
     let requested_id = Uuid::parse_str(delivery_id.trim())
@@ -11068,7 +11068,7 @@ fn marketing_domain_bind_request(
 }
 
 fn marketing_content_receipt(
-    receipt: Option<erpx_proto::erpx::marketing::v1::MarketingContentWriteReceipt>,
+    receipt: Option<erpx_proto::erpx::marketing::v2::MarketingContentWriteReceipt>,
     correlation_id: &str,
 ) -> Result<MarketingContentReceipt, String> {
     let correlation_id = bounded_finance_value(
@@ -11741,7 +11741,7 @@ fn marketing_provider_state_request(
 }
 
 fn marketing_provider_receipt(
-    receipt: Option<erpx_proto::erpx::marketing::v1::MarketingProviderAccountWriteReceipt>,
+    receipt: Option<erpx_proto::erpx::marketing::v2::MarketingProviderAccountWriteReceipt>,
     correlation_id: &str,
 ) -> Result<MarketingProviderReceipt, String> {
     let receipt =
@@ -16919,7 +16919,7 @@ pub(crate) async fn fetch_navigation_manifest(
     let response = execute_web_http(
         crate::platform::http::HttpEndpoint::Auth,
         "POST",
-        "/api/v1/navigation",
+        "/api/v2/navigation",
         serde_json::json!({
             "scope_key": scope_key,
             "include_inaccessible": include_inaccessible,
@@ -16995,7 +16995,7 @@ pub(crate) async fn fetch_navigation_manifest(
 #[cfg(target_arch = "wasm32")]
 async fn fetch_dashboard_read_model(range: DashboardRange) -> Result<DashboardReadModel, String> {
     let path = format!(
-        "/api/v1/dashboard?range={}&compare=previous",
+        "/api/v2/dashboard?range={}&compare=previous",
         range.query_value()
     );
     let response = bff_http("GET", &path, String::new()).await?;
@@ -17035,7 +17035,7 @@ async fn fetch_work_queue_read_model(
     cursor: Option<String>,
 ) -> Result<WorkQueueReadModel, String> {
     let mut path = format!(
-        "/api/v1/work-items?view={}&page_size=24",
+        "/api/v2/work-items?view={}&page_size=24",
         view.query_value()
     );
     if let Some(domain) = domain {
@@ -23278,7 +23278,7 @@ async fn public_marketing_http(
     #[cfg(target_arch = "wasm32")]
     let path = path
         .strip_prefix("/public/marketing/")
-        .map(|relative| format!("/api/v1/public/marketing/{relative}"))
+        .map(|relative| format!("/api/v2/public/marketing/{relative}"))
         .ok_or_else(|| "public_marketing_validation_failed".to_owned())?;
     #[cfg(not(target_arch = "wasm32"))]
     let response = execute_native_http(
@@ -24647,7 +24647,7 @@ fn PublicMarketingSurface(route: PublicMarketingRoute) -> Element {
                             "{brand_mark}"
                         } else {
                             img {
-                                src: "/api/v1/public/branding/assets/logo_mark",
+                                src: "/api/v2/public/branding/assets/logo_mark",
                                 alt: "",
                                 onerror: move |_| public_brand_asset_failed.set(true),
                             }
@@ -24784,7 +24784,7 @@ fn BaseSignInSurface(initial_path: String) -> Element {
                         h2 { {console_text(locale, "Sign in to your workspace", "เข้าสู่ระบบพื้นที่ทำงานของคุณ")} }
                         p { {console_text(locale, "The ERPX workspace is delivered as a single optimized WebAssembly module.", "พื้นที่ทำงาน ERPX ส่งมอบเป็นโมดูล WebAssembly ที่ปรับประสิทธิภาพแล้วหนึ่งไฟล์")} }
                     }
-                    form { class: "auth-form", method: "post", action: "/api/v1/auth/password/form",
+                    form { class: "auth-form", method: "post", action: "/api/v2/auth/password/form",
                         KitInput { r#type: "hidden", name: "device_label", value: "erpx-console" }
                         div { class: "auth-field",
                             label { r#for: "auth-principal", {console_text(locale, "Principal", "ผู้ใช้หลัก")} }
@@ -34946,7 +34946,7 @@ fn FinanceContextRouteSurface(
         section {
             class: "erpx-finance-context-route",
             "data-product-context": "finance",
-            "data-contract": "erpx.finance.v1",
+            "data-contract": "erpx.finance.v2",
             header {
                 class: "surface-header",
                 div {
@@ -34954,7 +34954,7 @@ fn FinanceContextRouteSurface(
                     h2 { {localized_copy("Finance", "การเงิน")} }
                     p { {localized_copy("Owner-authorized charts, periods, journals, subledgers, banking facts, and statutory reports use the typed Finance command/query boundary.", "ผังบัญชี รอบบัญชี สมุดรายวัน บัญชีย่อย ข้อมูลธนาคาร และรายงานภาษีใช้ขอบเขตคำสั่งและการอ่านของ Finance โดยตรง")} }
                 }
-                span { class: "route-identity", "erpx.finance.v1" }
+                span { class: "route-identity", "erpx.finance.v2" }
             }
 
             form {
@@ -39948,7 +39948,7 @@ fn AuthSessionPanel(
                     form {
                         class: "auth-form",
                         method: "post",
-                        action: "/api/v1/auth/password/form",
+                        action: "/api/v2/auth/password/form",
                         onsubmit: submit_password_login,
                         KitInput { r#type: "hidden", name: "device_label", value: "erpx-console" }
                         div { class: "auth-field",
@@ -47969,18 +47969,18 @@ pub fn run() {
 mod tests {
     use erpx_integration_contracts::catalog::{WORKSPACES, WorkspaceId};
     use erpx_proto::erpx::{
-        crm::v1::{CrmReadRow, ListCrmReadRowsResponse},
-        customer_360::v1::{self as customer360_target, GetCustomer360DetailResponse},
-        customer_authority::v1::{CustomerAccessAuditEntry, GetCustomerAccessAuditResponse},
-        identity_access::v1::{RoleAssignment, RoleReviewItem},
-        legal::v1 as legal_target,
-        marketing::v1::{
+        crm::v2::{CrmReadRow, ListCrmReadRowsResponse},
+        customer_360::v2::{self as customer360_target, GetCustomer360DetailResponse},
+        customer_authority::v2::{CustomerAccessAuditEntry, GetCustomerAccessAuditResponse},
+        identity_access::v2::{RoleAssignment, RoleReviewItem},
+        legal::v2 as legal_target,
+        marketing::v2::{
             GetMarketingDeliveryReadResponse, ListMarketingContentReadRowsResponse,
             MarketingContentReadRow, MarketingContentWriteReceipt, MarketingDeliveryRead,
             MarketingProviderAccountWriteReceipt,
         },
-        platform_administration::v1 as platform_admin_target,
-        support::v1 as support_target,
+        platform_administration::v2 as platform_admin_target,
+        support::v2 as support_target,
     };
     use platform_admin_target::{
         ListPlatformAuditResponse, MigrationStatus, PlatformAuditEntry, PlatformIntegrationStatus,
@@ -48045,8 +48045,8 @@ mod tests {
         validate_directory_group_reference, validate_infrastructure_reference,
         validate_tenant_registration_reference,
     };
-    use erpx_proto::common::v1::{CompanyScope, HoldingScope, TenantScope, tenant_scope};
-    use erpx_proto::erpx::operations::v1::{
+    use erpx_proto::common::v2::{CompanyScope, HoldingScope, TenantScope, tenant_scope};
+    use erpx_proto::erpx::operations::v2::{
         GetOperationsSummaryCqrsResponse, ListOperationsExceptionQueueResponse,
         ListOperationsWorkQueuePoliciesCqrsResponse, OperationsExceptionMutationResponse,
         OperationsExceptionRecord as OperationsExceptionWire,
@@ -48397,7 +48397,7 @@ mod tests {
         ));
         assert_eq!(
             query.actor.expect("query actor").kind,
-            erpx_proto::common::v1::ActorKind::TenantUser as i32
+            erpx_proto::common::v2::ActorKind::TenantUser as i32
         );
 
         let command = tenant_holding_command_context(
@@ -49101,7 +49101,7 @@ mod tests {
                 }],
                 latest_event_at: Some("2026-07-27T10:00:00Z".into()),
             }),
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "summary-correlation-001".into(),
                 ..Default::default()
             }),
@@ -49132,13 +49132,13 @@ mod tests {
                 updated_at: "2026-07-27T10:00:00Z".into(),
             }],
             next_cursor: None,
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "exceptions-correlation-001".into(),
                 ..Default::default()
             }),
         };
         let policies = ListOperationsWorkQueuePoliciesCqrsResponse {
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "policies-correlation-001".into(),
                 ..Default::default()
             }),
@@ -49155,7 +49155,7 @@ mod tests {
 
         let malformed = GetOperationsSummaryCqrsResponse {
             summary: None,
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "summary-correlation-001".into(),
                 ..Default::default()
             }),
@@ -49165,14 +49165,14 @@ mod tests {
                 &scope,
                 malformed,
                 ListOperationsExceptionQueueResponse {
-                    metadata: Some(erpx_proto::common::v1::QueryMetadata {
+                    metadata: Some(erpx_proto::common::v2::QueryMetadata {
                         correlation_id: "exceptions-correlation-001".into(),
                         ..Default::default()
                     }),
                     ..Default::default()
                 },
                 ListOperationsWorkQueuePoliciesCqrsResponse {
-                    metadata: Some(erpx_proto::common::v1::QueryMetadata {
+                    metadata: Some(erpx_proto::common::v2::QueryMetadata {
                         correlation_id: "policies-correlation-001".into(),
                         ..Default::default()
                     }),
@@ -49320,9 +49320,9 @@ mod tests {
     #[test]
     fn operations_transition_receipt_is_bounded_and_command_context_is_holding_scoped() {
         let response = OperationsExceptionMutationResponse {
-            receipt: Some(erpx_proto::common::v1::CommandReceipt {
+            receipt: Some(erpx_proto::common::v2::CommandReceipt {
                 correlation_id: "correlation-001".into(),
-                committed_events: vec![erpx_proto::common::v1::EventPosition {
+                committed_events: vec![erpx_proto::common::v2::EventPosition {
                     event_id: "event-001".into(),
                     global_sequence: 1,
                 }],
@@ -49401,7 +49401,7 @@ mod tests {
                 projected_at: "2026-07-27T10:00:01Z".into(),
             }],
             next_cursor: None,
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "finance-correlation-001".into(),
                 projection: None,
                 consistency: None,
@@ -49432,7 +49432,7 @@ mod tests {
                 posted_at: Some("2026-07-27T10:00:00Z".into()),
                 ..Default::default()
             }],
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "finance-correlation-001".into(),
                 ..Default::default()
             }),
@@ -49476,7 +49476,7 @@ mod tests {
                 }],
                 ..Default::default()
             }],
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "finance-chart-correlation-001".into(),
                 ..Default::default()
             }),
@@ -49501,7 +49501,7 @@ mod tests {
                 chart_id: "00000000-0000-0000-0000-000000000021".into(),
                 ..Default::default()
             }],
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "finance-chart-correlation-002".into(),
                 ..Default::default()
             }),
@@ -49545,7 +49545,7 @@ mod tests {
                 }],
                 ..Default::default()
             }],
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "legal-correlation-001".into(),
                 ..Default::default()
             }),
@@ -49571,7 +49571,7 @@ mod tests {
                 }),
                 ..Default::default()
             }],
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "legal-correlation-002".into(),
                 ..Default::default()
             }),
@@ -49581,7 +49581,7 @@ mod tests {
 
         let contradictory_cursor = legal_target::ListTypedLegalContractsResponse {
             next_cursor: Some("invalid\ncursor".into()),
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "legal-correlation-003".into(),
                 ..Default::default()
             }),
@@ -50175,7 +50175,7 @@ mod tests {
         ]
         .into_iter()
         .map(
-            |(section, state)| erpx_proto::erpx::customer_360::v1::Customer360SectionState {
+            |(section, state)| erpx_proto::erpx::customer_360::v2::Customer360SectionState {
                 section: section.into(),
                 state: state.into(),
             },
@@ -50187,7 +50187,7 @@ mod tests {
             supported: true,
             present: true,
             section_states,
-            section_facts: vec![erpx_proto::erpx::customer_360::v1::Customer360SectionFact {
+            section_facts: vec![erpx_proto::erpx::customer_360::v2::Customer360SectionFact {
                 section: "health".into(),
                 key: "state".into(),
                 value: "healthy".into(),
@@ -50212,7 +50212,7 @@ mod tests {
             supported: true,
             present: true,
             section_states: vec![
-                erpx_proto::erpx::customer_360::v1::Customer360SectionState {
+                erpx_proto::erpx::customer_360::v2::Customer360SectionState {
                     section: "account".into(),
                     state: "present".into(),
                 },
@@ -50232,7 +50232,7 @@ mod tests {
             ..Default::default()
         };
         let mut unknown = base.clone();
-        unknown.section_facts = vec![erpx_proto::erpx::customer_360::v1::Customer360SectionFact {
+        unknown.section_facts = vec![erpx_proto::erpx::customer_360::v2::Customer360SectionFact {
             section: "health".into(),
             key: "database_url".into(),
             value: "must-not-render".into(),
@@ -50243,12 +50243,12 @@ mod tests {
 
         let mut duplicate = base;
         duplicate.section_facts = vec![
-            erpx_proto::erpx::customer_360::v1::Customer360SectionFact {
+            erpx_proto::erpx::customer_360::v2::Customer360SectionFact {
                 section: "health".into(),
                 key: "state".into(),
                 value: "healthy".into(),
             },
-            erpx_proto::erpx::customer_360::v1::Customer360SectionFact {
+            erpx_proto::erpx::customer_360::v2::Customer360SectionFact {
                 section: "health".into(),
                 key: "state".into(),
                 value: "degraded".into(),
@@ -50293,7 +50293,7 @@ mod tests {
         let context = request.context.expect("platform query context");
         assert!(matches!(
             context.tenant_scope.and_then(|scope| scope.scope),
-            Some(erpx_proto::common::v1::tenant_scope::Scope::Platform(_))
+            Some(erpx_proto::common::v2::tenant_scope::Scope::Platform(_))
         ));
         assert_eq!(
             context
@@ -50717,7 +50717,7 @@ mod tests {
                 ..Default::default()
             }],
             next_cursor: None,
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "correlation-001".into(),
                 ..Default::default()
             }),
@@ -50743,7 +50743,7 @@ mod tests {
                 status: support_target::SupportIncidentStatus::Investigating as i32,
                 ..Default::default()
             }],
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "correlation-001".into(),
                 ..Default::default()
             }),
@@ -50764,7 +50764,7 @@ mod tests {
                 description: "customer password=must-not-render".into(),
                 ..Default::default()
             }],
-            metadata: Some(erpx_proto::common::v1::QueryMetadata {
+            metadata: Some(erpx_proto::common::v2::QueryMetadata {
                 correlation_id: "correlation-002".into(),
                 ..Default::default()
             }),
@@ -51030,7 +51030,7 @@ mod tests {
         let platform = CrmReadScope {
             tenant_id: "tenant-001".into(),
             holding_ref: "holding-ref-001".into(),
-            scope: tenant_scope::Scope::Platform(erpx_proto::common::v1::PlatformScope {}),
+            scope: tenant_scope::Scope::Platform(erpx_proto::common::v2::PlatformScope {}),
         };
         assert_eq!(
             crm_read_request(
@@ -51079,7 +51079,7 @@ mod tests {
         let scope = CrmReadScope::new(
             "00000000-0000-0000-0000-000000000001",
             "holding-ref-001",
-            tenant_scope::Scope::Branch(erpx_proto::common::v1::BranchScope {
+            tenant_scope::Scope::Branch(erpx_proto::common::v2::BranchScope {
                 holding_id: "00000000-0000-0000-0000-000000000002".into(),
                 company_id: "00000000-0000-0000-0000-000000000003".into(),
                 branch_id: "00000000-0000-0000-0000-000000000004".into(),
@@ -51167,7 +51167,7 @@ mod tests {
         let scope = CrmReadScope::new(
             "00000000-0000-0000-0000-000000000001",
             "holding-ref-001",
-            tenant_scope::Scope::Branch(erpx_proto::common::v1::BranchScope {
+            tenant_scope::Scope::Branch(erpx_proto::common::v2::BranchScope {
                 holding_id: "00000000-0000-0000-0000-000000000002".into(),
                 company_id: "00000000-0000-0000-0000-000000000003".into(),
                 branch_id: "00000000-0000-0000-0000-000000000004".into(),
@@ -51787,13 +51787,13 @@ mod tests {
             Some(ProtoCommandReceipt {
                 command_id: "00000000-0000-0000-0000-000000000025".into(),
                 correlation_id: "legal-correlation-001".into(),
-                aggregate: Some(erpx_proto::common::v1::AggregateVersion {
+                aggregate: Some(erpx_proto::common::v2::AggregateVersion {
                     context: "legal".into(),
                     aggregate_type: "legal_contract".into(),
                     aggregate_id: "00000000-0000-0000-0000-000000000021".into(),
                     version: 5,
                 }),
-                committed_events: vec![erpx_proto::common::v1::EventPosition {
+                committed_events: vec![erpx_proto::common::v2::EventPosition {
                     event_id: "00000000-0000-0000-0000-000000000024".into(),
                     global_sequence: 42,
                 }],
@@ -51963,7 +51963,7 @@ mod tests {
             business_unit: "finance".to_owned(),
             configuration_version: 3,
             active: true,
-            organization_scope: Some(erpx_proto::common::v1::TenantScope {
+            organization_scope: Some(erpx_proto::common::v2::TenantScope {
                 scope: Some(tenant_scope::Scope::Holding(HoldingScope {
                     holding_id: holding_id.clone(),
                 })),
@@ -51972,7 +51972,7 @@ mod tests {
                 platform_admin_target::BusinessUnitDirectoryRoleMappingMessage {
                     group_ref: "finance-viewers".to_owned(),
                     role_key: "finance_viewer".to_owned(),
-                    target_scope: Some(erpx_proto::common::v1::TenantScope {
+                    target_scope: Some(erpx_proto::common::v2::TenantScope {
                         scope: Some(tenant_scope::Scope::Holding(HoldingScope { holding_id })),
                     }),
                     requires_mfa: true,

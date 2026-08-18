@@ -14,7 +14,7 @@ use erpx_manufacturing as manufacturing;
 use erpx_manufacturing_sqlx as manufacturing_sqlx;
 use erpx_planning as planning;
 use erpx_planning_sqlx as planning_sqlx;
-use erpx_proto::erpx::{manufacturing::v1 as manufacturing_wire, planning::v1 as planning_wire};
+use erpx_proto::erpx::{manufacturing::v2 as manufacturing_wire, planning::v2 as planning_wire};
 use prost::Message;
 use sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status};
@@ -175,7 +175,7 @@ fn correlation(value: &str) -> Result<CorrelationId, Status> {
 }
 
 fn manufacturing_identity<M: Message>(
-    context: &erpx_proto::common::v1::CommandContext,
+    context: &erpx_proto::common::v2::CommandContext,
     request: &M,
 ) -> Result<manufacturing::MutationIdentity, Status> {
     Ok(manufacturing::MutationIdentity {
@@ -187,7 +187,7 @@ fn manufacturing_identity<M: Message>(
 }
 
 fn planning_identity<M: Message>(
-    context: &erpx_proto::common::v1::CommandContext,
+    context: &erpx_proto::common::v2::CommandContext,
     request: &M,
 ) -> Result<planning::MutationIdentity, Status> {
     Ok(planning::MutationIdentity {
@@ -255,7 +255,7 @@ fn planning_version_ref(
 
 fn ensure_scope(
     invocation: &FutureInvocation,
-    value: Option<&erpx_proto::common::v1::TenantScope>,
+    value: Option<&erpx_proto::common::v2::TenantScope>,
 ) -> Result<(), Status> {
     let presented = decode_wire_scope(value)?;
     if presented != invocation.scope {
@@ -267,11 +267,11 @@ fn ensure_scope(
 }
 
 fn enforce_aggregate_version(
-    context: Option<&erpx_proto::common::v1::QueryContext>,
+    context: Option<&erpx_proto::common::v2::QueryContext>,
     record_id: &str,
     actual_version: u64,
 ) -> Result<(), Status> {
-    use erpx_proto::common::v1::query_consistency::Requirement;
+    use erpx_proto::common::v2::query_consistency::Requirement;
     let requirement = context
         .and_then(|context| context.consistency.as_ref())
         .and_then(|consistency| consistency.requirement.as_ref())
@@ -303,9 +303,9 @@ fn lifecycle_token(value: impl serde::Serialize) -> Result<String, Status> {
 }
 
 fn decode_wire_scope(
-    value: Option<&erpx_proto::common::v1::TenantScope>,
+    value: Option<&erpx_proto::common::v2::TenantScope>,
 ) -> Result<erpx_kernel::TenantScope, Status> {
-    use erpx_proto::common::v1::tenant_scope::Scope;
+    use erpx_proto::common::v2::tenant_scope::Scope;
     let scope = value
         .and_then(|value| value.scope.as_ref())
         .ok_or_else(|| Status::invalid_argument("record scope is required"))?;
@@ -406,8 +406,8 @@ fn planning_status(error: planning::PlanningError) -> Status {
 async fn mutate_manufacturing_order<M, F>(
     state: &AppState,
     request: &Request<M>,
-    context: &erpx_proto::common::v1::CommandContext,
-    order_scope: Option<&erpx_proto::common::v1::TenantScope>,
+    context: &erpx_proto::common::v2::CommandContext,
+    order_scope: Option<&erpx_proto::common::v2::TenantScope>,
     order_id: &str,
     action: manufacturing::ManufacturingAction,
     event_type: &'static str,
@@ -884,8 +884,8 @@ impl manufacturing_wire::manufacturing_command_service_server::ManufacturingComm
 }
 
 fn required_command_context(
-    context: Option<&erpx_proto::common::v1::CommandContext>,
-) -> Result<&erpx_proto::common::v1::CommandContext, Status> {
+    context: Option<&erpx_proto::common::v2::CommandContext>,
+) -> Result<&erpx_proto::common::v2::CommandContext, Status> {
     context.ok_or_else(|| Status::invalid_argument("command context is required"))
 }
 
@@ -1099,8 +1099,8 @@ impl manufacturing_wire::manufacturing_query_service_server::ManufacturingQueryS
 async fn mutate_planning_recommendation<M, F>(
     state: &AppState,
     request: &Request<M>,
-    context: &erpx_proto::common::v1::CommandContext,
-    scope: Option<&erpx_proto::common::v1::TenantScope>,
+    context: &erpx_proto::common::v2::CommandContext,
+    scope: Option<&erpx_proto::common::v2::TenantScope>,
     recommendation_id: &str,
     action: planning::PlanningAction,
     event_type: &'static str,
@@ -1774,11 +1774,11 @@ mod tests {
 
     #[test]
     fn aggregate_version_consistency_is_exact_and_fail_closed() {
-        use erpx_proto::common::v1::{
+        use erpx_proto::common::v2::{
             AggregateVersionConsistency, QueryConsistency, query_consistency::Requirement,
         };
         let record_id = Uuid::new_v4().to_string();
-        let context = erpx_proto::common::v1::QueryContext {
+        let context = erpx_proto::common::v2::QueryContext {
             consistency: Some(QueryConsistency {
                 requirement: Some(Requirement::AggregateVersion(AggregateVersionConsistency {
                     aggregate_type: "authorized-reference".into(),

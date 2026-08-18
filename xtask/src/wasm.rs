@@ -5,10 +5,45 @@ use std::{
 };
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 type TaskResult<T = ()> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-const REPORT_SCHEMA_VERSION: u32 = 2;
+const REPORT_SCHEMA_VERSION: u32 = 3;
+const BASE_BROTLI_BUDGET: u64 = 1024 * 1024;
+const WORKSPACE_BROTLI_BUDGET: u64 = 750 * 1024;
+const COLD_ROUTE_BROTLI_BUDGET: u64 = 1_792 * 1024;
+
+const WORKSPACE_CHUNKS: [(&str, &str); 21] = [
+    ("operations", "OperationsWorkspace"),
+    ("finance", "FinanceWorkspace"),
+    ("sales", "SalesWorkspace"),
+    ("procurement", "ProcurementWorkspace"),
+    ("inventory", "InventoryWorkspace"),
+    ("asset", "AssetWorkspace"),
+    ("maintenance", "MaintenanceWorkspace"),
+    ("quality", "QualityWorkspace"),
+    ("marketing", "MarketingWorkspace"),
+    ("people", "PeopleWorkspace"),
+    ("pos", "PosWorkspace"),
+    ("legal", "LegalWorkspace"),
+    ("manufacturing", "ManufacturingWorkspace"),
+    ("planning", "PlanningWorkspace"),
+    ("project", "ProjectWorkspace"),
+    ("commerce", "CommerceWorkspace"),
+    ("talent", "TalentWorkspace"),
+    ("learning", "LearningWorkspace"),
+    ("benefits", "BenefitsWorkspace"),
+    ("field-service", "FieldServiceWorkspace"),
+    ("ai", "AiWorkspace"),
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum WasmLayout {
+    MonolithicDev,
+    SplitRelease,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ArtifactReadiness {
@@ -17,6 +52,7 @@ pub(crate) struct ArtifactReadiness {
     pub javascript: Vec<PathBuf>,
     pub wasm: PathBuf,
     pub wasm_files: Vec<PathBuf>,
+    pub layout: WasmLayout,
 }
 
 #[allow(dead_code)] // Each xtask binary uses a different subset of profiles.
@@ -57,6 +93,27 @@ pub(crate) struct WasmSizeReport {
     pub base_path: String,
     pub base_raw_bytes: u64,
     pub base_brotli_bytes: u64,
+    pub layout: WasmLayout,
+    pub chunks: Vec<WasmChunkReport>,
+    pub workspaces: Vec<WorkspaceClosureReport>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct WasmChunkReport {
+    pub logical_name: String,
+    pub path: String,
+    pub sha256: String,
+    pub raw_bytes: u64,
+    pub brotli_bytes: u64,
+    pub dependencies: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) struct WorkspaceClosureReport {
+    pub workspace: String,
+    pub entry_chunk: String,
+    pub logical_brotli_bytes: u64,
+    pub cold_route_brotli_bytes: u64,
 }
 
 pub(crate) fn public_directory(root: &Path, profile: WasmProfile) -> PathBuf {
@@ -67,8 +124,8 @@ pub(crate) fn public_directory(root: &Path, profile: WasmProfile) -> PathBuf {
 
 /// Validate the generated Dioxus Web bundle before a running `dx serve`
 /// process is treated as healthy. The directory is generated output, so it
-/// must remain entirely below `target/dx` and contain a complete monolithic
-/// hydration bundle.
+/// must remain entirely below `target/dx`. Development stays monolithic for
+/// hot reload; release must contain Dioxus split glue and lazy route modules.
 pub(crate) fn artifact_readiness(
     root: &Path,
     profile: WasmProfile,
@@ -101,7 +158,16 @@ pub(crate) fn artifact_readiness(
 
     let mut files = Vec::new();
     collect_files(&public, &mut files, &|_| true)?;
-    let wasm = validate_monolithic_layout(&files)?;
+    let (layout, wasm) = match profile {
+        WasmProfile::Dev => (
+            WasmLayout::MonolithicDev,
+            validate_monolithic_layout(&files)?,
+        ),
+        WasmProfile::Release => (
+            WasmLayout::SplitRelease,
+            validate_split_release_layout(&public, &files)?,
+        ),
+    };
     let stylesheets = files
         .iter()
         .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("css"))
@@ -135,6 +201,7 @@ pub(crate) fn artifact_readiness(
         javascript,
         wasm,
         wasm_files,
+        layout,
     })
 }
 
@@ -224,13 +291,50 @@ pub(crate) fn compress_and_measure(
         write_brotli(path, profile.brotli_quality())?;
     }
 
+    let shared_chunks = readiness
+        .wasm_files
+        .iter()
+        .filter(|path| is_shared_chunk(path))
+        .map(|path| relative_display(root, path))
+        .collect::<Vec<_>>();
+    let chunks = readiness
+        .wasm_files
+        .iter()
+        .filter(|path| **path != wasm)
+        .map(|path| {
+            let logical_name = logical_chunk_name(path);
+            let dependencies = if is_module_chunk(path) {
+                shared_chunks.clone()
+            } else {
+                Vec::new()
+            };
+            Ok(WasmChunkReport {
+                logical_name,
+                path: relative_display(root, path),
+                sha256: file_sha256(path)?,
+                raw_bytes: fs::metadata(path)?.len(),
+                brotli_bytes: fs::metadata(brotli_path(path))?.len(),
+                dependencies,
+            })
+        })
+        .collect::<TaskResult<Vec<_>>>()?;
+    let base_brotli_bytes = fs::metadata(brotli_path(&wasm))?.len();
+    let workspaces = if profile == WasmProfile::Release {
+        workspace_closures(base_brotli_bytes, &chunks)?
+    } else {
+        Vec::new()
+    };
     let report = WasmSizeReport {
         schema_version: REPORT_SCHEMA_VERSION,
         profile: profile.label().into(),
         base_path: relative_display(root, &wasm),
         base_raw_bytes: fs::metadata(&wasm)?.len(),
-        base_brotli_bytes: fs::metadata(brotli_path(&wasm))?.len(),
+        base_brotli_bytes,
+        layout: readiness.layout,
+        chunks,
+        workspaces,
     };
+    enforce_release_budgets(&report)?;
     print_report(&report);
     record_report(root, &report)?;
     Ok(report)
@@ -261,6 +365,192 @@ fn validate_monolithic_layout(files: &[PathBuf]) -> TaskResult<PathBuf> {
         )
         .into()),
     }
+}
+
+fn validate_split_release_layout(public: &Path, files: &[PathBuf]) -> TaskResult<PathBuf> {
+    let wasm_files = files
+        .iter()
+        .filter(|path| {
+            path.extension().and_then(|value| value.to_str()) == Some("wasm")
+                && !is_hot_patch_artifact(path)
+        })
+        .collect::<Vec<_>>();
+    let main = wasm_files
+        .iter()
+        .filter(|path| !is_module_chunk(path) && !is_shared_chunk(path))
+        .collect::<Vec<_>>();
+    let main = match main.as_slice() {
+        [main] => (**main).clone(),
+        [] => return Err("split release artifact contains no base WASM".into()),
+        _ => return Err("split release artifact contains multiple base WASM files".into()),
+    };
+    let modules = wasm_files
+        .iter()
+        .filter(|path| is_module_chunk(path))
+        .collect::<Vec<_>>();
+    if modules.len() < WORKSPACE_CHUNKS.len() {
+        return Err(format!(
+            "split release artifact has {} lazy modules; at least {} workspace entries are required",
+            modules.len(),
+            WORKSPACE_CHUNKS.len()
+        )
+        .into());
+    }
+    for (workspace, token) in WORKSPACE_CHUNKS {
+        if !modules.iter().any(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.contains(token))
+        }) {
+            return Err(format!("split release is missing the {workspace} workspace entry").into());
+        }
+    }
+    validate_split_references(public, files, &wasm_files)?;
+    Ok(main.to_path_buf())
+}
+
+fn validate_split_references(
+    public: &Path,
+    files: &[PathBuf],
+    wasm_files: &[&PathBuf],
+) -> TaskResult {
+    let javascript = files
+        .iter()
+        .filter(|path| path.extension().and_then(|value| value.to_str()) == Some("js"))
+        .map(fs::read_to_string)
+        .collect::<Result<Vec<_>, _>>()?
+        .join("\n");
+    if !javascript.contains("__wasm_split_load_") {
+        return Err("split release artifact is missing Dioxus wasm-split glue".into());
+    }
+    for path in wasm_files
+        .iter()
+        .filter(|path| is_module_chunk(path) || is_shared_chunk(path))
+    {
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .ok_or_else(|| {
+                format!(
+                    "split artifact has a non-UTF-8 file name: {}",
+                    path.display()
+                )
+            })?;
+        if !javascript.contains(name) {
+            return Err(format!("split chunk is stale or unreferenced: {name}").into());
+        }
+    }
+    for name in referenced_wasm_file_names(&javascript) {
+        let path = public.join("assets").join(&name);
+        if (name.starts_with("module_") || name.starts_with("chunk_")) && !path.is_file() {
+            return Err(format!("split glue references missing chunk: {name}").into());
+        }
+    }
+    Ok(())
+}
+
+fn referenced_wasm_file_names(source: &str) -> Vec<String> {
+    source
+        .split(['"', '\'', '(', ')', ',', ' '])
+        .filter_map(|token| {
+            let token = token.split(['?', '#']).next().unwrap_or_default();
+            token
+                .ends_with(".wasm")
+                .then(|| token.rsplit('/').next().unwrap_or(token).to_owned())
+        })
+        .collect()
+}
+
+fn is_module_chunk(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with("module_") && name.ends_with(".wasm"))
+}
+
+fn is_shared_chunk(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with("chunk_") && name.ends_with(".wasm"))
+}
+
+fn logical_chunk_name(path: &Path) -> String {
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("unknown");
+    WORKSPACE_CHUNKS
+        .iter()
+        .find(|(_, token)| file_name.contains(token))
+        .map_or_else(
+            || file_name.to_owned(),
+            |(workspace, _)| (*workspace).to_owned(),
+        )
+}
+
+fn workspace_closures(
+    base_brotli_bytes: u64,
+    chunks: &[WasmChunkReport],
+) -> TaskResult<Vec<WorkspaceClosureReport>> {
+    let shared_bytes = chunks
+        .iter()
+        .filter(|chunk| {
+            chunk
+                .path
+                .rsplit('/')
+                .next()
+                .is_some_and(|name| name.starts_with("chunk_"))
+        })
+        .map(|chunk| chunk.brotli_bytes)
+        .sum::<u64>();
+    WORKSPACE_CHUNKS
+        .iter()
+        .map(|(workspace, _)| {
+            let entry = chunks
+                .iter()
+                .find(|chunk| chunk.logical_name == *workspace)
+                .ok_or_else(|| format!("workspace manifest is missing {workspace}"))?;
+            Ok(WorkspaceClosureReport {
+                workspace: (*workspace).to_owned(),
+                entry_chunk: entry.path.clone(),
+                logical_brotli_bytes: entry.brotli_bytes,
+                cold_route_brotli_bytes: base_brotli_bytes + shared_bytes + entry.brotli_bytes,
+            })
+        })
+        .collect()
+}
+
+fn enforce_release_budgets(report: &WasmSizeReport) -> TaskResult {
+    if report.layout != WasmLayout::SplitRelease {
+        return Ok(());
+    }
+    if report.base_brotli_bytes > BASE_BROTLI_BUDGET {
+        return Err(format!(
+            "base WASM exceeds the 1.0 MiB Brotli budget: {}",
+            report.base_brotli_bytes
+        )
+        .into());
+    }
+    for workspace in &report.workspaces {
+        if workspace.logical_brotli_bytes > WORKSPACE_BROTLI_BUDGET {
+            return Err(format!(
+                "{} workspace exceeds the 750 KiB logical budget",
+                workspace.workspace
+            )
+            .into());
+        }
+        if workspace.cold_route_brotli_bytes > COLD_ROUTE_BROTLI_BUDGET {
+            return Err(format!(
+                "{} cold-route closure exceeds the 1.75 MiB budget",
+                workspace.workspace
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn file_sha256(path: &Path) -> TaskResult<String> {
+    Ok(format!("{:x}", Sha256::digest(fs::read(path)?)))
 }
 
 fn is_hot_patch_artifact(path: &Path) -> bool {
@@ -347,11 +637,14 @@ fn relative_display(root: &Path, path: &Path) -> String {
 
 fn print_report(report: &WasmSizeReport) {
     println!(
-        "wasm-size {}: monolithic={} raw={} Brotli={} (informational; no size budget)",
+        "wasm-size {}: layout={:?}, base={} raw={} Brotli={}, chunks={}, workspaces={}",
         report.profile,
+        report.layout,
         report.base_path,
         display_bytes(report.base_raw_bytes),
         display_bytes(report.base_brotli_bytes),
+        report.chunks.len(),
+        report.workspaces.len(),
     );
 }
 
@@ -448,6 +741,39 @@ mod tests {
                     .contains("split glue, chunk, or lazy module")
             );
         }
+    }
+
+    #[test]
+    fn split_release_requires_every_workspace_and_referenced_chunk() {
+        let root = fixture_root("split-release");
+        let public = public_directory(&root, WasmProfile::Release);
+        let assets = public.join("assets");
+        fs::create_dir_all(&assets).expect("create release fixture assets");
+        fs::write(assets.join("erpx-console.css"), b"body {}").expect("write CSS");
+        fs::write(assets.join("erpx-console_bg.wasm"), b"base").expect("write base WASM");
+
+        let mut glue = String::from("export const __wasm_split_load_0 = true;\n");
+        for (_, token) in WORKSPACE_CHUNKS {
+            let name = format!("module_0_{token}.wasm");
+            fs::write(assets.join(&name), b"workspace").expect("write workspace chunk");
+            glue.push_str(&format!("fetch('/assets/{name}');\n"));
+        }
+        fs::write(assets.join("chunk_0_shared.wasm"), b"shared").expect("write shared chunk");
+        glue.push_str("fetch('/assets/chunk_0_shared.wasm');\n");
+        fs::write(assets.join("erpx-console.js"), &glue).expect("write split glue");
+
+        let readiness =
+            artifact_readiness(&root, WasmProfile::Release).expect("complete release split graph");
+        assert_eq!(readiness.layout, WasmLayout::SplitRelease);
+        assert_eq!(readiness.wasm_files.len(), 23);
+
+        fs::remove_file(assets.join("module_0_FinanceWorkspace.wasm"))
+            .expect("remove a workspace entry");
+        let error = artifact_readiness(&root, WasmProfile::Release)
+            .expect_err("missing workspace chunk must fail")
+            .to_string();
+        assert!(error.contains("at least 21") || error.contains("finance workspace"));
+        fs::remove_dir_all(root).expect("remove fixture");
     }
 
     #[test]

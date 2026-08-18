@@ -9,7 +9,7 @@ use erpx_integration_contracts::{
     CurrencyCode, MoneyAmount, RecordTypeId, RecordVersionRef, StableRecordRef, catalog::ContextId,
 };
 use erpx_kernel::{CommandId, CorrelationId, RecordId};
-use erpx_proto::{common::v1 as common, erpx::benefits::v1 as wire};
+use erpx_proto::{common::v2 as common, erpx::benefits::v2 as wire};
 use prost::Message;
 use sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status};
@@ -920,7 +920,7 @@ mod tests {
     fn record_version_wire_contract_is_typed() {
         let source = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../crates/proto/proto/erpx/benefits/v1/service.proto"
+            "/../../crates/proto/proto/erpx/benefits/v2/service.proto"
         ));
         assert!(source.contains("string owner_context = 3;"));
         assert!(source.contains("string record_type = 4;"));

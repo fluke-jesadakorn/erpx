@@ -114,7 +114,7 @@ write-once `.runtime/erpx/cutover/fresh-state.json` manifest. `cargo xtask dev
 --detach` accepts that manifest only when the matching database bootstrap
 receipt is complete, the tenant registry row is active, schema generation is
 `2`, service-catalog generation is `3`, the service range is
-`IFC-SVC-101..165`, and rollback is offline/no-merge. Fresh
+`IFC-SVC-201..265`, and rollback is offline/no-merge. Fresh
 mode skips legacy database reconciliation and business-data demo
 fixtures. When `ERPX_DEV_PERSONA_MODE=enabled` is explicitly configured, the
 development runtime generates the gated controller, secret-free QA persona catalog,

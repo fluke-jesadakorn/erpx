@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package erpx.platform_administration.data_plane_agent.v2;
+
+import "erpx/platform_administration/v2/data_plane.proto";
+
+// Customer-hosted host-agent protocol. This infrastructure-only service is
+// owned by Platform Administration and is intentionally outside the 65
+// business Command/Query/Stream service catalog.
+service DataPlaneAgentService {
+  rpc Enroll(erpx.platform_administration.v2.EnrollDataPlaneAgentRequest)
+      returns (erpx.platform_administration.v2.EnrollDataPlaneAgentResponse);
+  rpc ReportObservation(erpx.platform_administration.v2.ReportDataPlaneObservationRequest)
+      returns (erpx.platform_administration.v2.ReportDataPlaneObservationResponse);
+  rpc Connect(stream erpx.platform_administration.v2.DataPlaneAgentEnvelope)
+      returns (stream erpx.platform_administration.v2.ControlPlaneEnvelope);
+}

@@ -1,0 +1,256 @@
+syntax = "proto3";
+
+package erpx.common.v2;
+
+message TenantScope {
+  oneof scope {
+    PlatformScope platform = 1;
+    HoldingScope holding = 2;
+    CompanyScope company = 3;
+    BranchScope branch = 4;
+    SubtreeScope subtree = 5;
+  }
+}
+
+message PlatformScope {}
+message HoldingScope { string holding_id = 1; }
+message CompanyScope { string holding_id = 1; string company_id = 2; }
+message BranchScope {
+  string holding_id = 1;
+  string company_id = 2;
+  string branch_id = 3;
+}
+message SubtreeScope {
+  string holding_id = 1;
+  repeated string company_ids = 2;
+  repeated string branch_ids = 3;
+}
+
+enum ActorKind {
+  ACTOR_KIND_UNSPECIFIED = 0;
+  ACTOR_KIND_PLATFORM_USER = 1;
+  ACTOR_KIND_TENANT_USER = 2;
+  ACTOR_KIND_SERVICE = 3;
+  ACTOR_KIND_SYSTEM_WORKER = 4;
+}
+
+message ActorAttribution {
+  string principal_ref = 1;
+  ActorKind kind = 2;
+  string session_id = 3;
+  string represented_principal_ref = 4;
+  string support_capability_id = 5;
+}
+
+message AuditContext {
+  string purpose = 1;
+  bool customer_visible = 2;
+  string module = 3;
+  string correlation_id = 4;
+}
+
+// Physical tenant routing is a transport hint, never authorization. Inbound
+// adapters must bind it to the authenticated TenantScope before selecting a
+// database; application/domain handlers never receive this value.
+message TenantRoute {
+  string tenant_id = 1;
+  string holding_ref = 2;
+}
+
+message CommandContext {
+  uint32 contract_version = 1;
+  string command_id = 2;
+  string idempotency_key = 3;
+  string correlation_id = 4;
+  string causation_id = 5;
+  ActorAttribution actor = 6;
+  TenantScope tenant_scope = 7;
+  AuditContext audit = 8;
+  uint64 expected_aggregate_version = 9;
+  // The write-side subscription authority used by universal entitlement checks.
+  // Optional for control-plane commands that do not operate on a customer.
+  string subscription_id = 10;
+  // One-time MFA step-up input for high-risk commands. Server handlers consume
+  // this value only for verification; it must never be persisted, audited, or
+  // echoed in a receipt or error.
+  string mfa_code = 11;
+}
+
+// Canonical metadata for typed CQRS command services. Command payloads live in
+// their owning bounded-context package; this message carries only invocation
+// identity, authority, audit, and optimistic-concurrency data.
+message CommandRequestMetadata {
+  uint32 contract_version = 1;
+  string command_id = 2;
+  string idempotency_key = 3;
+  string correlation_id = 4;
+  optional string causation_id = 5;
+  ActorAttribution actor = 6;
+  TenantScope tenant_scope = 7;
+  AuditContext audit = 8;
+  optional uint64 expected_aggregate_version = 9;
+  optional string subscription_id = 10;
+  // Verification input only. Servers must not persist, audit, or echo it.
+  optional string mfa_code = 11;
+  optional TenantRoute tenant_route = 12;
+}
+
+message QueryConsistency {
+  oneof requirement {
+    EventualConsistency eventual = 1;
+    ReadYourWrites read_your_writes = 2;
+    AggregateVersionConsistency aggregate_version = 3;
+  }
+}
+
+message EventualConsistency {}
+message ReadYourWrites {
+  // Kept during the coordinated v2 cutover for older callers. New typed
+  // callers must provide the exact projection receipt target below.
+  string command_id = 1 [deprecated = true];
+  string projection = 2;
+  string partition = 3;
+  string event_id = 4;
+  uint64 global_sequence = 5;
+  uint64 timeout_millis = 6;
+}
+message AggregateVersionConsistency {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+}
+
+message QueryContext {
+  uint32 contract_version = 1;
+  string request_id = 2;
+  string correlation_id = 3;
+  ActorAttribution actor = 4;
+  TenantScope tenant_scope = 5;
+  QueryConsistency consistency = 6;
+  AuditContext audit = 7;
+}
+
+// Canonical metadata for typed CQRS query services. Query handlers must use a
+// read model only; ReadYourWrites timeout is reported as not-ready rather than
+// falling back to the aggregate store.
+message QueryRequestMetadata {
+  uint32 contract_version = 1;
+  string query_id = 2;
+  string correlation_id = 3;
+  ActorAttribution actor = 4;
+  TenantScope tenant_scope = 5;
+  AuditContext audit = 6;
+  QueryConsistency consistency = 7;
+  optional TenantRoute tenant_route = 8;
+}
+
+message AggregateVersion {
+  string context = 1;
+  string aggregate_type = 2;
+  string aggregate_id = 3;
+  uint64 version = 4;
+}
+
+message EventPosition {
+  string event_id = 1;
+  uint64 global_sequence = 2;
+}
+
+// Durable result shared by typed command responses. Context-specific response
+// data is returned beside this receipt, never as an untyped payload.
+message CommandReceipt {
+  string command_id = 1;
+  string correlation_id = 2;
+  AggregateVersion aggregate = 3;
+  repeated EventPosition committed_events = 4;
+  string committed_at = 5;
+  bool replayed = 6;
+}
+
+message ProjectionTarget {
+  string event_id = 1;
+  uint64 global_sequence = 2;
+}
+
+message ProjectionCheckpoint {
+  string projection = 1;
+  string partition = 2;
+  string event_id = 3;
+  uint64 global_sequence = 4;
+  string updated_at = 5;
+}
+
+enum ProjectionFreshnessState {
+  PROJECTION_FRESHNESS_STATE_UNSPECIFIED = 0;
+  PROJECTION_FRESHNESS_STATE_CURRENT = 1;
+  PROJECTION_FRESHNESS_STATE_STALE = 2;
+  PROJECTION_FRESHNESS_STATE_REBUILDING = 3;
+  PROJECTION_FRESHNESS_STATE_UNAVAILABLE = 4;
+}
+
+message ProjectionMetadata {
+  optional ProjectionCheckpoint checkpoint = 1;
+  ProjectionFreshnessState freshness = 2;
+  optional uint64 lag_millis = 3;
+}
+
+message QueryMetadata {
+  string correlation_id = 1;
+  ProjectionMetadata projection = 2;
+  QueryConsistency consistency = 3;
+}
+
+message ProjectionNotReady {
+  string projection = 1;
+  string partition = 2;
+  ProjectionTarget target = 3;
+  optional ProjectionCheckpoint observed = 4;
+}
+
+// Legacy freshness shape retained until the remaining v2 services complete
+// their coordinated cutover to ProjectionMetadata.
+message ProjectionFreshness {
+  string projection_name = 1;
+  string last_event_id = 2;
+  string last_projected_at = 3;
+  uint64 lag_seconds = 4;
+  uint64 source_aggregate_version = 5;
+}
+
+message EventEnvelope {
+  uint32 contract_version = 1;
+  string event_id = 2;
+  string event_type = 3;
+  uint32 event_version = 4;
+  string occurred_at = 5;
+  string aggregate_type = 6;
+  string aggregate_id = 7;
+  uint64 aggregate_version = 8;
+  TenantScope tenant_scope = 9;
+  ActorAttribution actor = 10;
+  string correlation_id = 11;
+  string causation_id = 12;
+  string idempotency_key = 13;
+  bytes payload_json = 14;
+}
+
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  ERROR_CODE_UNAUTHENTICATED = 1;
+  ERROR_CODE_FORBIDDEN = 2;
+  ERROR_CODE_NOT_FOUND = 3;
+  ERROR_CODE_CONFLICT = 4;
+  ERROR_CODE_INVALID_ARGUMENT = 5;
+  ERROR_CODE_FAILED_PRECONDITION = 6;
+  ERROR_CODE_RATE_LIMITED = 7;
+  ERROR_CODE_UNAVAILABLE = 8;
+  ERROR_CODE_INTERNAL = 9;
+}
+
+message ErrorContext {
+  ErrorCode code = 1;
+  string message = 2;
+  string correlation_id = 3;
+  bool retryable = 4;
+  map<string, string> details = 5;
+}

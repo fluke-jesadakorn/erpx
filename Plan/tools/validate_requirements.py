@@ -353,9 +353,9 @@ def validate_catalogs(errors: list[str]) -> None:
         add_error(errors, "README is missing offline or AI & Collaboration workspace boundary")
 
     proto_root = REPO / "crates" / "proto" / "proto" / "erpx"
-    retired_proto_root = proto_root / "platform" / "v1"
-    if retired_proto_root.exists():
-        add_error(errors, "retired erpx.platform.v1 protobuf source tree must be absent")
+    retired_proto_roots = [path for path in proto_root.rglob("v1") if path.is_dir()]
+    if retired_proto_roots:
+        add_error(errors, "all retired erpx.<context>.v1 protobuf source trees must be absent")
     proto_services: set[str] = set()
     for path in proto_root.rglob("*.proto"):
         if "data_plane_agent" in path.parts:
@@ -378,14 +378,14 @@ def validate_catalogs(errors: list[str]) -> None:
     if actual_legacy_ids != expected_legacy_ids:
         add_error(errors, "retired service catalog IDs must be exactly IFC-SVC-001..065")
     replacement_rows = re.findall(
-        r"^\| (IFC-SVC-1[0-9]{2}) \| (\w+) \| ([^|]+?) \| (Command|Query|Stream) \|",
+        r"^\| (IFC-SVC-2[0-9]{2}) \| (\w+) \| ([^|]+?) \| (Command|Query|Stream) \|",
         interface_text,
         re.M,
     )
-    expected_replacement_ids = {f"IFC-SVC-{number:03d}" for number in range(101, 166)}
+    expected_replacement_ids = {f"IFC-SVC-{number:03d}" for number in range(201, 266)}
     actual_replacement_ids = {row[0] for row in replacement_rows}
     if actual_replacement_ids != expected_replacement_ids or len(replacement_rows) != 65:
-        add_error(errors, "replacement service catalog IDs must be exactly IFC-SVC-101..165")
+        add_error(errors, "replacement service catalog IDs must be exactly IFC-SVC-201..265")
     replacement_services = {service for _catalog_id, service, _owner, _kind in replacement_rows}
     if replacement_services != proto_services:
         add_error(
@@ -404,7 +404,7 @@ def validate_catalogs(errors: list[str]) -> None:
     }
     per_context: dict[str, set[str]] = defaultdict(set)
     for catalog_id, service, owner, kind in replacement_rows:
-        if catalog_id in {"IFC-SVC-163", "IFC-SVC-164", "IFC-SVC-165"}:
+        if catalog_id in {"IFC-SVC-263", "IFC-SVC-264", "IFC-SVC-265"}:
             continue
         owner = owner.strip()
         per_context[owner].add(kind)
@@ -420,9 +420,9 @@ def validate_catalogs(errors: list[str]) -> None:
         if per_context.get(owner) != {"Command", "Query"}:
             add_error(errors, f"{owner} must own exactly one Command and one Query service")
     cross_cutting = {
-        ("IFC-SVC-163", "CollaborationStreamService", "Collaboration", "Stream"),
-        ("IFC-SVC-164", "ReferenceQueryService", "Item Directory projection", "Query"),
-        ("IFC-SVC-165", "DataPlaneStreamService", "Platform Administration", "Stream"),
+        ("IFC-SVC-263", "CollaborationStreamService", "Collaboration", "Stream"),
+        ("IFC-SVC-264", "ReferenceQueryService", "Item Directory projection", "Query"),
+        ("IFC-SVC-265", "DataPlaneStreamService", "Platform Administration", "Stream"),
     }
     normalized_rows = {(a, b, c.strip(), d) for a, b, c, d in replacement_rows}
     if not cross_cutting.issubset(normalized_rows):
@@ -451,7 +451,7 @@ def validate_catalogs(errors: list[str]) -> None:
         "AgentOrchestrationQueryService",
         "DataPlaneStreamService",
         "/reference/item/:id",
-        "POST /api/v1/<module>/<record>/:id/commands/<command>",
+        "POST /api/v2/<module>/<record>/:id/commands/<command>",
     ):
         if target not in interface_text:
             add_error(errors, f"interface catalog is missing target {target}")
@@ -562,7 +562,7 @@ def validate_decisions_and_invariants(errors: list[str]) -> None:
         "CQRS",
         "schema generation v2",
         "atomic hard cutover",
-        "IFC-SVC-101..165",
+        "IFC-SVC-201..265",
     ):
         if marker not in fsd_006:
             add_error(errors, f"FSD-006 is missing architecture/cutover marker {marker}")

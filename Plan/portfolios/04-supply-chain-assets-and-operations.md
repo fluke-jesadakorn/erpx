@@ -24,7 +24,7 @@ terms cannot be silently edited; cancellation respects receipt and payable
 state.
 
 **Sources.** [Procurement context](../../crates/contexts/procurement/src/lib.rs),
-[Procurement API](../../crates/proto/proto/erpx/procurement/v1/service.proto).
+[Procurement API](../../crates/proto/proto/erpx/procurement/v2/service.proto).
 
 ### REQ-PRC-002 — Purchase approval and budget control
 
@@ -73,7 +73,7 @@ registration is idempotent; stock state cannot be created by a read projection;
 cross-branch access follows active physical routing and authorization.
 
 **Sources.** [Inventory context](../../crates/contexts/inventory/src/lib.rs),
-[Inventory API](../../crates/proto/proto/erpx/inventory/v1/service.proto).
+[Inventory API](../../crates/proto/proto/erpx/inventory/v2/service.proto).
 
 ### REQ-INV-002 — Traceable stock movements
 
@@ -138,7 +138,7 @@ transitions are rejected; retirement is terminal except for an explicitly
 defined correction; state changes publish versioned events.
 
 **Sources.** [Assets context](../../crates/contexts/assets/src/lib.rs),
-[Assets API](../../crates/proto/proto/erpx/assets/v1/service.proto).
+[Assets API](../../crates/proto/proto/erpx/assets/v2/service.proto).
 
 ### REQ-AST-002 — Asset-to-maintenance linkage
 
@@ -155,7 +155,7 @@ idempotent.
 
 **Sources.** [Assets context](../../crates/contexts/assets/src/lib.rs),
 [Maintenance context](../../crates/contexts/maintenance/src/lib.rs),
-[asset-maintenance API](../../crates/proto/proto/erpx/maintenance/v1/service.proto).
+[asset-maintenance API](../../crates/proto/proto/erpx/maintenance/v2/service.proto).
 
 ### REQ-AST-003 — Reliability and availability evidence
 
@@ -186,7 +186,7 @@ work and result evidence; cancelled or completed work rejects further
 operational transitions.
 
 **Sources.** [Maintenance context](../../crates/contexts/maintenance/src/lib.rs),
-[Maintenance API](../../crates/proto/proto/erpx/maintenance/v1/service.proto).
+[Maintenance API](../../crates/proto/proto/erpx/maintenance/v2/service.proto).
 
 ### REQ-MNT-002 — Downtime recording
 
@@ -216,7 +216,7 @@ detail results identify freshness; denied rows are not inferred from counts;
 read-model rebuild preserves business ordering and identity.
 
 **Sources.** [Maintenance context](../../crates/contexts/maintenance/src/lib.rs),
-[Maintenance API](../../crates/proto/proto/erpx/maintenance/v1/service.proto).
+[Maintenance API](../../crates/proto/proto/erpx/maintenance/v2/service.proto).
 
 ## Quality
 
@@ -234,7 +234,7 @@ and version; start requires released state; result cannot be recorded twice as
 different outcomes; terminal inspections reject invalid transitions.
 
 **Sources.** [Quality context](../../crates/contexts/quality/src/lib.rs),
-[Quality API](../../crates/proto/proto/erpx/quality/v1/service.proto).
+[Quality API](../../crates/proto/proto/erpx/quality/v2/service.proto).
 
 ### REQ-QUA-002 — Quality result and disposition
 
@@ -314,7 +314,7 @@ resolution records the source or compensating evidence; closure requires a
 resolved condition when policy says so; history remains append-only.
 
 **Sources.** [Operations context](../../crates/contexts/operations/src/lib.rs),
-[Operations API](../../crates/proto/proto/erpx/operations/v1/service.proto).
+[Operations API](../../crates/proto/proto/erpx/operations/v2/service.proto).
 
 ### REQ-OPS-004 — Governed assignment
 
@@ -345,7 +345,7 @@ version-checked and authorized; new source facts use the applicable published
 version; existing assignments retain the policy evidence that selected them.
 
 **Sources.** [Operations context](../../crates/contexts/operations/src/lib.rs),
-[Operations API](../../crates/proto/proto/erpx/operations/v1/service.proto).
+[Operations API](../../crates/proto/proto/erpx/operations/v2/service.proto).
 
 ### REQ-OPS-006 — SLA, notification, and escalation
 

@@ -526,8 +526,8 @@ async fn bootstrap() -> Result<()> {
     emit(&BootstrapCompleteReport {
         state: "complete",
         schema_generation: erpx_migration::SCHEMA_GENERATION,
-        service_catalog_generation: 3,
-        service_id_range: "IFC-SVC-101..165",
+        service_catalog_generation: 4,
+        service_id_range: "IFC-SVC-201..265",
         installation_generation: config.resources.installation_generation,
         tenant_id: &config.tenant_id,
         holding_ref: &config.holding_ref,

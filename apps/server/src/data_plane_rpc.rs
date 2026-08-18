@@ -38,14 +38,14 @@ use erpx_infrastructure::{
     SqlxTenantAdministrationStore,
 };
 use erpx_integration_contracts::catalog::{WORKSPACES, WorkspaceId};
-use erpx_proto::erpx::platform_administration::v1 as target;
-use erpx_proto::erpx::platform_administration::data_plane_agent::v1::data_plane_agent_service_server::{
+use erpx_proto::erpx::platform_administration::v2 as target;
+use erpx_proto::erpx::platform_administration::data_plane_agent::v2::data_plane_agent_service_server::{
     DataPlaneAgentService, DataPlaneAgentServiceServer,
 };
 use erpx_proto::{
-    common::v1::{CommandContext, QueryContext, TenantScope as ProtoTenantScope, tenant_scope},
-    erpx::platform_administration::v1 as agent_contract,
-    erpx::platform_administration::v1::{
+    common::v2::{CommandContext, QueryContext, TenantScope as ProtoTenantScope, tenant_scope},
+    erpx::platform_administration::v2 as agent_contract,
+    erpx::platform_administration::v2::{
         ConfigurationLifecycle as ProtoConfigurationLifecycle, ControlPlaneEnvelope,
         DataPlaneAgentEnvelope, DataPlaneAgentState as ProtoDataPlaneAgentState,
         EnrollDataPlaneAgentRequest, EnrollDataPlaneAgentResponse,
@@ -3567,16 +3567,16 @@ fn proto_scope(scope: &ProtoTenantScope) -> Result<Scope, Status> {
 
 fn scope_to_proto(scope: &Scope) -> ProtoTenantScope {
     let scope = match scope {
-        Scope::Platform => tenant_scope::Scope::Platform(erpx_proto::common::v1::PlatformScope {}),
+        Scope::Platform => tenant_scope::Scope::Platform(erpx_proto::common::v2::PlatformScope {}),
         Scope::Holding { holding_id } => {
-            tenant_scope::Scope::Holding(erpx_proto::common::v1::HoldingScope {
+            tenant_scope::Scope::Holding(erpx_proto::common::v2::HoldingScope {
                 holding_id: holding_id.to_string(),
             })
         }
         Scope::Company {
             holding_id,
             company_id,
-        } => tenant_scope::Scope::Company(erpx_proto::common::v1::CompanyScope {
+        } => tenant_scope::Scope::Company(erpx_proto::common::v2::CompanyScope {
             holding_id: holding_id.to_string(),
             company_id: company_id.to_string(),
         }),
@@ -3584,7 +3584,7 @@ fn scope_to_proto(scope: &Scope) -> ProtoTenantScope {
             holding_id,
             company_id,
             branch_id,
-        } => tenant_scope::Scope::Branch(erpx_proto::common::v1::BranchScope {
+        } => tenant_scope::Scope::Branch(erpx_proto::common::v2::BranchScope {
             holding_id: holding_id.to_string(),
             company_id: company_id.to_string(),
             branch_id: branch_id.to_string(),
@@ -3593,7 +3593,7 @@ fn scope_to_proto(scope: &Scope) -> ProtoTenantScope {
             holding_id,
             company_ids,
             branch_ids,
-        } => tenant_scope::Scope::Subtree(erpx_proto::common::v1::SubtreeScope {
+        } => tenant_scope::Scope::Subtree(erpx_proto::common::v2::SubtreeScope {
             holding_id: holding_id.to_string(),
             company_ids: company_ids.iter().map(Uuid::to_string).collect(),
             branch_ids: branch_ids.iter().map(Uuid::to_string).collect(),

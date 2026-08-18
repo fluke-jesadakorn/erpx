@@ -9,14 +9,14 @@ use erpx_data_plane_agent::{
 };
 use erpx_domain::{contracts::CONTRACT_VERSION, data_plane::AgentCapability};
 use erpx_proto::{
-    common::v1::{ActorAttribution, ActorKind, AuditContext},
-    erpx::platform_administration::v1::{
+    common::v2::{ActorAttribution, ActorKind, AuditContext},
+    erpx::platform_administration::v2::{
         ControlPlaneEnvelope, DataPlaneAgentEnvelope, DataPlaneCommandResult,
         DataPlaneObservationMessage, EnrollDataPlaneAgentRequest, control_plane_envelope,
         data_plane_agent_envelope,
     },
 };
-use erpx_proto::erpx::platform_administration::data_plane_agent::v1::data_plane_agent_service_client::DataPlaneAgentServiceClient;
+use erpx_proto::erpx::platform_administration::data_plane_agent::v2::data_plane_agent_service_client::DataPlaneAgentServiceClient;
 use sha2::Digest;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
@@ -332,7 +332,7 @@ fn refresh_local_readiness(
 }
 
 fn command_accepted_envelope(
-    command: &erpx_proto::erpx::platform_administration::v1::TypedDataPlaneCommand,
+    command: &erpx_proto::erpx::platform_administration::v2::TypedDataPlaneCommand,
 ) -> DataPlaneAgentEnvelope {
     DataPlaneAgentEnvelope {
         payload: Some(data_plane_agent_envelope::Payload::CommandResult(

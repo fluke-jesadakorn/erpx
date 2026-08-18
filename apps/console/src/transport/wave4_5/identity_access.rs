@@ -8,7 +8,7 @@ use erpx_identity_access::{
     RoleAssignmentView, RoleCode, RoleId, RoleList, RoleMutationResult, RoleView,
     SetRolePermissions, SuspendPrincipal,
 };
-use erpx_proto::erpx::identity_access::v1 as platform;
+use erpx_proto::erpx::identity_access::v2 as platform;
 use erpx_ui_foundation::UiError;
 
 use crate::{

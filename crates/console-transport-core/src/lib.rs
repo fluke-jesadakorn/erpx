@@ -17,7 +17,7 @@ use erpx_kernel::{IdentifierError, RecordId};
 use url::Url;
 use uuid::Uuid;
 
-const DEFAULT_WEB_BFF_PATH: &str = "/api/v1";
+const DEFAULT_WEB_BFF_PATH: &str = "/api/v2";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CanonicalRoute {

@@ -122,6 +122,7 @@ members = [
   "crates/console-features/support",
   "crates/console-features/talent",
   "crates/console-transport-core",
+  "crates/delivery-contract",
   "crates/console-transport",
   "crates/console-shell",
   "crates/console-bff",
@@ -140,6 +141,14 @@ exclude = [
   "third_party/dioxus-components/dioxus-attributes",
   "third_party/dioxus-icons",
   "third_party/dioxus-sdk-time",
+  "third_party/native-renderer/blitz-dom-0.3.0-beta.1",
+  "third_party/native-renderer/blitz-html-0.3.0-beta.1",
+  "third_party/native-renderer/blitz-net-0.3.0-beta.1",
+  "third_party/native-renderer/blitz-paint-0.3.0-beta.1",
+  "third_party/native-renderer/blitz-shell-0.3.0-beta.1",
+  "third_party/native-renderer/blitz-traits-0.3.0-beta.1",
+  "third_party/native-renderer/dioxus-native-0.8.0-alpha.1",
+  "third_party/native-renderer/dioxus-native-dom-0.8.0-alpha.1",
 ]
 resolver = "2"
 
@@ -205,6 +214,7 @@ erpx-console-feature-sales = { path = "crates/console-features/sales" }
 erpx-console-feature-support = { path = "crates/console-features/support" }
 erpx-console-feature-talent = { path = "crates/console-features/talent" }
 erpx-console-transport-core = { path = "crates/console-transport-core" }
+erpx-delivery-contract = { path = "crates/delivery-contract" }
 erpx-console-transport = { path = "crates/console-transport" }
 erpx-console-shell = { path = "crates/console-shell" }
 erpx-console-bff = { path = "crates/console-bff" }
@@ -363,4 +373,18 @@ inherits = "release"
 opt-level = 3
 lto = "fat"
 codegen-units = 1
-debug = 0
+# wasm-split needs function names in the pre-split binary. Dioxus/wasm-opt
+# strips them from emitted release chunks because `--debug-symbols false`.
+debug = "line-tables-only"
+
+# ERPX ships the experimental Dioxus Native/Blitz renderer from an audited,
+# immutable source closure. See third_party/native-renderer/README.md.
+[patch.crates-io]
+blitz-dom = { path = "third_party/native-renderer/blitz-dom-0.3.0-beta.1" }
+blitz-html = { path = "third_party/native-renderer/blitz-html-0.3.0-beta.1" }
+blitz-net = { path = "third_party/native-renderer/blitz-net-0.3.0-beta.1" }
+blitz-paint = { path = "third_party/native-renderer/blitz-paint-0.3.0-beta.1" }
+blitz-shell = { path = "third_party/native-renderer/blitz-shell-0.3.0-beta.1" }
+blitz-traits = { path = "third_party/native-renderer/blitz-traits-0.3.0-beta.1" }
+dioxus-native = { path = "third_party/native-renderer/dioxus-native-0.8.0-alpha.1" }
+dioxus-native-dom = { path = "third_party/native-renderer/dioxus-native-dom-0.8.0-alpha.1" }

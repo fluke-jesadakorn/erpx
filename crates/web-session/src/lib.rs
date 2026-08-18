@@ -13,7 +13,7 @@ use thiserror::Error;
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
-pub const WEB_SESSION_COOKIE_NAME: &str = "erpx_web_session_v1";
+pub const WEB_SESSION_COOKIE_NAME: &str = "erpx_web_session_v2";
 pub const MAX_WEB_SESSION_ACCOUNTS: usize = 5;
 pub const WEB_SESSION_SELECTOR_BYTES: usize = 32;
 const MAX_TOKEN_BYTES: usize = 16 * 1024;

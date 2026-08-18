@@ -5,6 +5,12 @@ pub(crate) fn launch() {
 
 #[cfg(all(feature = "native", not(feature = "server")))]
 pub(crate) fn launch() {
+    if !crate::platform::native_distribution_enabled() {
+        eprintln!(
+            "ERPX Native distribution is disabled by ERPX_NATIVE_RELEASE_KILL_SWITCH; no renderer fallback was started"
+        );
+        return;
+    }
     // Keep the native renderer selection explicit: this is Blitz/WGPU and must
     // never silently fall through to a desktop WebView launcher.
     let spike = std::env::var_os("ERPX_NATIVE_SPIKE").is_some()

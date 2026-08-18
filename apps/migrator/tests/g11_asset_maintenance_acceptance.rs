@@ -12,9 +12,9 @@ const ASSET_PERSISTENCE: &str =
     include_str!("../../../crates/infrastructure/src/asset_maintenance_persistence.rs");
 const ASSET_LIVE_TEST: &str =
     include_str!("../../../crates/infrastructure/tests/asset_maintenance_persistence.rs");
-const ASSETS_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/assets/v1/service.proto");
+const ASSETS_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/assets/v2/service.proto");
 const MAINTENANCE_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/maintenance/v1/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/maintenance/v2/service.proto");
 const SERVER_RUNTIME: &str = include_str!("../../server/src/lib.rs");
 const SERVER_WAVE6_COMPOSITION: &str = include_str!("../../server/src/wave6_composition.rs");
 const WORKER_APP: &str = include_str!("../../worker/src/app.rs");

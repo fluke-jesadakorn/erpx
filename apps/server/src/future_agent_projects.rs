@@ -38,7 +38,7 @@ use erpx_projects::{AuthorizationPort as _, ReadRepository as _};
 use erpx_projects_sqlx::{ProjectsCommandAdapter, ProjectsReadRepository, ProjectsWriteRepository};
 use erpx_proto::{
     common,
-    erpx::{agent::v1 as agent, projects::v1 as projects},
+    erpx::{agent::v2 as agent, projects::v2 as projects},
 };
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;

@@ -35,7 +35,7 @@ use erpx_kernel::{
     TenantId, TenantScope,
 };
 use erpx_proto::erpx::{
-    collaboration::v1::{
+    collaboration::v2::{
         AddCommentRequest, AudienceRealm, CollaborationStreamRequest, CommentIdentityRequest,
         ConfirmActionCardRequest, CreateThreadRequest, EditCommentRequest, FollowingRequest,
         GetThreadRequest, GetThreadResponse, ListMentionInboxRequest, ListMentionInboxResponse,
@@ -47,14 +47,14 @@ use erpx_proto::erpx::{
         collaboration_query_service_server::CollaborationQueryService,
         collaboration_stream_service_server::CollaborationStreamService,
     },
-    interface::v1::{
+    interface::v2::{
         AuthorityScope, AuthorityScopeLevel, DirectoryFreshness,
         ItemDescriptor as ProtoItemDescriptor, ListBacklinksRequest, ListBacklinksResponse,
         RecordRef as ProtoRecordRef, ResolveReferenceRequest, ResolveReferenceResponse,
         SearchItemsRequest, SearchItemsResponse, StreamEvent, StreamRequest,
     },
-    platform_administration::v1::data_plane_stream_service_server::DataPlaneStreamService,
-    reference::v1::reference_query_service_server::ReferenceQueryService,
+    platform_administration::v2::data_plane_stream_service_server::DataPlaneStreamService,
+    reference::v2::reference_query_service_server::ReferenceQueryService,
 };
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, wrappers::ReceiverStream};
@@ -927,7 +927,7 @@ struct CollaborationCommandRuntime {
 async fn collaboration_command_runtime(
     state: &AppState,
     claims: &erpx_identity::AccessTokenClaims,
-    metadata: &erpx_proto::erpx::collaboration::v1::CommandMetadata,
+    metadata: &erpx_proto::erpx::collaboration::v2::CommandMetadata,
     actions: impl IntoIterator<Item = CollaborationAction>,
 ) -> Result<CollaborationCommandRuntime, Status> {
     let authorized = authorize_tenant_request(
@@ -1511,7 +1511,7 @@ fn action_card_id(value: &str) -> Result<ActionCardId, Status> {
 }
 
 fn mutation_identity(
-    value: &erpx_proto::erpx::collaboration::v1::CommandMetadata,
+    value: &erpx_proto::erpx::collaboration::v2::CommandMetadata,
 ) -> Result<MutationIdentity, Status> {
     let identity = MutationIdentity {
         command_id: CommandId::try_from_uuid(uuid(&value.command_id, "command_id")?)
@@ -1548,7 +1548,7 @@ fn stable_record_ref(
 }
 
 fn thread_anchor(
-    value: &erpx_proto::erpx::collaboration::v1::ThreadAnchor,
+    value: &erpx_proto::erpx::collaboration::v2::ThreadAnchor,
 ) -> Result<ThreadAnchor, Status> {
     let record = stable_record_ref(required(value.record.as_ref(), "anchor.record")?)?;
     let location = match (
@@ -1582,7 +1582,7 @@ fn thread_anchor(
         .map_err(|_| Status::invalid_argument("thread anchor is invalid"))
 }
 
-fn audience(value: &erpx_proto::erpx::collaboration::v1::Audience) -> Result<Audience, Status> {
+fn audience(value: &erpx_proto::erpx::collaboration::v2::Audience) -> Result<Audience, Status> {
     let realm = AudienceRealm::try_from(value.realm)
         .map_err(|_| Status::invalid_argument("audience realm is invalid"))?;
     let participants = value
@@ -1626,18 +1626,18 @@ const fn audience_external_portal(value: &Audience) -> Option<ExternalPortal> {
 }
 
 fn principal_ref(
-    value: &erpx_proto::erpx::collaboration::v1::PrincipalRef,
+    value: &erpx_proto::erpx::collaboration::v2::PrincipalRef,
 ) -> Result<CollaborationPrincipalRef, Status> {
     let id = PrincipalId::try_from_uuid(uuid(&value.principal_id, "principal_id")?)
         .map_err(|_| Status::invalid_argument("principal_id is invalid"))?;
-    let kind = match erpx_proto::erpx::collaboration::v1::PrincipalKind::try_from(value.kind)
+    let kind = match erpx_proto::erpx::collaboration::v2::PrincipalKind::try_from(value.kind)
         .map_err(|_| Status::invalid_argument("principal kind is invalid"))?
     {
-        erpx_proto::erpx::collaboration::v1::PrincipalKind::Human => PrincipalKind::Human,
-        erpx_proto::erpx::collaboration::v1::PrincipalKind::Agent => PrincipalKind::Agent,
-        erpx_proto::erpx::collaboration::v1::PrincipalKind::HumanGroup => PrincipalKind::HumanGroup,
-        erpx_proto::erpx::collaboration::v1::PrincipalKind::AgentPool => PrincipalKind::AgentPool,
-        erpx_proto::erpx::collaboration::v1::PrincipalKind::Unspecified => {
+        erpx_proto::erpx::collaboration::v2::PrincipalKind::Human => PrincipalKind::Human,
+        erpx_proto::erpx::collaboration::v2::PrincipalKind::Agent => PrincipalKind::Agent,
+        erpx_proto::erpx::collaboration::v2::PrincipalKind::HumanGroup => PrincipalKind::HumanGroup,
+        erpx_proto::erpx::collaboration::v2::PrincipalKind::AgentPool => PrincipalKind::AgentPool,
+        erpx_proto::erpx::collaboration::v2::PrincipalKind::Unspecified => {
             return Err(Status::invalid_argument("principal kind is required"));
         }
     };
@@ -1645,7 +1645,7 @@ fn principal_ref(
 }
 
 fn comment_document(
-    value: &erpx_proto::erpx::collaboration::v1::CommentDocument,
+    value: &erpx_proto::erpx::collaboration::v2::CommentDocument,
 ) -> Result<CommentDocument, Status> {
     let blocks = serde_json::from_slice(&value.block_json_utf8)
         .map_err(|_| Status::invalid_argument("comment block JSON is invalid"))?;
@@ -1665,7 +1665,7 @@ fn comment_document(
 }
 
 fn attachment(
-    value: &erpx_proto::erpx::collaboration::v1::AttachmentRef,
+    value: &erpx_proto::erpx::collaboration::v2::AttachmentRef,
 ) -> Result<AttachmentRef, Status> {
     Ok(AttachmentRef {
         object_id: uuid(&value.object_id, "attachment.object_id")?,
@@ -1676,7 +1676,7 @@ fn attachment(
 }
 
 fn mention(
-    value: &erpx_proto::erpx::collaboration::v1::MentionToken,
+    value: &erpx_proto::erpx::collaboration::v2::MentionToken,
 ) -> Result<(MentionEventId, MentionTarget), Status> {
     let value_target = required(value.target.as_ref(), "mention.target")?;
     let target = MentionTarget {

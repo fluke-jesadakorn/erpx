@@ -21,8 +21,8 @@ use erpx_maintenance::{
     ResumeWorkOrder, ScheduleWorkOrder, StartWorkOrder, WorkOrderId, WorkOrderList,
     WorkOrderListFilter, WorkOrderStatus, WorkOrderView,
 };
-use erpx_proto::erpx::assets::v1::AssetCondition as ProtoAssetCondition;
-use erpx_proto::{common, erpx::maintenance::v1 as platform};
+use erpx_proto::erpx::assets::v2::AssetCondition as ProtoAssetCondition;
+use erpx_proto::{common, erpx::maintenance::v2 as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 

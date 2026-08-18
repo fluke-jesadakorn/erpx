@@ -94,7 +94,7 @@ access.
 
 **Sources.** [Universal RBAC](../adr/ADR-004-expiring-rbac.md),
 [access domain](../crates/domain/src/access.rs),
-[role lifecycle API](../crates/proto/proto/erpx/identity_access/v1/service.proto).
+[role lifecycle API](../crates/proto/proto/erpx/identity_access/v2/service.proto).
 
 ### REQ-IAM-006 — Parent containment and revocation
 
@@ -146,7 +146,7 @@ record; approved replacement revokes all credentials on the former principal
 without transferring roles; historical actions retain the original principal.
 
 **Sources.** [Branch and directory authority](../adr/ADR-013-holding-branch-database-and-directory-authority.md),
-[directory contracts](../crates/proto/proto/erpx/identity_access/v1/service.proto),
+[directory contracts](../crates/proto/proto/erpx/identity_access/v2/service.proto),
 [identity synchronization](../crates/identity/src/directory/sync.rs).
 
 ### REQ-IAM-009 — Explicit active context
@@ -164,7 +164,7 @@ or support context removes its authority immediately; context identifiers in
 URLs and diagnostics are bounded and non-secret.
 
 **Sources.** [Console composition](../apps/console/src/composition.rs),
-[platform administration API](../crates/proto/proto/erpx/platform_administration/v1/service.proto),
+[platform administration API](../crates/proto/proto/erpx/platform_administration/v2/service.proto),
 [UI navigation](../crates/ui/src/navigation.rs).
 
 ## Complete identity-governance lifecycle

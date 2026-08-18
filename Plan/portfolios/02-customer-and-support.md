@@ -22,7 +22,7 @@ identity rules are validated; updates require expected version; other contexts
 refer to the customer by opaque ID and versioned facts rather than mutating it.
 
 **Sources.** [Customer Authority context](../../crates/contexts/customer-authority/src/lib.rs),
-[Customer API](../../crates/proto/proto/erpx/customer_authority/v1/service.proto).
+[Customer API](../../crates/proto/proto/erpx/customer_authority/v2/service.proto).
 
 ### REQ-CUS-002 — Customer lifecycle and identity maintenance
 
@@ -55,7 +55,7 @@ integration facts identify the merge; conflicting or already-merged records
 are rejected without side effects.
 
 **Sources.** [Customer Authority context](../../crates/contexts/customer-authority/src/lib.rs),
-[Customer API](../../crates/proto/proto/erpx/customer_authority/v1/service.proto).
+[Customer API](../../crates/proto/proto/erpx/customer_authority/v2/service.proto).
 
 ### REQ-CUS-004 — External authority links
 
@@ -91,7 +91,7 @@ bound to one customer and authorized purpose; unavailable sections do not
 block safe available sections.
 
 **Sources.** [Customer 360 context](../../crates/contexts/customer-360/src/lib.rs),
-[Customer 360 API](../../crates/proto/proto/erpx/customer_360/v1/service.proto),
+[Customer 360 API](../../crates/proto/proto/erpx/customer_360/v2/service.proto),
 [customer console routes](../../apps/console/src/composition.rs).
 
 ### REQ-C360-002 — Section freshness and completeness
@@ -125,7 +125,7 @@ outcome; list discovery and detail access have distinct audit semantics;
 denied attempts are recorded without leaking protected values.
 
 **Sources.** [Audited global reads](../../adr/ADR-005-global-read-auditing.md),
-[Customer access-audit API](../../crates/proto/proto/erpx/customer_authority/v1/service.proto),
+[Customer access-audit API](../../crates/proto/proto/erpx/customer_authority/v2/service.proto),
 [customer access audit tests](../../apps/worker/tests/customer_access_audit.rs).
 
 ### REQ-C360-004 — Governed customer notes
@@ -142,7 +142,7 @@ timestamp; content limits and redaction apply; only authorized readers see the
 note projection; deleted or superseded presentation retains required audit
 history.
 
-**Sources.** [Customer note API](../../crates/proto/proto/erpx/customer_360/v1/service.proto),
+**Sources.** [Customer note API](../../crates/proto/proto/erpx/customer_360/v2/service.proto),
 [Customer 360 context](../../crates/contexts/customer-360/src/lib.rs).
 
 ## Support and incidents
@@ -160,7 +160,7 @@ support access; recurrence creates a traceable relationship rather than
 silently reopening unrelated history.
 
 **Sources.** [Support context](../../crates/contexts/support/src/lib.rs),
-[Support API](../../crates/proto/proto/erpx/support/v1/service.proto),
+[Support API](../../crates/proto/proto/erpx/support/v2/service.proto),
 [support workflow tests](../../apps/worker/tests/support_workflow.rs).
 
 ### REQ-SUP-002 — Audience-controlled messages
@@ -178,7 +178,7 @@ redacted placeholder that confirms its substance; message authorship and time
 remain auditable.
 
 **Sources.** [Support context](../../crates/contexts/support/src/lib.rs),
-[Support API](../../crates/proto/proto/erpx/support/v1/service.proto).
+[Support API](../../crates/proto/proto/erpx/support/v2/service.proto).
 
 ## Lifecycle-completion requirements
 
@@ -206,7 +206,7 @@ returned.
 
 **Sources.** [Support attachment worker](../../apps/worker/src/support_attachments.rs),
 [support attachment tests](../../apps/worker/tests/support_attachments.rs),
-[Support API](../../crates/proto/proto/erpx/support/v1/service.proto).
+[Support API](../../crates/proto/proto/erpx/support/v2/service.proto).
 
 ### REQ-SUP-004 — Customer-approved support capability
 
@@ -271,7 +271,7 @@ breach notifications are durable; incident closure does not silently close
 customer tickets.
 
 **Sources.** [Support context](../../crates/contexts/support/src/lib.rs),
-[Support API](../../crates/proto/proto/erpx/support/v1/service.proto),
+[Support API](../../crates/proto/proto/erpx/support/v2/service.proto),
 [incident projection](../../apps/worker/src/support_workflow.rs).
 
 ### REQ-SUP-008 — Customer-visible support audit
@@ -290,4 +290,4 @@ revoked access history remains immutable.
 
 **Sources.** [Support capabilities](../../adr/ADR-006-support-capabilities.md),
 [audited reads](../../adr/ADR-005-global-read-auditing.md),
-[Support API](../../crates/proto/proto/erpx/support/v1/service.proto).
+[Support API](../../crates/proto/proto/erpx/support/v2/service.proto).

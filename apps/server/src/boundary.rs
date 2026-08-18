@@ -1,5 +1,5 @@
 use erpx_domain::contracts::CONTRACT_VERSION;
-use erpx_proto::common::v1::{
+use erpx_proto::common::v2::{
     ActorAttribution, ActorKind, AuditContext, CommandContext, QueryContext,
 };
 use tonic::{Request, Status};
@@ -181,28 +181,28 @@ pub fn command_domain<T>(
         .and_then(|scope| scope.scope.as_ref())
         .ok_or_else(|| Status::permission_denied("command tenant scope is required"))?;
     let tenant_scope = match tenant_scope {
-        erpx_proto::common::v1::tenant_scope::Scope::Platform(_) => {
+        erpx_proto::common::v2::tenant_scope::Scope::Platform(_) => {
             erpx_domain::contracts::TenantScope::Platform
         }
-        erpx_proto::common::v1::tenant_scope::Scope::Holding(scope) => {
+        erpx_proto::common::v2::tenant_scope::Scope::Holding(scope) => {
             erpx_domain::contracts::TenantScope::Holding {
                 holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
             }
         }
-        erpx_proto::common::v1::tenant_scope::Scope::Company(scope) => {
+        erpx_proto::common::v2::tenant_scope::Scope::Company(scope) => {
             erpx_domain::contracts::TenantScope::Company {
                 holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
                 company_id: parse_uuid(&scope.company_id, "company_id")?,
             }
         }
-        erpx_proto::common::v1::tenant_scope::Scope::Branch(scope) => {
+        erpx_proto::common::v2::tenant_scope::Scope::Branch(scope) => {
             erpx_domain::contracts::TenantScope::Branch {
                 holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
                 company_id: parse_uuid(&scope.company_id, "company_id")?,
                 branch_id: parse_uuid(&scope.branch_id, "branch_id")?,
             }
         }
-        erpx_proto::common::v1::tenant_scope::Scope::Subtree(scope) => {
+        erpx_proto::common::v2::tenant_scope::Scope::Subtree(scope) => {
             erpx_domain::contracts::TenantScope::Subtree {
                 holding_id: parse_uuid(&scope.holding_id, "holding_id")?,
                 company_ids: scope
@@ -369,7 +369,7 @@ fn validate_bounded_text(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_proto::common::v1::{
+    use erpx_proto::common::v2::{
         ActorKind, EventualConsistency, PlatformScope, QueryConsistency, TenantScope,
         query_consistency,
     };
@@ -388,7 +388,7 @@ mod tests {
                 support_capability_id: String::new(),
             }),
             tenant_scope: Some(TenantScope {
-                scope: Some(erpx_proto::common::v1::tenant_scope::Scope::Platform(
+                scope: Some(erpx_proto::common::v2::tenant_scope::Scope::Platform(
                     PlatformScope {},
                 )),
             }),

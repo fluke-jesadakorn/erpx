@@ -28,8 +28,8 @@ use erpx_procurement::{
 };
 use erpx_proto::common;
 mod platform {
-    pub use erpx_proto::erpx::inventory::v1::*;
-    pub use erpx_proto::erpx::procurement::v1::*;
+    pub use erpx_proto::erpx::inventory::v2::*;
+    pub use erpx_proto::erpx::procurement::v2::*;
 }
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;

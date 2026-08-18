@@ -15,7 +15,7 @@ use erpx_integration_contracts::{
     },
     support::{SupportCaseFact, SupportCaseRef, SupportCaseStatus},
 };
-use erpx_proto::erpx::customer_360::v1 as wire;
+use erpx_proto::erpx::customer_360::v2 as wire;
 use erpx_ui_foundation::UiError;
 
 use crate::{

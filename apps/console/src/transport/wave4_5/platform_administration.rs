@@ -9,7 +9,7 @@ use erpx_platform_administration::{
     RegisterPlatformTenant, RevokeTenantAdminContext, TenantLifecycleAction, TenantLifecycleState,
     TenantView, TransitionConnector, TransitionPlatformTenant,
 };
-use erpx_proto::{common, erpx::platform_administration::v1 as platform};
+use erpx_proto::{common, erpx::platform_administration::v2 as platform};
 use erpx_ui_foundation::UiError;
 
 use crate::{

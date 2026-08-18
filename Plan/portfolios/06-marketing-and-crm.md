@@ -24,7 +24,7 @@ mutable email or username.
 
 **Sources.** [Marketing boundaries](../../adr/ADR-009-marketing-crm-boundaries.md),
 [marketing domain](../../crates/domain/src/marketing.rs),
-[Marketing API](../../crates/proto/proto/erpx/marketing/v1/service.proto).
+[Marketing API](../../crates/proto/proto/erpx/marketing/v2/service.proto).
 
 ### REQ-MKT-002 — Lead-candidate lifecycle
 
@@ -100,7 +100,7 @@ versions remain auditable.
 
 **Sources.** [Marketing content domain](../../crates/domain/src/marketing_content.rs),
 [content workflow worker](../../apps/worker/src/marketing_content_workflow.rs),
-[Marketing content API](../../crates/proto/proto/erpx/marketing/v1/service.proto).
+[Marketing content API](../../crates/proto/proto/erpx/marketing/v2/service.proto).
 
 ### REQ-MKT-006 — Durable journey execution
 
@@ -238,7 +238,7 @@ not create a lead; CRM assigns its own stable ID.
 
 **Sources.** [CRM context](../../crates/contexts/crm/src/lib.rs),
 [Marketing context](../../crates/contexts/marketing/src/lib.rs),
-[CRM API](../../crates/proto/proto/erpx/crm/v1/service.proto).
+[CRM API](../../crates/proto/proto/erpx/crm/v2/service.proto).
 
 ### REQ-CRM-002 — Opportunity lifecycle
 
@@ -252,7 +252,7 @@ currently eligible; currency and value are bounded; closed outcomes are
 distinct; stale updates are rejected and history retained.
 
 **Sources.** [CRM context](../../crates/contexts/crm/src/lib.rs),
-[CRM API](../../crates/proto/proto/erpx/crm/v1/service.proto).
+[CRM API](../../crates/proto/proto/erpx/crm/v2/service.proto).
 
 ### REQ-CRM-003 — Opportunity forecast
 

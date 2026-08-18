@@ -49,10 +49,10 @@ impl RuntimeCutoverManifest {
         let rollback = serde_json::to_value(rollback)
             .map_err(|_| BootstrapError("rollback metadata could not be serialized"))?;
         Ok(Self {
-            version: 3,
+            version: 4,
             schema_generation: erpx_migration::SCHEMA_GENERATION,
-            service_catalog_generation: 3,
-            service_id_range: "IFC-SVC-101..165",
+            service_catalog_generation: 4,
+            service_id_range: "IFC-SVC-201..265",
             state: "prepared",
             prepared_at,
             installation_generation: resources.installation_generation,
@@ -153,10 +153,10 @@ mod tests {
             RuntimeCutoverManifest::new(&resources, Utc::now(), &rollback).expect("manifest");
         let encoded = serde_json::to_string(&manifest).expect("serialize");
         assert!(encoded.contains("\"state\":\"prepared\""));
-        assert!(encoded.contains("\"version\":3"));
+        assert!(encoded.contains("\"version\":4"));
         assert!(encoded.contains("\"schema_generation\":2"));
-        assert!(encoded.contains("\"service_catalog_generation\":3"));
-        assert!(encoded.contains("\"service_id_range\":\"IFC-SVC-101..165\""));
+        assert!(encoded.contains("\"service_catalog_generation\":4"));
+        assert!(encoded.contains("\"service_id_range\":\"IFC-SVC-201..265\""));
         assert!(!encoded.contains("v1_service_authority"));
         for forbidden in ["password", "access_key", "secret_key", "postgres://"] {
             assert!(!encoded.contains(forbidden), "{forbidden}");

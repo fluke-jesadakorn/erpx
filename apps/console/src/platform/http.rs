@@ -279,12 +279,12 @@ pub struct WebSameOriginPolicy;
 impl WebSameOriginPolicy {
     pub fn request_path(&self, request: &HttpRequest) -> Result<String, HttpError> {
         request.validate()?;
-        if request.path.starts_with("/api/v1/") {
+        if request.path.starts_with("/api/v2/") {
             return Ok(request.path.clone());
         }
         let prefix = match request.endpoint {
-            HttpEndpoint::Auth => "/api/v1/auth",
-            HttpEndpoint::Public => "/api/v1/public",
+            HttpEndpoint::Auth => "/api/v2/auth",
+            HttpEndpoint::Public => "/api/v2/public",
         };
         Ok(format!("{prefix}{}", request.path))
     }
@@ -529,7 +529,7 @@ pub fn native_grpc_channel(
 pub fn web_grpc_channel(origin: &str) -> Result<tonic_web_wasm_client::Client, HttpError> {
     let origin = EndpointOrigin::parse(origin, !cfg!(debug_assertions))?;
     Ok(tonic_web_wasm_client::Client::new(format!(
-        "{}/api/v1/internal/grpc",
+        "{}/api/v2/internal/grpc",
         origin.value
     )))
 }
@@ -607,11 +607,11 @@ mod tests {
         let public = HttpRequest::new(HttpEndpoint::Public, HttpMethod::Get, "/branding");
         assert_eq!(
             policy.request_path(&auth).as_deref(),
-            Ok("/api/v1/auth/login")
+            Ok("/api/v2/auth/login")
         );
         assert_eq!(
             policy.request_path(&public).as_deref(),
-            Ok("/api/v1/public/branding")
+            Ok("/api/v2/public/branding")
         );
         let cross_origin = HttpRequest::new(
             HttpEndpoint::Public,

@@ -10,8 +10,8 @@ use erpx_kernel::{CommandId, CorrelationId, PrincipalId, RecordId, TenantScope};
 use erpx_learning as learning;
 use erpx_learning_sqlx as learning_sqlx;
 use erpx_proto::{
-    common::v1 as common,
-    erpx::learning::v1::{self as wire},
+    common::v2 as common,
+    erpx::learning::v2::{self as wire},
 };
 use prost::Message;
 use sha2::{Digest, Sha256};

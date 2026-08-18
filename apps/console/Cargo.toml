@@ -7,6 +7,7 @@ license.workspace = true
 
 [features]
 default = ["web"]
+web-split = ["dioxus/wasm-split"]
 web = [
     "dioxus/web",
     "dioxus/fullstack",
@@ -41,6 +42,7 @@ native = [
     "dioxus/launch",
     "dioxus/devtools",
     "dep:reqwest",
+    "dep:tokio",
 ]
 
 [dependencies]
@@ -85,6 +87,7 @@ erpx-console-transport.workspace = true
 erpx-console-shell.workspace = true
 erpx-console-bff = { workspace = true, optional = true }
 erpx-domain.workspace = true
+erpx-delivery-contract.workspace = true
 erpx-finance.workspace = true
 erpx-cqrs.workspace = true
 erpx-crm.workspace = true

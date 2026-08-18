@@ -22,7 +22,7 @@ use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId, TenantScope,
 };
-use erpx_proto::{common, erpx::customer_authority::v1 as platform};
+use erpx_proto::{common, erpx::customer_authority::v2 as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 

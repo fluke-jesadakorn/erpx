@@ -561,10 +561,10 @@ impl FreshRuntimeManifest {
             == format!("{}_control_write", self.installation_prefix)
             && self.control_read_database == format!("{}_control_read", self.installation_prefix)
             && tenant_token_valid;
-        if self.version != 3
+        if self.version != 4
             || self.schema_generation != 2
-            || self.service_catalog_generation != 3
-            || self.service_id_range != "IFC-SVC-101..165"
+            || self.service_catalog_generation != 4
+            || self.service_id_range != "IFC-SVC-201..265"
             || self.state != "prepared"
             || self.installation_generation.is_nil()
             || !valid_prefix
@@ -1160,8 +1160,8 @@ fn load_reconfiguration_manifest(
     }
     let bytes = fs::read(&path)?;
     let manifest: LocalReconfigurationManifest = serde_json::from_slice(&bytes)?;
-    if !matches!(manifest.version, 2 | 3)
-        || !matches!(manifest.service_catalog_generation, 2 | 3)
+    if !matches!(manifest.version, 2..=4)
+        || !matches!(manifest.service_catalog_generation, 2..=4)
         || manifest.installation_generation.is_nil()
         || manifest.installation_prefix != "erpxv8"
         || Uuid::parse_str(&manifest.tenant_id).is_err()
@@ -1181,8 +1181,12 @@ fn load_reconfiguration_manifest(
     let object = value
         .as_object_mut()
         .ok_or("reconfigure-local manifest is not an object")?;
-    object.insert("version".into(), serde_json::json!(3));
-    object.insert("service_catalog_generation".into(), serde_json::json!(3));
+    object.insert("version".into(), serde_json::json!(4));
+    object.insert("service_catalog_generation".into(), serde_json::json!(4));
+    object.insert(
+        "service_id_range".into(),
+        serde_json::json!("IFC-SVC-201..265"),
+    );
     object.remove("n8n_config_sha256");
     let rollback = object
         .get_mut("rollback")
@@ -1269,7 +1273,7 @@ async fn reconfigure_local(root: &Path, confirmation: Option<&String>) -> TaskRe
     println!("  Databases: {}", manifest.database_names().join(", "));
     println!("  MinIO root: /Users/fluke/erpx-minio-data (retain all objects)");
     println!("  MinIO namespace probe: {}", manifest.object_namespace);
-    println!("  Runtime manifest: v3, service catalog generation 3");
+    println!("  Runtime manifest: v4, service catalog generation 4 (IFC-SVC-201..265)");
     println!("  Retired runtime removal: .runtime/n8n");
     println!("  PITR: inactive; active installation and receipt: verified");
     let Some(confirmation) = confirmation else {
@@ -4316,12 +4320,17 @@ async fn verify(root: &Path) -> TaskResult {
     verify_core(root)?;
     verify_local_sqlx(root, &config).await?;
     verify_runtime_readiness(root, &config).await?;
-    for url in [
-        "http://127.0.0.1:50052/health",
-        "http://127.0.0.1:50052/ready",
-        "http://127.0.0.1:3004",
+    for (url, recovery_seconds) in [
+        ("http://127.0.0.1:50052/health", 5),
+        ("http://127.0.0.1:50052/ready", 5),
+        // The release WASM build shares Cargo's target graph with the active
+        // Dioxus watcher. Give its automatic rebuild time to settle while
+        // still failing closed if the recorded Web process never recovers.
+        // `/` is intentionally a typed 404 in the v2 route grammar. Probe a
+        // canonical public route so readiness does not conflict with routing.
+        ("http://127.0.0.1:3004/auth/sign-in", 60),
     ] {
-        wait_for_http(url, 5).await?;
+        wait_for_http(url, recovery_seconds).await?;
     }
     verify_web_ssr_and_bff().await?;
     affected::record_verified_snapshot(root)?;
@@ -4350,7 +4359,7 @@ async fn verify_web_production_endpoints() -> TaskResult {
         .redirect(reqwest::redirect::Policy::none())
         .build()?;
     let login = client
-        .get(base.join("login")?)
+        .get(base.join("auth/sign-in")?)
         .header(reqwest::header::ACCEPT_LANGUAGE, "th")
         .send()
         .await?;
@@ -4387,7 +4396,7 @@ async fn verify_web_production_endpoints() -> TaskResult {
             .headers()
             .get(reqwest::header::LOCATION)
             .and_then(|value| value.to_str().ok())
-            != Some("/login?return_to=/finance")
+            != Some("/auth/sign-in?return_to=%2Ffinance")
     {
         return Err("anonymous production module route did not fail closed to login".into());
     }
@@ -4527,6 +4536,9 @@ fn verify_core(root: &Path) -> TaskResult {
             "--fullstack",
             "true",
             "--no-default-features",
+            "--features",
+            "web,web-split",
+            "--wasm-split",
             "--release",
             "--locked",
             "--offline",
@@ -4640,6 +4652,7 @@ async fn verify_runtime_readiness(root: &Path, config: &DevConfig) -> TaskResult
 }
 
 fn verify_platforms(root: &Path) -> TaskResult {
+    let android_environment = android_cross_environment()?;
     for args in [
         vec![
             "check",
@@ -4692,9 +4705,188 @@ fn verify_platforms(root: &Path) -> TaskResult {
             "--offline",
         ],
     ] {
-        run_command(root, "cargo", args)?;
+        if args.contains(&"aarch64-linux-android") {
+            run_command_with_env(root, "cargo", args, &android_environment)?;
+        } else {
+            run_command(root, "cargo", args)?;
+        }
     }
-    println!("Deferred Dioxus Native platform checks completed.");
+    verify_macos_native_evidence(root)?;
+    println!("Dioxus Native macOS and mobile compile certification completed.");
+    Ok(())
+}
+
+fn android_cross_environment() -> TaskResult<Vec<(&'static str, String)>> {
+    let mut candidates = ["ANDROID_NDK_HOME", "ANDROID_NDK_ROOT"]
+        .into_iter()
+        .filter_map(|key| env::var_os(key).map(PathBuf::from))
+        .chain([
+            PathBuf::from("/opt/homebrew/share/android-ndk"),
+            PathBuf::from("/usr/local/share/android-ndk"),
+        ])
+        .collect::<Vec<_>>();
+
+    for sdk_key in ["ANDROID_HOME", "ANDROID_SDK_ROOT"] {
+        let Some(sdk) = env::var_os(sdk_key).map(PathBuf::from) else {
+            continue;
+        };
+        candidates.push(sdk.join("ndk-bundle"));
+        let ndk_versions = sdk.join("ndk");
+        if let Ok(entries) = fs::read_dir(ndk_versions) {
+            let mut installed = entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .collect::<Vec<_>>();
+            installed.sort();
+            candidates.extend(installed.into_iter().rev());
+        }
+    }
+
+    let ndk = candidates
+        .into_iter()
+        .find(|candidate| candidate.join("toolchains/llvm/prebuilt").is_dir())
+        .ok_or("Android NDK is required for the aarch64-linux-android certification lane")?;
+    let prebuilt = fs::read_dir(ndk.join("toolchains/llvm/prebuilt"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .find(|candidate| {
+            candidate
+                .join("bin/aarch64-linux-android24-clang")
+                .is_file()
+        })
+        .ok_or("Android NDK has no API 24 aarch64 Clang toolchain")?;
+    let bin = prebuilt.join("bin");
+    let clang = bin.join("aarch64-linux-android24-clang");
+    let archive = bin.join("llvm-ar");
+    let ranlib = bin.join("llvm-ranlib");
+
+    Ok(vec![
+        ("ANDROID_NDK_HOME", ndk.display().to_string()),
+        ("CC_aarch64_linux_android", clang.display().to_string()),
+        ("AR_aarch64_linux_android", archive.display().to_string()),
+        ("RANLIB_aarch64_linux_android", ranlib.display().to_string()),
+        ("RANLIB", ranlib.display().to_string()),
+        (
+            "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER",
+            clang.display().to_string(),
+        ),
+    ])
+}
+
+fn verify_macos_native_evidence(root: &Path) -> TaskResult {
+    let evidence_path = root.join("audits/DIOXUS-NATIVE-MACOS/evidence.json");
+    if !evidence_path.is_file() {
+        return Err(
+            "macOS Native certification evidence is absent; copy evidence.template.json to evidence.json and capture the M1 8 GiB suite"
+                .into(),
+        );
+    }
+    let evidence: serde_json::Value = serde_json::from_slice(&fs::read(&evidence_path)?)?;
+    let text = |pointer: &str| {
+        evidence
+            .pointer(pointer)
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| format!("native evidence omitted {pointer}"))
+    };
+    let number = |pointer: &str| {
+        evidence
+            .pointer(pointer)
+            .and_then(serde_json::Value::as_f64)
+            .ok_or_else(|| format!("native evidence omitted {pointer}"))
+    };
+    let count = |pointer: &str| {
+        evidence
+            .pointer(pointer)
+            .and_then(serde_json::Value::as_u64)
+            .ok_or_else(|| format!("native evidence omitted {pointer}"))
+    };
+    let truth = |pointer: &str| {
+        evidence
+            .pointer(pointer)
+            .and_then(serde_json::Value::as_bool)
+            .ok_or_else(|| format!("native evidence omitted {pointer}"))
+    };
+
+    if evidence
+        .get("schema_version")
+        .and_then(serde_json::Value::as_u64)
+        != Some(2)
+        || !text("/host/mac_model")?.contains("M1")
+        || number("/host/memory_gib")? != 8.0
+        || number("/host/display_refresh_hz")? != 60.0
+    {
+        return Err("native evidence is not from the locked Apple M1 8 GiB / 60 Hz profile".into());
+    }
+    for section in [
+        "screenshots",
+        "startup",
+        "rendering",
+        "memory",
+        "accessibility",
+        "virtual_table",
+        "crash_recovery",
+    ] {
+        if text(&format!("/{section}/status"))? != "passed" {
+            return Err(format!("native evidence section {section} is not passed").into());
+        }
+    }
+    if count("/startup/sample_count")? < 30
+        || number("/startup/p75_cold_start_ms")? > 2_000.0
+        || count("/rendering/sample_count")? < 30
+        || number("/rendering/p95_input_to_paint_ms")? > 100.0
+        || number("/rendering/p95_frame_ms")? > 16.7
+        || number("/rendering/frames_within_two_refresh_intervals_percent")? < 99.0
+        || count("/memory/sample_count")? < 30
+        || number("/memory/reduction_percent")? < 20.0
+    {
+        return Err("native startup, rendering, or memory threshold failed".into());
+    }
+    for pointer in [
+        "/accessibility/voiceover",
+        "/accessibility/button_actions",
+        "/accessibility/focus",
+        "/accessibility/text_edit_actions",
+        "/accessibility/dialog_focus_restoration",
+        "/accessibility/selected_expanded_disabled_states",
+        "/accessibility/thai_labels",
+        "/virtual_table/virtualized",
+        "/virtual_table/keyboard",
+        "/virtual_table/focus",
+        "/virtual_table/ime_thai",
+        "/virtual_table/ime_english",
+        "/virtual_table/voiceover",
+        "/crash_recovery/passed",
+    ] {
+        if !truth(pointer)? {
+            return Err(format!("native functional evidence failed {pointer}").into());
+        }
+    }
+    if count("/virtual_table/row_count")? != 10_000 {
+        return Err("native virtual-table evidence must cover exactly 10,000 rows".into());
+    }
+    for section in [
+        "startup",
+        "rendering",
+        "memory",
+        "accessibility",
+        "virtual_table",
+        "crash_recovery",
+    ] {
+        let artifact = text(&format!("/{section}/artifact"))?;
+        let expected = text(&format!("/{section}/sha256"))?;
+        let relative = Path::new(artifact);
+        if relative.is_absolute()
+            || relative
+                .components()
+                .any(|part| matches!(part, std::path::Component::ParentDir))
+            || !artifact.starts_with("audits/DIOXUS-NATIVE-MACOS/artifacts/")
+        {
+            return Err(format!("native evidence artifact path is unsafe: {artifact}").into());
+        }
+        if required_file_sha256(&root.join(relative))? != expected {
+            return Err(format!("native evidence artifact hash changed: {artifact}").into());
+        }
+    }
     Ok(())
 }
 
@@ -4707,7 +4899,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         .redirect(reqwest::redirect::Policy::none())
         .build()?;
     let protected = redirect_client
-        .get("http://127.0.0.1:3004/platform/tenants?ignored=1")
+        .get("http://127.0.0.1:3004/finance?ignored=1")
         .send()
         .await?;
     if protected.status() != reqwest::StatusCode::TEMPORARY_REDIRECT
@@ -4715,7 +4907,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
             .headers()
             .get(reqwest::header::LOCATION)
             .and_then(|value| value.to_str().ok())
-            != Some("/login?return_to=/platform/tenants")
+            != Some("/auth/sign-in?return_to=%2Ffinance")
         || protected
             .headers()
             .get(reqwest::header::CACHE_CONTROL)
@@ -4725,20 +4917,14 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         return Err("anonymous protected page did not redirect to canonical login".into());
     }
     let legacy_login = redirect_client
-        .get("http://127.0.0.1:3004/auth/sign-in")
+        .get("http://127.0.0.1:3004/login")
         .send()
         .await?;
-    if legacy_login.status() != reqwest::StatusCode::TEMPORARY_REDIRECT
-        || legacy_login
-            .headers()
-            .get(reqwest::header::LOCATION)
-            .and_then(|value| value.to_str().ok())
-            != Some("/login")
-    {
-        return Err("legacy sign-in path did not redirect to /login".into());
+    if legacy_login.status() != reqwest::StatusCode::NOT_FOUND {
+        return Err("legacy /login alias was not rejected".into());
     }
     let sign_in = client
-        .get("http://127.0.0.1:3004/login")
+        .get("http://127.0.0.1:3004/auth/sign-in")
         .header(reqwest::header::ACCEPT_LANGUAGE, "th")
         .send()
         .await?;
@@ -4746,31 +4932,20 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         return Err(format!("SSR sign-in returned {}", sign_in.status()).into());
     }
     let sign_in_html = sign_in.text().await?;
-    if !sign_in_html.contains("เข้าสู่ระบบ · ERPX Platform")
+    if !sign_in_html.contains("Sign in · ERPX")
         || sign_in_html.contains("<main class=\"locale-bootstrap-surface\"")
     {
         return Err("SSR sign-in did not render the localized route content".into());
     }
-    let enabled_submit = sign_in_html
-        .split("<button")
-        .skip(1)
-        .filter_map(|tail| tail.split_once('>').map(|(opening_tag, _)| opening_tag))
-        .any(|opening_tag| {
-            opening_tag.contains("auth-submit")
-                && opening_tag.contains("data-erpx-component=\"button\"")
-                && opening_tag.contains("type=\"submit\"")
-                && !opening_tag.contains("disabled")
-        });
-    if !sign_in_html
-        .contains("<form class=\"auth-form\" method=\"post\" action=\"/api/v1/auth/password/form\"")
-        || !enabled_submit
+    if !sign_in_html.contains("<form method=\"post\" action=\"/api/v2/auth/password/form\"")
+        || !sign_in_html.contains("type=\"submit\"")
     {
         return Err(
             "SSR password form did not render an enabled same-origin submit control".into(),
         );
     }
     let native_form_entry = redirect_client
-        .get("http://127.0.0.1:3004/api/v1/auth/password/form")
+        .get("http://127.0.0.1:3004/api/v2/auth/password/form")
         .send()
         .await?;
     if native_form_entry.status() != reqwest::StatusCode::SEE_OTHER
@@ -4778,12 +4953,12 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
             .headers()
             .get(reqwest::header::LOCATION)
             .and_then(|value| value.to_str().ok())
-            != Some("/login")
+            != Some("/auth/sign-in")
     {
-        return Err("native password form entry did not redirect to /login".into());
+        return Err("native password form entry did not redirect to /auth/sign-in".into());
     }
     let native_form = redirect_client
-        .post("http://127.0.0.1:3004/api/v1/auth/password/form")
+        .post("http://127.0.0.1:3004/api/v2/auth/password/form")
         .header(reqwest::header::ORIGIN, "http://127.0.0.1:3004")
         .form(&[
             ("principal_ref", "local:dev-controller"),
@@ -4797,7 +4972,7 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
             .headers()
             .get(reqwest::header::LOCATION)
             .and_then(|value| value.to_str().ok())
-            != Some("/login?auth_error=invalid_request")
+            != Some("/auth/sign-in?auth_error=invalid_request")
     {
         return Err(format!(
             "native password form did not return a safe validation redirect: {}",
@@ -4818,51 +4993,36 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         }
     }
 
-    let session = client
-        .get("http://127.0.0.1:3004/api/v1/session")
-        .send()
-        .await?;
-    if !session.status().is_success() {
-        return Err(format!("BFF session snapshot returned {}", session.status()).into());
-    }
-    if session
-        .headers()
-        .get(reqwest::header::CACHE_CONTROL)
-        .and_then(|value| value.to_str().ok())
-        != Some("private, no-store")
-    {
-        return Err("BFF session snapshot is missing private, no-store".into());
-    }
-    let snapshot = session.text().await?;
-    let normalized = snapshot.to_ascii_lowercase();
-    for forbidden in ["access_token", "refresh_token", "password", "bearer"] {
-        if normalized.contains(forbidden) {
-            return Err(format!("BFF session snapshot exposed forbidden field {forbidden}").into());
+    for retired in ["/api/v2/session", "/auth/bff/upgrade"] {
+        let get_response = redirect_client
+            .get(format!("http://127.0.0.1:3004{retired}"))
+            .send()
+            .await?;
+        if get_response.status() != reqwest::StatusCode::NOT_FOUND {
+            return Err(format!(
+                "retired delivery endpoint {retired} accepted GET with {}",
+                get_response.status(),
+            )
+            .into());
         }
-    }
-    let value: serde_json::Value = serde_json::from_str(&snapshot)?;
-    if value
-        .get("authenticated")
-        .and_then(serde_json::Value::as_bool)
-        != Some(false)
-    {
-        return Err("anonymous BFF session snapshot was not signed out".into());
-    }
-
-    let upgrade = client
-        .post("http://127.0.0.1:3004/auth/bff/upgrade")
-        .send()
-        .await?;
-    if upgrade.status() != reqwest::StatusCode::UNAUTHORIZED {
-        return Err(format!(
-            "anonymous legacy-session upgrade returned {}, expected 401",
-            upgrade.status()
-        )
-        .into());
+        let post_response = redirect_client
+            .post(format!("http://127.0.0.1:3004{retired}"))
+            .send()
+            .await?;
+        if !matches!(
+            post_response.status(),
+            reqwest::StatusCode::NOT_FOUND | reqwest::StatusCode::METHOD_NOT_ALLOWED
+        ) {
+            return Err(format!(
+                "retired delivery endpoint {retired} accepted POST with {}",
+                post_response.status(),
+            )
+            .into());
+        }
     }
 
     let spoofed_grpc = client
-        .post("http://127.0.0.1:3004/api/v1/internal/grpc/erpx.finance.v1.FinanceQueryService/GetChart")
+        .post("http://127.0.0.1:3004/api/v2/internal/grpc/erpx.finance.v2.FinanceQueryService/GetChart")
         .header(reqwest::header::ORIGIN, "http://127.0.0.1:3004")
         .header(reqwest::header::CONTENT_TYPE, "application/grpc-web+proto")
         .header("x-erpx-access-token", "browser-spoof")
@@ -4871,16 +5031,19 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         .body(Vec::<u8>::new())
         .send()
         .await?;
-    if spoofed_grpc.status() != reqwest::StatusCode::UNAUTHORIZED {
+    if !matches!(
+        spoofed_grpc.status(),
+        reqwest::StatusCode::NOT_FOUND | reqwest::StatusCode::METHOD_NOT_ALLOWED
+    ) {
         return Err(format!(
-            "anonymous spoofed gRPC request returned {}, expected 401",
+            "removed arbitrary gRPC proxy returned {}, expected 404 or 405",
             spoofed_grpc.status()
         )
         .into());
     }
 
     let csrf_login = client
-        .post("http://127.0.0.1:3004/api/v1/auth/password")
+        .post("http://127.0.0.1:3004/api/v2/auth/password")
         .json(&serde_json::json!({
             "principal_ref": "local:probe",
             "password": "not-a-real-password",
@@ -5299,7 +5462,7 @@ async fn dioxus_web_readiness_once(
     base_url: &str,
 ) -> TaskResult {
     let artifacts = wasm::artifact_readiness(root, wasm::WasmProfile::Dev)?;
-    let login_url = reqwest::Url::parse(base_url)?.join("/login")?;
+    let login_url = reqwest::Url::parse(base_url)?.join("/auth/sign-in")?;
     let response = client.get(login_url.clone()).send().await?;
     if !response.status().is_success() {
         return Err(format!("Dioxus login SSR returned {}", response.status()).into());
@@ -5645,10 +5808,10 @@ mod tests {
 
     fn sample_fresh_runtime_manifest() -> FreshRuntimeManifest {
         FreshRuntimeManifest {
-            version: 3,
+            version: 4,
             schema_generation: 2,
-            service_catalog_generation: 3,
-            service_id_range: "IFC-SVC-101..165".into(),
+            service_catalog_generation: 4,
+            service_id_range: "IFC-SVC-201..265".into(),
             state: "prepared".into(),
             prepared_at: "2026-08-05T01:02:03Z".into(),
             installation_generation: Uuid::parse_str("4fbf88d8-ea38-51b6-93f6-8cdb6c7585ec")
@@ -5669,7 +5832,7 @@ mod tests {
     }
 
     #[test]
-    fn fresh_runtime_manifest_requires_exact_v3_catalog_and_no_merge_contract() {
+    fn fresh_runtime_manifest_requires_exact_v4_catalog_and_no_merge_contract() {
         let valid = sample_fresh_runtime_manifest();
         assert!(valid.validate().is_ok());
 

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_kernel::TenantScope;
-use erpx_proto::erpx::quality::v1 as wire;
+use erpx_proto::erpx::quality::v2 as wire;
 use erpx_quality::{
     CancelInspection, CreateInspection, CreateInspectionResult, GetInspection, GetInspectionResult,
     InspectionId, InspectionKind, InspectionList, InspectionMutationResult, InspectionStatus,
@@ -271,7 +271,7 @@ impl QualityProtoTransport for QualityGrpcTransport {
 }
 
 fn mutation_result(
-    receipt: Option<erpx_proto::common::v1::CommandReceipt>,
+    receipt: Option<erpx_proto::common::v2::CommandReceipt>,
     inspection: Option<wire::QualityInspection>,
     command_id: erpx_kernel::CommandId,
     correlation_id: erpx_kernel::CorrelationId,

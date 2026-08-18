@@ -96,7 +96,7 @@ through the outbound agent; changing deployment mode requires explicit
 preflight, approval, recovery validation, and observed-state verification.
 
 **Sources.** [Customer data-plane decision](../adr/ADR-011-customer-data-plane-agent.md),
-[data-plane contracts](../crates/proto/proto/erpx/platform_administration/v1/service.proto).
+[data-plane contracts](../crates/proto/proto/erpx/platform_administration/v2/service.proto).
 
 ### REQ-FND-006 — Unambiguous cutover authority
 

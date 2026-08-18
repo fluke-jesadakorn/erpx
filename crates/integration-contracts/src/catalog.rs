@@ -126,37 +126,37 @@ impl ContextId {
 
     pub const fn proto_package(self) -> &'static str {
         match self {
-            Self::IdentityAccess => "erpx.identity_access.v1",
-            Self::PlatformAdministration => "erpx.platform_administration.v1",
-            Self::Organization => "erpx.organization.v1",
-            Self::Commercial => "erpx.commercial.v1",
-            Self::Brand => "erpx.brand.v1",
-            Self::CustomerAuthority => "erpx.customer_authority.v1",
-            Self::Customer360 => "erpx.customer_360.v1",
-            Self::Support => "erpx.support.v1",
-            Self::Finance => "erpx.finance.v1",
-            Self::Sales => "erpx.sales.v1",
-            Self::PointOfSale => "erpx.pos.v1",
-            Self::Procurement => "erpx.procurement.v1",
-            Self::Inventory => "erpx.inventory.v1",
-            Self::Assets => "erpx.assets.v1",
-            Self::Maintenance => "erpx.maintenance.v1",
-            Self::Quality => "erpx.quality.v1",
-            Self::Operations => "erpx.operations.v1",
-            Self::PeoplePayroll => "erpx.people_payroll.v1",
-            Self::Legal => "erpx.legal.v1",
-            Self::Marketing => "erpx.marketing.v1",
-            Self::Crm => "erpx.crm.v1",
-            Self::Manufacturing => "erpx.manufacturing.v1",
-            Self::Planning => "erpx.planning.v1",
-            Self::Projects => "erpx.projects.v1",
-            Self::Ecommerce => "erpx.ecommerce.v1",
-            Self::RecruitingTalent => "erpx.talent.v1",
-            Self::Learning => "erpx.learning.v1",
-            Self::Benefits => "erpx.benefits.v1",
-            Self::FieldService => "erpx.field_service.v1",
-            Self::Collaboration => "erpx.collaboration.v1",
-            Self::AgentOrchestration => "erpx.agent.v1",
+            Self::IdentityAccess => "erpx.identity_access.v2",
+            Self::PlatformAdministration => "erpx.platform_administration.v2",
+            Self::Organization => "erpx.organization.v2",
+            Self::Commercial => "erpx.commercial.v2",
+            Self::Brand => "erpx.brand.v2",
+            Self::CustomerAuthority => "erpx.customer_authority.v2",
+            Self::Customer360 => "erpx.customer_360.v2",
+            Self::Support => "erpx.support.v2",
+            Self::Finance => "erpx.finance.v2",
+            Self::Sales => "erpx.sales.v2",
+            Self::PointOfSale => "erpx.pos.v2",
+            Self::Procurement => "erpx.procurement.v2",
+            Self::Inventory => "erpx.inventory.v2",
+            Self::Assets => "erpx.assets.v2",
+            Self::Maintenance => "erpx.maintenance.v2",
+            Self::Quality => "erpx.quality.v2",
+            Self::Operations => "erpx.operations.v2",
+            Self::PeoplePayroll => "erpx.people_payroll.v2",
+            Self::Legal => "erpx.legal.v2",
+            Self::Marketing => "erpx.marketing.v2",
+            Self::Crm => "erpx.crm.v2",
+            Self::Manufacturing => "erpx.manufacturing.v2",
+            Self::Planning => "erpx.planning.v2",
+            Self::Projects => "erpx.projects.v2",
+            Self::Ecommerce => "erpx.ecommerce.v2",
+            Self::RecruitingTalent => "erpx.talent.v2",
+            Self::Learning => "erpx.learning.v2",
+            Self::Benefits => "erpx.benefits.v2",
+            Self::FieldService => "erpx.field_service.v2",
+            Self::Collaboration => "erpx.collaboration.v2",
+            Self::AgentOrchestration => "erpx.agent.v2",
         }
     }
 
@@ -580,194 +580,194 @@ macro_rules! context_services {
 
 const CONTEXT_SERVICE_PAIRS: [ServicePair; 31] = [
     context_services!(
-        101,
-        102,
+        201,
+        202,
         IdentityAccess,
         "IdentityAccessCommandService",
         "IdentityAccessQueryService"
     ),
     context_services!(
-        103,
-        104,
+        203,
+        204,
         PlatformAdministration,
         "PlatformAdministrationCommandService",
         "PlatformAdministrationQueryService"
     ),
     context_services!(
-        105,
-        106,
+        205,
+        206,
         Organization,
         "OrganizationCommandService",
         "OrganizationQueryService"
     ),
     context_services!(
-        107,
-        108,
+        207,
+        208,
         Commercial,
         "CommercialCommandService",
         "CommercialQueryService"
     ),
-    context_services!(109, 110, Brand, "BrandCommandService", "BrandQueryService"),
+    context_services!(209, 210, Brand, "BrandCommandService", "BrandQueryService"),
     context_services!(
-        111,
-        112,
+        211,
+        212,
         CustomerAuthority,
         "CustomerAuthorityCommandService",
         "CustomerAuthorityQueryService"
     ),
     context_services!(
-        113,
-        114,
+        213,
+        214,
         Customer360,
         "Customer360CommandService",
         "Customer360QueryService"
     ),
     context_services!(
-        115,
-        116,
+        215,
+        216,
         Support,
         "SupportCommandService",
         "SupportQueryService"
     ),
     context_services!(
-        117,
-        118,
+        217,
+        218,
         Finance,
         "FinanceCommandService",
         "FinanceQueryService"
     ),
-    context_services!(119, 120, Sales, "SalesCommandService", "SalesQueryService"),
+    context_services!(219, 220, Sales, "SalesCommandService", "SalesQueryService"),
     context_services!(
-        121,
-        122,
+        221,
+        222,
         PointOfSale,
         "PointOfSaleCommandService",
         "PointOfSaleQueryService"
     ),
     context_services!(
-        123,
-        124,
+        223,
+        224,
         Procurement,
         "ProcurementCommandService",
         "ProcurementQueryService"
     ),
     context_services!(
-        125,
-        126,
+        225,
+        226,
         Inventory,
         "InventoryCommandService",
         "InventoryQueryService"
     ),
     context_services!(
-        127,
-        128,
+        227,
+        228,
         Assets,
         "AssetsCommandService",
         "AssetsQueryService"
     ),
     context_services!(
-        129,
-        130,
+        229,
+        230,
         Maintenance,
         "MaintenanceCommandService",
         "MaintenanceQueryService"
     ),
     context_services!(
-        131,
-        132,
+        231,
+        232,
         Quality,
         "QualityCommandService",
         "QualityQueryService"
     ),
     context_services!(
-        133,
-        134,
+        233,
+        234,
         Operations,
         "OperationsCommandService",
         "OperationsQueryService"
     ),
     context_services!(
-        135,
-        136,
+        235,
+        236,
         PeoplePayroll,
         "PeoplePayrollCommandService",
         "PeoplePayrollQueryService"
     ),
-    context_services!(137, 138, Legal, "LegalCommandService", "LegalQueryService"),
+    context_services!(237, 238, Legal, "LegalCommandService", "LegalQueryService"),
     context_services!(
-        139,
-        140,
+        239,
+        240,
         Marketing,
         "MarketingCommandService",
         "MarketingQueryService"
     ),
-    context_services!(141, 142, Crm, "CrmCommandService", "CrmQueryService"),
+    context_services!(241, 242, Crm, "CrmCommandService", "CrmQueryService"),
     context_services!(
-        143,
-        144,
+        243,
+        244,
         Manufacturing,
         "ManufacturingCommandService",
         "ManufacturingQueryService"
     ),
     context_services!(
-        145,
-        146,
+        245,
+        246,
         Planning,
         "PlanningCommandService",
         "PlanningQueryService"
     ),
     context_services!(
-        147,
-        148,
+        247,
+        248,
         Projects,
         "ProjectsCommandService",
         "ProjectsQueryService"
     ),
     context_services!(
-        149,
-        150,
+        249,
+        250,
         Ecommerce,
         "EcommerceCommandService",
         "EcommerceQueryService"
     ),
     context_services!(
-        151,
-        152,
+        251,
+        252,
         RecruitingTalent,
         "TalentCommandService",
         "TalentQueryService"
     ),
     context_services!(
-        153,
-        154,
+        253,
+        254,
         Learning,
         "LearningCommandService",
         "LearningQueryService"
     ),
     context_services!(
-        155,
-        156,
+        255,
+        256,
         Benefits,
         "BenefitsCommandService",
         "BenefitsQueryService"
     ),
     context_services!(
-        157,
-        158,
+        257,
+        258,
         FieldService,
         "FieldServiceCommandService",
         "FieldServiceQueryService"
     ),
     context_services!(
-        159,
-        160,
+        259,
+        260,
         Collaboration,
         "CollaborationCommandService",
         "CollaborationQueryService"
     ),
     context_services!(
-        161,
-        162,
+        261,
+        262,
         AgentOrchestration,
         "AgentOrchestrationCommandService",
         "AgentOrchestrationQueryService"
@@ -775,21 +775,21 @@ const CONTEXT_SERVICE_PAIRS: [ServicePair; 31] = [
 ];
 
 const COLLABORATION_STREAM_SERVICE: ServiceDescriptor = ServiceDescriptor {
-    id: ServiceId::catalog(163),
+    id: ServiceId::catalog(263),
     name: "CollaborationStreamService",
     package: ContextId::Collaboration.proto_package(),
     owner: ServiceOwner::Context(ContextId::Collaboration),
     kind: ServiceKind::Stream,
 };
 const REFERENCE_QUERY_SERVICE: ServiceDescriptor = ServiceDescriptor {
-    id: ServiceId::catalog(164),
+    id: ServiceId::catalog(264),
     name: "ReferenceQueryService",
-    package: "erpx.reference.v1",
+    package: "erpx.reference.v2",
     owner: ServiceOwner::FederatedItemDirectory,
     kind: ServiceKind::Query,
 };
 const DATA_PLANE_STREAM_SERVICE: ServiceDescriptor = ServiceDescriptor {
-    id: ServiceId::catalog(165),
+    id: ServiceId::catalog(265),
     name: "DataPlaneStreamService",
     package: ContextId::PlatformAdministration.proto_package(),
     owner: ServiceOwner::Context(ContextId::PlatformAdministration),
@@ -814,10 +814,10 @@ const fn active_services() -> [ServiceDescriptor; 65] {
 pub const ACTIVE_SERVICES: [ServiceDescriptor; 65] = active_services();
 
 const fn legacy_service_ids() -> [ServiceId; 65] {
-    let mut ids = [ServiceId::catalog(1); 65];
+    let mut ids = [ServiceId::catalog(101); 65];
     let mut index = 0;
     while index < ids.len() {
-        ids[index] = ServiceId::catalog(index as u16 + 1);
+        ids[index] = ServiceId::catalog(index as u16 + 101);
         index += 1;
     }
     ids
@@ -1202,12 +1202,12 @@ mod tests {
             .iter()
             .map(|id| id.number())
             .collect::<BTreeSet<_>>();
-        assert_eq!(active_ids, (101..=165).collect());
+        assert_eq!(active_ids, (201..=265).collect());
         assert_eq!(active_names.len(), 65);
-        assert_eq!(retired_ids, (1..=65).collect());
+        assert_eq!(retired_ids, (101..=165).collect());
         assert!(active_ids.is_disjoint(&retired_ids));
-        assert_eq!(ACTIVE_SERVICES[0].id.to_string(), "IFC-SVC-101");
-        assert_eq!(ACTIVE_SERVICES[64].id.to_string(), "IFC-SVC-165");
+        assert_eq!(ACTIVE_SERVICES[0].id.to_string(), "IFC-SVC-201");
+        assert_eq!(ACTIVE_SERVICES[64].id.to_string(), "IFC-SVC-265");
     }
 
     #[test]

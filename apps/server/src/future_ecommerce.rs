@@ -10,7 +10,7 @@ use erpx_integration_contracts::{
     CurrencyCode, MoneyAmount, RecordTypeId, StableRecordRef, catalog::ContextId,
 };
 use erpx_kernel::{CommandId, CorrelationId, RecordId, TenantScope};
-use erpx_proto::{common::v1 as common, erpx::ecommerce::v1 as wire};
+use erpx_proto::{common::v2 as common, erpx::ecommerce::v2 as wire};
 use prost::Message;
 use sha2::{Digest, Sha256};
 use tonic::{Request, Response, Status};

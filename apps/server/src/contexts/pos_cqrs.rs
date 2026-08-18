@@ -19,7 +19,7 @@ use erpx_pos::{
     RefundStatus, RefundView, RegisterId, RejectRefund, RequestRefund, ResumeSale, SaleId,
     SaleLine, SaleLineId, SaleListFilter, SaleStatus, SaleView, VoidSale,
 };
-use erpx_proto::{common, erpx::pos::v1 as platform};
+use erpx_proto::{common, erpx::pos::v2 as platform};
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
 

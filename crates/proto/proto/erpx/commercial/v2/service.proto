@@ -1,0 +1,405 @@
+syntax = "proto3";
+
+package erpx.commercial.v2;
+
+import "erpx/common/v2/context.proto";
+
+message CheckEntitlementRequest {
+  string billing_state = 1;
+  string module_key = 2;
+  bool module_active = 3;
+  bool rbac_allows = 4;
+  bool mutation = 5;
+  erpx.common.v2.QueryContext context = 6;
+  string customer_id = 7;
+  string subscription_id = 8;
+  string required_permission = 9;
+  uint64 approval_amount_minor = 10;
+  string support_capability_id = 11;
+  string support_device_ref = 12;
+  string support_session_id = 13;
+  string support_ticket_id = 14;
+  string support_mode = 15;
+  string support_scope = 16;
+}
+message CheckEntitlementResponse { bool allowed = 1; string reason = 2; }
+message EntitlementCommandReceipt {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  bool replayed = 4;
+  string command_id = 5;
+}
+message AllocateCompanyEntitlementRequest {
+  string customer_id = 1;
+  string module_key = 2;
+  string company_id = 3;
+  uint32 seats = 4;
+  uint32 branch_limit = 5;
+  erpx.common.v2.CommandContext context = 6;
+  string mfa_code = 7;
+}
+message AllocateCompanyEntitlementResponse {
+  EntitlementCommandReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message ActivateCompanyEntitlementRequest {
+  string customer_id = 1;
+  string module_key = 2;
+  string company_id = 3;
+  string activated_at = 4;
+  erpx.common.v2.CommandContext context = 5;
+  string mfa_code = 6;
+}
+message ActivateCompanyEntitlementResponse {
+  EntitlementCommandReceipt receipt = 1;
+  string correlation_id = 2;
+}
+message ActivateBranchEntitlementRequest {
+  string customer_id = 1;
+  string module_key = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string activated_at = 5;
+  erpx.common.v2.CommandContext context = 6;
+  string mfa_code = 7;
+}
+message ActivateBranchEntitlementResponse {
+  EntitlementCommandReceipt receipt = 1;
+  string correlation_id = 2;
+}
+
+message ListSaasCatalogRequest {
+  string currency = 1;
+  erpx.common.v2.QueryContext context = 2;
+}
+message SaasCatalogPrice {
+  string item_key = 1;
+  string display_name = 2;
+  string kind = 3;
+  string pricing_unit = 4;
+  string interval = 5;
+  uint64 amount_minor = 6;
+  string currency = 7;
+}
+message ListSaasCatalogResponse {
+  uint32 revision = 1;
+  repeated SaasCatalogPrice prices = 2;
+  string correlation_id = 3;
+}
+message SubscriptionItemSelection {
+  string item_key = 1;
+  uint32 quantity = 2;
+}
+message GetTenantSubscriptionRequest {
+  string tenant_id = 1;
+  erpx.common.v2.QueryContext context = 2;
+}
+message TenantSubscriptionStatus {
+  string tenant_id = 1;
+  string state = 2;
+  string currency = 3;
+  string grace_until = 4;
+  bool business_modules_read_only = 5;
+  repeated SubscriptionItemSelection items = 6;
+}
+message GetTenantSubscriptionResponse {
+  TenantSubscriptionStatus subscription = 1;
+  string correlation_id = 2;
+}
+message CreateCheckoutSessionRequest {
+  string tenant_id = 1;
+  repeated SubscriptionItemSelection items = 2;
+  string return_path = 3;
+  erpx.common.v2.CommandContext context = 4;
+}
+message CreateCheckoutSessionResponse {
+  string hosted_url = 1;
+  string expires_at = 2;
+  string correlation_id = 3;
+}
+message CreateCustomerPortalSessionRequest {
+  string tenant_id = 1;
+  string return_path = 2;
+  erpx.common.v2.CommandContext context = 3;
+}
+message CreateCustomerPortalSessionResponse {
+  string hosted_url = 1;
+  string correlation_id = 2;
+}
+message ListTenantInvoicesRequest {
+  string tenant_id = 1;
+  uint32 page_size = 2;
+  string after_invoice_id = 3;
+  erpx.common.v2.QueryContext context = 4;
+}
+message TenantInvoiceSummary {
+  string invoice_id = 1;
+  string state = 2;
+  string currency = 3;
+  uint64 amount_due_minor = 4;
+  uint64 amount_paid_minor = 5;
+  string due_at = 6;
+  bool hosted_invoice_available = 7;
+}
+message ListTenantInvoicesResponse {
+  repeated TenantInvoiceSummary invoices = 1;
+  bool has_more = 2;
+  string next_after_invoice_id = 3;
+  string correlation_id = 4;
+}
+message GrantBillingGraceExtensionRequest {
+  string tenant_id = 1;
+  string delinquency_cycle_id = 2;
+  uint32 extension_days = 3;
+  string reason = 4;
+  string mfa_code = 5;
+  erpx.common.v2.CommandContext context = 6;
+}
+message GrantBillingGraceExtensionResponse {
+  string extension_id = 1;
+  string extended_until = 2;
+  string correlation_id = 3;
+}
+
+
+enum CommercialCatalogPlanStatus {
+  COMMERCIAL_CATALOG_PLAN_STATUS_UNSPECIFIED = 0;
+  COMMERCIAL_CATALOG_PLAN_STATUS_DRAFT = 1;
+  COMMERCIAL_CATALOG_PLAN_STATUS_PUBLISHED = 2;
+}
+
+enum CommercialSubscriptionStatus {
+  COMMERCIAL_SUBSCRIPTION_STATUS_UNSPECIFIED = 0;
+  COMMERCIAL_SUBSCRIPTION_STATUS_TRIAL = 1;
+  COMMERCIAL_SUBSCRIPTION_STATUS_ACTIVE = 2;
+  COMMERCIAL_SUBSCRIPTION_STATUS_PAST_DUE = 3;
+  COMMERCIAL_SUBSCRIPTION_STATUS_SUSPENDED = 4;
+  COMMERCIAL_SUBSCRIPTION_STATUS_ENDED = 5;
+}
+
+enum CommercialBillingSignal {
+  COMMERCIAL_BILLING_SIGNAL_UNSPECIFIED = 0;
+  COMMERCIAL_BILLING_SIGNAL_TRIAL_ENDED = 1;
+  COMMERCIAL_BILLING_SIGNAL_PAYMENT_FAILED = 2;
+  COMMERCIAL_BILLING_SIGNAL_GRACE_EXPIRED = 3;
+  COMMERCIAL_BILLING_SIGNAL_PAYMENT_RECOVERED = 4;
+  COMMERCIAL_BILLING_SIGNAL_SUBSCRIPTION_CANCELED = 5;
+}
+
+message CommercialEntitlementCapacity {
+  uint32 seats = 1;
+  uint32 companies = 2;
+  uint32 branches = 3;
+}
+
+message CommercialCatalogPlanView {
+  string catalog_plan_id = 1;
+  uint64 source_version = 2;
+  string plan_key = 3;
+  string display_name = 4;
+  int64 amount_minor = 5;
+  string currency = 6;
+  CommercialCatalogPlanStatus status = 7;
+  string created_at = 8;
+  string updated_at = 9;
+  string projected_at = 10;
+}
+
+message CommercialSubscriptionView {
+  string subscription_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v2.TenantScope scope = 3;
+  string customer_id = 4;
+  string catalog_plan_id = 5;
+  CommercialSubscriptionStatus status = 6;
+  int64 amount_minor = 7;
+  string currency = 8;
+  string updated_at = 9;
+  string projected_at = 10;
+}
+
+message CommercialEntitlementView {
+  string entitlement_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v2.TenantScope scope = 3;
+  string subscription_id = 4;
+  string capability = 5;
+  bool enabled = 6;
+  CommercialEntitlementCapacity capacity = 7;
+  CommercialEntitlementCapacity allocated = 8;
+  string updated_at = 9;
+  string projected_at = 10;
+}
+
+message CreateCommercialCatalogPlanRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string catalog_plan_id = 2;
+  string plan_key = 3;
+  string display_name = 4;
+  int64 amount_minor = 5;
+  string currency = 6;
+}
+
+message PublishCommercialCatalogPlanRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string catalog_plan_id = 2;
+}
+
+message CreateCommercialSubscriptionRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string subscription_id = 2;
+  erpx.common.v2.TenantScope scope = 3;
+  string customer_id = 4;
+  string catalog_plan_id = 5;
+  int64 amount_minor = 6;
+  string currency = 7;
+  bool starts_in_trial = 8;
+}
+
+message ApplyCommercialBillingEventRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string subscription_id = 2;
+  CommercialBillingSignal signal = 3;
+  string provider = 4;
+  string provider_event_ref = 5;
+  string occurred_at = 6;
+}
+
+message CreateCommercialEntitlementRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string entitlement_id = 2;
+  erpx.common.v2.TenantScope scope = 3;
+  string subscription_id = 4;
+  string capability = 5;
+  bool enabled = 6;
+  CommercialEntitlementCapacity capacity = 7;
+}
+
+message ApplyCommercialEntitlementChangeRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string entitlement_id = 2;
+  string provider = 3;
+  string provider_event_ref = 4;
+  string occurred_at = 5;
+  string capability = 6;
+  bool enabled = 7;
+  CommercialEntitlementCapacity capacity = 8;
+}
+
+message CommercialCatalogPlanCommandResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  CommercialCatalogPlanView catalog_plan = 2;
+}
+message CommercialSubscriptionCommandResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  CommercialSubscriptionView subscription = 2;
+}
+message CommercialEntitlementCommandResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  CommercialEntitlementView entitlement = 2;
+}
+
+message GetCommercialCatalogPlanRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  string catalog_plan_id = 2;
+}
+message GetCommercialCatalogPlanResponse {
+  optional CommercialCatalogPlanView catalog_plan = 1;
+  erpx.common.v2.QueryMetadata metadata = 2;
+}
+message ListCommercialCatalogPlansRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  uint32 page_size = 2;
+  optional string cursor = 3;
+}
+message ListCommercialCatalogPlansResponse {
+  repeated CommercialCatalogPlanView catalog_plans = 1;
+  optional string next_cursor = 2;
+  erpx.common.v2.QueryMetadata metadata = 3;
+}
+
+message GetCommercialSubscriptionRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  string subscription_id = 2;
+}
+message GetCommercialSubscriptionResponse {
+  optional CommercialSubscriptionView subscription = 1;
+  erpx.common.v2.QueryMetadata metadata = 2;
+}
+message ListCommercialSubscriptionsRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  uint32 page_size = 2;
+  optional string cursor = 3;
+}
+message ListCommercialSubscriptionsResponse {
+  repeated CommercialSubscriptionView subscriptions = 1;
+  optional string next_cursor = 2;
+  erpx.common.v2.QueryMetadata metadata = 3;
+}
+
+message GetCommercialEntitlementRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  string entitlement_id = 2;
+}
+message GetCommercialEntitlementResponse {
+  optional CommercialEntitlementView entitlement = 1;
+  erpx.common.v2.QueryMetadata metadata = 2;
+}
+message ListCommercialEntitlementsRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  uint32 page_size = 2;
+  optional string cursor = 3;
+}
+message ListCommercialEntitlementsResponse {
+  repeated CommercialEntitlementView entitlements = 1;
+  optional string next_cursor = 2;
+  erpx.common.v2.QueryMetadata metadata = 3;
+}
+
+service CommercialCommandService {
+  rpc AllocateCompanyEntitlement(AllocateCompanyEntitlementRequest)
+      returns (AllocateCompanyEntitlementResponse);
+  rpc ActivateCompanyEntitlement(ActivateCompanyEntitlementRequest)
+      returns (ActivateCompanyEntitlementResponse);
+  rpc ActivateBranchEntitlement(ActivateBranchEntitlementRequest)
+      returns (ActivateBranchEntitlementResponse);
+  rpc CreateCheckoutSession(CreateCheckoutSessionRequest)
+      returns (CreateCheckoutSessionResponse);
+  rpc CreateCustomerPortalSession(CreateCustomerPortalSessionRequest)
+      returns (CreateCustomerPortalSessionResponse);
+  rpc GrantGraceExtension(GrantBillingGraceExtensionRequest)
+      returns (GrantBillingGraceExtensionResponse);
+  rpc CreateCatalogPlan(CreateCommercialCatalogPlanRequest)
+      returns (CommercialCatalogPlanCommandResponse);
+  rpc PublishCatalogPlan(PublishCommercialCatalogPlanRequest)
+      returns (CommercialCatalogPlanCommandResponse);
+  rpc CreateSubscription(CreateCommercialSubscriptionRequest)
+      returns (CommercialSubscriptionCommandResponse);
+  rpc ApplyBillingEvent(ApplyCommercialBillingEventRequest)
+      returns (CommercialSubscriptionCommandResponse);
+  rpc CreateEntitlement(CreateCommercialEntitlementRequest)
+      returns (CommercialEntitlementCommandResponse);
+  rpc ApplyEntitlementChange(ApplyCommercialEntitlementChangeRequest)
+      returns (CommercialEntitlementCommandResponse);
+}
+
+service CommercialQueryService {
+  rpc CheckEntitlement(CheckEntitlementRequest) returns (CheckEntitlementResponse);
+  rpc ListSaasCatalog(ListSaasCatalogRequest) returns (ListSaasCatalogResponse);
+  rpc GetTenantSubscription(GetTenantSubscriptionRequest)
+      returns (GetTenantSubscriptionResponse);
+  rpc ListTenantInvoices(ListTenantInvoicesRequest) returns (ListTenantInvoicesResponse);
+  rpc GetCatalogPlan(GetCommercialCatalogPlanRequest)
+      returns (GetCommercialCatalogPlanResponse);
+  rpc ListCatalogPlans(ListCommercialCatalogPlansRequest)
+      returns (ListCommercialCatalogPlansResponse);
+  rpc GetSubscription(GetCommercialSubscriptionRequest)
+      returns (GetCommercialSubscriptionResponse);
+  rpc ListSubscriptions(ListCommercialSubscriptionsRequest)
+      returns (ListCommercialSubscriptionsResponse);
+  rpc GetEntitlement(GetCommercialEntitlementRequest)
+      returns (GetCommercialEntitlementResponse);
+  rpc ListEntitlements(ListCommercialEntitlementsRequest)
+      returns (ListCommercialEntitlementsResponse);
+}

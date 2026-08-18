@@ -6,7 +6,7 @@ use erpx_assets::{
 };
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_integration_contracts::assets::AssetCondition;
-use erpx_proto::erpx::assets::v1 as wire;
+use erpx_proto::erpx::assets::v2 as wire;
 use erpx_ui_foundation::UiError;
 
 use super::common::{
@@ -284,7 +284,7 @@ impl AssetsProtoTransport for AssetsGrpcTransport {
 }
 
 fn identity(
-    metadata: erpx_proto::common::v1::CommandRequestMetadata,
+    metadata: erpx_proto::common::v2::CommandRequestMetadata,
     asset_id: AssetId,
 ) -> wire::AssetIdentityCommandRequest {
     wire::AssetIdentityCommandRequest {

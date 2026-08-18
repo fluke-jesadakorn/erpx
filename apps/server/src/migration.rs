@@ -14,7 +14,7 @@ use erpx_migration::{
     MigrationPhase,
     g13::{G13StartRunRequest, G13TransitionRequest, phase_from_wire},
 };
-use erpx_proto::erpx::platform_administration::v1::{
+use erpx_proto::erpx::platform_administration::v2::{
     AdvanceMigrationPhaseRequest, AdvanceMigrationPhaseResponse, BeginMigrationRunRequest,
     BeginMigrationRunResponse, ListMigrationStatusesRequest, ListMigrationStatusesResponse,
     MigrationStatus, QueueMigrationWorkRequest, QueueMigrationWorkResponse,

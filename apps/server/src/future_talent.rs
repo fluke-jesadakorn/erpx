@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     CurrencyCode, MoneyAmount, RecordTypeId, StableRecordRef, catalog::ContextId,
 };
 use erpx_kernel::{CommandId, CorrelationId, RecordId, TenantScope};
-use erpx_proto::{common::v1 as common, erpx::talent::v1 as wire};
+use erpx_proto::{common::v2 as common, erpx::talent::v2 as wire};
 use erpx_talent as talent;
 use erpx_talent_sqlx as talent_sqlx;
 use prost::Message;

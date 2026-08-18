@@ -1,0 +1,286 @@
+syntax = "proto3";
+
+package erpx.pos.v2;
+
+import "erpx/common/v2/context.proto";
+
+message ListPosSalesRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string holding_id = 3;
+  string company_id = 4;
+  string branch_id = 5;
+  uint32 page_size = 6;
+  string before_cursor = 7;
+  erpx.common.v2.QueryContext context = 8;
+}
+message SavePosSaleRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  bytes sale_json = 3;
+  bool has_expected_version = 4;
+  uint64 expected_version = 5;
+  erpx.common.v2.CommandContext context = 6;
+}
+message SavePosSaleResponse {
+  string aggregate_type = 1;
+  string aggregate_id = 2;
+  uint64 version = 3;
+  string idempotency_key = 4;
+  bool replayed = 5;
+  string correlation_id = 6;
+}
+message PosSaleReadLine {
+  string line_id = 1;
+  int32 line_no = 2;
+  string item_reference = 3;
+  string description = 4;
+  int64 quantity = 5;
+  int64 unit_price_minor = 6;
+  int64 tax_minor = 7;
+  int64 subtotal_minor = 8;
+  int64 total_minor = 9;
+  string product_id = 10;
+  uint64 source_version = 11;
+  string source_event_id = 12;
+  string projected_at = 13;
+}
+message PosSaleReadPayment {
+  string payment_id = 1;
+  int64 amount_minor = 2;
+  string method = 3;
+  string received_at = 4;
+  uint64 source_version = 5;
+  string source_event_id = 6;
+  string projected_at = 7;
+}
+message PosSaleReadRow {
+  string sale_id = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string reference = 5;
+  string customer_id = 6;
+  string register_id = 7;
+  string currency = 8;
+  int64 subtotal_minor = 9;
+  int64 tax_minor = 10;
+  int64 total_minor = 11;
+  int64 paid_minor = 12;
+  string status = 13;
+  string created_at = 14;
+  string updated_at = 15;
+  uint64 source_version = 16;
+  string source_event_id = 17;
+  string projected_at = 18;
+  repeated PosSaleReadLine lines = 19;
+  repeated PosSaleReadPayment payments = 20;
+  bool lines_truncated = 21;
+  bool payments_truncated = 22;
+}
+message ListPosSalesResponse {
+  repeated PosSaleReadRow sales = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+// Legal reads expose normalized, redacted metadata from the tenant read
+// database. Object bytes are never transported through these messages.
+
+enum PosSaleStatus {
+  POS_SALE_STATUS_UNSPECIFIED = 0;
+  POS_SALE_STATUS_DRAFT = 1;
+  POS_SALE_STATUS_OPEN = 2;
+  POS_SALE_STATUS_HELD = 3;
+  POS_SALE_STATUS_COMPLETED = 4;
+  POS_SALE_STATUS_VOIDED = 5;
+}
+
+enum PosRefundStatus {
+  POS_REFUND_STATUS_UNSPECIFIED = 0;
+  POS_REFUND_STATUS_REQUESTED = 1;
+  POS_REFUND_STATUS_APPROVED = 2;
+  POS_REFUND_STATUS_REJECTED = 3;
+  POS_REFUND_STATUS_POSTED = 4;
+  POS_REFUND_STATUS_CANCELLED = 5;
+}
+
+enum PosPaymentMethod {
+  POS_PAYMENT_METHOD_UNSPECIFIED = 0;
+  POS_PAYMENT_METHOD_CASH = 1;
+  POS_PAYMENT_METHOD_CARD = 2;
+  POS_PAYMENT_METHOD_BANK_TRANSFER = 3;
+  POS_PAYMENT_METHOD_MOBILE_WALLET = 4;
+  POS_PAYMENT_METHOD_VOUCHER = 5;
+  POS_PAYMENT_METHOD_OTHER = 6;
+}
+
+message PosSaleLineRecord {
+  string line_id = 1;
+  string item_reference = 2;
+  string description = 3;
+  uint64 quantity = 4;
+  int64 unit_price_minor = 5;
+  int64 tax_minor = 6;
+  int64 subtotal_minor = 7;
+  int64 total_minor = 8;
+}
+
+message PosPaymentRecord {
+  string payment_id = 1;
+  int64 amount_minor = 2;
+  PosPaymentMethod method = 3;
+  string received_at = 4;
+}
+
+message PosRefundLineRecord {
+  string sale_line_id = 1;
+  uint64 quantity = 2;
+  int64 amount_minor = 3;
+}
+
+message PosSaleRecord {
+  string sale_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v2.TenantScope scope = 3;
+  string receipt_code = 4;
+  string register_id = 5;
+  optional string customer_id = 6;
+  string currency = 7;
+  repeated PosSaleLineRecord lines = 8;
+  repeated PosPaymentRecord payments = 9;
+  int64 subtotal_minor = 10;
+  int64 tax_minor = 11;
+  int64 total_minor = 12;
+  int64 paid_minor = 13;
+  PosSaleStatus status = 14;
+  string created_at = 15;
+  string updated_at = 16;
+  string projected_at = 17;
+}
+
+message PosRefundRecord {
+  string refund_id = 1;
+  uint64 source_version = 2;
+  erpx.common.v2.TenantScope scope = 3;
+  string sale_id = 4;
+  string currency = 5;
+  repeated PosRefundLineRecord lines = 6;
+  int64 total_amount_minor = 7;
+  string reason = 8;
+  string requester_principal_ref = 9;
+  optional string reviewer_principal_ref = 10;
+  PosRefundStatus status = 11;
+  string requested_at = 12;
+  string updated_at = 13;
+  string projected_at = 14;
+}
+
+message CreatePosSaleRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string sale_id = 2;
+  erpx.common.v2.TenantScope target_scope = 3;
+  string receipt_code = 4;
+  string register_id = 5;
+  optional string customer_id = 6;
+  string currency = 7;
+  repeated PosSaleLineRecord lines = 8;
+}
+
+message PosSaleIdentityRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string sale_id = 2;
+}
+
+message RecordPosPaymentRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string sale_id = 2;
+  PosPaymentRecord payment = 3;
+}
+
+message PosSaleMutationResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  PosSaleRecord sale = 2;
+}
+
+message RequestPosRefundRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string refund_id = 2;
+  string sale_id = 3;
+  repeated PosRefundLineRecord lines = 4;
+  string reason = 5;
+}
+
+message PosRefundIdentityRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string refund_id = 2;
+}
+
+message PosRefundMutationResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  PosRefundRecord refund = 2;
+}
+
+message GetPosSaleRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  string sale_id = 2;
+}
+message GetPosSaleResponse {
+  optional PosSaleRecord sale = 1;
+  erpx.common.v2.QueryMetadata metadata = 2;
+}
+message ListPosSaleRecordsRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  optional PosSaleStatus status = 2;
+  optional string register_id = 3;
+  uint32 page_size = 4;
+  optional string cursor = 5;
+}
+message ListPosSaleRecordsResponse {
+  repeated PosSaleRecord sales = 1;
+  optional string next_cursor = 2;
+  erpx.common.v2.QueryMetadata metadata = 3;
+}
+message GetPosRefundRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  string refund_id = 2;
+}
+message GetPosRefundResponse {
+  optional PosRefundRecord refund = 1;
+  erpx.common.v2.QueryMetadata metadata = 2;
+}
+message ListPosRefundsRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  optional PosRefundStatus status = 2;
+  optional string sale_id = 3;
+  uint32 page_size = 4;
+  optional string cursor = 5;
+}
+message ListPosRefundsResponse {
+  repeated PosRefundRecord refunds = 1;
+  optional string next_cursor = 2;
+  erpx.common.v2.QueryMetadata metadata = 3;
+}
+
+service PointOfSaleCommandService {
+  rpc CreateSale(CreatePosSaleRequest) returns (PosSaleMutationResponse);
+  rpc OpenSale(PosSaleIdentityRequest) returns (PosSaleMutationResponse);
+  rpc HoldSale(PosSaleIdentityRequest) returns (PosSaleMutationResponse);
+  rpc ResumeSale(PosSaleIdentityRequest) returns (PosSaleMutationResponse);
+  rpc RecordPayment(RecordPosPaymentRequest) returns (PosSaleMutationResponse);
+  rpc CompleteSale(PosSaleIdentityRequest) returns (PosSaleMutationResponse);
+  rpc VoidSale(PosSaleIdentityRequest) returns (PosSaleMutationResponse);
+  rpc RequestRefund(RequestPosRefundRequest) returns (PosRefundMutationResponse);
+  rpc ApproveRefund(PosRefundIdentityRequest) returns (PosRefundMutationResponse);
+  rpc RejectRefund(PosRefundIdentityRequest) returns (PosRefundMutationResponse);
+  rpc PostRefund(PosRefundIdentityRequest) returns (PosRefundMutationResponse);
+  rpc CancelRefund(PosRefundIdentityRequest) returns (PosRefundMutationResponse);
+}
+
+service PointOfSaleQueryService {
+  rpc GetSale(GetPosSaleRequest) returns (GetPosSaleResponse);
+  rpc ListSales(ListPosSaleRecordsRequest) returns (ListPosSaleRecordsResponse);
+  rpc GetRefund(GetPosRefundRequest) returns (GetPosRefundResponse);
+  rpc ListRefunds(ListPosRefundsRequest) returns (ListPosRefundsResponse);
+}

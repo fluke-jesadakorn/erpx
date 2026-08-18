@@ -1100,11 +1100,11 @@ fn status(root: &Path) -> TaskResult {
                     let (mode, debug) = web_process_mode(&command);
                     match &dev_artifacts {
                         Ok(_) => println!(
-                            "web: {} (pid {pid}, monolithic, {mode}, {debug}, artifacts-ready)",
+                            "web: {} (pid {pid}, monolithic-dev, {mode}, {debug}, artifacts-ready)",
                             web_runtime_health(true, true)
                         ),
                         Err(error) => println!(
-                            "web: {} (pid {pid}, monolithic, {mode}, {debug}, artifacts-not-ready: {error})",
+                            "web: {} (pid {pid}, monolithic-dev, {mode}, {debug}, artifacts-not-ready: {error})",
                             web_runtime_health(true, false),
                         ),
                     }
@@ -1122,11 +1122,13 @@ fn status(root: &Path) -> TaskResult {
             && root.join(&report.base_path).is_file()
         {
             println!(
-                "web-wasm-{}: monolithic={}, raw={}, Brotli={}",
+                "web-wasm-{}: layout={:?}, base={}, raw={}, Brotli={}, chunks={}",
                 profile.label(),
+                report.layout,
                 report.base_path,
                 wasm::display_bytes(report.base_raw_bytes),
                 wasm::display_bytes(report.base_brotli_bytes),
+                report.chunks.len(),
             );
         }
     }

@@ -15,7 +15,7 @@ use erpx_marketing::{
     ListLeadCandidates, MarketingCommand, MarketingMutationResult, MarketingQuery,
     MarketingQueryResponse, QualifyLeadCandidate, RejectLeadCandidate,
 };
-use erpx_proto::{common, erpx::marketing::v1 as platform};
+use erpx_proto::{common, erpx::marketing::v2 as platform};
 use std::sync::Arc;
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;

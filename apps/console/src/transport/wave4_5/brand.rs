@@ -9,7 +9,7 @@ use erpx_brand::{
     RollbackBrand, SaveBrandDraft, SetBrandCategoryLocks,
 };
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
-use erpx_proto::erpx::brand::v1 as platform;
+use erpx_proto::erpx::brand::v2 as platform;
 use erpx_ui_foundation::UiError;
 
 use crate::{features::brand::gateway::BrandProtoTransport, transport::typed_cqrs::GrpcChannel};

@@ -24,7 +24,7 @@ The active clean-rebuild contract set contains exactly 65 internal services.
 Each bounded context owns one Command and one Query service; the three
 cross-cutting entries are read/stream adapters without business write
 authority. Names, IDs, and ownership are normative. Implementation packages
-use context-specific `erpx.<context>.v1` namespaces rather than the legacy
+use context-specific `erpx.<context>.v2` namespaces rather than the legacy
 monolithic package.
 
 | Required metadata | Resolved value for every replacement `IFC-SVC-*` entry |
@@ -33,78 +33,78 @@ monolithic package.
 | Scope | Mandatory tenant plus applicable holding/company/branch, realm, record, field, customer-support, provider, and purpose scope; route parameters are not trusted authority |
 | Authentication/authorization | ERPX human session or allow-listed service principal plus owner-context operation and current policy decision on every request or stream resume |
 | Idempotency | Commands require caller key, payload digest, conflict response, and prior-result retrieval; queries are non-mutating; stream cursors resume idempotently |
-| Version | Context-specific internal `erpx.<context>.v1`; incompatible changes require a new version, while the clean cutover provides no legacy alias |
+| Version | Context-specific internal `erpx.<context>.v2`; incompatible changes require a new version, while the clean cutover provides no legacy alias |
 | Classification | Public/Internal/Confidential/Restricted field classification with strictest-field propagation into messages, events, traces, provider payloads, and evidence |
 | Failure semantics | Fail closed on identity, scope, policy, routing, classification, or ownership uncertainty; expose typed retryability, correlation, freshness, and reconciliation state |
 | Lifecycle and source | Target for baseline 2.0.0 under FSD-006; an entry becomes Active only when implementation and acceptance evidence pass |
 
 | Catalog ID | Service | Owner | Kind | Lifecycle/source |
 |---|---|---|---|---|
-| IFC-SVC-101 | IdentityAccessCommandService | Identity & Access | Command | Target via FSD-006 |
-| IFC-SVC-102 | IdentityAccessQueryService | Identity & Access | Query | Target via FSD-006 |
-| IFC-SVC-103 | PlatformAdministrationCommandService | Platform Administration | Command | Target via FSD-006 |
-| IFC-SVC-104 | PlatformAdministrationQueryService | Platform Administration | Query | Target via FSD-006 |
-| IFC-SVC-105 | OrganizationCommandService | Organization | Command | Target via FSD-006 |
-| IFC-SVC-106 | OrganizationQueryService | Organization | Query | Target via FSD-006 |
-| IFC-SVC-107 | CommercialCommandService | Commercial | Command | Target via FSD-006 |
-| IFC-SVC-108 | CommercialQueryService | Commercial | Query | Target via FSD-006 |
-| IFC-SVC-109 | BrandCommandService | Brand | Command | Target via FSD-006 |
-| IFC-SVC-110 | BrandQueryService | Brand | Query | Target via FSD-006 |
-| IFC-SVC-111 | CustomerAuthorityCommandService | Customer Authority | Command | Target via FSD-006 |
-| IFC-SVC-112 | CustomerAuthorityQueryService | Customer Authority | Query | Target via FSD-006 |
-| IFC-SVC-113 | Customer360CommandService | Customer 360 | Command | Target via FSD-006 |
-| IFC-SVC-114 | Customer360QueryService | Customer 360 | Query | Target via FSD-006 |
-| IFC-SVC-115 | SupportCommandService | Support | Command | Target via FSD-006 |
-| IFC-SVC-116 | SupportQueryService | Support | Query | Target via FSD-006 |
-| IFC-SVC-117 | FinanceCommandService | Finance | Command | Target via FSD-006 |
-| IFC-SVC-118 | FinanceQueryService | Finance | Query | Target via FSD-006 |
-| IFC-SVC-119 | SalesCommandService | Sales | Command | Target via FSD-006 |
-| IFC-SVC-120 | SalesQueryService | Sales | Query | Target via FSD-006 |
-| IFC-SVC-121 | PointOfSaleCommandService | Point of Sale | Command | Target via FSD-006 |
-| IFC-SVC-122 | PointOfSaleQueryService | Point of Sale | Query | Target via FSD-006 |
-| IFC-SVC-123 | ProcurementCommandService | Procurement | Command | Target via FSD-006 |
-| IFC-SVC-124 | ProcurementQueryService | Procurement | Query | Target via FSD-006 |
-| IFC-SVC-125 | InventoryCommandService | Inventory | Command | Target via FSD-006 |
-| IFC-SVC-126 | InventoryQueryService | Inventory | Query | Target via FSD-006 |
-| IFC-SVC-127 | AssetsCommandService | Assets | Command | Target via FSD-006 |
-| IFC-SVC-128 | AssetsQueryService | Assets | Query | Target via FSD-006 |
-| IFC-SVC-129 | MaintenanceCommandService | Maintenance | Command | Target via FSD-006 |
-| IFC-SVC-130 | MaintenanceQueryService | Maintenance | Query | Target via FSD-006 |
-| IFC-SVC-131 | QualityCommandService | Quality | Command | Target via FSD-006 |
-| IFC-SVC-132 | QualityQueryService | Quality | Query | Target via FSD-006 |
-| IFC-SVC-133 | OperationsCommandService | Operations | Command | Target via FSD-006 |
-| IFC-SVC-134 | OperationsQueryService | Operations | Query | Target via FSD-006 |
-| IFC-SVC-135 | PeoplePayrollCommandService | People & Payroll | Command | Target via FSD-006 |
-| IFC-SVC-136 | PeoplePayrollQueryService | People & Payroll | Query | Target via FSD-006 |
-| IFC-SVC-137 | LegalCommandService | Legal | Command | Target via FSD-006 |
-| IFC-SVC-138 | LegalQueryService | Legal | Query | Target via FSD-006 |
-| IFC-SVC-139 | MarketingCommandService | Marketing | Command | Target via FSD-006 |
-| IFC-SVC-140 | MarketingQueryService | Marketing | Query | Target via FSD-006 |
-| IFC-SVC-141 | CrmCommandService | CRM | Command | Target via FSD-006 |
-| IFC-SVC-142 | CrmQueryService | CRM | Query | Target via FSD-006 |
-| IFC-SVC-143 | ManufacturingCommandService | Manufacturing | Command | Target via FSD-006 |
-| IFC-SVC-144 | ManufacturingQueryService | Manufacturing | Query | Target via FSD-006 |
-| IFC-SVC-145 | PlanningCommandService | Supply & Demand Planning | Command | Target via FSD-006 |
-| IFC-SVC-146 | PlanningQueryService | Supply & Demand Planning | Query | Target via FSD-006 |
-| IFC-SVC-147 | ProjectsCommandService | Projects | Command | Target via FSD-006 |
-| IFC-SVC-148 | ProjectsQueryService | Projects | Query | Target via FSD-006 |
-| IFC-SVC-149 | EcommerceCommandService | E-commerce | Command | Target via FSD-006 |
-| IFC-SVC-150 | EcommerceQueryService | E-commerce | Query | Target via FSD-006 |
-| IFC-SVC-151 | TalentCommandService | Recruiting & Talent | Command | Target via FSD-006 |
-| IFC-SVC-152 | TalentQueryService | Recruiting & Talent | Query | Target via FSD-006 |
-| IFC-SVC-153 | LearningCommandService | Learning | Command | Target via FSD-006 |
-| IFC-SVC-154 | LearningQueryService | Learning | Query | Target via FSD-006 |
-| IFC-SVC-155 | BenefitsCommandService | Benefits | Command | Target via FSD-006 |
-| IFC-SVC-156 | BenefitsQueryService | Benefits | Query | Target via FSD-006 |
-| IFC-SVC-157 | FieldServiceCommandService | Field Service | Command | Target via FSD-006 |
-| IFC-SVC-158 | FieldServiceQueryService | Field Service | Query | Target via FSD-006 |
-| IFC-SVC-159 | CollaborationCommandService | Collaboration | Command | Target via FSD-006 |
-| IFC-SVC-160 | CollaborationQueryService | Collaboration | Query | Target via FSD-006 |
-| IFC-SVC-161 | AgentOrchestrationCommandService | Agent Orchestration | Command | Target via FSD-006 |
-| IFC-SVC-162 | AgentOrchestrationQueryService | Agent Orchestration | Query | Target via FSD-006 |
-| IFC-SVC-163 | CollaborationStreamService | Collaboration | Stream | Target via FSD-006 |
-| IFC-SVC-164 | ReferenceQueryService | Item Directory projection | Query | Target via FSD-006 |
-| IFC-SVC-165 | DataPlaneStreamService | Platform Administration | Stream | Target via FSD-006 |
+| IFC-SVC-201 | IdentityAccessCommandService | Identity & Access | Command | Target via FSD-006 |
+| IFC-SVC-202 | IdentityAccessQueryService | Identity & Access | Query | Target via FSD-006 |
+| IFC-SVC-203 | PlatformAdministrationCommandService | Platform Administration | Command | Target via FSD-006 |
+| IFC-SVC-204 | PlatformAdministrationQueryService | Platform Administration | Query | Target via FSD-006 |
+| IFC-SVC-205 | OrganizationCommandService | Organization | Command | Target via FSD-006 |
+| IFC-SVC-206 | OrganizationQueryService | Organization | Query | Target via FSD-006 |
+| IFC-SVC-207 | CommercialCommandService | Commercial | Command | Target via FSD-006 |
+| IFC-SVC-208 | CommercialQueryService | Commercial | Query | Target via FSD-006 |
+| IFC-SVC-209 | BrandCommandService | Brand | Command | Target via FSD-006 |
+| IFC-SVC-210 | BrandQueryService | Brand | Query | Target via FSD-006 |
+| IFC-SVC-211 | CustomerAuthorityCommandService | Customer Authority | Command | Target via FSD-006 |
+| IFC-SVC-212 | CustomerAuthorityQueryService | Customer Authority | Query | Target via FSD-006 |
+| IFC-SVC-213 | Customer360CommandService | Customer 360 | Command | Target via FSD-006 |
+| IFC-SVC-214 | Customer360QueryService | Customer 360 | Query | Target via FSD-006 |
+| IFC-SVC-215 | SupportCommandService | Support | Command | Target via FSD-006 |
+| IFC-SVC-216 | SupportQueryService | Support | Query | Target via FSD-006 |
+| IFC-SVC-217 | FinanceCommandService | Finance | Command | Target via FSD-006 |
+| IFC-SVC-218 | FinanceQueryService | Finance | Query | Target via FSD-006 |
+| IFC-SVC-219 | SalesCommandService | Sales | Command | Target via FSD-006 |
+| IFC-SVC-220 | SalesQueryService | Sales | Query | Target via FSD-006 |
+| IFC-SVC-221 | PointOfSaleCommandService | Point of Sale | Command | Target via FSD-006 |
+| IFC-SVC-222 | PointOfSaleQueryService | Point of Sale | Query | Target via FSD-006 |
+| IFC-SVC-223 | ProcurementCommandService | Procurement | Command | Target via FSD-006 |
+| IFC-SVC-224 | ProcurementQueryService | Procurement | Query | Target via FSD-006 |
+| IFC-SVC-225 | InventoryCommandService | Inventory | Command | Target via FSD-006 |
+| IFC-SVC-226 | InventoryQueryService | Inventory | Query | Target via FSD-006 |
+| IFC-SVC-227 | AssetsCommandService | Assets | Command | Target via FSD-006 |
+| IFC-SVC-228 | AssetsQueryService | Assets | Query | Target via FSD-006 |
+| IFC-SVC-229 | MaintenanceCommandService | Maintenance | Command | Target via FSD-006 |
+| IFC-SVC-230 | MaintenanceQueryService | Maintenance | Query | Target via FSD-006 |
+| IFC-SVC-231 | QualityCommandService | Quality | Command | Target via FSD-006 |
+| IFC-SVC-232 | QualityQueryService | Quality | Query | Target via FSD-006 |
+| IFC-SVC-233 | OperationsCommandService | Operations | Command | Target via FSD-006 |
+| IFC-SVC-234 | OperationsQueryService | Operations | Query | Target via FSD-006 |
+| IFC-SVC-235 | PeoplePayrollCommandService | People & Payroll | Command | Target via FSD-006 |
+| IFC-SVC-236 | PeoplePayrollQueryService | People & Payroll | Query | Target via FSD-006 |
+| IFC-SVC-237 | LegalCommandService | Legal | Command | Target via FSD-006 |
+| IFC-SVC-238 | LegalQueryService | Legal | Query | Target via FSD-006 |
+| IFC-SVC-239 | MarketingCommandService | Marketing | Command | Target via FSD-006 |
+| IFC-SVC-240 | MarketingQueryService | Marketing | Query | Target via FSD-006 |
+| IFC-SVC-241 | CrmCommandService | CRM | Command | Target via FSD-006 |
+| IFC-SVC-242 | CrmQueryService | CRM | Query | Target via FSD-006 |
+| IFC-SVC-243 | ManufacturingCommandService | Manufacturing | Command | Target via FSD-006 |
+| IFC-SVC-244 | ManufacturingQueryService | Manufacturing | Query | Target via FSD-006 |
+| IFC-SVC-245 | PlanningCommandService | Supply & Demand Planning | Command | Target via FSD-006 |
+| IFC-SVC-246 | PlanningQueryService | Supply & Demand Planning | Query | Target via FSD-006 |
+| IFC-SVC-247 | ProjectsCommandService | Projects | Command | Target via FSD-006 |
+| IFC-SVC-248 | ProjectsQueryService | Projects | Query | Target via FSD-006 |
+| IFC-SVC-249 | EcommerceCommandService | E-commerce | Command | Target via FSD-006 |
+| IFC-SVC-250 | EcommerceQueryService | E-commerce | Query | Target via FSD-006 |
+| IFC-SVC-251 | TalentCommandService | Recruiting & Talent | Command | Target via FSD-006 |
+| IFC-SVC-252 | TalentQueryService | Recruiting & Talent | Query | Target via FSD-006 |
+| IFC-SVC-253 | LearningCommandService | Learning | Command | Target via FSD-006 |
+| IFC-SVC-254 | LearningQueryService | Learning | Query | Target via FSD-006 |
+| IFC-SVC-255 | BenefitsCommandService | Benefits | Command | Target via FSD-006 |
+| IFC-SVC-256 | BenefitsQueryService | Benefits | Query | Target via FSD-006 |
+| IFC-SVC-257 | FieldServiceCommandService | Field Service | Command | Target via FSD-006 |
+| IFC-SVC-258 | FieldServiceQueryService | Field Service | Query | Target via FSD-006 |
+| IFC-SVC-259 | CollaborationCommandService | Collaboration | Command | Target via FSD-006 |
+| IFC-SVC-260 | CollaborationQueryService | Collaboration | Query | Target via FSD-006 |
+| IFC-SVC-261 | AgentOrchestrationCommandService | Agent Orchestration | Command | Target via FSD-006 |
+| IFC-SVC-262 | AgentOrchestrationQueryService | Agent Orchestration | Query | Target via FSD-006 |
+| IFC-SVC-263 | CollaborationStreamService | Collaboration | Stream | Target via FSD-006 |
+| IFC-SVC-264 | ReferenceQueryService | Item Directory projection | Query | Target via FSD-006 |
+| IFC-SVC-265 | DataPlaneStreamService | Platform Administration | Stream | Target via FSD-006 |
 
 ## Observed legacy protobuf service catalog
 
@@ -228,11 +228,11 @@ unknown authority-bearing values, and preserves correlation/provenance.
 | IFC-UI-003 | `/<module>/<record>` | Owning context | Singular collection route assembled from approved catalog slugs |
 | IFC-UI-004 | `/<module>/<record>/:id` | Owning context | Singular detail route; lowercase-hyphenated UUID v4 identity |
 | IFC-UI-005 | `/reference/item/:id` | Reference Query adapter | Stable copied-link resolver; authorize before `303` redirect and never leak denied/absent distinction |
-| IFC-HTTP-001 | `GET /api/v1/<module>/<record>` | Query adapter | Authorized paged projection query with freshness and no hidden counts |
-| IFC-HTTP-002 | `POST /api/v1/<module>/<record>` | Command adapter | Typed create command with idempotency and owner authorization |
-| IFC-HTTP-003 | `GET /api/v1/<module>/<record>/:id` | Query adapter | Authorized projected detail with source position and degraded state |
-| IFC-HTTP-004 | `POST /api/v1/<module>/<record>/:id/commands/<command>` | Command adapter | Explicit named command; expected version, idempotency, audit, and typed receipt |
-| IFC-HTTP-005 | `GET /api/v1/collaboration/thread/:id/stream` | Collaboration stream adapter | Authorized resumable SSE with cursor reauthorization |
+| IFC-HTTP-001 | `GET /api/v2/<module>/<record>` | Query adapter | Authorized paged projection query with freshness and no hidden counts |
+| IFC-HTTP-002 | `POST /api/v2/<module>/<record>` | Command adapter | Typed create command with idempotency and owner authorization |
+| IFC-HTTP-003 | `GET /api/v2/<module>/<record>/:id` | Query adapter | Authorized projected detail with source position and degraded state |
+| IFC-HTTP-004 | `POST /api/v2/<module>/<record>/:id/commands/<command>` | Command adapter | Explicit named command; expected version, idempotency, audit, and typed receipt |
+| IFC-HTTP-005 | `GET /api/v2/collaboration/thread/:id/stream` | Collaboration stream adapter | Authorized resumable SSE with cursor reauthorization |
 
 ## Event, provider, and data-plane families
 

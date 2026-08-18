@@ -20,8 +20,8 @@ use erpx_domain::{
     data_plane::{AgentCapability, BusinessUnitId, SecretReference},
 };
 use erpx_proto::{
-    common::v1::{TenantScope as ProtoTenantScope, tenant_scope},
-    erpx::platform_administration::v1::{
+    common::v2::{TenantScope as ProtoTenantScope, tenant_scope},
+    erpx::platform_administration::v2::{
         DesiredConfigurationMessage, RootAccessCapabilityMessage, RootAccessRevocationMessage,
         TypedDataPlaneCommand,
     },
@@ -994,7 +994,7 @@ mod tests {
             actor: None,
             tenant_scope: Some(ProtoTenantScope {
                 scope: Some(tenant_scope::Scope::Holding(
-                    erpx_proto::common::v1::HoldingScope {
+                    erpx_proto::common::v2::HoldingScope {
                         holding_id: Uuid::new_v4().to_string(),
                     },
                 )),

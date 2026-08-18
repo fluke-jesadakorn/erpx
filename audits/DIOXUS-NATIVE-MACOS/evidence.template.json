@@ -1,10 +1,11 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "release_revision": "REPLACE_WITH_GIT_REVISION",
   "captured_at_utc": null,
   "host": {
     "mac_model": "REDACTED_OR_MODEL_ONLY",
     "macos_version": "NOT_CAPTURED",
+    "memory_gib": null,
     "display_refresh_hz": null
   },
   "screenshots": {
@@ -13,7 +14,7 @@
   },
   "startup": {
     "status": "not_captured",
-    "cold_start_ms": null,
+    "p75_cold_start_ms": null,
     "sample_count": 0,
     "artifact": null,
     "sha256": null
@@ -22,17 +23,36 @@
     "status": "not_captured",
     "p95_frame_ms": null,
     "observed_refresh_hz": null,
-    "input_to_paint_ms": null,
+    "p95_input_to_paint_ms": null,
+    "frames_within_two_refresh_intervals_percent": null,
     "sample_count": 0,
     "artifact": null,
     "sha256": null
   },
   "memory": {
     "status": "not_captured",
-    "native_working_set_mib": null,
-    "webview_baseline_working_set_mib": null,
+    "native_process_tree_p95_mib": null,
+    "webview_process_tree_p95_mib": null,
     "reduction_percent": null,
     "sample_count": 0,
+    "artifact": null,
+    "sha256": null
+  },
+  "virtual_table": {
+    "status": "not_captured",
+    "row_count": 10000,
+    "virtualized": null,
+    "keyboard": null,
+    "focus": null,
+    "ime_thai": null,
+    "ime_english": null,
+    "voiceover": null,
+    "artifact": null,
+    "sha256": null
+  },
+  "crash_recovery": {
+    "status": "not_captured",
+    "passed": null,
     "artifact": null,
     "sha256": null
   },

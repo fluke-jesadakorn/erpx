@@ -17,7 +17,7 @@ use erpx_cqrs::{
     CONTRACT_VERSION, MAX_IDEMPOTENCY_KEY_LENGTH, MAX_PARTITION_KEY_LENGTH,
     MAX_PROJECTION_NAME_LENGTH, MAX_READ_YOUR_WRITES_WAIT,
 };
-use erpx_proto::common::v1::{
+use erpx_proto::common::v2::{
     ActorAttribution, ActorKind, AuditContext, BranchScope, CommandReceipt, CommandRequestMetadata,
     CompanyScope, EventualConsistency, HoldingScope, PlatformScope, ProjectionFreshnessState,
     QueryConsistency, QueryMetadata, QueryRequestMetadata, ReadYourWrites, SubtreeScope,
@@ -1131,7 +1131,7 @@ mod tests {
         thread,
     };
 
-    use erpx_proto::common::v1::{AggregateVersion, EventPosition};
+    use erpx_proto::common::v2::{AggregateVersion, EventPosition};
 
     use super::*;
 

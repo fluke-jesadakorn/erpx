@@ -111,7 +111,7 @@ generation remains available for bounded rollback; failed replacement remains
 inactive and does not alter the current read route.
 
 **Sources.** [CQRS decision](../../adr/ADR-002-cqrs.md),
-[Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v1/service.proto),
+[Platform Operations API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
 [tenant projection scheduler](../../apps/worker/src/tenant_projection_scheduler.rs),
 [FSD-006](../decisions/FSD-006-clean-rebuild-architecture-and-cutover.md).
 
@@ -177,7 +177,7 @@ failure categories.
 
 **Requirement.** ERPX shall expose exactly one internal Command service and one
 internal Query service for each of 31 bounded contexts, plus the three approved
-cross-cutting query/stream services, using `IFC-SVC-101..165`.
+cross-cutting query/stream services, using `IFC-SVC-201..265`.
 
 **Rationale.** Independently deployed Server, Worker, Console, and agent
 components need an explicit interoperability boundary.
@@ -239,7 +239,7 @@ are pinned; reconciliation corrects local projection without overriding ERPX
 catalog or entitlement ownership.
 
 **Sources.** [Stripe authority](../../adr/ADR-007-stripe-authority.md),
-[Commercial API](../../crates/proto/proto/erpx/commercial/v1/service.proto),
+[Commercial API](../../crates/proto/proto/erpx/commercial/v2/service.proto),
 [commercial infrastructure](../../crates/infrastructure/src/commercial.rs).
 
 ### REQ-INT-005 — Native directory feeds
@@ -256,7 +256,7 @@ cursor or cookie survives restart; full import and incremental changes are
 idempotent; refresh-required or invalid cursor triggers a governed recovery;
 unlicensed or unconfigured providers remain unavailable.
 
-**Sources.** [Directory contracts](../../crates/proto/proto/erpx/identity_access/v1/service.proto),
+**Sources.** [Directory contracts](../../crates/proto/proto/erpx/identity_access/v2/service.proto),
 [directory adapters](../../apps/worker/src/directory_adapters.rs),
 [directory sync](../../apps/worker/src/directory_sync.rs).
 
@@ -275,7 +275,7 @@ concurrency; generic SQL, shell, owner credentials, and secret values are not
 representable; offline agent rejects new brokered work.
 
 **Sources.** [Customer data-plane decision](../../adr/ADR-011-customer-data-plane-agent.md),
-[data-plane API](../../crates/proto/proto/erpx/platform_administration/v1/service.proto),
+[data-plane API](../../crates/proto/proto/erpx/platform_administration/v2/service.proto),
 [data-plane agent](../../apps/data-plane-agent/src/lib.rs).
 
 ### REQ-INT-007 — Tenant-bound object storage

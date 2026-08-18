@@ -1,0 +1,951 @@
+syntax = "proto3";
+
+package erpx.platform_administration.v2;
+
+import "erpx/common/v2/context.proto";
+import "erpx/interface/v2/reference.proto";
+import "erpx/platform_administration/v2/data_plane.proto";
+
+message PlatformTenantSummary {
+  string tenant_id = 1;
+  string state = 2;
+  uint64 registry_version = 3;
+  string routing = 4;
+  string projection = 5;
+  string backup_pitr = 6;
+  string storage = 7;
+  string customer_id = 8;
+  string root_holding_id = 9;
+  string customer_name = 10;
+  string configuration_state = 11;
+  string subscription_state = 12;
+  string plan_key = 13;
+  repeated string enabled_modules = 14;
+  uint32 purchased_seats = 15;
+  uint32 used_seats = 16;
+  uint32 company_count = 17;
+  uint32 branch_count = 18;
+  string renewal_at = 19;
+  bool overdue = 20;
+  string integration_health = 21;
+  string health = 22;
+  string projected_at = 23;
+  bool enterable = 24;
+}
+
+message ListPlatformTenantsRequest {
+  uint32 page_size = 1;
+  string after_tenant_id = 2;
+  erpx.common.v2.QueryContext context = 3;
+  string search = 4;
+  string lifecycle = 5;
+  string billing_state = 6;
+  string plan = 7;
+  string module = 8;
+  string health = 9;
+}
+
+message ListPlatformTenantsResponse {
+  repeated PlatformTenantSummary tenants = 1;
+  bool has_more = 2;
+  string next_after_tenant_id = 3;
+  string correlation_id = 4;
+}
+message GetPlatformTenantRequest {
+  string tenant_id = 1;
+  erpx.common.v2.QueryContext context = 2;
+}
+message GetPlatformTenantResponse {
+  PlatformTenantSummary tenant = 1;
+  string correlation_id = 2;
+}
+
+// Safe tenant-control evidence. Raw outbox payloads, persistence keys,
+// secret references, and internal error text are intentionally not part of
+// this public contract.
+message TenantControlHistoryEntry {
+  string event_id = 1;
+  string event_category = 2;
+  string safe_action = 3;
+  uint64 aggregate_version = 4;
+  string actor_ref = 5;
+  string correlation_id = 6;
+  string occurred_at = 7;
+}
+
+message ListTenantControlHistoryRequest {
+  string tenant_id = 1;
+  uint32 page_size = 2;
+  string before_occurred_at = 3;
+  string before_event_id = 4;
+  erpx.common.v2.QueryContext context = 5;
+}
+
+message ListTenantControlHistoryResponse {
+  repeated TenantControlHistoryEntry entries = 1;
+  bool has_more = 2;
+  string next_before_occurred_at = 3;
+  string next_before_event_id = 4;
+  string correlation_id = 5;
+}
+
+// The raw administrative-context identifier is returned only to the caller
+// and subsequently travels in protected transport metadata. It must be
+// redacted from logs and UI diagnostics.
+message BeginTenantAdminContextRequest {
+  string tenant_id = 1;
+  string reason = 2;
+  string mfa_code = 3;
+  erpx.common.v2.CommandContext context = 4;
+}
+message TenantAdminContext {
+  string administrative_context_id = 1;
+  string tenant_id = 2;
+  string customer_id = 3;
+  string root_holding_id = 4;
+  string issued_at = 5;
+  string expires_at = 6;
+  bool active = 7;
+}
+message BeginTenantAdminContextResponse {
+  TenantAdminContext administrative_context = 1;
+  string correlation_id = 2;
+}
+message GetTenantAdminContextRequest {
+  string administrative_context_id = 1;
+  erpx.common.v2.QueryContext context = 2;
+}
+message GetTenantAdminContextResponse {
+  TenantAdminContext administrative_context = 1;
+  string correlation_id = 2;
+}
+message EndTenantAdminContextRequest {
+  string administrative_context_id = 1;
+  string reason = 2;
+  erpx.common.v2.CommandContext context = 3;
+}
+message EndTenantAdminContextResponse {
+  bool ended = 1;
+  string correlation_id = 2;
+}
+
+message DiscoverTenantOrganizationUnitsRequest {
+  string tenant_id = 1;
+  uint32 page_size = 2;
+  string after_cursor = 3;
+  erpx.common.v2.QueryContext context = 4;
+}
+message TenantOrganizationUnit {
+  string kind = 1;
+  string holding_id = 2;
+  string company_id = 3;
+  string branch_id = 4;
+  string code = 5;
+  string name = 6;
+}
+message DiscoverTenantOrganizationUnitsResponse {
+  repeated TenantOrganizationUnit units = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message BeginTenantProvisioningRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string write_database_key = 3;
+  string read_database_key = 4;
+  string storage_namespace = 5;
+  string credential_key_ref = 6;
+  string backup_chain_ref = 7;
+  erpx.common.v2.CommandContext context = 8;
+  string owner_principal_ref = 9;
+  string owner_approver_ref = 10;
+}
+message BeginTenantProvisioningResponse {
+  string tenant_id = 1;
+  string state = 2;
+  uint64 registry_version = 3;
+  bool accepted = 4;
+  string correlation_id = 5;
+}
+
+message ProvisionTenantResourcesRequest {
+  string tenant_id = 1;
+  erpx.common.v2.CommandContext context = 2;
+}
+message ProvisionTenantResourcesResponse {
+  string tenant_id = 1;
+  string state = 2;
+  bool databases_ready = 3;
+  bool storage_ready = 4;
+  string correlation_id = 5;
+  bool owner_seeded = 6;
+  string owner_principal_ref = 7;
+  string owner_recovery_code = 8;
+}
+
+message TransitionTenantStateRequest {
+  string tenant_id = 1;
+  erpx.common.v2.CommandContext context = 2;
+}
+message TransitionTenantStateResponse {
+  string tenant_id = 1;
+  string state = 2;
+  uint64 registry_version = 3;
+  string correlation_id = 4;
+}
+
+message PitrRecoveryPoint {
+  string target_time = 1;
+  string target_lsn = 2;
+  string wal_archive_ref = 3;
+  string physical_restore_target_ref = 4;
+}
+
+message ScheduleTenantBackupRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string kind = 3;
+  string backup_ref = 4;
+  string restore_target_ref = 5;
+  string candidate_read_database_key = 6;
+  uint64 source_version = 7;
+  string available_at = 8;
+  string idempotency_key = 9;
+  uint32 max_attempts = 10;
+  erpx.common.v2.CommandContext context = 11;
+  string source_projection = 12;
+  PitrRecoveryPoint pitr_recovery_point = 13;
+}
+message ScheduleTenantBackupResponse {
+  string job_id = 1;
+  string tenant_id = 2;
+  string kind = 3;
+  string state = 4;
+  string available_at = 5;
+  uint32 max_attempts = 6;
+  bool duplicate = 7;
+  string correlation_id = 8;
+}
+message ListTenantBackupJobsRequest {
+  string tenant_id = 1;
+  uint32 page_size = 2;
+  erpx.common.v2.QueryContext context = 3;
+}
+message TenantBackupJobSummary {
+  string job_id = 1;
+  string tenant_id = 2;
+  string kind = 3;
+  string state = 4;
+  string available_at = 5;
+  uint32 attempts = 6;
+  uint32 max_attempts = 7;
+  bool verified = 8;
+  bool error_present = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+message ListTenantBackupJobsResponse {
+  repeated TenantBackupJobSummary jobs = 1;
+  string correlation_id = 2;
+}
+
+// Physical PITR is a PostgreSQL-cluster capability. Callers provide only
+// opaque cluster/chain/restore-target references; filesystem paths, ports,
+// database URLs, object keys, and credentials remain worker-owned.
+message ScheduleClusterBaseBackupRequest {
+  string cluster_ref = 1;
+  string chain_ref = 2;
+  string storage_namespace = 3;
+  string retention_until = 4;
+  erpx.common.v2.CommandContext context = 5;
+  string mfa_code = 6;
+}
+message ScheduleClusterBaseBackupResponse {
+  string chain_id = 1;
+  string cluster_ref = 2;
+  string chain_ref = 3;
+  string state = 4;
+  string retention_until = 5;
+  string correlation_id = 6;
+}
+message ListClusterRecoveryPointsRequest {
+  string cluster_ref = 1;
+  uint32 page_size = 2;
+  erpx.common.v2.QueryContext context = 3;
+}
+message ClusterRecoveryPointSummary {
+  string recovery_point_id = 1;
+  string chain_id = 2;
+  string label = 3;
+  string target_time = 4;
+  string target_lsn = 5;
+  uint64 timeline_id = 6;
+  bool wal_continuity_verified = 7;
+  string state = 8;
+  string created_at = 9;
+}
+message ListClusterRecoveryPointsResponse {
+  repeated ClusterRecoveryPointSummary recovery_points = 1;
+  string correlation_id = 2;
+}
+message StartClusterRestoreRehearsalRequest {
+  string recovery_point_id = 1;
+  string restore_target_ref = 2;
+  erpx.common.v2.CommandContext context = 3;
+  string mfa_code = 4;
+}
+message StartClusterRestoreRehearsalResponse {
+  string rehearsal_id = 1;
+  string recovery_point_id = 2;
+  string restore_target_ref = 3;
+  string state = 4;
+  string created_at = 5;
+  string correlation_id = 6;
+}
+message GetClusterRestoreRehearsalRequest {
+  string rehearsal_id = 1;
+  erpx.common.v2.QueryContext context = 2;
+}
+message GetClusterRestoreRehearsalResponse {
+  string rehearsal_id = 1;
+  string state = 2;
+  bool verification_complete = 3;
+  repeated string verification_checks = 4;
+  string failure_category = 5;
+  string updated_at = 6;
+  string correlation_id = 7;
+}
+
+message StartProjectionRebuildRequest {
+  string tenant_id = 1;
+  string projection_name = 2;
+  string candidate_read_database_key = 3;
+  uint64 source_version = 4;
+  erpx.common.v2.CommandContext context = 5;
+}
+message StartProjectionRebuildResponse {
+  string tenant_id = 1;
+  string projection_name = 2;
+  string state = 3;
+  uint64 source_version = 4;
+  string correlation_id = 5;
+  uint64 generation = 6;
+}
+message ActivateProjectionRebuildRequest {
+  string tenant_id = 1;
+  string projection_name = 2;
+  string candidate_read_database_key = 3;
+  uint64 generation = 4;
+  erpx.common.v2.CommandContext context = 5;
+}
+message ActivateProjectionRebuildResponse {
+  string tenant_id = 1;
+  string projection_name = 2;
+  string state = 3;
+  uint64 generation = 4;
+  string correlation_id = 5;
+}
+
+message ListProjectionStatusesRequest {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string projection_name = 3;
+  uint32 page_size = 4;
+  string after_cursor = 5;
+  erpx.common.v2.QueryContext context = 6;
+}
+message ProjectionStatus {
+  string tenant_id = 1;
+  string holding_ref = 2;
+  string projection_name = 3;
+  string job_key = 4;
+  string job_id = 5;
+  string kind = 6;
+  string state = 7;
+  string available_at = 8;
+  uint32 attempts = 9;
+  uint32 max_attempts = 10;
+  string lease_until = 11;
+  string last_error = 12;
+  string dead_lettered_at = 13;
+  string rebuild_id = 14;
+  uint64 version = 15;
+  string created_at = 16;
+  string updated_at = 17;
+  string published_at = 18;
+  string freshness = 19;
+}
+message ListProjectionStatusesResponse {
+  repeated ProjectionStatus statuses = 1;
+  bool has_more = 2;
+  string next_cursor = 3;
+  string correlation_id = 4;
+}
+
+message ListPlatformAuditRequest {
+  uint32 page_size = 1;
+  string before_recorded_at = 2;
+  string before_audit_id = 3;
+  erpx.common.v2.QueryContext context = 4;
+}
+message PlatformAuditEntry {
+  string audit_id = 1;
+  string actor_ref = 2;
+  string action = 3;
+  string purpose = 4;
+  string correlation_id = 5;
+  string recorded_at = 6;
+  bool customer_scoped = 7;
+}
+message ListPlatformAuditResponse {
+  repeated PlatformAuditEntry entries = 1;
+  bool has_more = 2;
+  string next_before_recorded_at = 3;
+  string next_before_audit_id = 4;
+  string correlation_id = 5;
+}
+
+// Dead-letter replay is a high-risk, platform-scoped operator command. The
+// MFA code is transport-only and is never persisted or returned.
+message ReplayDeadLetterOutboxRequest {
+  string event_id = 1;
+  string available_at = 2;
+  string mfa_code = 3;
+  erpx.common.v2.CommandContext context = 4;
+}
+message ReplayDeadLetterOutboxResponse {
+  string event_id = 1;
+  string state = 2;
+  string correlation_id = 3;
+  bool replayed = 4;
+}
+
+message ListPlatformIntegrationsRequest {
+  erpx.common.v2.QueryContext context = 1;
+}
+message PlatformIntegrationStatus {
+  string integration_key = 1;
+  string state = 2;
+  string capability = 3;
+  string checked_at = 4;
+}
+message ListPlatformIntegrationsResponse {
+  repeated PlatformIntegrationStatus integrations = 1;
+  string correlation_id = 2;
+}
+
+message GetPlatformSettingsRequest {
+  erpx.common.v2.QueryContext context = 1;
+}
+message PlatformSettingsSummary {
+  string contract_version = 1;
+  string transport = 2;
+  string tenant_isolation = 3;
+  string aggregate_authority = 4;
+  string billing_authority = 5;
+  string storage_authority = 6;
+  string command_owner = 7;
+}
+message GetPlatformSettingsResponse {
+  PlatformSettingsSummary settings = 1;
+  string correlation_id = 2;
+}
+
+// G13 migration status is an audited control-plane surface. Lifecycle
+// commands remain MFA-bound and never expose cutover or command-owner
+// approval material.
+message ListMigrationStatusesRequest {
+  uint32 page_size = 1;
+  erpx.common.v2.QueryContext context = 2;
+}
+message MigrationStatus {
+  string run_id = 1;
+  string cohort = 2;
+  string phase = 3;
+  string command_owner = 4;
+  uint64 version = 5;
+  string retention_until = 6;
+  uint64 transition_count = 7;
+  uint64 work_pending = 8;
+  uint64 work_failed = 9;
+  string reconciliation_state = 10;
+  string rollback_state = 11;
+  string updated_at = 12;
+  string source_snapshot_hash = 13;
+  uint64 source_missing_table_count = 14;
+  uint64 source_entity_kind_count = 15;
+  uint64 source_total_rows = 16;
+  string source_captured_at = 17;
+}
+message ListMigrationStatusesResponse {
+  repeated MigrationStatus statuses = 1;
+  string correlation_id = 2;
+}
+
+// G13 execution work can be queued only after authenticated platform
+// authorization and a fresh MFA step-up. This command never changes command
+// ownership and never performs a production cutover.
+message QueueMigrationWorkRequest {
+  string run_id = 1;
+  string work_kind = 2;
+  string scope_key = 3;
+  string source_fence = 4;
+  uint32 max_attempts = 5;
+  string mfa_code = 6;
+  erpx.common.v2.CommandContext context = 7;
+}
+message QueueMigrationWorkResponse {
+  string work_id = 1;
+  string run_id = 2;
+  string work_kind = 3;
+  string scope_key = 4;
+  string state = 5;
+  bool queued = 6;
+  string correlation_id = 7;
+}
+
+message BeginMigrationRunRequest {
+  string run_id = 1;
+  string cohort = 2;
+  string source_contract_hash = 3;
+  string id_namespace = 4;
+  string mfa_code = 5;
+  erpx.common.v2.CommandContext context = 6;
+}
+message BeginMigrationRunResponse {
+  string run_id = 1;
+  string cohort = 2;
+  string phase = 3;
+  string command_owner = 4;
+  uint64 version = 5;
+  string created_at = 6;
+  string updated_at = 7;
+  string correlation_id = 8;
+}
+
+message AdvanceMigrationPhaseRequest {
+  string run_id = 1;
+  uint64 expected_version = 2;
+  string expected_phase = 3;
+  string mfa_code = 4;
+  erpx.common.v2.CommandContext context = 5;
+}
+message AdvanceMigrationPhaseResponse {
+  string run_id = 1;
+  string cohort = 2;
+  string phase = 3;
+  string command_owner = 4;
+  uint64 version = 5;
+  string created_at = 6;
+  string updated_at = 7;
+  string correlation_id = 8;
+}
+
+
+
+// Typed CQRS boundary for the authoritative Platform Administration
+// lifecycles. Backup, PITR, and migration orchestration remain separate
+// services and are not smuggled through these payloads.
+enum PlatformTenantLifecycleState {
+  PLATFORM_TENANT_LIFECYCLE_STATE_UNSPECIFIED = 0;
+  PLATFORM_TENANT_LIFECYCLE_STATE_PROVISIONING = 1;
+  PLATFORM_TENANT_LIFECYCLE_STATE_ACTIVE = 2;
+  PLATFORM_TENANT_LIFECYCLE_STATE_SUSPENDED = 3;
+  PLATFORM_TENANT_LIFECYCLE_STATE_RECOVERY = 4;
+  PLATFORM_TENANT_LIFECYCLE_STATE_RETIRED = 5;
+}
+enum PlatformTenantLifecycleAction {
+  PLATFORM_TENANT_LIFECYCLE_ACTION_UNSPECIFIED = 0;
+  PLATFORM_TENANT_LIFECYCLE_ACTION_ACTIVATE = 1;
+  PLATFORM_TENANT_LIFECYCLE_ACTION_SUSPEND = 2;
+  PLATFORM_TENANT_LIFECYCLE_ACTION_ENTER_RECOVERY = 3;
+  PLATFORM_TENANT_LIFECYCLE_ACTION_RETIRE = 4;
+}
+enum PlatformConnectorKind {
+  reserved 3;
+  reserved "PLATFORM_CONNECTOR_KIND_N8N";
+  PLATFORM_CONNECTOR_KIND_UNSPECIFIED = 0;
+  PLATFORM_CONNECTOR_KIND_STRIPE = 1;
+  PLATFORM_CONNECTOR_KIND_MINIO = 2;
+  PLATFORM_CONNECTOR_KIND_OLLAMA = 4;
+  PLATFORM_CONNECTOR_KIND_OTHER = 5;
+}
+enum PlatformConnectorState {
+  PLATFORM_CONNECTOR_STATE_UNSPECIFIED = 0;
+  PLATFORM_CONNECTOR_STATE_PENDING = 1;
+  PLATFORM_CONNECTOR_STATE_ACTIVE = 2;
+  PLATFORM_CONNECTOR_STATE_SUSPENDED = 3;
+  PLATFORM_CONNECTOR_STATE_RETIRED = 4;
+}
+enum PlatformConnectorTransition {
+  PLATFORM_CONNECTOR_TRANSITION_UNSPECIFIED = 0;
+  PLATFORM_CONNECTOR_TRANSITION_ACTIVATE = 1;
+  PLATFORM_CONNECTOR_TRANSITION_SUSPEND = 2;
+  PLATFORM_CONNECTOR_TRANSITION_RETIRE = 3;
+}
+enum PlatformAdminContextStatus {
+  PLATFORM_ADMIN_CONTEXT_STATUS_UNSPECIFIED = 0;
+  PLATFORM_ADMIN_CONTEXT_STATUS_ACTIVE = 1;
+  PLATFORM_ADMIN_CONTEXT_STATUS_REVOKED = 2;
+  PLATFORM_ADMIN_CONTEXT_STATUS_EXPIRED = 3;
+}
+
+message PlatformConnectorScope {
+  oneof target {
+    erpx.common.v2.PlatformScope platform = 1;
+    erpx.common.v2.TenantScope tenant = 2;
+  }
+}
+message PlatformAdministrationTenantRecord {
+  string tenant_id = 1;
+  uint64 aggregate_version = 2;
+  string code = 3;
+  string name = 4;
+  string environment_id = 5;
+  string customer_id = 6;
+  string root_holding_id = 7;
+  string holding_ref = 8;
+  PlatformTenantLifecycleState status = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+message PlatformAdministrationConnectorRecord {
+  string connector_id = 1;
+  uint64 aggregate_version = 2;
+  PlatformConnectorScope scope = 3;
+  PlatformConnectorKind kind = 4;
+  optional string other_kind = 5;
+  string connector_key = 6;
+  string configuration_sha256 = 7;
+  repeated string capabilities = 8;
+  PlatformConnectorState state = 9;
+  string created_at = 10;
+  string updated_at = 11;
+}
+message PlatformAdministrationAdminContextRecord {
+  string context_id = 1;
+  uint64 aggregate_version = 2;
+  string tenant_id = 3;
+  erpx.common.v2.TenantScope scope = 4;
+  string principal_ref = 5;
+  string reason = 6;
+  string issued_at = 7;
+  string expires_at = 8;
+  optional string revoked_at = 9;
+  PlatformAdminContextStatus status = 10;
+}
+
+// Branch data-plane lifecycle is owned by Platform Administration. Business
+// Organization commands may describe branch records but cannot provision,
+// retry, or suspend physical tenant routes.
+message ProvisionTenantBranchRequest {
+  string tenant_id = 1;
+  string company_id = 2;
+  string branch_id = 3;
+  string branch_code = 4;
+  string branch_name = 5;
+  string registration_number = 6;
+  string database_profile_key = 7;
+  repeated string enabled_business_units = 8;
+  erpx.common.v2.CommandContext context = 9;
+  string mfa_code = 10;
+}
+message TenantBranchProvisioningRecord {
+  string job_id = 1;
+  string tenant_id = 2;
+  string branch_id = 3;
+  string branch_code = 4;
+  string branch_name = 5;
+  repeated string enabled_business_units = 6;
+  string state = 7;
+  uint32 attempt_count = 8;
+  string failure_category = 9;
+  string created_at = 10;
+  string updated_at = 11;
+  string completed_at = 12;
+  uint64 route_version = 13;
+  string correlation_id = 14;
+}
+message ProvisionTenantBranchResponse {
+  TenantBranchProvisioningRecord provisioning = 1;
+  string correlation_id = 2;
+}
+message GetTenantBranchProvisioningRequest {
+  string tenant_id = 1;
+  string job_id = 2;
+  erpx.common.v2.QueryContext context = 3;
+}
+message GetTenantBranchProvisioningResponse {
+  TenantBranchProvisioningRecord provisioning = 1;
+  string correlation_id = 2;
+}
+message ListTenantBranchProvisioningsRequest {
+  string tenant_id = 1;
+  uint32 page_size = 2;
+  erpx.common.v2.QueryContext context = 3;
+}
+message ListTenantBranchProvisioningsResponse {
+  repeated TenantBranchProvisioningRecord provisionings = 1;
+  string correlation_id = 2;
+}
+message RetryTenantBranchProvisioningRequest {
+  string tenant_id = 1;
+  string job_id = 2;
+  erpx.common.v2.CommandContext context = 3;
+  string mfa_code = 4;
+}
+message RetryTenantBranchProvisioningResponse {
+  TenantBranchProvisioningRecord provisioning = 1;
+  string correlation_id = 2;
+}
+message SuspendTenantBranchRouteRequest {
+  string tenant_id = 1;
+  string branch_id = 2;
+  erpx.common.v2.CommandContext context = 3;
+  string mfa_code = 4;
+}
+message SuspendTenantBranchRouteResponse {
+  string tenant_id = 1;
+  string branch_id = 2;
+  string state = 3;
+  uint64 route_version = 4;
+  string correlation_id = 5;
+}
+
+message RegisterPlatformTenantRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string tenant_id = 2;
+  string code = 3;
+  string name = 4;
+  string environment_id = 5;
+  string customer_id = 6;
+  string root_holding_id = 7;
+  string holding_ref = 8;
+}
+message RegisterPlatformTenantResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  PlatformAdministrationTenantRecord tenant = 2;
+}
+message TransitionPlatformTenantRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string tenant_id = 2;
+  PlatformTenantLifecycleAction action = 3;
+}
+message TransitionPlatformTenantResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  PlatformAdministrationTenantRecord tenant = 2;
+}
+message RegisterPlatformConnectorRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string connector_id = 2;
+  PlatformConnectorScope scope = 3;
+  PlatformConnectorKind kind = 4;
+  optional string other_kind = 5;
+  string connector_key = 6;
+  string configuration_sha256 = 7;
+  repeated string capabilities = 8;
+}
+message RegisterPlatformConnectorResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  PlatformAdministrationConnectorRecord connector = 2;
+}
+message TransitionPlatformConnectorRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string connector_id = 2;
+  PlatformConnectorTransition action = 3;
+}
+message TransitionPlatformConnectorResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  PlatformAdministrationConnectorRecord connector = 2;
+}
+message IssuePlatformTenantAdminContextRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string context_id = 2;
+  string tenant_id = 3;
+  erpx.common.v2.TenantScope scope = 4;
+  string device_id = 5;
+  string session_id = 6;
+  string reason = 7;
+  uint32 ttl_seconds = 8;
+}
+message IssuePlatformTenantAdminContextResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  PlatformAdministrationAdminContextRecord context = 2;
+}
+message RevokePlatformTenantAdminContextRequest {
+  erpx.common.v2.CommandRequestMetadata metadata = 1;
+  string context_id = 2;
+}
+message RevokePlatformTenantAdminContextResponse {
+  erpx.common.v2.CommandReceipt receipt = 1;
+  PlatformAdministrationAdminContextRecord context = 2;
+}
+
+message GetPlatformAdministrationTenantRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  string tenant_id = 2;
+}
+message GetPlatformAdministrationTenantResponse {
+  optional PlatformAdministrationTenantRecord tenant = 1;
+  erpx.common.v2.QueryMetadata metadata = 2;
+}
+message PlatformAdministrationPageFilter {
+  uint32 page_size = 1;
+  optional string cursor = 2;
+}
+message ListPlatformAdministrationTenantsRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  PlatformAdministrationPageFilter filter = 2;
+}
+message ListPlatformAdministrationTenantsResponse {
+  repeated PlatformAdministrationTenantRecord tenants = 1;
+  optional string next_cursor = 2;
+  erpx.common.v2.QueryMetadata metadata = 3;
+}
+message GetPlatformAdministrationConnectorRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  string connector_id = 2;
+}
+message GetPlatformAdministrationConnectorResponse {
+  optional PlatformAdministrationConnectorRecord connector = 1;
+  erpx.common.v2.QueryMetadata metadata = 2;
+}
+message ListPlatformAdministrationConnectorsRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  PlatformAdministrationPageFilter filter = 2;
+}
+message ListPlatformAdministrationConnectorsResponse {
+  repeated PlatformAdministrationConnectorRecord connectors = 1;
+  optional string next_cursor = 2;
+  erpx.common.v2.QueryMetadata metadata = 3;
+}
+message GetPlatformTenantAdminContextRequest {
+  erpx.common.v2.QueryRequestMetadata metadata = 1;
+  string context_id = 2;
+}
+message GetPlatformTenantAdminContextResponse {
+  optional PlatformAdministrationAdminContextRecord context = 1;
+  erpx.common.v2.QueryMetadata metadata = 2;
+}
+
+service PlatformAdministrationCommandService {
+  rpc RegisterTenant(RegisterPlatformTenantRequest)
+      returns (RegisterPlatformTenantResponse);
+  rpc TransitionTenant(TransitionPlatformTenantRequest)
+      returns (TransitionPlatformTenantResponse);
+  rpc RegisterConnector(RegisterPlatformConnectorRequest)
+      returns (RegisterPlatformConnectorResponse);
+  rpc TransitionConnector(TransitionPlatformConnectorRequest)
+      returns (TransitionPlatformConnectorResponse);
+  rpc IssueAdminContext(IssuePlatformTenantAdminContextRequest)
+      returns (IssuePlatformTenantAdminContextResponse);
+  rpc RevokeAdminContext(RevokePlatformTenantAdminContextRequest)
+      returns (RevokePlatformTenantAdminContextResponse);
+  rpc ProvisionTenantBranch(ProvisionTenantBranchRequest)
+      returns (ProvisionTenantBranchResponse);
+  rpc RetryTenantBranchProvisioning(RetryTenantBranchProvisioningRequest)
+      returns (RetryTenantBranchProvisioningResponse);
+  rpc SuspendTenantBranchRoute(SuspendTenantBranchRouteRequest)
+      returns (SuspendTenantBranchRouteResponse);
+  rpc BeginTenantAdminContext(BeginTenantAdminContextRequest)
+      returns (BeginTenantAdminContextResponse);
+  rpc EndTenantAdminContext(EndTenantAdminContextRequest)
+      returns (EndTenantAdminContextResponse);
+  rpc BeginTenantProvisioning(BeginTenantProvisioningRequest)
+      returns (BeginTenantProvisioningResponse);
+  rpc ProvisionTenantResources(ProvisionTenantResourcesRequest)
+      returns (ProvisionTenantResourcesResponse);
+  rpc ActivateTenant(TransitionTenantStateRequest) returns (TransitionTenantStateResponse);
+  rpc SuspendTenant(TransitionTenantStateRequest) returns (TransitionTenantStateResponse);
+  rpc EnterTenantRecovery(TransitionTenantStateRequest) returns (TransitionTenantStateResponse);
+  rpc ScheduleTenantBackup(ScheduleTenantBackupRequest) returns (ScheduleTenantBackupResponse);
+  rpc ScheduleClusterBaseBackup(ScheduleClusterBaseBackupRequest)
+      returns (ScheduleClusterBaseBackupResponse);
+  rpc StartClusterRestoreRehearsal(StartClusterRestoreRehearsalRequest)
+      returns (StartClusterRestoreRehearsalResponse);
+  rpc StartProjectionRebuild(StartProjectionRebuildRequest)
+      returns (StartProjectionRebuildResponse);
+  rpc ActivateProjectionRebuild(ActivateProjectionRebuildRequest)
+      returns (ActivateProjectionRebuildResponse);
+  rpc ReplayDeadLetterOutbox(ReplayDeadLetterOutboxRequest)
+      returns (ReplayDeadLetterOutboxResponse);
+  rpc QueueMigrationWork(QueueMigrationWorkRequest) returns (QueueMigrationWorkResponse);
+  rpc BeginMigrationRun(BeginMigrationRunRequest) returns (BeginMigrationRunResponse);
+  rpc AdvanceMigrationPhase(AdvanceMigrationPhaseRequest) returns (AdvanceMigrationPhaseResponse);
+  rpc SaveTenantInfrastructureProfile(SaveTenantInfrastructureProfileRequest)
+      returns (SaveTenantInfrastructureProfileResponse);
+  rpc SaveBusinessUnitConfiguration(SaveBusinessUnitConfigurationRequest)
+      returns (SaveBusinessUnitConfigurationResponse);
+  rpc IssueDataPlaneEnrollment(IssueDataPlaneEnrollmentRequest)
+      returns (IssueDataPlaneEnrollmentResponse);
+  rpc ProposeDesiredConfiguration(ProposeDesiredConfigurationRequest)
+      returns (ProposeDesiredConfigurationResponse);
+  rpc DecideDesiredConfiguration(DecideDesiredConfigurationRequest)
+      returns (DecideDesiredConfigurationResponse);
+  rpc RequestRootAccess(RequestRootAccessRequest) returns (RequestRootAccessResponse);
+  rpc DecideRootAccess(DecideRootAccessRequest) returns (DecideRootAccessResponse);
+  rpc RevokeRootAccess(RevokeRootAccessRequest) returns (RevokeRootAccessResponse);
+  rpc SaveCorporateIdentityDraft(SaveCorporateIdentityDraftRequest)
+      returns (SaveCorporateIdentityDraftResponse);
+  rpc PublishCorporateIdentityDraft(PublishCorporateIdentityDraftRequest)
+      returns (PublishCorporateIdentityDraftResponse);
+  rpc RollbackCorporateIdentity(RollbackCorporateIdentityRequest)
+      returns (RollbackCorporateIdentityResponse);
+}
+
+service PlatformAdministrationQueryService {
+  rpc GetTenant(GetPlatformAdministrationTenantRequest)
+      returns (GetPlatformAdministrationTenantResponse);
+  rpc ListTenants(ListPlatformAdministrationTenantsRequest)
+      returns (ListPlatformAdministrationTenantsResponse);
+  rpc GetConnector(GetPlatformAdministrationConnectorRequest)
+      returns (GetPlatformAdministrationConnectorResponse);
+  rpc ListConnectors(ListPlatformAdministrationConnectorsRequest)
+      returns (ListPlatformAdministrationConnectorsResponse);
+  rpc GetAdminContext(GetPlatformTenantAdminContextRequest)
+      returns (GetPlatformTenantAdminContextResponse);
+  rpc GetTenantBranchProvisioning(GetTenantBranchProvisioningRequest)
+      returns (GetTenantBranchProvisioningResponse);
+  rpc ListTenantBranchProvisionings(ListTenantBranchProvisioningsRequest)
+      returns (ListTenantBranchProvisioningsResponse);
+  rpc ListOperationalTenants(ListPlatformTenantsRequest) returns (ListPlatformTenantsResponse);
+  rpc GetOperationalTenant(GetPlatformTenantRequest) returns (GetPlatformTenantResponse);
+  rpc ListTenantControlHistory(ListTenantControlHistoryRequest)
+      returns (ListTenantControlHistoryResponse);
+  rpc GetTenantAdminContext(GetTenantAdminContextRequest)
+      returns (GetTenantAdminContextResponse);
+  rpc DiscoverTenantOrganizationUnits(DiscoverTenantOrganizationUnitsRequest)
+      returns (DiscoverTenantOrganizationUnitsResponse);
+  rpc ListTenantBackupJobs(ListTenantBackupJobsRequest) returns (ListTenantBackupJobsResponse);
+  rpc ListClusterRecoveryPoints(ListClusterRecoveryPointsRequest)
+      returns (ListClusterRecoveryPointsResponse);
+  rpc GetClusterRestoreRehearsal(GetClusterRestoreRehearsalRequest)
+      returns (GetClusterRestoreRehearsalResponse);
+  rpc ListProjectionStatuses(ListProjectionStatusesRequest)
+      returns (ListProjectionStatusesResponse);
+  rpc ListPlatformAudit(ListPlatformAuditRequest) returns (ListPlatformAuditResponse);
+  rpc ListPlatformIntegrations(ListPlatformIntegrationsRequest)
+      returns (ListPlatformIntegrationsResponse);
+  rpc GetPlatformSettings(GetPlatformSettingsRequest) returns (GetPlatformSettingsResponse);
+  rpc ListMigrationStatuses(ListMigrationStatusesRequest) returns (ListMigrationStatusesResponse);
+  rpc GetTenantInfrastructure(GetTenantInfrastructureRequest)
+      returns (GetTenantInfrastructureResponse);
+  rpc GetBusinessUnitConfiguration(GetBusinessUnitConfigurationRequest)
+      returns (GetBusinessUnitConfigurationResponse);
+  rpc ListRootAccessRequests(ListRootAccessRequestsRequest)
+      returns (ListRootAccessRequestsResponse);
+  rpc GetResolvedCorporateIdentity(GetResolvedCorporateIdentityRequest)
+      returns (GetResolvedCorporateIdentityResponse);
+  rpc GetCorporateIdentityDraft(GetCorporateIdentityDraftRequest)
+      returns (GetCorporateIdentityDraftResponse);
+  rpc ListCorporateIdentityHistory(ListCorporateIdentityHistoryRequest)
+      returns (ListCorporateIdentityHistoryResponse);
+  rpc GetNavigationManifest(GetNavigationManifestRequest)
+      returns (GetNavigationManifestResponse);
+}
+
+service DataPlaneStreamService {
+  rpc Subscribe(erpx.interface.v2.StreamRequest) returns (stream erpx.interface.v2.StreamEvent);
+}

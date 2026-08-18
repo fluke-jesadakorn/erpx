@@ -30,7 +30,7 @@ Each context exposes one internal Command service and one internal Query
 service. Collaboration additionally exposes a stream service, the Item
 Directory exposes a reference query service, and Platform Administration
 exposes a data-plane stream service. The 65 replacement services use
-`IFC-SVC-101..165`; `IFC-SVC-001..065` are retired and never reused.
+`IFC-SVC-201..265`; `IFC-SVC-001..065` are retired and never reused.
 
 The target route grammar is singular:
 
@@ -40,10 +40,10 @@ Collection:  /<module>/<record>
 Detail:      /<module>/<record>/:id
 Copied link: /reference/item/:id
 
-List/query:  GET  /api/v1/<module>/<record>
-Create:      POST /api/v1/<module>/<record>
-Detail:      GET  /api/v1/<module>/<record>/:id
-Command:     POST /api/v1/<module>/<record>/:id/commands/<command>
+List/query:  GET  /api/v2/<module>/<record>
+Create:      POST /api/v2/<module>/<record>
+Detail:      GET  /api/v2/<module>/<record>/:id
+Command:     POST /api/v2/<module>/<record>/:id/commands/<command>
 ```
 
 There are no compatibility aliases for `/workspaces`, `/api/bff`,

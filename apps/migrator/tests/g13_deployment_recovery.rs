@@ -20,11 +20,11 @@ const COMMAND_RECEIPTS_MIGRATION: &str =
     include_str!("../../../crates/migration/migrations/0002_g1_002_command_receipts.sql");
 const PROTO_BUILD: &str = include_str!("../../../crates/proto/build.rs");
 const PROTO_LIB: &str = include_str!("../../../crates/proto/src/lib.rs");
-const COMMON_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/common/v1/context.proto");
+const COMMON_PROTO: &str = include_str!("../../../crates/proto/proto/erpx/common/v2/context.proto");
 const IDENTITY_ACCESS_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/identity_access/v1/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/identity_access/v2/service.proto");
 const PLATFORM_ADMINISTRATION_PROTO: &str =
-    include_str!("../../../crates/proto/proto/erpx/platform_administration/v1/service.proto");
+    include_str!("../../../crates/proto/proto/erpx/platform_administration/v2/service.proto");
 const ACTIVE_PROTO_CATALOG: &str =
     include_str!("../../../crates/proto/proto/erpx/catalog/v2/active.proto");
 const MIGRATOR_MAIN: &str = include_str!("../src/main.rs");
@@ -155,10 +155,10 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         PROTO_LIB,
         "crates/proto/src/lib.rs",
         &[
-            "tonic::include_proto!(\"erpx.common.v1\")",
+            "tonic::include_proto!(\"erpx.common.v2\")",
             "pub const ACTIVE_SERVICE_COUNT: usize = 65",
-            "pub const ACTIVE_SERVICE_ID_FIRST: u16 = 101",
-            "pub const ACTIVE_SERVICE_ID_LAST: u16 = 165",
+            "pub const ACTIVE_SERVICE_ID_FIRST: u16 = 201",
+            "pub const ACTIVE_SERVICE_ID_LAST: u16 = 265",
         ],
     );
     require_markers(
@@ -166,31 +166,31 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         "catalog/v2/active.proto",
         &[
             "package erpx.catalog.v2;",
-            "import \"erpx/identity_access/v1/service.proto\";",
-            "import \"erpx/collaboration/v1/service.proto\";",
-            "import \"erpx/agent/v1/service.proto\";",
-            "import \"erpx/reference/v1/service.proto\";",
+            "import \"erpx/identity_access/v2/service.proto\";",
+            "import \"erpx/collaboration/v2/service.proto\";",
+            "import \"erpx/agent/v2/service.proto\";",
+            "import \"erpx/reference/v2/service.proto\";",
         ],
     );
     require_markers(
         COMMON_PROTO,
-        "common/v1/context.proto",
-        &["package erpx.common.v1;"],
+        "common/v2/context.proto",
+        &["package erpx.common.v2;"],
     );
     require_markers(
         PLATFORM_ADMINISTRATION_PROTO,
-        "platform_administration/v1/service.proto",
+        "platform_administration/v2/service.proto",
         &[
-            "package erpx.platform_administration.v1;",
+            "package erpx.platform_administration.v2;",
             "service PlatformAdministrationCommandService",
             "service PlatformAdministrationQueryService",
         ],
     );
     require_markers(
         IDENTITY_ACCESS_PROTO,
-        "identity_access/v1/service.proto",
+        "identity_access/v2/service.proto",
         &[
-            "package erpx.identity_access.v1;",
+            "package erpx.identity_access.v2;",
             "service IdentityAccessCommandService",
             "service IdentityAccessQueryService",
         ],

@@ -12,7 +12,7 @@ use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
     QueryId, SessionId, TenantScope,
 };
-use erpx_proto::{common, erpx::sales::v1 as platform};
+use erpx_proto::{common, erpx::sales::v2 as platform};
 use erpx_sales::{
     AcceptQuote, CancelSalesOrder, ConfirmSalesOrder, CreateQuote, CreateSalesOrder, ExpireQuote,
     GetQuote, GetSalesOrder, ListSalesOrders, MarkSalesOrderFulfilled,

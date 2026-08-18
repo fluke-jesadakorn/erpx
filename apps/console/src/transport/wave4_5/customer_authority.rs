@@ -6,7 +6,7 @@ use erpx_customer_authority::{
     CustomerStatus, GetCustomer, GetCustomerResult, LinkCustomerAuthority, ListCustomers,
     MergeCustomer, UnlinkCustomerAuthority, UpdateCustomerIdentity,
 };
-use erpx_proto::erpx::customer_authority::v1 as platform;
+use erpx_proto::erpx::customer_authority::v2 as platform;
 use erpx_ui_foundation::UiError;
 
 use crate::{

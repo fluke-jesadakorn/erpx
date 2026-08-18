@@ -1,0 +1,46 @@
+syntax = "proto3";
+package erpx.manufacturing.v2;
+
+import "erpx/common/v2/context.proto";
+
+message FixedQuantity { sint64 units = 1; uint32 scale = 2; }
+message RecordRef { string record_id = 1; string owner_context = 2; string record_type = 3; }
+message VersionPin { RecordRef record = 1; uint64 version = 2; }
+message MutationReceipt { string aggregate_id = 1; uint64 aggregate_version = 2; bool replayed = 3; }
+message SpecificationLine { uint32 line = 1; RecordRef item = 2; FixedQuantity quantity = 3; string role = 4; uint32 expected_scrap_basis_points = 5; }
+message RoutingStep { uint32 sequence = 1; string operation_code = 2; RecordRef work_center = 3; uint64 setup_seconds = 4; uint64 run_seconds_per_output = 5; }
+message PublishSpecificationRequest { erpx.common.v2.CommandContext context = 1; string specification_id = 2; erpx.common.v2.TenantScope scope = 3; string mode = 4; RecordRef output_item = 5; FixedQuantity output_quantity = 6; repeated SpecificationLine materials = 7; string routing_id = 8; repeated RoutingStep routing = 9; }
+message CreateOrderRequest { erpx.common.v2.CommandContext context = 1; string order_id = 2; erpx.common.v2.TenantScope order_scope = 3; string specification_id = 4; uint64 specification_version = 5; FixedQuantity planned_output = 6; }
+message OrderCommandRequest { erpx.common.v2.CommandContext context = 1; erpx.common.v2.TenantScope order_scope = 2; string order_id = 3; }
+message MaterialCommandRequest { erpx.common.v2.CommandContext context = 1; erpx.common.v2.TenantScope order_scope = 2; string order_id = 3; string fact_id = 4; uint32 material_line = 5; FixedQuantity quantity = 6; }
+message LaborResultRequest { erpx.common.v2.CommandContext context = 1; erpx.common.v2.TenantScope order_scope = 2; string order_id = 3; string fact_id = 4; uint32 routing_sequence = 5; uint64 labor_seconds = 6; uint64 machine_seconds = 7; }
+message ProductionResultRequest { erpx.common.v2.CommandContext context = 1; erpx.common.v2.TenantScope order_scope = 2; string order_id = 3; string fact_id = 4; RecordRef item = 5; string lot_or_serial = 6; FixedQuantity good = 7; FixedQuantity scrap = 8; bool is_co_product = 9; repeated string source_lots = 10; }
+message QualityDispositionRequest { erpx.common.v2.CommandContext context = 1; erpx.common.v2.TenantScope order_scope = 2; string order_id = 3; string disposition_id = 4; string result_fact_id = 5; FixedQuantity quantity = 6; string disposition = 7; VersionPin authority = 8; }
+message CostFactRequest { erpx.common.v2.CommandContext context = 1; erpx.common.v2.TenantScope order_scope = 2; string order_id = 3; string cost_fact_id = 4; sint64 amount_minor = 5; string currency = 6; string category = 7; VersionPin owner = 8; bool reconciled = 9; }
+message GetManufacturingRecordRequest { erpx.common.v2.QueryContext context = 1; erpx.common.v2.TenantScope record_scope = 2; string record_id = 3; }
+message ManufacturingRecordResponse { string record_id = 1; uint64 version = 2; string lifecycle_state = 3; bytes projection_json_utf8 = 4; uint64 source_position = 5; }
+message ListManufacturingRecordsRequest { erpx.common.v2.QueryContext context = 1; erpx.common.v2.TenantScope record_scope = 2; uint32 page_size = 3; string cursor = 4; }
+message ListManufacturingRecordsResponse { repeated ManufacturingRecordResponse records = 1; string next_cursor = 2; }
+
+service ManufacturingCommandService {
+  rpc PublishSpecification(PublishSpecificationRequest) returns (MutationReceipt);
+  rpc CreateOrder(CreateOrderRequest) returns (MutationReceipt);
+  rpc ReleaseOrder(OrderCommandRequest) returns (MutationReceipt);
+  rpc ReserveMaterial(MaterialCommandRequest) returns (MutationReceipt);
+  rpc StartOrder(OrderCommandRequest) returns (MutationReceipt);
+  rpc IssueMaterial(MaterialCommandRequest) returns (MutationReceipt);
+  rpc ReportLabor(LaborResultRequest) returns (MutationReceipt);
+  rpc ReportResult(ProductionResultRequest) returns (MutationReceipt);
+  rpc ApplyQualityDisposition(QualityDispositionRequest) returns (MutationReceipt);
+  rpc RecordCost(CostFactRequest) returns (MutationReceipt);
+  rpc CompleteOrder(OrderCommandRequest) returns (MutationReceipt);
+  rpc CloseOrder(OrderCommandRequest) returns (MutationReceipt);
+}
+service ManufacturingQueryService {
+  rpc GetSpecification(GetManufacturingRecordRequest) returns (ManufacturingRecordResponse);
+  rpc GetOrder(GetManufacturingRecordRequest) returns (ManufacturingRecordResponse);
+  rpc ListOrders(ListManufacturingRecordsRequest) returns (ListManufacturingRecordsResponse);
+  rpc GetGenealogy(GetManufacturingRecordRequest) returns (ManufacturingRecordResponse);
+  rpc GetWipCost(GetManufacturingRecordRequest) returns (ManufacturingRecordResponse);
+  rpc GetRecord(GetManufacturingRecordRequest) returns (ManufacturingRecordResponse);
+}

@@ -5,7 +5,7 @@ use erpx_cqrs::{
     QueryMetadata, QueryResult, ReadYourWrites,
 };
 use erpx_kernel::{ActorKind, AggregateId, CommandId, CorrelationId, EventId, TenantScope};
-use erpx_proto::common::v1 as wire;
+use erpx_proto::common::v2 as wire;
 use erpx_ui_foundation::{UiError, UiErrorKind};
 use tonic::metadata::MetadataValue;
 use uuid::Uuid;
