@@ -13,7 +13,6 @@ use erpx_delivery_contract::{
 };
 #[cfg(feature = "server")]
 use erpx_delivery_contract::{Page, ResourceSummary};
-#[cfg(target_arch = "wasm32")]
 use erpx_ui_core::localized_role_label;
 use erpx_ui_core::{Locale, ThemeMode, provide_corporate_identity, provide_locale, provide_theme};
 use erpx_ui_kit::{
@@ -22,7 +21,6 @@ use erpx_ui_kit::{
     input::Input as KitInput,
     textarea::Textarea as KitTextarea,
 };
-#[cfg(target_arch = "wasm32")]
 use serde::Deserialize;
 
 #[cfg(any(feature = "web", feature = "server"))]
@@ -554,7 +552,6 @@ fn SignIn() -> Element {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 struct AccountSessionView {
     session_id: String,
@@ -563,7 +560,6 @@ struct AccountSessionView {
     selected_role: Option<SelectedRoleView>,
 }
 
-#[cfg(target_arch = "wasm32")]
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 struct SelectedRoleView {
     role_key: String,
@@ -576,7 +572,6 @@ struct AccountsResponse {
     accounts: Vec<AccountSessionView>,
 }
 
-#[cfg(target_arch = "wasm32")]
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 struct RoleOptionView {
     selection_id: String,
@@ -592,7 +587,6 @@ struct RoleOptionsResponse {
     options: Vec<RoleOptionView>,
 }
 
-#[cfg(target_arch = "wasm32")]
 #[derive(Clone, Debug, PartialEq)]
 struct AccountsPageData {
     accounts: Vec<AccountSessionView>,
@@ -629,7 +623,6 @@ async fn activate_role(selection_id: String) -> Result<(), String> {
     crate::platform::browser_http::replace_location("/work")
 }
 
-#[cfg(target_arch = "wasm32")]
 fn role_scope_label(scope_key: &str, locale: Locale) -> &'static str {
     let scope = scope_key
         .split_once(':')
@@ -648,7 +641,6 @@ fn role_scope_label(scope_key: &str, locale: Locale) -> &'static str {
     }
 }
 
-#[cfg(target_arch = "wasm32")]
 #[component]
 fn AccountRoleCard(
     option: RoleOptionView,
@@ -687,24 +679,46 @@ fn AccountRoleCard(
     }
 }
 
-#[cfg(target_arch = "wasm32")]
 #[component]
 fn Accounts() -> Element {
     let locale = erpx_ui_core::use_locale().current();
-    let mut page = use_resource(|| async { load_accounts_page().await });
+    // Keep the first client render identical to the server shell. Starting the
+    // request in an effect prevents a fast response from changing the VDOM
+    // before Dioxus has finished hydrating the SSR route.
+    #[allow(unused_mut)]
+    let mut page = use_signal(|| None::<Result<AccountsPageData, String>>);
+    #[allow(unused_mut)]
+    let mut reload = use_signal(|| 0_u64);
+    #[cfg(target_arch = "wasm32")]
+    use_effect(move || {
+        let generation = *reload.read();
+        spawn(async move {
+            let result = load_accounts_page().await;
+            if *reload.read() == generation {
+                page.set(Some(result));
+            }
+        });
+    });
+    #[allow(unused_mut)]
     let mut pending_selection = use_signal(|| None::<String>);
+    #[allow(unused_mut)]
     let mut error = use_signal(|| None::<String>);
     let page_state = page.read().clone();
     let error_message = error.read().clone();
     let on_select = move |selection_id: String| {
-        pending_selection.set(Some(selection_id.clone()));
-        error.set(None);
-        spawn(async move {
-            if let Err(message) = activate_role(selection_id).await {
-                pending_selection.set(None);
-                error.set(Some(message));
-            }
-        });
+        #[cfg(target_arch = "wasm32")]
+        {
+            pending_selection.set(Some(selection_id.clone()));
+            error.set(None);
+            spawn(async move {
+                if let Err(message) = activate_role(selection_id).await {
+                    pending_selection.set(None);
+                    error.set(Some(message));
+                }
+            });
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = selection_id;
     };
 
     rsx! {
@@ -726,7 +740,10 @@ fn Accounts() -> Element {
                         KitButton {
                             variant: ButtonVariant::Secondary,
                             r#type: "button",
-                            onclick: move |_| page.restart(),
+                            onclick: move |_| {
+                                let next_reload = *reload.read() + 1;
+                                reload.set(next_reload);
+                            },
                             "Try again"
                         }
                     }
@@ -782,32 +799,18 @@ fn Accounts() -> Element {
                                             locale,
                                             pending: pending_selection.read().as_deref() == Some(option.selection_id.as_str()),
                                             busy: pending_selection.read().is_some(),
-                                            on_select: on_select.clone(),
+                                            on_select,
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                    p { class: "auth-page-form__security",
-                        "Role selection updates the session context before the workspace opens."
-                    }
                 },
             }
-        }
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-#[component]
-fn Accounts() -> Element {
-    rsx! {
-        document::Title { "Accounts · ERPX" }
-        article { class: "auth-page-form role-selection-dialog",
-            p { class: "eyebrow", "SESSION ACCOUNT" }
-            h2 { "Choose an account role" }
-            p { class: "auth-page-form__intro", "Loading authorized roles…" }
-            p { class: "auth-page-form__security", "This security surface is session-scoped and no-store." }
+            p { class: "auth-page-form__security",
+                "Role selection updates the session context before the workspace opens."
+            }
         }
     }
 }
