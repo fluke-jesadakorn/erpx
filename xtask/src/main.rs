@@ -4898,6 +4898,16 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
         .timeout(Duration::from_secs(5))
         .redirect(reqwest::redirect::Policy::none())
         .build()?;
+    let root = redirect_client.get("http://127.0.0.1:3004/").send().await?;
+    if root.status() != reqwest::StatusCode::TEMPORARY_REDIRECT
+        || root
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .and_then(|value| value.to_str().ok())
+            != Some("/auth/sign-in?return_to=%2Fwork")
+    {
+        return Err("anonymous root did not redirect before protected SSR".into());
+    }
     let protected = redirect_client
         .get("http://127.0.0.1:3004/finance?ignored=1")
         .send()
@@ -4939,9 +4949,14 @@ async fn verify_web_ssr_and_bff() -> TaskResult {
     }
     if !sign_in_html.contains("<form method=\"post\" action=\"/api/v2/auth/password/form\"")
         || !sign_in_html.contains("type=\"submit\"")
+        || !sign_in_html.contains("name=\"principal_ref\"")
+        || !sign_in_html.contains("name=\"password\"")
+        || !sign_in_html.contains("name=\"device_label\"")
+        || sign_in_html.contains("name=\"account\"")
+        || sign_in_html.contains("name=\"return_path\"")
     {
         return Err(
-            "SSR password form did not render an enabled same-origin submit control".into(),
+            "SSR password form did not render the exact typed BFF fields and submit control".into(),
         );
     }
     let native_form_entry = redirect_client

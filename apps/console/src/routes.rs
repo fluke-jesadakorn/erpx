@@ -181,7 +181,7 @@ pub fn App() -> Element {
 fn PublicLayout() -> Element {
     rsx! {
         div { class: "public-layout",
-            header { KitLink { href: "/", "ERPX" } }
+            header { KitLink { href: "/auth/sign-in", "ERPX" } }
             Outlet::<AppRoute> {}
         }
     }
@@ -203,6 +203,24 @@ fn AuthLayout() -> Element {
 #[component]
 fn ConsoleShell() -> Element {
     let session = use_context::<SessionBootstrapV2>();
+    if !session.authenticated {
+        return rsx! {
+            main { class: "route-denied", role: "alert",
+                h1 { "Sign in required" }
+                p { "This route requires an authenticated ERPX session." }
+                KitLink { href: "/auth/sign-in?return_to=/work", "Go to sign in" }
+            }
+        };
+    }
+    if session.role_ref.is_none() || session.tenant_ref.is_none() {
+        return rsx! {
+            main { class: "route-denied", role: "alert",
+                h1 { "Select an account role" }
+                p { "Choose an authorized tenant and role before opening a workspace." }
+                KitLink { href: "/auth/accounts", "Open accounts" }
+            }
+        };
+    }
     rsx! {
         div { class: "console-v2-shell",
             aside { class: "console-v2-nav",
@@ -490,9 +508,9 @@ fn SignIn() -> Element {
         document::Title { "Sign in · ERPX" }
         form { method: "post", action: "/api/v2/auth/password/form",
             h2 { "Sign in" }
-            label { "Account" KitInput { name: "account", autocomplete: "username" } }
+            label { "Account" KitInput { name: "principal_ref", autocomplete: "username" } }
             label { "Password" KitInput { name: "password", r#type: "password", autocomplete: "current-password" } }
-            KitInput { name: "return_path", r#type: "hidden", value: "/work" }
+            KitInput { name: "device_label", r#type: "hidden", value: "erpx-console" }
             KitButton { variant: ButtonVariant::Primary, r#type: "submit", "Continue" }
         }
     }

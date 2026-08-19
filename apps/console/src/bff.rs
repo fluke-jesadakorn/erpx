@@ -345,7 +345,8 @@ fn console_document_route_status(request: &Request) -> Option<StatusCode> {
 
 fn is_console_page_request(request: &Request) -> bool {
     (request.method() == Method::GET || request.method() == Method::HEAD)
-        && (request.uri().path() == crate::LOGIN_PATH
+        && (request.uri().path() == "/"
+            || request.uri().path() == crate::LOGIN_PATH
             || crate::is_legacy_login_path(request.uri().path())
             || crate::validated_login_return_path(request.uri().path()).is_some())
 }
@@ -355,6 +356,17 @@ fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Opti
         return None;
     }
     let path = request.uri().path();
+    if path == "/" {
+        return Some(
+            if context.snapshot.authenticated && context.snapshot.role_selection_required {
+                "/auth/accounts".to_owned()
+            } else if context.snapshot.authenticated {
+                crate::authenticated_landing_path().to_owned()
+            } else {
+                crate::login_redirect_location(crate::authenticated_landing_path())
+            },
+        );
+    }
     if crate::is_legacy_login_path(path) {
         return Some(crate::LOGIN_PATH.to_owned());
     }
@@ -371,6 +383,9 @@ fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Opti
         return None;
     }
     if context.snapshot.authenticated {
+        if context.snapshot.role_selection_required && !path.starts_with("/auth/") {
+            return Some("/auth/accounts".to_owned());
+        }
         return None;
     }
     crate::validated_login_return_path(path)
@@ -2806,6 +2821,13 @@ mod tests {
 
     #[test]
     fn console_pages_redirect_to_the_canonical_login_route() {
+        let root = Request::builder().uri("/").body(Body::empty()).unwrap();
+        assert!(is_console_page_request(&root));
+        assert_eq!(
+            console_page_redirect(&root, &BffSessionContext::signed_out()),
+            Some("/auth/sign-in?return_to=%2Fwork".to_owned())
+        );
+
         let protected = Request::builder()
             .uri("/finance?ignored=1")
             .body(Body::empty())
@@ -2878,6 +2900,18 @@ mod tests {
 
         context.snapshot.role_selection_required = true;
         assert_eq!(console_page_redirect(&request, &context), None);
+
+        let root = Request::builder().uri("/").body(Body::empty()).unwrap();
+        assert_eq!(
+            console_page_redirect(&root, &context),
+            Some("/auth/accounts".to_owned())
+        );
+
+        let protected = Request::builder().uri("/work").body(Body::empty()).unwrap();
+        assert_eq!(
+            console_page_redirect(&protected, &context),
+            Some("/auth/accounts".to_owned())
+        );
     }
 
     #[test]
